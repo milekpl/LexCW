@@ -1,0 +1,873 @@
+"""
+Dictionary service for managing dictionary entries.
+
+This module provides services for interacting with the dictionary database,
+including CRUD operations for entries, searching, and other dictionary-related operations.
+"""
+
+import logging
+import os
+import random
+from typing import Dict, List, Any, Optional, Tuple, Union
+import xml.etree.ElementTree as ET
+
+from app.database.basex_connector import BaseXConnector
+from app.database.mock_connector import MockDatabaseConnector
+from app.models.entry import Entry
+from app.parsers.lift_parser import LIFTParser, LIFTRangesParser
+from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError, ExportError
+
+
+class DictionaryService:
+    """
+    Service for managing dictionary entries.
+    
+    This class provides methods for CRUD operations on dictionary entries,
+    as well as more complex operations like searching and batch processing.
+    """
+    
+    def __init__(self, db_connector: Union[BaseXConnector, MockDatabaseConnector]):
+        """
+        Initialize a dictionary service.
+        
+        Args:
+            db_connector: Database connector for accessing the BaseX database.
+        """
+        self.db_connector = db_connector
+        self.logger = logging.getLogger(__name__)
+        self.lift_parser = LIFTParser()
+        self.ranges_parser = LIFTRangesParser()
+        self.ranges: Dict[str, Any] = {}  # Cache for ranges data
+    
+    def initialize_database(self, lift_path: str, ranges_path: Optional[str] = None) -> None:
+        """
+        Initialize the database with LIFT data. This will create a new database,
+        or replace an existing one.
+        
+        Args:
+            lift_path: Path to the LIFT file.
+            ranges_path: Optional path to the LIFT ranges file.
+            
+        Raises:
+            FileNotFoundError: If the LIFT file does not exist.
+            DatabaseError: If there is an error initializing the database.
+        """
+        try:
+            if not os.path.exists(lift_path):
+                raise FileNotFoundError(f"LIFT file not found: {lift_path}")
+
+            db_name = self.db_connector.database
+            self.logger.info("Initializing database '%s' from LIFT file: %s", db_name, lift_path)
+
+            # Drop the database if it exists, to ensure a clean start
+            if db_name in (self.db_connector.execute_query("LIST") or ""):
+                self.logger.info("Dropping existing database: %s", db_name)
+                self.db_connector.execute_update(f"DROP DB {db_name}")
+
+            # Create the database from the LIFT file
+            self.logger.info("Creating new database '%s' from %s", db_name, lift_path)
+            self.db_connector.execute_update(f'CREATE DB {db_name} "{lift_path}"')
+            
+            # Now open the newly created database for subsequent operations
+            self.db_connector.execute_update(f"OPEN {db_name}")
+
+            # Load ranges file if provided
+            if ranges_path and os.path.exists(ranges_path):
+                self.logger.info("Loading LIFT ranges file: %s", ranges_path)
+                self.ranges = self.ranges_parser.parse_file(ranges_path)
+            
+            self.logger.info("Database initialization complete")
+            
+        except Exception as e:
+            self.logger.error("Error initializing database: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to initialize database: {e}") from e
+    
+    def get_entry(self, entry_id: str) -> Entry:
+        """
+        Get an entry by ID.
+        
+        Args:
+            entry_id: ID of the entry to retrieve.
+            
+        Returns:
+            Entry object.
+            
+        Raises:
+            NotFoundError: If the entry does not exist.
+            DatabaseError: If there is an error retrieving the entry.
+        """
+        try:
+            query = f"""
+            xquery for $entry in /*[local-name()='lift']/*[local-name()='entry'][@id="{entry_id}"]
+            return $entry
+            """
+            
+            result = self.db_connector.execute_query(query)
+            
+            if not result:
+                raise NotFoundError(f"Entry not found: {entry_id}")
+            
+            # Parse the XML string into an Entry object
+            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            
+            if not entries:
+                raise NotFoundError(f"Entry not found or could not be parsed: {entry_id}")
+            
+            return entries[0]
+            
+        except NotFoundError:
+            raise
+        except Exception as e:
+            self.logger.error("Error retrieving entry %s: %s", entry_id, str(e))
+            raise DatabaseError("Failed to retrieve entry: %s" % str(e)) from e
+    
+    def create_entry(self, entry: Entry) -> str:
+        """
+        Create a new entry.
+        
+        Args:
+            entry: Entry object to create.
+            
+        Returns:
+            ID of the created entry.
+            
+        Raises:
+            ValidationError: If the entry fails validation.
+            DatabaseError: If there is an error creating the entry.
+        """
+        try:
+            # Validate the entry
+            if not entry.validate():
+                raise ValidationError("Entry validation failed")
+            
+            # Check if entry with this ID already exists
+            try:
+                existing_entry = self.get_entry(entry.id)
+                if existing_entry:
+                    raise ValidationError(f"Entry with ID {entry.id} already exists")
+            except NotFoundError:
+                pass  # Entry doesn't exist, which is what we want
+              # Generate LIFT XML for the entry
+            entry_xml_full = self.lift_parser.generate_lift_string([entry])
+            
+            # Parse the full XML and find the entry element
+            root = ET.fromstring(entry_xml_full)
+            entry_elem_ns = root.find('.//lift:entry', self.lift_parser.NSMAP)
+            if entry_elem_ns is None:
+                entry_elem_ns = root.find('.//entry') # fallback
+
+            if entry_elem_ns is None:
+                raise ValueError("Failed to find entry element in generated XML")
+
+            # Function to strip namespaces from tags for insertion
+            def strip_namespace_from_element(element):
+                for elem in element.iter():
+                    if '}' in elem.tag:
+                        elem.tag = elem.tag.split('}', 1)[1]
+                    # remove namespace definitions from attributes
+                    for key in list(elem.attrib.keys()):
+                        if '}' in key:
+                            new_key = key.split('}', 1)[1]
+                            elem.attrib[new_key] = elem.attrib.pop(key)
+                        # also remove xmlns attributes
+                        if key.startswith('xmlns'):
+                            del elem.attrib[key]
+
+            strip_namespace_from_element(entry_elem_ns)
+            
+            entry_xml = ET.tostring(entry_elem_ns, encoding='unicode')
+            
+            # Insert the entry into the database
+            query = f"""
+            xquery insert node {entry_xml} into /*[local-name()='lift']
+            """
+            
+            self.db_connector.execute_update(query)
+            
+            return entry.id
+            
+        except ValidationError:
+            raise
+        except Exception as e:
+            self.logger.error("Error creating entry: %s", str(e))
+            raise DatabaseError("Failed to create entry: %s" % str(e)) from e
+    
+    def update_entry(self, entry: Entry) -> None:
+        """
+        Update an existing entry.
+        
+        Args:
+            entry: Entry object to update.
+            
+        Raises:
+            NotFoundError: If the entry does not exist.
+            ValidationError: If the entry fails validation.
+            DatabaseError: If there is an error updating the entry.
+        """
+        try:
+            # Validate the entry
+            if not entry.validate():
+                raise ValidationError("Entry validation failed")
+            
+            # Check if entry exists
+            try:
+                self.get_entry(entry.id)
+            except NotFoundError:
+                raise NotFoundError(f"Entry not found: {entry.id}")
+              # Generate LIFT XML for the entry
+            entry_xml_full = self.lift_parser.generate_lift_string([entry])
+            
+            # Parse the full XML and find the entry element
+            root = ET.fromstring(entry_xml_full)
+            entry_elem_ns = root.find('.//lift:entry', self.lift_parser.NSMAP)
+            if entry_elem_ns is None:
+                entry_elem_ns = root.find('.//entry') # fallback
+
+            if entry_elem_ns is None:
+                raise ValueError("Failed to find entry element in generated XML")
+
+            # Function to strip namespaces from tags for insertion
+            def strip_namespace_from_element(element):
+                for elem in element.iter():
+                    if '}' in elem.tag:
+                        elem.tag = elem.tag.split('}', 1)[1]
+                    # remove namespace definitions from attributes
+                    for key in list(elem.attrib.keys()):
+                        if '}' in key:
+                            new_key = key.split('}', 1)[1]
+                            elem.attrib[new_key] = elem.attrib.pop(key)
+                        # also remove xmlns attributes
+                        if key.startswith('xmlns'):
+                            del elem.attrib[key]
+
+            strip_namespace_from_element(entry_elem_ns)
+            
+            entry_xml = ET.tostring(entry_elem_ns, encoding='unicode')
+            
+            # Update the entry in the database
+            query = f"""
+            xquery replace node /*[local-name()='lift']/*[local-name()='entry'][@id="{entry.id}"] with {entry_xml}
+            """
+            
+            self.db_connector.execute_update(query)
+            
+        except (NotFoundError, ValidationError):
+            raise
+        except Exception as e:
+            self.logger.error("Error updating entry %s: %s", entry.id, str(e))
+            raise DatabaseError("Failed to update entry: %s" % str(e)) from e
+
+    def delete_entry(self, entry_id: str) -> None:
+        """
+        Delete an entry by ID.
+        
+        Args:
+            entry_id: ID of the entry to delete.
+            
+        Raises:
+            NotFoundError: If the entry does not exist.
+            DatabaseError: If there is an error deleting the entry.
+        """
+        try:
+            # Check if entry exists
+            try:
+                self.get_entry(entry_id)
+            except NotFoundError:
+                raise NotFoundError(f"Entry not found: {entry_id}")
+            
+            # Delete the entry from the database
+            query = f"""
+            xquery delete node /*[local-name()='lift']/*[local-name()='entry'][@id="{entry_id}"]
+            """
+            
+            self.db_connector.execute_update(query)
+            
+        except NotFoundError:
+            raise
+        except Exception as e:
+            self.logger.error("Error deleting entry %s: %s", entry_id, str(e))
+            raise DatabaseError("Failed to delete entry: %s" % str(e)) from e
+
+    def list_entries(self, limit: Optional[int] = None, offset: int = 0, sort_by: str = "lexical_unit") -> Tuple[List[Entry], int]:
+        """
+        List entries.
+        
+        Args:
+            limit: Maximum number of entries to return.
+            offset: Number of entries to skip.
+            sort_by: Field to sort by (lexical_unit, id, etc.).
+            
+        Returns:
+            Tuple of (list of Entry objects, total count).
+            
+        Raises:
+            DatabaseError: If there is an error listing entries.
+        """
+        try:
+            # Get total count
+            count_query = "xquery count(//*[local-name()='entry'])"
+            
+            count_result = self.db_connector.execute_query(count_query)
+            total_count = int(count_result) if count_result else 0
+            
+            # Determine sort expression
+            if sort_by == "lexical_unit":
+                sort_expr = "sort($entry/lexical-unit/form/text)"
+            else:  # Default to id
+                sort_expr = "sort(@id)"
+            
+            # Build pagination expressions
+            pagination_expr = ""
+            if limit is not None and offset > 0:
+                pagination_expr = f"[position() > {offset} and position() <= {offset + limit}]"
+            elif limit is not None:
+                pagination_expr = f"[position() <= {limit}]"
+            elif offset > 0:
+                pagination_expr = f"[position() > {offset}]"
+            
+            # List entries
+            query = f"""
+            xquery (for $entry in /*[local-name()='lift']/*[local-name()='entry']
+            order by {sort_expr}
+            return $entry){pagination_expr}
+            """
+            
+            result = self.db_connector.execute_query(query)
+            
+            if not result:
+                return [], total_count
+            
+            # Parse the XML string into Entry objects
+            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            
+            return entries, total_count            
+        except Exception as e:
+            self.logger.error("Error listing entries: %s", str(e))
+            raise DatabaseError("Failed to list entries: %s" % str(e)) from e
+
+    def search_entries(self, 
+                      query: str, 
+                      fields: Optional[List[str]] = None,
+                      limit: Optional[int] = None,
+                      offset: Optional[int] = None) -> Tuple[List[Entry], int]:
+        """
+        Search for entries.
+        
+        Args:
+            query: Search query.
+            fields: Fields to search in (default: lexical_unit, glosses, definitions).
+            
+        Returns:
+            Tuple of (list of Entry objects, total count).
+            
+        Raises:
+            DatabaseError: If there is an error searching entries.
+        """
+        if not fields:
+            fields = ["lexical_unit", "glosses", "definitions"]
+        
+        try:
+            # Construct the search conditions
+            conditions: List[str] = []
+            
+            if "lexical_unit" in fields:
+                conditions.append(f'contains(lower-case($entry/lexical-unit/form/text), "{query.lower()}")')
+            
+            if "glosses" in fields:
+                conditions.append(f'some $gloss in $entry/sense/gloss/text satisfies contains(lower-case($gloss), "{query.lower()}")')
+            
+            if "definitions" in fields:
+                conditions.append(f'some $def in $entry/sense/definition/form/text satisfies contains(lower-case($def), "{query.lower()}")')
+            
+            search_condition = " or ".join(conditions)
+            
+            # Get total count
+            count_query = f"""
+            xquery count(for $entry in /*[local-name()='lift']/*[local-name()='entry']
+            where {search_condition}
+            return $entry)
+            """
+            
+            count_result = self.db_connector.execute_query(count_query)
+            total_count = int(count_result) if count_result else 0
+            
+            # Search entries
+            query_str = f"""
+            xquery for $entry in /*[local-name()='lift']/*[local-name()='entry']
+            where {search_condition}
+            order by $entry/lexical-unit/form/text
+            """
+            
+            # Add pagination if specified
+            if limit is not None:
+                if offset is not None and offset > 0:
+                    query_str += f" return subsequence($entry, {offset + 1}, {limit})"
+                else:
+                    query_str += f" return subsequence($entry, 1, {limit})"
+            else:
+                query_str += " return $entry"
+            
+            result = self.db_connector.execute_query(query_str)
+            
+            if not result:
+                return [], total_count
+            
+            # Parse the XML string into Entry objects
+            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            
+            return entries, total_count
+            
+        except Exception as e:
+            self.logger.error("Error searching entries: %s", str(e))
+            raise DatabaseError("Failed to search entries: %s" % str(e)) from e
+    
+    def get_entry_count(self) -> int:
+        """
+        Get the total number of entries in the dictionary.
+        
+        Returns:
+            Total number of entries.
+            
+        Raises:
+            DatabaseError: If there is an error getting the entry count.
+        """
+        try:
+            query = "xquery count(//*[local-name()='entry'])"
+            
+            result = self.db_connector.execute_query(query)
+            
+            return int(result) if result else 0
+            
+        except Exception as e:
+            self.logger.error("Error getting entry count: %s", str(e))
+            raise DatabaseError("Failed to get entry count: %s" % str(e)) from e
+    
+    def get_related_entries(self, entry_id: str, relation_type: Optional[str] = None) -> List[Entry]:
+        """
+        Get entries related to the specified entry.
+        
+        Args:
+            entry_id: ID of the entry to get related entries for.
+            relation_type: Optional type of relation to filter by.
+            
+        Returns:
+            List of related Entry objects.
+            
+        Raises:
+            NotFoundError: If the entry does not exist.
+            DatabaseError: If there is an error getting related entries.
+        """
+        try:
+            # Check if entry exists
+            try:
+                self.get_entry(entry_id)
+            except NotFoundError:
+                raise NotFoundError(f"Entry not found: {entry_id}")
+            
+            # Construct the relation condition
+            relation_condition = f'@type="{relation_type}"' if relation_type else '1=1'
+            
+            # Get related entries
+            query = f"""
+            xquery let $entry_relations := /*[local-name()='lift']/*[local-name()='entry'][@id="{entry_id}"]/relation[{relation_condition}]/@ref
+            for $related in /*[local-name()='lift']/*[local-name()='entry'][@id = $entry_relations]
+            return $related
+            """
+            
+            result = self.db_connector.execute_query(query)
+            
+            if not result:
+                return []
+            
+            # Parse the XML string into Entry objects
+            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            
+            return entries
+            
+        except NotFoundError:
+            raise
+        except Exception as e:
+            self.logger.error("Error getting related entries for %s: %s", entry_id, str(e))
+            raise DatabaseError("Failed to get related entries: %s" % str(e)) from e
+    
+    def get_entries_by_grammatical_info(self, grammatical_info: str) -> List[Entry]:
+        """
+        Get entries with the specified grammatical information.
+        
+        Args:
+            grammatical_info: Grammatical information to filter by.
+            
+        Returns:
+            List of Entry objects.
+            
+        Raises:
+            DatabaseError: If there is an error getting entries.
+        """
+        try:
+            query = f"""
+            xquery for $entry in /*[local-name()='lift']/*[local-name()='entry'][grammatical-info/@value="{grammatical_info}"]
+            return $entry
+            """
+            
+            result = self.db_connector.execute_query(query)
+            
+            if not result:
+                return []
+            
+            # Parse the XML string into Entry objects
+            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            
+            return entries
+            
+        except Exception as e:
+            self.logger.error("Error getting entries by grammatical info %s: %s", grammatical_info, str(e))
+            raise DatabaseError("Failed to get entries by grammatical info: %s" % str(e)) from e
+    
+    def count_entries(self) -> int:
+        """
+        Count the total number of entries in the dictionary.
+        
+        Returns:
+            The total number of entries.
+            
+        Raises:
+            DatabaseError: If there is an error accessing the database.
+        """
+        try:
+            query = "xquery count(//*[local-name()='entry'])"
+            result = self.db_connector.execute_query(query)
+            
+            # Convert the result to an integer
+            return int(result) if result else 0
+            
+        except Exception as e:
+            self.logger.error("Error counting entries: %s", str(e))
+            raise DatabaseError("Failed to count entries: %s" % str(e)) from e
+    
+    def count_senses_and_examples(self) -> Tuple[int, int]:
+        """
+        Count the total number of senses and examples in the dictionary.
+        
+        Returns:
+            A tuple containing (sense_count, example_count).
+            
+        Raises:
+            DatabaseError: If there is an error accessing the database.
+        """
+        try:
+            # Count senses
+            sense_query = "xquery count(//*[local-name()='sense'])"
+            sense_result = self.db_connector.execute_query(sense_query)
+            sense_count = int(sense_result) if sense_result else 0
+            
+            # Count examples
+            example_query = "xquery count(//*[local-name()='example'])"
+            example_result = self.db_connector.execute_query(example_query)
+            example_count = int(example_result) if example_result else 0
+            
+            return sense_count, example_count
+            
+        except Exception as e:
+            self.logger.error("Error counting senses and examples: %s", str(e))
+            raise DatabaseError("Failed to count senses and examples: %s" % str(e)) from e
+    
+    def import_lift(self, lift_path: str) -> int:
+        """
+        Import entries from a LIFT file into the existing database.
+        This will update existing entries and add new ones.
+        
+        Args:
+            lift_path: Path to the LIFT file.
+            
+        Returns:
+            Number of entries imported/updated.
+            
+        Raises:
+            FileNotFoundError: If the LIFT file does not exist.
+            DatabaseError: If there is an error importing the data.
+        """
+        try:
+            if not os.path.exists(lift_path):
+                raise FileNotFoundError(f"LIFT file not found: {lift_path}")
+
+            temp_db_name = f"import_{os.path.basename(lift_path).replace('.', '_')}_{random.randint(1000, 9999)}"
+            
+            try:
+                self.db_connector.execute_update(f'CREATE DB {temp_db_name} "{lift_path}"')
+                
+                total_in_file_query = f"xquery count(db:open('{temp_db_name}')//entry)"
+                total_count = int(self.db_connector.execute_query(total_in_file_query) or 0)
+
+                update_query = f"""
+                xquery
+                let $source_entries := db:open('{temp_db_name}')//entry
+                for $source_entry in $source_entries
+                let $entry_id := $source_entry/@id/string()
+                let $target_entry := doc('{self.db_connector.database}')/lift/entry[@id = $entry_id]
+                return if (exists($target_entry))
+                then replace node $target_entry with $source_entry
+                else insert node $source_entry into doc('{self.db_connector.database}')/lift
+                """
+                self.db_connector.execute_update(update_query)
+                
+                self.logger.info("Imported/updated %d entries from LIFT file", total_count)
+                return total_count
+
+            finally:
+                # Clean up the temporary database
+                if temp_db_name in (self.db_connector.execute_query("LIST") or ""):
+                    self.db_connector.execute_update(f"DROP DB {temp_db_name}")
+
+        except Exception as e:
+            self.logger.error("Error importing LIFT file: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to import LIFT file: {e}") from e
+    
+    def export_lift(self) -> str:
+        """
+        Export all entries to LIFT format by dumping the database content.
+        
+        Returns:
+            LIFT content as a string.
+            
+        Raises:
+            ExportError: If there is an error exporting the data.
+        """
+        try:
+            # Get the main document from the database (assuming it's not ranges.xml)
+            query = "xquery doc(db:list()[not(ends-with(., '.lift-ranges'))][1])"
+            lift_xml = self.db_connector.execute_query(query)
+            
+            if not lift_xml:
+                self.logger.warning("No LIFT document found in the database. Returning empty LIFT structure.")
+                return self.lift_parser.generate_lift_string([])
+
+            self.logger.info("Exported database content to LIFT format")
+            return lift_xml
+            
+        except Exception as e:
+            self.logger.error("Error exporting to LIFT format: %s", str(e), exc_info=True)
+            raise ExportError(f"Failed to export to LIFT format: {e}") from e
+    
+    def export_to_kindle(self, output_path: str, title: str = "Dictionary", 
+                       source_lang: str = "en", target_lang: str = "pl",
+                       author: str = "Dictionary Writing System", kindlegen_path: Optional[str] = None) -> str:
+        """
+        Export the dictionary to Kindle format.
+        
+        Args:
+            output_path: Path to the output directory.
+            title: Title of the dictionary.
+            source_lang: Source language code.
+            target_lang: Target language code.
+            author: Author name for the dictionary.
+            kindlegen_path: Optional path to the kindlegen executable.
+            
+        Returns:
+            Path to the exported files.
+            
+        Raises:
+            ExportError: If there is an error exporting the dictionary.
+        """
+        try:
+            from app.exporters.kindle_exporter import KindleExporter
+            
+            # Get all entries
+            entries, _ = self.list_entries()  # Get all entries
+            
+            # Create exporter
+            exporter = KindleExporter(self)
+            
+            # Export
+            output_dir = exporter.export(
+                output_path, 
+                entries, 
+                title=title, 
+                source_lang=source_lang, 
+                target_lang=target_lang, 
+                author=author,
+                kindlegen_path=kindlegen_path
+            )
+            
+            self.logger.info("Dictionary exported to Kindle format at %s", output_dir)
+            return output_dir
+            
+        except Exception as e:
+            self.logger.error("Error exporting dictionary to Kindle format: %s", str(e))
+            raise ExportError("Failed to export dictionary to Kindle format: %s" % str(e)) from e
+    
+    def export_to_sqlite(self, output_path: str, source_lang: str = "en", target_lang: str = "pl",
+                        batch_size: int = 500) -> str:
+        """
+        Export the dictionary to SQLite format for mobile apps.
+        
+        Args:
+            output_path: Path to the output SQLite database.
+            source_lang: Source language code.
+            target_lang: Target language code.
+            batch_size: Number of entries to process in each batch.
+            
+        Returns:
+            Path to the exported SQLite database.
+            
+        Raises:
+            ExportError: If there is an error exporting the dictionary.
+        """
+        try:
+            from app.exporters.sqlite_exporter import SQLiteExporter
+            
+            # Get all entries
+            entries, _ = self.list_entries()  # Get all entries
+            
+            # Create exporter
+            exporter = SQLiteExporter(self)
+            
+            # Export
+            output_file = exporter.export(
+                output_path, 
+                entries, 
+                source_lang=source_lang, 
+                target_lang=target_lang, 
+                batch_size=batch_size
+            )
+            
+            self.logger.info("Dictionary exported to SQLite format at %s", output_file)
+            return output_file
+            
+        except Exception as e:
+            self.logger.error("Error exporting dictionary to SQLite format: %s", str(e))
+            raise ExportError("Failed to export dictionary to SQLite format: %s" % str(e)) from e
+
+    def create_or_update_entry(self, entry: Entry) -> str:
+        """
+        Create a new entry or update an existing one.
+        
+        Args:
+            entry: Entry object to create or update.
+            
+        Returns:
+            ID of the created or updated entry.
+            
+        Raises:
+            ValidationError: If the entry fails validation.
+            DatabaseError: If there is an error creating or updating the entry.
+        """
+        try:
+            # Check if entry exists
+            try:
+                self.get_entry(entry.id)
+                # Entry exists, update it
+                self.update_entry(entry)
+                return entry.id
+            except NotFoundError:
+                # Entry doesn't exist, create it
+                return self.create_entry(entry)
+        except (ValidationError, DatabaseError):
+            raise
+        except Exception as e:
+            self.logger.error("Error creating or updating entry %s: %s", entry.id, str(e))
+            raise DatabaseError("Failed to create or update entry: %s" % str(e)) from e
+    
+    def export_to_lift(self, output_path: str) -> None:
+        """
+        Export all entries to a LIFT file.
+        
+        Args:
+            output_path: Path to the output LIFT file.
+            
+        Raises:
+            ExportError: If there is an error exporting the data.
+        """
+        try:
+            # Get all entries
+            lift_content = self.export_lift()
+            
+            # Write to file
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(lift_content)
+            
+            self.logger.info("LIFT file exported to %s", output_path)
+            
+        except Exception as e:
+            self.logger.error("Error exporting LIFT file: %s", str(e))
+            raise ExportError("Failed to export LIFT file: %s" % str(e)) from e
+    
+    def get_ranges(self) -> Dict[str, Any]:
+        """
+        Get the ranges data for the dictionary.
+        
+        Returns:
+            Dictionary containing ranges data.
+            
+        Raises:
+            DatabaseError: If there is an error getting the ranges.
+        """
+        try:
+            # Check if ranges are cached
+            if self.ranges:
+                return self.ranges
+            
+            # Try to get ranges from database
+            query = """
+            xquery /*[local-name()='lift-ranges']
+            """
+            
+            result = self.db_connector.execute_query(query)
+            
+            if result:
+                # Parse ranges data (placeholder - would need proper parsing)
+                self.ranges = {"ranges": {"data": result}}
+            else:
+                # Return empty ranges structure
+                self.ranges = {"ranges": {}}
+            
+            return self.ranges
+            
+        except Exception as e:
+            self.logger.error("Error getting ranges: %s", str(e))
+            # Return empty ranges on error
+            return {"ranges": {}}
+    
+    def get_range_values(self, range_id: str) -> List[Dict[str, Any]]:
+        """
+        Get the values for a specific range.
+        
+        Args:
+            range_id: ID of the range.
+            
+        Returns:
+            List of range values.
+            
+        Raises:
+            NotFoundError: If the range does not exist.
+            DatabaseError: If there is an error getting the range values.
+        """
+        try:
+            # Get ranges
+            ranges = self.get_ranges()
+            
+            # Look for the specific range
+            if "ranges" in ranges and range_id in ranges["ranges"]:
+                range_data = ranges["ranges"][range_id]
+                if isinstance(range_data, list):
+                    return range_data
+                elif isinstance(range_data, dict) and "values" in range_data:
+                    return range_data["values"]
+            
+            # Try to query the database directly
+            query = f"""
+            xquery /*[local-name()='lift-ranges']/*[local-name()='range'][@id="{range_id}"]/*[local-name()='range-element']
+            """
+            
+            result = self.db_connector.execute_query(query)
+            
+            if not result:
+                raise NotFoundError(f"Range not found: {range_id}")
+            
+            # Parse range elements (placeholder - would need proper parsing)
+            return [{"id": range_id, "value": result}]
+            
+        except NotFoundError:
+            raise
+        except Exception as e:
+            self.logger.error("Error getting range values for %s: %s", range_id, str(e))
+            raise DatabaseError("Failed to get range values: %s" % str(e)) from e

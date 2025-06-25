@@ -1,0 +1,1347 @@
+# Dictionary Writing System Specification
+
+## 1. Introduction
+
+### 1.1 Purpose
+
+This document outlines the specifications for a Flask-based Dictionary Writing System (DWS) designed to interact with a BaseX XML database for managing large-scale lexicographic data in the LIFT format. The system aims to provide a fast, mobile-friendly interface for dictionary management with extensive customization options and advanced linguistic functionalities.
+
+### 1.2 Background
+
+The current workflow relies on SIL Fieldworks Explorer (Flex), which has become inadequate for managing a large lexicon containing over 153,000 entries. Performance issues necessitate moving to a dedicated hierarchical database solution with optimized operations for large datasets.
+
+### 1.3 Project Scope
+
+The system will:
+
+- Provide a responsive web interface for dictionary management
+- Connect to a BaseX XML database for LIFT file operations
+- Support all standard lexicographic operations
+- Include specialized tools for linguistic analysis and data enrichment
+- Enable batch import/export functionality
+- Support semantic relation management
+- Allow extensive customization of input and output
+
+## 2. System Architecture
+
+### 2.1 Overview
+
+The system will be built using a three-tier architecture:
+
+1. **Frontend**: Flask-based responsive web application
+2. **Backend**: Python API for business logic and data processing
+3. **Database**: BaseX XML database for storing the LIFT format dictionary
+
+### 2.2 Technology Stack
+
+- **Frontend**: Flask, JavaScript, Bootstrap (for responsive design)
+- **Backend**: Python 3.x
+- **Database**: BaseX XML database
+- **API**: RESTful API for communication between frontend and backend
+- **Authentication**: JWT-based authentication
+
+### 2.3 System Components
+
+1. **User Interface Layer**
+   - Responsive web interface
+   - Mobile-friendly design
+   - Customizable layouts
+
+2. **Application Layer**
+   - Dictionary management services
+   - Import/Export services
+   - Analysis tools
+   - Search and filter services
+
+3. **Data Access Layer**
+   - BaseX XML database connector
+   - LIFT format parser/generator
+   - Cache management for improved performance
+
+## 3. Functional Requirements
+
+### 3.1 Dictionary Management
+
+#### 3.1.1 Entry Management
+
+- Create, read, update, and delete dictionary entries
+- Support for all LIFT format features and attributes
+- Bulk operations for multiple entries
+- Version history and change tracking
+- Support for multimedia attachments (images, audio)
+
+#### 3.1.2 Semantic Relations
+
+- Define and manage semantic relations between entries
+- Support for hierarchical relations (hypernyms, hyponyms)
+- Support for associative relations (synonyms, antonyms, etc.)
+- Visual representation of semantic networks
+- Circular reference detection and prevention
+
+#### 3.1.3 Grammatical Information
+
+- Support for all grammatical categories defined in the LIFT ranges
+- Customizable part-of-speech hierarchies
+- Morphological analysis and generation
+- Cross-linguistic grammatical mapping
+- **Noun Countability Classification**:
+  - Integration with trained countability models
+  - Automatic suggestion of countability for nouns
+  - Countability tags for dictionary entries (countable, uncountable, both)
+  - Statistical confidence scoring for suggested classifications
+
+#### 3.1.4 Pronunciation Management
+
+- **IPA Pronunciation**:
+  - Storage and management of IPA transcriptions
+  - Validation against admissible character sets and patterns
+  - Support for British and American pronunciation variants
+  - Bulk pronunciation update and validation
+
+- **Text-to-Speech Integration**:
+  - Google Cloud TTS integration for audio generation
+  - Local storage of generated audio files
+  - Batch processing for pronunciation audio
+  - Audio playback in the UI
+
+- **Pronunciation Validation**:
+  - Character-level validation against IPA standard
+  - Sequence validation for admissible character pairs
+  - Error detection and suggestion system
+  - Visual highlighting of problematic sequences
+
+#### 3.1.5 Examples and Sense Management
+
+- **Example Association**:
+  - Automated tools for attaching standalone examples to appropriate senses
+  - Batch processing for example reorganization
+  - NLP-based example classification to suggest appropriate sense mappings
+  - Tracking of orphaned examples and suggestions for incorporation
+
+- **Sense Mapping and Completeness**:
+  - WordNet sense mapping for completeness verification
+  - Automatic detection of missing senses compared to reference resources
+  - Sense alignment tools with statistical confidence scoring
+  - Sense hierarchy visualization and management
+
+- **LLM-Assisted Example Organization**:
+  - Specialized LLM-based tools for sense disambiguation
+  - Example context analysis to determine appropriate sense attachment
+  - Batch verification of example-to-sense mapping accuracy
+  - Interactive review interface for ambiguous cases
+
+### 3.2 Search and Browse
+
+#### 3.2.1 Basic Search
+
+- Full-text search across all fields
+- Advanced filtering by field values
+- Support for regular expressions
+- Phonetic search capabilities
+
+#### 3.2.2 Advanced Search
+
+- Compound search with multiple criteria
+- Search within search results
+- Save and load search queries
+- Export search results
+
+#### 3.2.3 Browse Interface
+
+- Alphabetical browsing
+- Browsing by semantic domain
+- Browsing by grammatical category
+- Customizable browse views
+
+### 3.3 Data Import/Export
+
+#### 3.3.1 Import Capabilities
+
+- Import from LIFT format
+- Import from custom YAML format
+- Import from JSON format
+- Import from SFM format
+- Validation of imported data
+- Circular reference detection and resolution
+
+#### 3.3.2 Export Capabilities
+
+- **Kindle Dictionary Export**:
+  - Generation of Kindle-compatible dictionary format (.opf, .mobi)
+  - Support for Kindle indexing features (inflection forms)
+  - Custom formatting and styling options
+  - Automatic generation of front and back matter
+  - Pronunciation guides using IPA notation
+  - Cover image and metadata customization
+
+- **Flutter Mobile App Export**:
+  - SQLite database generation optimized for mobile performance
+  - Compression of data for smaller app footprint
+  - Indexing structure for fast mobile search
+  - Support for offline usage and incremental updates
+  - Schema designed for Flutter application compatibility
+
+- **Standard Export Formats**:
+  - Export to LIFT format for interoperability
+  - Export to custom formats (YAML, JSON, TSV)
+  - Selective export based on criteria
+  - Export templates for different purposes
+
+#### 3.3.3 Batch Processing
+
+- Scheduled batch operations
+- Progress tracking for long-running operations
+- Error handling and reporting
+- Automated validation before and after processing
+
+### 3.4 Analysis Tools
+
+#### 3.4.1 Duplicate Detection
+
+- Multi-criteria duplicate finding
+- Configurable similarity thresholds
+- Batch merge operations
+
+#### 3.4.2 Statistical Analysis
+
+- Frequency analysis
+- Anomaly detection
+- Distribution reports
+- Completeness assessment
+
+### 3.4.3 Linguistic Analysis
+
+- **Pronunciation Modeling**:
+  - IPA transcription generation using transformer models
+  - Validation against phonological rules
+  - Integration with Google Cloud TTS for audio verification
+  - Storage and management of pronunciation data separate from core dictionary
+
+- **POS and Grammatical Analysis**:
+  - POS tagging and verification
+  - Noun countability classification using trained models
+  - Grammatical feature prediction
+  - Cross-linguistic feature mapping
+
+- **Semantic Analysis**:
+  - Example sentence analysis
+  - Compound word analysis
+  - Sense disambiguation
+  - Usage pattern detection
+
+### 3.5 Integration with LLMs
+
+#### 3.5.1 LLM-Generated Content
+
+- Example sentence generation
+- Definition enhancement
+- Translation suggestions
+- Semantic domain classification
+
+#### 3.5.2 LLM Integration
+
+- **API Integration**:
+  - Integration with OpenAI and other LLM providers
+  - Local models support for privacy-sensitive operations
+  - Batch processing of entries with LLMs
+  - Optimized token usage with customized prompting strategies
+
+- **Example and Sense Processing**:
+  - Specialized prompting for example-to-sense allocation
+  - Sense disambiguation capabilities
+  - Customized formatting for different LLM services
+  - Confidence scoring for suggested assignments
+
+- **Resource-Aware Processing**:
+  - Offline batch processing for computationally intensive tasks
+  - Queue management for LLM API calls
+  - Local execution options for resource-intensive operations
+  - API throttling and cost management strategies
+
+## 4. Non-Functional Requirements
+
+### 4.1 Performance
+
+#### 4.1.1 Response Time
+
+- Page load time under 2 seconds
+- Search results returned in under 1 second
+- Bulk operations optimized for large datasets
+
+#### 4.1.2 Scalability
+
+- Support for dictionaries with 200,000+ entries
+- Horizontal scaling capabilities
+- Caching mechanisms for frequently accessed data
+
+### 4.2 Usability
+
+#### 4.2.1 User Interface
+
+- Intuitive navigation
+- Customizable layouts
+- Keyboard shortcuts for common operations
+- Dark/light mode support
+
+#### 4.2.2 Accessibility
+
+- WCAG 2.1 AA compliance
+- Screen reader compatibility
+- Support for high-contrast modes
+
+### 4.3 Security
+
+#### 4.3.1 Authentication and Authorization
+
+- Role-based access control
+- Secure authentication
+- Session management
+
+#### 4.3.2 Data Protection
+
+- Encrypted data storage
+- Regular automated backups
+- Audit logging of all changes
+
+### 4.4 Reliability
+
+#### 4.4.1 Availability
+
+- 99.9% uptime
+- Graceful degradation under load
+- Automatic recovery from failures
+
+#### 4.4.2 Data Integrity
+
+- Transaction support for all operations
+- Validation of all user inputs
+- Conflict resolution for concurrent edits
+
+#### 4.4.3 Backup and Rollback
+
+- **Comprehensive Backup System**:
+  - Automated incremental backups of the entire database
+  - Configurable backup schedule (hourly, daily, weekly)
+  - Backup versioning with retention policies
+  - Compression and encryption options for backups
+  - External storage support (cloud, network drives)
+
+- **Fine-grained Rollback Capabilities**:
+  - Transaction-level rollback for individual operations
+  - Session-level rollback for user editing sessions
+  - Point-in-time recovery options
+  - Selective rollback for specific entries or changes
+  - Visual diff and merge tools for resolving conflicts
+
+- **Audit and Recovery**:
+  - Complete audit trail of all changes
+  - User activity logging
+  - Change history visualization
+  - Disaster recovery procedures
+  - Testing and verification of backup integrity
+
+## 5. Database Design
+
+### 5.1 BaseX Configuration
+
+BaseX is an XML database management system optimized for storing, querying, and managing hierarchical XML data, making it ideal for LIFT format dictionaries. The configuration will include:
+
+- **Optimized XML Indexing**:
+  - Value indexes for fast text-based searches
+  - Full-text indexes with custom tokenization for linguistic searches
+  - Path indexes for efficient XPath/XQuery performance
+  - Custom indexes for frequently accessed elements (e.g., headwords, parts of speech)
+
+- **Performance Tuning**:
+  - Database splitting by initial letters to improve query performance on large datasets
+  - Memory allocation optimization for handling 200,000+ entries
+  - Query optimization and caching for common search patterns
+  - Compression settings to reduce storage requirements while maintaining performance
+
+- **Concurrency Management**:
+  - Lock management for multi-user editing scenarios
+  - Transaction isolation levels to prevent data corruption
+  - Connection pooling for efficient resource utilization
+
+- **Integration Features**:
+  - REST API configuration for external access
+  - WebDAV for alternative file access
+  - XSLT processing for transformation tasks
+
+### 5.2 LIFT Schema Integration
+
+- Support for standard LIFT schema
+- Custom extensions for project-specific needs
+- Schema validation for data integrity
+- Automated validation against the LIFT schema during import and update operations
+
+### 5.3 Caching Strategy
+
+- In-memory caching for frequently accessed data
+- Query result caching
+- Cache invalidation strategies
+- Tiered caching architecture (memory, disk, distributed)
+
+## 6. User Interface Design
+
+### 6.1 Layout
+
+- Responsive design for all screen sizes
+- Split-pane interface for efficient editing
+- Collapsible panels for advanced features
+
+### 6.2 Entry Editor
+
+- Rich text editing capabilities
+- Inline validation of entries
+- Auto-save functionality
+- Side-by-side comparison view
+
+### 6.3 Search Interface
+
+- Instant search results
+- Faceted search navigation
+- Visual query builder
+- Search history
+
+### 6.4 Dashboard
+
+- Customizable widgets
+- Progress tracking
+- Recent activities
+- System status
+
+## 7. API Design
+
+### 7.1 RESTful Endpoints
+
+#### 7.1.1 Core API Endpoints
+
+- **Entry Management**:
+  - `GET /api/entries` - List entries with filtering options
+  - `GET /api/entries/{id}` - Get specific entry
+  - `POST /api/entries` - Create new entry
+  - `PUT /api/entries/{id}` - Update existing entry
+  - `DELETE /api/entries/{id}` - Delete entry
+
+- **Search and Filter**:
+  - `GET /api/search` - Full-text search with advanced parameters
+  - `GET /api/browse/{criteria}` - Browse by alphabet, category, etc.
+  - `GET /api/filter` - Filter entries by multiple criteria
+
+- **Batch Operations**:
+  - `POST /api/batch/import` - Import batch of entries
+  - `GET /api/batch/export` - Export selected entries
+  - `POST /api/batch/update` - Update multiple entries
+
+#### 7.1.2 Specialized API Endpoints
+
+- **Pronunciation Services**:
+  - `POST /api/pronunciation/tts` - Generate TTS audio using Google Cloud
+  - `GET /api/pronunciation/{word}` - Get existing pronunciation data
+  - `PUT /api/pronunciation/{word}` - Update pronunciation
+  - `POST /api/pronunciation/validate` - Validate IPA pronunciation against rules
+
+- **External Services Integration**:
+  - `POST /api/services/google-cloud-tts` - Direct interface to Google Cloud TTS
+  - `GET /api/services/models/countability` - Access trained countability model
+  - `POST /api/services/analyze` - Process text with NLP services
+
+- **Advanced Linguistic Services**:
+  - `POST /api/linguistic/relations` - Manage semantic relations
+  - `GET /api/linguistic/analysis/{type}` - Get linguistic analysis
+  - `POST /api/linguistic/validation` - Validate linguistic data
+
+#### 7.1.3 Example and Sense Management
+
+- **Example Operations**:
+  - `POST /api/examples/allocate` - Assign examples to appropriate senses
+  - `GET /api/examples/orphaned` - List examples without sense attachment
+  - `POST /api/examples/batch-process` - Process multiple examples
+  - `POST /api/examples/validate` - Validate example-to-sense relationships
+
+- **Sense Management**:
+  - `GET /api/senses/wordnet-map` - Get WordNet mappings for senses
+  - `GET /api/senses/completeness` - Check sense coverage vs reference sources
+  - `POST /api/senses/suggest` - Get suggestions for missing senses
+  - `POST /api/senses/reorganize` - Reorganize sense hierarchy
+
+- **Computational Resource Management**:
+  - `POST /api/tasks/offload` - Move intensive task to local processing
+  - `GET /api/tasks/status` - Check status of running tasks
+  - `POST /api/tasks/sync` - Synchronize results back to main database
+
+### 7.2 Authentication
+
+- JWT-based authentication
+- API key management
+- Rate limiting
+
+### 7.3 Documentation
+
+- Interactive API documentation (Swagger/OpenAPI)
+- Code examples
+- SDKs for common languages
+
+## 8. Deployment
+
+### 8.1 Installation
+
+- Docker containerization
+- Dependency management
+- Configuration management
+- Oracle Free Tier deployment guidelines
+
+### 8.2 Infrastructure
+
+- **Oracle Free Tier Optimization**:
+  - Resource allocation strategies for BaseX and Flask
+  - Memory management for constrained environments
+  - Performance tuning for Oracle Cloud infrastructure
+  - Caching strategies to minimize computational costs
+
+- **Distributed Processing**:
+  - Offloading computationally intensive tasks to local environment
+  - API design for hybrid cloud/local processing
+  - Asynchronous job processing for resource-intensive operations
+  - Result synchronization between cloud and local environments
+
+### 8.3 Updates
+
+- Rolling updates without downtime
+- Database migration strategies
+- Backwards compatibility
+
+### 8.3 Monitoring
+
+- Performance monitoring
+- Error tracking
+- Usage analytics
+
+## 9. Migration Strategy
+
+### 9.1 Data Migration
+
+- Incremental migration from Flex
+- Data validation during migration
+- Rollback capabilities
+
+### 9.2 Process Migration
+
+- Parallel operation during transition
+- User training
+- Gradual feature adoption
+
+## 10. Integration with Existing Tools
+
+### 10.1 Flex Integration
+
+- Import/export compatibility
+- Synchronization options
+- Feature parity assessment
+
+### 10.2 Script Adaptation
+
+- **Porting of Existing Python Scripts**:
+  - Migration of FLExTools scripts to the new system architecture
+  - Adaptation from Flex object model to LIFT/BaseX data model
+  - Performance optimization of existing algorithms
+  - Integration with the new UI framework
+
+- **Enhanced Validation**:
+  - Complex validation rules implementation (circular references, consistency checks)
+  - Statistical anomaly detection
+  - Linguistic pattern verification
+  - Cross-reference integrity checking
+
+- **Advanced Processing**:
+  - Integration of existing NLP pipelines
+  - Adaptation of pronunciation modeling tools
+  - Porting of example association algorithms
+  - Enhanced compound analysis tools
+
+### 10.3 Examples and Senses Migration
+
+- **Example Association Tools**:
+  - Conversion of standalone examples to sense-attached examples
+  - Batch processing tools for large-scale example reorganization
+  - Statistical models for assigning examples to appropriate senses
+  - Progress tracking and validation for migration completeness
+
+- **WordNet Integration**:
+  - Mapping of dictionary senses to WordNet synsets
+  - Gap identification for missing senses
+  - Automated suggestions for sense hierarchy organization
+  - Verification tools for semantic coverage
+
+## 11. Future Enhancements
+
+### 11.1 Collaboration Features
+
+- Multi-user editing
+- Commenting and discussion
+- Workflow management
+
+### 11.2 Advanced Analytics
+
+- Machine learning for anomaly detection
+- Pattern recognition in language data
+- Automatic relation suggestion
+
+### 11.3 Publishing
+
+- Additional publishing formats beyond Kindle and Flutter
+- Print-ready PDF output
+- Web dictionary generation
+- Integration with third-party publishing platforms
+
+## 12. Implementation Plan
+
+### 12.1 Phase 1: Core Functionality
+
+- Database setup and configuration
+- Basic CRUD operations
+- Simple search functionality
+- User authentication
+
+### 12.2 Phase 2: Advanced Features
+
+- Advanced search and filtering
+- Batch operations
+- Analysis tools
+- Import/export capabilities
+
+### 12.3 Phase 3: Optimization and Enhancement
+
+- Performance tuning
+- Mobile optimization
+- LLM integration
+- Advanced customization
+
+## 13. Glossary
+
+- **LIFT**: Lexicon Interchange Format, an XML standard for lexical data
+- **Flex**: FieldWorks Language Explorer, a tool for language documentation
+- **BaseX**: XML database optimized for hierarchical data
+- **LLM**: Large Language Model
+
+## 14. Appendices
+
+### 14.1 LIFT Format Reference
+
+- XML schema
+- Element descriptions
+- Range definitions
+
+### 14.2 Example API Calls
+
+- Entry creation
+- Search operations
+- Batch processing
+
+### 14.4 IPA Character Sets and Validation Rules
+
+The following defines the admissible IPA characters and sequences for pronunciation validation:
+
+#### 14.4.1 Primary IPA Symbols
+
+- Vowels: `ɑ æ ɒ ə ɜ ɪ i ʊ u ʌ e ɛ o ɔ`
+- Length markers: `ː`
+- Consonants: `b d f g h j k l m n p r s t v w z ð θ ŋ ʃ ʒ tʃ dʒ`
+- Stress markers: `ˈ ˌ`
+- Special symbols: `ᵻ`
+
+#### 14.4.2 Valid Diphthongs
+
+- `eɪ aɪ ɔɪ əʊ aʊ ɪə eə ʊə oʊ`
+
+#### 14.4.3 Invalid Character Sequences
+
+- Double stress markers: `ˈˈ ˌˌ ˈˌ ˌˈ`
+- Invalid consonant clusters: [list to be compiled from data]
+- Other phonotactic constraints specific to English
+
+#### 14.4.4 Dialect-Specific Rules
+
+- British English specific patterns
+- American English specific patterns
+- Allowable dialectal variations
+
+## 15. Testing Strategy
+
+### 15.1 Testing Approach
+
+#### 15.1.1 Testing Levels
+
+- **Unit Testing**: Testing individual components and functions in isolation
+- **Integration Testing**: Testing interactions between components
+- **System Testing**: Testing the application as a whole
+- **Performance Testing**: Testing system performance under various conditions
+- **User Acceptance Testing**: Testing with real users and real-world scenarios
+
+#### 15.1.2 Testing Frameworks and Tools
+
+- **Python Testing**:
+  - PyTest for unit and integration testing
+  - Coverage.py for test coverage measurement
+  - Hypothesis for property-based testing
+  - tox for testing across multiple Python environments
+
+- **Frontend Testing**:
+  - Jest for JavaScript unit testing
+  - Selenium for browser automation testing
+  - Cypress for end-to-end testing
+
+- **API Testing**:
+  - Postman for manual API testing
+  - Pytest-httpx for API mocking and testing
+  - Locust for API load testing
+
+- **Database Testing**:
+  - BaseX test suite for XML database testing
+  - Mock databases for isolated testing
+
+### 15.2 Unit Testing Plan
+
+#### 15.2.1 Core Components Testing
+
+- **LIFT Parser/Generator**:
+  - Test parsing of valid LIFT files
+  - Test handling of malformed XML
+  - Test generation of LIFT files
+  - Test round-trip conversions (parse → modify → generate)
+
+- **BaseX Connector**:
+  - Test connection establishment
+  - Test query execution
+  - Test transaction management
+  - Test error handling and recovery
+
+- **Dictionary Entry Model**:
+  - Test entry creation and validation
+  - Test sense management
+  - Test example association
+  - Test semantic relations
+
+#### 15.2.2 Feature-Specific Testing
+
+- **Search and Filter**:
+  - Test basic search functionality
+  - Test advanced search with multiple criteria
+  - Test regular expression searches
+  - Test phonetic search algorithms
+  - Test search result pagination and sorting
+
+- **Import/Export**:
+  - Test LIFT import with various file sizes
+  - Test Kindle dictionary export
+  - Test Flutter SQLite export
+  - Test custom format exports
+  - Test incremental import/export
+
+- **Pronunciation Management**:
+  - Test IPA validation rules
+  - Test TTS integration
+  - Test pronunciation audio storage
+  - Test British vs. American pronunciation variants
+
+- **Examples and Sense Management**:
+  - Test example-to-sense allocation
+  - Test orphaned example detection
+  - Test WordNet sense mapping
+  - Test sense completeness verification
+
+#### 15.2.3 API Testing
+
+- **Entry Management Endpoints**:
+  - Test CRUD operations
+  - Test error handling
+  - Test authorization
+  - Test concurrent operations
+
+- **Batch Operations**:
+  - Test large dataset processing
+  - Test progress tracking
+  - Test error recovery
+  - Test transaction integrity
+
+- **Specialized Endpoints**:
+  - Test pronunciation services
+  - Test linguistic analysis endpoints
+  - Test computational resource management
+
+### 15.3 Integration Testing
+
+#### 15.3.1 Component Integration
+
+- **Frontend-Backend Integration**:
+  - Test UI components with actual API calls
+  - Test form submissions and data retrieval
+  - Test error handling and display
+  - Test state management
+
+- **Backend-Database Integration**:
+  - Test database performance with large datasets
+  - Test query optimization
+  - Test transaction management across components
+  - Test cache invalidation
+
+- **External Services Integration**:
+  - Test Google Cloud TTS integration
+  - Test LLM service integration
+  - Test authentication with external systems
+  - Test error handling for external service failures
+
+#### 15.3.2 Workflow Testing
+
+- **Dictionary Management Workflows**:
+  - Test complete entry creation workflow
+  - Test batch import and validation workflow
+  - Test export and publication workflow
+  - Test error recovery workflows
+
+- **Analysis Workflows**:
+  - Test duplicate detection and resolution
+  - Test example allocation workflow
+  - Test sense mapping and verification
+  - Test pronunciation generation and validation
+
+### 15.4 Performance Testing
+
+#### 15.4.1 Load Testing
+
+- Test system performance with varying numbers of concurrent users
+- Test database performance with large dictionaries (200,000+ entries)
+- Test search performance with complex queries
+- Test batch operation performance
+
+#### 15.4.2 Resource Utilization
+
+- Test memory usage under various operations
+- Test CPU utilization for intensive tasks
+- Test network bandwidth usage
+- Test storage requirements and growth patterns
+
+#### 15.4.3 Response Time
+
+- Test page load times across different views
+- Test API response times
+- Test search result delivery times
+- Test batch operation completion times
+
+### 15.5 Test Automation and CI/CD
+
+#### 15.5.1 Continuous Integration
+
+- Automated test execution on every commit
+- Test coverage reporting
+- Code quality analysis
+- Build verification
+
+#### 15.5.2 Continuous Deployment
+
+- Deployment pipeline testing
+- Database migration testing
+- Rollback testing
+- Zero-downtime deployment testing
+
+### 15.6 Test Documentation
+
+#### 15.6.1 Test Cases
+
+- Detailed test case descriptions
+- Test data preparation guidelines
+- Expected results documentation
+- Edge case identification and testing
+
+#### 15.6.2 Test Reports
+
+- Test execution summaries
+- Code coverage reports
+- Performance test results
+- Regression test reports
+
+### 15.7 Testing Schedule
+
+- Unit testing during component development
+- Integration testing during feature completion
+- System testing before milestone releases
+- Performance testing before production deployment
+- Continuous regression testing throughout development
+
+## 16. Example Test Cases
+
+The following section provides example test cases for key components of the system. These test cases serve as templates for developing the full test suite.
+
+### 16.1 LIFT Parser Unit Tests
+
+```python
+import pytest
+from app.parsers.lift_parser import LIFTParser
+
+class TestLIFTParser:
+    
+    def test_parse_valid_lift_file(self):
+        """Test parsing a valid LIFT file with standard elements."""
+        parser = LIFTParser()
+        entries = parser.parse("tests/fixtures/valid_lift_file.lift")
+        
+        assert entries is not None
+        assert len(entries) > 0
+        # Verify the first entry has expected structure
+        assert "id" in entries[0]
+        assert "lexical_unit" in entries[0]
+    
+    def test_parse_lift_with_multiple_senses(self):
+        """Test parsing entries with multiple senses."""
+        parser = LIFTParser()
+        entries = parser.parse("tests/fixtures/multiple_senses.lift")
+        
+        # Find entry with multiple senses
+        multi_sense_entry = next(e for e in entries if len(e.get("senses", [])) > 1)
+        assert multi_sense_entry is not None
+        assert len(multi_sense_entry["senses"]) > 1
+        # Verify each sense has required properties
+        for sense in multi_sense_entry["senses"]:
+            assert "id" in sense
+            assert "gloss" in sense
+    
+    def test_parse_lift_with_examples(self):
+        """Test parsing entries with examples."""
+        parser = LIFTParser()
+        entries = parser.parse("tests/fixtures/entries_with_examples.lift")
+        
+        # Find entry with examples
+        entry_with_examples = next(e for e in entries if any("examples" in s for s in e.get("senses", [])))
+        assert entry_with_examples is not None
+        
+        # Find sense with examples
+        sense_with_examples = next(s for s in entry_with_examples["senses"] if "examples" in s)
+        assert len(sense_with_examples["examples"]) > 0
+        
+        # Verify example structure
+        example = sense_with_examples["examples"][0]
+        assert "form" in example
+        assert "translation" in example
+    
+    def test_parse_malformed_lift(self):
+        """Test error handling for malformed LIFT file."""
+        parser = LIFTParser()
+        
+        with pytest.raises(Exception) as excinfo:
+            parser.parse("tests/fixtures/malformed_lift.lift")
+        
+        assert "XML parsing error" in str(excinfo.value)
+```
+
+### 16.2 BaseX Connector Tests
+
+```python
+import pytest
+from unittest.mock import patch, MagicMock
+from app.database.basex_connector import BaseXConnector
+
+class TestBaseXConnector:
+    
+    @pytest.fixture
+    def mock_basex_session(self):
+        """Fixture for mocking BaseX session."""
+        with patch("app.database.basex_connector.BaseXSession") as mock_session:
+            # Configure the mock
+            mock_instance = MagicMock()
+            mock_session.return_value = mock_instance
+            
+            # Mock successful query response
+            mock_instance.execute.return_value = "<result>Test Result</result>"
+            
+            yield mock_instance
+    
+    def test_connect(self, mock_basex_session):
+        """Test successful connection to BaseX."""
+        connector = BaseXConnector(host="localhost", port=1984, 
+                                  username="admin", password="admin")
+        
+        assert connector.connect() == True
+        mock_basex_session.assert_called_once()
+    
+    def test_execute_query(self, mock_basex_session):
+        """Test executing XQuery against BaseX."""
+        connector = BaseXConnector(host="localhost", port=1984, 
+                                  username="admin", password="admin")
+        connector.connect()
+        
+        result = connector.execute_query("//entry[@id='test_id']")
+        
+        assert result == "<result>Test Result</result>"
+        mock_basex_session.execute.assert_called_with("//entry[@id='test_id']")
+    
+    def test_transaction(self, mock_basex_session):
+        """Test transaction management."""
+        connector = BaseXConnector(host="localhost", port=1984, 
+                                  username="admin", password="admin")
+        connector.connect()
+        
+        with connector.transaction():
+            connector.execute_query("update insert <new/> into /entries")
+            connector.execute_query("update value /entries/entry[1]/@id with 'new_id'")
+        
+        # Verify transaction commands were executed
+        assert mock_basex_session.execute.call_count == 3  # begin + 2 queries + commit
+        
+        # Verify begin and commit were called
+        assert any("begin" in str(call) for call in mock_basex_session.execute.call_args_list)
+        assert any("commit" in str(call) for call in mock_basex_session.execute.call_args_list)
+    
+    def test_transaction_rollback(self, mock_basex_session):
+        """Test transaction rollback on error."""
+        connector = BaseXConnector(host="localhost", port=1984, 
+                                  username="admin", password="admin")
+        connector.connect()
+        
+        # Configure mock to raise exception on second query
+        mock_basex_session.execute.side_effect = [
+            "OK",  # begin transaction
+            Exception("Query error"),  # first query fails
+        ]
+        
+        try:
+            with connector.transaction():
+                connector.execute_query("update that will fail")
+        except Exception:
+            pass
+        
+        # Verify rollback was called
+        mock_basex_session.execute.assert_any_call("rollback")
+```
+
+### 16.3 IPA Validation Tests
+
+```python
+import pytest
+from app.services.ipa_validator import IPAValidator
+
+class TestIPAValidator:
+    
+    @pytest.fixture
+    def validator(self):
+        return IPAValidator()
+    
+    def test_valid_simple_ipa(self, validator):
+        """Test validation of simple valid IPA strings."""
+        valid_examples = [
+            "kæt",       # cat
+            "dɒɡ",       # dog
+            "haʊs",      # house
+            "ˈteɪbəl",   # table (with stress)
+            "əˈbaʊt"     # about (with stress)
+        ]
+        
+        for ipa in valid_examples:
+            result = validator.validate(ipa)
+            assert result.is_valid == True
+            assert len(result.errors) == 0
+    
+    def test_invalid_ipa_characters(self, validator):
+        """Test detection of invalid IPA characters."""
+        invalid_examples = [
+            "k@t",       # @ is not IPA
+            "dòg",       # ò is not used in English IPA
+            "hou$e",     # $ is not IPA
+            "table"      # regular spelling, not IPA
+        ]
+        
+        for ipa in invalid_examples:
+            result = validator.validate(ipa)
+            assert result.is_valid == False
+            assert len(result.errors) > 0
+            assert "Invalid character" in result.errors[0]
+    
+    def test_invalid_stress_patterns(self, validator):
+        """Test detection of invalid stress patterns."""
+        invalid_stress = [
+            "ˈˈtable",   # double primary stress
+            "ˌˌtable",   # double secondary stress
+            "ˈˌtable"    # adjacent stresses
+        ]
+        
+        for ipa in invalid_stress:
+            result = validator.validate(ipa)
+            assert result.is_valid == False
+            assert any("Invalid stress pattern" in err for err in result.errors)
+    
+    def test_dialect_specific_rules(self, validator):
+        """Test dialect-specific validation rules."""
+        # Test British English specific
+        british = "ɡəʊld"  # gold (British)
+        american = "ɡoʊld"  # gold (American)
+        
+        # Default dialect is British
+        assert validator.validate(british).is_valid == True
+        
+        # Test with American dialect
+        us_validator = IPAValidator(dialect="US")
+        assert us_validator.validate(american).is_valid == True
+        
+        # British pronunciation should be flagged in US mode
+        us_result = us_validator.validate(british)
+        assert us_result.is_valid == False
+        assert any("Dialect mismatch" in err for err in us_result.errors)
+```
+
+### 16.4 API Endpoint Tests
+
+```python
+import pytest
+from unittest.mock import patch, MagicMock
+from flask import json
+from app import create_app
+from app.models.entry import Entry
+
+class TestEntryAPI:
+    
+    @pytest.fixture
+    def client(self):
+        """Test client fixture."""
+        app = create_app('testing')
+        with app.test_client() as client:
+            yield client
+    
+    @pytest.fixture
+    def mock_entry_service(self):
+        """Mock for entry service."""
+        with patch('app.services.entry_service.EntryService') as mock:
+            service_instance = MagicMock()
+            mock.return_value = service_instance
+            
+            # Mock get_entries method
+            service_instance.get_entries.return_value = [
+                Entry(id="entry1", lexical_unit="test", senses=[
+                    {"id": "sense1", "gloss": {"form": {"text": "Test sense"}}}
+                ]),
+                Entry(id="entry2", lexical_unit="example", senses=[
+                    {"id": "sense2", "gloss": {"form": {"text": "Example sense"}}}
+                ])
+            ]
+            
+            yield service_instance
+    
+    def test_get_entries(self, client, mock_entry_service):
+        """Test GET /api/entries endpoint."""
+        response = client.get('/api/entries')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+        assert data[0]['id'] == 'entry1'
+        assert data[1]['id'] == 'entry2'
+        
+        # Verify service was called
+        mock_entry_service.get_entries.assert_called_once()
+    
+    def test_get_entry_by_id(self, client, mock_entry_service):
+        """Test GET /api/entries/{id} endpoint."""
+        # Mock get_entry_by_id method
+        mock_entry_service.get_entry_by_id.return_value = Entry(
+            id="entry1", 
+            lexical_unit="test", 
+            senses=[{"id": "sense1", "gloss": {"form": {"text": "Test sense"}}}]
+        )
+        
+        response = client.get('/api/entries/entry1')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['id'] == 'entry1'
+        assert data['lexical_unit'] == 'test'
+        assert len(data['senses']) == 1
+        
+        # Verify service was called with correct ID
+        mock_entry_service.get_entry_by_id.assert_called_with('entry1')
+    
+    def test_create_entry(self, client, mock_entry_service):
+        """Test POST /api/entries endpoint."""
+        # Mock create_entry method
+        new_entry = Entry(
+            id="new_entry", 
+            lexical_unit="new", 
+            senses=[{"id": "new_sense", "gloss": {"form": {"text": "New sense"}}}]
+        )
+        mock_entry_service.create_entry.return_value = new_entry
+        
+        # Test data
+        entry_data = {
+            'lexical_unit': 'new',
+            'senses': [{'gloss': {'form': {'text': 'New sense'}}}]
+        }
+        
+        response = client.post(
+            '/api/entries',
+            data=json.dumps(entry_data),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert data['id'] == 'new_entry'
+        assert data['lexical_unit'] == 'new'
+        
+        # Verify service was called with correct data
+        mock_entry_service.create_entry.assert_called_once()
+        # Extract the arg from the call
+        call_arg = mock_entry_service.create_entry.call_args[0][0]
+        assert call_arg['lexical_unit'] == 'new'
+```
+
+### 16.5 Integration Tests
+
+```python
+import pytest
+from app import create_app
+from app.database.basex_connector import BaseXConnector
+from app.services.entry_service import EntryService
+from app.models.entry import Entry
+
+class TestEntryIntegration:
+    
+    @pytest.fixture
+    def app(self):
+        """Create test application."""
+        app = create_app('testing')
+        
+        # Configure app for testing
+        app.config['BASEX_HOST'] = 'localhost'
+        app.config['BASEX_PORT'] = 1984
+        app.config['BASEX_USERNAME'] = 'admin'
+        app.config['BASEX_PASSWORD'] = 'admin'
+        app.config['BASEX_DATABASE'] = 'test_dictionary'
+        
+        with app.app_context():
+            # Setup test database
+            connector = BaseXConnector(
+                host=app.config['BASEX_HOST'],
+                port=app.config['BASEX_PORT'],
+                username=app.config['BASEX_USERNAME'],
+                password=app.config['BASEX_PASSWORD']
+            )
+            
+            connector.connect()
+            
+            # Create test database if it doesn't exist
+            try:
+                connector.execute_query(f"CREATE DB {app.config['BASEX_DATABASE']}")
+            except:
+                # Database might already exist
+                connector.execute_query(f"OPEN {app.config['BASEX_DATABASE']}")
+                # Clear all data
+                connector.execute_query("DELETE /*")
+            
+            # Add test data
+            connector.execute_query("""
+                INSERT INTO / 
+                <lift>
+                  <entry id="test_entry_1">
+                    <lexical-unit>
+                      <form lang="en"><text>test</text></form>
+                    </lexical-unit>
+                    <sense id="sense_1">
+                      <gloss lang="en">
+                        <text>Test entry 1</text>
+                      </gloss>
+                    </sense>
+                  </entry>
+                </lift>
+            """)
+            
+            yield app
+            
+            # Teardown - drop test database
+            connector.execute_query(f"DROP DB {app.config['BASEX_DATABASE']}")
+    
+    @pytest.fixture
+    def client(self, app):
+        """Test client fixture."""
+        return app.test_client()
+    
+    @pytest.fixture
+    def entry_service(self, app):
+        """Entry service fixture."""
+        with app.app_context():
+            return EntryService()
+    
+    def test_retrieve_entry(self, entry_service):
+        """Test retrieving an entry from the database."""
+        entry = entry_service.get_entry_by_id("test_entry_1")
+        
+        assert entry is not None
+        assert entry.id == "test_entry_1"
+        assert entry.lexical_unit == "test"
+        assert len(entry.senses) == 1
+        assert entry.senses[0]['id'] == "sense_1"
+        assert entry.senses[0]['gloss']['text'] == "Test entry 1"
+    
+    def test_create_and_retrieve_entry(self, entry_service):
+        """Test creating a new entry and then retrieving it."""
+        # Create new entry
+        new_entry = Entry(
+            lexical_unit="integration",
+            senses=[{
+                "gloss": {"form": {"text": "Integration test entry"}}
+            }]
+        )
+        
+        created_entry = entry_service.create_entry(new_entry)
+        assert created_entry is not None
+        assert created_entry.id is not None  # ID should be generated
+        
+        # Retrieve the entry we just created
+        retrieved_entry = entry_service.get_entry_by_id(created_entry.id)
+        assert retrieved_entry is not None
+        assert retrieved_entry.id == created_entry.id
+        assert retrieved_entry.lexical_unit == "integration"
+        assert len(retrieved_entry.senses) == 1
+        assert retrieved_entry.senses[0]['gloss']['form']['text'] == "Integration test entry"
+    
+    def test_api_flow(self, client):
+        """Test a complete API flow: create, get, update, delete."""
+        # Create an entry via API
+        response = client.post(
+            '/api/entries',
+            json={
+                'lexical_unit': 'api_test',
+                'senses': [{
+                    'gloss': {'form': {'text': 'API test entry'}}
+                }]
+            }
+        )
+        
+        assert response.status_code == 201
+        entry_data = response.json
+        entry_id = entry_data['id']
+        
+        # Get the entry
+        response = client.get(f'/api/entries/{entry_id}')
+        assert response.status_code == 200
+        assert response.json['lexical_unit'] == 'api_test'
+        
+        # Update the entry
+        response = client.put(
+            f'/api/entries/{entry_id}',
+            json={
+                'lexical_unit': 'api_test_updated',
+                'senses': [{
+                    'gloss': {'form': {'text': 'Updated API test entry'}}
+                }]
+            }
+        )
+        
+        assert response.status_code == 200
+        assert response.json['lexical_unit'] == 'api_test_updated'
+        
+        # Delete the entry
+        response = client.delete(f'/api/entries/{entry_id}')
+        assert response.status_code == 204
+        
+        # Verify it's gone
+        response = client.get(f'/api/entries/{entry_id}')
+        assert response.status_code == 404
+```

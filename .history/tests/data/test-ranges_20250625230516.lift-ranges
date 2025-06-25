@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lift-ranges>
+  <range id="grammatical-info" guid="123e4567-e89b-12d3-a456-426614174002">
+    <range-element id="noun" guid="123e4567-e89b-12d3-a456-426614174003">
+      <label>
+        <form lang="en">
+          <text>Noun</text>
+        </form>
+      </label>
+    </range-element>
+    <range-element id="verb" guid="123e4567-e89b-12d3-a456-426614174004">
+      <label>
+        <form lang="en">
+          <text>Verb</text>
+        </form>
+      </label>
+    </range-element>
+    <range-element id="adjective" guid="123e4567-e89b-12d3-a456-426614174005">
+      <label>
+        <form lang="en">
+          <text>Adjective</text>
+        </form>
+      </label>
+    </range-element>
+  </range>
+</lift-ranges>

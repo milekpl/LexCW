@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Import LIFT File{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Import LIFT File</h1>
+            
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="lift_file" class="form-label">
+                                Select LIFT File <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="lift_file" 
+                                   name="lift_file" 
+                                   accept=".lift,.xml" 
+                                   required>
+                            <div class="form-text">
+                                Upload a LIFT (Lexicon Interchange FormaT) XML file to import dictionary entries.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       id="overwrite_existing" 
+                                       name="overwrite_existing">
+                                <label class="form-check-label" for="overwrite_existing">
+                                    Overwrite existing entries with same ID
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                If checked, existing entries with the same ID will be replaced. 
+                                If unchecked, duplicate entries will be skipped.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       id="validate_entries" 
+                                       name="validate_entries" 
+                                       checked>
+                                <label class="form-check-label" for="validate_entries">
+                                    Validate entries before import
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                Validate each entry's structure and required fields before importing.
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>Import LIFT File
+                            </button>
+                            <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Import Guidelines</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Supported File Format</h6>
+                    <ul>
+                        <li>LIFT (Lexicon Interchange FormaT) XML files</li>
+                        <li>Files with .lift or .xml extensions</li>
+                        <li>UTF-8 encoded files are recommended</li>
+                    </ul>
+                    
+                    <h6>Entry Structure</h6>
+                    <ul>
+                        <li>Each entry must have a unique ID or one will be generated</li>
+                        <li>Lexical units (headwords) are required</li>
+                        <li>Senses, definitions, and examples are optional but recommended</li>
+                        <li>Pronunciation data will be preserved if present</li>
+                    </ul>
+                    
+                    <h6>Import Process</h6>
+                    <ul>
+                        <li>The file will be validated for proper XML structure</li>
+                        <li>Entries will be parsed and validated individually</li>
+                        <li>Import statistics will be displayed upon completion</li>
+                        <li>Any errors or warnings will be logged and reported</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

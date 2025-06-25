@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lift version="0.13" producer="dictionary-writing-system">
+  <entry id="test_entry_1" guid="123e4567-e89b-12d3-a456-426614174000">
+    <lexical-unit>
+      <form lang="en">
+        <text>test</text>
+      </form>
+    </lexical-unit>
+    <sense id="1234">
+      <gloss lang="pl">
+        <text>test</text>
+      </gloss>
+      <definition>
+        <form lang="en">
+          <text>A procedure for evaluating something</text>
+        </form>
+      </definition>
+      <example>
+        <form lang="en">
+          <text>We need to run a test</text>
+        </form>
+        <translation>
+          <form lang="pl">
+            <text>Musimy przeprowadzić test</text>
+          </form>
+        </translation>
+      </example>
+    </sense>
+  </entry>
+  <entry id="test_entry_2" guid="223e4567-e89b-12d3-a456-426614174001">
+    <lexical-unit>
+      <form lang="en">
+        <text>example</text>
+      </form>
+    </lexical-unit>
+    <sense id="2234">
+      <gloss lang="pl">
+        <text>przykład</text>
+      </gloss>
+      <definition>
+        <form lang="en">
+          <text>A representative instance</text>
+        </form>
+      </definition>
+      <example>
+        <form lang="en">
+          <text>This is an example</text>
+        </form>
+        <translation>
+          <form lang="pl">
+            <text>To jest przykład</text>
+          </form>
+        </translation>
+      </example>
+    </sense>
+  </entry>
+</lift>

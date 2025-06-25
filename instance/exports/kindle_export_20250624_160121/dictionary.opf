@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package unique-identifier="uid">
+    <metadata>
+        <dc-metadata xmlns:dc="http://purl.org/metadata/dublin_core" xmlns:oebpackage="http://openebook.org/namespaces/oeb-package/1.0/">
+            <dc:Title>Dictionary (en-pl)</dc:Title>
+            <dc:Language>en</dc:Language>
+            <dc:Identifier id="uid">en-pl-dictionary-2025-06-24</dc:Identifier>
+            <dc:Creator>Dictionary Writing System</dc:Creator>
+            <dc:Rights>Copyright (c) 2025</dc:Rights>
+            <dc:Type>dictionary</dc:Type>
+            <dc:Subject BASICCode="REF008000">Dictionaries</dc:Subject>
+            <dc:Publisher>Dictionary Writing System</dc:Publisher>
+            <dc:Date>2025-06-24</dc:Date>
+            <x-metadata>
+                <DictionaryInLanguage>en</DictionaryInLanguage>
+                <DictionaryOutLanguage>pl</DictionaryOutLanguage>
+                <DefaultLookupIndex>headword</DefaultLookupIndex>
+            </x-metadata>
+        </dc-metadata>
+    </metadata>
+    <manifest>
+        <item id="dictionary" href="dictionary.html" media-type="text/x-oeb1-document"/>
+    </manifest>
+    <spine>
+        <itemref idref="dictionary"/>
+    </spine>
+</package>

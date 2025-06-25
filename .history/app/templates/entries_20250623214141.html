@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Dictionary Entries{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="fas fa-list"></i> Dictionary Entries</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('main.add_entry') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Add New Entry
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-light">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" id="filter-entries" class="form-control" placeholder="Filter entries...">
+                    <button class="btn btn-outline-secondary" type="button" id="btn-filter">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="d-flex justify-content-end">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-secondary" id="btn-sort-lexeme">
+                            <i class="fas fa-sort-alpha-down"></i> Lexeme
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="btn-sort-date">
+                            <i class="fas fa-calendar"></i> Date
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0" id="entries-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Headword</th>
+                        <th>Part of Speech</th>
+                        <th>Senses</th>
+                        <th>Examples</th>
+                        <th>Last Modified</th>
+                        <th width="120">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="entries-list">
+                    <!-- Entries will be loaded dynamically here -->
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading entries...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer">
+        <div class="row">
+            <div class="col-md-6">
+                <span id="entry-count">Loading entries...</span>
+            </div>
+            <div class="col-md-6">
+                <nav aria-label="Entry pagination" class="float-end">
+                    <ul class="pagination mb-0" id="pagination">
+                        <!-- Pagination will be loaded dynamically here -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Entry template for JavaScript -->
+<template id="entry-template">
+    <tr data-entry-id="">
+        <td>
+            <a href="#" class="entry-link fw-bold"></a>
+            <small class="text-muted d-block citation-form"></small>
+        </td>
+        <td>
+            <span class="badge bg-secondary pos-tag"></span>
+        </td>
+        <td class="sense-count"></td>
+        <td class="example-count"></td>
+        <td class="date-modified"></td>
+        <td>
+            <div class="btn-group btn-group-sm">
+                <a href="#" class="btn btn-outline-primary edit-btn" title="Edit">
+                    <i class="fas fa-edit"></i>
+                </a>
+                <a href="#" class="btn btn-outline-info view-btn" title="View">
+                    <i class="fas fa-eye"></i>
+                </a>
+                <button type="button" class="btn btn-outline-danger delete-btn" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </td>
+    </tr>
+</template>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the entry <strong id="delete-entry-name"></strong>?</p>
+                <p class="text-danger">This action cannot be undone!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/entries.js') }}"></script>
+{% endblock %}

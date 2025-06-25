@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Entry: {{ entry.lexical_unit }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-book"></i> 
+            <span class="text-primary">{{ entry.lexical_unit }}</span>
+            {% if entry.grammatical_info and entry.grammatical_info.part_of_speech %}
+                <span class="badge bg-secondary">{{ entry.grammatical_info.part_of_speech }}</span>
+            {% endif %}
+        </h2>
+        {% if entry.citation_form %}
+            <p class="text-muted"><em>{{ entry.citation_form }}</em></p>
+        {% endif %}
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('main.edit_entry', entry_id=entry.id) }}" class="btn btn-primary">
+            <i class="fas fa-edit"></i> Edit Entry
+        </a>
+        <a href="{{ url_for('main.entries') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-list"></i> All Entries
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-lightbulb"></i> Senses</h5>
+            </div>
+            <div class="card-body">
+                {% if entry.senses %}
+                    {% for sense in entry.senses %}
+                        <div class="sense-item mb-4">
+                            <div class="d-flex gap-2 align-items-center mb-2">
+                                <h4 class="badge bg-primary rounded-pill">{{ loop.index }}</h4>
+                                <h5 class="mb-0">{{ sense.definition }}</h5>
+                            </div>
+                            
+                            {% if sense.gloss %}
+                                <div class="ms-4 mb-2">
+                                    <span class="text-muted">Gloss:</span> {{ sense.gloss }}
+                                </div>
+                            {% endif %}
+                            
+                            {% if sense.semantic_domain %}
+                                <div class="ms-4 mb-2">
+                                    <span class="text-muted">Semantic domains:</span>
+                                    {% for domain in sense.semantic_domain %}
+                                        <span class="badge bg-info text-dark me-1">{{ domain }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            
+                            {% if sense.note %}
+                                <div class="ms-4 mb-2 note-box">
+                                    <span class="text-muted">Note:</span> {{ sense.note }}
+                                </div>
+                            {% endif %}
+                            
+                            {% if sense.examples %}
+                                <div class="examples-section ms-4 mt-3">
+                                    <h6 class="mb-2"><i class="fas fa-quote-left text-muted"></i> Examples</h6>
+                                    <div class="examples-list ps-3 border-start border-3">
+                                        {% for example in sense.examples %}
+                                            <div class="example-item mb-3">
+                                                <div class="example-text fw-bold">{{ example.text }}</div>
+                                                {% if example.translation %}
+                                                    <div class="example-translation text-muted">{{ example.translation }}</div>
+                                                {% endif %}
+                                                {% if example.reference %}
+                                                    <div class="example-reference small">
+                                                        <span class="text-muted">Source:</span> {{ example.reference }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        {% if not loop.last %}
+                            <hr>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> This entry has no senses defined.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-microphone"></i> Pronunciation</h5>
+            </div>
+            <div class="card-body">
+                {% if entry.pronunciations %}
+                    <ul class="list-group list-group-flush">
+                    {% for pron in entry.pronunciations %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                {% if pron.type == 'ipa' %}
+                                    <span class="pronunciation-ipa">/{{ pron.value }}/</span>
+                                {% else %}
+                                    <span class="pronunciation-other">{{ pron.value }}</span>
+                                {% endif %}
+                                {% if pron.is_default %}
+                                    <span class="badge bg-primary ms-2">Default</span>
+                                {% endif %}
+                            </div>
+                            {% if pron.audio_file %}
+                                <button type="button" class="btn btn-sm btn-outline-primary play-audio-btn" 
+                                        data-audio-file="{{ pron.audio_file }}">
+                                    <i class="fas fa-play"></i> Play
+                                </button>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> No pronunciation information available.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-info-circle"></i> Additional Information</h5>
+            </div>
+            <div class="card-body">
+                {% if entry.etymology %}
+                    <div class="mb-3">
+                        <h6>Etymology</h6>
+                        <p>{{ entry.etymology }}</p>
+                    </div>
+                {% endif %}
+                
+                {% if entry.note %}
+                    <div class="mb-3">
+                        <h6>Notes</h6>
+                        <p>{{ entry.note }}</p>
+                    </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <h6>Entry Details</h6>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>ID</span>
+                            <span class="text-muted">{{ entry.id }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Created</span>
+                            <span class="text-muted">{{ entry.date_created }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Last Modified</span>
+                            <span class="text-muted">{{ entry.date_modified }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-link"></i> Related Entries</h5>
+            </div>
+            <div class="card-body">
+                {% if entry.relations and (entry.relations.synonyms or entry.relations.antonyms or entry.relations.related) %}
+                    {% if entry.relations.synonyms %}
+                        <div class="mb-3">
+                            <h6>Synonyms</h6>
+                            <div>
+                                {% for synonym in entry.relations.synonyms %}
+                                    <a href="{{ url_for('main.search', q=synonym) }}" class="badge bg-primary text-decoration-none me-1 mb-1">{{ synonym }}</a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if entry.relations.antonyms %}
+                        <div class="mb-3">
+                            <h6>Antonyms</h6>
+                            <div>
+                                {% for antonym in entry.relations.antonyms %}
+                                    <a href="{{ url_for('main.search', q=antonym) }}" class="badge bg-danger text-decoration-none me-1 mb-1">{{ antonym }}</a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if entry.relations.related %}
+                        <div class="mb-3">
+                            <h6>Related Words</h6>
+                            <div>
+                                {% for related in entry.relations.related %}
+                                    <a href="{{ url_for('main.search', q=related) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">{{ related }}</a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> No related entries defined.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Audio player modal -->
+<div class="modal fade" id="audioPlayerModal" tabindex="-1" aria-labelledby="audioPlayerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="audioPlayerModalLabel">Pronunciation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <audio id="audio-player" controls>
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/entry-view.js') }}"></script>
+{% endblock %}
