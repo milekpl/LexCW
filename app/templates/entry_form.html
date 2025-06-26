@@ -266,14 +266,20 @@
                                         </div>
                                         
                                         <div class="mb-3">
-                                            <label class="form-label">Semantic Domain</label>
-                                            <select class="form-select select2-tags" name="senses[{{ loop.index0 }}].semantic_domain[]" multiple>
-                                                {% if sense.semantic_domain %}
-                                                    {% for domain in sense.semantic_domain %}
-                                                        <option value="{{ domain }}" selected>{{ domain }}</option>
-                                                    {% endfor %}
-                                                {% endif %}
+                                            <label class="form-label">Part of Speech</label>
+                                            <select class="form-select" name="senses[{{ loop.index0 }}].grammatical_info">
+                                                <option value="">Select part of speech</option>
+                                                <option value="noun" {% if sense.grammatical_info == 'noun' %}selected{% endif %}>Noun</option>
+                                                <option value="verb" {% if sense.grammatical_info == 'verb' %}selected{% endif %}>Verb</option>
+                                                <option value="adjective" {% if sense.grammatical_info == 'adjective' %}selected{% endif %}>Adjective</option>
+                                                <option value="adverb" {% if sense.grammatical_info == 'adverb' %}selected{% endif %}>Adverb</option>
+                                                <option value="pronoun" {% if sense.grammatical_info == 'pronoun' %}selected{% endif %}>Pronoun</option>
+                                                <option value="preposition" {% if sense.grammatical_info == 'preposition' %}selected{% endif %}>Preposition</option>
+                                                <option value="conjunction" {% if sense.grammatical_info == 'conjunction' %}selected{% endif %}>Conjunction</option>
+                                                <option value="interjection" {% if sense.grammatical_info == 'interjection' %}selected{% endif %}>Interjection</option>
+                                                <option value="article" {% if sense.grammatical_info == 'article' %}selected{% endif %}>Article</option>
                                             </select>
+                                            <div class="form-text">Grammatical category for this sense.</div>
                                         </div>
                                         
                                         <div class="mb-3">
@@ -364,9 +370,20 @@
                                     </div>
                                     
                                     <div class="mb-3">
-                                        <label class="form-label">Semantic Domain</label>
-                                        <select class="form-select select2-tags" name="senses[0].semantic_domain[]" multiple>
+                                        <label class="form-label">Part of Speech</label>
+                                        <select class="form-select" name="senses[0].grammatical_info">
+                                            <option value="">Select part of speech</option>
+                                            <option value="noun">Noun</option>
+                                            <option value="verb">Verb</option>
+                                            <option value="adjective">Adjective</option>
+                                            <option value="adverb">Adverb</option>
+                                            <option value="pronoun">Pronoun</option>
+                                            <option value="preposition">Preposition</option>
+                                            <option value="conjunction">Conjunction</option>
+                                            <option value="interjection">Interjection</option>
+                                            <option value="article">Article</option>
                                         </select>
+                                        <div class="form-text">Grammatical category for this sense.</div>
                                     </div>
                                     
                                     <div class="mb-3">
@@ -501,8 +518,18 @@
             </div>
             
             <div class="mb-3">
-                <label class="form-label">Semantic Domain</label>
-                <select class="form-select select2-tags" name="senses[INDEX].semantic_domain[]" multiple>
+                <label class="form-label">Part of Speech</label>
+                <select class="form-select" name="senses[INDEX].grammatical_info">
+                    <option value="">Select part of speech</option>
+                    <option value="noun">Noun</option>
+                    <option value="verb">Verb</option>
+                    <option value="adjective">Adjective</option>
+                    <option value="adverb">Adverb</option>
+                    <option value="pronoun">Pronoun</option>
+                    <option value="preposition">Preposition</option>
+                    <option value="conjunction">Conjunction</option>
+                    <option value="interjection">Interjection</option>
+                    <option value="article">Article</option>
                 </select>
             </div>
             

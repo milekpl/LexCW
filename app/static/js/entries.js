@@ -192,11 +192,17 @@ function displayEntries(entries) {
             clone.querySelector('.citation-form').remove();
         }
         
-        if (entry.grammatical_info && entry.grammatical_info.part_of_speech) {
-            clone.querySelector('.pos-tag').textContent = entry.grammatical_info.part_of_speech;
-        } else {
-            clone.querySelector('.pos-tag').textContent = 'unknown';
+        // Get grammatical info from the first sense that has it
+        let grammaticalInfo = 'unknown';
+        if (entry.senses && entry.senses.length > 0) {
+            for (const sense of entry.senses) {
+                if (sense.grammatical_info) {
+                    grammaticalInfo = sense.grammatical_info;
+                    break;
+                }
+            }
         }
+        clone.querySelector('.pos-tag').textContent = grammaticalInfo;
         
         clone.querySelector('.sense-count').textContent = entry.senses ? entry.senses.length : 0;
         

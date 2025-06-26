@@ -1,0 +1,10 @@
+{
+    "lexical_unit": {"en": "test-simple-entry"},
+    "senses": [
+        {
+            "definitions": {"pl": "test definition"},
+            "grammatical_info": "Noun",
+            "glosses": {"pl": "test gloss"}
+        }
+    ]
+}

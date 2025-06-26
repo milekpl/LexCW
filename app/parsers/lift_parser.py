@@ -570,8 +570,12 @@ class LIFTParser:
             text_elem.text = field_value
         
         # Add senses
-        for sense_dict in entry.senses:
-            sense = Sense.from_dict(sense_dict)
+        for sense_item in entry.senses:
+            if isinstance(sense_item, dict):
+                sense = Sense.from_dict(sense_item)
+            else:
+                # Already a Sense object
+                sense = sense_item
             sense_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}sense')
             if sense.id:
                 sense_elem.set('id', sense.id)
@@ -592,8 +596,12 @@ class LIFTParser:
                     text_elem.text = text
             
             # Add examples
-            for example_dict in sense.examples:
-                example = Example.from_dict(example_dict)
+            for example_item in sense.examples:
+                if isinstance(example_item, dict):
+                    example = Example.from_dict(example_item)
+                else:
+                    # Already an Example object
+                    example = example_item
                 example_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}example')
                 if example.id:
                     example_elem.set('id', example.id)                # Add forms

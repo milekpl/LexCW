@@ -197,6 +197,8 @@ def add_entry():
     
     except Exception as e:
         logger.error(f"Error adding entry: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         
         if request.method == 'POST':
             return jsonify({'error': str(e)}), 500

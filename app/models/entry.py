@@ -32,6 +32,9 @@ class Entry(BaseModel):
             id_: Unique identifier for the entry.
             **kwargs: Additional attributes to set on the entry.
         """
+        # Extract senses before calling super to avoid double processing
+        senses_data = kwargs.pop('senses', [])
+        
         super().__init__(id_, **kwargs)
         self.lexical_unit: Dict[str, str] = kwargs.get('lexical_unit', {})
         self.citations: List[Dict[str, Any]] = kwargs.get('citations', [])
@@ -43,7 +46,6 @@ class Entry(BaseModel):
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
         
         # Handle senses - convert dicts to Sense objects if needed
-        senses_data = kwargs.get('senses', [])
         self.senses = []
         for sense_data in senses_data:
             if isinstance(sense_data, dict):
