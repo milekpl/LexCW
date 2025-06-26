@@ -109,18 +109,91 @@ class Sense(BaseModel):
         """
         self.definitions[language] = text
     
-    def get_example_by_id(self, example_id: str) -> Optional[Dict[str, Any]]:
+    @property
+    def definition(self) -> str:
         """
-        Get an example by ID.
+        Get the definition text for display.
+        
+        Returns:
+            The definition text in the primary language or first available.
+        """
+        if 'en' in self.definitions:
+            return self.definitions['en']
+        elif self.definitions:
+            return next(iter(self.definitions.values()))
+        return ""
+    
+    @property
+    def gloss(self) -> str:
+        """
+        Get the gloss text for display.
+        
+        Returns:
+            The gloss text in the primary language or first available.
+        """
+        if 'en' in self.glosses:
+            return self.glosses['en']
+        elif self.glosses:
+            return next(iter(self.glosses.values()))
+        return ""
+    
+    def get_definition(self, lang: str = None) -> str:
+        """
+        Get the definition in the specified language.
         
         Args:
-            example_id: ID of the example to get.
+            lang: Language code to retrieve. If None, returns the default.
             
         Returns:
-            Example with the given ID, or None if not found.
+            The definition text in the specified language, or empty string if not found.
         """
-        for example in self.examples:
-            if example.get('id') == example_id:
-                return example
+        if lang:
+            return self.definitions.get(lang, "")
+        return self.definition
+    
+    def get_gloss(self, lang: str = None) -> str:
+        """
+        Get the gloss in the specified language.
         
-        return None
+        Args:
+            lang: Language code to retrieve. If None, returns the default.
+            
+        Returns:
+            The gloss text in the specified language, or empty string if not found.
+        """
+        if lang:
+            return self.glosses.get(lang, "")
+        return self.gloss
+    
+    def get_available_definition_languages(self) -> List[str]:
+        """
+        Get a list of languages available for definitions.
+        
+        Returns:
+            List of language codes.
+        """
+        return list(self.definitions.keys())
+    
+    def get_available_gloss_languages(self) -> List[str]:
+        """
+        Get a list of languages available for glosses.
+        
+        Returns:
+            List of language codes.
+        """
+        return list(self.glosses.keys())
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the sense to a dictionary, including computed properties.
+        
+        Returns:
+            Dictionary representation of the sense.
+        """
+        result = super().to_dict()
+        
+        # Add computed properties for template compatibility
+        result['definition'] = self.definition
+        result['gloss'] = self.gloss
+        
+        return result

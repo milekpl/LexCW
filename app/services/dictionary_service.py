@@ -167,7 +167,7 @@ class DictionaryService:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             query = f"""
-            xquery for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id="{entry_id}"]
+            xquery for $entry in collection('{db_name}')//*:entry[@id="{entry_id}"]
             return $entry
             """
             
@@ -221,7 +221,7 @@ class DictionaryService:
             entry_xml = self._prepare_entry_xml(entry)
             
             query = f"""
-            xquery insert node {entry_xml} into collection('{db_name}')/*[local-name()='lift']
+            xquery insert node {entry_xml} into collection('{db_name}')//*:lift
             """
             
             self.db_connector.execute_update(query)
@@ -260,7 +260,7 @@ class DictionaryService:
             entry_xml = self._prepare_entry_xml(entry)
             
             query = f"""
-            xquery replace node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id="{entry.id}"] with {entry_xml}
+            xquery replace node collection('{db_name}')//*:entry[@id="{entry.id}"] with {entry_xml}
             """
             
             self.db_connector.execute_update(query)
@@ -291,7 +291,7 @@ class DictionaryService:
             self.get_entry(entry_id)
             
             query = f"""
-            xquery delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id="{entry_id}"]
+            xquery delete node collection('{db_name}')//*:entry[@id="{entry_id}"]
             """
             
             self.db_connector.execute_update(query)
@@ -325,7 +325,7 @@ class DictionaryService:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
             
             if sort_by == "lexical_unit":
-                sort_expr = "$entry/lexical-unit/form/text/text()"
+                sort_expr = "$entry/lexical-unit/form/text"
             else:
                 sort_expr = "$entry/@id"
             
@@ -336,7 +336,7 @@ class DictionaryService:
                 pagination_expr = f"[position() = {start} to {end}]"
 
             query = f"""
-            xquery (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
+            xquery (for $entry in collection('{db_name}')//*:entry
             order by {sort_expr}
             return $entry){pagination_expr}
             """
@@ -379,187 +379,50 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Using modern XQuery 4.0 syntax with map expressions
-            # This is more robust and handles escaping better
-            search_query = f"""
-            xquery 
-            declare option output:method "xml";
-            let $db := '{db_name}'
-            let $query := "{query.replace('"', '\\"')}"
-            let $query_lower := lower-case($query)
-            let $entries := collection($db)/*[local-name()='lift']/*[local-name()='entry']
+            # Build the search query conditions - use simpler patterns like count_entries
+            conditions = []
+            q_escaped = query.replace("'", "''")  # Escape single quotes for XQuery
             
-            let $matches := (
-              for $entry in $entries
-              let $match := {{
-                "lexical_unit": {"contains(lower-case(string-join($entry/lexical-unit/form/text/text(), '')), $query_lower)" if "lexical_unit" in fields else "false()"},
-                "glosses": {"some $gloss in $entry/sense/gloss/text satisfies contains(lower-case($gloss), $query_lower)" if "glosses" in fields else "false()"},
-                "definitions": {"some $def in $entry/sense/definition/form/text satisfies contains(lower-case($def), $query_lower)" if "definitions" in fields else "false()"}
-              }}
-              where $match?lexical_unit or $match?glosses or $match?definitions
-              order by $entry/lexical-unit/form/text/text()
-              return $entry
-            )
+            if "lexical_unit" in fields:
+                conditions.append(f"contains(lower-case(string-join($entry/lexical-unit/form/text, '')), '{q_escaped.lower()}')")
+            if "glosses" in fields:
+                conditions.append(f"(some $gloss in $entry/sense/gloss/text satisfies contains(lower-case($gloss), '{q_escaped.lower()}'))")
+            if "definitions" in fields:
+                conditions.append(f"(some $def in $entry/sense/definition/form/text satisfies contains(lower-case($def), '{q_escaped.lower()}'))")
             
-            let $total_count := count($matches)
+            search_condition = " or ".join(conditions)
             
-            (: Use XQuery 4.0 standard functions for pagination :)
-            let $paginated_matches := 
-              if ({True if offset is not None or limit is not None else False})
-              then
-                let $offset_val := {offset if offset is not None else 0}
-                let $limit_val := {limit if limit is not None else 'count($matches)'}
-                
-                (: If we have an offset, skip that many items :)
-                let $offset_matches := 
-                  if ($offset_val > 0) 
-                  then fn:subsequence($matches, $offset_val + 1)
-                  else $matches
-                  
-                (: Then take only the number of items specified by limit :)
-                return fn:subsequence($offset_matches, 1, $limit_val)
-              else $matches
+            # Get the total count first - use simpler collection pattern
+            count_query = f"xquery count(for $entry in collection('{db_name}')//*:entry where {search_condition} return $entry)"
             
-            return
-              <result>
-                <count>{{$total_count}}</count>
-                <entries>{{$paginated_matches}}</entries>
-              </result>
-            """
+            count_result = self.db_connector.execute_query(count_query)
+            total_count = int(count_result) if count_result else 0
             
-            result = self.db_connector.execute_query(search_query)
+            # Use XQuery position-based pagination (like in list_entries) 
+            pagination_expr = ""
+            if limit is not None:
+                start = offset + 1 if offset is not None else 1
+                end = start + limit - 1
+                pagination_expr = f"[position() = {start} to {end}]"
+            elif offset is not None:
+                start = offset + 1
+                pagination_expr = f"[position() >= {start}]"
             
-            # The result should be in XML format now
+            query_str = f"xquery (for $entry in collection('{db_name}')//*:entry where {search_condition} order by $entry/lexical-unit/form/text return $entry){pagination_expr}"
+            
+            result = self.db_connector.execute_query(query_str)
+            
             if not result:
-                return [], 0
+                return [], total_count
             
-            # Try to parse the entries from the result
-            try:
-                # Debug the result
-                self.logger.debug(f"Search result: {result[:200]}...")
-                
-                # Add explicit import for XML parsing
-                import xml.etree.ElementTree as ET
-                
-                try:
-                    root = ET.fromstring(result)
-                    
-                    # Extract the count
-                    count_elem = root.find('./count')
-                    total_count = int(count_elem.text) if count_elem is not None and count_elem.text else 0
-                    
-                    # Extract and parse the entries
-                    entries_elem = root.find('./entries')
-                    if entries_elem is not None and len(entries_elem) > 0:
-                        # Convert entries_elem to string
-                        entries_xml = ''.join(ET.tostring(entry, encoding='unicode') for entry in entries_elem)
-                        entries = self.lift_parser.parse_string(f"<lift>{entries_xml}</lift>")
-                        
-                        # Debug to check what we're getting back
-                        self.logger.debug(f"Got {len(entries)} entries with limit={limit}, offset={offset}")
-                        
-                        # Strictly enforce the limit at the application level for safety
-                        if limit is not None:
-                            if len(entries) > limit:
-                                self.logger.debug(f"Strictly enforcing limit: Trimming results from {len(entries)} to {limit} entries")
-                                entries = entries[:limit]
-                            
-                        return entries, total_count
-                    else:
-                        return [], total_count
-                except Exception as xml_err:
-                    self.logger.error(f"Error parsing XML result: {xml_err}. Result was: {result[:200]}")
-                    # Fall through to the fallback approach
-                
-                # If we get here, either there was an exception or we need to use the fallback
-                # Use a simpler query as fallback
-                    
-            except Exception as e:
-                # If parsing fails, log it and use the fallback approach
-                self.logger.warning(f"Could not parse search result as XML, falling back to traditional approach: {e}")
-                
-                # Use a simpler query as fallback
-                conditions: List[str] = []
-                q_lower = query.lower()
-                if "lexical_unit" in fields:
-                    conditions.append(f'contains(lower-case($entry/lexical-unit/form/text), "{q_lower}")')
-                if "glosses" in fields:
-                    conditions.append(f'some $gloss in $entry/sense/gloss/text satisfies contains(lower-case($gloss), "{q_lower}")')
-                if "definitions" in fields:
-                    conditions.append(f'some $def in $entry/sense/definition/form/text satisfies contains(lower-case($def), "{q_lower}")')
-                
-                search_condition = " or ".join(conditions)
-                
-                count_query = f"""
-                xquery count(for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
-                where {search_condition}
-                return $entry)
-                """
-                
-                count_result = self.db_connector.execute_query(count_query)
-                total_count = int(count_result) if count_result else 0
-                
-                # Use XQuery subsequence function for proper pagination
-                if limit is not None and offset is not None:
-                    # Use XQuery subsequence function for proper pagination
-                    query_str = f"""
-                    xquery 
-                    let $entries := (
-                      for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
-                      where {search_condition}
-                      order by $entry/lexical-unit/form/text/text()
-                      return $entry
-                    )
-                    return fn:subsequence($entries, {offset + 1}, {limit})
-                    """
-                elif limit is not None:
-                    query_str = f"""
-                    xquery 
-                    let $entries := (
-                      for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
-                      where {search_condition}
-                      order by $entry/lexical-unit/form/text/text()
-                      return $entry
-                    )
-                    return fn:subsequence($entries, 1, {limit})
-                    """
-                elif offset is not None:
-                    query_str = f"""
-                    xquery 
-                    let $entries := (
-                      for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
-                      where {search_condition}
-                      order by $entry/lexical-unit/form/text/text()
-                      return $entry
-                    )
-                    return fn:subsequence($entries, {offset + 1})
-                    """
-                else:
-                    query_str = f"""
-                    xquery (
-                      for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
-                      where {search_condition}
-                      order by $entry/lexical-unit/form/text/text()
-                      return $entry
-                    )
-                    """
-                
-                result = self.db_connector.execute_query(query_str)
-                
-                if not result:
-                    return [], total_count
-                
-                entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
-                
-                # Additional validation to ensure pagination is correctly applied
-                if offset is not None and limit is not None:
-                    if len(entries) > limit:
-                        self.logger.debug(f"Fallback: Trimming results from {len(entries)} to {limit} entries")
-                        entries = entries[:limit]
-                elif limit is not None and len(entries) > limit:
-                    entries = entries[:limit]
-                
-                return entries, total_count
+            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            
+            # Additional validation to ensure pagination is correctly applied
+            if limit is not None and len(entries) > limit:
+                self.logger.debug(f"Trimming results from {len(entries)} to {limit} entries")
+                entries = entries[:limit]
+            
+            return entries, total_count
             
         except Exception as e:
             self.logger.error("Error searching entries: %s", str(e))
@@ -602,8 +465,8 @@ class DictionaryService:
             relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
             
             query = f"""
-            xquery let $entry_relations := collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id="{entry_id}"]/relation{relation_condition}/@ref
-            for $related in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id = $entry_relations]
+            xquery let $entry_relations := collection('{db_name}')//*:entry[@id="{entry_id}"]/relation{relation_condition}/@ref
+            for $related in collection('{db_name}')//*:entry[@id = $entry_relations]
             return $related
             """
             
@@ -639,8 +502,8 @@ class DictionaryService:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             query = f"""
-            xquery for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
-            where $entry/*[local-name()='sense']/*[local-name()='grammatical-info'][@value="{grammatical_info}"]
+            xquery for $entry in collection('{db_name}')//*:entry
+            where $entry/*:sense/*:grammatical-info[@value="{grammatical_info}"]
             return $entry
             """
 
@@ -749,7 +612,7 @@ class DictionaryService:
                 let $target_entry := collection('{self.db_connector.database}')//*:entry[@id = $entry_id]
                 return if (exists($target_entry))
                 then replace node $target_entry with $source_entry
-                else insert node $source_entry into collection('{self.db_connector.database}')/*[local-name()='lift']
+                else insert node $source_entry into collection('{self.db_connector.database}')//*:lift
                 """
                 self.db_connector.execute_update(update_query)
                 

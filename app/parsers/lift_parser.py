@@ -282,7 +282,7 @@ class LIFTParser:
         for sense_elem in self._find_elements(entry_elem, './/lift:sense'):
             sense_id = sense_elem.get('id')
             sense = self._parse_sense(sense_elem, sense_id)
-            senses.append(sense.to_dict())
+            senses.append(sense)  # Keep as Sense object, don't convert to dict
         
         # Create and return Entry object
         entry = Entry(

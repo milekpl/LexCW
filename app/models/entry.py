@@ -2,7 +2,7 @@
 Entry model representing a dictionary entry in LIFT format.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from app.models.base import BaseModel
 from app.utils.exceptions import ValidationError
 
@@ -37,11 +37,23 @@ class Entry(BaseModel):
         self.citations: List[Dict[str, Any]] = kwargs.get('citations', [])
         self.pronunciations: Dict[str, str] = kwargs.get('pronunciations', {})
         self.variant_forms: List[Dict[str, Any]] = kwargs.get('variant_forms', [])
-        self.senses: List[Dict[str, Any]] = kwargs.get('senses', [])
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
         self.relations: List[Dict[str, Any]] = kwargs.get('relations', [])
         self.notes: Dict[str, str] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
+        
+        # Handle senses - convert dicts to Sense objects if needed
+        senses_data = kwargs.get('senses', [])
+        self.senses = []
+        for sense_data in senses_data:
+            if isinstance(sense_data, dict):
+                # Import here to avoid circular imports
+                from app.models.sense import Sense
+                sense_obj = Sense(**sense_data)
+                self.senses.append(sense_obj)
+            else:
+                # Already a Sense object
+                self.senses.append(sense_data)
     
     def validate(self) -> bool:
         """
@@ -64,8 +76,17 @@ class Entry(BaseModel):
         
         # Validate senses
         for i, sense in enumerate(self.senses):
-            if 'id' not in sense:
-                errors.append(f"Sense at index {i} is missing an ID")
+            # Handle both Sense objects and dictionaries
+            if hasattr(sense, 'id'):
+                # Sense object
+                if not sense.id:
+                    errors.append(f"Sense at index {i} is missing an ID")
+            elif isinstance(sense, dict):
+                # Dictionary
+                if 'id' not in sense:
+                    errors.append(f"Sense at index {i} is missing an ID")
+            else:
+                errors.append(f"Sense at index {i} is not a valid Sense object or dictionary")
         
         if errors:
             raise ValidationError("Entry validation failed", errors)
@@ -95,9 +116,17 @@ class Entry(BaseModel):
             True if the sense was removed, False if it was not found.
         """
         for i, sense in enumerate(self.senses):
-            if sense.get('id') == sense_id:
-                del self.senses[i]
-                return True
+            # Handle both Sense objects and dictionaries
+            if hasattr(sense, 'id'):
+                # Sense object
+                if sense.id == sense_id:
+                    del self.senses[i]
+                    return True
+            elif isinstance(sense, dict):
+                # Dictionary
+                if sense.get('id') == sense_id:
+                    del self.senses[i]
+                    return True
         
         return False
     
@@ -172,7 +201,7 @@ class Entry(BaseModel):
         """
         self.pronunciations[writing_system] = form
     
-    def get_sense_by_id(self, sense_id: str) -> Optional[Dict[str, Any]]:
+    def get_sense_by_id(self, sense_id: str) -> Optional[Any]:
         """
         Get a sense by ID.
         
@@ -183,7 +212,40 @@ class Entry(BaseModel):
             Sense with the given ID, or None if not found.
         """
         for sense in self.senses:
-            if sense.get('id') == sense_id:
-                return sense
+            # Handle both Sense objects and dictionaries
+            if hasattr(sense, 'id'):
+                # Sense object
+                if sense.id == sense_id:
+                    return sense
+            elif isinstance(sense, dict):
+                # Dictionary
+                if sense.get('id') == sense_id:
+                    return sense
         
         return None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the entry to a dictionary, including computed properties.
+        
+        Returns:
+            Dictionary representation of the entry.
+        """
+        result = super().to_dict()
+        
+        # Add computed properties
+        result['headword'] = self.headword
+        
+        # Convert senses to dictionaries if they're Sense objects
+        if 'senses' in result and result['senses']:
+            converted_senses = []
+            for sense in result['senses']:
+                if hasattr(sense, 'to_dict'):
+                    # It's a Sense object
+                    converted_senses.append(sense.to_dict())
+                else:
+                    # It's already a dict
+                    converted_senses.append(sense)
+            result['senses'] = converted_senses
+        
+        return result
