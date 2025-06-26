@@ -48,6 +48,54 @@ class LIFTParser:
         self.validate = validate
         self.logger = logging.getLogger(__name__)
 
+    def _find_element_with_fallback(self, element: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> Optional[ET.Element]:
+        """
+        Find an element with namespace fallback.
+        
+        Args:
+            element: The parent element to search in
+            xpath_with_ns: XPath with namespace prefix
+            xpath_without_ns: XPath without namespace prefix (optional, auto-generated if None)
+            
+        Returns:
+            Found element or None
+        """
+        # Try with namespace first
+        found = element.find(xpath_with_ns, self.NSMAP)
+        if found is not None:
+            return found
+        
+        # Fallback to without namespace
+        if xpath_without_ns is None:
+            # Auto-generate xpath without namespace by removing 'lift:' prefixes
+            xpath_without_ns = xpath_with_ns.replace('lift:', '')
+        
+        return element.find(xpath_without_ns)
+    
+    def _find_elements_with_fallback(self, element: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> List[ET.Element]:
+        """
+        Find elements with namespace fallback.
+        
+        Args:
+            element: The parent element to search in
+            xpath_with_ns: XPath with namespace prefix
+            xpath_without_ns: XPath without namespace prefix (optional, auto-generated if None)
+            
+        Returns:
+            List of found elements
+        """
+        # Try with namespace first
+        found = element.findall(xpath_with_ns, self.NSMAP)
+        if found:
+            return found
+        
+        # Fallback to without namespace
+        if xpath_without_ns is None:
+            # Auto-generate xpath without namespace by removing 'lift:' prefixes
+            xpath_without_ns = xpath_with_ns.replace('lift:', '')
+        
+        return element.findall(xpath_without_ns)
+
     def _find_elements(self, parent: ET.Element, xpath: str) -> List[ET.Element]:
         """
         Find elements with fallback to non-namespaced xpath.
@@ -345,7 +393,9 @@ class LIFTParser:
         
         # Parse grammatical info
         grammatical_info = None
-        gram_info_elem = sense_elem.find('.//lift:grammatical-info', self.NSMAP)
+        # Use the new helper method with namespace fallback
+        gram_info_elem = self._find_element_with_fallback(sense_elem, './/lift:grammatical-info')
+        
         if gram_info_elem is not None:
             grammatical_info = gram_info_elem.get('value')
         

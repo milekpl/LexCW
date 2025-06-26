@@ -711,3 +711,6 @@ def api_test_search():
     except Exception as e:
         logger.error(f"Error testing search: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+

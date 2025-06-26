@@ -126,6 +126,7 @@ function performSearch(page = 1) {
             return response.json();
         })
         .then(data => {
+            console.log('Search API response:', data); // Debug logging
             document.getElementById('search-loading').style.display = 'none';
             
             if (data.results.length === 0) {
@@ -135,6 +136,7 @@ function performSearch(page = 1) {
             }
             
             // Display results
+            console.log('Displaying results:', data.results); // Debug logging
             displaySearchResults(data.results);
             document.getElementById('search-results').style.display = 'block';
             
@@ -177,10 +179,23 @@ function displaySearchResults(results) {
         
         // Set entry data
         const entryLink = clone.querySelector('.result-entry-link');
-        entryLink.textContent = result.lexical_unit;
+        
+        // Handle lexical_unit which might be an object with language keys
+        let displayText = result.headword;
+        if (!displayText && result.lexical_unit) {
+            if (typeof result.lexical_unit === 'string') {
+                displayText = result.lexical_unit;
+            } else if (typeof result.lexical_unit === 'object') {
+                // Try common language keys
+                displayText = result.lexical_unit.en || result.lexical_unit.pl || 
+                             Object.values(result.lexical_unit)[0] || 'Unknown';
+            }
+        }
+        
+        entryLink.textContent = displayText || 'Unknown Entry';
         entryLink.href = `/entries/${result.id}`;
         
-        if (result.grammatical_info && result.grammatical_info.part_of_speech) {
+        if (result.grammatical_info?.part_of_speech) {
             clone.querySelector('.result-pos').textContent = result.grammatical_info.part_of_speech;
         } else {
             clone.querySelector('.result-pos').remove();

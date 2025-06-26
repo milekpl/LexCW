@@ -1,38 +1,25 @@
 # TODO - Future Tasks
 
-## Fix grammatical info parsing in the LIFT parser
+# TODO - Future Tasks
 
-Currently, the grammatical info from sense elements in LIFT XML is not being properly parsed into the Sense objects. This issue is visible in the test_create_entry_with_complex_structure test, where:
+## ✅ Fix grammatical info parsing in the LIFT parser - COMPLETED
 
-```xml
-<grammatical-info value="noun"/>
-```
+~~Currently, the grammatical info from sense elements in LIFT XML is not being properly parsed into the Sense objects. This issue is visible in the test_create_entry_with_complex_structure test.~~
 
-Is not correctly being parsed into:
+**FIXED**: The issue was that the LIFT parser was looking for `lift:grammatical-info` with namespace, but the actual XML elements in the database don't have namespace prefixes. Added fallback logic to check for elements both with and without namespace.
 
-```python
-sense.grammatical_info = "noun"
-```
+The grammatical_info field is now correctly parsed from `<grammatical-info value="noun"/>` into `sense.grammatical_info = "noun"`.
 
-The grammatical_info field in the Sense object is coming back as None.
+**Technical details:**
+- Added helper methods `_find_element_with_fallback()` and `_find_elements_with_fallback()` to handle namespace fallback
+- Updated `_parse_sense()` method to use the fallback mechanism
+- Added comprehensive tests in `tests/test_grammatical_info_parsing.py` to verify the fix works with and without namespaces
 
-### Steps to fix:
+## ✅ Fix web search UI display - COMPLETED  
 
-1. Debug the LIFT parser's sense parsing logic in app/parsers/lift_parser.py
-2. Update the `_parse_sense` method to correctly extract and set the grammatical_info value
-3. Add a dedicated test for grammatical_info parsing
-4. Verify compatibility with all existing code that uses this property
+~~Web search UI was not displaying results, even though the API worked.~~
 
-## Fix pagination in the search_entries method
-
-Currently, the pagination in search_entries is not working as expected. When limit and offset are provided, all entries are still being returned instead of just the specified page.
-
-### Steps to fix:
-
-1. Debug the BaseX XQuery to ensure that the pagination logic is working correctly
-2. Test with different BaseX versions to see if this is a version-specific issue
-3. Consider using a different XQuery approach for pagination if the current one isn't working
-4. Update the tests to be more strict once pagination is fixed
+**FIXED**: The issue was that the JavaScript expected `result.lexical_unit` to be a string, but the API returned it as an object like `{"en": "word"}`. Updated the JavaScript to handle both string and object formats for lexical_unit display.
 
 ## Improve XML namespace handling
 

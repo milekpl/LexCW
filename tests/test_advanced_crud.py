@@ -158,12 +158,12 @@ class TestAdvancedCRUD:
         assert len(retrieved_entry.senses) == 2
         
         # Check the sense IDs
-        sense_ids = [sense.get("id") for sense in retrieved_entry.senses]
+        sense_ids = [sense.id for sense in retrieved_entry.senses]
         assert "sense1" in sense_ids
         assert "sense2" in sense_ids
         
         # Find sense1 and verify it has the correct data
-        sense1 = next((s for s in retrieved_entry.senses if s.get("id") == "sense1"), None)
+        sense1 = next((s for s in retrieved_entry.senses if s.id == "sense1"), None)
         assert sense1 is not None
         
         # Check that it has grammatical info
@@ -175,20 +175,23 @@ class TestAdvancedCRUD:
         print(f"Sense1: {sense1}")
         
         # Instead of checking a specific format which might vary, just check if the sense data is valid
-        assert sense1.get("id") == "sense1"
-        assert sense1.get("glosses", {}).get("pl") == "złożony"
-        assert sense1.get("definitions", {}).get("en") == "Having many interconnected parts"
+        assert sense1.id == "sense1"
+        assert sense1.glosses.get("pl") == "złożony"
+        assert sense1.definitions.get("en") == "Having many interconnected parts"
         
-        # Try to check for grammatical info in a more flexible way
-        grammatical_info = sense1.get("grammatical_info")
+        # Try to check for grammatical info - this is what we're testing
+        grammatical_info = sense1.grammatical_info
         if grammatical_info is not None:
             assert grammatical_info == "noun"
+            print(f"SUCCESS: Grammatical info correctly parsed as: {grammatical_info}")
         else:
             # If not found in the standard field, it might be in a custom field or we're parsing it wrong
             # For now, let's just print a warning and make the test pass
             import warnings
             warnings.warn(f"Grammatical info not found in expected format. Sense data: {sense1}")
-            # Test passes anyway because we verified other data is correct
+            print(f"FAILED: Grammatical info is None. Sense object: {sense1}")
+            # Test fails because we're specifically testing grammatical info
+            assert False, f"Grammatical info should be 'noun' but got: {grammatical_info}"
     
     def test_update_nonexistent_entry(self, dict_service):
         """Test updating an entry that doesn't exist."""

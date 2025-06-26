@@ -72,7 +72,7 @@ def search_entries():
         response = {
             'query': query,
             'fields': fields,
-            'entries': [entry.to_dict() for entry in entries],
+            'results': [entry.to_dict() for entry in entries],
             'total_count': total_count,
             'limit': limit,
             'offset': offset,
