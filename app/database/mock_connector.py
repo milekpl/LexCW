@@ -64,37 +64,70 @@ class MockDatabaseConnector:
         """Check if mock connection is active."""
         return self._connected
     
-    def execute_query(self, query: str) -> Optional[str]:
-        """Execute a mock XQuery."""
-        self.logger.debug(f"Mock query: {query}")
+    def execute_query(self, query: str) -> str:
+        """
+        Execute a query against the mock database.
         
-        # Handle count queries
-        if query.strip().startswith('count('):
-            return str(len(self._entries))
+        Args:
+            query: XQuery query string
+            
+        Returns:
+            Query result as string
+        """
+        # Simple query parsing for common operations
+        self.logger.debug("Executing query: %s", query)
         
-        # Handle entry retrieval queries
-        if '/lift/entry' in query and 'return' in query:
-            # Return all entries wrapped in lift element
-            all_entries = ''.join(self._entries.values())
-            return all_entries
-        
-        # Handle specific entry lookup
-        if 'entry[@id=' in query:
-            # Extract entry ID from query (very basic parsing)
+        # Handle common query patterns
+        if "collection(" in query and "entry[@id=" in query:
+            # Extract entry ID from query
             import re
             match = re.search(r'entry\[@id="([^"]+)"\]', query)
             if match:
                 entry_id = match.group(1)
-                return self._entries.get(entry_id, '')
+                return self._entries.get(entry_id, "")
         
-        # Default: return empty result
-        return ''
+        # Handle count queries
+        if query.startswith("xquery count("):
+            return str(len(self._entries))
+        
+        # Handle list queries
+        if "for $entry in collection(" in query and "return $entry" in query:
+            # Return all entries for list operations
+            return "".join(self._entries.values())
+        
+        # Handle database operations
+        if query == "LIST":
+            return self.database if self.database else ""
+        
+        return ""
+    
+    def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
+        """
+        Execute a LIFT-specific query with namespace handling.
+        
+        Args:
+            query: XQuery query string (without namespace prologue)
+            has_namespace: Whether the database contains namespaced LIFT elements
+            
+        Returns:
+            Query result as string
+        """
+        # For mock connector, add xquery prefix if missing
+        if not query.strip().startswith('xquery'):
+            query = f"xquery {query}"
+        
+        # Execute the query as-is for mock
+        return self.execute_query(query)
     
     def execute_update(self, query: str) -> bool:
         """Execute a mock update query."""
-        self.logger.debug(f"Mock update: {query}")
+        self.logger.debug("Mock update: %s", query)
         
         try:
+            # Ensure update commands start with 'xquery' if they are XQuery expressions
+            if any(keyword in query for keyword in ['insert', 'delete', 'replace', 'for']) and not query.strip().startswith('xquery'):
+                query = f"xquery {query}"
+            
             # Handle insertions
             if 'insert node' in query.lower():
                 # Extract entry XML from query (simplified)
@@ -104,7 +137,7 @@ class MockDatabaseConnector:
                     entry_xml = match.group(0)
                     entry_id = match.group(1)
                     self._entries[entry_id] = entry_xml
-                    self.logger.info(f"Mock inserted entry: {entry_id}")
+                    self.logger.info("Mock inserted entry: %s", entry_id)
                 return True
             
             # Default: assume success

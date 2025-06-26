@@ -18,6 +18,8 @@ from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser, LIFTRangesParser
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError, ExportError
 from app.utils.constants import DB_NAME_NOT_CONFIGURED
+from app.utils.xquery_builder import XQueryBuilder
+from app.utils.namespace_manager import LIFTNamespaceManager
 
 
 class DictionaryService:
@@ -40,6 +42,11 @@ class DictionaryService:
         self.lift_parser = LIFTParser()
         self.ranges_parser = LIFTRangesParser()
         self.ranges: Dict[str, Any] = {}  # Cache for ranges data
+        
+        # Initialize namespace handling
+        self._namespace_manager = LIFTNamespaceManager()
+        self._query_builder = XQueryBuilder()
+        self._has_namespace = None  # Will be detected on first use
 
         # Ensure the connector is connected
         if not self.db_connector.is_connected():
@@ -67,6 +74,57 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Failed to open database on startup: %s", e, exc_info=True)
 
+    def _detect_namespace_usage(self) -> bool:
+        """
+        Detect whether the database contains namespaced LIFT elements.
+        
+        Returns:
+            True if namespace is used, False otherwise
+        """
+        if self._has_namespace is not None:
+            return self._has_namespace
+        
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                self._has_namespace = False
+                return False
+            
+            # Try to query with namespace first
+            test_query = f"""
+            xquery declare namespace lift = "{self._namespace_manager.LIFT_NAMESPACE}";
+            exists(collection('{db_name}')//lift:lift)
+            """
+            
+            result = self.db_connector.execute_query(test_query)
+            if result:
+                result = result.strip()
+            
+            if result and result.lower() == 'true':
+                self._has_namespace = True
+                self.logger.info("Database uses LIFT namespace")
+                return True
+            
+            # Test for non-namespaced elements
+            test_query_no_ns = f"xquery exists(collection('{db_name}')//lift)"
+            result_no_ns = self.db_connector.execute_query(test_query_no_ns)
+            if result_no_ns:
+                result_no_ns = result_no_ns.strip()
+            
+            if result_no_ns and result_no_ns.lower() == 'true':
+                self._has_namespace = False
+                self.logger.info("Database uses non-namespaced LIFT elements")
+                return False
+            
+            # Default to no namespace if database is empty or unclear
+            self._has_namespace = False
+            return False
+            
+        except Exception as e:
+            self.logger.warning("Error detecting namespace usage: %s", e)
+            self._has_namespace = False
+            return False
+    
     def _prepare_entry_xml(self, entry: Entry) -> str:
         """
         Generates and prepares the XML string for an entry, stripping namespaces.
@@ -166,12 +224,16 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            
             query = f"""
-            xquery for $entry in collection('{db_name}')//*:entry[@id="{entry_id}"]
+            for $entry in collection('{db_name}')//{entry_path}[@id="{entry_id}"]
             return $entry
             """
             
-            result = self.db_connector.execute_query(query)
+            result = self.db_connector.execute_lift_query(query, has_ns)
             
             if not result:
                 raise NotFoundError(f"Entry not found: {entry_id}")
@@ -220,8 +282,12 @@ class DictionaryService:
 
             entry_xml = self._prepare_entry_xml(entry)
             
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            lift_path = self._query_builder.get_element_path("lift", has_ns)
+            
             query = f"""
-            xquery insert node {entry_xml} into collection('{db_name}')//*:lift
+            insert node {entry_xml} into collection('{db_name}')//{lift_path}
             """
             
             self.db_connector.execute_update(query)
@@ -259,8 +325,12 @@ class DictionaryService:
 
             entry_xml = self._prepare_entry_xml(entry)
             
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            
             query = f"""
-            xquery replace node collection('{db_name}')//*:entry[@id="{entry.id}"] with {entry_xml}
+            replace node collection('{db_name}')//{entry_path}[@id="{entry.id}"] with {entry_xml}
             """
             
             self.db_connector.execute_update(query)
@@ -290,8 +360,12 @@ class DictionaryService:
             # Check if entry exists
             self.get_entry(entry_id)
             
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            
             query = f"""
-            xquery delete node collection('{db_name}')//*:entry[@id="{entry_id}"]
+            delete node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
             """
             
             self.db_connector.execute_update(query)
@@ -335,13 +409,17 @@ class DictionaryService:
                 end = offset + limit
                 pagination_expr = f"[position() = {start} to {end}]"
 
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            
             query = f"""
-            xquery (for $entry in collection('{db_name}')//*:entry
+            (for $entry in collection('{db_name}')//{entry_path}
             order by {sort_expr}
             return $entry){pagination_expr}
             """
             
-            result = self.db_connector.execute_query(query)
+            result = self.db_connector.execute_lift_query(query, has_ns)
             
             if not result:
                 return [], total_count
@@ -392,10 +470,14 @@ class DictionaryService:
             
             search_condition = " or ".join(conditions)
             
-            # Get the total count first - use simpler collection pattern
-            count_query = f"xquery count(for $entry in collection('{db_name}')//*:entry where {search_condition} return $entry)"
+            # Use namespace-aware queries
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
             
-            count_result = self.db_connector.execute_query(count_query)
+            # Get the total count first
+            count_query = f"count(for $entry in collection('{db_name}')//{entry_path} where {search_condition} return $entry)"
+            
+            count_result = self.db_connector.execute_lift_query(count_query, has_ns)
             total_count = int(count_result) if count_result else 0
             
             # Use XQuery position-based pagination (like in list_entries) 
@@ -408,9 +490,9 @@ class DictionaryService:
                 start = offset + 1
                 pagination_expr = f"[position() >= {start}]"
             
-            query_str = f"xquery (for $entry in collection('{db_name}')//*:entry where {search_condition} order by $entry/lexical-unit/form/text return $entry){pagination_expr}"
+            query_str = f"(for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form/text return $entry){pagination_expr}"
             
-            result = self.db_connector.execute_query(query_str)
+            result = self.db_connector.execute_lift_query(query_str, has_ns)
             
             if not result:
                 return [], total_count
@@ -464,13 +546,17 @@ class DictionaryService:
             
             relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
             
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            
             query = f"""
-            xquery let $entry_relations := collection('{db_name}')//*:entry[@id="{entry_id}"]/relation{relation_condition}/@ref
-            for $related in collection('{db_name}')//*:entry[@id = $entry_relations]
+            let $entry_relations := collection('{db_name}')//{entry_path}[@id="{entry_id}"]/relation{relation_condition}/@ref
+            for $related in collection('{db_name}')//{entry_path}[@id = $entry_relations]
             return $related
             """
             
-            result = self.db_connector.execute_query(query)
+            result = self.db_connector.execute_lift_query(query, has_ns)
             
             if not result:
                 return []
@@ -501,13 +587,19 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            gi_path = self._query_builder.get_element_path("grammatical-info", has_ns)
+
             query = f"""
-            xquery for $entry in collection('{db_name}')//*:entry
-            where $entry/*:sense/*:grammatical-info[@value="{grammatical_info}"]
+            for $entry in collection('{db_name}')//{entry_path}
+            where $entry/{sense_path}/{gi_path}[@value="{grammatical_info}"]
             return $entry
             """
 
-            result = self.db_connector.execute_query(query)
+            result = self.db_connector.execute_lift_query(query, has_ns)
 
             if not result:
                 return []
@@ -533,9 +625,12 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Use collection() instead of doc() to handle multiple documents
-            query = f"xquery count(collection('{db_name}')//*:entry)"
-            result = self.db_connector.execute_query(query)
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            
+            query = f"count(collection('{db_name}')//{entry_path})"
+            result = self.db_connector.execute_lift_query(query, has_ns)
             
             return int(result) if result else 0
             
@@ -558,13 +653,17 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Use collection() instead of doc() to handle multiple documents
-            sense_query = f"xquery count(collection('{db_name}')//*:sense)"
-            sense_result = self.db_connector.execute_query(sense_query)
+            # Use namespace-aware queries
+            has_ns = self._detect_namespace_usage()
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            example_path = self._query_builder.get_element_path("example", has_ns)
+            
+            sense_query = f"count(collection('{db_name}')//{sense_path})"
+            sense_result = self.db_connector.execute_lift_query(sense_query, has_ns)
             sense_count = int(sense_result) if sense_result else 0
             
-            example_query = f"xquery count(collection('{db_name}')//*:example)"
-            example_result = self.db_connector.execute_query(example_query)
+            example_query = f"count(collection('{db_name}')//{example_path})"
+            example_result = self.db_connector.execute_lift_query(example_query, has_ns)
             example_count = int(example_result) if example_result else 0
             
             return sense_count, example_count
@@ -600,21 +699,24 @@ class DictionaryService:
             try:
                 self.db_connector.execute_update(f'CREATE DB {temp_db_name} "{lift_path_basex}"')
                 
-                # Use collection() instead of db:open() which might not be available in all BaseX configurations
-                total_in_file_query = f"xquery count(collection('{temp_db_name}')//*:entry)"
-                total_count = int(self.db_connector.execute_query(total_in_file_query) or 0)
+                # Use namespace-aware queries
+                has_ns = self._detect_namespace_usage()
+                entry_path = self._query_builder.get_element_path("entry", has_ns)
+                lift_path_elem = self._query_builder.get_element_path("lift", has_ns)
+                
+                total_in_file_query = f"count(collection('{temp_db_name}')//{entry_path})"
+                total_count = int(self.db_connector.execute_lift_query(total_in_file_query, has_ns) or 0)
 
                 update_query = f"""
-                xquery
-                let $source_entries := collection('{temp_db_name}')//*:entry
+                let $source_entries := collection('{temp_db_name}')//{entry_path}
                 for $source_entry in $source_entries
                 let $entry_id := $source_entry/@id/string()
-                let $target_entry := collection('{self.db_connector.database}')//*:entry[@id = $entry_id]
+                let $target_entry := collection('{self.db_connector.database}')//{entry_path}[@id = $entry_id]
                 return if (exists($target_entry))
                 then replace node $target_entry with $source_entry
-                else insert node $source_entry into collection('{self.db_connector.database}')//*:lift
+                else insert node $source_entry into collection('{self.db_connector.database}')//{lift_path_elem}
                 """
-                self.db_connector.execute_update(update_query)
+                self.db_connector.execute_lift_query(update_query, has_ns)
                 
                 self.logger.info("Imported/updated %d entries from LIFT file", total_count)
                 return total_count
@@ -654,7 +756,7 @@ class DictionaryService:
             
         except Exception as e:
             self.logger.error("Error exporting to LIFT format: %s", str(e), exc_info=True)
-            raise ExportError(f"Failed to export to LIFT format: {e}") from e
+            raise ExportError(f"Failed to export to LIFT format: {str(e)}") from e
     
     def export_to_kindle(self, output_path: str, title: str = "Dictionary", 
                        source_lang: str = "en", target_lang: str = "pl",

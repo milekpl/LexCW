@@ -13,7 +13,6 @@ except ImportError:
     BaseXSession = None
 
 from app.utils.exceptions import DatabaseError
-from .mock_connector import MockDatabaseConnector
 
 
 class BaseXConnector:
@@ -121,9 +120,45 @@ class BaseXConnector:
         if not self.is_connected() or self.session is None:
             raise DatabaseError("Not connected to the database")
         try:
+            # Ensure update commands start with 'xquery' if they are XQuery expressions
+            if any(keyword in command for keyword in ['insert', 'delete', 'replace', 'for']) and not command.strip().startswith('xquery'):
+                command = f"xquery {command}"
+            
             self.session.execute(command)
         except Exception as e:
             raise DatabaseError(f"Failed to execute command: {str(e)}", e)
+    
+    def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
+        """
+        Execute a LIFT-specific XQuery with proper namespace handling.
+        
+        Args:
+            query: XQuery query string (without namespace prologue)
+            has_namespace: Whether the database contains namespaced LIFT elements
+            
+        Returns:
+            Query result as string
+        """
+        from app.utils.xquery_builder import XQueryBuilder
+        
+        # Add namespace prologue if needed
+        prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        
+        # Ensure query starts with 'xquery' if it doesn't already
+        if not query.strip().startswith('xquery'):
+            full_query = f"xquery {prologue}\n{query}"
+        else:
+            # Insert prologue after 'xquery' keyword
+            if prologue.strip():
+                parts = query.split('xquery', 1)
+                if len(parts) == 2:
+                    full_query = f"xquery {prologue}\n{parts[1]}"
+                else:
+                    full_query = f"xquery {prologue}\n{query}"
+            else:
+                full_query = query
+        
+        return self.execute_query(full_query)
     
     def begin_transaction(self) -> None:
         """
