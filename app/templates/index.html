@@ -105,13 +105,17 @@
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         Last Backup
-                        <span class="badge bg-secondary rounded-pill">{{ system_status.last_backup }}</span>
+                        <span class="badge bg-secondary rounded-pill">{{ system_status.last_backup if system_status.last_backup else 'Never' }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         Storage Usage
                         <span class="badge bg-{{ 'success' if system_status.storage_percent < 80 else 'warning' }} rounded-pill">
-                            {{ system_status.storage_percent }}%
+                            {{ system_status.storage_percent if system_status.storage_percent is not none else 0 }}%
                         </span>
+                    </li>
+                    <!-- Debug info -->
+                    <li class="list-group-item small text-muted">
+                        Debug: {{ system_status | tojson }}
                     </li>
                 </ul>
             </div>

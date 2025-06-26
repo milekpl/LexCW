@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dictionary Writing System - Home</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/main.css">
+    
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-book"></i> Dictionary Writing System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" 
+                           href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link " 
+                           href="/entries">Entries</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link " 
+                           href="/search">Search</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="importExportDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            Import/Export
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="importExportDropdown">
+                            <li><a class="dropdown-item" href="/import/lift">Import LIFT</a></li>
+                            <li><a class="dropdown-item" href="/export/lift">Export LIFT</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/export/kindle">Export for Kindle</a></li>
+                            <li><a class="dropdown-item" href="/export/sqlite">Export for Mobile App</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            Tools
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
+                            <li><a class="dropdown-item" href="/tools/batch-edit">Batch Edit</a></li>
+                            <li><a class="dropdown-item" href="/tools/validation">Validation</a></li>
+                            <li><a class="dropdown-item" href="/tools/pronunciation">Pronunciation</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/settings">Settings</a></li>
+                        </ul>
+                    </li>
+                </ul>
+                <form class="d-flex" action="/search" method="get">
+                    <input class="form-control me-2" type="search" name="q" placeholder="Quick search..." aria-label="Search">
+                    <button class="btn btn-outline-light" type="submit">Search</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash messages -->
+    <div class="container mt-3">
+        
+            
+        
+    </div>
+
+    <!-- Main content -->
+    <div class="container mt-4">
+        
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2><i class="fas fa-book"></i> Dictionary Writing System</h2>
+            </div>
+            <div class="card-body">
+                <p class="lead">Welcome to the Dictionary Writing System, a robust, testable, and extensible system for managing lexicographical data.</p>
+                
+                <h4>Quick Stats</h4>
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <div class="card text-center bg-light">
+                            <div class="card-body">
+                                <h1 class="card-title text-primary">315</h1>
+                                <p class="card-text">Total Entries</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center bg-light">
+                            <div class="card-body">
+                                <h1 class="card-title text-success">383</h1>
+                                <p class="card-text">Total Senses</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center bg-light">
+                            <div class="card-body">
+                                <h1 class="card-title text-info">11</h1>
+                                <p class="card-text">Total Examples</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="mt-4">Quick Actions</h4>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <a href="/entries/add" class="btn btn-primary btn-lg w-100 mb-3">
+                            <i class="fas fa-plus"></i> New Entry
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="/search" class="btn btn-success btn-lg w-100 mb-3">
+                            <i class="fas fa-search"></i> Advanced Search
+                        </a>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <a href="/import/lift" class="btn btn-info btn-lg w-100 mb-3">
+                            <i class="fas fa-file-import"></i> Import LIFT
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="/export/lift" class="btn btn-warning btn-lg w-100 mb-3">
+                            <i class="fas fa-file-export"></i> Export LIFT
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-history"></i> Recent Activity</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    
+                    <li class="list-group-item">
+                        <small class="text-muted">2025-06-26 00:38</small><br>
+                        <strong>Entry Created</strong>: Added new entry &#34;example&#34;
+                    </li>
+                    
+                    <li class="list-group-item">
+                        <small class="text-muted">2025-06-26 00:38</small><br>
+                        <strong>Entry Updated</strong>: Updated entry &#34;test&#34;
+                    </li>
+                    
+                </ul>
+            </div>
+            <div class="card-footer">
+                <a href="/activity-log" class="btn btn-sm btn-outline-secondary w-100">View Full Activity Log</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-tasks"></i> System Status</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Database Connection
+                        <span class="badge bg-success rounded-pill">
+                            Connected
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Last Backup
+                        <span class="badge bg-secondary rounded-pill">2025-06-26 00:38</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Storage Usage
+                        <span class="badge bg-success rounded-pill">
+                            25%
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+    </div>        <!-- Footer -->
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container text-center">
+                <span class="text-muted">Dictionary Writing System &copy; 2025</span>
+            </div>
+        </footer>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Common JS -->
+    <script src="/static/js/common.js"></script>
+    
+<script src="/static/js/dashboard.js"></script>
+
+</body>
+</html>

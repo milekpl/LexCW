@@ -1,0 +1,45 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>System Status Test</title>
+</head>
+<body>
+    <h1>System Status Test</h1>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>System Status</h5>
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Database Connection
+                    <span class="badge bg-success rounded-pill">
+                        Connected
+                    </span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Last Backup
+                    <span class="badge bg-secondary rounded-pill">2025-06-26 00:45</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Storage Usage
+                    <span class="badge bg-success rounded-pill">
+                        42%
+                    </span>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <hr>
+    
+    <h2>Debug Information</h2>
+    <pre>{
+    "db_connected": true,
+    "last_backup": "2025-06-26 00:45",
+    "storage_percent": 42
+}</pre>
+</body>
+</html>

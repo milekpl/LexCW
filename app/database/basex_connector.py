@@ -46,7 +46,6 @@ class BaseXConnector:
         self.password = password
         self.database = database
         self.session = None
-        self.logger = logging.getLogger(__name__)
     
     def connect(self) -> bool:
         """
@@ -103,12 +102,7 @@ class BaseXConnector:
             DatabaseError: If the query failed.
         """
         if not self.is_connected() or self.session is None:
-            try:
-                # Attempt to reconnect if the connection was lost
-                self.connect()
-                self.logger.info("Reconnected to BaseX server")
-            except Exception as e:
-                raise DatabaseError(f"Not connected to the database and reconnection failed: {str(e)}")
+            raise DatabaseError("Not connected to the database")
         try:
             return self.session.execute(query)
         except Exception as e:
@@ -125,17 +119,11 @@ class BaseXConnector:
             DatabaseError: If the command failed.
         """
         if not self.is_connected() or self.session is None:
-            try:
-                # Attempt to reconnect if the connection was lost
-                self.connect()
-                self.logger.info("Reconnected to BaseX server")
-            except Exception as e:
-                raise DatabaseError(f"Not connected to the database and reconnection failed: {str(e)}")
-        
+            raise DatabaseError("Not connected to the database")
         try:
             self.session.execute(command)
         except Exception as e:
-            raise DatabaseError(f"Failed to execute update: {str(e)}", e)
+            raise DatabaseError(f"Failed to execute command: {str(e)}", e)
     
     def begin_transaction(self) -> None:
         """

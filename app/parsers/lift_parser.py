@@ -414,45 +414,20 @@ class LIFTParser:
             
         Returns:
             LIFT XML string.
-            
-        Raises:
+              Raises:
             ValidationError: If validation is enabled and an entry fails validation.
         """
-        try:
-            # Register namespaces
-            ET.register_namespace('lift', self.NSMAP['lift'])
-            ET.register_namespace('flex', self.NSMAP['flex'])
-            
-            root = self._generate_lift_root()
-            
-            for entry in entries:
-                if self.validate:
-                    entry.validate()
-                self._generate_entry_element(root, entry)
-            
-            xml_str = ET.tostring(root, encoding='utf-8')
-            pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
-            
-            # Log the first part of the generated XML for debugging
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.debug("Generated LIFT XML (first 500 chars): %s", 
-                         pretty_xml[:500] + '...' if len(pretty_xml) > 500 else pretty_xml)
-            
-            return pretty_xml
-            
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error("Error generating LIFT XML: %s", str(e), exc_info=True)
-            
-            # If there are no entries, return an empty LIFT document
-            if not entries:
-                empty_root = self._generate_lift_root()
-                xml_str = ET.tostring(empty_root, encoding='utf-8')
-                return minidom.parseString(xml_str).toprettyxml(indent="  ")
-                
-            raise ValueError(f"Failed to generate LIFT XML: {str(e)}")
+        root = self._generate_lift_root()
+        
+        for entry in entries:
+            if self.validate:
+                entry.validate()
+            self._generate_entry_element(root, entry)
+        
+        xml_str = ET.tostring(root, encoding='utf-8')
+        pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
+        
+        return pretty_xml
     
     def _generate_lift_root(self) -> ET.Element:
         """

@@ -156,8 +156,35 @@ function displayEntries(entries) {
         row.dataset.entryId = entry.id;
         
         const entryLink = clone.querySelector('.entry-link');
-        entryLink.textContent = entry.lexical_unit;
+        // Handle lexical_unit as a dictionary with language codes
+        let headword = '';
+        if (typeof entry.lexical_unit === 'object') {
+            // Prefer English if available
+            if (entry.lexical_unit.en) {
+                headword = entry.lexical_unit.en;
+            } else {
+                // Otherwise, take the first available language
+                const firstLang = Object.keys(entry.lexical_unit)[0];
+                if (firstLang) {
+                    headword = entry.lexical_unit[firstLang];
+                }
+            }
+        } else if (typeof entry.lexical_unit === 'string') {
+            // For backward compatibility
+            headword = entry.lexical_unit;
+        }
+        
+        entryLink.textContent = headword;
         entryLink.href = `/entries/${entry.id}`;
+        
+        // If we have multiple languages, show them in a smaller font
+        if (typeof entry.lexical_unit === 'object' && Object.keys(entry.lexical_unit).length > 1) {
+            const languages = Object.keys(entry.lexical_unit).join(', ');
+            const languageSpan = document.createElement('span');
+            languageSpan.className = 'small text-muted ms-2';
+            languageSpan.textContent = `[${languages}]`;
+            entryLink.appendChild(languageSpan);
+        }
         
         if (entry.citation_form) {
             clone.querySelector('.citation-form').textContent = entry.citation_form;

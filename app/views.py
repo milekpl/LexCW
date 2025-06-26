@@ -64,6 +64,14 @@ def index():
         
         # Get system status
         system_status = dict_service.get_system_status()
+        logger.info(f"System status retrieved: {system_status}")
+        
+        # Check system_status type to debug issues
+        logger.info(f"system_status type: {type(system_status)}")
+        logger.info(f"system_status keys: {system_status.keys() if hasattr(system_status, 'keys') else 'N/A'}")
+        logger.info(f"db_connected value: {system_status.get('db_connected', 'ERROR')}")
+        logger.info(f"last_backup value: {system_status.get('last_backup', 'ERROR')}")
+        logger.info(f"storage_percent value: {system_status.get('storage_percent', 'ERROR')}")
     except Exception as e:
         logger.error(f"Error getting dashboard data: {e}", exc_info=True)
         flash(f"Error loading dashboard data: {str(e)}", "danger")
