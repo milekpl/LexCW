@@ -55,27 +55,47 @@ function fetchSystemStatus() {
         })
         .then(data => {
             // Update DB connection status
-            const dbStatusBadge = document.querySelector('.badge:nth-of-type(1)');
-            dbStatusBadge.className = `badge bg-${data.db_connected ? 'success' : 'danger'} rounded-pill`;
-            dbStatusBadge.textContent = data.db_connected ? 'Connected' : 'Disconnected';
+            const dbStatusBadge = document.getElementById('db-status-badge');
+            if (dbStatusBadge) {
+                dbStatusBadge.className = `badge bg-${data.db_connected ? 'success' : 'danger'} rounded-pill`;
+                dbStatusBadge.textContent = data.db_connected ? 'Connected' : 'Disconnected';
+            }
             
             // Update last backup
-            const backupBadge = document.querySelector('.badge:nth-of-type(2)');
-            backupBadge.textContent = data.last_backup || 'Never';
+            const backupBadge = document.getElementById('backup-status-badge');
+            if (backupBadge) {
+                backupBadge.textContent = data.last_backup || 'Never';
+            }
             
             // Update storage usage
-            const storageBadge = document.querySelector('.badge:nth-of-type(3)');
-            const storagePercent = data.storage_percent || 0;
-            storageBadge.className = `badge bg-${storagePercent < 80 ? 'success' : storagePercent < 95 ? 'warning' : 'danger'} rounded-pill`;
-            storageBadge.textContent = `${storagePercent}%`;
+            const storageBadge = document.getElementById('storage-status-badge');
+            if (storageBadge) {
+                const storagePercent = data.storage_percent || 0;
+                let badgeColor = 'success';
+                if (storagePercent >= 95) {
+                    badgeColor = 'danger';
+                } else if (storagePercent >= 80) {
+                    badgeColor = 'warning';
+                }
+                storageBadge.className = `badge bg-${badgeColor} rounded-pill`;
+                storageBadge.textContent = `${storagePercent}%`;
+            }
         })
         .catch(error => {
             console.error('Error:', error);
-            // Show error indicators
-            document.querySelectorAll('.badge').forEach(el => {
-                el.className = 'badge bg-secondary rounded-pill';
-                el.textContent = 'Error';
-                el.title = 'Error loading system status';
+            // Show error indicators on system status badges only
+            const statusBadges = [
+                document.getElementById('db-status-badge'),
+                document.getElementById('backup-status-badge'),
+                document.getElementById('storage-status-badge')
+            ];
+            
+            statusBadges.forEach(badge => {
+                if (badge) {
+                    badge.className = 'badge bg-secondary rounded-pill';
+                    badge.textContent = 'Error';
+                    badge.title = 'Error loading system status';
+                }
             });
         });
 }
