@@ -1,0 +1,202 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for advanced analytics and corpus processing
+  postgres:
+    image: postgres:15-alpine
+    container_name: dictionary_postgres
+    environment:
+      POSTGRES_DB: dictionary_analytics
+      POSTGRES_USER: dict_user
+      POSTGRES_PASSWORD: dict_pass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dict_user -d dictionary_analytics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dictionary_network
+
+  # PostgreSQL for testing (separate instance)
+  postgres_test:
+    image: postgres:15-alpine
+    container_name: dictionary_postgres_test
+    environment:
+      POSTGRES_DB: dictionary_test
+      POSTGRES_USER: dict_user
+      POSTGRES_PASSWORD: dict_pass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dict_user -d dictionary_test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dictionary_network
+
+  # BaseX XML Database
+  basex:
+    image: basex/basex:10.7
+    container_name: dictionary_basex
+    environment:
+      - BASEX_JVM=-Xmx2g
+    ports:
+      - "1984:1984"
+      - "8080:8080"
+    volumes:
+      - basex_data:/srv/basex/data
+      - basex_repo:/srv/basex/repo
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dictionary_network
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: dictionary_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dictionary_network
+
+  # Flask application
+  flask_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dictionary_flask
+    environment:
+      # Database configurations
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=dictionary_analytics
+      - POSTGRES_USER=dict_user
+      - POSTGRES_PASSWORD=dict_pass
+      
+      # Test database
+      - POSTGRES_TEST_HOST=postgres_test
+      - POSTGRES_TEST_PORT=5432
+      - POSTGRES_TEST_DB=dictionary_test
+      - POSTGRES_TEST_USER=dict_user
+      - POSTGRES_TEST_PASSWORD=dict_pass
+      
+      # BaseX configuration
+      - BASEX_HOST=basex
+      - BASEX_PORT=1984
+      - BASEX_USERNAME=admin
+      - BASEX_PASSWORD=admin
+      - BASEX_DATABASE=dictionary
+      - USE_MOCK_DATABASE=false
+      
+      # Redis configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # Flask configuration
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - SECRET_KEY=dev-secret-key-change-in-production
+      
+      # Performance settings
+      - WORKERS=4
+      - MAX_CONNECTIONS=100
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres_test:
+        condition: service_healthy
+      basex:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dictionary_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Test runner service
+  test_runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: dictionary_test_runner
+    environment:
+      # Test database configurations
+      - POSTGRES_HOST=postgres_test
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=dictionary_test
+      - POSTGRES_USER=dict_user
+      - POSTGRES_PASSWORD=dict_pass
+      
+      # BaseX test configuration
+      - BASEX_HOST=basex
+      - BASEX_PORT=1984
+      - BASEX_USERNAME=admin
+      - BASEX_PASSWORD=admin
+      - BASEX_DATABASE=dictionary_test
+      
+      # Testing flags
+      - TESTING=true
+      - PYTEST_CURRENT_TEST=1
+    volumes:
+      - .:/app
+      - test_results:/app/test_results
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      basex:
+        condition: service_healthy
+    networks:
+      - dictionary_network
+    profiles:
+      - testing
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_test_data:
+    driver: local
+  basex_data:
+    driver: local
+  basex_repo:
+    driver: local
+  redis_data:
+    driver: local
+  test_results:
+    driver: local
+
+networks:
+  dictionary_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

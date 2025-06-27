@@ -47,7 +47,13 @@ class PostgreSQLConnector:
         self.config = config or self._load_config_from_env()
         self.logger = logging.getLogger(__name__)
         self._connection: Optional[psycopg2.extensions.connection] = None
-        self._initialize_connection()
+        
+        # Only initialize connection if not in test mode
+        testing_mode = os.getenv('TESTING', '').lower() in ('true', '1', 'yes')
+        pytest_running = 'PYTEST_CURRENT_TEST' in os.environ
+        
+        if not (testing_mode or pytest_running):
+            self._initialize_connection()
     
     def _load_config_from_env(self) -> PostgreSQLConfig:
         """Load configuration from environment variables."""
@@ -114,7 +120,7 @@ class PostgreSQLConnector:
         """
         with self.get_cursor() as cursor:
             try:
-                cursor.execute(query, parameters or {})
+                cursor.execute(query, parameters if parameters else None)
                 self.logger.debug(f"Executed query: {query[:100]}...")
             except psycopg2.Error as e:
                 self.logger.error(f"Query execution failed: {e}")
@@ -140,7 +146,7 @@ class PostgreSQLConnector:
         """
         with self.get_cursor() as cursor:
             try:
-                cursor.execute(query, parameters or {})
+                cursor.execute(query, parameters if parameters else None)
                 results = cursor.fetchall()
                 self.logger.debug(f"Query returned {len(results)} rows")
                 return [dict(row) for row in results]
@@ -168,7 +174,7 @@ class PostgreSQLConnector:
         """
         with self.get_cursor() as cursor:
             try:
-                cursor.execute(query, parameters or {})
+                cursor.execute(query, parameters if parameters else None)
                 result = cursor.fetchone()
                 return dict(result) if result else None
             except psycopg2.Error as e:
