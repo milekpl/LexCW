@@ -2,7 +2,7 @@
 Sense model representing a sense in a dictionary entry.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from app.models.base import BaseModel
 from app.utils.exceptions import ValidationError
 
@@ -30,14 +30,32 @@ class Sense(BaseModel):
             id_: Unique identifier for the sense.
             **kwargs: Additional attributes to set on the sense.
         """
+        # Initialize attributes first before calling super().__init__
+        self.glosses = kwargs.pop('glosses', {})
+        self.definitions = kwargs.pop('definitions', {})
+        self.grammatical_info = kwargs.pop('grammatical_info', None)
+        self.examples = kwargs.pop('examples', [])
+        self.relations = kwargs.pop('relations', [])
+        self.notes = kwargs.pop('notes', {})
+        self.custom_fields = kwargs.pop('custom_fields', {})
+        
+        # Handle legacy property setters
+        if 'gloss' in kwargs:
+            gloss_value = kwargs.pop('gloss')
+            if isinstance(gloss_value, dict):
+                self.glosses.update(gloss_value)
+            elif isinstance(gloss_value, str):
+                self.glosses['en'] = gloss_value
+        
+        if 'definition' in kwargs:
+            def_value = kwargs.pop('definition')
+            if isinstance(def_value, dict):
+                self.definitions.update(def_value)
+            elif isinstance(def_value, str):
+                self.definitions['en'] = def_value
+        
+        # Now call super() with remaining kwargs
         super().__init__(id_, **kwargs)
-        self.glosses = kwargs.get('glosses', {})
-        self.definitions = kwargs.get('definitions', {})
-        self.grammatical_info = kwargs.get('grammatical_info')
-        self.examples = kwargs.get('examples', [])
-        self.relations = kwargs.get('relations', [])
-        self.notes = kwargs.get('notes', {})
-        self.custom_fields = kwargs.get('custom_fields', {})
     
     def validate(self) -> bool:
         """
@@ -123,6 +141,19 @@ class Sense(BaseModel):
             return next(iter(self.definitions.values()))
         return ""
     
+    @definition.setter
+    def definition(self, value: Any) -> None:
+        """
+        Set the definition. Can be a string (sets 'en') or dict.
+        
+        Args:
+            value: String or dict of definitions by language.
+        """
+        if isinstance(value, dict):
+            self.definitions.update(value)
+        elif isinstance(value, str):
+            self.definitions['en'] = value
+    
     @property
     def gloss(self) -> str:
         """
@@ -137,7 +168,20 @@ class Sense(BaseModel):
             return next(iter(self.glosses.values()))
         return ""
     
-    def get_definition(self, lang: str = None) -> str:
+    @gloss.setter
+    def gloss(self, value: Any) -> None:
+        """
+        Set the gloss. Can be a string (sets 'en') or dict.
+        
+        Args:
+            value: String or dict of glosses by language.
+        """
+        if isinstance(value, dict):
+            self.glosses.update(value)
+        elif isinstance(value, str):
+            self.glosses['en'] = value
+    
+    def get_definition(self, lang: Optional[str] = None) -> str:
         """
         Get the definition in the specified language.
         
@@ -151,7 +195,7 @@ class Sense(BaseModel):
             return self.definitions.get(lang, "")
         return self.definition
     
-    def get_gloss(self, lang: str = None) -> str:
+    def get_gloss(self, lang: Optional[str] = None) -> str:
         """
         Get the gloss in the specified language.
         

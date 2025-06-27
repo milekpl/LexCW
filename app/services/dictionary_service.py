@@ -341,12 +341,15 @@ class DictionaryService:
             self.logger.error("Error updating entry %s: %s", entry.id, str(e))
             raise DatabaseError(f"Failed to update entry: {str(e)}") from e
 
-    def delete_entry(self, entry_id: str) -> None:
+    def delete_entry(self, entry_id: str) -> bool:
         """
         Delete an entry by ID.
         
         Args:
             entry_id: ID of the entry to delete.
+            
+        Returns:
+            True if the entry was deleted successfully.
             
         Raises:
             NotFoundError: If the entry does not exist.
@@ -357,7 +360,7 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Check if entry exists
+            # Check if entry exists first - this will raise NotFoundError if not found
             self.get_entry(entry_id)
             
             # Use namespace-aware query
@@ -369,11 +372,14 @@ class DictionaryService:
             """
             
             self.db_connector.execute_update(query)
+            return True
             
         except NotFoundError:
+            # Re-raise NotFoundError so callers know the entry didn't exist
             raise
         except Exception as e:
             self.logger.error("Error deleting entry %s: %s", entry_id, str(e))
+            raise DatabaseError(f"Failed to delete entry: {e}") from e
             raise DatabaseError(f"Failed to delete entry: {str(e)}") from e
 
     def list_entries(self, limit: Optional[int] = None, offset: int = 0, sort_by: str = "lexical_unit") -> Tuple[List[Entry], int]:
@@ -462,7 +468,8 @@ class DictionaryService:
             q_escaped = query.replace("'", "''")  # Escape single quotes for XQuery
             
             if "lexical_unit" in fields:
-                conditions.append(f"contains(lower-case(string-join($entry/lexical-unit/form/text, '')), '{q_escaped.lower()}')")
+                # Fix: Handle multiple form elements correctly
+                conditions.append(f"(some $form in $entry/lexical-unit/form/text satisfies contains(lower-case($form), '{q_escaped.lower()}'))")
             if "glosses" in fields:
                 conditions.append(f"(some $gloss in $entry/sense/gloss/text satisfies contains(lower-case($gloss), '{q_escaped.lower()}'))")
             if "definitions" in fields:
@@ -490,7 +497,7 @@ class DictionaryService:
                 start = offset + 1
                 pagination_expr = f"[position() >= {start}]"
             
-            query_str = f"(for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form/text return $entry){pagination_expr}"
+            query_str = f"(for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form[1]/text return $entry){pagination_expr}"
             
             result = self.db_connector.execute_lift_query(query_str, has_ns)
             
@@ -521,6 +528,60 @@ class DictionaryService:
             DatabaseError: If there is an error getting the entry count.
         """
         return self.count_entries()
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get comprehensive statistics about the dictionary.
+        
+        Returns:
+            Dictionary containing various statistics.
+            
+        Raises:
+            DatabaseError: If there is an error getting statistics.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+                
+            stats = {}
+            
+            # Use namespace-aware queries
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            
+            # Total entries
+            stats["total_entries"] = self.count_entries()
+            
+            # Total senses
+            sense_count_query = f"count(collection('{db_name}')//{sense_path})"
+            sense_count_result = self.db_connector.execute_lift_query(sense_count_query, has_ns)
+            stats["total_senses"] = int(sense_count_result) if sense_count_result else 0
+            
+            # Average senses per entry
+            if stats["total_entries"] > 0:
+                stats["avg_senses_per_entry"] = round(stats["total_senses"] / stats["total_entries"], 2)
+            else:
+                stats["avg_senses_per_entry"] = 0
+            
+            # Language distribution
+            lang_query = f"distinct-values(collection('{db_name}')//{entry_path}/lexical-unit/form/@lang)"
+            lang_result = self.db_connector.execute_lift_query(lang_query, has_ns)
+            if lang_result:
+                # Parse the result and count entries per language
+                languages = [lang.strip() for lang in lang_result.replace('"', '').split() if lang.strip()]
+                stats["languages"] = languages
+                stats["language_count"] = len(languages)
+            else:
+                stats["languages"] = []
+                stats["language_count"] = 0
+            
+            return stats
+            
+        except Exception as e:
+            self.logger.error("Error getting statistics: %s", str(e))
+            raise DatabaseError(f"Failed to get statistics: {str(e)}") from e
     
     def get_related_entries(self, entry_id: str, relation_type: Optional[str] = None) -> List[Entry]:
         """

@@ -24,13 +24,15 @@ class TestEntry:
             lexical_unit={"en": "test"},
             senses=[{
                 "id": "sense_1",
-                "gloss": {"form": {"text": "A test entry"}}
+                "gloss": "A test entry"  # Simple string, should be stored in 'en'
             }]
         )        
         assert entry.id == "test_entry_1"
         assert entry.lexical_unit == {"en": "test"}
         assert len(entry.senses) == 1
-        assert entry.senses[0]["id"] == "sense_1"
+        # Test with actual Sense object, not dictionary
+        assert entry.senses[0].id == "sense_1"
+        assert entry.senses[0].gloss == "A test entry"  # Test the property
     
     def test_entry_validation(self):
         """Test entry validation."""
@@ -40,30 +42,31 @@ class TestEntry:
             lexical_unit={"en": "test"},
             senses=[{
                 "id": "sense_1",
-                "gloss": {"form": {"text": "A test entry"}}
+                "gloss": "A test entry"
             }]
         )
         
-        assert entry.validate() == True
+        assert entry.validate()
         
         # Invalid entry - no lexical unit
         entry_no_lexical_unit = Entry(
             id_="test_entry_2",
             senses=[{
                 "id": "sense_1",
-                "gloss": {"form": {"text": "A test entry"}}
+                "gloss": "A test entry"
             }]
         )
         
         with pytest.raises(ValidationError):
             entry_no_lexical_unit.validate()
         
-        # Invalid entry - sense without ID
+        # Invalid entry - sense without ID  
         entry_invalid_sense = Entry(
             id_="test_entry_3",
             lexical_unit={"en": "test"},
             senses=[{
-                "gloss": {"form": {"text": "A test entry"}}
+                "id": "",  # Empty ID should fail validation
+                "gloss": "A test entry"
             }]
         )
         
@@ -165,6 +168,8 @@ class TestDictionaryService:
     def setup_method(self):
         """Set up test fixtures."""
         self.mock_connector = Mock(spec=BaseXConnector)
+        self.mock_connector.database = "test_db"  # Add missing database attribute
+        self.mock_connector.execute_query.return_value = "test_db"  # For LIST command in __init__
         self.service = DictionaryService(self.mock_connector)
     
     def test_service_initialization(self):
@@ -175,19 +180,23 @@ class TestDictionaryService:
     
     def test_get_entry_count(self):
         """Test getting the entry count."""
-        self.mock_connector.execute_query.return_value = "42"
+        self.mock_connector.execute_lift_query.return_value = "42"
         
         count = self.service.get_entry_count()
         
         assert count == 42
-        self.mock_connector.execute_query.assert_called_once()
+        self.mock_connector.execute_lift_query.assert_called_once()
     
     def test_get_ranges(self):
         """Test getting ranges data."""
+        # Mock empty ranges (typical when no ranges.xml is found)
+        self.mock_connector.execute_query.return_value = None
+        
         ranges = self.service.get_ranges()
         
         assert isinstance(ranges, dict)
-        assert "ranges" in ranges
+        # Should return empty dict when no ranges found
+        assert ranges == {}
 
 
 class TestFlaskApp:

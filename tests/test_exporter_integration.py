@@ -1,0 +1,376 @@
+"""
+Real Integration Tests for Exporters
+Tests export functionality with actual data operations using real database connections.
+"""
+import os
+import sys
+import pytest
+import tempfile
+import uuid
+import sqlite3
+from pathlib import Path
+
+# Add parent directory to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from app.models.entry import Entry
+from app.models.sense import Sense
+from app.services.dictionary_service import DictionaryService
+from app.exporters.kindle_exporter import KindleExporter
+from app.exporters.sqlite_exporter import SQLiteExporter
+
+
+class TestExporterIntegration:
+    """Real integration tests for export functionality with actual data."""
+    
+    @pytest.fixture(scope="class")
+    def dict_service(self):
+        """Get dictionary service instance with real database."""
+        from app.database.basex_connector import BaseXConnector
+        
+        # Create test database connection
+        connector = BaseXConnector(
+            host=os.getenv('BASEX_HOST', 'localhost'),
+            port=int(os.getenv('BASEX_PORT', '1984')),
+            username=os.getenv('BASEX_USERNAME', 'admin'),
+            password=os.getenv('BASEX_PASSWORD', 'admin'),
+            database=f"test_exporters_{uuid.uuid4().hex[:8]}"
+        )
+        
+        service = DictionaryService(db_connector=connector)
+        
+        # Add some test data
+        test_entries = [
+            Entry(
+                id="export_test_1",
+                lexical_unit={"en": "export_word1", "pl": "słowo_eksportu1"},
+                senses=[
+                    Sense(
+                        id="export_sense_1",
+                        gloss="Export test gloss 1",
+                        definition="Export test definition 1",
+                        grammatical_info="Noun"
+                    )
+                ]
+            ),
+            Entry(
+                id="export_test_2", 
+                lexical_unit={"en": "export_word2", "pl": "słowo_eksportu2"},
+                senses=[
+                    Sense(
+                        id="export_sense_2a",
+                        gloss="Export test gloss 2a",
+                        definition="Export test definition 2a",
+                        grammatical_info="Verb"
+                    ),
+                    Sense(
+                        id="export_sense_2b",
+                        gloss="Export test gloss 2b", 
+                        definition="Export test definition 2b",
+                        grammatical_info="Noun"
+                    )
+                ]
+            ),
+            Entry(
+                id="export_test_3",
+                lexical_unit={"en": "export_word3", "pl": "słowo_eksportu3"},
+                senses=[
+                    Sense(
+                        id="export_sense_3",
+                        gloss="Export test gloss 3",
+                        definition="Export test definition 3",
+                        grammatical_info="Adjective"
+                    )
+                ]
+            )
+        ]
+        
+        for entry in test_entries:
+            service.create_entry(entry)
+        
+        yield service
+        
+        # Cleanup
+        try:
+            connector.close()
+        except Exception:
+            pass
+    
+    def test_kindle_exporter_real_data(self, dict_service):
+        """Test Kindle exporter with real dictionary data."""
+        exporter = KindleExporter(dict_service)
+        
+        with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as temp_file:
+            try:
+                # Test export
+                exporter.export(temp_file.name, title="Test Dictionary Export", author="Test Author")
+                
+                # Verify file was created and has content
+                assert os.path.exists(temp_file.name)
+                file_size = os.path.getsize(temp_file.name)
+                assert file_size > 0, "Export file is empty"
+                
+                # Verify content
+                with open(temp_file.name, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    
+                # Check for basic HTML structure
+                assert '<!DOCTYPE html>' in content
+                assert '<html' in content
+                assert '</html>' in content
+                assert '<head>' in content
+                assert '<body>' in content
+                
+                # Check for title and author
+                assert 'Test Dictionary Export' in content
+                assert 'Test Author' in content
+                
+                # Check that test data appears
+                assert 'export_word1' in content
+                assert 'export_word2' in content
+                assert 'export_word3' in content
+                assert 'słowo_eksportu1' in content
+                assert 'Export test gloss 1' in content
+                assert 'Export test definition 1' in content
+                
+                # Check for entries with multiple senses
+                assert 'export_word2' in content  # Entry with 2 senses
+                assert 'Export test gloss 2a' in content
+                assert 'Export test gloss 2b' in content
+                
+                # Check for grammatical info
+                assert 'Noun' in content
+                assert 'Verb' in content
+                assert 'Adjective' in content
+                
+                print(f"Kindle export file size: {file_size} bytes")
+                
+            finally:
+                if os.path.exists(temp_file.name):
+                    os.unlink(temp_file.name)
+    
+    def test_kindle_exporter_custom_options(self, dict_service):
+        """Test Kindle exporter with custom options."""
+        exporter = KindleExporter(dict_service)
+        
+        with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as temp_file:
+            try:
+                # Test with custom options
+                exporter.export(
+                    temp_file.name,
+                    title="Custom Dictionary",
+                    author="Custom Author",
+                    language="pl",
+                    show_pronunciation=False,
+                    show_examples=False
+                )
+                
+                assert os.path.exists(temp_file.name)
+                
+                with open(temp_file.name, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    
+                assert 'Custom Dictionary' in content
+                assert 'Custom Author' in content
+                assert 'lang="pl"' in content
+                
+            finally:
+                if os.path.exists(temp_file.name):
+                    os.unlink(temp_file.name)
+    
+    def test_sqlite_exporter_real_data(self, dict_service):
+        """Test SQLite exporter with real dictionary data."""
+        exporter = SQLiteExporter(dict_service)
+        
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_file:
+            try:
+                # Test export
+                exporter.export(temp_file.name)
+                
+                # Verify file was created
+                assert os.path.exists(temp_file.name)
+                file_size = os.path.getsize(temp_file.name)
+                assert file_size > 0, "SQLite export file is empty"
+                
+                # Test that it's a valid SQLite file
+                conn = sqlite3.connect(temp_file.name)
+                cursor = conn.cursor()
+                
+                # Check tables exist
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [row[0] for row in cursor.fetchall()]
+                assert len(tables) > 0, "No tables found in SQLite export"
+                
+                # Expected tables for dictionary export
+                expected_tables = ['entries', 'senses']
+                for table in expected_tables:
+                    assert table in tables, f"Table '{table}' not found in export"
+                
+                # Test entries table
+                cursor.execute("SELECT COUNT(*) FROM entries")
+                entry_count = cursor.fetchone()[0]
+                assert entry_count >= 3, f"Expected at least 3 entries, got {entry_count}"
+                
+                # Test specific data
+                cursor.execute("SELECT id, lexical_unit_en, lexical_unit_pl FROM entries WHERE id = 'export_test_1'")
+                row = cursor.fetchone()
+                assert row is not None, "Test entry export_test_1 not found"
+                assert row[1] == 'export_word1'
+                assert row[2] == 'słowo_eksportu1'
+                
+                # Test senses table
+                cursor.execute("SELECT COUNT(*) FROM senses")
+                sense_count = cursor.fetchone()[0]
+                assert sense_count >= 4, f"Expected at least 4 senses, got {sense_count}"  # 1+2+1 senses
+                
+                # Test sense data
+                cursor.execute("SELECT gloss, definition, grammatical_info FROM senses WHERE entry_id = 'export_test_1'")
+                sense_row = cursor.fetchone()
+                assert sense_row is not None
+                assert sense_row[0] == 'Export test gloss 1'
+                assert sense_row[1] == 'Export test definition 1'
+                assert sense_row[2] == 'Noun'
+                
+                # Test multi-sense entry
+                cursor.execute("SELECT COUNT(*) FROM senses WHERE entry_id = 'export_test_2'")
+                test2_sense_count = cursor.fetchone()[0]
+                assert test2_sense_count == 2, f"Expected 2 senses for export_test_2, got {test2_sense_count}"
+                
+                conn.close()
+                print(f"SQLite export file size: {file_size} bytes")
+                print(f"Total entries exported: {entry_count}")
+                print(f"Total senses exported: {sense_count}")
+                
+            finally:
+                if os.path.exists(temp_file.name):
+                    os.unlink(temp_file.name)
+    
+    def test_sqlite_exporter_schema_validation(self, dict_service):
+        """Test SQLite exporter creates proper database schema."""
+        exporter = SQLiteExporter(dict_service)
+        
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_file:
+            try:
+                exporter.export(temp_file.name)
+                
+                conn = sqlite3.connect(temp_file.name)
+                cursor = conn.cursor()
+                
+                # Check entries table schema
+                cursor.execute("PRAGMA table_info(entries)")
+                entries_columns = {row[1]: row[2] for row in cursor.fetchall()}
+                
+                expected_entries_columns = {
+                    'id': 'TEXT',
+                    'lexical_unit_en': 'TEXT', 
+                    'lexical_unit_pl': 'TEXT',
+                    'created_at': 'TEXT',
+                    'updated_at': 'TEXT'
+                }
+                
+                for col_name, col_type in expected_entries_columns.items():
+                    assert col_name in entries_columns, f"Column '{col_name}' missing from entries table"
+                    assert entries_columns[col_name] == col_type, f"Column '{col_name}' has wrong type"
+                
+                # Check senses table schema
+                cursor.execute("PRAGMA table_info(senses)")
+                senses_columns = {row[1]: row[2] for row in cursor.fetchall()}
+                
+                expected_senses_columns = {
+                    'id': 'TEXT',
+                    'entry_id': 'TEXT',
+                    'gloss': 'TEXT',
+                    'definition': 'TEXT',
+                    'grammatical_info': 'TEXT'
+                }
+                
+                for col_name, col_type in expected_senses_columns.items():
+                    assert col_name in senses_columns, f"Column '{col_name}' missing from senses table"
+                    assert senses_columns[col_name] == col_type, f"Column '{col_name}' has wrong type"
+                
+                # Check foreign key relationships
+                cursor.execute("PRAGMA foreign_key_list(senses)")
+                foreign_keys = cursor.fetchall()
+                assert len(foreign_keys) > 0, "No foreign keys found in senses table"
+                
+                conn.close()
+                
+            finally:
+                if os.path.exists(temp_file.name):
+                    os.unlink(temp_file.name)
+    
+    def test_exporter_error_handling(self, dict_service):
+        """Test error handling in exporters."""
+        kindle_exporter = KindleExporter(dict_service)
+        sqlite_exporter = SQLiteExporter(dict_service)
+        
+        # Test invalid output path for Kindle exporter
+        with pytest.raises(Exception):
+            kindle_exporter.export("/invalid/path/that/does/not/exist.html")
+        
+        # Test invalid output path for SQLite exporter  
+        with pytest.raises(Exception):
+            sqlite_exporter.export("/invalid/path/that/does/not/exist.db")
+        
+    def test_empty_database_export(self):
+        """Test exporting from an empty database."""
+        from app.database.basex_connector import BaseXConnector
+        
+        # Create empty test database
+        connector = BaseXConnector(
+            host=os.getenv('BASEX_HOST', 'localhost'),
+            port=int(os.getenv('BASEX_PORT', '1984')),
+            username=os.getenv('BASEX_USERNAME', 'admin'),
+            password=os.getenv('BASEX_PASSWORD', 'admin'),
+            database=f"test_empty_export_{uuid.uuid4().hex[:8]}"
+        )
+        
+        empty_service = DictionaryService(db_connector=connector)
+        
+        try:
+            # Test Kindle export from empty DB
+            kindle_exporter = KindleExporter(empty_service)
+            with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as temp_file:
+                try:
+                    kindle_exporter.export(temp_file.name, title="Empty Dictionary")
+                    assert os.path.exists(temp_file.name)
+                    
+                    with open(temp_file.name, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        assert 'Empty Dictionary' in content
+                        assert '<html' in content  # Should still have valid HTML structure
+                        
+                finally:
+                    if os.path.exists(temp_file.name):
+                        os.unlink(temp_file.name)
+            
+            # Test SQLite export from empty DB
+            sqlite_exporter = SQLiteExporter(empty_service)
+            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_file:
+                try:
+                    sqlite_exporter.export(temp_file.name)
+                    assert os.path.exists(temp_file.name)
+                    
+                    # Should still create valid SQLite file with schema
+                    conn = sqlite3.connect(temp_file.name)
+                    cursor = conn.cursor()
+                    
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    tables = cursor.fetchall()
+                    assert len(tables) > 0  # Should have tables even if empty
+                    
+                    cursor.execute("SELECT COUNT(*) FROM entries")
+                    count = cursor.fetchone()[0]
+                    assert count == 0  # Should be empty
+                    
+                    conn.close()
+                    
+                finally:
+                    if os.path.exists(temp_file.name):
+                        os.unlink(temp_file.name)
+                        
+        finally:
+            try:
+                connector.close()
+            except Exception:
+                pass
