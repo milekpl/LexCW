@@ -2,6 +2,8 @@
 Custom exceptions for the application.
 """
 
+from typing import Optional
+
 
 class ValidationError(Exception):
     """Exception raised for validation errors."""
@@ -133,3 +135,18 @@ class DatabaseConnectionError(Exception):
         if self.cause:
             return f"{self.message}: {self.cause}"
         return self.message
+
+
+class ProcessingError(Exception):
+    """Error during corpus or data processing."""
+    
+    def __init__(self, message: str, details: Optional[str] = None):
+        """
+        Initialize processing error.
+        
+        Args:
+            message: Error message.
+            details: Additional error details.
+        """
+        self.details = details
+        super().__init__(message)

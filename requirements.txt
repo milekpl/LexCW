@@ -26,3 +26,6 @@ psycopg2-binary==2.9.7
 
 # Natural Language Processing (for word sketches)
 spacy>=3.6.0
+
+# Performance monitoring
+psutil>=5.9.0
