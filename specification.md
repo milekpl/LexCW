@@ -1311,7 +1311,6 @@ Based on the existing codebase analysis, the following features have been implem
 **Week 11-12: Search and Analysis Enhancement**
 - 🔄 **Advanced Search Features** - Basic search implemented
   - Add faceted search navigation
-  - Implement phonetic search algorithms
   - Create semantic similarity search
   - Add search result export capabilities
 
@@ -1396,7 +1395,6 @@ Based on the existing codebase analysis, the following features have been implem
 - 🔄 **Export Enhancement** - Basic exporters exist
   - Implement HTML export with CSS mapping
   - Enhance Kindle export with advanced formatting
-  - Add PDF generation capabilities
   - Create export templates and customization
 
 - 🔴 **Publication Workflows** - Not implemented
