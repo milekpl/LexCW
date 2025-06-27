@@ -9,7 +9,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 
 from app.services.dictionary_service import DictionaryService
 from app.models.entry import Entry
-from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
+from app.utils.exceptions import NotFoundError, ValidationError
 from app import injector
 
 # Create blueprint

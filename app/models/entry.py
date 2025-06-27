@@ -2,9 +2,12 @@
 Entry model representing a dictionary entry in LIFT format.
 """
 
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING
 from app.models.base import BaseModel
 from app.utils.exceptions import ValidationError
+
+if TYPE_CHECKING:
+    from app.models.sense import Sense
 
 
 class Entry(BaseModel):
@@ -105,15 +108,24 @@ class Entry(BaseModel):
         
         return True
     
-    def add_sense(self, sense: Dict[str, Any]) -> None:
+    def add_sense(self, sense: Union['Sense', Dict[str, Any]]) -> None:
         """
         Add a sense to the entry.
         
         Args:
-            sense: Sense to add.
+            sense: Sense to add (can be Sense object or dict).
         """
-        if 'id' not in sense:
-            raise ValidationError("Sense must have an ID")
+        # Handle both Sense objects and dictionaries
+        if hasattr(sense, 'id'):
+            # Sense object
+            if not sense.id:
+                raise ValidationError("Sense must have an ID")
+        elif isinstance(sense, dict):
+            # Dictionary
+            if not sense.get('id'):
+                raise ValidationError("Sense must have an ID")
+        else:
+            raise ValidationError("Sense must be a Sense object or dictionary")
         
         self.senses.append(sense)
     

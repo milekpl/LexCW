@@ -35,11 +35,22 @@ class Example(BaseModel):
         
         # Handle form_text convenience parameter
         if 'form_text' in kwargs and isinstance(kwargs['form_text'], str):
-            self.form_text = kwargs['form_text']
-            # Also add to form dict if it's empty
+            # Add to form dict if it's empty
             if not self.form:
                 self.form['en'] = kwargs['form_text']
     
+    @property
+    def form_text(self) -> str:
+        """
+        Get the first available form text.
+        
+        Returns:
+            The first form text if form is a dict, otherwise the form as string.
+        """
+        if isinstance(self.form, dict):
+            return next(iter(self.form.values())) if self.form else ''
+        return str(self.form) if self.form else ''
+
     def validate(self) -> bool:
         """
         Validate the example.

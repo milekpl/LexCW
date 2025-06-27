@@ -111,3 +111,25 @@ class ExportError(Exception):
         if hasattr(self, 'cause') and self.cause:
             return f"{self.message} (Caused by: {str(self.cause)})"
         return self.message
+
+
+class DatabaseConnectionError(Exception):
+    """Exception raised for database connection errors."""
+    
+    def __init__(self, message: str = "Database connection error", cause: Exception | None = None):
+        """
+        Initialize a database connection error.
+        
+        Args:
+            message: Error message.
+            cause: Original exception that caused this error.
+        """
+        self.message = message
+        self.cause = cause
+        super().__init__(self.message)
+    
+    def __str__(self) -> str:
+        """Get a string representation of the error."""
+        if self.cause:
+            return f"{self.message}: {self.cause}"
+        return self.message
