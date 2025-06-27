@@ -1,0 +1,77 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      basex:
+        image: basex/basex:latest
+        ports:
+          - 1984:1984
+          - 8984:8984
+        env:
+          BASEX_DBPATH: /srv/basex/data
+          BASEX_WEBPATH: /srv/basex/webapp
+          BASEX_PASSWORD: admin
+        options: >-
+          --health-cmd "nc -z localhost 1984"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest-cov
+        
+    - name: Wait for BaseX
+      run: |
+        timeout 30 bash -c 'until nc -z localhost 1984; do sleep 1; done'
+        
+    - name: Set environment variables for tests
+      run: |
+        echo "BASEX_HOST=localhost" >> $GITHUB_ENV
+        echo "BASEX_PORT=1984" >> $GITHUB_ENV
+        echo "BASEX_USERNAME=admin" >> $GITHUB_ENV
+        echo "BASEX_PASSWORD=admin" >> $GITHUB_ENV
+        echo "FLASK_ENV=testing" >> $GITHUB_ENV
+        
+    - name: Run unit tests
+      run: |
+        python -m pytest tests/test_unit_*.py -v --tb=short
+        
+    - name: Run integration tests with coverage
+      run: |
+        python -m pytest --cov=app --cov-report=xml --cov-report=term-missing -v --tb=short
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false

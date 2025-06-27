@@ -108,7 +108,7 @@ class TestSearchFunctionality(unittest.TestCase):
         """Test basic search functionality with a simple query."""
         try:
             # Use a simpler implementation approach for tests
-            conditions = ['contains(lower-case($entry/lexical-unit/form/text), "test")']
+            conditions = ['(some $form in $entry/lexical-unit/form/text satisfies contains(lower-case($form), "test"))']
             search_condition = " or ".join(conditions)
             
             db_name = self.service.db_connector.database
@@ -168,7 +168,7 @@ class TestSearchFunctionality(unittest.TestCase):
         try:
             # Use direct query for first page
             db_name = self.service.db_connector.database
-            conditions = ['contains(lower-case($entry/lexical-unit/form/text), "a")']
+            conditions = ['(some $form in $entry/lexical-unit/form/text satisfies contains(lower-case($form), "a"))']
             search_condition = " or ".join(conditions)
             
             # Get total count

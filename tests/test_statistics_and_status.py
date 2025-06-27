@@ -29,8 +29,8 @@ def dict_service():
     connector.connect()
     
     # Clean up any existing test database
-    if TEST_DB in (connector.execute_query("LIST") or ""):
-        connector.execute_update(f"DROP DB {TEST_DB}")
+    if TEST_DB in (connector.execute_command("LIST") or ""):
+        connector.execute_command(f"DROP DB {TEST_DB}")
     
     # Create the service
     service = DictionaryService(connector)
@@ -42,8 +42,8 @@ def dict_service():
     
     # Clean up
     try:
-        if TEST_DB in (connector.execute_query("LIST") or ""):
-            connector.execute_update(f"DROP DB {TEST_DB}")
+        if TEST_DB in (connector.execute_command("LIST") or ""):
+            connector.execute_command(f"DROP DB {TEST_DB}")
     except Exception:
         pass
     

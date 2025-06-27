@@ -218,13 +218,26 @@ class KindleExporter(BaseExporter):
             <div class="sense">
 '''
                 # Add definition
-                definition = sense.get('definitions', {}).get(target_lang, '')
+                definition = ""
+                if hasattr(sense, 'definitions') and sense.definitions:
+                    definition = sense.definitions.get(target_lang, '')
+                elif hasattr(sense, 'definition') and sense.definition:
+                    definition = sense.definition
                 if definition:
                     html_content += f'                <div class="definition">{definition}</div>\n'
                 
                 # Add examples
-                for example in sense.get('examples', []):
-                    example_text = example.get('form', {}).get(source_lang, '')
+                examples = []
+                if hasattr(sense, 'examples'):
+                    examples = sense.examples
+                for example in examples:
+                    example_text = ""
+                    if hasattr(example, 'form_text'):
+                        example_text = example.form_text
+                    elif hasattr(example, 'text'):
+                        example_text = example.text
+                    elif isinstance(example, dict):
+                        example_text = example.get('form', {}).get(source_lang, '')
                     if example_text:
                         html_content += f'                <div class="example">{example_text}</div>\n'
                 

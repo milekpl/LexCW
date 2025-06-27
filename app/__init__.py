@@ -7,7 +7,7 @@ This module initializes the Flask application and registers all blueprints.
 import os
 import logging
 from flask import Flask
-from injector import Injector, singleton, inject
+from injector import Injector, singleton
 
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
@@ -87,7 +87,8 @@ def create_app(config_name=None):
     # Create instance directories
     os.makedirs(os.path.join(app.instance_path, 'audio'), exist_ok=True)
     os.makedirs(os.path.join(app.instance_path, 'exports'), exist_ok=True)
-      # Register blueprints
+    
+    # Register blueprints
     from app.api import api_bp
     app.register_blueprint(api_bp)
 
@@ -95,7 +96,9 @@ def create_app(config_name=None):
     app.register_blueprint(validation_bp)
     
     from app.views import main_bp
-    app.register_blueprint(main_bp)    # Register error handlers
+    app.register_blueprint(main_bp)
+    
+    # Register error handlers
     @app.errorhandler(404)
     def not_found(_error):
         """Handle 404 errors."""
@@ -121,5 +124,9 @@ def create_app(config_name=None):
     def health_check():
         """Health check endpoint."""
         return {'status': 'ok'}
+    
+    # Add dict_service to app for testing compatibility
+    app.dict_service = dictionary_service
+    app.dict_service_with_db = dictionary_service  # Alias for test compatibility
     
     return app

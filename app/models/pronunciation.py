@@ -74,3 +74,11 @@ class Pronunciation(BaseModel):
             audio_path: Path to the audio file.
         """
         self.audio_path = audio_path
+
+    def __str__(self) -> str:
+        """Return string representation of the pronunciation."""
+        form_text = getattr(self, 'form', '') or ''
+        if isinstance(form_text, dict):
+            # Get first available form
+            form_text = next(iter(form_text.values())) if form_text else ''
+        return f"Pronunciation(id={self.id}, form={form_text})"

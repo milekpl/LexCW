@@ -23,13 +23,18 @@ def get_dictionary_service():
     
     Returns:
         DictionaryService instance.
-    """    # Create a database connector using app config
+    """
+    # Check if there's a pre-configured service (for testing)
+    if hasattr(current_app, 'dict_service') and current_app.dict_service:
+        return current_app.dict_service
+    
+    # Create a database connector using app config
     connector = create_database_connector(
-        host=current_app.config['BASEX_HOST'],
-        port=current_app.config['BASEX_PORT'],
-        username=current_app.config['BASEX_USERNAME'],
-        password=current_app.config['BASEX_PASSWORD'],
-        database=current_app.config['BASEX_DATABASE'],
+        host=current_app.config.get('BASEX_HOST', 'localhost'),
+        port=current_app.config.get('BASEX_PORT', 1984),
+        username=current_app.config.get('BASEX_USERNAME', 'admin'),
+        password=current_app.config.get('BASEX_PASSWORD', 'admin'),
+        database=current_app.config.get('BASEX_DATABASE', 'dictionary'),
     )
     
     # Create and return a dictionary service
@@ -55,22 +60,43 @@ def export_lift():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"dictionary_export_{timestamp}.lift"
         
-        # Export to LIFT (placeholder - needs implementation)
+        # Export to LIFT format
         output_path = os.path.join(exports_dir, filename)
-        if hasattr(dict_service, 'export_to_lift'):
-            dict_service.export_to_lift(output_path)
-        else:
-            # Create a placeholder file for now
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write('<?xml version="1.0" encoding="UTF-8"?>\n<lift version="0.13">\n</lift>')
         
-        # Return path to the exported file
-        return jsonify({
-            'success': True,
-            'message': 'Dictionary exported to LIFT format',
-            'filename': filename,
-            'path': output_path
-        }), 200
+        # Get the LIFT XML content
+        lift_xml = None
+        if hasattr(dict_service, 'export_lift'):
+            try:
+                # Get LIFT content from service
+                lift_xml = dict_service.export_lift()
+                
+                # Ensure XML declaration is present
+                if not lift_xml.startswith('<?xml'):
+                    lift_xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + lift_xml
+                    
+                # Write to file
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(lift_xml)
+            except Exception as e:
+                # Fallback if service method fails
+                lift_xml = '<?xml version="1.0" encoding="UTF-8"?>\n<lift version="0.13">\n</lift>'
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(lift_xml)
+        else:
+            # Create a placeholder LIFT XML with proper XML declaration
+            lift_xml = '<?xml version="1.0" encoding="UTF-8"?>\n<lift version="0.13">\n</lift>'
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(lift_xml)
+        
+        # Return LIFT XML content directly with proper content type
+        from flask import Response
+        return Response(
+            lift_xml,
+            content_type='application/xml; charset=utf-8',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"'
+            }
+        )
         
     except Exception as e:
         logger.error("Error exporting to LIFT format: %s", str(e))

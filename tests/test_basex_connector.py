@@ -51,7 +51,7 @@ class TestBaseXConnector:
             assert result == "2"
             
             # Query to list all databases
-            result = connector.execute_query("LIST")
+            result = connector.execute_command("LIST")
             assert isinstance(result, str)
         finally:
             connector.disconnect()
@@ -63,23 +63,23 @@ class TestBaseXConnector:
         
         try:
             # Check if test database exists and drop it if it does
-            if TEST_DB in (connector.execute_query("LIST") or ""):
+            if TEST_DB in (connector.execute_command("LIST") or ""):
                 connector.execute_update(f"DROP DB {TEST_DB}")
             
             # Create a new database
             connector.execute_update(f"CREATE DB {TEST_DB}")
             
             # Verify it exists
-            assert TEST_DB in connector.execute_query("LIST")
+            assert TEST_DB in connector.execute_command("LIST")
             
             # Drop the database
             connector.execute_update(f"DROP DB {TEST_DB}")
             
             # Verify it no longer exists
-            assert TEST_DB not in connector.execute_query("LIST")
+            assert TEST_DB not in connector.execute_command("LIST")
         finally:
             # Clean up in case of test failure
-            if TEST_DB in (connector.execute_query("LIST") or ""):
+            if TEST_DB in (connector.execute_command("LIST") or ""):
                 connector.execute_update(f"DROP DB {TEST_DB}")
             connector.disconnect()
     
@@ -90,7 +90,7 @@ class TestBaseXConnector:
         
         try:
             # Create a new database
-            if TEST_DB in (connector.execute_query("LIST") or ""):
+            if TEST_DB in (connector.execute_command("LIST") or ""):
                 connector.execute_update(f"DROP DB {TEST_DB}")
                 
             connector.execute_update(f"CREATE DB {TEST_DB}")
@@ -104,6 +104,6 @@ class TestBaseXConnector:
             assert result == "Test Item"
         finally:
             # Clean up
-            if TEST_DB in (connector.execute_query("LIST") or ""):
+            if TEST_DB in (connector.execute_command("LIST") or ""):
                 connector.execute_update(f"DROP DB {TEST_DB}")
             connector.disconnect()

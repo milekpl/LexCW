@@ -316,11 +316,31 @@ class SQLiteExporter(BaseExporter):
             
             # Process senses
             for i, sense in enumerate(entry.senses):
-                sense_id = sense.get('id')
+                sense_id = sense.id if hasattr(sense, 'id') else sense.get('id')
                 if not sense_id:
                     continue
                 
-                definition = sense.get('definitions', {}).get(target_lang, '')
+                # Get definition from Sense object or dictionary
+                definition = ""
+                if hasattr(sense, 'definitions') and sense.definitions:
+                    definition = sense.definitions.get(target_lang, '')
+                elif hasattr(sense, 'definition'):
+                    definition = sense.definition or ""
+                elif isinstance(sense, dict):
+                    definition = sense.get('definitions', {}).get(target_lang, '')
+                # Get grammatical info
+                grammatical_info = None
+                if hasattr(sense, 'grammatical_info'):
+                    grammatical_info = sense.grammatical_info
+                elif isinstance(sense, dict):
+                    grammatical_info = sense.get('grammatical_info')
+                
+                # Get custom fields
+                custom_fields = None
+                if hasattr(sense, 'custom_fields') and sense.custom_fields:
+                    custom_fields = json.dumps(sense.custom_fields)
+                elif isinstance(sense, dict) and sense.get('custom_fields'):
+                    custom_fields = json.dumps(sense.get('custom_fields'))
                 
                 # Insert sense
                 cursor.execute(
@@ -333,18 +353,41 @@ class SQLiteExporter(BaseExporter):
                         sense_id,
                         entry.id,
                         definition,
-                        sense.get('grammatical_info'),
-                        json.dumps(sense.get('custom_fields', {})) if sense.get('custom_fields') else None,
+                        grammatical_info,
+                        custom_fields,
                         i
                     )
                 )
                 
                 # Process examples
-                for j, example in enumerate(sense.get('examples', [])):
-                    example_id = example.get('id', f"{sense_id}_ex_{j}")
+                examples = []
+                if hasattr(sense, 'examples'):
+                    examples = sense.examples or []
+                elif isinstance(sense, dict):
+                    examples = sense.get('examples', [])
                     
-                    example_text = example.get('form', {}).get(source_lang, '')
-                    translation = example.get('translation', {}).get(target_lang, '')
+                for j, example in enumerate(examples):
+                    # Handle Example objects vs dictionaries  
+                    if hasattr(example, 'id'):
+                        example_id = example.id or f"{sense_id}_ex_{j}"
+                    else:
+                        example_id = example.get('id', f"{sense_id}_ex_{j}")
+                    
+                    # Get example text
+                    example_text = ""
+                    if hasattr(example, 'form_text'):
+                        example_text = example.form_text or ""
+                    elif hasattr(example, 'text'):
+                        example_text = example.text or ""
+                    elif isinstance(example, dict):
+                        example_text = example.get('form', {}).get(source_lang, '')
+                    
+                    # Get translation
+                    translation = ""
+                    if hasattr(example, 'translation'):
+                        translation = example.translation or ""
+                    elif isinstance(example, dict):
+                        translation = example.get('translation', {}).get(target_lang, '')
                     
                     if not example_text:
                         continue

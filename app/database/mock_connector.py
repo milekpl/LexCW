@@ -147,6 +147,13 @@ class MockDatabaseConnector:
             self.logger.error(f"Mock update error: {e}")
             return False
     
+    def execute_update_lift(self, command: str, has_namespace: bool = False) -> None:
+        """
+        Execute a LIFT-specific update command with namespace handling.
+        For mock testing, just calls execute_update.
+        """
+        self.execute_update(command)
+
     def create_database(self, name: str) -> bool:
         """Mock database creation - always succeeds."""
         self.logger.info(f"Mock database '{name}' created")

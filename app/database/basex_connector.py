@@ -103,9 +103,38 @@ class BaseXConnector:
         if not self.is_connected() or self.session is None:
             raise DatabaseError("Not connected to the database")
         try:
+            # Ensure we have a database context for XQuery
+            if self.database:
+                # Open the database first
+                self.session.execute(f"OPEN {self.database}")
+            
+            # Execute XQuery - prepend XQUERY if not already present
+            if not query.strip().upper().startswith('XQUERY'):
+                query = f"XQUERY {query}"
+            
             return self.session.execute(query)
         except Exception as e:
             raise DatabaseError(f"Failed to execute query: {str(e)}", e)
+    
+    def execute_command(self, command: str) -> str:
+        """
+        Execute a BaseX command (non-XQuery).
+        
+        Args:
+            command: BaseX command string.
+            
+        Returns:
+            Command result as a string.
+            
+        Raises:
+            DatabaseError: If the command failed.
+        """
+        if not self.is_connected() or self.session is None:
+            raise DatabaseError("Not connected to the database")
+        try:
+            return self.session.execute(command)
+        except Exception as e:
+            raise DatabaseError(f"Failed to execute command: {str(e)}", e)
     
     def execute_update(self, command: str) -> None:
         """
@@ -127,6 +156,35 @@ class BaseXConnector:
             self.session.execute(command)
         except Exception as e:
             raise DatabaseError(f"Failed to execute command: {str(e)}", e)
+    
+    def execute_update_lift(self, command: str, has_namespace: bool = False) -> None:
+        """
+        Execute a LIFT-specific update command with proper namespace handling.
+        
+        Args:
+            command: Update command string (without namespace prologue)
+            has_namespace: Whether the database contains namespaced LIFT elements
+        """
+        from app.utils.xquery_builder import XQueryBuilder
+        
+        # Add namespace prologue if needed
+        prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        
+        # Ensure command starts with 'xquery' if it doesn't already
+        if not command.strip().startswith('xquery'):
+            full_command = f"xquery {prologue}\n{command}"
+        else:
+            # Insert prologue after 'xquery' keyword
+            if prologue.strip():
+                parts = command.split('xquery', 1)
+                if len(parts) == 2:
+                    full_command = f"xquery {prologue}\n{parts[1]}"
+                else:
+                    full_command = f"xquery {prologue}\n{command}"
+            else:
+                full_command = command
+        
+        return self.execute_update(full_command)
     
     def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
         """
@@ -216,7 +274,7 @@ class BaseXConnector:
         Raises:
             DatabaseError: If the database could not be created.
         """
-        self.execute_query(f"CREATE DB {name}")
+        self.execute_command(f"CREATE DB {name}")
         self.database = name
     
     def drop_database(self, name: str) -> None:
@@ -229,7 +287,7 @@ class BaseXConnector:
         Raises:
             DatabaseError: If the database could not be dropped.
         """
-        self.execute_query(f"DROP DB {name}")
+        self.execute_command(f"DROP DB {name}")
         if self.database == name:
             self.database = None
     
@@ -243,7 +301,7 @@ class BaseXConnector:
         Raises:
             DatabaseError: If the databases could not be listed.
         """
-        result = self.execute_query("LIST")
+        result = self.execute_command("LIST")
         return [line.strip() for line in result.split('\n') if line.strip()]
     
     def __enter__(self) -> 'BaseXConnector':

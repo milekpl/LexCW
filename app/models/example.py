@@ -32,6 +32,13 @@ class Example(BaseModel):
         self.translations: Dict[str, str] = kwargs.get('translations', {})
         self.notes: Dict[str, str] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
+        
+        # Handle form_text convenience parameter
+        if 'form_text' in kwargs and isinstance(kwargs['form_text'], str):
+            self.form_text = kwargs['form_text']
+            # Also add to form dict if it's empty
+            if not self.form:
+                self.form['en'] = kwargs['form_text']
     
     def validate(self) -> bool:
         """
@@ -73,3 +80,11 @@ class Example(BaseModel):
             text: Example text.
         """
         self.form[language] = text
+
+    def __str__(self) -> str:
+        """Return string representation of the example."""
+        form_text = getattr(self, 'form_text', '') or getattr(self, 'form', '')
+        if isinstance(form_text, dict):
+            # Get first available form  
+            form_text = next(iter(form_text.values())) if form_text else ''
+        return f"Example(id={self.id}, form_text={form_text})"

@@ -20,20 +20,25 @@ def get_dictionary_service():
     
     Returns:
         DictionaryService instance.
-    """    # Create a database connector using app config
+    """
+    # Check if there's a pre-configured service (for testing)
+    if hasattr(current_app, 'dict_service') and current_app.dict_service:
+        return current_app.dict_service
+    
+    # Create a database connector using app config
     connector = create_database_connector(
-        host=current_app.config['BASEX_HOST'],
-        port=current_app.config['BASEX_PORT'],
-        username=current_app.config['BASEX_USERNAME'],
-        password=current_app.config['BASEX_PASSWORD'],
-        database=current_app.config['BASEX_DATABASE'],
+        host=current_app.config.get('BASEX_HOST', 'localhost'),
+        port=current_app.config.get('BASEX_PORT', 1984),
+        username=current_app.config.get('BASEX_USERNAME', 'admin'),
+        password=current_app.config.get('BASEX_PASSWORD', 'admin'),
+        database=current_app.config.get('BASEX_DATABASE', 'dictionary'),
     )
     
     # Create and return a dictionary service
     return DictionaryService(connector)
 
 
-@search_bp.route('/', methods=['GET'])
+@search_bp.route('/', methods=['GET'], strict_slashes=False)
 def search_entries():
     """
     Search for dictionary entries.
@@ -73,7 +78,7 @@ def search_entries():
             'query': query,
             'fields': fields,
             'results': [entry.to_dict() for entry in entries],
-            'total_count': total_count,
+            'total': total_count,
             'limit': limit,
             'offset': offset,
         }        

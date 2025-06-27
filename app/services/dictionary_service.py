@@ -61,7 +61,7 @@ class DictionaryService:
             db_name = self.db_connector.database
             if db_name and self.db_connector.is_connected():
                 # Check if DB exists before trying to open
-                if db_name in (self.db_connector.execute_query("LIST") or ""):
+                if db_name in (self.db_connector.execute_command("LIST") or ""):
                     self.db_connector.execute_update(f"OPEN {db_name}")
                     self.logger.info("Successfully opened database '%s'", db_name)
                 else:
@@ -174,7 +174,7 @@ class DictionaryService:
             self.logger.info("Initializing database '%s' from LIFT file: %s", db_name, lift_path)
 
             # Drop the database if it exists, to ensure a clean start
-            if db_name in (self.db_connector.execute_query("LIST") or ""):
+            if db_name in (self.db_connector.execute_command("LIST") or ""):
                 self.logger.info("Dropping existing database: %s", db_name)
                 self.db_connector.execute_update(f"DROP DB {db_name}")
 
@@ -281,6 +281,7 @@ class DictionaryService:
                 pass  # Entry doesn't exist, which is what we want
 
             entry_xml = self._prepare_entry_xml(entry)
+            self.logger.info(f"Prepared entry XML: {entry_xml}")
             
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
@@ -290,7 +291,7 @@ class DictionaryService:
             insert node {entry_xml} into collection('{db_name}')//{lift_path}
             """
             
-            self.db_connector.execute_update(query)
+            self.db_connector.execute_update_lift(query, has_ns)
             
             return entry.id
             
@@ -333,7 +334,7 @@ class DictionaryService:
             replace node collection('{db_name}')//{entry_path}[@id="{entry.id}"] with {entry_xml}
             """
             
-            self.db_connector.execute_update(query)
+            self.db_connector.execute_update_lift(query, has_ns)
             
         except (NotFoundError, ValidationError):
             raise
@@ -371,7 +372,7 @@ class DictionaryService:
             delete node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
             """
             
-            self.db_connector.execute_update(query)
+            self.db_connector.execute_update_lift(query, has_ns)
             return True
             
         except NotFoundError:
@@ -379,7 +380,6 @@ class DictionaryService:
             raise
         except Exception as e:
             self.logger.error("Error deleting entry %s: %s", entry_id, str(e))
-            raise DatabaseError(f"Failed to delete entry: {e}") from e
             raise DatabaseError(f"Failed to delete entry: {str(e)}") from e
 
     def list_entries(self, limit: Optional[int] = None, offset: int = 0, sort_by: str = "lexical_unit") -> Tuple[List[Entry], int]:
@@ -405,7 +405,7 @@ class DictionaryService:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
             
             if sort_by == "lexical_unit":
-                sort_expr = "$entry/lexical-unit/form/text"
+                sort_expr = "($entry/lexical-unit/form/text)[1]"  # Use first form text for sorting
             else:
                 sort_expr = "$entry/@id"
             
@@ -783,7 +783,7 @@ class DictionaryService:
                 return total_count
 
             finally:
-                if temp_db_name in (self.db_connector.execute_query("LIST") or ""):
+                if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
                     self.db_connector.execute_update(f"DROP DB {temp_db_name}")
 
         except Exception as e:

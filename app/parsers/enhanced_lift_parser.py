@@ -19,7 +19,7 @@ from app.utils.xquery_builder import XQueryBuilder
 logger = logging.getLogger(__name__)
 
 
-class EnhancedLIFTParser:
+class EnhancedLiftParser:
     """
     Enhanced LIFT parser with proper namespace handling.
     
@@ -108,8 +108,11 @@ class EnhancedLIFTParser:
             root = ET.fromstring(xml_content)
             
             # Find all entry elements using appropriate namespace handling
-            entry_xpath = XPathBuilder.entry(has_namespace=self._has_lift_namespace)
-            entry_elements = root.findall(entry_xpath, LIFTNamespaceManager.NAMESPACE_MAP if self._has_lift_namespace else None)
+            # Note: ElementTree.findall doesn't support absolute XPath, so we use relative path
+            if self._has_lift_namespace:
+                entry_elements = root.findall('.//lift:entry', LIFTNamespaceManager.NAMESPACE_MAP)
+            else:
+                entry_elements = root.findall('.//entry')
             
             entries = []
             for entry_elem in entry_elements:

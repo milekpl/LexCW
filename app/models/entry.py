@@ -51,11 +51,18 @@ class Entry(BaseModel):
             if isinstance(sense_data, dict):
                 # Import here to avoid circular imports
                 from app.models.sense import Sense
+                # Check if ID is provided in the original data for validation purposes
                 sense_obj = Sense(**sense_data)
+                # Track if ID was provided in original data
+                sense_obj._id_provided = 'id' in sense_data
                 self.senses.append(sense_obj)
             else:
                 # Already a Sense object
-                self.senses.append(sense_data)
+                sense_obj = sense_data
+                # Assume ID was provided for existing objects
+                if not hasattr(sense_obj, '_id_provided'):
+                    sense_obj._id_provided = True
+                self.senses.append(sense_obj)
     
     def validate(self) -> bool:
         """
@@ -78,8 +85,11 @@ class Entry(BaseModel):
         
         # Validate senses
         for i, sense in enumerate(self.senses):
+            # Check if this was a sense created from a dictionary without an ID
+            if hasattr(sense, '_id_provided') and not sense._id_provided:
+                errors.append(f"Sense at index {i} is missing an ID")
             # Handle both Sense objects and dictionaries
-            if hasattr(sense, 'id'):
+            elif hasattr(sense, 'id'):
                 # Sense object
                 if not sense.id:
                     errors.append(f"Sense at index {i} is missing an ID")
@@ -235,8 +245,7 @@ class Entry(BaseModel):
         """
         result = super().to_dict()
         
-        # Add computed properties
-        result['headword'] = self.headword
+        # Note: headword is a computed property and should not be included in dict
         
         # Convert senses to dictionaries if they're Sense objects
         if 'senses' in result and result['senses']:

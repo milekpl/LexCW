@@ -352,9 +352,9 @@ class XQueryBuilder:
         Returns:
             Escaped text safe for use in XQuery
         """
-        # Replace quotes and other special characters
-        return (text.replace('"', '&quot;')
+        # Replace special characters, handle & first to avoid double-escaping
+        return (text.replace("&", "&amp;")
+                   .replace('"', '&quot;')
                    .replace("'", "&apos;")
-                   .replace("&", "&amp;")
                    .replace("<", "&lt;")
                    .replace(">", "&gt;"))

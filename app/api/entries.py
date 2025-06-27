@@ -21,20 +21,25 @@ def get_dictionary_service():
     
     Returns:
         DictionaryService instance.
-    """    # Create a database connector using app config
+    """
+    # Check if there's a pre-configured service (for testing)
+    if hasattr(current_app, 'dict_service') and current_app.dict_service:
+        return current_app.dict_service
+    
+    # Create a database connector using app config
     connector = create_database_connector(
-        host=current_app.config['BASEX_HOST'],
-        port=current_app.config['BASEX_PORT'],
-        username=current_app.config['BASEX_USERNAME'],
-        password=current_app.config['BASEX_PASSWORD'],
-        database=current_app.config['BASEX_DATABASE'],
+        host=current_app.config.get('BASEX_HOST', 'localhost'),
+        port=current_app.config.get('BASEX_PORT', 1984),
+        username=current_app.config.get('BASEX_USERNAME', 'admin'),
+        password=current_app.config.get('BASEX_PASSWORD', 'admin'),
+        database=current_app.config.get('BASEX_DATABASE', 'dictionary'),
     )
     
     # Create and return a dictionary service
     return DictionaryService(connector)
 
 
-@entries_bp.route('/', methods=['GET'])
+@entries_bp.route('/', methods=['GET'], strict_slashes=False)
 def list_entries():
     """
     List dictionary entries with pagination.
@@ -103,7 +108,7 @@ def get_entry(entry_id):
         return jsonify({'error': str(e)}), 500
 
 
-@entries_bp.route('/', methods=['POST'])
+@entries_bp.route('/', methods=['POST'], strict_slashes=False)
 def create_entry():
     """
     Create a new dictionary entry.
@@ -116,7 +121,11 @@ def create_entry():
     """
     try:
         # Get request data
-        data = request.get_json()
+        try:
+            data = request.get_json()
+        except Exception as json_error:
+            return jsonify({'error': f'Invalid JSON: {str(json_error)}'}), 400
+            
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
@@ -129,7 +138,7 @@ def create_entry():
         # Create entry
         entry_id = dict_service.create_entry(entry)        
         # Return response
-        return jsonify({'id': entry_id}), 201
+        return jsonify({'success': True, 'entry_id': entry_id}), 201
         
     except ValidationError as e:
         return jsonify({'error': str(e)}), 400

@@ -24,19 +24,18 @@ class TestBaseExporter:
         from unittest.mock import Mock
         mock_service = Mock()
         
-        exporter = BaseExporter(mock_service)
-        assert exporter.dictionary_service == mock_service
+        # Cannot instantiate abstract BaseExporter directly
+        with pytest.raises(TypeError):
+            BaseExporter(mock_service)
         
     def test_base_exporter_abstract_methods(self):
         """Test that base exporter is abstract."""
         from unittest.mock import Mock
         mock_service = Mock()
         
-        exporter = BaseExporter(mock_service)
-        
-        # Should raise NotImplementedError for abstract methods
-        with pytest.raises(NotImplementedError):
-            exporter.export("test_path")
+        # Cannot instantiate abstract BaseExporter directly
+        with pytest.raises(TypeError):
+            BaseExporter(mock_service)
 
 
 class TestExceptionClasses:
@@ -57,15 +56,15 @@ class TestExceptionClasses:
             assert export_error.__cause__ == e
     
     def test_validation_error(self):
-        """Test ValidationError exception.""" 
+        """Test ValidationError exception."""
         error = ValidationError("Validation failed")
         assert str(error) == "Validation failed"
         assert isinstance(error, Exception)
         
         # Test with details
-        error_with_details = ValidationError("Invalid entry", {"field": "required"})
-        assert str(error_with_details) == "Invalid entry"
-        assert error_with_details.details == {"field": "required"}
+        error_with_details = ValidationError("Invalid entry", ["field is required"])
+        assert str(error_with_details) == "Invalid entry: field is required"
+        assert error_with_details.errors == ["field is required"]
     
     def test_database_error(self):
         """Test DatabaseError exception."""
@@ -76,7 +75,7 @@ class TestExceptionClasses:
         # Test with original exception
         original = ConnectionError("Connection refused")
         db_error = DatabaseError("Failed to connect", original)
-        assert db_error.original_exception == original
+        assert db_error.cause == original
     
     def test_not_found_error(self):
         """Test NotFoundError exception."""

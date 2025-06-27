@@ -18,7 +18,7 @@ class BaseModel:
             id_: Unique identifier for the model. If not provided, a UUID will be generated.
             **kwargs: Additional attributes to set on the model.
         """
-        self.id = id_ or str(uuid.uuid4())
+        self.id = id_ if id_ is not None else str(uuid.uuid4())
         for key, value in kwargs.items():
             setattr(self, key, value)
     

@@ -80,9 +80,10 @@ class FlaskSearchEndpointTest(unittest.TestCase):
         html_content = response.data.decode('utf-8')
         self.assertIn('class="search-results"', html_content, "Search results section not found in HTML")
         
-        # Check if it shows the number of results
+        # Check if it shows the number of results (containers exist for JS)
         if total > 0:
-            self.assertIn(f"{total}", html_content, f"Total count {total} not found in response")
+            self.assertIn('id="search-results"', html_content, "Search results container not found")
+            self.assertIn('id="results-count"', html_content, "Results count container not found")
     
     def test_search_endpoint_empty_query(self):
         """Test the search endpoint with an empty query."""
@@ -108,9 +109,10 @@ class FlaskSearchEndpointTest(unittest.TestCase):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200, "Paginated search should return 200 status")
             
-            # Check for pagination controls
+            # Check for pagination controls containers (they exist for JS population)
             html_content = response.data.decode('utf-8')
-            self.assertIn('class="pagination"', html_content, "Pagination controls not found in HTML")
+            self.assertIn('id="search-pagination"', html_content, "Pagination container not found in HTML")
+            self.assertIn('id="results-pagination"', html_content, "Results pagination container not found in HTML")
     
     def test_direct_api_search(self):
         """Test the dictionary service search function directly."""
