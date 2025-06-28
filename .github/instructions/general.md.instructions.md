@@ -26,6 +26,10 @@ applyTo: '*.py'
    - Add explicit type annotations to all Python classes, methods, and functions.  
    - Prefer `mypy`-compatible type hints and use `from __future__ import annotations` where appropriate.
 
+**Use python -m pytest for pytest**
+   - Always run tests using `python -m pytest` to ensure compatibility with the Python module system.  
+   - This ensures that the test discovery works correctly and avoids issues with relative imports.
+   
 **Summary:**  
 Always follow the detailed project specification, use strict typing, practice TDD (unit test first, then implementation, then integration test), assume VS Code on Windows 11 with PowerShell, and clean up all helper files after use.
 

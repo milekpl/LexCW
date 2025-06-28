@@ -2,10 +2,12 @@
 API endpoints for managing dictionary entries.
 """
 
+import json
 import logging
 from flask import Blueprint, request, jsonify, current_app
 
 from app.services.dictionary_service import DictionaryService
+from app.services.cache_service import CacheService
 from app.database.connector_factory import create_database_connector
 from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
@@ -57,22 +59,27 @@ def list_entries():
         limit = request.args.get('limit', 100, type=int)
         offset = request.args.get('offset', 0, type=int)
         sort_by = request.args.get('sort_by', 'lexical_unit')
-        
+        # Redis cache key
+        cache_key = f"entries:{limit}:{offset}:{sort_by}"
+        cache = CacheService()
+        if cache.is_available():
+            cached = cache.get(cache_key)
+            if cached:
+                return jsonify(json.loads(cached))
         # Get dictionary service
         dict_service = get_dictionary_service()
-        
         # List entries
         entries, total_count = dict_service.list_entries(limit=limit, offset=offset, sort_by=sort_by)
-        
         # Prepare response
         response = {
             'entries': [entry.to_dict() for entry in entries],
             'total_count': total_count,
             'limit': limit,
             'offset': offset,
-        }        
+        }
+        if cache.is_available():
+            cache.set(cache_key, json.dumps(response), ttl=300)
         return jsonify(response)
-        
     except (ValidationError, ValueError) as e:
         logger.error("Error listing entries: %s", str(e))
         return jsonify({'error': str(e)}), 400

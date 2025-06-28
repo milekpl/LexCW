@@ -17,6 +17,12 @@ main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
 
 
+@main_bp.route('/corpus-management')
+def corpus_management():
+    """Render corpus management interface."""
+    return render_template('corpus_management.html')
+
+
 @main_bp.route('/')
 def index():
     """

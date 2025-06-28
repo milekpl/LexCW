@@ -1,24 +1,19 @@
 """
-High-performance corpus migration utility.
+SQLite to PostgreSQL corpus migration utility.
 
-Supports efficient migration from SQLite, TMX files, and CSV to PostgreSQL
-using COPY for maximum performance. Includes web interface support.
+Migrates flat corpus databases (like para_crawl.db) from SQLite to PostgreSQL
+with full-text search capabilities and data validation.
 """
 from __future__ import annotations
 
 import os
-import csv
 import sqlite3
 import logging
 import argparse
-import tempfile
-import xml.etree.ElementTree as ET
-from pathlib import Path
 from urllib.parse import urlparse
-from typing import Optional, Dict, Any, List, Tuple, Generator, Union, TextIO
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from dataclasses import dataclass, field
-import io
 
 from app.database.postgresql_connector import PostgreSQLConnector, PostgreSQLConfig
 from app.utils.exceptions import DatabaseError, ValidationError
@@ -158,30 +153,20 @@ class SQLiteToPostgreSQLMigrator:
         self.postgres_connector.execute_query(create_table_sql)
         
         # Create full-text search indexes
-        basic_indexes = [
+        indexes = [
             "CREATE INDEX IF NOT EXISTS idx_parallel_corpus_docid ON parallel_corpus(docid)",
             "CREATE INDEX IF NOT EXISTS idx_parallel_corpus_english_fts ON parallel_corpus USING GIN(to_tsvector('english', english_text))",
+            "CREATE INDEX IF NOT EXISTS idx_parallel_corpus_polish_fts ON parallel_corpus USING GIN(to_tsvector('polish', polish_text))",
             "CREATE INDEX IF NOT EXISTS idx_parallel_corpus_source ON parallel_corpus(source_info)"
         ]
         
-        for index_sql in basic_indexes:
+        for index_sql in indexes:
             self.postgres_connector.execute_query(index_sql)
-        
-        # Try to create Polish FTS index, fall back to simple if Polish config doesn't exist
-        try:
-            polish_fts_sql = "CREATE INDEX IF NOT EXISTS idx_parallel_corpus_polish_fts ON parallel_corpus USING GIN(to_tsvector('polish', polish_text))"
-            self.postgres_connector.execute_query(polish_fts_sql)
-            self.logger.info("Polish full-text search index created")
-        except Exception as e:
-            self.logger.warning(f"Polish FTS config not available, creating simple index: {e}")
-            # Create a simple GIN index without language-specific configuration
-            simple_polish_fts = "CREATE INDEX IF NOT EXISTS idx_parallel_corpus_polish_simple ON parallel_corpus USING GIN(to_tsvector('simple', polish_text))"
-            self.postgres_connector.execute_query(simple_polish_fts)
         
         self.logger.info("Para_crawl schema created successfully")
     
     def migrate_para_crawl_data(self, sqlite_path: str, batch_size: int) -> int:
-        """Migrate para_crawl data in batches with encoding handling."""
+        """Migrate para_crawl data in batches."""
         migrated_count = 0
         
         try:
@@ -191,7 +176,7 @@ class SQLiteToPostgreSQLMigrator:
                 # Get total count
                 cursor.execute("SELECT COUNT(*) FROM tmdata_content")
                 total_records = cursor.fetchone()[0]
-                print(f"Total records to migrate: {total_records:,}")
+                self.logger.info(f"Total records to migrate: {total_records:,}")
                 
                 # Migrate in batches
                 offset = 0
@@ -207,99 +192,29 @@ class SQLiteToPostgreSQLMigrator:
                     if not batch:
                         break
                     
-                    # Clean and prepare batch data
-                    cleaned_batch = []
-                    for i, row in enumerate(batch):
-                        try:
-                            docid, english_text, polish_text, source_info = row
-                            
-                            # Clean text fields safely
-                            english_clean = self.clean_text(english_text) if english_text else ""
-                            polish_clean = self.clean_text(polish_text) if polish_text else ""
-                            source_clean = self.clean_text(source_info) if source_info else ""
-                            
-                            cleaned_batch.append((docid, english_clean, polish_clean, source_clean))
-                            
-                        except Exception as e:
-                            self.logger.warning(f"Skipping row {offset + i} due to encoding error: {e}")
-                            # Add a placeholder to maintain count
-                            cleaned_batch.append((row[0] if row else offset + i, "", "", ""))
-                    
                     # Insert batch into PostgreSQL
                     insert_sql = """
                         INSERT INTO parallel_corpus (docid, english_text, polish_text, source_info)
                         VALUES (%s, %s, %s, %s)
                     """
                     
-                    try:
-                        with self.postgres_connector.get_cursor() as pg_cursor:
-                            pg_cursor.executemany(insert_sql, cleaned_batch)
-                    except Exception as e:
-                        self.logger.error(f"PostgreSQL insert error at offset {offset}: {e}")
-                        # Try inserting one by one to identify problematic records
-                        for j, record in enumerate(cleaned_batch):
-                            try:
-                                with self.postgres_connector.get_cursor() as pg_cursor:
-                                    pg_cursor.execute(insert_sql, record)
-                            except Exception as single_error:
-                                self.logger.warning(f"Skipping record {offset + j}: {single_error}")
+                    with self.postgres_connector.get_cursor() as pg_cursor:
+                        pg_cursor.executemany(insert_sql, batch)
                     
                     migrated_count += len(batch)
                     offset += batch_size
                     
-                    # Progress logging (use safe string formatting)
+                    # Progress logging
                     progress = (migrated_count / total_records) * 100
-                    print(f"Progress: {migrated_count:,}/{total_records:,} ({progress:.1f}%)")
+                    self.logger.info(f"Progress: {migrated_count:,}/{total_records:,} ({progress:.1f}%)")
                 
         except Exception as e:
             error_msg = f"Migration failed: {str(e)}"
-            print(f"ERROR: {error_msg}")
+            self.logger.error(error_msg)
             self.stats.errors.append(error_msg)
             raise DatabaseError(error_msg)
         
         return migrated_count
-    
-    def handle_text_encoding(self, data: bytes) -> str:
-        """Handle text encoding issues in SQLite data."""
-        if data is None:
-            return ""
-        
-        # Try different encodings in order of likelihood
-        encodings = ['utf-8', 'windows-1252', 'iso-8859-1', 'cp1250', 'latin1']
-        
-        for encoding in encodings:
-            try:
-                return data.decode(encoding)
-            except (UnicodeDecodeError, AttributeError):
-                continue
-        
-        # Fallback: replace problematic characters
-        try:
-            return data.decode('utf-8', errors='replace')
-        except AttributeError:
-            # If data is already a string
-            return str(data)
-    
-    def clean_text(self, text: str) -> str:
-        """Clean and normalize text data."""
-        if not text:
-            return ""
-        
-        # Convert to string if not already
-        if not isinstance(text, str):
-            text = str(text)
-        
-        # Remove null bytes and control characters
-        text = text.replace('\x00', '').replace('\r\n', '\n').replace('\r', '\n')
-        
-        # Normalize whitespace
-        text = ' '.join(text.split())
-        
-        # Truncate if too long (PostgreSQL text field limit)
-        if len(text) > 10000:
-            text = text[:10000] + "..."
-            
-        return text
     
     def validate_para_crawl_integrity(self, sqlite_path: str) -> bool:
         """Validate migration integrity for para_crawl data."""
@@ -337,12 +252,6 @@ class SQLiteToPostgreSQLMigrator:
 
 def main():
     """CLI interface for corpus migration utility."""
-    # Set environment variables to fix encoding issues before any imports
-    import os
-    os.environ['LC_ALL'] = 'C.UTF-8'
-    os.environ['LC_CTYPE'] = 'C.UTF-8'
-    os.environ['LANG'] = 'C.UTF-8'
-    
     parser = argparse.ArgumentParser(description='Migrate corpus data from SQLite to PostgreSQL')
     parser.add_argument('--sqlite-path', required=True, help='Path to SQLite database file')
     parser.add_argument('--postgres-url', required=True, help='PostgreSQL connection URL')

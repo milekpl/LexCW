@@ -1,0 +1,9 @@
+# Quick Migration Command for Local PostgreSQL
+# The migration tool automatically creates the target database if it doesn't exist
+# Just ensure PostgreSQL is running and you have appropriate credentials
+
+# Basic format:
+python -m app.database.sqlite_postgres_migrator --sqlite-path "D:\Dokumenty\para_crawl.db" --postgres-url "postgresql://[username]:[password]@[host]:[port]/[database]" --batch-size 1000 --verbose
+
+# Example with common defaults (database will be created automatically):
+python -m app.database.sqlite_postgres_migrator --sqlite-path "D:\Dokumenty\para_crawl.db" --postgres-url "postgresql://postgres:[your_password]@localhost:5432/para_crawl" --batch-size 1000 --verbose

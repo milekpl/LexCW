@@ -70,19 +70,37 @@ class PostgreSQLConnector:
     def _initialize_connection(self) -> None:
         """Initialize database connection."""
         try:
-            connection_string = (
-                f"host={self.config.host} "
-                f"port={self.config.port} "
-                f"dbname={self.config.database} "
-                f"user={self.config.username} "
-                f"password={self.config.password}"
-            )
-            self._connection = psycopg2.connect(
-                connection_string,
-                cursor_factory=psycopg2.extras.RealDictCursor
-            )
-            self._connection.autocommit = True
-            self.logger.info("PostgreSQL connection established")
+            # Set locale environment variables to avoid encoding issues
+            import os
+            original_env = {}
+            locale_vars = ['LC_ALL', 'LC_CTYPE', 'LANG']
+            
+            # Save original values and set to UTF-8
+            for var in locale_vars:
+                original_env[var] = os.environ.get(var)
+                os.environ[var] = 'en_US.UTF-8'
+            
+            try:
+                connection_string = (
+                    f"host={self.config.host} "
+                    f"port={self.config.port} "
+                    f"dbname={self.config.database} "
+                    f"user={self.config.username} "
+                    f"password={self.config.password}"
+                )
+                self._connection = psycopg2.connect(
+                    connection_string,
+                    cursor_factory=psycopg2.extras.RealDictCursor
+                )
+                self._connection.autocommit = True
+                self.logger.info("PostgreSQL connection established")
+            finally:
+                # Restore original environment variables
+                for var, value in original_env.items():
+                    if value is None:
+                        os.environ.pop(var, None)
+                    else:
+                        os.environ[var] = value
             
         except psycopg2.Error as e:
             self.logger.error(f"Failed to connect to PostgreSQL: {e}")
@@ -400,3 +418,58 @@ class PostgreSQLConnector:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
+    
+    def ensure_database_exists(self) -> bool:
+        """
+        Ensure target database exists, create if it doesn't.
+        
+        Returns:
+            True if database was created, False if it already existed
+            
+        Raises:
+            DatabaseConnectionError: If unable to create database
+        """
+        # Connect to default postgres database to check/create target
+        default_config = PostgreSQLConfig(
+            host=self.config.host,
+            port=self.config.port,
+            database='postgres',  # Default database
+            username=self.config.username,
+            password=self.config.password
+        )
+        
+        try:
+            connection_string = (
+                f"host={default_config.host} "
+                f"port={default_config.port} "
+                f"dbname={default_config.database} "
+                f"user={default_config.username} "
+                f"password={default_config.password}"
+            )
+            
+            with psycopg2.connect(connection_string) as conn:
+                conn.autocommit = True
+                with conn.cursor() as cursor:
+                    # Check if database exists
+                    cursor.execute(
+                        "SELECT 1 FROM pg_database WHERE datname = %s",
+                        (self.config.database,)
+                    )
+                    
+                    if cursor.fetchone():
+                        self.logger.info(f"Database '{self.config.database}' already exists")
+                        return False
+                    
+                    # Create database
+                    # Use format() for database name as it can't be parameterized
+                    cursor.execute(f'CREATE DATABASE "{self.config.database}"')
+                    self.logger.info(f"Created database '{self.config.database}'")
+                    return True
+                    
+        except psycopg2.Error as e:
+            self.logger.error(f"Failed to ensure database exists: {e}")
+            raise DatabaseConnectionError(f"Database creation failed: {e}")
+    
+    def reconnect(self) -> None:
+        """Reconnect to the database (useful after database creation)."""
+        self._initialize_connection()

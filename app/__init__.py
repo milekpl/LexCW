@@ -98,6 +98,9 @@ def create_app(config_name=None):
     from app.views import main_bp
     app.register_blueprint(main_bp)
     
+    from app.routes.corpus_routes import corpus_bp
+    app.register_blueprint(corpus_bp)
+    
     # Register error handlers
     @app.errorhandler(404)
     def not_found(_error):
