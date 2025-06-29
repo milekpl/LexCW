@@ -24,9 +24,9 @@ def _get_postgres_config() -> PostgreSQLConfig:
     return PostgreSQLConfig(
         host=os.getenv('POSTGRES_HOST', 'localhost'),
         port=int(os.getenv('POSTGRES_PORT', 5432)),
-        database=os.getenv('POSTGRES_DB', 'parallel_corpus'),
-        username=os.getenv('POSTGRES_USER', 'postgres'),
-        password=os.getenv('POSTGRES_PASSWORD', '')
+        database=os.getenv('POSTGRES_DB', 'dictionary_analytics'),  # Use analytics database for corpus data
+        username=os.getenv('POSTGRES_USER', 'dict_user'),
+        password=os.getenv('POSTGRES_PASSWORD', 'dict_pass')
     )
 
 
@@ -120,20 +120,60 @@ def upload_corpus():
 
 @corpus_bp.route('/stats', methods=['GET'])
 def get_corpus_stats():
-    """Get current corpus statistics."""
+    """Get current corpus statistics - bypasses cache for fresh data."""
+    import json
+    from datetime import datetime
+    from ..services.cache_service import CacheService
+    
     try:
         postgres_config = _get_postgres_config()
         migrator = CorpusMigrator(postgres_config)
         stats = migrator.get_corpus_stats()
         
+        # Format stats for frontend compatibility
+        formatted_stats = {
+            'total_records': stats.get('total_records', 0),
+            'avg_source_length': float(stats.get('avg_source_length', 0)) if stats.get('avg_source_length') else 0,
+            'avg_target_length': float(stats.get('avg_target_length', 0)) if stats.get('avg_target_length') else 0,
+        }
+        
+        # Update cache with fresh data
+        cache = CacheService()
+        if cache.is_available():
+            # Format last_updated for cache
+            last_record = stats.get('last_record')
+            if isinstance(last_record, datetime):
+                last_updated = last_record.strftime('%Y-%m-%d %H:%M:%S')
+            elif last_record:
+                last_updated = str(last_record)
+            else:
+                last_updated = 'N/A'
+                
+            cache_data = {
+                'total_records': formatted_stats['total_records'],
+                'avg_source_length': f"{formatted_stats['avg_source_length']:.2f}",
+                'avg_target_length': f"{formatted_stats['avg_target_length']:.2f}",
+                'last_updated': last_updated
+            }
+            cache.set('corpus_stats', json.dumps(cache_data), ttl=1800)
+            current_app.logger.info("Updated cache with fresh corpus stats")
+        
         return jsonify({
             'success': True,
-            'stats': stats
+            'stats': formatted_stats
         })
     
     except Exception as e:
         current_app.logger.error(f"Failed to get corpus stats: {e}")
-        return jsonify({'error': f'Failed to get statistics: {str(e)}'}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'stats': {
+                'total_records': 0,
+                'avg_source_length': 0,
+                'avg_target_length': 0
+            }
+        }), 500
 
 
 @corpus_bp.route('/cleanup', methods=['POST'])

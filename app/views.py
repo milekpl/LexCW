@@ -2,12 +2,14 @@
 Views for the Dictionary Writing System's frontend.
 """
 
+import json
 import logging
 import os
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_from_directory
 
 from app.services.dictionary_service import DictionaryService
+from app.services.cache_service import CacheService
 from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.database.postgresql_connector import PostgreSQLConfig
@@ -25,6 +27,31 @@ def corpus_management():
     corpus_stats = {}
     postgres_status = {'connected': False, 'error': None}
     
+    # Try to get cached corpus stats first
+    cache = CacheService()
+    if cache.is_available():
+        cached_stats = cache.get('corpus_stats')
+        if cached_stats:
+            try:
+                stats_data = json.loads(cached_stats)
+                postgres_status['connected'] = True
+                
+                # Use cached data
+                corpus_stats['total_records'] = stats_data.get('total_records', 0)
+                corpus_stats['avg_source_length'] = stats_data.get('avg_source_length', '0.00')
+                corpus_stats['avg_target_length'] = stats_data.get('avg_target_length', '0.00')
+                corpus_stats['last_updated'] = stats_data.get('last_updated', 'N/A')
+                
+                logger.info("Using cached corpus stats")
+                return render_template(
+                    'corpus_management.html', 
+                    corpus_stats=corpus_stats, 
+                    postgres_status=postgres_status
+                )
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning(f"Invalid cached corpus stats: {e}")
+    
+    # If no cache or cache miss, fetch fresh data
     try:
         # Create PostgreSQL config from environment
         config = PostgreSQLConfig(
@@ -58,6 +85,17 @@ def corpus_management():
                 corpus_stats['last_updated'] = str(last_record)
             else:
                 corpus_stats['last_updated'] = 'N/A'
+            
+            # Cache the stats for 30 minutes (1800 seconds)
+            if cache.is_available():
+                cache_data = {
+                    'total_records': corpus_stats['total_records'],
+                    'avg_source_length': corpus_stats['avg_source_length'],
+                    'avg_target_length': corpus_stats['avg_target_length'],
+                    'last_updated': corpus_stats['last_updated']
+                }
+                cache.set('corpus_stats', json.dumps(cache_data), ttl=1800)
+                logger.info("Cached fresh corpus stats for 30 minutes")
 
         except Exception as e:
             logger.warning(f"Could not fetch corpus statistics: {e}")
@@ -78,8 +116,11 @@ def corpus_management():
 @main_bp.route('/')
 def index():
     """
-    Render the dashboard/home page.
+    Render the dashboard/home page with cached stats for performance.
     """
+    from app.services.cache_service import CacheService
+    import json
+    
     # Default data for dashboard if DB connection fails
     stats = {
         'entries': 0,
@@ -106,6 +147,25 @@ def index():
         }
     ]
     
+    # Try to get cached dashboard data first
+    cache = CacheService()
+    cache_key = 'dashboard_stats'
+    if cache.is_available():
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            try:
+                cached_stats = json.loads(cached_data)
+                stats = cached_stats.get('stats', stats)
+                system_status = cached_stats.get('system_status', system_status)
+                recent_activity = cached_stats.get('recent_activity', recent_activity)
+                logger.info("Using cached dashboard stats")
+                return render_template('index.html', 
+                                     stats=stats, 
+                                     system_status=system_status, 
+                                     recent_activity=recent_activity)
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning(f"Invalid cached dashboard data: {e}")
+    
     # Get actual stats from the database if possible
     try:
         dict_service = injector.get(DictionaryService)
@@ -130,6 +190,17 @@ def index():
         logger.info(f"db_connected value: {system_status.get('db_connected', 'ERROR')}")
         logger.info(f"last_backup value: {system_status.get('last_backup', 'ERROR')}")
         logger.info(f"storage_percent value: {system_status.get('storage_percent', 'ERROR')}")
+        
+        # Cache the dashboard data for 10 minutes (600 seconds)
+        if cache.is_available():
+            cache_data = {
+                'stats': stats,
+                'system_status': system_status,
+                'recent_activity': recent_activity
+            }
+            cache.set(cache_key, json.dumps(cache_data, default=str), ttl=600)
+            logger.info("Cached dashboard stats for 10 minutes")
+            
     except Exception as e:
         logger.error(f"Error getting dashboard data: {e}", exc_info=True)
         flash(f"Error loading dashboard data: {str(e)}", "danger")

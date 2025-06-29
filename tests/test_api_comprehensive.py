@@ -137,7 +137,8 @@ class TestEntriesAPI(TestAPIComprehensive):
     
     def test_entries_update_not_found(self, client, mock_dict_service):
         """Test updating entry that doesn't exist."""
-        mock_dict_service.get_entry.return_value = None
+        from app.utils.exceptions import NotFoundError
+        mock_dict_service.update_entry.side_effect = NotFoundError("Entry not found")
         
         entry_data = {
             'lexical_unit': {'en': 'updated'}
@@ -168,7 +169,8 @@ class TestEntriesAPI(TestAPIComprehensive):
     
     def test_entries_delete_not_found(self, client, mock_dict_service):
         """Test deleting entry that doesn't exist."""
-        mock_dict_service.get_entry.return_value = None
+        from app.utils.exceptions import NotFoundError
+        mock_dict_service.delete_entry.side_effect = NotFoundError("Entry not found")
         
         with patch('app.api.entries.get_dictionary_service', return_value=mock_dict_service):
             response = client.delete('/api/entries/nonexistent')

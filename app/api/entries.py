@@ -61,6 +61,9 @@ def list_entries():
         page = request.args.get('page', None, type=int)
         per_page = request.args.get('per_page', None, type=int)
         sort_by = request.args.get('sort_by', 'lexical_unit')
+        # TODO: implement sort_order and filter_text support
+        # sort_order = request.args.get('sort_order', 'asc')
+        # filter_text = request.args.get('filter', '')
         
         # Validate individual parameters first
         if page is not None and page < 1:
@@ -81,21 +84,23 @@ def list_entries():
                 limit = 100
             if offset is None:
                 offset = 0
-        # Redis cache key
+        # Redis cache key - use simple key for now until sort_order and filter are implemented
         cache_key = f"entries:{limit}:{offset}:{sort_by}"
         cache = CacheService()
         if cache.is_available():
             cached = cache.get(cache_key)
             if cached:
+                logger.info(f"Returning cached entries for key: {cache_key}")
                 return jsonify(json.loads(cached))
         # Get dictionary service
         dict_service = get_dictionary_service()
-        # List entries
+        # List entries - TODO: pass filter_text and sort_order when dictionary service supports them
         entries, total_count = dict_service.list_entries(limit=limit, offset=offset, sort_by=sort_by)
         # Prepare response
         response = {
             'entries': [entry.to_dict() for entry in entries],
-            'total': total_count,
+            'total_count': total_count,  # Use total_count for consistency with other APIs
+            'total': total_count,        # Keep total for backward compatibility
             'limit': limit,
             'offset': offset,
         }
@@ -104,8 +109,10 @@ def list_entries():
         if page is not None and per_page is not None:
             response['page'] = page
             response['per_page'] = per_page
+        # Cache the response for 3 minutes (180 seconds) for better user experience
         if cache.is_available():
-            cache.set(cache_key, json.dumps(response), ttl=300)
+            cache.set(cache_key, json.dumps(response), ttl=180)
+            logger.info(f"Cached entries response for key: {cache_key}")
         return jsonify(response)
     except (ValidationError, ValueError) as e:
         logger.error("Error listing entries: %s", str(e))
@@ -131,7 +138,12 @@ def get_entry(entry_id):
         dict_service = get_dictionary_service()
         
         # Get entry
-        entry = dict_service.get_entry(entry_id)        
+        entry = dict_service.get_entry(entry_id)
+        
+        # Check if entry was found
+        if entry is None:
+            return jsonify({'error': f'Entry with ID {entry_id} not found'}), 404
+            
         # Return response
         return jsonify(entry.to_dict())
         
@@ -200,6 +212,10 @@ def update_entry(entry_id):
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+        
+        # Add the entry ID from the path if not present in data
+        if 'id' not in data:
+            data['id'] = entry_id
         
         # Ensure ID in path matches ID in data
         if data.get('id') != entry_id:
