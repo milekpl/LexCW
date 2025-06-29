@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import datetime
 from flask import Blueprint, jsonify
+from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
@@ -19,8 +20,63 @@ logger = logging.getLogger(__name__)
 @dashboard_bp.route('/stats', methods=['GET'])
 def get_dashboard_stats():
     """
-    Get dashboard statistics with caching for performance.
-    Used for AJAX refresh of dashboard data.
+    Get dashboard statistics with caching for performance
+    ---
+    tags:
+      - dashboard
+    responses:
+      200:
+        description: Dashboard statistics
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              description: Whether the request was successful
+            data:
+              type: object
+              properties:
+                entry_count:
+                  type: integer
+                  description: Total number of entries
+                sense_count:
+                  type: integer
+                  description: Total number of senses
+                example_count:
+                  type: integer
+                  description: Total number of examples
+                system_status:
+                  type: object
+                  properties:
+                    baseX_connected:
+                      type: boolean
+                      description: BaseX database connection status
+                    cache_available:
+                      type: boolean
+                      description: Redis cache availability
+                    uptime:
+                      type: string
+                      description: System uptime
+                recent_activity:
+                  type: array
+                  description: Recent activity log
+                timestamp:
+                  type: string
+                  description: Data timestamp
+            cached:
+              type: boolean
+              description: Whether the data was retrieved from cache
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              description: Request success status (false)
+            error:
+              type: string
+              description: Error message
     """
     try:
         # Try to get cached data first

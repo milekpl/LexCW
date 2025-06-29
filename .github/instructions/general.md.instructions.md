@@ -3,9 +3,10 @@ applyTo: '**'
 ---
 **When assisting with this project, always:**
 
-1. **Follow the Project Specification**  
+1. **Follow and Update the Project Specification**  
    - Strictly adhere to all requirements, workflows, and architectural decisions as described in specification.md.  
    - Do not deviate from the outlined roadmap, feature priorities, or technical constraints.
+   - If any changes or updates are needed, document them clearly in the specification file and communicate them to the team.
 
 2. **Adopt Test-Driven Development (TDD)**  
    - Always begin by writing a unit test that defines the desired behavior for any new feature or bugfix.  
@@ -29,7 +30,12 @@ applyTo: '*.py'
 **Use python -m pytest for pytest**
    - Always run tests using `python -m pytest` to ensure compatibility with the Python module system.  
    - This ensures that the test discovery works correctly and avoids issues with relative imports.
-   
+
+**Use and update the API documentation**
+- Always keep the API documentation up to date with the latest changes in the codebase.
+- Use the `flasgger` library to define and document API endpoints directly in the code.
+- Include detailed descriptions, parameter types, and response schemas for all endpoints.
+
 **Summary:**  
 Always follow the detailed project specification, use strict typing, practice TDD (unit test first, then implementation, then integration test), assume VS Code on Windows 11 with PowerShell, and clean up all helper files after use.
 

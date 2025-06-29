@@ -64,6 +64,11 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteModalInstance.hide();
         }
     });
+    
+    // Refresh button
+    document.getElementById('refresh-entries-btn').addEventListener('click', function() {
+        refreshEntries();
+    });
 });
 
 /**
@@ -96,7 +101,7 @@ function loadEntries(page = 1, sortBy = 'lexical_unit', sortOrder = 'asc') {
     // Build API URL
     let url = `/api/entries/?limit=${limit}&offset=${offset}&sort_by=${sortBy}&sort_order=${sortOrder}`;
     if (filter) {
-        url += `&filter=${encodeURIComponent(filter)}`;
+        url += `&filter_text=${encodeURIComponent(filter)}`;
     }
     
     // Fetch entries from API
@@ -378,5 +383,72 @@ function formatDate(dateString) {
         return days[date.getDay()];
     } else {
         return date.toLocaleDateString();
+    }
+}
+
+/**
+ * Refresh the entries list with cache clearing
+ */
+function refreshEntries() {
+    const refreshBtn = document.getElementById('refresh-entries-btn');
+    if (refreshBtn) {
+        // Show loading state
+        const icon = refreshBtn.querySelector('i');
+        const originalInner = refreshBtn.innerHTML;
+        refreshBtn.disabled = true;
+        if (icon) {
+            icon.classList.add('fa-spin');
+        }
+        
+        // Clear cache and reload entries
+        fetch('/api/entries/clear-cache', { method: 'POST' })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    // Cache cleared, now reload entries
+                    loadEntries();
+                    
+                    // Show success briefly
+                    refreshBtn.innerHTML = '<i class="fas fa-check"></i>';
+                    refreshBtn.classList.remove('btn-outline-secondary');
+                    refreshBtn.classList.add('btn-success');
+                    
+                    setTimeout(() => {
+                        refreshBtn.innerHTML = originalInner;
+                        refreshBtn.classList.remove('btn-success');
+                        refreshBtn.classList.add('btn-outline-secondary');
+                        refreshBtn.disabled = false;
+                        if (icon) {
+                            icon.classList.remove('fa-spin');
+                        }
+                    }, 1500);
+                } else {
+                    throw new Error(result.error || 'Failed to clear cache');
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing entries:', error);
+                
+                // Still try to reload entries even if cache clear failed
+                loadEntries();
+                
+                // Show error briefly
+                refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                refreshBtn.classList.remove('btn-outline-secondary');
+                refreshBtn.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    refreshBtn.innerHTML = originalInner;
+                    refreshBtn.classList.remove('btn-danger');
+                    refreshBtn.classList.add('btn-outline-secondary');
+                    refreshBtn.disabled = false;
+                    if (icon) {
+                        icon.classList.remove('fa-spin');
+                    }
+                }, 1500);
+            });
+    } else {
+        // Fallback if button not found
+        loadEntries();
     }
 }

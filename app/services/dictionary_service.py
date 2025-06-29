@@ -382,14 +382,21 @@ class DictionaryService:
             self.logger.error("Error deleting entry %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to delete entry: {str(e)}") from e
 
-    def list_entries(self, limit: Optional[int] = None, offset: int = 0, sort_by: str = "lexical_unit") -> Tuple[List[Entry], int]:
+    def list_entries(self, 
+                     limit: Optional[int] = None, 
+                     offset: int = 0, 
+                     sort_by: str = "lexical_unit",
+                     sort_order: str = "asc",
+                     filter_text: str = "") -> Tuple[List[Entry], int]:
         """
-        List entries.
+        List entries with filtering and sorting support.
         
         Args:
             limit: Maximum number of entries to return.
             offset: Number of entries to skip.
             sort_by: Field to sort by (lexical_unit, id, etc.).
+            sort_order: Sort order ("asc" or "desc").
+            filter_text: Text to filter entries by (searches in lexical_unit).
             
         Returns:
             Tuple of (list of Entry objects, total count).
@@ -398,17 +405,31 @@ class DictionaryService:
             DatabaseError: If there is an error listing entries.
         """
         try:
-            total_count = self.count_entries()
+            # Get total count (this may be filtered count if filter is applied)
+            total_count = self._count_entries_with_filter(filter_text) if filter_text else self.count_entries()
 
             db_name = self.db_connector.database
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
             
+            # Build sort expression
             if sort_by == "lexical_unit":
                 sort_expr = "($entry/lexical-unit/form/text)[1]"  # Use first form text for sorting
             else:
                 sort_expr = "$entry/@id"
             
+            # Add sort order
+            if sort_order.lower() == "desc":
+                sort_expr += " descending"
+            
+            # Build filter expression
+            filter_expr = ""
+            if filter_text:
+                # Filter by lexical unit text containing the filter text (case-insensitive)
+                # Use 'some' expression to handle multiple forms properly
+                filter_expr = f"[some $form in lexical-unit/form/text satisfies contains(lower-case($form), lower-case('{filter_text}'))]"
+            
+            # Build pagination expression
             pagination_expr = ""
             if limit is not None:
                 start = offset + 1
@@ -420,7 +441,7 @@ class DictionaryService:
             entry_path = self._query_builder.get_element_path("entry", has_ns)
             
             query = f"""
-            (for $entry in collection('{db_name}')//{entry_path}
+            (for $entry in collection('{db_name}')//{entry_path}{filter_expr}
             order by {sort_expr}
             return $entry){pagination_expr}
             """
@@ -1043,3 +1064,39 @@ class DictionaryService:
                 'description': 'Updated entry "test"'
             }
         ][:limit]
+
+    def _count_entries_with_filter(self, filter_text: str) -> int:
+        """
+        Count entries that match the filter text.
+        
+        Args:
+            filter_text: Text to filter entries by.
+            
+        Returns:
+            Number of entries matching the filter.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+            
+            # Build filter expression
+            filter_expr = ""
+            if filter_text:
+                # Filter by lexical unit text containing the filter text (case-insensitive)
+                # Use 'some' expression to handle multiple forms properly
+                filter_expr = f"[some $form in lexical-unit/form/text satisfies contains(lower-case($form), lower-case('{filter_text}'))]"
+            
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            
+            query = f"count(collection('{db_name}')//{entry_path}{filter_expr})"
+            
+            result = self.db_connector.execute_lift_query(query, has_ns)
+            
+            return int(result) if result else 0
+            
+        except Exception as e:
+            self.logger.error("Error counting filtered entries: %s", str(e))
+            return 0

@@ -7,6 +7,7 @@ This module initializes the Flask application and registers all blueprints.
 import os
 import logging
 from flask import Flask
+from flasgger import Swagger
 from injector import Injector, singleton
 
 from app.database.basex_connector import BaseXConnector
@@ -100,6 +101,34 @@ def create_app(config_name=None):
     
     from app.routes.corpus_routes import corpus_bp
     app.register_blueprint(corpus_bp)
+    
+    # Initialize Swagger documentation
+    swagger_config = {
+        "headers": [],
+        "specs": [
+            {
+                "endpoint": 'apispec',
+                "route": '/apispec.json',
+                "rule_filter": lambda rule: True,  # All endpoints
+                "model_filter": lambda tag: True,  # All models
+            }
+        ],
+        "static_url_path": "/flasgger_static",
+        "swagger_ui": True,
+        "specs_route": "/apidocs/",
+        "title": "Dictionary API Documentation",
+        "description": "API documentation for the Dictionary Writing System",
+        "version": "1.0.0",
+        "termsOfService": "",
+        "contact": {
+            "name": "Dictionary API Support",
+            "url": "http://localhost:5000",
+            "email": "support@example.com"
+        },
+    }
+    
+    swagger = Swagger(app, config=swagger_config)
+    app.swagger = swagger  # Store reference to avoid unused variable warning
     
     # Register error handlers
     @app.errorhandler(404)

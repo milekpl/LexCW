@@ -10,6 +10,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up auto-refresh every 5 minutes
     setInterval(fetchDashboardData, 5 * 60 * 1000);
+    
+    // Set up refresh button
+    const refreshBtn = document.getElementById('refresh-stats-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            refreshDashboardStats();
+        });
+    }
 });
 
 /**
@@ -172,5 +180,67 @@ function showErrorIndicators() {
         li.className = 'list-group-item text-center text-danger';
         li.textContent = 'Error loading activity';
         activityList.appendChild(li);
+    }
+}
+
+/**
+ * Manually refresh dashboard statistics
+ */
+function refreshDashboardStats() {
+    const refreshBtn = document.getElementById('refresh-stats-btn');
+    if (refreshBtn) {
+        // Show loading state
+        const icon = refreshBtn.querySelector('i');
+        const originalText = refreshBtn.innerHTML;
+        refreshBtn.disabled = true;
+        if (icon) {
+            icon.classList.add('fa-spin');
+        }
+        
+        // Clear cache and fetch fresh data
+        fetch('/api/dashboard/clear-cache', { method: 'POST' })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    // Cache cleared, now fetch fresh data
+                    return fetchDashboardData();
+                } else {
+                    throw new Error(result.error || 'Failed to clear cache');
+                }
+            })
+            .then(() => {
+                // Show success briefly
+                refreshBtn.innerHTML = '<i class="fas fa-check"></i> Updated';
+                refreshBtn.classList.remove('btn-outline-secondary');
+                refreshBtn.classList.add('btn-success');
+                
+                setTimeout(() => {
+                    refreshBtn.innerHTML = originalText;
+                    refreshBtn.classList.remove('btn-success');
+                    refreshBtn.classList.add('btn-outline-secondary');
+                    refreshBtn.disabled = false;
+                    if (icon) {
+                        icon.classList.remove('fa-spin');
+                    }
+                }, 1500);
+            })
+            .catch(error => {
+                console.error('Error refreshing dashboard:', error);
+                
+                // Show error briefly
+                refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                refreshBtn.classList.remove('btn-outline-secondary');
+                refreshBtn.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    refreshBtn.innerHTML = originalText;
+                    refreshBtn.classList.remove('btn-danger');
+                    refreshBtn.classList.add('btn-outline-secondary');
+                    refreshBtn.disabled = false;
+                    if (icon) {
+                        icon.classList.remove('fa-spin');
+                    }
+                }, 1500);
+            });
     }
 }

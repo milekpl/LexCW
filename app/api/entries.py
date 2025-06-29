@@ -5,6 +5,7 @@ API endpoints for managing dictionary entries.
 import json
 import logging
 from flask import Blueprint, request, jsonify, current_app
+from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
@@ -44,15 +45,112 @@ def get_dictionary_service():
 @entries_bp.route('/', methods=['GET'], strict_slashes=False)
 def list_entries():
     """
-    List dictionary entries with pagination.
-    
-    Query parameters:
-        limit: Maximum number of entries to return.
-        offset: Number of entries to skip.
-        sort_by: Field to sort by.
-    
-    Returns:
-        JSON response with list of entries.
+    List dictionary entries with pagination, filtering, and sorting
+    ---
+    tags:
+      - entries
+    parameters:
+      - name: limit
+        in: query
+        type: integer
+        required: false
+        description: Maximum number of entries to return (default 100)
+        example: 20
+      - name: offset
+        in: query
+        type: integer
+        required: false
+        description: Number of entries to skip (default 0)
+        example: 0
+      - name: page
+        in: query
+        type: integer
+        required: false
+        description: Page number (alternative to offset/limit)
+        example: 1
+      - name: per_page
+        in: query
+        type: integer
+        required: false
+        description: Entries per page (alternative to offset/limit)
+        example: 20
+      - name: sort_by
+        in: query
+        type: string
+        required: false
+        description: Field to sort by
+        enum: [lexical_unit, id, date_modified]
+        default: lexical_unit
+      - name: sort_order
+        in: query
+        type: string
+        required: false
+        description: Sort order
+        enum: [asc, desc]
+        default: asc
+      - name: filter_text
+        in: query
+        type: string
+        required: false
+        description: Text to filter entries by (searches in lexical_unit)
+        example: test
+    responses:
+      200:
+        description: List of entries
+        schema:
+          type: object
+          properties:
+            entries:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Entry ID
+                  lexical_unit:
+                    type: object
+                    description: Lexical unit with language codes
+                  senses:
+                    type: array
+                    description: Array of sense objects
+                  date_modified:
+                    type: string
+                    description: Last modification date
+            total_count:
+              type: integer
+              description: Total number of entries
+            total:
+              type: integer
+              description: Total number of entries (backward compatibility)
+            limit:
+              type: integer
+              description: Applied limit
+            offset:
+              type: integer
+              description: Applied offset
+            page:
+              type: integer
+              description: Current page (if pagination used)
+            per_page:
+              type: integer
+              description: Entries per page (if pagination used)
+      400:
+        description: Bad request (invalid parameters)
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
     """
     try:
         # Get query parameters - support both offset/limit and page/per_page formats
@@ -61,9 +159,8 @@ def list_entries():
         page = request.args.get('page', None, type=int)
         per_page = request.args.get('per_page', None, type=int)
         sort_by = request.args.get('sort_by', 'lexical_unit')
-        # TODO: implement sort_order and filter_text support
-        # sort_order = request.args.get('sort_order', 'asc')
-        # filter_text = request.args.get('filter', '')
+        sort_order = request.args.get('sort_order', 'asc')
+        filter_text = request.args.get('filter_text', '')
         
         # Validate individual parameters first
         if page is not None and page < 1:
@@ -84,8 +181,8 @@ def list_entries():
                 limit = 100
             if offset is None:
                 offset = 0
-        # Redis cache key - use simple key for now until sort_order and filter are implemented
-        cache_key = f"entries:{limit}:{offset}:{sort_by}"
+        # Redis cache key - include all relevant parameters for cache correctness
+        cache_key = f"entries:{limit}:{offset}:{sort_by}:{sort_order}:{filter_text}"
         cache = CacheService()
         if cache.is_available():
             cached = cache.get(cache_key)
@@ -94,8 +191,14 @@ def list_entries():
                 return jsonify(json.loads(cached))
         # Get dictionary service
         dict_service = get_dictionary_service()
-        # List entries - TODO: pass filter_text and sort_order when dictionary service supports them
-        entries, total_count = dict_service.list_entries(limit=limit, offset=offset, sort_by=sort_by)
+        # List entries with all parameters
+        entries, total_count = dict_service.list_entries(
+            limit=limit, 
+            offset=offset, 
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter_text=filter_text
+        )
         # Prepare response
         response = {
             'entries': [entry.to_dict() for entry in entries],
@@ -125,13 +228,51 @@ def list_entries():
 @entries_bp.route('/<entry_id>', methods=['GET'])
 def get_entry(entry_id):
     """
-    Get a dictionary entry by ID.
-    
-    Args:
-        entry_id: ID of the entry.
-    
-    Returns:
-        JSON response with the entry.
+    Get a dictionary entry by ID
+    ---
+    tags:
+      - entries
+    parameters:
+      - name: entry_id
+        in: path
+        type: string
+        required: true
+        description: ID of the entry to retrieve
+        example: "test_entry_123"
+    responses:
+      200:
+        description: Entry data
+        schema:
+          type: object
+          properties:
+            id:
+              type: string
+              description: Entry ID
+            lexical_unit:
+              type: object
+              description: Lexical unit with language codes
+            senses:
+              type: array
+              description: Array of sense objects
+            date_modified:
+              type: string
+              description: Last modification date
+      404:
+        description: Entry not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
     """
     try:
         # Get dictionary service
@@ -304,3 +445,32 @@ def get_related_entries(entry_id):
     except Exception as e:
         logger.error("Error getting related entries for %s: %s", entry_id, str(e))
         return jsonify({'error': str(e)}), 500
+
+
+@entries_bp.route('/clear-cache', methods=['POST'])
+def clear_entries_cache():
+    """
+    Clear the entries cache.
+    """
+    try:
+        cache = CacheService()
+        if cache.is_available():
+            # Clear all entries cache entries (different parameters create different keys)
+            cache.clear_pattern('entries:*') 
+            logger.info("Entries cache cleared")
+            return jsonify({
+                'success': True,
+                'message': 'Entries cache cleared successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Cache service not available'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error clearing entries cache: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
