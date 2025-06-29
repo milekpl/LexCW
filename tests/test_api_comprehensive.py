@@ -44,7 +44,12 @@ class TestEntriesAPI(TestAPIComprehensive):
         """Test entries list with pagination parameters."""
         mock_dict_service.list_entries.return_value = ([], 0)
         
-        with patch('app.api.entries.get_dictionary_service', return_value=mock_dict_service):
+        # Mock the cache service to ensure it doesn't interfere
+        with patch('app.api.entries.get_dictionary_service', return_value=mock_dict_service), \
+             patch('app.api.entries.CacheService') as mock_cache_service:
+            mock_cache_instance = mock_cache_service.return_value
+            mock_cache_instance.is_available.return_value = False
+            
             response = client.get('/api/entries?page=2&per_page=5&sort_by=id')
             
         assert response.status_code == 200
@@ -63,7 +68,11 @@ class TestEntriesAPI(TestAPIComprehensive):
     
     def test_entries_list_invalid_pagination(self, client, mock_dict_service):
         """Test entries list with invalid pagination parameters."""
-        with patch('app.api.entries.get_dictionary_service', return_value=mock_dict_service):
+        with patch('app.api.entries.get_dictionary_service', return_value=mock_dict_service), \
+             patch('app.api.entries.CacheService') as mock_cache_service:
+            mock_cache_instance = mock_cache_service.return_value
+            mock_cache_instance.is_available.return_value = False
+            
             # Test negative page
             response = client.get('/api/entries?page=-1')
             assert response.status_code == 400

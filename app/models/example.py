@@ -2,7 +2,7 @@
 Example model representing an example in a dictionary sense.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from app.models.base import BaseModel
 from app.utils.exceptions import ValidationError
 
@@ -27,17 +27,22 @@ class Example(BaseModel):
             id_: Unique identifier for the example.
             **kwargs: Additional attributes to set on the example.
         """
-        super().__init__(id_, **kwargs)
+        # Initialize attributes first
         self.form: Dict[str, str] = kwargs.get('form', {})
         self.translations: Dict[str, str] = kwargs.get('translations', {})
         self.notes: Dict[str, str] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
         
-        # Handle form_text convenience parameter
+        # Handle form_text convenience parameter before calling super().__init__
         if 'form_text' in kwargs and isinstance(kwargs['form_text'], str):
             # Add to form dict if it's empty
             if not self.form:
                 self.form['en'] = kwargs['form_text']
+        
+        # Now call parent __init__ with remaining kwargs
+        parent_kwargs = {k: v for k, v in kwargs.items() 
+                        if k not in ['form', 'translations', 'notes', 'custom_fields', 'form_text']}
+        super().__init__(id_, **parent_kwargs)  # type: ignore
     
     @property
     def form_text(self) -> str:
@@ -47,9 +52,40 @@ class Example(BaseModel):
         Returns:
             The first form text if form is a dict, otherwise the form as string.
         """
+        if not self.form:
+            return ''
         if isinstance(self.form, dict):
             return next(iter(self.form.values())) if self.form else ''
-        return str(self.form) if self.form else ''
+        else:
+            return str(self.form)
+    
+    @form_text.setter
+    def form_text(self, value: str) -> None:
+        """
+        Set the form text. Updates the form dict with the provided text.
+        
+        Args:
+            value: The form text to set.
+        """
+        # Set to default language 'en' if no specific language is set
+        if not self.form:
+            self.form['en'] = value
+        else:
+            # Update the first available language
+            first_lang = next(iter(self.form.keys()))
+            self.form[first_lang] = value
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the example to a dictionary.
+        
+        Returns:
+            Dictionary representation of the example.
+        """
+        result = super().to_dict()
+        # Add form_text property to the dict
+        result['form_text'] = self.form_text
+        return result
 
     def validate(self) -> bool:
         """
@@ -61,7 +97,7 @@ class Example(BaseModel):
         Raises:
             ValidationError: If the example is invalid.
         """
-        errors = []
+        errors: list[str] = []
         
         # Validate required fields
         if not self.form:
@@ -94,8 +130,5 @@ class Example(BaseModel):
 
     def __str__(self) -> str:
         """Return string representation of the example."""
-        form_text = getattr(self, 'form_text', '') or getattr(self, 'form', '')
-        if isinstance(form_text, dict):
-            # Get first available form  
-            form_text = next(iter(form_text.values())) if form_text else ''
-        return f"Example(id={self.id}, form_text={form_text})"
+        form_text_value = self.form_text
+        return f"Example(id={self.id}, form_text={form_text_value})"

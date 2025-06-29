@@ -473,3 +473,23 @@ class PostgreSQLConnector:
     def reconnect(self) -> None:
         """Reconnect to the database (useful after database creation)."""
         self._initialize_connection()
+    
+    def test_connection(self) -> bool:
+        """
+        Test database connection.
+        
+        Returns:
+            bool: True if connection is successful, False otherwise.
+        """
+        try:
+            if not self._connection:
+                self._initialize_connection()
+            
+            # Test the connection with a simple query
+            with self.get_cursor() as cursor:
+                cursor.execute("SELECT 1")
+                return True
+                
+        except Exception as e:
+            self.logger.warning(f"PostgreSQL connection test failed: {e}")
+            return False

@@ -55,10 +55,32 @@ def list_entries():
         JSON response with list of entries.
     """
     try:
-        # Get query parameters
-        limit = request.args.get('limit', 100, type=int)
-        offset = request.args.get('offset', 0, type=int)
+        # Get query parameters - support both offset/limit and page/per_page formats
+        limit = request.args.get('limit', None, type=int)
+        offset = request.args.get('offset', None, type=int)
+        page = request.args.get('page', None, type=int)
+        per_page = request.args.get('per_page', None, type=int)
         sort_by = request.args.get('sort_by', 'lexical_unit')
+        
+        # Validate individual parameters first
+        if page is not None and page < 1:
+            return jsonify({'error': 'Page parameter must be a positive integer'}), 400
+        if per_page is not None and per_page < 1:
+            return jsonify({'error': 'Per_page parameter must be a positive integer'}), 400
+        if limit is not None and limit < 0:
+            return jsonify({'error': 'Limit parameter must be non-negative'}), 400
+        if offset is not None and offset < 0:
+            return jsonify({'error': 'Offset parameter must be non-negative'}), 400
+        
+        # If page/per_page are provided, convert to offset/limit
+        if page is not None and per_page is not None:
+            limit = per_page
+            offset = (page - 1) * per_page
+        else:
+            if limit is None:
+                limit = 100
+            if offset is None:
+                offset = 0
         # Redis cache key
         cache_key = f"entries:{limit}:{offset}:{sort_by}"
         cache = CacheService()
@@ -73,10 +95,15 @@ def list_entries():
         # Prepare response
         response = {
             'entries': [entry.to_dict() for entry in entries],
-            'total_count': total_count,
+            'total': total_count,
             'limit': limit,
             'offset': offset,
         }
+        
+        # Add page/per_page if they were provided in the request
+        if page is not None and per_page is not None:
+            response['page'] = page
+            response['per_page'] = per_page
         if cache.is_available():
             cache.set(cache_key, json.dumps(response), ttl=300)
         return jsonify(response)

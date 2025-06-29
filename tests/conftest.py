@@ -239,6 +239,10 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     from app.api.validation import validation_bp
     app.register_blueprint(validation_bp)
     
+    # Register the main views blueprint
+    from app.views import main_bp
+    app.register_blueprint(main_bp)
+    
     # Attach the test dictionary service (use the same instance as dict_service_with_db)
     app.dict_service = dict_service_with_db  # type: ignore
     app.dict_service_with_db = dict_service_with_db  # type: ignore - alias for compatibility

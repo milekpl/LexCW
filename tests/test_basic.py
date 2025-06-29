@@ -217,7 +217,7 @@ class TestFlaskApp:
         
         assert response.status_code == 200
         # Index route returns HTML, not JSON
-        assert b'Dictionary Writing System' in response.data or b'Dashboard' in response.data
+        assert b'Lexicographic Curation Workbench' in response.data or b'Dashboard' in response.data
     
     def test_health_check(self):
         """Test the health check endpoint."""

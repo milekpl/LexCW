@@ -467,20 +467,31 @@ class CorpusMigrator:
         
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                cur.execute("""
-                    SELECT 
-                        COUNT(*) as total_records,
-                        AVG(LENGTH(source_text)) as avg_source_length,
-                        AVG(LENGTH(target_text)) as avg_target_length,
-                        MIN(created_at) as first_record,
-                        MAX(created_at) as last_record
-                    FROM parallel_corpus
-                """)
+                try:
+                    cur.execute("""
+                        SELECT 
+                            COUNT(*) as total_records,
+                            AVG(LENGTH(source_text)) as avg_source_length,
+                            AVG(LENGTH(target_text)) as avg_target_length,
+                            MIN(created_at) as first_record,
+                            MAX(created_at) as last_record
+                        FROM parallel_corpus
+                    """)
+                    
+                    result = cur.fetchone()
+                    if result:
+                        return dict(result)
+                    return {}
                 
-                result = cur.fetchone()
-                if result:
-                    return dict(result)
-                return {}
+                except psycopg2.errors.UndefinedTable:
+                    # Table doesn't exist, return default stats
+                    return {
+                        'total_records': 0,
+                        'avg_source_length': 0.0,
+                        'avg_target_length': 0.0,
+                        'first_record': None,
+                        'last_record': None
+                    }
         
         finally:
             conn.close()

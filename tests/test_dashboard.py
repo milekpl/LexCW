@@ -60,7 +60,7 @@ class TestDashboard:
     def test_homepage_contains_title(self, client):
         """Test that the homepage contains the correct title."""
         response = client.get('/')
-        assert b'Dictionary Writing System' in response.data
+        assert b'Lexicographic Curation Workbench' in response.data
 
     def test_homepage_contains_system_status_section(self, client):
         """Test that the homepage contains the system status section."""
@@ -129,7 +129,7 @@ class TestDashboard:
         
         # Should still load with default values
         response_text = response.data.decode('utf-8')
-        assert 'Dictionary Writing System' in response_text
+        assert 'Lexicographic Curation Workbench' in response_text
 
     def test_system_status_api_endpoint(self, client):
         """Test the system status API endpoint."""
@@ -227,7 +227,7 @@ class TestDashboard:
         
         # Should contain default content
         response_text = response.data.decode('utf-8')
-        assert 'Dictionary Writing System' in response_text
+        assert 'Lexicographic Curation Workbench' in response_text
 
     def test_no_sensitive_info_exposed(self, client):
         """Test that no sensitive information is exposed in the homepage."""
