@@ -48,6 +48,22 @@ class LIFTParser:
         self.validate = validate
         self.logger = logging.getLogger(__name__)
 
+    def parse(self, input_data: str, is_file_path: bool = False) -> List[Entry]:
+        """
+        Generic parse method that can handle either file paths or XML strings.
+        
+        Args:
+            input_data: Either a file path or XML string
+            is_file_path: True if input_data is a file path, False if it's an XML string
+            
+        Returns:
+            List of parsed Entry objects
+        """
+        if is_file_path:
+            return self.parse_file(input_data)
+        else:
+            return self.parse_string(input_data)
+
     def _find_element_with_fallback(self, element: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> Optional[ET.Element]:
         """
         Find an element with namespace fallback.

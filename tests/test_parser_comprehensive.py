@@ -160,7 +160,7 @@ class TestLIFTParserComprehensive:
     
     def test_lift_parser_complex_structure(self, complex_lift_xml: str) -> None:
         """Test parsing of complex LIFT structures."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False, encoding='utf-8') as f:
             f.write(complex_lift_xml)
@@ -200,7 +200,7 @@ class TestLIFTParserComprehensive:
     
     def test_lift_parser_empty_file(self) -> None:
         """Test parser with empty or minimal LIFT file."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         minimal_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13">
@@ -223,7 +223,7 @@ class TestLIFTParserComprehensive:
     
     def test_lift_parser_malformed_xml(self) -> None:
         """Test parser error handling with malformed XML."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         malformed_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13">
@@ -254,7 +254,7 @@ class TestLIFTParserComprehensive:
     
     def test_lift_parser_special_characters(self) -> None:
         """Test parser with special characters and unicode."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         unicode_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13">
@@ -299,7 +299,7 @@ class TestLIFTParserComprehensive:
     
     def test_lift_parser_memory_efficiency(self) -> None:
         """Test parser memory efficiency with large files."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         # Create a reasonably sized XML for testing
         large_xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>\n<lift version="0.13">']
@@ -343,6 +343,47 @@ class TestLIFTParserComprehensive:
 class TestEnhancedLiftParserComprehensive:
     """Comprehensive tests for Enhanced LIFT parser functionality."""
     
+    @pytest.fixture
+    def sample_lift_xml(self) -> str:
+        """Sample LIFT XML content for testing."""
+        return """<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.13">
+    <entry id="test_entry_1">
+        <lexical-unit>
+            <form lang="en">
+                <text>apple</text>
+            </form>
+            <form lang="pl">
+                <text>jabłko</text>
+            </form>
+        </lexical-unit>
+        <sense id="sense_1">
+            <gloss lang="en">
+                <text>A fruit</text>
+            </gloss>
+            <definition>
+                <form lang="en">
+                    <text>A round fruit that grows on trees</text>
+                </form>
+            </definition>
+            <grammatical-info value="Noun"/>
+        </sense>
+    </entry>
+    <entry id="test_entry_2">
+        <lexical-unit>
+            <form lang="en">
+                <text>application</text>
+            </form>
+        </lexical-unit>
+        <sense id="sense_2">
+            <gloss lang="en">
+                <text>Software program</text>
+            </gloss>
+            <grammatical-info value="Noun"/>
+        </sense>
+    </entry>
+</lift>"""
+    
     def test_enhanced_lift_parser_instantiation(self) -> None:
         """Test Enhanced LIFT parser creation."""
         try:
@@ -359,7 +400,7 @@ class TestEnhancedLiftParserComprehensive:
     def test_enhanced_parser_vs_basic_parser(self, sample_lift_xml: str) -> None:
         """Compare enhanced parser with basic parser."""
         try:
-            basic_parser = LiftParser()
+            basic_parser = LIFTParser()
             enhanced_parser = EnhancedLiftParser()
             
             with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False, encoding='utf-8') as f:
@@ -418,7 +459,7 @@ class TestParserErrorHandling:
     
     def test_parser_file_not_found(self) -> None:
         """Test parser behavior with non-existent files."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         non_existent_file = "/path/that/does/not/exist.lift"
         
@@ -431,7 +472,7 @@ class TestParserErrorHandling:
     
     def test_parser_permission_denied(self) -> None:
         """Test parser behavior with permission issues."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         # Create a temporary file and simulate permission issues
         with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False) as f:
@@ -454,7 +495,7 @@ class TestParserErrorHandling:
     
     def test_parser_encoding_issues(self) -> None:
         """Test parser with different encodings."""
-        parser = LiftParser()
+        parser = LIFTParser()
         
         # Test with different encodings
         xml_content = """<?xml version="1.0" encoding="UTF-8"?>
@@ -504,7 +545,7 @@ class TestParserIntegration:
             "tests/fixtures/sample.lift"
         ]
         
-        parser = LiftParser()
+        parser = LIFTParser()
         
         for lift_path in sample_lift_paths:
             full_path = os.path.join(os.path.dirname(__file__), '..', lift_path)
@@ -534,7 +575,7 @@ class TestParserIntegration:
         """Test parser performance baseline."""
         import time
         
-        parser = LiftParser()
+        parser = LIFTParser()
         
         # Create a moderately sized test file
         xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>\n<lift version="0.13">']

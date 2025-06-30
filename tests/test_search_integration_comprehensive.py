@@ -243,7 +243,7 @@ class TestXQueryBuilderComprehensive:
         builder = XQueryBuilder()
         
         # Test basic query building
-        query = builder.build_search_query("test")
+        query = builder.build_search_query("test", "test_db")
         assert isinstance(query, str), "Should return string query"
         assert len(query) > 0, "Query should not be empty"
         assert "test" in query.lower(), "Query should contain search term"
@@ -255,7 +255,7 @@ class TestXQueryBuilderComprehensive:
         builder = XQueryBuilder()
         
         # Test entry retrieval query
-        query = builder.build_entry_query("test_id")
+        query = builder.build_entry_by_id_query("test_id", "test_db")
         assert isinstance(query, str), "Should return string query"
         assert len(query) > 0, "Query should not be empty"
         assert "test_id" in query, "Query should contain entry ID"
@@ -267,7 +267,7 @@ class TestXQueryBuilderComprehensive:
         builder = XQueryBuilder()
         
         # Test count query
-        query = builder.build_count_query()
+        query = builder.build_count_entries_query("test_db")
         assert isinstance(query, str), "Should return string query"
         assert len(query) > 0, "Query should not be empty"
         assert "count" in query.lower(), "Query should contain count operation"
@@ -395,9 +395,9 @@ class TestSearchEdgeCases:
     
     def test_search_with_mock_connector(self) -> None:
         """Test search functionality with mock connector."""
-        from app.database.mock_connector import MockConnector
+        from app.database.mock_connector import MockDatabaseConnector
         
-        mock_connector = MockConnector()
+        mock_connector = MockDatabaseConnector()
         service = DictionaryService(db_connector=mock_connector)
         
         # Test search with mock data
@@ -410,10 +410,10 @@ class TestSearchEdgeCases:
     
     def test_search_error_handling(self) -> None:
         """Test search error handling."""
-        from app.database.mock_connector import MockConnector
+        from app.database.mock_connector import MockDatabaseConnector
         
         # Create a mock connector that might fail
-        mock_connector = MockConnector()
+        mock_connector = MockDatabaseConnector()
         service = DictionaryService(db_connector=mock_connector)
         
         # Test various potentially problematic queries
@@ -434,9 +434,9 @@ class TestSearchEdgeCases:
     
     def test_search_memory_efficiency(self) -> None:
         """Test search memory efficiency with large result sets."""
-        from app.database.mock_connector import MockConnector
+        from app.database.mock_connector import MockDatabaseConnector
         
-        mock_connector = MockConnector()
+        mock_connector = MockDatabaseConnector()
         service = DictionaryService(db_connector=mock_connector)
         
         # Test search with large page sizes
@@ -444,7 +444,7 @@ class TestSearchEdgeCases:
         
         for page_size in large_page_sizes:
             try:
-                results, total = service.search_entries("test", page=1, page_size=page_size)
+                results, total = service.search_entries("test", limit=page_size, offset=0)
                 
                 # Should handle large page sizes gracefully
                 assert len(results) <= page_size, f"Results should not exceed {page_size}"

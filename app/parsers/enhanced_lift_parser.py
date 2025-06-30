@@ -43,6 +43,22 @@ class EnhancedLiftParser:
         self._has_lift_namespace = False
         self._namespace_map = {}
     
+    def parse(self, input_data: str, is_file_path: bool = False) -> List[Entry]:
+        """
+        Generic parse method that can handle either file paths or XML strings.
+        
+        Args:
+            input_data: Either a file path or XML string
+            is_file_path: True if input_data is a file path, False if it's an XML string
+            
+        Returns:
+            List of parsed Entry objects
+        """
+        if is_file_path:
+            return self.parse_file(input_data)
+        else:
+            return self.parse_string(input_data)
+    
     def parse_file(self, file_path: str) -> List[Entry]:
         """
         Parse a LIFT file into a list of Entry objects.

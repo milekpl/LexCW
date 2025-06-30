@@ -35,23 +35,35 @@ class TestRealIntegration:
     @pytest.fixture(scope="function")
     def db_connector(self, test_db_name):
         """Create a real BaseX connector for testing."""
-        connector = BaseXConnector(TEST_HOST, TEST_PORT, TEST_USERNAME, TEST_PASSWORD, test_db_name)
+        # Create an admin connector (no database specified)
+        admin_connector = BaseXConnector(TEST_HOST, TEST_PORT, TEST_USERNAME, TEST_PASSWORD)
+        admin_connector.connect()
+        
+        # Clean up any existing test database
         try:
-            connector.connect()
-            # Clean up database if it exists
-            try:
-                connector.execute_update(f"DROP DB {test_db_name}")
-            except DatabaseError:
-                pass  # Database doesn't exist, that's fine
-            yield connector
-        finally:
-            # Cleanup
-            try:
-                if connector.is_connected():
-                    connector.execute_update(f"DROP DB {test_db_name}")
-                    connector.close()
-            except:
-                pass  # Best effort cleanup
+            if test_db_name in (admin_connector.execute_command("LIST") or ""):
+                admin_connector.execute_command(f"DROP DB {test_db_name}")
+        except Exception:
+            pass
+        
+        # Create the test database
+        admin_connector.execute_command(f"CREATE DB {test_db_name}")
+        admin_connector.disconnect()
+        
+        # Now create a connector for the test database
+        connector = BaseXConnector(TEST_HOST, TEST_PORT, TEST_USERNAME, TEST_PASSWORD, test_db_name)
+        connector.connect()
+        
+        yield connector
+        
+        # Cleanup
+        try:
+            connector.disconnect()
+            admin_connector.connect()
+            admin_connector.execute_command(f"DROP DB {test_db_name}")
+            admin_connector.disconnect()
+        except Exception:
+            pass
     
     @pytest.fixture(scope="function")
     def dict_service(self, db_connector):

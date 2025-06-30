@@ -25,13 +25,24 @@ TEST_DB = "test_dict_search"
 @pytest.fixture(scope="function")
 def dict_service():
     """Create a DictionaryService with test database for each test."""
-    # Create the connector
-    connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD, TEST_DB)
-    connector.connect()
+    # Create an admin connector (no database specified)
+    admin_connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD)
+    admin_connector.connect()
     
     # Clean up any existing test database
-    if TEST_DB in (connector.execute_command("LIST") or ""):
-        connector.execute_command(f"DROP DB {TEST_DB}")
+    try:
+        if TEST_DB in (admin_connector.execute_command("LIST") or ""):
+            admin_connector.execute_command(f"DROP DB {TEST_DB}")
+    except Exception:
+        pass
+    
+    # Create the test database
+    admin_connector.execute_command(f"CREATE DB {TEST_DB}")
+    admin_connector.disconnect()
+    
+    # Now create a connector for the test database
+    connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD, TEST_DB)
+    connector.connect()
     
     # Create the service
     service = DictionaryService(connector)
@@ -46,12 +57,12 @@ def dict_service():
     
     # Clean up
     try:
-        if TEST_DB in (connector.execute_command("LIST") or ""):
-            connector.execute_command(f"DROP DB {TEST_DB}")
+        connector.disconnect()
+        admin_connector.connect()
+        admin_connector.execute_command(f"DROP DB {TEST_DB}")
+        admin_connector.disconnect()
     except Exception:
         pass
-    
-    connector.disconnect()
 
 
 def create_test_entries(service):
@@ -202,7 +213,6 @@ class TestSearch:
         
         # Add a test entry with special characters
         add_query = f"""
-        xquery
         insert node 
         <entry id="special_chars">
             <lexical-unit>
@@ -241,7 +251,7 @@ class TestSearch:
         
         # Clean up
         dict_service.db_connector.execute_update(
-            f"xquery delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='special_chars']"
+            f"delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='special_chars']"
         )
     
     def test_search_pagination(self, dict_service):
@@ -253,7 +263,7 @@ class TestSearch:
         # First clean up any test entries if they exist
         for i in range(1, 6):
             dict_service.db_connector.execute_update(
-                f"xquery if (exists(collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='paginated_{i}'])) "
+                f"if (exists(collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='paginated_{i}'])) "
                 f"then delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='paginated_{i}'] "
                 f"else ()"
             )
@@ -261,7 +271,6 @@ class TestSearch:
         # Add 5 test entries for pagination testing
         for i in range(1, 6):
             add_query = f"""
-            xquery
             insert node 
             <entry id="paginated_{i}">
                 <lexical-unit>
@@ -335,7 +344,7 @@ class TestSearch:
         # Clean up the test entries
         for i in range(1, 6):
             dict_service.db_connector.execute_update(
-                f"xquery delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='paginated_{i}']"
+                f"delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='paginated_{i}']"
             )
     
     def test_search_no_results(self, dict_service):

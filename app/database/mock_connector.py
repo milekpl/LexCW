@@ -87,7 +87,7 @@ class MockDatabaseConnector:
                 return self._entries.get(entry_id, "")
         
         # Handle count queries
-        if query.startswith("xquery count("):
+        if "count(" in query and ("collection(" in query or "for $entry" in query):
             return str(len(self._entries))
         
         # Handle list queries

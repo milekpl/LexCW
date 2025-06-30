@@ -114,7 +114,7 @@ class TestSearchFunctionality(unittest.TestCase):
             db_name = self.service.db_connector.database
             
             count_query = f"""
-            xquery count(for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
+            count(for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
             return $entry)
             """
@@ -128,7 +128,7 @@ class TestSearchFunctionality(unittest.TestCase):
             pagination_expr = f"[position() <= {limit}]"
             
             query_str = f"""
-            xquery (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
+            (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
             order by $entry/lexical-unit/form/text/text()
             return $entry){pagination_expr}
@@ -173,7 +173,7 @@ class TestSearchFunctionality(unittest.TestCase):
             
             # Get total count
             count_query = f"""
-            xquery count(for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
+            count(for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
             return $entry)
             """
@@ -190,7 +190,7 @@ class TestSearchFunctionality(unittest.TestCase):
             pagination_expr = f"[position() > {offset} and position() <= {offset + limit}]"
             
             query_str = f"""
-            xquery (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
+            (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
             order by $entry/lexical-unit/form/text/text()
             return $entry){pagination_expr}
@@ -204,7 +204,7 @@ class TestSearchFunctionality(unittest.TestCase):
             pagination_expr = f"[position() > {offset} and position() <= {offset + limit}]"
             
             query_str = f"""
-            xquery (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
+            (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
             order by $entry/lexical-unit/form/text/text()
             return $entry){pagination_expr}
