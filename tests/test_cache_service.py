@@ -13,6 +13,11 @@ from app.services.cache_service import CacheService
 class TestCacheService:
     """Test caching service functionality."""
     
+    def setup_method(self):
+        """Reset singleton state before each test."""
+        CacheService._instance = None
+        CacheService._connection_attempted = False
+    
     def test_cache_service_initialization(self):
         """Test that cache service initializes properly."""
         with patch('redis.Redis') as mock_redis:
@@ -56,6 +61,10 @@ class TestCacheService:
     
     def test_cache_clear_pattern(self):
         """Test clearing cache keys by pattern."""
+        # Reset singleton
+        CacheService._instance = None
+        CacheService._connection_attempted = False
+        
         with patch('redis.Redis') as mock_redis:
             mock_client = Mock()
             mock_redis.return_value = mock_client
@@ -71,6 +80,10 @@ class TestCacheService:
     
     def test_cache_fallback_when_redis_unavailable(self):
         """Test that service works without Redis."""
+        # Reset singleton
+        CacheService._instance = None
+        CacheService._connection_attempted = False
+        
         with patch('redis.Redis') as mock_redis:
             mock_redis.side_effect = redis.ConnectionError("Redis unavailable")
             

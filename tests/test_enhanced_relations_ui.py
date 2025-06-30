@@ -3,7 +3,7 @@ Test enhanced relations UI with sense-level targeting.
 """
 
 import pytest
-from app import create_app
+from app import create_app, injector
 from app.database.mock_connector import MockDatabaseConnector
 from app.services.dictionary_service import DictionaryService
 
@@ -14,44 +14,48 @@ def app():
     app = create_app('testing')
     app.config['TESTING'] = True
     
-    # Setup mock database with test entries
+    # Setup mock database with test entries - bind to injector  
     mock_connector = MockDatabaseConnector()
-    dict_service = DictionaryService(mock_connector)
-    app.dict_service = dict_service
+    injector.binder.bind(DictionaryService, 
+                       lambda: DictionaryService(mock_connector))
     
-    # Create test entries with senses
-    test_entry1 = {
-        'id': 'test_entry_1',
-        'lexical_unit': {'en': 'test word'},
-        'senses': [
-            {
-                'id': 'sense_1_1',
-                'glosses': {'en': 'first meaning'},
-                'definition': {'en': 'First definition of test word'}
-            },
-            {
-                'id': 'sense_1_2', 
-                'glosses': {'en': 'second meaning'},
-                'definition': {'en': 'Second definition of test word'}
-            }
-        ]
-    }
-    
-    test_entry2 = {
-        'id': 'test_entry_2',
-        'lexical_unit': {'en': 'another word'},
-        'senses': [
-            {
-                'id': 'sense_2_1',
-                'glosses': {'en': 'another meaning'},
-                'definition': {'en': 'Definition of another word'}
-            }
-        ]
-    }
-    
-    # Add entries to mock database
-    dict_service.create_entry(test_entry1)
-    dict_service.create_entry(test_entry2)
+    # Create test entries with senses using the injected service
+    with app.app_context():
+        dict_service = injector.get(DictionaryService)
+        
+        # Create test entries with senses
+        test_entry1 = {
+            'id': 'test_entry_1',
+            'lexical_unit': {'en': 'test word'},            'senses': [
+                {
+                    'id': 'sense_1_1',
+                    'glosses': {'en': 'first meaning'},
+                    'definition': {'en': 'First definition of test word'}
+                },
+                {
+                    'id': 'sense_1_2', 
+                    'glosses': {'en': 'second meaning'},
+                    'definition': {'en': 'Second definition of test word'}
+                }
+            ]
+        }
+        
+        test_entry2 = {
+            'id': 'test_entry_2',
+            'lexical_unit': {'en': 'another word'},
+            'senses': [
+                {
+                    'id': 'sense_2_1',
+                    'glosses': {'en': 'another meaning'},
+                    'definition': {'en': 'Definition of another word'}
+                }
+            ]
+        }
+        
+        # Add entries to mock database
+        from app.models.entry import Entry
+        dict_service.create_entry(Entry.from_dict(test_entry1))
+        dict_service.create_entry(Entry.from_dict(test_entry2))
     
     return app
 
@@ -92,30 +96,32 @@ def test_relation_ui_page_loads_with_enhanced_search(client):
     """Test that the relation UI page includes enhanced search functionality."""
     # Create a test entry first
     with client.application.app_context():
-        dict_service = client.application.dict_service
+        dict_service = injector.get(DictionaryService)
         test_entry = {
             'id': 'main_test_entry',
             'lexical_unit': {'en': 'main word'},
             'senses': [{'id': 'main_sense', 'glosses': {'en': 'main meaning'}}]
         }
-        created_entry = dict_service.create_entry(test_entry)
+        from app.models.entry import Entry
+        created_entry_id = dict_service.create_entry(Entry.from_dict(test_entry))
+        created_entry = dict_service.get_entry(created_entry_id)
     
     # Access entry edit page 
-    response = client.get(f'/entry/{created_entry.id}/edit')
+    response = client.get(f'/entries/{created_entry.id}/edit')
     assert response.status_code == 200
     
     html_content = response.get_data(as_text=True)
     
     # Check that relations section is present
     assert 'Relations' in html_content
-    assert 'relation-type' in html_content
-    assert 'relation-ref' in html_content
+    assert 'relations-container' in html_content
+    assert 'RelationsManager' in html_content
 
 
 def test_entry_creation_with_sense_level_relations(client):
     """Test creating an entry with relations pointing to specific senses."""
     with client.application.app_context():
-        dict_service = client.application.dict_service
+        dict_service = injector.get(DictionaryService)
         
         # Create an entry with sense-level relation
         entry_data = {
@@ -131,7 +137,9 @@ def test_entry_creation_with_sense_level_relations(client):
             }]
         }
         
-        created_entry = dict_service.create_entry(entry_data)
+        from app.models.entry import Entry
+        created_entry_id = dict_service.create_entry(Entry.from_dict(entry_data))
+        created_entry = dict_service.get_entry(created_entry_id)
         assert created_entry.id == 'entry_with_sense_relation'
         
         # Verify the relation was created correctly
@@ -146,26 +154,38 @@ def test_entry_creation_with_sense_level_relations(client):
 def test_relation_form_submission_with_sense_target(client):
     """Test submitting a relation form with sense-level targeting."""
     with client.application.app_context():
-        dict_service = client.application.dict_service
+        dict_service = injector.get(DictionaryService)
         
         # Create a base entry
-        base_entry = dict_service.create_entry({
+        from app.models.entry import Entry
+        base_entry_id = dict_service.create_entry(Entry.from_dict({
             'id': 'base_entry',
             'lexical_unit': {'en': 'base word'},
             'senses': [{'id': 'base_sense', 'glosses': {'en': 'base meaning'}}]
-        })
+        }))
+        base_entry = dict_service.get_entry(base_entry_id)
         
-        # Submit form data with sense-level relation
-        form_data = {
-            'lexical_unit.en': 'base word',
-            'senses[0].glosses.en': 'base meaning',
-            'relations[0].type': 'synonym',
-            'relations[0].ref': 'test_entry_1#sense_1_1'
+        # Submit JSON data with sense-level relation
+        json_data = {
+            'id': 'base_entry',
+            'lexical_unit': {'en': 'base word'},
+            'senses': [
+                {
+                    'id': 'base_sense',
+                    'glosses': {'en': 'base meaning'},
+                    'relations': [
+                        {
+                            'type': 'synonym',
+                            'ref': 'test_entry_1#sense_1_1'
+                        }
+                    ]
+                }
+            ]
         }
         
-        response = client.post(f'/entry/{base_entry.id}/edit', 
-                             data=form_data,
-                             follow_redirects=True)
+        response = client.post(f'/entries/{base_entry.id}/edit', 
+                             json=json_data,
+                             content_type='application/json')
         
         assert response.status_code == 200
         
@@ -177,7 +197,7 @@ def test_relation_form_submission_with_sense_target(client):
         
         if updated_entry.relations:
             for rel in updated_entry.relations:
-                if rel.get('ref') == 'test_entry_1#sense_1_1':
+                if hasattr(rel, 'ref') and rel.ref == 'test_entry_1#sense_1_1':
                     has_relation = True
                     break
         
@@ -185,7 +205,7 @@ def test_relation_form_submission_with_sense_target(client):
             for sense in updated_entry.senses:
                 if hasattr(sense, 'relations') and sense.relations:
                     for rel in sense.relations:
-                        if rel.get('ref') == 'test_entry_1#sense_1_1':
+                        if hasattr(rel, 'ref') and rel.ref == 'test_entry_1#sense_1_1':
                             has_relation = True
                             break
         

@@ -689,6 +689,8 @@ class TestPostgreSQLRealIntegration:
         """Test transaction handling and rollback functionality."""
         # Create test table
         postgres_connector.execute_query("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+        # Drop table if it exists to ensure clean state
+        postgres_connector.execute_query("DROP TABLE IF EXISTS test_transactions")
         postgres_connector.execute_query("""
             CREATE TABLE test_transactions (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

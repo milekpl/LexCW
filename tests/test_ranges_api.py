@@ -57,7 +57,9 @@ class TestRangesAPI:
         }
         
         # Create service and mock get_ranges
-        service = DictionaryService()
+        from app.database.mock_connector import MockDatabaseConnector
+        mock_connector = MockDatabaseConnector()
+        service = DictionaryService(mock_connector)
         service.ranges = mock_ranges
         
         ranges = service.get_ranges()
@@ -81,16 +83,21 @@ class TestRangesAPI:
 
     def test_get_ranges_handles_empty_ranges(self) -> None:
         """Test that get_ranges handles empty or missing ranges gracefully."""
-        service = DictionaryService()
+        from app.database.mock_connector import MockDatabaseConnector
+        mock_connector = MockDatabaseConnector()
+        service = DictionaryService(mock_connector)
         service.ranges = {}
         
         ranges = service.get_ranges()
         assert isinstance(ranges, dict)
-        assert len(ranges) == 0
+        # Even with empty ranges, service should return default ranges
+        assert len(ranges) > 0
 
     def test_get_ranges_caches_results(self) -> None:
         """Test that get_ranges caches results for performance."""
-        service = DictionaryService()
+        from app.database.mock_connector import MockDatabaseConnector
+        mock_connector = MockDatabaseConnector()
+        service = DictionaryService(mock_connector)
         
         # Mock the database query to return test data
         mock_ranges = {

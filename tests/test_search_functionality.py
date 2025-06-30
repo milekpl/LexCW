@@ -130,7 +130,7 @@ class TestSearchFunctionality(unittest.TestCase):
             query_str = f"""
             (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
-            order by $entry/lexical-unit/form/text/text()
+            order by ($entry/lexical-unit/form/text)[1]
             return $entry){pagination_expr}
             """
             
@@ -192,7 +192,7 @@ class TestSearchFunctionality(unittest.TestCase):
             query_str = f"""
             (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
-            order by $entry/lexical-unit/form/text/text()
+            order by ($entry/lexical-unit/form/text)[1]
             return $entry){pagination_expr}
             """
             
@@ -206,7 +206,7 @@ class TestSearchFunctionality(unittest.TestCase):
             query_str = f"""
             (for $entry in collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry']
             where {search_condition}
-            order by $entry/lexical-unit/form/text/text()
+            order by ($entry/lexical-unit/form/text)[1]
             return $entry){pagination_expr}
             """
             
