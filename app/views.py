@@ -205,7 +205,7 @@ def edit_entry(entry_id):
         # Get entry for display
         entry = dict_service.get_entry(entry_id)
         
-        return render_template('entry_form.html', entry=entry)
+        return render_template('entry_form.html', entry=entry.to_dict())
     
     except NotFoundError:
         flash(f"Entry with ID {entry_id} not found.", "danger")
@@ -247,7 +247,7 @@ def add_entry():
         # Create an empty entry for the form
         entry = Entry()
         
-        return render_template('entry_form.html', entry=entry)
+        return render_template('entry_form.html', entry=entry.to_dict())
     
     except ValidationError as e:
         return jsonify({'error': str(e)}), 400

@@ -6,39 +6,56 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Optional, List
+from typing import Any, Optional, List, ClassVar
 
 import redis
 
 
 class CacheService:
-
-    def is_available(self) -> bool:
-        """Return True if Redis is connected and available."""
-        return self.redis_client is not None
     """Redis-based caching service with graceful fallback."""
+    
+    # Class-level cache of the instance to avoid repeated Redis connection attempts
+    _instance: Optional['CacheService'] = None
+    _connection_attempted: ClassVar[bool] = False
+    
+    def __new__(cls) -> 'CacheService':
+        """Singleton pattern to avoid repeated Redis connection attempts."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
     
     def __init__(self):
         """Initialize Redis connection with fallback."""
+        # Only initialize once
+        if hasattr(self, '_initialized'):
+            return
+            
         self.logger = logging.getLogger(__name__)
         self.redis_client = None
-        self._connect()
+        self._initialized = True
+        
+        # Only attempt connection once per application lifecycle
+        if not CacheService._connection_attempted:
+            CacheService._connection_attempted = True
+            self._connect()
     
     def _connect(self) -> None:
         """Establish Redis connection."""
         try:
+            # Redis 8.0 compatible configuration with faster timeouts
             self.redis_client = redis.Redis(
                 host=os.getenv('REDIS_HOST', 'localhost'),
                 port=int(os.getenv('REDIS_PORT', 6379)),
                 db=int(os.getenv('REDIS_DB', 0)),
                 password=os.getenv('REDIS_PASSWORD'),
                 decode_responses=False,  # We'll handle JSON encoding manually
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                retry_on_timeout=True
+                socket_connect_timeout=1,  # Reduced timeout for faster fallback
+                socket_timeout=1,
+                # Remove deprecated retry_on_timeout parameter for Redis 8.0 compatibility
+                retry_on_error=[redis.ConnectionError, redis.TimeoutError]
             )
             
-            # Test connection
+            # Test connection with timeout
             self.redis_client.ping()
             self.logger.info("Redis cache service connected successfully")
             
@@ -48,6 +65,10 @@ class CacheService:
         except Exception as e:
             self.logger.error(f"Unexpected Redis error: {e}")
             self.redis_client = None
+
+    def is_available(self) -> bool:
+        """Return True if Redis is connected and available."""
+        return self.redis_client is not None
     
     def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
         """
