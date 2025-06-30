@@ -1275,22 +1275,38 @@ Based on the existing codebase analysis, the following features have been implem
   - ✅ **COMPLETED**: Web-based corpus management interface with TMX/CSV upload
   - ✅ **COMPLETED**: Flask routes for corpus operations (upload, stats, cleanup, deduplication)
   - ✅ **TESTED**: Complete test suite for corpus routes (9 passing tests)
-  - 🔄 **NEXT**: Implement advanced search (vector, regex) and Redis caching
+  - ✅ **COMPLETED**: Implemented caching layer (Redis) for key query paths
+  - 🔄 **NEXT**: Focus on core workbench functionality (Phase 2).
 
 - 🚧 **Performance Optimization**
-  - 🔄 **NEXT**: Implement caching layer (Redis)
+  - ✅ **COMPLETED**: Implemented caching layer (Redis)
   - 🔄 **NEXT**: Optimize XQuery performance for large datasets
-  - Implement query result caching
 
 #### **PHASE 2: Workbench Features (Weeks 5-12)**
+
 *Priority: High - Core workbench functionality*
 
 **Week 5-6: Query Builder and Worksets**
-- 🔴 **Dynamic Query Builder** - Not implemented
-  - Build UI for complex multi-criteria queries
-  - Implement query validation and optimization
-  - Add query templates and saving functionality
-  - Create workset management system
+
+- ✅ **COMPLETED**: **Dynamic Query Builder** - ⭐ **COMPLETED** (June 30, 2025)
+  - ✅ **COMPLETED**: Design a flexible query model for lexicographic data (SearchQuery, SearchFilter models)
+  - ✅ **COMPLETED**: Implement comprehensive LIFT entry parsing, including `relation`, `etymology`, and `variant` elements
+  - ✅ **COMPLETED**: Core XQuery generation engine for BaseX LIFT database searches
+  - ✅ **COMPLETED**: Support for all major LIFT elements (lexical-unit, sense, grammatical-info, etymology, relation, variant, note, pronunciation, citation)
+  - ✅ **COMPLETED**: Multi-criteria query support with parameterized queries
+  - ✅ **COMPLETED**: TDD test suite with 6 comprehensive test cases
+  - ✅ **COMPLETED**: Full test coverage for XQuery generation logic
+  - ✅ **COMPLETED**: Enhanced Entry model with full JSON serialization support
+  - ✅ **COMPLETED**: Fixed pronunciation handling including non-standard language codes ('seh-fonipa')
+  - ✅ **COMPLETED**: Comprehensive Entry model testing with 16 passing test cases
+  - ✅ **COMPLETED**: Fixed BaseX connector command execution (execute_command vs execute_update)
+  - ✅ **COMPLETED**: Resolved all test regressions in entry validation, sense handling, and search functionality
+  - ✅ **COMPLETED**: Database connection cleanup and locking issue resolution
+  - ✅ **TESTED**: All search functionality tests (7 test cases) and entry model tests passing
+  - 🔄 **NEXT**: Build UI for complex multi-criteria queries (e.g., lexical, semantic, grammatical)
+  - 🔄 **NEXT**: Integrate advanced search capabilities (regex, vector search)
+  - 🔄 **NEXT**: Implement query validation and optimization engine
+  - 🔄 **NEXT**: Add support for query templates and saving/sharing functionality
 
 - 🔴 **Workset Management APIs** - Not implemented
   - Implement workset creation from queries
@@ -1299,6 +1315,7 @@ Based on the existing codebase analysis, the following features have been implem
   - Add workset manipulation operations
 
 **Week 7-8: Bulk Operations Engine**
+
 - 🔴 **Bulk Processing Framework** - Not implemented
   - Design bulk operation architecture
   - Implement atomic transaction support
@@ -1709,7 +1726,7 @@ This roadmap provides a clear path forward for leveraging PostgreSQL to signific
 
 ---
 
-### 18.6 Enhanced PostgreSQL Integration: Word Sketches and SUBTLEX
+### 19.6 Enhanced PostgreSQL Integration: Word Sketches and SUBTLEX
 
 > **STATUS: IMPLEMENTED ✅**  
 > *Completed June 27, 2025 - TDD implementation with comprehensive test suite*
@@ -1727,7 +1744,7 @@ This roadmap provides a clear path forward for leveraging PostgreSQL to signific
 
 Building on your lab's word sketch work and leveraging sentence-aligned parallel corpora with SUBTLEX frequency norms.
 
-#### 18.6.1 Architecture Overview
+#### 19.6.1 Architecture Overview
 
 **Hybrid Database Strategy Enhanced**:
 - **BaseX**: Primary LIFT XML storage (dictionary structure integrity)
@@ -1741,7 +1758,7 @@ Building on your lab's word sketch work and leveraging sentence-aligned parallel
 - Optimize POS tagging pipeline for sentence-aligned data
 - Integrate SUBTLEX psychologically validated frequency norms
 
-#### 18.6.2 Enhanced PostgreSQL Schema for Word Sketches
+#### 19.6.2 Enhanced PostgreSQL Schema for Word Sketches
 
 **Core Dictionary Tables** (unchanged):
 ```sql
@@ -1795,7 +1812,7 @@ CREATE TABLE corpus_sentences (
 );
 ```
 
-**Word Sketch Tables** (inspired by your lab work):
+**Word Sketch Tables** (inspired by your grammar files):
 ```sql
 -- Grammatical collocations with logDice scoring
 CREATE TABLE word_sketches (
@@ -1917,7 +1934,7 @@ CREATE TABLE linguistic_cache (
 );
 ```
 
-#### 18.6.3 Optimized Processing Pipeline
+#### 19.6.3 Optimized Processing Pipeline
 
 **Sentence-Aligned Corpus Advantage**:
 ```python
@@ -1963,7 +1980,7 @@ class SUBTLEXIntegrator:
         # Generate accessibility rankings for dictionary entries
 ```
 
-#### 18.6.4 Enhanced Search and Analysis
+#### 19.6.4 Enhanced Search and Analysis
 
 **Grammaticality-Aware Search**:
 ```sql
@@ -2003,7 +2020,7 @@ SELECT * FROM collocation_similarity
 ORDER BY shared_collocates DESC, avg_strength1 DESC;
 ```
 
-#### 18.6.5 Implementation Strategy
+#### 19.6.5 Implementation Strategy
 
 **Phase 1: Core Infrastructure (Week 1-2)**
 ```python

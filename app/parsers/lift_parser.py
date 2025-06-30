@@ -11,7 +11,9 @@ import xml.etree.ElementTree as ET
 from typing import Dict, List, Any, Optional
 from xml.dom import minidom
 
-from app.models import Entry, Sense, Example
+from app.models.entry import Entry, Etymology, Relation, Variant, Form, Gloss
+from app.models.sense import Sense
+from app.models.example import Example
 from app.utils.exceptions import ValidationError
 
 
@@ -47,6 +49,21 @@ class LIFTParser:
             validate: Whether to validate entries during parsing.        """
         self.validate = validate
         self.logger = logging.getLogger(__name__)
+
+    def parse_entry(self, xml_string: str) -> Entry:
+        """
+        Parse a single LIFT entry XML string into an Entry object.
+        
+        Args:
+            xml_string: LIFT XML string for a single entry.
+            
+        Returns:
+            The parsed Entry object.
+        """
+        entries = self.parse_string(xml_string)
+        if not entries:
+            raise ValueError("No entry found in the provided XML string.")
+        return entries[0]
 
     def parse(self, input_data: str, is_file_path: bool = False) -> List[Entry]:
         """
@@ -213,10 +230,16 @@ class LIFTParser:
             root = ET.fromstring(xml_string)
             
             entries = []
-            # Try namespace-aware first, then fallback to non-namespaced
-            entry_elems = root.findall('.//lift:entry', self.NSMAP)
-            if not entry_elems:
-                entry_elems = root.findall('.//entry')
+            entry_elems = []
+
+            # Check if the root element is an entry
+            if root.tag.endswith('entry'):
+                entry_elems.append(root)
+            else:
+                # Try namespace-aware first, then fallback to non-namespaced
+                entry_elems = root.findall('.//lift:entry', self.NSMAP)
+                if not entry_elems:
+                    entry_elems = root.findall('.//entry')
             
             for entry_elem in entry_elems:
                 try:
@@ -278,6 +301,38 @@ class LIFTParser:
                 text_elem = self._find_element(form_elem, './/lift:text')
                 if lang and text_elem is not None and text_elem.text:
                     lexical_unit[lang] = text_elem.text
+        
+        # Parse etymologies
+        etymologies = []
+        for etymology_elem in self._find_elements(entry_elem, './/lift:etymology'):
+            etymology_type = etymology_elem.get('type', '')
+            etymology_source = etymology_elem.get('source', '')
+            
+            form_elem = self._find_element(etymology_elem, './/lift:form')
+            gloss_elem = self._find_element(etymology_elem, './/lift:gloss')
+
+            form = None
+            if form_elem is not None:
+                lang = form_elem.get('lang')
+                text_elem = self._find_element(form_elem, './/lift:text')
+                if text_elem is not None and text_elem.text:
+                    form = Form(lang=lang or '', text=text_elem.text)
+
+            gloss = None
+            if gloss_elem is not None:
+                lang = gloss_elem.get('lang')
+                text_elem = self._find_element(gloss_elem, './/lift:text')
+                if text_elem is not None and text_elem.text:
+                    gloss = Gloss(lang=lang or '', text=text_elem.text)
+            
+            if form and gloss:
+                etymologies.append(Etymology(
+                    type=etymology_type,
+                    source=etymology_source,
+                    form=form,
+                    gloss=gloss
+                ))
+
           # Parse citations
         citations = []
         for citation_elem in entry_elem.findall('.//lift:citation', self.NSMAP):
@@ -298,17 +353,15 @@ class LIFTParser:
                 pronunciations[writing_system] = value
         
         # Parse variant forms
-        variant_forms = []
-        for variant_elem in entry_elem.findall('.//lift:variant', self.NSMAP):
-            variant = {}
-            variant['type'] = variant_elem.get('type', 'unspecified')
-            for form_elem in variant_elem.findall(self.XPATH_FORM, self.NSMAP):
+        variants = []
+        for variant_elem in self._find_elements(entry_elem, './/lift:variant'):
+            form_elem = self._find_element(variant_elem, './/lift:form')
+            if form_elem is not None:
                 lang = form_elem.get('lang')
-                text_elem = form_elem.find(self.XPATH_TEXT, self.NSMAP)
-                if lang and text_elem is not None and text_elem.text:
-                    variant[lang] = text_elem.text
-            if len(variant) > 1:  # Must have at least one form besides type
-                variant_forms.append(variant)
+                text_elem = self._find_element(form_elem, './/lift:text')
+                if text_elem is not None and text_elem.text:
+                    form = Form(lang=lang or '', text=text_elem.text)
+                    variants.append(Variant(form=form))
         
         # Parse grammatical info
         grammatical_info = None
@@ -318,13 +371,11 @@ class LIFTParser:
         
         # Parse relations
         relations = []
-        for relation_elem in entry_elem.findall('.//lift:relation', self.NSMAP):
-            relation = {
-                'type': relation_elem.get('type', 'unspecified'),
-                'ref': relation_elem.get('ref', ''),
-            }
-            if relation['ref']:
-                relations.append(relation)
+        for relation_elem in self._find_elements(entry_elem, './/lift:relation'):
+            relation_type = relation_elem.get('type')
+            ref = relation_elem.get('ref')
+            if relation_type and ref:
+                relations.append(Relation(type=relation_type, ref=ref))
         
         # Parse notes
         notes = {}
@@ -354,9 +405,11 @@ class LIFTParser:
             lexical_unit=lexical_unit,
             citations=citations,
             pronunciations=pronunciations,
-            variant_forms=variant_forms,
+            variants=variants,
             grammatical_info=grammatical_info,
-            relations=relations,            notes=notes,
+            relations=relations,
+            etymologies=etymologies,
+            notes=notes,
             custom_fields=custom_fields,
             senses=senses
         )
@@ -392,14 +445,14 @@ class LIFTParser:
         
         # Parse examples
         examples = []
-        for example_elem in sense_elem.findall('.//lift:example', self.NSMAP):
+        for example_elem in self._find_elements(sense_elem, './/lift:example'):
             example_id = example_elem.get('id')
             example = self._parse_example(example_elem, example_id)
             examples.append(example.to_dict())
         
         # Parse relations
         relations = []
-        for relation_elem in sense_elem.findall('.//lift:relation', self.NSMAP):
+        for relation_elem in self._find_elements(sense_elem, './/lift:relation'):
             relation = {
                 'type': relation_elem.get('type', 'unspecified'),
                 'ref': relation_elem.get('ref', ''),
@@ -434,21 +487,24 @@ class LIFTParser:
         Returns:
             Example object.
         """
-        # Parse forms
+        # Parse forms - should be direct children of example
         form = {}
-        for form_elem in example_elem.findall(self.XPATH_FORM, self.NSMAP):
+        for form_elem in self._find_elements(example_elem, './lift:form'):
             lang = form_elem.get('lang')
-            text_elem = form_elem.find(self.XPATH_TEXT, self.NSMAP)
+            text_elem = self._find_element(form_elem, './/lift:text')
             if lang and text_elem is not None and text_elem.text:
                 form[lang] = text_elem.text
-          # Parse translations
+        
+        # Parse translations
         translations = {}
-        for trans_elem in example_elem.findall('.//lift:translation', self.NSMAP):
-            for form_elem in trans_elem.findall(self.XPATH_FORM, self.NSMAP):
+        for trans_elem in self._find_elements(example_elem, './/lift:translation'):
+            for form_elem in self._find_elements(trans_elem, './/lift:form'):
                 lang = form_elem.get('lang')
-                text_elem = form_elem.find(self.XPATH_TEXT, self.NSMAP)
+                text_elem = self._find_element(form_elem, './/lift:text')
                 if lang and text_elem is not None and text_elem.text:
-                    translations[lang] = text_elem.text# Create and return Example object
+                    translations[lang] = text_elem.text
+        
+        # Create and return Example object
         return Example(
             id_=example_id,
             form=form,
@@ -532,6 +588,24 @@ class LIFTParser:
                 text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
                 text_elem.text = text
         
+        # Add etymologies
+        for etymology in entry.etymologies:
+            etymology_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}etymology')
+            etymology_elem.set('type', etymology.type)
+            etymology_elem.set('source', etymology.source)
+            
+            if etymology.form:
+                form_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}form')
+                form_elem.set('lang', etymology.form.lang)
+                text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                text_elem.text = etymology.form.text
+            
+            if etymology.gloss:
+                gloss_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}gloss')
+                gloss_elem.set('lang', etymology.gloss.lang)
+                text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                text_elem.text = etymology.gloss.text
+
         # Add citations
         for citation in entry.citations:
             citation_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}citation')
@@ -548,7 +622,7 @@ class LIFTParser:
             pron_elem.set('value', value)
         
         # Add variant forms
-        for variant in entry.variant_forms:
+        for variant in entry.variants:
             variant_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}variant')
             variant_type = variant.get('type', 'unspecified')
             variant_elem.set('type', variant_type)

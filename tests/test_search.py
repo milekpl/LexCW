@@ -3,6 +3,7 @@ Tests for the search functionality in the DictionaryService.
 """
 
 import os
+import time
 import pytest
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
@@ -29,10 +30,20 @@ def dict_service():
     admin_connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD)
     admin_connector.connect()
     
-    # Clean up any existing test database
+    # More aggressive cleanup - close all connections first
     try:
-        if TEST_DB in (admin_connector.execute_command("LIST") or ""):
-            admin_connector.execute_command(f"DROP DB {TEST_DB}")
+        # List and close any open databases first
+        open_dbs = admin_connector.execute_command("LIST") or ""
+        if TEST_DB in open_dbs:
+            try:
+                admin_connector.execute_command(f"CLOSE")
+                time.sleep(0.1)  # Give it a moment
+            except Exception:
+                pass
+            try:
+                admin_connector.execute_command(f"DROP DB {TEST_DB}")
+            except Exception:
+                pass
     except Exception:
         pass
     
@@ -59,6 +70,11 @@ def dict_service():
     try:
         connector.disconnect()
         admin_connector.connect()
+        try:
+            admin_connector.execute_command(f"CLOSE")
+            time.sleep(0.1)  # Give it a moment
+        except Exception:
+            pass
         admin_connector.execute_command(f"DROP DB {TEST_DB}")
         admin_connector.disconnect()
     except Exception:
@@ -67,80 +83,83 @@ def dict_service():
 
 def create_test_entries(service):
     """Create additional test entries for search testing."""
+    from app.models.sense import Sense
+    from app.models.example import Example
+    
     # Entry with multiple senses
     entry1 = Entry(
         id_="multiple_senses",
         lexical_unit={"en": "bank"},
-        grammatical_info="noun"
+        grammatical_info="noun",
+        senses=[
+            Sense(
+                id_="bank_sense1",
+                gloss={"pl": "bank (instytucja finansowa)"},
+                definition={"en": "A financial institution"},
+                examples=[
+                    Example(
+                        id_="bank_example1",
+                        form={"en": "I need to go to the bank."},
+                        translation={"pl": "Muszę iść do banku."}
+                    )
+                ]
+            ),
+            Sense(
+                id_="bank_sense2",
+                gloss={"pl": "brzeg (rzeki)"},
+                definition={"en": "The land alongside a river or lake"},
+                examples=[
+                    Example(
+                        id_="bank_example2",
+                        form={"en": "We sat on the river bank."},
+                        translation={"pl": "Siedzieliśmy na brzegu rzeki."}
+                    )
+                ]
+            )
+        ]
     )
-    entry1.senses = [
-        {
-            "id": "bank_sense1",
-            "gloss": {"pl": "bank (instytucja finansowa)"},
-            "definition": {"en": "A financial institution"},
-            "examples": [
-                {
-                    "id": "bank_example1",
-                    "form": {"en": "I need to go to the bank."},
-                    "translation": {"pl": "Muszę iść do banku."}
-                }
-            ]
-        },
-        {
-            "id": "bank_sense2",
-            "gloss": {"pl": "brzeg (rzeki)"},
-            "definition": {"en": "The land alongside a river or lake"},
-            "examples": [
-                {
-                    "id": "bank_example2",
-                    "form": {"en": "We sat on the river bank."},
-                    "translation": {"pl": "Siedzieliśmy na brzegu rzeki."}
-                }
-            ]
-        }
-    ]
     
     # Entry with similar words
     entry2 = Entry(
         id_="similar_word_1",
         lexical_unit={"en": "testing"},
-        grammatical_info="verb"
+        grammatical_info="verb",
+        senses=[
+            Sense(
+                id_="testing_sense",
+                gloss={"pl": "testowanie"},
+                definition={"en": "The action of testing something"}
+            )
+        ]
     )
-    entry2.senses = [
-        {
-            "id": "testing_sense",
-            "gloss": {"pl": "testowanie"},
-            "definition": {"en": "The action of testing something"}
-        }
-    ]
     
     # Entry with similar words
     entry3 = Entry(
         id_="similar_word_2",
         lexical_unit={"en": "tester"},
-        grammatical_info="noun"
+        grammatical_info="noun",
+        senses=[
+            Sense(
+                id_="tester_sense",
+                gloss={"pl": "tester"},
+                definition={"en": "A person who tests something"}
+            )
+        ]
     )
-    entry3.senses = [
-        {
-            "id": "tester_sense",
-            "gloss": {"pl": "tester"},
-            "definition": {"en": "A person who tests something"}
-        }
-    ]
     
     # Entry with special characters
     entry4 = Entry(
         id_="special_chars",
         lexical_unit={"en": "café"},
-        grammatical_info="noun"
+        grammatical_info="noun",
+        senses=[
+            Sense(
+                id_="cafe_sense",
+                gloss={"pl": "kawiarnia"},
+                definition={"en": "A small restaurant selling light meals and drinks"}
+            )
+        ]
     )
-    entry4.senses = [
-        {
-            "id": "cafe_sense",
-            "gloss": {"pl": "kawiarnia"},
-            "definition": {"en": "A small restaurant selling light meals and drinks"}
-        }
-    ]
     
     # Create all entries
     service.create_entry(entry1)

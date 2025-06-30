@@ -88,7 +88,8 @@ class TestEntry:
         entry.add_sense(sense)
         
         assert len(entry.senses) == 1
-        assert entry.senses[0]["id"] == "sense_1"
+        # After adding, the sense is converted to a Sense object
+        assert entry.senses[0].id == "sense_1"
     
     def test_entry_add_pronunciation(self):
         """Test adding pronunciation to an entry."""

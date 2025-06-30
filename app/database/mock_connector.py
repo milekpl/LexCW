@@ -176,3 +176,36 @@ class MockDatabaseConnector:
             'last_modified': datetime.now().isoformat(),
             'connection_status': 'mock_connected' if self._connected else 'disconnected'
         }
+    
+    def execute_command(self, command: str) -> str:
+        """
+        Execute a BaseX command (mock implementation).
+        
+        Args:
+            command: BaseX command to execute.
+            
+        Returns:
+            Command result as string.
+        """
+        self.logger.debug("Mock command: %s", command)
+        
+        if command == "LIST":
+            # Return list of available databases
+            return f"{self.database}\n"
+        elif command.startswith("OPEN "):
+            # Mock opening a database
+            db_name = command[5:].strip()
+            if db_name == self.database:
+                self.logger.info("Mock: Opened database '%s'", db_name)
+                return ""
+            else:
+                raise Exception(f"Database '{db_name}' not found")
+        elif command.startswith("CREATE DB "):
+            # Mock creating a database
+            return ""
+        elif command.startswith("DROP DB "):
+            # Mock dropping a database
+            return ""
+        else:
+            # For any other command, just return empty string
+            return ""

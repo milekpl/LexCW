@@ -65,7 +65,7 @@ class DictionaryService:
                 if db_name and self.db_connector.is_connected():
                     # Check if DB exists before trying to open
                     if db_name in (self.db_connector.execute_command("LIST") or ""):
-                        self.db_connector.execute_update(f"OPEN {db_name}")
+                        self.db_connector.execute_command(f"OPEN {db_name}")
                         self.logger.info("Successfully opened database '%s'", db_name)
                     else:
                         self.logger.warning(
@@ -96,10 +96,8 @@ class DictionaryService:
                 return False
             
             # Try to query with namespace first
-            test_query = f"""
-            xquery declare namespace lift = "{self._namespace_manager.LIFT_NAMESPACE}";
-            exists(collection('{db_name}')//lift:lift)
-            """
+            test_query = f"""declare namespace lift = "{self._namespace_manager.LIFT_NAMESPACE}";
+            exists(collection('{db_name}')//lift:lift)"""
             
             result = self.db_connector.execute_query(test_query)
             if result:

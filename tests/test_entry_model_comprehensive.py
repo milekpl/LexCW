@@ -30,7 +30,7 @@ class TestEntryModelComprehensive:
         assert entry.senses == []
         assert entry.pronunciations == {}  # It's a dict, not a list
         assert entry.citations == []
-        assert entry.variant_forms == []
+        assert entry.variants == []
         assert entry.relations == []
         assert entry.notes == {}  # It's a dict, not a list
         assert entry.custom_fields == {}
@@ -179,17 +179,20 @@ class TestEntryModelComprehensive:
         assert "Lexical unit is required" in str(exc_info.value)
     
     def test_entry_validation_sense_without_id(self):
-        """Test validation fails for sense without ID.""" 
+        """Test that senses without ID get auto-generated IDs."""
         entry = Entry(
             id_="test_entry",
             lexical_unit={"en": "test"},
-            senses=[{"gloss": "test"}]  # Missing ID
+            senses=[{"gloss": "test"}]  # Missing ID will be auto-generated
         )
         
-        with pytest.raises(ValidationError) as exc_info:
-            entry.validate()
+        # Validation should pass because Sense auto-generates IDs
+        assert entry.validate() is True
         
-        assert "missing an ID" in str(exc_info.value)
+        # Check that the sense got an auto-generated ID
+        assert len(entry.senses) == 1
+        assert entry.senses[0].id is not None
+        assert entry.senses[0].id != ""
     
     def test_entry_str_representation(self):
         """Test string representation of entry."""
@@ -242,11 +245,11 @@ class TestEntryModelComprehensive:
         )
         
         assert len(entry.relations) == 3
-        synonym_rel = next(r for r in entry.relations if r["type"] == "synonym")
-        assert synonym_rel["ref"] == "entry1"
+        synonym_rel = next(r for r in entry.relations if r.type == "synonym")
+        assert synonym_rel.ref == "entry1"
         
-        variant_rel = next(r for r in entry.relations if r["type"] == "variant")
-        assert variant_rel.get("note") == "archaic"
+        variant_rel = next(r for r in entry.relations if r.type == "variant")
+        assert hasattr(variant_rel, 'note') and getattr(variant_rel, 'note', None) == "archaic"
     
     def test_entry_with_custom_fields(self):
         """Test entry with custom fields."""

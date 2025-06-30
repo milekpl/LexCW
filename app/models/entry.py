@@ -2,7 +2,10 @@
 Entry model representing a dictionary entry in LIFT format.
 """
 
-from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
 from app.models.base import BaseModel
 from app.utils.exceptions import ValidationError
 
@@ -10,132 +13,225 @@ if TYPE_CHECKING:
     from app.models.sense import Sense
 
 
+class Form(BaseModel):
+    """
+    Represents a form in a LIFT entry.
+    """
+
+    def __init__(self, lang: str, text: str, **kwargs: Any):
+        super().__init__(**kwargs)
+        self.lang = lang
+        self.text = text
+
+
+class Gloss(BaseModel):
+    """
+    Represents a gloss in a LIFT entry.
+    """
+
+    def __init__(self, lang: str, text: str, **kwargs: Any):
+        super().__init__(**kwargs)
+        self.lang = lang
+        self.text = text
+
+
+class Etymology(BaseModel):
+    """
+    Represents an etymology in a LIFT entry.
+    """
+
+    def __init__(self, type: str, source: str, form: Union[Form, Dict[str, str]], gloss: Union[Gloss, Dict[str, str]], **kwargs: Any):
+        super().__init__(**kwargs)
+        self.type = type
+        self.source = source
+        self.form = Form(**form) if isinstance(form, dict) else form
+        self.gloss = Gloss(**gloss) if isinstance(gloss, dict) else gloss
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert etymology to dictionary with nested objects."""
+        result = super().to_dict()
+        
+        # Convert nested objects
+        if hasattr(self.form, 'to_dict'):
+            result['form'] = self.form.to_dict()
+        if hasattr(self.gloss, 'to_dict'):
+            result['gloss'] = self.gloss.to_dict()
+            
+        return result
+
+
+class Relation(BaseModel):
+    """
+    Represents a relation to another entry.
+    """
+
+    def __init__(self, type: str, ref: str, **kwargs: Any):
+        super().__init__(**kwargs)
+        self.type = type
+        self.ref = ref
+
+
+class Variant(BaseModel):
+    """
+    Represents a variant form of a lexical unit.
+    """
+
+    def __init__(self, form: Union[Form, Dict[str, str]], **kwargs: Any):
+        super().__init__(**kwargs)
+        self.form = Form(**form) if isinstance(form, dict) else form
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert variant to dictionary with nested objects."""
+        result = super().to_dict()
+        
+        # Convert nested form object
+        if hasattr(self.form, 'to_dict'):
+            result['form'] = self.form.to_dict()
+            
+        return result
+
+
 class Entry(BaseModel):
     """
     Entry model representing a dictionary entry in LIFT format.
-    
+
     Attributes:
         id: Unique identifier for the entry.
         lexical_unit: Dictionary mapping language codes to lexical unit forms.
         citations: List of citation forms for the entry.
         pronunciations: Dictionary mapping writing system codes to pronunciation forms.
-        variant_forms: List of variant forms for the entry.
         senses: List of sense objects for the entry.
         grammatical_info: Grammatical information for the entry.
+        etymologies: List of etymology objects for the entry.
         relations: List of semantic relations to other entries.
+        variants: List of variant forms for the entry.
         notes: Dictionary mapping note types to note content.
         custom_fields: Dictionary of custom fields for the entry.
     """
-    
-    def __init__(self, id_: Optional[str] = None, **kwargs):
+
+    def __init__(self, id_: Optional[str] = None, **kwargs: Any):
         """
         Initialize an entry.
-        
+
         Args:
             id_: Unique identifier for the entry.
             **kwargs: Additional attributes to set on the entry.
         """
-        # Extract senses before calling super to avoid double processing
+
+        # Extract complex structures before calling super to avoid double processing
         senses_data = kwargs.pop('senses', [])
-        
+        etymologies_data = kwargs.pop('etymologies', [])
+        relations_data = kwargs.pop('relations', [])
+        variants_data = kwargs.pop('variants', [])
+
         super().__init__(id_, **kwargs)
         self.lexical_unit: Dict[str, str] = kwargs.get('lexical_unit', {})
         self.citations: List[Dict[str, Any]] = kwargs.get('citations', [])
         self.pronunciations: Dict[str, str] = kwargs.get('pronunciations', {})
-        self.variant_forms: List[Dict[str, Any]] = kwargs.get('variant_forms', [])
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
-        self.relations: List[Dict[str, Any]] = kwargs.get('relations', [])
         self.notes: Dict[str, str] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
-        
-        # Handle senses - convert dicts to Sense objects if needed
-        self.senses = []
+
+        # Handle senses
+        from app.models.sense import Sense
+        self.senses: List[Sense] = []
         for sense_data in senses_data:
             if isinstance(sense_data, dict):
-                # Import here to avoid circular imports
-                from app.models.sense import Sense
-                # Check if ID is provided in the original data for validation purposes
-                sense_obj = Sense(**sense_data)
-                # Track if ID was provided in original data
-                sense_obj._id_provided = 'id' in sense_data
+                # Check if ID was explicitly provided
+                if 'id' not in sense_data:
+                    # Don't auto-generate ID, let validation catch this
+                    sense_obj = Sense(**sense_data)
+                    sense_obj._has_explicit_id = False
+                else:
+                    sense_obj = Sense(**sense_data)
+                    sense_obj._has_explicit_id = True
                 self.senses.append(sense_obj)
-            else:
-                # Already a Sense object
-                sense_obj = sense_data
-                # Assume ID was provided for existing objects
-                if not hasattr(sense_obj, '_id_provided'):
-                    sense_obj._id_provided = True
-                self.senses.append(sense_obj)
-    
+            elif isinstance(sense_data, Sense):
+                sense_data._has_explicit_id = True  # Assume Sense objects have explicit IDs
+                self.senses.append(sense_data)
+
+        # Handle etymologies
+        self.etymologies: List[Etymology] = []
+        for etymology_data in etymologies_data:
+            if isinstance(etymology_data, dict):
+                self.etymologies.append(Etymology(**etymology_data))
+            elif isinstance(etymology_data, Etymology):
+                self.etymologies.append(etymology_data)
+
+        # Handle relations
+        self.relations: List[Relation] = []
+        for relation_data in relations_data:
+            if isinstance(relation_data, dict):
+                self.relations.append(Relation(**relation_data))
+            elif isinstance(relation_data, Relation):
+                self.relations.append(relation_data)
+
+        # Handle variants
+        self.variants: List[Variant] = []
+        for variant_data in variants_data:
+            if isinstance(variant_data, dict):
+                self.variants.append(Variant(**variant_data))
+            elif isinstance(variant_data, Variant):
+                self.variants.append(variant_data)
+
     def validate(self) -> bool:
         """
         Validate the entry.
-        
+
         Returns:
             True if the entry is valid.
-            
+
         Raises:
             ValidationError: If the entry is invalid.
         """
         errors = []
-        
+
         # Validate required fields
         if not self.id:
             errors.append("Entry ID is required")
-        
+
         if not self.lexical_unit:
             errors.append("Lexical unit is required")
-        
+
         # Validate senses
         for i, sense in enumerate(self.senses):
-            # Check if this was a sense created from a dictionary without an ID
-            if hasattr(sense, '_id_provided') and not sense._id_provided:
+            if not sense.id:
                 errors.append(f"Sense at index {i} is missing an ID")
-            # Handle both Sense objects and dictionaries
-            elif hasattr(sense, 'id'):
-                # Sense object
-                if not sense.id:
-                    errors.append(f"Sense at index {i} is missing an ID")
-            elif isinstance(sense, dict):
-                # Dictionary
-                if 'id' not in sense:
-                    errors.append(f"Sense at index {i} is missing an ID")
-            else:
-                errors.append(f"Sense at index {i} is not a valid Sense object or dictionary")
-        
+
         if errors:
             raise ValidationError("Entry validation failed", errors)
-        
+
         return True
-    
-    def add_sense(self, sense: Union['Sense', Dict[str, Any]]) -> None:
+
+    def add_sense(self, sense: Union[Sense, Dict[str, Any]]) -> None:
         """
         Add a sense to the entry.
-        
+
         Args:
             sense: Sense to add (can be Sense object or dict).
         """
+        from app.models.sense import Sense
         # Handle both Sense objects and dictionaries
-        if hasattr(sense, 'id'):
-            # Sense object
+        if isinstance(sense, Sense):
             if not sense.id:
                 raise ValidationError("Sense must have an ID")
         elif isinstance(sense, dict):
             # Dictionary
             if not sense.get('id'):
                 raise ValidationError("Sense must have an ID")
+            sense = Sense(**sense)
         else:
             raise ValidationError("Sense must be a Sense object or dictionary")
-        
+
         self.senses.append(sense)
-    
+
     def remove_sense(self, sense_id: str) -> bool:
         """
         Remove a sense from the entry.
-        
+
         Args:
             sense_id: ID of the sense to remove.
-            
+
         Returns:
             True if the sense was removed, False if it was not found.
         """
@@ -151,14 +247,14 @@ class Entry(BaseModel):
                 if sense.get('id') == sense_id:
                     del self.senses[i]
                     return True
-        
+
         return False
-    
+
     @property
     def headword(self) -> str:
         """
         Get the headword (lexical unit) for display.
-        
+
         Returns:
             The headword text in the primary language.
         """
@@ -168,14 +264,14 @@ class Entry(BaseModel):
         elif self.lexical_unit:
             return next(iter(self.lexical_unit.values()))
         return ""
-    
+
     def get_lexical_unit(self, lang: Optional[str] = None) -> str:
         """
         Get the lexical unit in the specified language.
-        
+
         Args:
             lang: Language code to retrieve. If None, returns the first available.
-            
+
         Returns:
             The lexical unit text in the specified language, or an empty string if not found.
         """
@@ -183,7 +279,7 @@ class Entry(BaseModel):
         if lang:
             # Return the requested language or empty string if not found
             return self.lexical_unit.get(lang, "")
-        
+
         # If no specific language is requested, return default
         if self.lexical_unit:
             # Default to primary language if available
@@ -192,46 +288,43 @@ class Entry(BaseModel):
             # Otherwise return first available
             return next(iter(self.lexical_unit.values()))
         return ""
-    
+
     def get_language_list(self) -> List[str]:
         """
         Get a list of languages available for this entry's lexical unit.
-        
+
         Returns:
             List of language codes.
         """
         return list(self.lexical_unit.keys())
-    
+
     def add_relation(self, relation_type: str, target_id: str) -> None:
         """
         Add a semantic relation to the entry.
-        
+
         Args:
             relation_type: Type of relation (e.g., 'synonym', 'antonym').
             target_id: ID of the target entry.
         """
-        self.relations.append({
-            'type': relation_type,
-            'target_id': target_id
-        })
-    
+        self.relations.append(Relation(type=relation_type, ref=target_id))
+
     def add_pronunciation(self, writing_system: str, form: str) -> None:
         """
         Add a pronunciation to the entry.
-        
+
         Args:
             writing_system: Writing system code (e.g., 'seh-fonipa').
             form: Pronunciation form.
         """
         self.pronunciations[writing_system] = form
-    
+
     def get_sense_by_id(self, sense_id: str) -> Optional[Any]:
         """
         Get a sense by ID.
-        
+
         Args:
             sense_id: ID of the sense to get.
-            
+
         Returns:
             Sense with the given ID, or None if not found.
         """
@@ -245,30 +338,31 @@ class Entry(BaseModel):
                 # Dictionary
                 if sense.get('id') == sense_id:
                     return sense
-        
+
         return None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert the entry to a dictionary, including computed properties.
-        
+
         Returns:
             Dictionary representation of the entry.
         """
         result = super().to_dict()
-        
+
         # Note: headword is a computed property and should not be included in dict
-        
-        # Convert senses to dictionaries if they're Sense objects
-        if 'senses' in result and result['senses']:
-            converted_senses = []
-            for sense in result['senses']:
-                if hasattr(sense, 'to_dict'):
-                    # It's a Sense object
-                    converted_senses.append(sense.to_dict())
-                else:
-                    # It's already a dict
-                    converted_senses.append(sense)
-            result['senses'] = converted_senses
-        
+
+        # Convert nested objects to dictionaries
+        for attr_name in ['senses', 'relations', 'etymologies', 'variants']:
+            if attr_name in result and result[attr_name]:
+                converted_items = []
+                for item in result[attr_name]:
+                    if hasattr(item, 'to_dict'):
+                        # It's a model object with to_dict method
+                        converted_items.append(item.to_dict())
+                    else:
+                        # It's already a dict
+                        converted_items.append(item)
+                result[attr_name] = converted_items
+
         return result
