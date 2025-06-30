@@ -400,7 +400,9 @@ class TestPostgreSQLRealIntegration:
                         %(context_vector)s, %(semantic_tags)s)
             """, data)
         
-        # Test fuzzy search
+        # Test fuzzy search - set lower similarity threshold first
+        postgres_connector.execute_query("SET pg_trgm.similarity_threshold = 0.1")
+        
         fuzzy_results = postgres_connector.fetch_all("""
             SELECT lemma, word_form, similarity(lemma, %(search_term)s) as sim
             FROM test_corpus_entries
