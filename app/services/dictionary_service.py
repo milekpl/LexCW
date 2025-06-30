@@ -983,6 +983,7 @@ class DictionaryService:
         """
         Retrieves LIFT ranges data from the database.
         Caches the result for subsequent calls.
+        Falls back to default ranges if database is unavailable.
         """
         if self.ranges:
             return self.ranges
@@ -995,16 +996,17 @@ class DictionaryService:
             ranges_xml = self.db_connector.execute_query(f"xquery collection('{db_name}/ranges.xml')")
 
             if not ranges_xml:
-                self.logger.warning("LIFT ranges not found in database.")
-                self.ranges = {}  # Cache empty result
-                return {}
+                self.logger.warning("LIFT ranges not found in database, using defaults.")
+                self.ranges = self._get_default_ranges()
+                return self.ranges
 
             self.ranges = self.ranges_parser.parse_string(ranges_xml)
             return self.ranges
         except Exception as e:
             self.logger.error("Error retrieving ranges from database: %s", str(e), exc_info=True)
-            self.ranges = {}  # Cache empty result on error
-            return {}
+            self.logger.info("Falling back to default ranges.")
+            self.ranges = self._get_default_ranges()
+            return self.ranges
 
     def get_system_status(self) -> Dict[str, Any]:
         """
@@ -1108,3 +1110,163 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Error counting filtered entries: %s", str(e))
             return 0
+
+    def _get_default_ranges(self) -> Dict[str, Any]:
+        """
+        Provides default LIFT ranges for fallback when database is unavailable.
+        These ranges support the basic UI functionality.
+        """
+        return {
+            'variant-types': {
+                'id': 'variant-types',
+                'values': [
+                    {
+                        'id': 'dialectal',
+                        'value': 'dialectal',
+                        'abbrev': 'dial',
+                        'description': {'en': 'Dialectal variant'}
+                    },
+                    {
+                        'id': 'spelling',
+                        'value': 'spelling',
+                        'abbrev': 'sp',
+                        'description': {'en': 'Spelling variant'}
+                    },
+                    {
+                        'id': 'morphological',
+                        'value': 'morphological',
+                        'abbrev': 'morph',
+                        'description': {'en': 'Morphological variant'}
+                    },
+                    {
+                        'id': 'phonetic',
+                        'value': 'phonetic',
+                        'abbrev': 'phon',
+                        'description': {'en': 'Phonetic variant'}
+                    },
+                    {
+                        'id': 'archaic',
+                        'value': 'archaic',
+                        'abbrev': 'arch',
+                        'description': {'en': 'Archaic variant'}
+                    },
+                    {
+                        'id': 'colloquial',
+                        'value': 'colloquial',
+                        'abbrev': 'colloq',
+                        'description': {'en': 'Colloquial variant'}
+                    }
+                ]
+            },
+            'grammatical-info': {
+                'id': 'grammatical-info',
+                'values': [
+                    {
+                        'id': 'Noun',
+                        'value': 'Noun',
+                        'abbrev': 'n',
+                        'description': {'en': 'A noun is a broad classification of parts of speech which include substantives and nominals.'}
+                    },
+                    {
+                        'id': 'Verb',
+                        'value': 'Verb',
+                        'abbrev': 'v',
+                        'description': {'en': 'A verb is a word that in syntax conveys an action, an occurrence, or a state of being.'}
+                    },
+                    {
+                        'id': 'Adjective',
+                        'value': 'Adjective',
+                        'abbrev': 'adj',
+                        'description': {'en': 'An adjective is a word that modifies a noun or noun phrase or describes a noun\'s referent.'}
+                    },
+                    {
+                        'id': 'Adverb',
+                        'value': 'Adverb',
+                        'abbrev': 'adv',
+                        'description': {'en': 'An adverb modifies verbs, adjectives, or other adverbs.'}
+                    },
+                    {
+                        'id': 'Preposition',
+                        'value': 'Preposition',
+                        'abbrev': 'prep',
+                        'description': {'en': 'A preposition is a word used to link nouns, pronouns, or phrases to other words within a sentence.'}
+                    },
+                    {
+                        'id': 'Pronoun',
+                        'value': 'Pronoun',
+                        'abbrev': 'pr',
+                        'description': {'en': 'A pronoun is a word that substitutes for a noun or noun phrase.'}
+                    }
+                ]
+            },
+            'relation-types': {
+                'id': 'relation-types',
+                'values': [
+                    {
+                        'id': 'synonym',
+                        'value': 'synonym',
+                        'abbrev': 'syn',
+                        'description': {'en': 'Synonym - word with the same or similar meaning'}
+                    },
+                    {
+                        'id': 'antonym',
+                        'value': 'antonym',
+                        'abbrev': 'ant',
+                        'description': {'en': 'Antonym - word with opposite meaning'}
+                    },
+                    {
+                        'id': 'hypernym',
+                        'value': 'hypernym',
+                        'abbrev': 'hyper',
+                        'description': {'en': 'Hypernym - more general term'}
+                    },
+                    {
+                        'id': 'hyponym',
+                        'value': 'hyponym',
+                        'abbrev': 'hypo',
+                        'description': {'en': 'Hyponym - more specific term'}
+                    },
+                    {
+                        'id': 'meronym',
+                        'value': 'meronym',
+                        'abbrev': 'mero',
+                        'description': {'en': 'Meronym - part-whole relationship'}
+                    }
+                ]
+            },
+            'semantic-domains': {
+                'id': 'semantic-domains',
+                'values': [
+                    {
+                        'id': '1',
+                        'value': 'Universe, creation',
+                        'abbrev': '1',
+                        'description': {'en': 'Words related to the universe and creation'}
+                    },
+                    {
+                        'id': '1.1',
+                        'value': 'Sky',
+                        'abbrev': '1.1',
+                        'description': {'en': 'Words related to the sky'}
+                    },
+                    {
+                        'id': '1.2',
+                        'value': 'World',
+                        'abbrev': '1.2',
+                        'description': {'en': 'Words related to the world'}
+                    },
+                    {
+                        'id': '2',
+                        'value': 'Person',
+                        'abbrev': '2',
+                        'description': {'en': 'Words related to people'}
+                    },
+                    {
+                        'id': '2.1',
+                        'value': 'Body',
+                        'abbrev': '2.1',
+                        'description': {'en': 'Words related to the human body'}
+                    }
+                ]
+            }
+        }

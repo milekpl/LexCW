@@ -298,13 +298,116 @@ def get_entry(entry_id):
 @entries_bp.route('/', methods=['POST'], strict_slashes=False)
 def create_entry():
     """
-    Create a new dictionary entry.
-    
-    Request body:
-        JSON object with entry data.
-    
-    Returns:
-        JSON response with the created entry ID.
+    Create a new dictionary entry
+    ---
+    tags:
+      - entries
+    parameters:
+      - name: body
+        in: body
+        required: true
+        description: Entry data to create
+        schema:
+          type: object
+          required:
+            - id
+            - lexical_unit
+          properties:
+            id:
+              type: string
+              description: Unique entry identifier
+              example: "test_entry_123"
+            lexical_unit:
+              type: object
+              description: Lexical unit forms by language code
+              example: {"en": "test", "seh": "teste"}
+            pronunciations:
+              type: object
+              description: Pronunciation forms by writing system (supports non-standard codes like 'seh-fonipa')
+              example: {"seh-fonipa": "/tɛstɛ/", "en-ipa": "/tɛst/"}
+            grammatical_info:
+              type: string
+              description: Grammatical information
+              example: "noun"
+            senses:
+              type: array
+              description: Array of sense objects
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Sense identifier (auto-generated if not provided)
+                  gloss:
+                    type: object
+                    description: Gloss by language code
+                  definition:
+                    type: object
+                    description: Definition by language code
+            etymologies:
+              type: array
+              description: Etymology information
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  source:
+                    type: string
+                  form:
+                    type: object
+                  gloss:
+                    type: object
+            relations:
+              type: array
+              description: Semantic relations to other entries
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: "synonym"
+                  ref:
+                    type: string
+                    example: "target_entry_id"
+            variants:
+              type: array
+              description: Variant forms
+              items:
+                type: object
+                properties:
+                  form:
+                    type: object
+                    description: Variant form by language
+    responses:
+      201:
+        description: Entry created successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            entry_id:
+              type: string
+              description: ID of the created entry
+              example: "test_entry_123"
+      400:
+        description: Invalid input data
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
     """
     try:
         # Get request data
@@ -337,16 +440,97 @@ def create_entry():
 @entries_bp.route('/<entry_id>', methods=['PUT'])
 def update_entry(entry_id):
     """
-    Update a dictionary entry.
-    
-    Args:
-        entry_id: ID of the entry to update.
-    
-    Request body:
-        JSON object with entry data.
-    
-    Returns:
-        JSON response with success status.
+    Update a dictionary entry
+    ---
+    tags:
+      - entries
+    parameters:
+      - name: entry_id
+        in: path
+        type: string
+        required: true
+        description: ID of the entry to update
+        example: "test_entry_123"
+      - name: body
+        in: body
+        required: true
+        description: Updated entry data
+        schema:
+          type: object
+          properties:
+            id:
+              type: string
+              description: Entry identifier (must match path parameter)
+              example: "test_entry_123"
+            lexical_unit:
+              type: object
+              description: Lexical unit forms by language code
+              example: {"en": "test", "seh": "teste"}
+            pronunciations:
+              type: object
+              description: Pronunciation forms by writing system (supports non-standard codes like 'seh-fonipa')
+              example: {"seh-fonipa": "/tɛstɛ/", "en-ipa": "/tɛst/"}
+            grammatical_info:
+              type: string
+              description: Grammatical information
+              example: "noun"
+            senses:
+              type: array
+              description: Array of sense objects
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Sense identifier
+                  gloss:
+                    type: object
+                    description: Gloss by language code
+                  definition:
+                    type: object
+                    description: Definition by language code
+            etymologies:
+              type: array
+              description: Etymology information
+            relations:
+              type: array
+              description: Semantic relations to other entries
+            variants:
+              type: array
+              description: Variant forms
+    responses:
+      200:
+        description: Entry updated successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+      400:
+        description: Invalid input data
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      404:
+        description: Entry not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
     """
     try:
         # Get request data

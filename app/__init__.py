@@ -99,6 +99,9 @@ def create_app(config_name=None):
     from app.api.validation import validation_bp
     app.register_blueprint(validation_bp)
     
+    from app.api.ranges import ranges_bp
+    app.register_blueprint(ranges_bp)
+    
     from app.views import main_bp
     app.register_blueprint(main_bp)
     

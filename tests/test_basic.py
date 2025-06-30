@@ -197,8 +197,14 @@ class TestDictionaryService:
         ranges = self.service.get_ranges()
         
         assert isinstance(ranges, dict)
-        # Should return empty dict when no ranges found
-        assert ranges == {}
+        # Should return default fallback ranges when no ranges found
+        assert len(ranges) > 0
+        # Check that default ranges contain expected categories
+        expected_categories = ['grammatical-info', 'variant-types', 'relation-types', 'semantic-domains']
+        for category in expected_categories:
+            assert category in ranges
+            assert 'id' in ranges[category]
+            assert 'values' in ranges[category]
 
 
 class TestFlaskApp:

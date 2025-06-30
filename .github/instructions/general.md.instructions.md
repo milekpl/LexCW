@@ -35,6 +35,11 @@ applyTo: '*.py'
 - Always keep the API documentation up to date with the latest changes in the codebase.
 - Use the `flasgger` library to define and document API endpoints directly in the code.
 - Include detailed descriptions, parameter types, and response schemas for all endpoints and *app routes*.
+- When adding new features or modifying existing ones, always update the flasgger documentation in the same commit by:
+   - Adding @swag_from decorators or inline YAML documentation
+   - Updating parameter schemas when models change
+   - Updating response schemas when API responses change
+   - Testing the documentation at /apidocs/ endpoint
 
 **Avoid mocking in unit tests**
 - Do not use mocking in unit tests unless absolutely necessary.

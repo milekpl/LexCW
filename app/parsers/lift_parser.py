@@ -642,8 +642,18 @@ class LIFTParser:
         # Add relations
         for relation in entry.relations:
             relation_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}relation')
-            relation_elem.set('type', relation.get('type', 'unspecified'))
-            relation_elem.set('ref', relation.get('ref', ''))
+            # Handle both Relation objects and dictionaries
+            if hasattr(relation, 'type') and hasattr(relation, 'ref'):
+                relation_elem.set('type', relation.type)
+                relation_elem.set('ref', relation.ref)
+            elif isinstance(relation, dict):
+                # Fallback for dictionary format
+                relation_elem.set('type', relation.get('type', 'unspecified'))
+                relation_elem.set('ref', relation.get('ref', ''))
+            else:
+                # Default fallback
+                relation_elem.set('type', 'unspecified')
+                relation_elem.set('ref', '')
         
         # Add notes
         for note_type, note_text in entry.notes.items():

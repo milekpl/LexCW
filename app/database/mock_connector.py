@@ -140,6 +140,18 @@ class MockDatabaseConnector:
                     self.logger.info("Mock inserted entry: %s", entry_id)
                 return True
             
+            # Handle replacements (updates)
+            if 'replace node' in query.lower():
+                # Extract entry XML from query (simplified)
+                import re
+                match = re.search(r'<entry[^>]*id="([^"]+)"[^>]*>.*?</entry>', query, re.DOTALL)
+                if match:
+                    entry_xml = match.group(0)
+                    entry_id = match.group(1)
+                    self._entries[entry_id] = entry_xml
+                    self.logger.info("Mock replaced entry: %s", entry_id)
+                return True
+            
             # Default: assume success
             return True
             

@@ -41,16 +41,111 @@ def get_dictionary_service():
 @search_bp.route('/', methods=['GET'], strict_slashes=False)
 def search_entries():
     """
-    Search for dictionary entries.
-    
-    Query parameters:
-        q: Search query.
-        fields: Comma-separated list of fields to search in.
-        limit: Maximum number of entries to return.
-        offset: Number of entries to skip.
-    
-    Returns:
-        JSON response with search results.
+    Search for dictionary entries using XQuery-based search
+    ---
+    tags:
+      - search
+    parameters:
+      - name: q
+        in: query
+        type: string
+        required: true
+        description: Search query string
+        example: "test"
+      - name: fields
+        in: query
+        type: string
+        required: false
+        description: Comma-separated list of fields to search in
+        default: "lexical_unit,glosses,definitions"
+        example: "lexical_unit,pronunciations,senses"
+      - name: limit
+        in: query
+        type: integer
+        required: false
+        description: Maximum number of entries to return
+        default: 100
+        example: 20
+      - name: offset
+        in: query
+        type: integer
+        required: false
+        description: Number of entries to skip for pagination
+        default: 0
+        example: 0
+    responses:
+      200:
+        description: Search results
+        schema:
+          type: object
+          properties:
+            query:
+              type: string
+              description: The search query used
+              example: "test"
+            fields:
+              type: array
+              items:
+                type: string
+              description: Fields that were searched
+              example: ["lexical_unit", "senses"]
+            entries:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Entry ID
+                  lexical_unit:
+                    type: object
+                    description: Lexical unit with language codes
+                  pronunciations:
+                    type: object
+                    description: Pronunciation forms by writing system
+                  senses:
+                    type: array
+                    description: Array of sense objects
+                  grammatical_info:
+                    type: string
+                    description: Grammatical information
+                  etymologies:
+                    type: array
+                    description: Etymology information
+                  relations:
+                    type: array
+                    description: Semantic relations
+                  variants:
+                    type: array
+                    description: Variant forms
+            total:
+              type: integer
+              description: Total number of matching entries
+              example: 150
+            limit:
+              type: integer
+              description: Limit used for pagination
+              example: 20
+            offset:
+              type: integer
+              description: Offset used for pagination
+              example: 0
+      400:
+        description: Invalid request parameters
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
     """
     try:
         # Get query parameters
