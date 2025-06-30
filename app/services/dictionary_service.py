@@ -1268,5 +1268,52 @@ class DictionaryService:
                         'description': {'en': 'Words related to the human body'}
                     }
                 ]
+            },
+            'etymology-types': {
+                'id': 'etymology-types',
+                'values': [
+                    {
+                        'id': 'inheritance',
+                        'value': 'inheritance',
+                        'abbrev': 'inh',
+                        'description': {'en': 'Word inherited from an earlier stage of the language'}
+                    },
+                    {
+                        'id': 'borrowing',
+                        'value': 'borrowing',
+                        'abbrev': 'bor',
+                        'description': {'en': 'Word borrowed from another language'}
+                    },
+                    {
+                        'id': 'compound',
+                        'value': 'compound',
+                        'abbrev': 'comp',
+                        'description': {'en': 'Word formed by combining existing words'}
+                    },
+                    {
+                        'id': 'derivation',
+                        'value': 'derivation',
+                        'abbrev': 'der',
+                        'description': {'en': 'Word formed by adding affixes to a root'}
+                    },
+                    {
+                        'id': 'calque',
+                        'value': 'calque',
+                        'abbrev': 'calq',
+                        'description': {'en': 'Word formed by literal translation from another language'}
+                    },
+                    {
+                        'id': 'semantic',
+                        'value': 'semantic',
+                        'abbrev': 'sem',
+                        'description': {'en': 'Word formed by semantic change'}
+                    },
+                    {
+                        'id': 'onomatopoeia',
+                        'value': 'onomatopoeia',
+                        'abbrev': 'onom',
+                        'description': {'en': 'Word formed to imitate a sound'}
+                    }
+                ]
             }
         }

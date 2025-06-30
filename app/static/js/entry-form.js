@@ -537,4 +537,5 @@ function generateAudio(word, ipa, index) {
         // Show error message
         alert('Error generating audio. Please try again.');
     });
-}
+
+}); // End DOMContentLoaded

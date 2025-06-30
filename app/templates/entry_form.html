@@ -214,6 +214,20 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-history"></i> Etymology</h5>
+                        <small class="text-muted">Historical word origin and development</small>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="etymology-container">
+                        <!-- Etymology forms will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div class="col-md-8">
@@ -638,5 +652,36 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/relations.js') }}"></script>
+<script src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize component managers after DOM is loaded
+    
+    // Initialize variant forms manager
+    if (window.VariantFormsManager && document.getElementById('variant-forms-container')) {
+        const variantForms = {{ entry.variants | tojson | safe }} || [];
+        window.variantFormsManager = new VariantFormsManager('variant-forms-container', {
+            variants: variantForms
+        });
+    }
+
+    // Initialize relations manager
+    if (window.RelationsManager && document.getElementById('relations-container')) {
+        const relations = {{ entry.relations | tojson | safe }} || [];
+        window.relationsManager = new RelationsManager('relations-container', {
+            relations: relations
+        });
+    }
+
+    // Initialize etymology forms manager
+    if (window.EtymologyFormsManager && document.getElementById('etymology-container')) {
+        const etymologies = {{ entry.etymologies | tojson | safe }} || [];
+        window.etymologyFormsManager = new EtymologyFormsManager('etymology-container', {
+            etymologies: etymologies
+        });
+    }
+});
+</script>
 {% endblock %}

@@ -290,3 +290,60 @@ def get_semantic_domains_range() -> Union[Response, Tuple[Response, int]]:
         description: Error retrieving range
     """
     return get_specific_range('semantic-domains')
+
+
+@ranges_bp.route('/etymology-types', methods=['GET'])
+def get_etymology_types_range() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get etymology types range.
+    
+    Convenience endpoint for accessing etymology type categories for word origins.
+    
+    Returns:
+        JSON response with etymology types range.
+    ---
+    tags:
+      - ranges
+    summary: Get etymology types range
+    description: Convenience endpoint for etymology type categories (inheritance, borrowing, etc.)
+    responses:
+      200:
+        description: Successfully retrieved etymology types range
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                  example: "etymology-types"
+                values:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: "borrowing"
+                      value:
+                        type: string
+                        example: "borrowing"
+                      abbrev:
+                        type: string
+                        example: "bor"
+                      description:
+                        type: object
+                        properties:
+                          en:
+                            type: string
+                            example: "Word borrowed from another language"
+      404:
+        description: Etymology types range not found
+      500:
+        description: Error retrieving range
+    """
+    return get_specific_range('etymology-types')

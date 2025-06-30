@@ -212,8 +212,8 @@ class RelationsManager {
         }
         
         try {
-            // Search for entries
-            const response = await fetch(`/api/entries/search?q=${encodeURIComponent(searchTerm)}&limit=5`);
+            // Search for entries using the correct API endpoint
+            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=5`);
             if (response.ok) {
                 const result = await response.json();
                 this.displaySearchResults(result.entries || [], resultsContainer, index);
@@ -225,25 +225,90 @@ class RelationsManager {
     
     displaySearchResults(entries, container, index) {
         if (entries.length === 0) {
-            container.innerHTML = '<div class="text-muted">No entries found</div>';
+            container.innerHTML = `
+                <div class="text-muted p-2">No entries found</div>
+                <div class="border-top p-2">
+                    <button type="button" class="btn btn-sm btn-outline-success me-2 create-new-entry-btn" 
+                            data-index="${index}">
+                        <i class="fas fa-plus"></i> Create New Entry
+                    </button>
+                    <small class="text-muted">Create a new entry as relation target</small>
+                </div>
+            `;
             container.style.display = 'block';
+            this.addCreateNewEntryListener(container);
             return;
         }
         
-        const resultsHtml = entries.map(entry => `
-            <div class="search-result-item p-2 border-bottom" data-entry-id="${entry.id}" data-index="${index}">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${this.getEntryDisplayText(entry)}</strong>
-                        <div class="text-muted small">${entry.id}</div>
+        let resultsHtml = '';
+        
+        entries.forEach(entry => {
+            // Add entry option
+            resultsHtml += `
+                <div class="search-result-item p-2 border-bottom" data-entry-id="${entry.id}" data-index="${index}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${this.getEntryDisplayText(entry)}</strong>
+                            <div class="text-muted small">${entry.id}</div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary select-entry-btn" 
+                                data-entry-id="${entry.id}" data-index="${index}">
+                            Select Entry
+                        </button>
                     </div>
-                    <button type="button" class="btn btn-sm btn-primary select-entry-btn" 
-                            data-entry-id="${entry.id}" data-index="${index}">
-                        Select
-                    </button>
                 </div>
+            `;
+            
+            // Add sense options if entry has senses
+            if (entry.senses && entry.senses.length > 0) {
+                entry.senses.forEach((sense, senseIndex) => {
+                    const senseRef = `${entry.id}#${sense.id}`;
+                    const senseDisplay = this.getSenseDisplayText(sense, senseIndex);
+                    
+                    resultsHtml += `
+                        <div class="search-result-item p-2 border-bottom ms-3" data-sense-ref="${senseRef}" data-index="${index}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="text-muted">↳ Sense ${senseIndex + 1}:</span>
+                                    <span>${senseDisplay}</span>
+                                    <div class="text-muted small">${sense.id}</div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary select-sense-btn" 
+                                        data-sense-ref="${senseRef}" data-index="${index}">
+                                    Select Sense
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                // Add option to add new sense to this entry
+                resultsHtml += `
+                    <div class="search-result-item p-2 border-bottom ms-3 bg-light" data-entry-id="${entry.id}" data-index="${index}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-muted">↳ <i class="fas fa-plus-circle"></i> Add new sense to this entry</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-success create-new-sense-btn" 
+                                    data-entry-id="${entry.id}" data-index="${index}">
+                                Add Sense
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        // Add option to create completely new entry
+        resultsHtml += `
+            <div class="border-top p-2 bg-light">
+                <button type="button" class="btn btn-sm btn-outline-success me-2 create-new-entry-btn" 
+                        data-index="${index}">
+                    <i class="fas fa-plus"></i> Create New Entry
+                </button>
+                <small class="text-muted">Create a new entry as relation target</small>
             </div>
-        `).join('');
+        `;
         
         container.innerHTML = resultsHtml;
         container.style.display = 'block';
@@ -255,8 +320,16 @@ class RelationsManager {
                 const index = parseInt(e.target.dataset.index);
                 this.selectEntry(entryId, index);
                 container.style.display = 'none';
+            } else if (e.target.classList.contains('select-sense-btn')) {
+                const senseRef = e.target.dataset.senseRef;
+                const index = parseInt(e.target.dataset.index);
+                this.selectSense(senseRef, index);
+                container.style.display = 'none';
             }
         });
+        
+        this.addCreateNewEntryListener(container);
+        this.addCreateNewSenseListener(container);
     }
     
     getEntryDisplayText(entry) {
@@ -277,6 +350,34 @@ class RelationsManager {
         }
     }
     
+    getSenseDisplayText(sense, senseIndex) {
+        // Try to get a meaningful display text for the sense
+        if (sense.glosses) {
+            const glosses = Object.values(sense.glosses);
+            if (glosses.length > 0) {
+                return glosses[0];
+            }
+        }
+        
+        if (sense.definition) {
+            const definitions = Object.values(sense.definition);
+            if (definitions.length > 0) {
+                // Truncate long definitions
+                const def = definitions[0];
+                return def.length > 50 ? def.substring(0, 50) + '...' : def;
+            }
+        }
+        
+        return `Sense ${senseIndex + 1}`;
+    }
+    
+    selectSense(senseRef, index) {
+        const input = document.querySelector(`input[name="relations[${index}].ref"]`);
+        if (input) {
+            input.value = senseRef;
+        }
+    }
+    
     getRelationIndexFromElement(element) {
         const relationItem = element.closest('.relation-item');
         return parseInt(relationItem.dataset.relationIndex);
@@ -288,6 +389,53 @@ class RelationsManager {
         const input = document.querySelector(`input[name="relations[${index}].ref"]`);
         if (input) {
             input.focus();
+        }
+    }
+    
+    addCreateNewEntryListener(container) {
+        const createButtons = container.querySelectorAll('.create-new-entry-btn');
+        createButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const index = parseInt(e.target.dataset.index);
+                this.openCreateNewEntryModal(index);
+            });
+        });
+    }
+    
+    addCreateNewSenseListener(container) {
+        const createSenseButtons = container.querySelectorAll('.create-new-sense-btn');
+        createSenseButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const entryId = e.target.dataset.entryId;
+                const index = parseInt(e.target.dataset.index);
+                this.openCreateNewSenseModal(entryId, index);
+            });
+        });
+    }
+    
+    openCreateNewEntryModal(index) {
+        // For now, open the new entry page in a new tab
+        // In a future enhancement, this could be a modal dialog
+        const newEntryUrl = '/entry/new';
+        const newWindow = window.open(newEntryUrl, '_blank');
+        
+        // Show a message to the user
+        const input = document.querySelector(`input[name="relations[${index}].ref"]`);
+        if (input) {
+            input.placeholder = 'Create new entry in the opened tab, then paste its ID here';
+        }
+    }
+    
+    openCreateNewSenseModal(entryId, index) {
+        // For now, open the entry edit page in a new tab
+        // In a future enhancement, this could add a sense inline
+        const editEntryUrl = `/entry/${entryId}/edit`;
+        const newWindow = window.open(editEntryUrl, '_blank');
+        
+        // Show a message to the user
+        const input = document.querySelector(`input[name="relations[${index}].ref"]`);
+        if (input) {
+            input.placeholder = `Add sense to entry ${entryId} in the opened tab, then use ${entryId}#<sense_id>`;
         }
     }
     

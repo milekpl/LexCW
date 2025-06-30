@@ -308,6 +308,24 @@ class Entry(BaseModel):
         """
         self.relations.append(Relation(type=relation_type, ref=target_id))
 
+    def add_etymology(self, etymology_type: str, source: str, form_lang: str, 
+                      form_text: str, gloss_lang: str, gloss_text: str) -> None:
+        """
+        Add an etymology to the entry.
+
+        Args:
+            etymology_type: Type of etymology (e.g., 'borrowing', 'inheritance').
+            source: Source language or etymological description.
+            form_lang: Language code for the etymological form.
+            form_text: Text of the etymological form.
+            gloss_lang: Language code for the gloss.
+            gloss_text: Text of the gloss/meaning.
+        """
+        form = Form(lang=form_lang, text=form_text)
+        gloss = Gloss(lang=gloss_lang, text=gloss_text)
+        etymology = Etymology(type=etymology_type, source=source, form=form, gloss=gloss)
+        self.etymologies.append(etymology)
+
     def add_pronunciation(self, writing_system: str, form: str) -> None:
         """
         Add a pronunciation to the entry.
