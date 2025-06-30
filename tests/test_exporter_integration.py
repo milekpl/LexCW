@@ -78,6 +78,28 @@ class TestExporterIntegration:
         
         # Create test database connection
         db_name = f"test_exporters_{uuid.uuid4().hex[:8]}"
+        
+        # Create an admin connector (no database specified)
+        admin_connector = BaseXConnector(
+            host=os.getenv('BASEX_HOST', 'localhost'),
+            port=int(os.getenv('BASEX_PORT', '1984')),
+            username=os.getenv('BASEX_USERNAME', 'admin'),
+            password=os.getenv('BASEX_PASSWORD', 'admin')
+        )
+        admin_connector.connect()
+        
+        # Clean up any existing test database
+        try:
+            if db_name in (admin_connector.execute_command("LIST") or ""):
+                admin_connector.execute_command(f"DROP DB {db_name}")
+        except Exception:
+            pass
+        
+        # Create the test database
+        admin_connector.execute_command(f"CREATE DB {db_name}")
+        admin_connector.disconnect()
+        
+        # Now create a connector for the test database
         connector = BaseXConnector(
             host=os.getenv('BASEX_HOST', 'localhost'),
             port=int(os.getenv('BASEX_PORT', '1984')),
@@ -85,11 +107,28 @@ class TestExporterIntegration:
             password=os.getenv('BASEX_PASSWORD', 'admin'),
             database=db_name
         )
-        
-        # Ensure the test database is created and initialized
-        self._ensure_test_database(connector, db_name)
+        connector.connect()
         
         service = DictionaryService(db_connector=connector)
+        
+        # Initialize the database by creating a temporary LIFT file and using initialize_database
+        import tempfile
+        
+        minimal_lift = """<?xml version="1.0" encoding="utf-8"?>
+<lift version="0.13" producer="dictionary-writing-system">
+</lift>"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', encoding='utf-8', delete=False) as temp_file:
+            temp_file.write(minimal_lift)
+            temp_lift_path = temp_file.name
+        
+        try:
+            # Use the service's initialize_database method which properly sets up the database
+            service.initialize_database(temp_lift_path)
+        finally:
+            # Clean up the temporary file
+            if os.path.exists(temp_lift_path):
+                os.unlink(temp_lift_path)
         
         # Add some test data
         test_entries = [
@@ -144,7 +183,10 @@ class TestExporterIntegration:
         
         # Cleanup
         try:
-            connector.close()
+            connector.disconnect()
+            admin_connector.connect()
+            admin_connector.execute_command(f"DROP DB {db_name}")
+            admin_connector.disconnect()
         except Exception:
             pass
     
@@ -381,7 +423,8 @@ class TestExporterIntegration:
             port=int(os.getenv('BASEX_PORT', '1984')),
             username=os.getenv('BASEX_USERNAME', 'admin'),
             password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database=db_name
+            database=db_name,
+            
         )
         
         # Ensure the test database is created and initialized

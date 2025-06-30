@@ -23,88 +23,16 @@ logger = logging.getLogger(__name__)
 
 @main_bp.route('/corpus-management')
 def corpus_management():
-    """Render corpus management interface with PostgreSQL connection status."""
-    corpus_stats = {}
+    """Render corpus management interface with async stats loading."""
+    # Return page immediately with loading indicators
+    # Stats will be loaded via AJAX
     postgres_status = {'connected': False, 'error': None}
-    
-    # Try to get cached corpus stats first
-    cache = CacheService()
-    if cache.is_available():
-        cached_stats = cache.get('corpus_stats')
-        if cached_stats:
-            try:
-                stats_data = json.loads(cached_stats)
-                postgres_status['connected'] = True
-                
-                # Use cached data
-                corpus_stats['total_records'] = stats_data.get('total_records', 0)
-                corpus_stats['avg_source_length'] = stats_data.get('avg_source_length', '0.00')
-                corpus_stats['avg_target_length'] = stats_data.get('avg_target_length', '0.00')
-                corpus_stats['last_updated'] = stats_data.get('last_updated', 'N/A')
-                
-                logger.info("Using cached corpus stats")
-                return render_template(
-                    'corpus_management.html', 
-                    corpus_stats=corpus_stats, 
-                    postgres_status=postgres_status
-                )
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"Invalid cached corpus stats: {e}")
-    
-    # If no cache or cache miss, fetch fresh data
-    try:
-        # Create PostgreSQL config from environment
-        config = PostgreSQLConfig(
-            host=os.getenv('POSTGRES_HOST', 'localhost'),
-            port=int(os.getenv('POSTGRES_PORT', 5432)),
-            database=os.getenv('POSTGRES_DB', 'dictionary_analytics'),  # Use analytics database for corpus data
-            username=os.getenv('POSTGRES_USER', 'dict_user'),
-            password=os.getenv('POSTGRES_PASSWORD', 'dict_pass')
-        )
-        
-        migrator = CorpusMigrator(config)
-        
-        # Test connection by attempting to get stats
-        try:
-            stats = migrator.get_corpus_stats()
-            postgres_status['connected'] = True
-            
-            # Format stats for template
-            corpus_stats['total_records'] = stats.get('total_records', 0)
-            
-            avg_source_length = stats.get('avg_source_length')
-            corpus_stats['avg_source_length'] = f"{avg_source_length:.2f}" if avg_source_length else "0.00"
-            
-            avg_target_length = stats.get('avg_target_length')
-            corpus_stats['avg_target_length'] = f"{avg_target_length:.2f}" if avg_target_length else "0.00"
-
-            last_record = stats.get('last_record')
-            if isinstance(last_record, datetime):
-                corpus_stats['last_updated'] = last_record.strftime('%Y-%m-%d %H:%M:%S')
-            elif last_record:
-                corpus_stats['last_updated'] = str(last_record)
-            else:
-                corpus_stats['last_updated'] = 'N/A'
-            
-            # Cache the stats for 30 minutes (1800 seconds)
-            if cache.is_available():
-                cache_data = {
-                    'total_records': corpus_stats['total_records'],
-                    'avg_source_length': corpus_stats['avg_source_length'],
-                    'avg_target_length': corpus_stats['avg_target_length'],
-                    'last_updated': corpus_stats['last_updated']
-                }
-                cache.set('corpus_stats', json.dumps(cache_data), ttl=1800)
-                logger.info("Cached fresh corpus stats for 30 minutes")
-
-        except Exception as e:
-            logger.warning(f"Could not fetch corpus statistics: {e}")
-            postgres_status['connected'] = False
-            postgres_status['error'] = f"Could not fetch stats: {e}"
-            
-    except Exception as e:
-        logger.error(f"PostgreSQL connection error: {e}")
-        postgres_status['error'] = str(e)
+    corpus_stats = {
+        'total_records': 0,
+        'avg_source_length': '0.00',
+        'avg_target_length': '0.00',
+        'last_updated': 'Loading...'
+    }
     
     return render_template(
         'corpus_management.html', 

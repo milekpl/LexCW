@@ -19,7 +19,11 @@ class TestFastCorpusProcessor:
         """Mock PostgreSQL connection for testing."""
         mock_conn = Mock()
         mock_cursor = Mock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        # Properly mock the context manager
+        cursor_context = Mock()
+        cursor_context.__enter__ = Mock(return_value=mock_cursor)
+        cursor_context.__exit__ = Mock(return_value=None)
+        mock_conn.cursor.return_value = cursor_context
         mock_cursor.fetchone.return_value = None
         mock_cursor.fetchall.return_value = []
         return mock_conn
@@ -34,6 +38,8 @@ class TestFastCorpusProcessor:
             mock_doc.text = "test sentence"
             mock_doc.__iter__ = lambda x: iter([Mock(text="test", pos_="NOUN", lemma_="test")])
             mock_nlp.pipe.return_value = [mock_doc]
+            mock_nlp.pipe_names = ["tagger", "parser", "ner"]  # Mock pipe names as list
+            mock_nlp.disabled = []  # Mock disabled as empty list
             mock_spacy.load.return_value = mock_nlp
             
             processor = FastCorpusProcessor(mock_postgres_conn)

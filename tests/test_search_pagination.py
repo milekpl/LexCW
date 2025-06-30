@@ -37,13 +37,14 @@ class TestSearchPagination(unittest.TestCase):
         cls.basex_password = 'admin'
         cls.basex_database = 'dictionary'  # This is what's used in the app
         
-        # Create a BaseX connector
+        # Create a BaseX connector without connection pooling for tests
         cls.connector = BaseXConnector(
             host=cls.basex_host,
             port=cls.basex_port,
             username=cls.basex_username,
             password=cls.basex_password,
-            database=cls.basex_database
+            database=cls.basex_database,
+            
         )
         
         # Connect to BaseX server

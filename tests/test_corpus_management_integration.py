@@ -3,7 +3,7 @@ TDD tests for corpus management PostgreSQL integration and navigation.
 """
 from __future__ import annotations
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 
 from app import create_app
 
@@ -92,29 +92,49 @@ class TestCorpusManagementIntegration:
         app = create_app('testing')
         
         with app.test_client() as client:
-            with patch('app.database.postgresql_connector.PostgreSQLConnector') as mock_connector:
-                mock_instance = MagicMock()
-                mock_connector.return_value = mock_instance
-                mock_instance.test_connection.return_value = True
+            with patch('app.database.corpus_migrator.CorpusMigrator._get_postgres_connection') as mock_conn:
+                # Set up mock connection
+                mock_cursor = Mock()
+                mock_connection = Mock()
                 
-                # Mock table discovery to return actual corpus table names
-                mock_instance.fetch_all.side_effect = [
-                    # First call: table discovery
-                    [
-                        {'table_name': 'parallel_corpus'},
-                        {'table_name': 'corpus_metadata'},
-                        {'table_name': 'sentence_pairs'}
-                    ],
-                    # Second call: count query for parallel_corpus  
-                    [{'count': 74000000}],  # 74 million rows
-                    # Third call: last update query
-                    [{'last_update': '2025-06-28 10:30:00'}]
-                ]
+                # Properly mock the context manager for cursor
+                cursor_context = Mock()
+                cursor_context.__enter__ = Mock(return_value=mock_cursor)
+                cursor_context.__exit__ = Mock(return_value=None)
+                mock_connection.cursor.return_value = cursor_context
+                mock_conn.return_value = mock_connection
                 
+                # Mock successful query result with real data
+                from datetime import datetime
+                mock_result = {
+                    'total_records': 74000000,
+                    'avg_source_length': 25.5,
+                    'avg_target_length': 30.2,
+                    'first_record': None,
+                    'last_record': datetime(2025, 6, 28, 10, 30, 0)
+                }
+                mock_cursor.fetchone.return_value = mock_result
+                
+                # Test the corpus management HTML page loads successfully
                 response = client.get('/corpus-management')
                 assert response.status_code == 200
                 
+                # Test the API endpoint that provides status and stats
+                api_response = client.get('/api/corpus/stats/ui')
+                assert api_response.status_code == 200
+                
+                # Parse the JSON response
+                data = api_response.get_json()
+                
+                # Should return success with connection established
+                assert data['success'] is True
+                assert data['postgres_status']['connected'] is True
+                
                 # Should display the correct corpus statistics
-                content = response.data.decode('utf-8')
-                assert '74,000,000' in content or '74000000' in content
-                assert '2025-06-28' in content
+                assert data['corpus_stats']['total_records'] == 74000000
+                assert data['corpus_stats']['avg_source_length'] == '25.50'
+                assert data['corpus_stats']['avg_target_length'] == '30.20'
+                assert '2025-06-28' in data['corpus_stats']['last_updated']
+                
+                # Connection should be closed properly
+                mock_connection.close.assert_called_once()

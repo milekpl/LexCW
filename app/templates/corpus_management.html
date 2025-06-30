@@ -57,14 +57,12 @@
                     <i class="fas fa-database"></i> Corpus Management
                 </h1>
                 <!-- PostgreSQL Connection Status -->
-                <div class="alert {% if postgres_status.connected %}alert-success{% else %}alert-warning{% endif %}" role="alert">
+                <div class="alert alert-info" role="alert" id="postgres-status">
                     <strong><i class="fas fa-database"></i> PostgreSQL Status:</strong>
-                    {% if postgres_status.connected %}
-                        <span class="text-success">Connected</span>
-                    {% else %}
-                        <span class="text-danger">Not Connected</span>
-                        {% if postgres_status.error %}<br><small>{{ postgres_status.error }}</small>{% endif %}
-                    {% endif %}
+                    <span id="connection-status">
+                        <i class="fas fa-spinner fa-spin"></i> Checking connection...
+                    </span>
+                    <div id="connection-error" class="mt-2" style="display: none;"></div>
                 </div>
             </div>
         </div>
@@ -80,34 +78,42 @@
                         <div class="row" id="stats-container">
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="mb-0" id="total-records">{{ corpus_stats.total_records or 0 }}</h3>
+                                    <h3 class="mb-0" id="total-records">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
                                     <small>Total Records</small>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="mb-0" id="avg-source-length">{{ corpus_stats.avg_source_length or "0.00" }}</h3>
+                                    <h3 class="mb-0" id="avg-source-length">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
                                     <small>Avg Source Length</small>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="mb-0" id="avg-target-length">{{ corpus_stats.avg_target_length or "0.00" }}</h3>
+                                    <h3 class="mb-0" id="avg-target-length">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
                                     <small>Avg Target Length</small>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="text-center">
-                                    <h3 class="mb-0" id="last-updated">{{ corpus_stats.last_updated or "N/A" }}</h3>
+                                    <h3 class="mb-0" id="last-updated">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
                                     <small>Last Updated</small>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <button type="button" class="btn btn-light btn-sm" onclick="refreshStats()">
-                                        <i class="fas fa-sync-alt"></i> Refresh
-                                    </button>
-                                </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12 text-center">
+                                <button type="button" class="btn btn-light btn-sm" id="refresh-stats-btn" onclick="refreshStats()">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -467,26 +473,57 @@
         }
 
         async function refreshStats() {
+            // Show loading indicators
+            document.getElementById('total-records').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            document.getElementById('avg-source-length').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            document.getElementById('avg-target-length').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            document.getElementById('last-updated').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
             try {
-                const response = await fetch('/api/corpus/stats');
+                const response = await fetch('/api/corpus/stats/ui');
                 const data = await response.json();
                 
                 if (data.success) {
-                    document.getElementById('total-records').textContent = 
-                        data.stats.total_records ? data.stats.total_records.toLocaleString() : '0';
-                    document.getElementById('avg-source-length').textContent = 
-                        data.stats.avg_source_length ? Math.round(data.stats.avg_source_length) : '0';
-                    document.getElementById('avg-target-length').textContent = 
-                        data.stats.avg_target_length ? Math.round(data.stats.avg_target_length) : '0';
+                    // Update connection status
+                    const statusAlert = document.getElementById('postgres-status');
+                    const connectionStatus = document.getElementById('connection-status');
+                    const connectionError = document.getElementById('connection-error');
+                    
+                    if (data.postgres_status.connected) {
+                        statusAlert.className = 'alert alert-success';
+                        connectionStatus.innerHTML = '<span class="text-success">Connected</span>';
+                        connectionError.style.display = 'none';
+                    } else {
+                        statusAlert.className = 'alert alert-warning';
+                        connectionStatus.innerHTML = '<span class="text-danger">Not Connected</span>';
+                        if (data.postgres_status.error) {
+                            connectionError.innerHTML = `<small>${data.postgres_status.error}</small>`;
+                            connectionError.style.display = 'block';
+                        }
+                    }
+                    
+                    // Update stats
+                    document.getElementById('total-records').textContent = data.corpus_stats.total_records;
+                    document.getElementById('avg-source-length').textContent = data.corpus_stats.avg_source_length;
+                    document.getElementById('avg-target-length').textContent = data.corpus_stats.avg_target_length;
+                    document.getElementById('last-updated').textContent = data.corpus_stats.last_updated;
+                    
+                    console.log('Corpus stats loaded successfully', data.cached ? '(cached)' : '(fresh)');
                 } else {
-                    console.error('Failed to fetch stats:', data.error);
+                    console.error('Failed to load corpus stats:', data.error);
+                    // Show error in stats
+                    document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
                 }
             } catch (error) {
-                console.error('Error fetching stats:', error);
-                // Set to zero if no corpus exists
-                document.getElementById('total-records').textContent = '0';
-                document.getElementById('avg-source-length').textContent = '0';
-                document.getElementById('avg-target-length').textContent = '0';
+                console.error('Error loading corpus stats:', error);
+                // Show error in stats
+                document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
             }
         }
 
@@ -614,5 +651,60 @@
                 container.removeChild(container.lastChild);
             }
         }
+
+        // Load corpus statistics asynchronously
+        async function loadCorpusStats() {
+            try {
+                const response = await fetch('/api/corpus/stats/ui');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update connection status
+                    const statusAlert = document.getElementById('postgres-status');
+                    const connectionStatus = document.getElementById('connection-status');
+                    const connectionError = document.getElementById('connection-error');
+                    
+                    if (data.postgres_status.connected) {
+                        statusAlert.className = 'alert alert-success';
+                        connectionStatus.innerHTML = '<span class="text-success">Connected</span>';
+                        connectionError.style.display = 'none';
+                    } else {
+                        statusAlert.className = 'alert alert-warning';
+                        connectionStatus.innerHTML = '<span class="text-danger">Not Connected</span>';
+                        if (data.postgres_status.error) {
+                            connectionError.innerHTML = `<small>${data.postgres_status.error}</small>`;
+                            connectionError.style.display = 'block';
+                        }
+                    }
+                    
+                    // Update stats
+                    document.getElementById('total-records').textContent = data.corpus_stats.total_records;
+                    document.getElementById('avg-source-length').textContent = data.corpus_stats.avg_source_length;
+                    document.getElementById('avg-target-length').textContent = data.corpus_stats.avg_target_length;
+                    document.getElementById('last-updated').textContent = data.corpus_stats.last_updated;
+                    
+                    console.log('Corpus stats loaded successfully', data.cached ? '(cached)' : '(fresh)');
+                } else {
+                    console.error('Failed to load corpus stats:', data.error);
+                    // Show error in stats
+                    document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
+                }
+            } catch (error) {
+                console.error('Error loading corpus stats:', error);
+                // Show error in stats
+                document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
+            }
+        }
+
+        // Load stats when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStats();
+        });
     </script>
 {% endblock %}

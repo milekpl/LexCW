@@ -288,7 +288,7 @@ class EnhancedLiftParser:
             translations[trans_type] = trans_text
         
         return Example(
-            text=example_text,
+            form=example_text,
             translations=translations,
             source=source
         )
@@ -393,7 +393,8 @@ class EnhancedLiftParser:
     
     def _find_element(self, parent: ET.Element, tag: str) -> Optional[ET.Element]:
         """Find single element with namespace awareness."""
-        xpath = XPathBuilder.entry() if tag == 'entry' else f".//{tag}"
+        # Use direct child search for most elements, recursive only for entry
+        xpath = XPathBuilder.entry() if tag == 'entry' else f"./{tag}"
         xpath = LIFTNamespaceManager.get_xpath_with_namespace(xpath, self._has_lift_namespace)
         
         if self._has_lift_namespace:
@@ -403,7 +404,8 @@ class EnhancedLiftParser:
     
     def _find_elements(self, parent: ET.Element, tag: str) -> List[ET.Element]:
         """Find multiple elements with namespace awareness."""
-        xpath = f".//{tag}"
+        # Use direct child search for most elements
+        xpath = f"./{tag}"
         xpath = LIFTNamespaceManager.get_xpath_with_namespace(xpath, self._has_lift_namespace)
         
         if self._has_lift_namespace:

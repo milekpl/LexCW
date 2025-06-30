@@ -5,6 +5,7 @@ This module initializes the Flask application and registers all blueprints.
 """
 
 import os
+import sys
 import logging
 from flask import Flask
 from flasgger import Swagger
@@ -26,12 +27,14 @@ basex_connector = BaseXConnector(
     database=os.getenv('BASEX_DATABASE', 'dictionary')
 )
 
-# Make sure the connection is established
-try:
-    basex_connector.connect()
-    logging.getLogger(__name__).info("Successfully connected to BaseX server")
-except Exception as e:
-    logging.getLogger(__name__).error(f"Failed to connect to BaseX server on startup: {e}")
+# Only connect during non-test environments
+if not (os.getenv('TESTING') == 'true' or 'pytest' in sys.modules):
+    # Make sure the connection is established
+    try:
+        basex_connector.connect()
+        logging.getLogger(__name__).info("Successfully connected to BaseX server")
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Failed to connect to BaseX server on startup: {e}")
 
 # Create a DictionaryService instance using the BaseXConnector
 dictionary_service = DictionaryService(db_connector=basex_connector)

@@ -34,7 +34,11 @@ applyTo: '*.py'
 **Use and update the API documentation**
 - Always keep the API documentation up to date with the latest changes in the codebase.
 - Use the `flasgger` library to define and document API endpoints directly in the code.
-- Include detailed descriptions, parameter types, and response schemas for all endpoints.
+- Include detailed descriptions, parameter types, and response schemas for all endpoints and *app routes*.
+
+**Avoid mocking in unit tests**
+- Do not use mocking in unit tests unless absolutely necessary.
+- Focus on testing the actual implementation and behavior of the code.
 
 **Summary:**  
 Always follow the detailed project specification, use strict typing, practice TDD (unit test first, then implementation, then integration test), assume VS Code on Windows 11 with PowerShell, and clean up all helper files after use.

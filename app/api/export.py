@@ -11,6 +11,7 @@ from flask import Blueprint, request, jsonify, current_app, send_file
 
 from app.services.dictionary_service import DictionaryService
 from app.database.connector_factory import create_database_connector
+from app.utils.exceptions import DatabaseError
 
 # Create blueprint
 export_bp = Blueprint('export_api', __name__, url_prefix='/api/export')
@@ -77,8 +78,11 @@ def export_lift():
                 # Write to file
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(lift_xml)
+            except DatabaseError:
+                # Re-raise database errors instead of falling back
+                raise
             except Exception as e:
-                # Fallback if service method fails
+                # Fallback only for non-database errors
                 lift_xml = '<?xml version="1.0" encoding="UTF-8"?>\n<lift version="0.13">\n</lift>'
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(lift_xml)

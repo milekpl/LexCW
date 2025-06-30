@@ -200,6 +200,7 @@ class LIFTNamespaceManager:
             "variant",
             "relation",
             "note",
+            "grammatical-info",
         ]
 
         for element in common_elements:

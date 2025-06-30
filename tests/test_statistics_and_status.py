@@ -24,29 +24,33 @@ TEST_DB = "test_dict_stats"
 @pytest.fixture(scope="function")
 def dict_service():
     """Create a DictionaryService with test database for each test."""
-    # Create the connector
-    connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD, TEST_DB)
-    connector.connect()
-    
+    # Create an admin connector (no database specified)
+    admin_connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD)
+    admin_connector.connect()
     # Clean up any existing test database
-    if TEST_DB in (connector.execute_command("LIST") or ""):
-        connector.execute_command(f"DROP DB {TEST_DB}")
-    
-    # Create the service
-    service = DictionaryService(connector)
-    
-    # Initialize with test data
-    service.initialize_database(TEST_LIFT_FILE, TEST_RANGES_FILE)
-    
-    yield service
-    
-    # Clean up
     try:
-        if TEST_DB in (connector.execute_command("LIST") or ""):
-            connector.execute_command(f"DROP DB {TEST_DB}")
+        if TEST_DB in (admin_connector.execute_command("LIST") or ""):
+            admin_connector.execute_command(f"DROP DB {TEST_DB}")
     except Exception:
         pass
-    
+    # Create the test database
+    admin_connector.execute_command(f"CREATE DB {TEST_DB}")
+    admin_connector.disconnect()
+    # Now create a connector for the test database
+    connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD, TEST_DB)
+    connector.connect()
+    # Create the service
+    service = DictionaryService(connector)
+    # Initialize with test data
+    service.initialize_database(TEST_LIFT_FILE, TEST_RANGES_FILE)
+    yield service
+    # Cleanup after test
+    try:
+        admin_connector.connect()
+        admin_connector.execute_command(f"DROP DB {TEST_DB}")
+        admin_connector.disconnect()
+    except Exception:
+        pass
     connector.disconnect()
 
 
@@ -92,51 +96,26 @@ class TestDictionaryStatistics:
         assert sense_count == 2
         assert example_count == 2
         
-        # Add a new entry with multiple senses and examples
-        multi_sense_xml = """
-        <lift>
-            <entry id="multi_sense_entry">
-                <lexical-unit>
-                    <form lang="en">
-                        <text>multi sense</text>
-                    </form>
-                </lexical-unit>
-                <sense id="sense1">
-                    <gloss lang="pl">
-                        <text>wieloznaczny 1</text>
-                    </gloss>
-                    <example>
-                        <form lang="en">
-                            <text>Example 1</text>
-                        </form>
-                    </example>
-                </sense>
-                <sense id="sense2">
-                    <gloss lang="pl">
-                        <text>wieloznaczny 2</text>
-                    </gloss>
-                    <example>
-                        <form lang="en">
-                            <text>Example 2</text>
-                        </form>
-                    </example>
-                    <example>
-                        <form lang="en">
-                            <text>Example 3</text>
-                        </form>
-                    </example>
-                </sense>
-            </entry>
-        </lift>
-        """
+        # Create a simple entry with 2 senses and 2 examples directly via service
+        from app.models.entry import Entry
+        from app.models.sense import Sense
         
-        # Instead of using lift_parser.parse_string directly, add the XML to the database
-        # with a direct XQuery command, which will ensure proper structure
-        db_name = dict_service.db_connector.database
-        add_query = f"""
-        xquery insert node {multi_sense_xml} into collection('{db_name}')/*[local-name()='lift']
-        """
-        dict_service.db_connector.execute_update(add_query)
+        entry = Entry(
+            id_="multi_sense_entry",
+            lexical_unit={"en": "multi sense"}
+        )
+        
+        # Add two senses with examples
+        sense1 = Sense(id_="sense1", glosses={"pl": "wieloznaczny 1"})
+        sense1.examples = [{"en": "Example 1"}]
+        
+        sense2 = Sense(id_="sense2", glosses={"pl": "wieloznaczny 2"})
+        sense2.examples = [{"en": "Example 2"}, {"en": "Example 3"}]
+        
+        entry.senses = [sense1, sense2]
+        
+        # Create the entry
+        dict_service.create_entry(entry)
         
         # Check that the counts increased appropriately:
         # - 2 original senses + 2 new senses = 4 senses
@@ -148,14 +127,9 @@ class TestDictionaryStatistics:
         assert example_count >= 5, f"Expected at least 5 examples, got {example_count}"
         
         # Delete the entry to clean up
-        dict_service.db_connector.execute_update(
-            f"xquery delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id='multi_sense_entry']"
-        )
+        dict_service.delete_entry("multi_sense_entry")
         
         # Check that the counts decreased back after deletion
-        # Note: In the BaseX XML database, counts may not be immediately updated
-        # due to caching or internal optimizations, so we can't reliably test for exact values
-        # Let's just skip this part of the test
         new_sense_count, new_example_count = dict_service.count_senses_and_examples()
         
         # Weaker assertion that allows for possible caching/delayed updates in BaseX

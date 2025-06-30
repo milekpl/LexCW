@@ -120,7 +120,7 @@ class TestBaseXConnector:
         assert connector.username == "admin"
         assert connector.password == "admin"
         assert connector.database == "test_db"
-        assert connector.session is None
+        assert connector._session is None
     
     @patch('app.database.basex_connector.BaseXSession')
     def test_connector_connection(self, mock_session):
@@ -139,7 +139,7 @@ class TestBaseXConnector:
         result = connector.connect()
         
         assert result == True
-        assert connector.session == mock_session_instance
+        assert connector._session == mock_session_instance
         mock_session.assert_called_once_with("localhost", 1984, "admin", "admin")
     
     def test_connector_context_manager(self):
@@ -180,12 +180,13 @@ class TestDictionaryService:
     
     def test_get_entry_count(self):
         """Test getting the entry count."""
-        self.mock_connector.execute_lift_query.return_value = "42"
+        self.mock_connector.execute_query.return_value = "42"
         
         count = self.service.get_entry_count()
         
         assert count == 42
-        self.mock_connector.execute_lift_query.assert_called_once()
+        # Should be called multiple times (namespace detection + actual count)
+        assert self.mock_connector.execute_query.call_count >= 1
     
     def test_get_ranges(self):
         """Test getting ranges data."""

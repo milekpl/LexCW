@@ -38,7 +38,7 @@ def basex_available() -> bool:
             port=int(os.getenv('BASEX_PORT', '1984')),
             username=os.getenv('BASEX_USERNAME', 'admin'),
             password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database='test_connection_check'
+            database='test_connection_check',            
         )
         connector.connect()
         connector.disconnect()
@@ -65,7 +65,8 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         port=int(os.getenv('BASEX_PORT', '1984')),
         username=os.getenv('BASEX_USERNAME', 'admin'),
         password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database=test_db_name
+        database=test_db_name,
+        
     )
     
     try:
@@ -156,7 +157,8 @@ def basex_connector(basex_available: bool):
         port=int(os.getenv('BASEX_PORT', '1984')),
         username=os.getenv('BASEX_USERNAME', 'admin'),
         password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database='dictionary'  # Use existing dictionary database
+        database='dictionary',  # Use existing dictionary database
+        
     )
     
     try:
@@ -195,7 +197,8 @@ def dict_service_with_test_db(basex_available: bool):
         port=int(os.getenv('BASEX_PORT', '1984')),
         username=os.getenv('BASEX_USERNAME', 'admin'),
         password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database=test_db_name
+        database=test_db_name,
+        
     )
     
     try:
@@ -267,7 +270,8 @@ def db_connector() -> Generator[BaseXConnector, None, None]:
             port=1984,
             username='admin',
             password='admin',
-            database='test_dictionary'
+            database='test_dictionary',
+            
         )
         
         # Configure the mock
@@ -401,8 +405,8 @@ def ensure_test_database(connector: BaseXConnector, db_name: str):
     try:
         # Check if database exists, create if not
         try:
-            connector.execute_query(f"db:exists('{db_name}')")
-            exists = True
+            exists_result = connector.execute_query(f"db:exists('{db_name}')")
+            exists = exists_result.strip().lower() == 'true'
         except Exception:
             exists = False
             

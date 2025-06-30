@@ -47,25 +47,26 @@ class TestCorpusManagementIntegrationTableMissing:
                 "relation \"parallel_corpus\" does not exist"
             )
             
-            # Make the request
+            # Test the corpus management HTML page loads successfully
             response = client.get('/corpus-management')
-            
-            # Should return successful response
             assert response.status_code == 200
             
-            # Decode response content
-            content = response.data.decode('utf-8')
+            # Test the API endpoint that provides status and stats
+            api_response = client.get('/api/corpus/stats/ui')
+            assert api_response.status_code == 200
             
-            # Should show that PostgreSQL is connected (connection works)
-            assert 'PostgreSQL Status: Connected' in content
+            # Parse the JSON response
+            data = api_response.get_json()
             
-            # Should show default stats (0 records, etc.)
-            assert '0' in content  # Should show 0 total records
-            assert '0.00' in content  # Should show 0.00 for average lengths
+            # Should return success with connection established (connection works, table just doesn't exist)
+            assert data['success'] is True
+            assert data['postgres_status']['connected'] is True
             
-            # Should not show error message about missing table to user
-            assert 'parallel_corpus' not in content.lower()
-            assert 'does not exist' not in content.lower()
+            # Should show default stats (0 records, etc.) when table doesn't exist
+            assert data['corpus_stats']['total_records'] == 0
+            assert data['corpus_stats']['avg_source_length'] == '0.00'
+            assert data['corpus_stats']['avg_target_length'] == '0.00'
+            assert data['corpus_stats']['last_updated'] == 'N/A'
             
             # Connection should be closed properly
             mock_connection.close.assert_called_once()
@@ -95,22 +96,25 @@ class TestCorpusManagementIntegrationTableMissing:
             }
             mock_cursor.fetchone.return_value = mock_result
             
-            # Make the request
+            # Test the corpus management HTML page loads successfully
             response = client.get('/corpus-management')
-            
-            # Should return successful response
             assert response.status_code == 200
             
-            # Decode response content
-            content = response.data.decode('utf-8')
+            # Test the API endpoint that provides status and stats
+            api_response = client.get('/api/corpus/stats/ui')
+            assert api_response.status_code == 200
             
-            # Should show that PostgreSQL is connected
-            assert 'PostgreSQL Status: Connected' in content
+            # Parse the JSON response
+            data = api_response.get_json()
+            
+            # Should return success with connection established
+            assert data['success'] is True
+            assert data['postgres_status']['connected'] is True
             
             # Should show real stats
-            assert '74000000' in content or '74,000,000' in content  # Total records
-            assert '25.50' in content  # Average source length
-            assert '30.20' in content  # Average target length
+            assert data['corpus_stats']['total_records'] == 74000000
+            assert data['corpus_stats']['avg_source_length'] == '25.50'
+            assert data['corpus_stats']['avg_target_length'] == '30.20'
             
             # Connection should be closed properly
             mock_connection.close.assert_called_once()

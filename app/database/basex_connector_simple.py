@@ -4,8 +4,7 @@ Optimized for single-user dictionary applications.
 """
 
 import logging
-from typing import Any, Optional, Dict, List
-from contextlib import contextmanager
+from typing import Optional
 
 try:
     from BaseXClient.BaseXClient import Session as BaseXSession
@@ -16,7 +15,7 @@ except ImportError:
 from app.utils.exceptions import DatabaseError
 
 
-class BaseXConnector:
+class BaseXConnectorSimple:
     """
     Simple connector for interacting with the BaseX XML database.
     No connection pooling - just direct connections for simplicity and speed.

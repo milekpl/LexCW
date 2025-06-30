@@ -223,16 +223,16 @@ class TestSearchIntegrationComprehensive:
         """Test search with performance-related edge cases."""
         # Test very long query
         long_query = "a" * 100
-        results, total = search_service.search_entries(long_query)
-        assert total >= 0, "Long query search should return valid count"
+        long_results, long_total = search_service.search_entries(long_query)
+        assert long_total >= 0, "Long query search should return valid count"
         
         # Test query with many terms
         multi_term_query = " ".join([f"term{i}" for i in range(10)])
-        results, total = search_service.search_entries(multi_term_query)
-        assert total >= 0, "Multi-term query should return valid count"
+        multi_results, multi_total = search_service.search_entries(multi_term_query)
+        assert multi_total >= 0, "Multi-term query should return valid count"
         
-        print(f"Long query: {total} results")
-        print(f"Multi-term query: {total} results")
+        print(f"Long query: {long_total} results")
+        print(f"Multi-term query: {multi_total} results")
 
 
 class TestXQueryBuilderComprehensive:

@@ -118,6 +118,14 @@ def check_entry_data():
     """
     try:
         entry_data = request.get_json()
+    except Exception:
+        # Invalid JSON data
+        return jsonify({'valid': False, 'errors': ['Invalid JSON data']}), 400
+    
+    try:
+        if entry_data is None:
+            return jsonify({'valid': False, 'errors': ['Invalid JSON data']}), 400
+        
         if not entry_data:
             return jsonify({'valid': False, 'errors': ['No data provided']}), 400
         
@@ -142,3 +150,137 @@ def check_entry_data():
             'valid': False,
             'errors': [f'Validation error: {str(e)}']
         }), 200  # Return 200 for validation results even if invalid
+
+@validation_bp.route('/api/validation/batch', methods=['POST'])
+def validate_batch():
+    """
+    Validate multiple entries in batch.
+    ---
+    parameters:
+      - name: entries_data
+        in: body
+        description: Dictionary containing entries to validate
+        required: true
+        schema:
+          type: object
+          properties:
+            entries:
+              type: array
+              items:
+                type: object
+    responses:
+      200:
+        description: Batch validation results.
+        schema:
+          type: object
+          properties:
+            valid:
+              type: boolean
+            errors:
+              type: array
+              items:
+                type: object
+      400:
+        description: Invalid request data.
+    """
+    try:
+        entries_data = request.get_json()
+        if not entries_data:
+            return jsonify({'valid': False, 'errors': ['No data provided']}), 400
+        
+        if 'entries' not in entries_data:
+            return jsonify({'valid': False, 'errors': ['Missing entries key']}), 400
+        
+        entries = entries_data['entries']
+        all_errors = []
+        
+        for i, entry_data in enumerate(entries):
+            try:
+                entry = Entry.from_dict(entry_data)
+                entry.validate()
+            except ValidationError as ve:
+                all_errors.append({
+                    'index': i,
+                    'id': entry_data.get('id', f'entry_{i}'),
+                    'errors': ve.errors if ve.errors else [str(ve)]
+                })
+            except Exception as e:
+                all_errors.append({
+                    'index': i,
+                    'id': entry_data.get('id', f'entry_{i}'),
+                    'errors': [f'Validation error: {str(e)}']
+                })
+        
+        if all_errors:
+            return jsonify({'valid': False, 'errors': all_errors}), 200
+        return jsonify({'valid': True, 'errors': []}), 200
+        
+    except Exception as e:
+        return jsonify({'valid': False, 'errors': [f'Batch validation error: {str(e)}']}), 200
+
+
+@validation_bp.route('/api/validation/schema', methods=['GET'])
+def get_validation_schema():
+    """
+    Get the JSON schema for entry validation.
+    ---
+    responses:
+      200:
+        description: Entry validation schema.
+        schema:
+          type: object
+    """
+    try:
+        # Return a basic entry schema
+        schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "lexical_unit": {"type": "object"},
+                "senses": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "definition": {"type": "string"},
+                            "glosses": {"type": "array"}
+                        }
+                    }
+                }
+            },
+            "required": ["id", "lexical_unit"]
+        }
+        return jsonify(schema), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@validation_bp.route('/api/validation/rules', methods=['GET'])
+def get_validation_rules():
+    """
+    Get the validation rules for entries.
+    ---
+    responses:
+      200:
+        description: Entry validation rules.
+        schema:
+          type: object
+    """
+    try:
+        rules = {
+            "required_fields": ["id", "lexical_unit"],
+            "field_types": {
+                "id": "string",
+                "lexical_unit": "object",
+                "senses": "array"
+            },
+            "constraints": {
+                "id": "Must be unique and non-empty",
+                "lexical_unit": "Must contain at least one language entry",
+                "senses": "Each sense must have a definition or glosses"
+            }
+        }
+        return jsonify(rules), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

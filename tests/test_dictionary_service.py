@@ -25,13 +25,24 @@ TEST_DB = "test_dict_service"
 @pytest.fixture(scope="function")
 def dict_service():
     """Create a DictionaryService with test database for each test."""
-    # Create the connector
-    connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD, TEST_DB)
-    connector.connect()
+    # Create an admin connector (no database specified)
+    admin_connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD)
+    admin_connector.connect()
     
     # Clean up any existing test database
-    if TEST_DB in (connector.execute_command("LIST") or ""):
-        connector.execute_command(f"DROP DB {TEST_DB}")
+    try:
+        if TEST_DB in (admin_connector.execute_command("LIST") or ""):
+            admin_connector.execute_command(f"DROP DB {TEST_DB}")
+    except Exception:
+        pass
+    
+    # Create the test database
+    admin_connector.execute_command(f"CREATE DB {TEST_DB}")
+    admin_connector.disconnect()
+    
+    # Now create a connector for the test database
+    connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD, TEST_DB)
+    connector.connect()
     
     # Create the service
     service = DictionaryService(connector)
@@ -43,12 +54,12 @@ def dict_service():
     
     # Clean up
     try:
-        if TEST_DB in (connector.execute_command("LIST") or ""):
-            connector.execute_command(f"DROP DB {TEST_DB}")
+        connector.disconnect()
+        admin_connector.connect()
+        admin_connector.execute_command(f"DROP DB {TEST_DB}")
+        admin_connector.disconnect()
     except Exception:
         pass
-    
-    connector.disconnect()
 
 
 class TestDictionaryService:

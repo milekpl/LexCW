@@ -176,6 +176,133 @@ def get_corpus_stats():
         }), 500
 
 
+@corpus_bp.route('/stats/ui', methods=['GET'])
+def get_corpus_stats_ui():
+    """
+    Get corpus statistics and connection status for UI display with caching.
+    ---
+    tags:
+      - corpus
+    responses:
+      200:
+        description: Corpus statistics and connection status
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              description: Request success status
+            postgres_status:
+              type: object
+              properties:
+                connected:
+                  type: boolean
+                  description: PostgreSQL connection status
+                error:
+                  type: string
+                  description: Error message if connection failed
+            corpus_stats:
+              type: object
+              properties:
+                total_records:
+                  type: integer
+                  description: Total number of corpus records
+                avg_source_length:
+                  type: string
+                  description: Average source text length (formatted)
+                avg_target_length:
+                  type: string
+                  description: Average target text length (formatted)
+                last_updated:
+                  type: string
+                  description: Last update timestamp
+            cached:
+              type: boolean
+              description: Whether data was retrieved from cache
+    """
+    import json
+    from datetime import datetime
+    from ..services.cache_service import CacheService
+    
+    postgres_status = {'connected': False, 'error': None}
+    corpus_stats = {
+        'total_records': 0,
+        'avg_source_length': '0.00',
+        'avg_target_length': '0.00',
+        'last_updated': 'N/A'
+    }
+    
+    # Try to get cached corpus stats first
+    cache = CacheService()
+    if cache.is_available():
+        cached_stats = cache.get('corpus_stats')
+        if cached_stats:
+            try:
+                stats_data = json.loads(cached_stats)
+                postgres_status['connected'] = True
+                
+                # Use cached data
+                corpus_stats.update(stats_data)
+                
+                current_app.logger.info("Using cached corpus stats for UI")
+                return jsonify({
+                    'success': True,
+                    'postgres_status': postgres_status,
+                    'corpus_stats': corpus_stats,
+                    'cached': True
+                })
+            except (json.JSONDecodeError, KeyError) as e:
+                current_app.logger.warning(f"Invalid cached corpus stats: {e}")
+    
+    # If no cache or cache miss, fetch fresh data
+    try:
+        postgres_config = _get_postgres_config()
+        migrator = CorpusMigrator(postgres_config)
+        
+        # Test connection by attempting to get stats
+        try:
+            stats = migrator.get_corpus_stats()
+            postgres_status['connected'] = True
+            
+            # Format stats for template
+            corpus_stats['total_records'] = stats.get('total_records', 0)
+            
+            avg_source_length = stats.get('avg_source_length')
+            corpus_stats['avg_source_length'] = f"{avg_source_length:.2f}" if avg_source_length else "0.00"
+            
+            avg_target_length = stats.get('avg_target_length')
+            corpus_stats['avg_target_length'] = f"{avg_target_length:.2f}" if avg_target_length else "0.00"
+
+            last_record = stats.get('last_record')
+            if isinstance(last_record, datetime):
+                corpus_stats['last_updated'] = last_record.strftime('%Y-%m-%d %H:%M:%S')
+            elif last_record:
+                corpus_stats['last_updated'] = str(last_record)
+            else:
+                corpus_stats['last_updated'] = 'N/A'
+            
+            # Cache the stats for 30 minutes (1800 seconds)
+            if cache.is_available():
+                cache.set('corpus_stats', json.dumps(corpus_stats), ttl=1800)
+                current_app.logger.info("Cached fresh corpus stats for 30 minutes")
+
+        except Exception as e:
+            current_app.logger.warning(f"Could not fetch corpus statistics: {e}")
+            postgres_status['connected'] = False
+            postgres_status['error'] = f"Could not fetch stats: {e}"
+            
+    except Exception as e:
+        current_app.logger.error(f"PostgreSQL connection error: {e}")
+        postgres_status['error'] = str(e)
+    
+    return jsonify({
+        'success': True,
+        'postgres_status': postgres_status,
+        'corpus_stats': corpus_stats,
+        'cached': False
+    })
+
+
 @corpus_bp.route('/cleanup', methods=['POST'])
 def cleanup_corpus():
     """Clean up corpus database - drop and recreate."""

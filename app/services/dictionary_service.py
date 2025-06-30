@@ -7,6 +7,7 @@ including CRUD operations for entries, searching, and other dictionary-related o
 
 import logging
 import os
+import sys
 import random
 from typing import Dict, List, Any, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
@@ -48,31 +49,35 @@ class DictionaryService:
         self._query_builder = XQueryBuilder()
         self._has_namespace = None  # Will be detected on first use
 
-        # Ensure the connector is connected
-        if not self.db_connector.is_connected():
-            try:
-                self.db_connector.connect()
-                self.logger.info("Connected to BaseX server")
-            except Exception as e:
-                self.logger.error("Failed to connect to BaseX server: %s", e, exc_info=True)
-                # Continue with initialization, other methods will handle connection errors
+        # Only connect and open database during non-test environments
+        if not (os.getenv('TESTING') == 'true' or 'pytest' in sys.modules):
+            # Ensure the connector is connected
+            if not self.db_connector.is_connected():
+                try:
+                    self.db_connector.connect()
+                    self.logger.info("Connected to BaseX server")
+                except Exception as e:
+                    self.logger.error("Failed to connect to BaseX server: %s", e, exc_info=True)
+                    # Continue with initialization, other methods will handle connection errors
 
-        try:
-            db_name = self.db_connector.database
-            if db_name and self.db_connector.is_connected():
-                # Check if DB exists before trying to open
-                if db_name in (self.db_connector.execute_command("LIST") or ""):
-                    self.db_connector.execute_update(f"OPEN {db_name}")
-                    self.logger.info("Successfully opened database '%s'", db_name)
-                else:
-                    self.logger.warning(
-                        "Database '%s' not found on BaseX server. "
-                        "Application will not function correctly until the database is initialized. "
-                        "Please run `scripts/import_lift.py --init`.",
-                        db_name,
-                    )
-        except Exception as e:
-            self.logger.error("Failed to open database on startup: %s", e, exc_info=True)
+            try:
+                db_name = self.db_connector.database
+                if db_name and self.db_connector.is_connected():
+                    # Check if DB exists before trying to open
+                    if db_name in (self.db_connector.execute_command("LIST") or ""):
+                        self.db_connector.execute_update(f"OPEN {db_name}")
+                        self.logger.info("Successfully opened database '%s'", db_name)
+                    else:
+                        self.logger.warning(
+                            "Database '%s' not found on BaseX server. "
+                            "Application will not function correctly until the database is initialized. "
+                            "Please run `scripts/import_lift.py --init`.",
+                            db_name,
+                        )
+            except Exception as e:
+                self.logger.error("Failed to open database on startup: %s", e, exc_info=True)
+        else:
+            self.logger.info("Skipping BaseX connection during tests")
 
     def _detect_namespace_usage(self) -> bool:
         """
@@ -176,28 +181,28 @@ class DictionaryService:
             # Drop the database if it exists, to ensure a clean start
             if db_name in (self.db_connector.execute_command("LIST") or ""):
                 self.logger.info("Dropping existing database: %s", db_name)
-                self.db_connector.execute_update(f"DROP DB {db_name}")
+                self.db_connector.execute_command(f"DROP DB {db_name}")
 
             # Create the database from the LIFT file
             self.logger.info("Creating new database '%s' from %s", db_name, lift_path)
             # Use forward slashes for paths in BaseX commands
             lift_path_basex = os.path.abspath(lift_path).replace('\\', '/')
             self.logger.info("Using absolute path: %s", lift_path_basex)
-            self.db_connector.execute_update(f'CREATE DB {db_name} "{lift_path_basex}"')
+            self.db_connector.execute_command(f'CREATE DB {db_name} "{lift_path_basex}"')
             
             # Now open the newly created database for subsequent operations
-            self.db_connector.execute_update(f"OPEN {db_name}")
+            self.db_connector.execute_command(f"OPEN {db_name}")
 
             # Load ranges file if provided and add it to the db
             if ranges_path and os.path.exists(ranges_path):
                 self.logger.info("Adding LIFT ranges file to database: %s", ranges_path)
                 ranges_path_basex = os.path.abspath(ranges_path).replace('\\', '/')
                 self.logger.info("Using absolute path for ranges: %s", ranges_path_basex)
-                self.db_connector.execute_update(f'ADD TO ranges.xml "{ranges_path_basex}"')
-                self.logger.info("LIFT ranges file added as ranges.xml")
+                self.db_connector.execute_command(f'ADD "{ranges_path_basex}"')
+                self.logger.info("LIFT ranges file added")
             else:
                 self.logger.warning("No LIFT ranges file provided. Creating empty ranges document.")
-                self.db_connector.execute_update('ADD TO ranges.xml "<lift-ranges/>"')
+                self.db_connector.execute_command('ADD TO ranges.xml "<lift-ranges/>"')
 
             self.logger.info("Database initialization complete")
 
@@ -233,7 +238,7 @@ class DictionaryService:
             return $entry
             """
             
-            result = self.db_connector.execute_lift_query(query, has_ns)
+            result = self.db_connector.execute_query(query)
             
             if not result:
                 raise NotFoundError(f"Entry not found: {entry_id}")
@@ -291,7 +296,7 @@ class DictionaryService:
             insert node {entry_xml} into collection('{db_name}')//{lift_path}
             """
             
-            self.db_connector.execute_update_lift(query, has_ns)
+            self.db_connector.execute_update(query)
             
             return entry.id
             
@@ -334,7 +339,7 @@ class DictionaryService:
             replace node collection('{db_name}')//{entry_path}[@id="{entry.id}"] with {entry_xml}
             """
             
-            self.db_connector.execute_update_lift(query, has_ns)
+            self.db_connector.execute_update(query)
             
         except (NotFoundError, ValidationError):
             raise
@@ -372,7 +377,7 @@ class DictionaryService:
             delete node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
             """
             
-            self.db_connector.execute_update_lift(query, has_ns)
+            self.db_connector.execute_update(query)
             return True
             
         except NotFoundError:
@@ -446,7 +451,7 @@ class DictionaryService:
             return $entry){pagination_expr}
             """
             
-            result = self.db_connector.execute_lift_query(query, has_ns)
+            result = self.db_connector.execute_query(query)
             
             if not result:
                 return [], total_count
@@ -505,7 +510,7 @@ class DictionaryService:
             # Get the total count first
             count_query = f"count(for $entry in collection('{db_name}')//{entry_path} where {search_condition} return $entry)"
             
-            count_result = self.db_connector.execute_lift_query(count_query, has_ns)
+            count_result = self.db_connector.execute_query(count_query)
             total_count = int(count_result) if count_result else 0
             
             # Use XQuery position-based pagination (like in list_entries) 
@@ -520,7 +525,7 @@ class DictionaryService:
             
             query_str = f"(for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form[1]/text return $entry){pagination_expr}"
             
-            result = self.db_connector.execute_lift_query(query_str, has_ns)
+            result = self.db_connector.execute_query(query_str)
             
             if not result:
                 return [], total_count
@@ -577,7 +582,7 @@ class DictionaryService:
             
             # Total senses
             sense_count_query = f"count(collection('{db_name}')//{sense_path})"
-            sense_count_result = self.db_connector.execute_lift_query(sense_count_query, has_ns)
+            sense_count_result = self.db_connector.execute_query(sense_count_query)
             stats["total_senses"] = int(sense_count_result) if sense_count_result else 0
             
             # Average senses per entry
@@ -588,7 +593,7 @@ class DictionaryService:
             
             # Language distribution
             lang_query = f"distinct-values(collection('{db_name}')//{entry_path}/lexical-unit/form/@lang)"
-            lang_result = self.db_connector.execute_lift_query(lang_query, has_ns)
+            lang_result = self.db_connector.execute_query(lang_query)
             if lang_result:
                 # Parse the result and count entries per language
                 languages = [lang.strip() for lang in lang_result.replace('"', '').split() if lang.strip()]
@@ -638,7 +643,7 @@ class DictionaryService:
             return $related
             """
             
-            result = self.db_connector.execute_lift_query(query, has_ns)
+            result = self.db_connector.execute_query(query)
             
             if not result:
                 return []
@@ -681,7 +686,7 @@ class DictionaryService:
             return $entry
             """
 
-            result = self.db_connector.execute_lift_query(query, has_ns)
+            result = self.db_connector.execute_query(query)
 
             if not result:
                 return []
@@ -712,7 +717,7 @@ class DictionaryService:
             entry_path = self._query_builder.get_element_path("entry", has_ns)
             
             query = f"count(collection('{db_name}')//{entry_path})"
-            result = self.db_connector.execute_lift_query(query, has_ns)
+            result = self.db_connector.execute_query(query)
             
             return int(result) if result else 0
             
@@ -741,11 +746,11 @@ class DictionaryService:
             example_path = self._query_builder.get_element_path("example", has_ns)
             
             sense_query = f"count(collection('{db_name}')//{sense_path})"
-            sense_result = self.db_connector.execute_lift_query(sense_query, has_ns)
+            sense_result = self.db_connector.execute_query(sense_query)
             sense_count = int(sense_result) if sense_result else 0
             
             example_query = f"count(collection('{db_name}')//{example_path})"
-            example_result = self.db_connector.execute_lift_query(example_query, has_ns)
+            example_result = self.db_connector.execute_query(example_query)
             example_count = int(example_result) if example_result else 0
             
             return sense_count, example_count
@@ -779,7 +784,7 @@ class DictionaryService:
             temp_db_name = f"import_{os.path.basename(lift_path).replace('.', '_')}_{random.randint(1000, 9999)}"
             
             try:
-                self.db_connector.execute_update(f'CREATE DB {temp_db_name} "{lift_path_basex}"')
+                self.db_connector.execute_command(f'CREATE DB {temp_db_name} "{lift_path_basex}"')
                 
                 # Use namespace-aware queries
                 has_ns = self._detect_namespace_usage()
@@ -787,7 +792,7 @@ class DictionaryService:
                 lift_path_elem = self._query_builder.get_element_path("lift", has_ns)
                 
                 total_in_file_query = f"count(collection('{temp_db_name}')//{entry_path})"
-                total_count = int(self.db_connector.execute_lift_query(total_in_file_query, has_ns) or 0)
+                total_count = int(self.db_connector.execute_query(total_in_file_query) or 0)
 
                 update_query = f"""
                 let $source_entries := collection('{temp_db_name}')//{entry_path}
@@ -798,14 +803,14 @@ class DictionaryService:
                 then replace node $target_entry with $source_entry
                 else insert node $source_entry into collection('{self.db_connector.database}')//{lift_path_elem}
                 """
-                self.db_connector.execute_lift_query(update_query, has_ns)
+                self.db_connector.execute_query(update_query)
                 
                 self.logger.info("Imported/updated %d entries from LIFT file", total_count)
                 return total_count
 
             finally:
                 if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
-                    self.db_connector.execute_update(f"DROP DB {temp_db_name}")
+                    self.db_connector.execute_command(f"DROP DB {temp_db_name}")
 
         except Exception as e:
             self.logger.error("Error importing LIFT file: %s", str(e), exc_info=True)
@@ -825,9 +830,14 @@ class DictionaryService:
             db_name = self.db_connector.database
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            # Use BaseX command to export the database content
+            # First ensure we're using the correct database
+            self.db_connector.execute_command(f"OPEN {db_name}")
             
-            query = f"xquery collection('{db_name}')"
-            lift_xml = self.db_connector.execute_query(query)
+            # Use a simple approach - get the document directly
+            # BaseX stores documents with their original names, so we can try to get the LIFT root
+            lift_xml = self.db_connector.execute_query("/*")
             
             if not lift_xml:
                 self.logger.warning("No LIFT document found in the database. Returning empty LIFT structure.")
@@ -1093,7 +1103,7 @@ class DictionaryService:
             
             query = f"count(collection('{db_name}')//{entry_path}{filter_expr})"
             
-            result = self.db_connector.execute_lift_query(query, has_ns)
+            result = self.db_connector.execute_query(query)
             
             return int(result) if result else 0
             

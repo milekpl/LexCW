@@ -59,6 +59,16 @@ def search_entries():
         limit = request.args.get('limit', 100, type=int)
         offset = request.args.get('offset', 0, type=int)
         
+        # Validate input parameters
+        if not query.strip():
+            return jsonify({'error': 'Query parameter is required and cannot be empty'}), 400
+        
+        if limit < 0:
+            return jsonify({'error': 'Limit must be non-negative'}), 400
+            
+        if offset < 0:
+            return jsonify({'error': 'Offset must be non-negative'}), 400
+        
         # Parse fields
         fields = [field.strip() for field in fields_str.split(',') if field.strip()]
         
