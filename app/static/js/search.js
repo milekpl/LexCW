@@ -129,25 +129,25 @@ function performSearch(page = 1) {
             console.log('Search API response:', data); // Debug logging
             document.getElementById('search-loading').style.display = 'none';
             
-            if (data.results.length === 0) {
+            if (data.entries.length === 0) {
                 document.getElementById('search-no-results').style.display = 'block';
                 document.getElementById('results-pagination').style.display = 'none';
                 return;
             }
             
             // Display results
-            console.log('Displaying results:', data.results); // Debug logging
-            displaySearchResults(data.results);
+            console.log('Displaying results:', data.entries); // Debug logging
+            displaySearchResults(data.entries);
             document.getElementById('search-results').style.display = 'block';
             
             // Update pagination
-            updatePagination(data.total_count, limit, page);
-            document.getElementById('results-count').textContent = `${data.total_count} results found`;
+            updatePagination(data.total, limit, page);
+            document.getElementById('results-count').textContent = `${data.total} results found`;
             document.getElementById('results-pagination').style.display = 'block';
             
             // Update search results header
             document.getElementById('search-results-header').textContent = 
-                `Search Results for "${query}" (${data.total_count} results)`;
+                `Search Results for "${query}" (${data.total} results)`;
                 
             // Add to recent searches
             addRecentSearch(query);

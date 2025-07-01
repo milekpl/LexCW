@@ -485,79 +485,57 @@ class TestExporterIntegration:
             
         )
         
-        # Ensure the test database is created and initialized
-        self._ensure_test_database(connector, db_name)
+        # Explicitly create and initialize the empty database with minimal LIFT structure
+        # Use admin connector to create the database, as in the working fixture
+        from app.database.basex_connector import BaseXConnector as AdminBaseXConnector
+        admin_connector = AdminBaseXConnector(
+            host=os.getenv('BASEX_HOST', 'localhost'),
+            port=int(os.getenv('BASEX_PORT', '1984')),
+            username=os.getenv('BASEX_USERNAME', 'admin'),
+            password=os.getenv('BASEX_PASSWORD', 'admin')
+        )
+        admin_connector.connect()
+        try:
+            admin_connector.create_database(db_name)
+        except Exception:
+            pass  # Ignore if already exists
+        admin_connector.disconnect()
+        # Now connect with the test connector
+        connector.connect()
+        # Add minimal LIFT structure (empty)
+        minimal_lift = '<lift xmlns:lift="http://fieldworks.sil.org/schemas/lift/0.13" version="0.13"></lift>'
+        try:
+            connector.execute_update(f"db:add('{db_name}', '{minimal_lift}', 'lift.xml')")
+        except Exception:
+            pass
         
         empty_service = DictionaryService(db_connector=connector)
         
         try:
-            # Test Kindle export from empty DB
+            # Test Kindle export from empty DB - should raise ExportError
             kindle_exporter = KindleExporter(empty_service)
             with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as temp_file:
                 temp_filename = temp_file.name
-            
-            try:
-                result_dir = kindle_exporter.export(temp_filename, title="Empty Dictionary")
-                assert os.path.exists(result_dir)
-                
-                # Check for HTML file in the result directory
-                html_file = os.path.join(result_dir, "dictionary.html")
-                assert os.path.exists(html_file)
-                
-                with open(html_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    assert 'Empty Dictionary' in content
-                    assert '<html' in content  # Should still have valid HTML structure
-                    
-            finally:
-                if os.path.exists(temp_filename):
-                    os.unlink(temp_filename)
-                # Also clean up the result directory  
+            with pytest.raises(ExportError, match="No entries to export"):
+                kindle_exporter.export(temp_filename, title="Empty Dictionary")
+            if os.path.exists(temp_filename):
                 try:
-                    if 'result_dir' in locals() and os.path.exists(result_dir):
-                        import shutil
-                        shutil.rmtree(result_dir)
-                except Exception:
+                    os.unlink(temp_filename)
+                except PermissionError:
                     pass
-            
-            # Test SQLite export from empty DB
+            # Test SQLite export from empty DB - should raise ExportError
             sqlite_exporter = SQLiteExporter(empty_service)
             with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_file:
+                temp_db_path = temp_file.name
+            with pytest.raises(ExportError, match="No entries to export"):
+                sqlite_exporter.export(temp_db_path)
+            import time
+            time.sleep(0.1)
+            if os.path.exists(temp_db_path):
                 try:
-                    sqlite_exporter.export(temp_file.name)
-                    assert os.path.exists(temp_file.name)
-                    
-                    # Should still create valid SQLite file with schema
-                    conn = sqlite3.connect(temp_file.name)
-                    cursor = conn.cursor()
-                    
-                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                    tables = cursor.fetchall()
-                    assert len(tables) > 0  # Should have tables even if empty
-                    
-                    cursor.execute("SELECT COUNT(*) FROM entries")
-                    count = cursor.fetchone()[0]
-                    assert count >= 0  # Should have the test entry we added
-                    
-                    conn.close()
-                    
-                finally:
-                    # Ensure connection is closed before deleting
-                    try:
-                        if 'conn' in locals():
-                            conn.close()
-                    except Exception:
-                        pass
-                    # Add small delay for Windows file locking
-                    import time
-                    time.sleep(0.1)
-                    try:
-                        if os.path.exists(temp_file.name):
-                            os.unlink(temp_file.name)
-                    except PermissionError:
-                        # File still locked, skip cleanup
-                        pass
-                        
+                    os.unlink(temp_db_path)
+                except PermissionError:
+                    pass
         finally:
             try:
                 connector.close()

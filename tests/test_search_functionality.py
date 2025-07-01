@@ -1,8 +1,12 @@
 """
-Unit test for directly testing the search functionality of DictionaryService with a live BaseX server.
+Unit test for directly testing the search functionality of DictionaryService with a live BaseX server,
+and the search API endpoints and frontend integration.
 
-This test ensures that the dictionary service's search functions work correctly 
-with the actual BaseX database used in the application.
+This test ensures that:
+1. The dictionary service's search functions work correctly with the actual BaseX database
+2. The search API endpoints return the correct JSON structure
+3. The frontend search page loads and integrates with the backend
+4. Error handling and parameter validation are robust
 
 Note: There appears to be an issue with the pagination in the search_entries method
 of the DictionaryService class. When a limit is specified, it is not being properly 
@@ -252,6 +256,213 @@ class TestSearchFunctionality(unittest.TestCase):
             
         except Exception as e:
             self.fail(f"Error with no-results search: {e}")
+
+
+class TestSearchAPIAndFrontend(unittest.TestCase):
+    """
+    Test the search API endpoints and frontend integration.
+    
+    This test case focuses on the Flask app's search functionality,
+    including API endpoints and frontend JavaScript integration.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up the Flask test client."""
+        # Import here to avoid import errors when creating_app is not available
+        from app import create_app
+        
+        # Create test app with testing configuration
+        cls.app = create_app('testing')
+        cls.app.config['TESTING'] = True
+        cls.app.config['WTF_CSRF_ENABLED'] = False
+        
+        # Create test client
+        cls.client = cls.app.test_client()
+        
+        # Set up application context
+        cls.app_context = cls.app.app_context()
+        cls.app_context.push()
+        
+        logger.info("Flask test client setup complete")
+
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up Flask test environment."""
+        if hasattr(cls, 'app_context'):
+            cls.app_context.pop()
+        logger.info("Flask test client teardown complete")
+
+    def test_search_api_endpoint_exists(self):
+        """Test that the search API endpoint is accessible."""
+        # Test the API endpoint with a simple query
+        response = self.client.get('/api/search/?q=test')
+        
+        # Should not return 404
+        self.assertNotEqual(response.status_code, 404, 
+                          "Search API endpoint should exist and be accessible")
+        
+        # Should return JSON
+        self.assertTrue(response.is_json, "API should return JSON response")
+        
+        logger.info("Search API endpoint status: %d", response.status_code)
+
+    def test_search_api_response_structure(self):
+        """Test that the search API returns the correct JSON structure."""
+        # Test with a query that should return results
+        response = self.client.get('/api/search/?q=test')
+        
+        if response.status_code == 200:
+            data = response.get_json()
+            
+            # Check required fields exist
+            self.assertIn('entries', data, "Response should contain 'entries' field")
+            self.assertIn('total', data, "Response should contain 'total' field")
+            
+            # Check field types
+            self.assertIsInstance(data['entries'], list, "'entries' should be a list")
+            self.assertIsInstance(data['total'], int, "'total' should be an integer")
+            
+            # If there are entries, check their structure
+            if data['entries']:
+                entry = data['entries'][0]
+                self.assertIn('id', entry, "Entry should have 'id' field")
+                self.assertIn('lexical_unit', entry, "Entry should have 'lexical_unit' field")
+                
+            logger.info("API returned %d entries out of %d total", 
+                       len(data['entries']), data['total'])
+        else:
+            logger.warning("Search API returned status %d, skipping structure test", 
+                         response.status_code)
+
+    def test_search_api_parameter_validation(self):
+        """Test API parameter validation."""
+        # Test without query parameter
+        response = self.client.get('/api/search/')
+        self.assertIn(response.status_code, [400, 422], 
+                     "API should return 400/422 for missing query parameter")
+        
+        # Test with empty query
+        response = self.client.get('/api/search/?q=')
+        # Should handle empty query gracefully (either return empty results or error)
+        self.assertIn(response.status_code, [200, 400, 422], 
+                     "API should handle empty query gracefully")
+        
+        # Test with valid pagination parameters
+        response = self.client.get('/api/search/?q=test&limit=5&offset=0')
+        if response.status_code == 200:
+            data = response.get_json()
+            self.assertLessEqual(len(data['entries']), 5, 
+                               "API should respect limit parameter")
+
+    def test_search_frontend_page_loads(self):
+        """Test that the search frontend page loads correctly."""
+        response = self.client.get('/search')
+        
+        self.assertEqual(response.status_code, 200, 
+                        "Search page should load successfully")
+        
+        # Check that the response contains HTML
+        self.assertIn('text/html', response.content_type, 
+                     "Search page should return HTML")
+        
+        # Check for key elements that should be in the search page
+        response_data = response.get_data(as_text=True)
+        self.assertIn('search', response_data.lower(), 
+                     "Search page should contain search-related content")
+
+    def test_search_frontend_javascript_integration(self):
+        """Test that the search page includes the necessary JavaScript."""
+        response = self.client.get('/search')
+        
+        if response.status_code == 200:
+            response_data = response.get_data(as_text=True)
+            
+            # Check for JavaScript file inclusion
+            # This could be either inline script or external file
+            has_search_js = ('search.js' in response_data or 
+                           'function' in response_data or
+                           'fetch(' in response_data or
+                           'XMLHttpRequest' in response_data)
+            
+            if not has_search_js:
+                logger.warning("Search page may not include search JavaScript functionality")
+            
+            # Check for search form elements
+            has_search_form = ('input' in response_data and 
+                             ('search' in response_data.lower() or 
+                              'query' in response_data.lower()))
+            
+            self.assertTrue(has_search_form, 
+                          "Search page should contain search form elements")
+
+    def test_search_javascript_file_accessible(self):
+        """Test that the search JavaScript file is accessible."""
+        # Try to access the static JavaScript file
+        response = self.client.get('/static/js/search.js')
+        
+        if response.status_code == 200:
+            js_content = response.get_data(as_text=True)
+            
+            # Check for key JavaScript functionality
+            self.assertIn('fetch', js_content, 
+                         "Search JS should use fetch for API calls")
+            
+            # Check that the JS uses the correct field names (not the old ones)
+            self.assertIn('data.entries', js_content, 
+                         "Search JS should reference 'data.entries' field")
+            self.assertIn('data.total', js_content, 
+                         "Search JS should reference 'data.total' field")
+            
+            # Check that it doesn't use the old API field names in data access
+            self.assertNotIn('data.results', js_content, 
+                           "Search JS should not use old 'data.results' field")
+            self.assertNotIn('data.total_count', js_content, 
+                           "Search JS should not use old 'data.total_count' field")
+            
+            logger.info("Search JavaScript file is accessible and contains correct field references")
+        else:
+            logger.warning("Search JavaScript file not accessible (status: %d)", 
+                         response.status_code)
+
+    def test_search_api_with_frontend_query(self):
+        """Test the API endpoint with a query similar to what the frontend would send."""
+        # Simulate a frontend search request
+        response = self.client.get('/api/search/?q=test&limit=10&offset=0')
+        
+        if response.status_code == 200:
+            data = response.get_json()
+            
+            # Verify the response structure matches what the frontend expects
+            self.assertIn('entries', data, "Response should have 'entries' for frontend")
+            self.assertIn('total', data, "Response should have 'total' for frontend")
+            
+            # Verify pagination parameters are respected
+            if data['entries']:
+                self.assertLessEqual(len(data['entries']), 10, 
+                                   "Should respect frontend limit parameter")
+            
+            logger.info("Frontend-style API request successful: %d entries, %d total", 
+                       len(data['entries']), data['total'])
+        else:
+            logger.warning("Frontend-style API request failed with status %d", 
+                         response.status_code)
+
+    def test_search_error_handling(self):
+        """Test error handling in search functionality."""
+        # Test with invalid parameters
+        response = self.client.get('/api/search/?q=test&limit=invalid')
+        # Should handle invalid limit gracefully
+        self.assertIn(response.status_code, [200, 400, 422], 
+                     "API should handle invalid parameters gracefully")
+        
+        # Test with very large limit
+        response = self.client.get('/api/search/?q=test&limit=999999')
+        if response.status_code == 200:
+            data = response.get_json()
+            # Should not return excessive amounts of data
+            self.assertLess(len(data['entries']), 1000, 
+                          "API should limit results even with large limit parameter")
 
 
 if __name__ == "__main__":

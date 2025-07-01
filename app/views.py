@@ -16,8 +16,9 @@ from app.database.postgresql_connector import PostgreSQLConfig
 from app.database.corpus_migrator import CorpusMigrator
 from app import injector
 
-# Create blueprint
+# Create blueprints
 main_bp = Blueprint('main', __name__)
+workbench_bp = Blueprint('workbench', __name__, url_prefix='/workbench')
 logger = logging.getLogger(__name__)
 
 
@@ -770,6 +771,40 @@ def api_test_search():
     except Exception as e:
         logger.error(f"Error testing search: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+# Workbench Routes
+@workbench_bp.route('/query-builder')
+def query_builder():
+    """Render the dynamic query builder interface."""
+    try:
+        return render_template('workbench/query_builder.html')
+    except Exception as e:
+        logger.error(f"Error rendering query builder: {e}")
+        return render_template('error.html', 
+                             error_message="Failed to load query builder"), 500
+
+
+@workbench_bp.route('/worksets')
+def worksets():
+    """Render the workset management interface."""
+    try:
+        return render_template('workbench/worksets.html')
+    except Exception as e:
+        logger.error(f"Error rendering worksets: {e}")
+        return render_template('error.html', 
+                             error_message="Failed to load worksets"), 500
+
+
+@workbench_bp.route('/bulk-operations')
+def bulk_operations():
+    """Render the bulk operations interface."""
+    try:
+        return render_template('workbench/bulk_operations.html')
+    except Exception as e:
+        logger.error(f"Error rendering bulk operations: {e}")
+        return render_template('error.html', 
+                             error_message="Failed to load bulk operations"), 500
 
 
 

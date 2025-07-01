@@ -108,6 +108,18 @@ def create_app(config_name=None):
     from app.routes.corpus_routes import corpus_bp
     app.register_blueprint(corpus_bp)
     
+    from app.api.worksets import worksets_bp
+    app.register_blueprint(worksets_bp)
+    
+    from app.api.query_builder import query_builder_bp
+    app.register_blueprint(query_builder_bp)
+    
+    from app.views import workbench_bp
+    app.register_blueprint(workbench_bp)
+    
+    from app.api.search import search_bp
+    app.register_blueprint(search_bp, url_prefix='/api/search')
+    
     # Initialize Swagger documentation
     swagger_config = {
         "headers": [],

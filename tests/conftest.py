@@ -260,6 +260,18 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     from app.views import main_bp
     app.register_blueprint(main_bp)
     
+    # Register the worksets blueprint
+    from app.api.worksets import worksets_bp
+    app.register_blueprint(worksets_bp)
+    
+    # Register the query builder blueprint
+    from app.api.query_builder import query_builder_bp
+    app.register_blueprint(query_builder_bp)
+    
+    # Register the workbench views blueprint
+    from app.views import workbench_bp
+    app.register_blueprint(workbench_bp)
+    
     # Attach the test dictionary service (use the same instance as dict_service_with_db)
     app.dict_service = dict_service_with_db  # type: ignore
     app.dict_service_with_db = dict_service_with_db  # type: ignore - alias for compatibility
