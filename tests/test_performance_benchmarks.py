@@ -39,25 +39,37 @@ class TestPerformanceBenchmarks:
         
         test_db_name = f"test_performance_{uuid.uuid4().hex[:8]}"
         
-        # Create test database connection
-        connector = BaseXConnector(
+        # First create connector without database to ensure test db exists
+        temp_connector = BaseXConnector(
             host=os.getenv('BASEX_HOST', 'localhost'),
             port=int(os.getenv('BASEX_PORT', '1984')),
             username=os.getenv('BASEX_USERNAME', 'admin'),
             password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database=test_db_name
+            database=None  # No database initially
         )
         
+        connector = None
         try:
+            temp_connector.connect()
+            ensure_test_database(temp_connector, test_db_name)
+            temp_connector.disconnect()
+            
+            # Now create connector with the test database
+            connector = BaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin'),
+                database=test_db_name
+            )
             connector.connect()
-            ensure_test_database(connector, test_db_name)
             
             service = DictionaryService(db_connector=connector)
             yield service
         finally:
             # Cleanup
             try:
-                if connector.session:
+                if connector and connector.is_connected():
                     connector.drop_database(test_db_name)
                     connector.disconnect()
             except Exception:

@@ -259,33 +259,37 @@ class TestSQLiteToPostgreSQLMigration:
         assert migrator.validate_sqlite_schema(comprehensive_sqlite_data)
         
         # Test with invalid schema
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        temp_file.close()
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as temp_file:
+            temp_db_path = temp_file.name
         
-        conn = sqlite3.connect(temp_file.name)
-        cursor = conn.cursor()
-        
-        # Create incomplete schema (missing examples table)
-        cursor.execute("""
-            CREATE TABLE entries (
-                id TEXT PRIMARY KEY,
-                headword TEXT NOT NULL
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE senses (
-                id TEXT PRIMARY KEY,
-                entry_id TEXT NOT NULL
-            )
-        """)
-        conn.commit()
-        conn.close()
-        
-        # Should fail validation
-        assert not migrator.validate_sqlite_schema(temp_file.name)
-        
-        # Cleanup
-        os.unlink(temp_file.name)
+        try:
+            # Use context manager to ensure proper connection closure
+            with sqlite3.connect(temp_db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Create incomplete schema (missing examples table)
+                cursor.execute("""
+                    CREATE TABLE entries (
+                        id TEXT PRIMARY KEY,
+                        headword TEXT NOT NULL
+                    )
+                """)
+                cursor.execute("""
+                    CREATE TABLE senses (
+                        id TEXT PRIMARY KEY,
+                        entry_id TEXT NOT NULL
+                    )
+                """)
+                conn.commit()
+            
+            # Should fail validation
+            assert not migrator.validate_sqlite_schema(temp_db_path)
+        finally:
+            # Cleanup - ensure file is deleted even if test fails
+            try:
+                os.unlink(temp_db_path)
+            except (FileNotFoundError, PermissionError):
+                pass  # Ignore cleanup errors
     
     def test_data_transformation(self, migrator: SQLiteToPostgreSQLMigrator):
         """Test data transformation for PostgreSQL compatibility."""
@@ -526,105 +530,105 @@ class TestSQLiteToPostgreSQLMigration:
         import string
         
         # Create larger SQLite database
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        temp_file.close()
-        
-        conn = sqlite3.connect(temp_file.name)
-        cursor = conn.cursor()
-        
-        # Create schema
-        cursor.execute("""
-            CREATE TABLE entries (
-                id TEXT PRIMARY KEY,
-                headword TEXT NOT NULL,
-                pronunciation TEXT,
-                grammatical_info TEXT,
-                date_created TEXT,
-                date_modified TEXT,
-                custom_fields TEXT
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE senses (
-                id TEXT PRIMARY KEY,
-                entry_id TEXT NOT NULL,
-                definition TEXT,
-                grammatical_info TEXT,
-                custom_fields TEXT,
-                sort_order INTEGER,
-                FOREIGN KEY (entry_id) REFERENCES entries (id)
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE examples (
-                id TEXT PRIMARY KEY,
-                sense_id TEXT NOT NULL,
-                text TEXT NOT NULL,
-                translation TEXT,
-                custom_fields TEXT,
-                sort_order INTEGER,
-                FOREIGN KEY (sense_id) REFERENCES senses (id)
-            )
-        """)
-        
-        # Generate test data
-        num_entries = 500
-        now = datetime.now().isoformat()
-        
-        print(f"Generating {num_entries} entries for performance test...")
-        
-        # Insert entries
-        for i in range(num_entries):
-            entry_id = f'perf_entry_{i:04d}'
-            headword = ''.join(random.choices(string.ascii_lowercase, k=random.randint(3, 12)))
-            pronunciation = f'/{headword}/'
-            grammatical_info = json.dumps({
-                'type': random.choice(['noun', 'verb', 'adjective', 'adverb']),
-                'complexity': random.randint(1, 5)
-            })
-            custom_fields = json.dumps({
-                'frequency': random.randint(1, 10000),
-                'tags': random.sample(['common', 'rare', 'technical', 'colloquial'], k=2)
-            })
-            
-            cursor.execute("""
-                INSERT INTO entries (id, headword, pronunciation, grammatical_info,
-                                   date_created, date_modified, custom_fields)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (entry_id, headword, pronunciation, grammatical_info, now, now, custom_fields))
-            
-            # Add 1-3 senses per entry
-            num_senses = random.randint(1, 3)
-            for j in range(num_senses):
-                sense_id = f'perf_sense_{i:04d}_{j}'
-                definition = f'Definition {j+1} for {headword}'
-                
-                cursor.execute("""
-                    INSERT INTO senses (id, entry_id, definition, sort_order)
-                    VALUES (?, ?, ?, ?)
-                """, (sense_id, entry_id, definition, j))
-                
-                # Add 0-2 examples per sense
-                num_examples = random.randint(0, 2)
-                for k in range(num_examples):
-                    example_id = f'perf_example_{i:04d}_{j}_{k}'
-                    text = f'Example {k+1} for sense {j+1} of {headword}'
-                    translation = f'Przykład {k+1} dla znaczenia {j+1} słowa {headword}'
-                    
-                    cursor.execute("""
-                        INSERT INTO examples (id, sense_id, text, translation, sort_order)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (example_id, sense_id, text, translation, k))
-        
-        conn.commit()
-        conn.close()
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as temp_file:
+            temp_db_path = temp_file.name
         
         try:
+            # Use context manager to ensure proper connection closure
+            with sqlite3.connect(temp_db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Create schema
+                cursor.execute("""
+                    CREATE TABLE entries (
+                        id TEXT PRIMARY KEY,
+                        headword TEXT NOT NULL,
+                        pronunciation TEXT,
+                        grammatical_info TEXT,
+                        date_created TEXT,
+                        date_modified TEXT,
+                        custom_fields TEXT
+                    )
+                """)
+                
+                cursor.execute("""
+                    CREATE TABLE senses (
+                        id TEXT PRIMARY KEY,
+                        entry_id TEXT NOT NULL,
+                        definition TEXT,
+                        grammatical_info TEXT,
+                        custom_fields TEXT,
+                        sort_order INTEGER,
+                        FOREIGN KEY (entry_id) REFERENCES entries (id)
+                    )
+                """)
+                
+                cursor.execute("""
+                    CREATE TABLE examples (
+                        id TEXT PRIMARY KEY,
+                        sense_id TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        translation TEXT,
+                        custom_fields TEXT,
+                        sort_order INTEGER,
+                        FOREIGN KEY (sense_id) REFERENCES senses (id)
+                    )
+                """)
+                
+                # Generate test data
+                num_entries = 500
+                now = datetime.now().isoformat()
+                
+                print(f"Generating {num_entries} entries for performance test...")
+                
+                # Insert entries
+                for i in range(num_entries):
+                    entry_id = f'perf_entry_{i:04d}'
+                    headword = ''.join(random.choices(string.ascii_lowercase, k=random.randint(3, 12)))
+                    pronunciation = f'/{headword}/'
+                    grammatical_info = json.dumps({
+                        'type': random.choice(['noun', 'verb', 'adjective', 'adverb']),
+                        'complexity': random.randint(1, 5)
+                    })
+                    custom_fields = json.dumps({
+                        'frequency': random.randint(1, 10000),
+                        'tags': random.sample(['common', 'rare', 'technical', 'colloquial'], k=2)
+                    })
+                    
+                    cursor.execute("""
+                        INSERT INTO entries (id, headword, pronunciation, grammatical_info,
+                                           date_created, date_modified, custom_fields)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (entry_id, headword, pronunciation, grammatical_info, now, now, custom_fields))
+                    
+                    # Add 1-3 senses per entry
+                    num_senses = random.randint(1, 3)
+                    for j in range(num_senses):
+                        sense_id = f'perf_sense_{i:04d}_{j}'
+                        definition = f'Definition {j+1} for {headword}'
+                        
+                        cursor.execute("""
+                            INSERT INTO senses (id, entry_id, definition, sort_order)
+                            VALUES (?, ?, ?, ?)
+                        """, (sense_id, entry_id, definition, j))
+                        
+                        # Add 0-2 examples per sense
+                        num_examples = random.randint(0, 2)
+                        for k in range(num_examples):
+                            example_id = f'perf_example_{i:04d}_{j}_{k}'
+                            text = f'Example {k+1} for sense {j+1} of {headword}'
+                            translation = f'Przykład {k+1} dla znaczenia {j+1} słowa {headword}'
+                            
+                            cursor.execute("""
+                                INSERT INTO examples (id, sense_id, text, translation, sort_order)
+                                VALUES (?, ?, ?, ?, ?)
+                            """, (example_id, sense_id, text, translation, k))
+                
+                conn.commit()
+            
             # Perform timed migration
             start_time = time.time()
-            stats = migrator.migrate_database(temp_file.name, validate_integrity=True)
+            stats = migrator.migrate_database(temp_db_path, validate_integrity=True)
             migration_time = time.time() - start_time
             
             print(f"Migration completed in {migration_time:.2f} seconds")
@@ -656,8 +660,11 @@ class TestSQLiteToPostgreSQLMigration:
             assert query_time < 5.0  # Complex query should be fast
             
         finally:
-            # Cleanup
-            os.unlink(temp_file.name)
+            # Cleanup - ensure file is deleted even if test fails
+            try:
+                os.unlink(temp_db_path)
+            except (FileNotFoundError, PermissionError):
+                pass  # Ignore cleanup errors
     
     def test_migration_error_handling(self, migrator: SQLiteToPostgreSQLMigrator, 
                                     clean_postgres_tables):
@@ -667,15 +674,19 @@ class TestSQLiteToPostgreSQLMigration:
             migrator.migrate_database('/non/existent/file.db')
         
         # Test with invalid SQLite file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        temp_file.write(b'this is not a valid sqlite file')
-        temp_file.close()
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as temp_file:
+            temp_file.write(b'this is not a valid sqlite file')
+            temp_db_path = temp_file.name
         
         try:
             with pytest.raises(ValidationError):
-                migrator.migrate_database(temp_file.name)
+                migrator.migrate_database(temp_db_path)
         finally:
-            os.unlink(temp_file.name)
+            # Cleanup - ensure file is deleted even if test fails
+            try:
+                os.unlink(temp_db_path)
+            except (FileNotFoundError, PermissionError):
+                pass  # Ignore cleanup errors
 
 
 if __name__ == '__main__':

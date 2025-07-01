@@ -29,7 +29,7 @@ from flask.testing import FlaskClient
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="function")  # Changed from session to function to force re-evaluation
+@pytest.fixture(scope="class")  # Changed to class scope to match search_service fixture
 def basex_available() -> bool:
     """Check if BaseX server is available."""
     try:

@@ -306,9 +306,9 @@ class SQLiteExporter(BaseExporter):
             )
             
             # Insert variant forms
-            for variant in entry.variant_forms:
-                if source_lang in variant.get('form', {}):
-                    variant_form = variant['form'][source_lang]
+            for variant in entry.variants:
+                if hasattr(variant, 'form') and hasattr(variant.form, 'lang') and variant.form.lang == source_lang:
+                    variant_form = variant.form.text
                     cursor.execute(
                         "INSERT INTO variant_forms (entry_id, form) VALUES (?, ?)",
                         (entry.id, variant_form)

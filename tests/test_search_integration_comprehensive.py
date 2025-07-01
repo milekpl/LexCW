@@ -26,7 +26,7 @@ class TestSearchIntegrationComprehensive:
     """Comprehensive tests for search integration functionality."""
     
     @pytest.fixture(scope="class")
-    def search_service(self, basex_available: bool) -> DictionaryService:
+    def search_service(self, basex_available: bool):
         """Get dictionary service instance for search testing."""
         if not basex_available:
             pytest.skip("BaseX server not available")
@@ -36,18 +36,30 @@ class TestSearchIntegrationComprehensive:
         
         test_db_name = f"test_search_{uuid.uuid4().hex[:8]}"
         
-        connector = BaseXConnector(
+        # First create connector without database to ensure test db exists
+        temp_connector = BaseXConnector(
             host=os.getenv('BASEX_HOST', 'localhost'),
             port=int(os.getenv('BASEX_PORT', '1984')),
             username=os.getenv('BASEX_USERNAME', 'admin'),
             password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database=test_db_name
+            database=None  # No database initially
         )
         
+        connector = None
         try:
-            connector.connect()
-            ensure_test_database(connector, test_db_name)
+            temp_connector.connect()
+            ensure_test_database(temp_connector, test_db_name)
+            temp_connector.disconnect()
             
+            # Now create connector with the test database
+            connector = BaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin'),
+                database=test_db_name
+            )
+            connector.connect()
             service = DictionaryService(db_connector=connector)
             
             # Create test entries for search
@@ -100,7 +112,7 @@ class TestSearchIntegrationComprehensive:
             
         finally:
             try:
-                if connector.session:
+                if connector and connector.is_connected():
                     connector.drop_database(test_db_name)
                     connector.disconnect()
             except Exception:
@@ -188,15 +200,15 @@ class TestSearchIntegrationComprehensive:
         
         for page_size in page_sizes:
             try:
-                results, total = search_service.search_entries("test", page=1, page_size=page_size)
+                results, total = search_service.search_entries("test", limit=page_size, offset=0)
                 
-                assert total >= 0, f"Search with page_size={page_size} should return valid count"
-                assert len(results) <= page_size, f"Results should not exceed page_size={page_size}"
+                assert total >= 0, f"Search with limit={page_size} should return valid count"
+                assert len(results) <= page_size, f"Results should not exceed limit={page_size}"
                 
                 print(f"Page size {page_size}: {len(results)} results, {total} total")
                 
             except Exception as e:
-                print(f"Pagination test failed for page_size={page_size}: {e}")
+                print(f"Pagination test failed for limit={page_size}: {e}")
     
     def test_search_special_characters(self, search_service: DictionaryService) -> None:
         """Test search with special characters and unicode."""
@@ -288,7 +300,7 @@ class TestXQueryBuilderComprehensive:
         
         for term in special_terms:
             try:
-                query = builder.build_search_query(term)
+                query = builder.build_search_query(term, "test_db")
                 assert isinstance(query, str), f"Should handle special characters in '{term}'"
                 assert len(query) > 0, f"Query should not be empty for '{term}'"
                 
@@ -303,21 +315,21 @@ class TestXQueryBuilderComprehensive:
         
         # Test pagination in search queries
         page_params = [
-            (1, 10),
-            (2, 20),
-            (5, 5),
+            (10, 0),
+            (20, 20),
+            (5, 10),
         ]
         
-        for page, page_size in page_params:
+        for limit, offset in page_params:
             try:
-                query = builder.build_search_query("test", page=page, page_size=page_size)
-                assert isinstance(query, str), f"Should handle pagination {page}, {page_size}"
-                assert len(query) > 0, f"Query should not be empty for pagination {page}, {page_size}"
+                query = builder.build_search_query("test", "test_db", limit=limit, offset=offset)
+                assert isinstance(query, str), f"Should handle pagination limit={limit}, offset={offset}"
+                assert len(query) > 0, f"Query should not be empty for limit={limit}, offset={offset}"
                 
-                print(f"Pagination query (page={page}, size={page_size}): OK")
+                print(f"Pagination query (limit={limit}, offset={offset}): OK")
                 
             except Exception as e:
-                print(f"XQuery builder pagination failed for page={page}, size={page_size}: {e}")
+                print(f"XQuery builder pagination failed for limit={limit}, offset={offset}: {e}")
 
 
 class TestLIFTNamespaceManagerComprehensive:
