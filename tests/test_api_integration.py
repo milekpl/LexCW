@@ -205,7 +205,7 @@ class TestAPIIntegration:
         get_response_after = client.get('/api/entries/api_delete_test')
         assert get_response_after.status_code == 404
         
-    @pytest.mark.skip(reason="Search functionality needs investigation - BaseX XQuery issue")
+    # @pytest.mark.skip(reason="Search functionality needs investigation - BaseX XQuery issue")
     def test_api_search(self, client, dict_service_with_db):
         """Test GET /api/search - search entries."""
         # Create searchable entries
@@ -222,23 +222,30 @@ class TestAPIIntegration:
         )
         result = dict_service_with_db.create_entry(entry1)
         
-        # Test search
-        response = client.get('/api/search?q=searchable')
+        # Test search API
+        response = client.get('/api/search/?q=searchable')
         assert response.status_code == 200
         
         data = json.loads(response.data)
-        assert 'results' in data
+        assert 'entries' in data
+        assert isinstance(data['entries'], list)
         assert 'total' in data
-        assert isinstance(data['results'], list)
-        assert data['total'] >= 1
+        assert 'query' in data
+        assert 'fields' in data
         
-        # Find our test entry in results
-        found = False
-        for result in data['results']:
-            if result['id'] == 'search_test_1':
-                found = True
-                break
-        assert found, "Test entry not found in search results"
+        # The search should now find our entry
+        assert len(data['entries']) > 0, "Search should return results"
+        assert data['total'] > 0
+        assert data['query'] == 'searchable'
+        assert data['entries'][0]['id'] == 'search_test_1'
+        assert data['entries'][0]['lexical_unit']['en'] == 'searchable_word'
+        
+        # Verify entry structure
+        entry_data = data['entries'][0]
+        assert 'senses' in entry_data
+        assert len(entry_data['senses']) == 1
+        assert entry_data['senses'][0]['gloss'] == 'Searchable gloss'
+        assert entry_data['senses'][0]['definition'] == 'Searchable definition'
         
     def test_api_export_lift(self, client):
         """Test GET /api/export/lift - export LIFT format."""

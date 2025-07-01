@@ -109,7 +109,7 @@ class DictionaryService:
                 return True
             
             # Test for non-namespaced elements
-            test_query_no_ns = f"xquery exists(collection('{db_name}')//lift)"
+            test_query_no_ns = f"exists(collection('{db_name}')//lift)"
             result_no_ns = self.db_connector.execute_query(test_query_no_ns)
             if result_no_ns:
                 result_no_ns = result_no_ns.strip()
@@ -229,12 +229,7 @@ class DictionaryService:
 
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            
-            query = f"""
-            for $entry in collection('{db_name}')//{entry_path}[@id="{entry_id}"]
-            return $entry
-            """
+            query = self._query_builder.build_entry_by_id_query(entry_id, db_name, has_ns)
             
             result = self.db_connector.execute_query(query)
             
@@ -288,11 +283,7 @@ class DictionaryService:
             
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
-            lift_path = self._query_builder.get_element_path("lift", has_ns)
-            
-            query = f"""
-            insert node {entry_xml} into collection('{db_name}')//{lift_path}
-            """
+            query = self._query_builder.build_insert_entry_query(entry_xml, db_name, has_ns)
             
             self.db_connector.execute_update(query)
             
@@ -331,11 +322,7 @@ class DictionaryService:
             
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            
-            query = f"""
-            replace node collection('{db_name}')//{entry_path}[@id="{entry.id}"] with {entry_xml}
-            """
+            query = self._query_builder.build_update_entry_query(entry.id, entry_xml, db_name, has_ns)
             
             self.db_connector.execute_update(query)
             
@@ -369,11 +356,7 @@ class DictionaryService:
             
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            
-            query = f"""
-            delete node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
-            """
+            query = self._query_builder.build_delete_entry_query(entry_id, db_name, has_ns)
             
             self.db_connector.execute_update(query)
             return True
@@ -487,26 +470,37 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Build the search query conditions - use simpler patterns like count_entries
+            # Use namespace-aware queries
+            has_ns = self._detect_namespace_usage()
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+
+            # Build the search query conditions with namespace-aware paths
             conditions = []
             q_escaped = query.replace("'", "''")  # Escape single quotes for XQuery
             
             if "lexical_unit" in fields:
-                # Fix: Handle multiple form elements correctly
-                conditions.append(f"(some $form in $entry/lexical-unit/form/text satisfies contains(lower-case($form), '{q_escaped.lower()}'))")
+                # Use namespace-aware paths throughout
+                lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+                form_path = self._query_builder.get_element_path("form", has_ns)
+                text_path = self._query_builder.get_element_path("text", has_ns)
+                conditions.append(f"(some $form in $entry/{lexical_unit_path}/{form_path}/{text_path} satisfies contains(lower-case($form), '{q_escaped.lower()}'))")
             if "glosses" in fields:
-                conditions.append(f"(some $gloss in $entry/sense/gloss/text satisfies contains(lower-case($gloss), '{q_escaped.lower()}'))")
+                sense_path = self._query_builder.get_element_path("sense", has_ns)
+                gloss_path = self._query_builder.get_element_path("gloss", has_ns)
+                text_path = self._query_builder.get_element_path("text", has_ns)
+                conditions.append(f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies contains(lower-case($gloss), '{q_escaped.lower()}'))")
             if "definitions" in fields:
-                conditions.append(f"(some $def in $entry/sense/definition/form/text satisfies contains(lower-case($def), '{q_escaped.lower()}'))")
+                sense_path = self._query_builder.get_element_path("sense", has_ns)
+                definition_path = self._query_builder.get_element_path("definition", has_ns)
+                form_path = self._query_builder.get_element_path("form", has_ns)
+                text_path = self._query_builder.get_element_path("text", has_ns)
+                conditions.append(f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies contains(lower-case($def), '{q_escaped.lower()}'))")
             
             search_condition = " or ".join(conditions)
             
-            # Use namespace-aware queries
-            has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            
             # Get the total count first
-            count_query = f"count(for $entry in collection('{db_name}')//{entry_path} where {search_condition} return $entry)"
+            count_query = f"{prologue} count(for $entry in collection('{db_name}')//{entry_path} where {search_condition} return $entry)"
             
             count_result = self.db_connector.execute_query(count_query)
             total_count = int(count_result) if count_result else 0
@@ -521,7 +515,7 @@ class DictionaryService:
                 start = offset + 1
                 pagination_expr = f"[position() >= {start}]"
             
-            query_str = f"(for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form[1]/text return $entry){pagination_expr}"
+            query_str = f"{prologue} (for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form[1]/text return $entry){pagination_expr}"
             
             result = self.db_connector.execute_query(query_str)
             
@@ -629,17 +623,11 @@ class DictionaryService:
 
             self.get_entry(entry_id)
             
-            relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
-            
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            
-            query = f"""
-            let $entry_relations := collection('{db_name}')//{entry_path}[@id="{entry_id}"]/relation{relation_condition}/@ref
-            for $related in collection('{db_name}')//{entry_path}[@id = $entry_relations]
-            return $related
-            """
+            query = self._query_builder.build_related_entries_query(
+                entry_id, db_name, has_ns, relation_type
+            )
             
             result = self.db_connector.execute_query(query)
             
@@ -674,15 +662,9 @@ class DictionaryService:
 
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            sense_path = self._query_builder.get_element_path("sense", has_ns)
-            gi_path = self._query_builder.get_element_path("grammatical-info", has_ns)
-
-            query = f"""
-            for $entry in collection('{db_name}')//{entry_path}
-            where $entry/{sense_path}/{gi_path}[@value="{grammatical_info}"]
-            return $entry
-            """
+            query = self._query_builder.build_entries_by_grammatical_info_query(
+                grammatical_info, db_name, has_ns
+            )
 
             result = self.db_connector.execute_query(query)
 

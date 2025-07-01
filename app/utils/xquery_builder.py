@@ -394,3 +394,88 @@ class XQueryBuilder:
             .replace("<", "&lt;")
             .replace(">", "&gt;")
         )
+
+    @staticmethod
+    def build_entries_by_grammatical_info_query(
+        grammatical_info: str,
+        db_name: str,
+        has_namespace: bool = True,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> str:
+        """
+        Build query to retrieve entries by grammatical information.
+
+        Args:
+            grammatical_info: Grammatical information to filter by
+            db_name: Name of the database
+            has_namespace: Whether XML uses namespaces
+            limit: Maximum number of results
+            offset: Number of results to skip
+
+        Returns:
+            Complete XQuery string
+        """
+        prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
+        gi_path = XQueryBuilder.get_element_path("grammatical-info", has_namespace)
+
+        query = f"""{prologue}
+        for $entry in collection('{db_name}')//{entry_path}
+        where $entry/{sense_path}/{gi_path}[@value="{grammatical_info}"]
+        """
+
+        if offset:
+            query += f"\n        and position() > {offset}"
+
+        query += "\n        return $entry"
+
+        if limit:
+            query = f"({query})[position() <= {limit}]"
+
+        return query
+
+    @staticmethod
+    def build_related_entries_query(
+        entry_id: str,
+        db_name: str,
+        has_namespace: bool = True,
+        relation_type: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> str:
+        """
+        Build query to retrieve related entries.
+
+        Args:
+            entry_id: ID of the entry to get related entries for
+            db_name: Name of the database
+            has_namespace: Whether XML uses namespaces
+            relation_type: Optional type of relation to filter by
+            limit: Maximum number of results
+            offset: Number of results to skip
+
+        Returns:
+            Complete XQuery string
+        """
+        prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        relation_path = XQueryBuilder.get_element_path("relation", has_namespace)
+        
+        relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
+
+        query = f"""{prologue}
+        let $entry_relations := collection('{db_name}')//{entry_path}[@id="{entry_id}"]/{relation_path}{relation_condition}/@ref
+        for $related in collection('{db_name}')//{entry_path}[@id = $entry_relations]
+        """
+
+        if offset:
+            query += f"\n        where position() > {offset}"
+
+        query += "\n        return $related"
+
+        if limit:
+            query = f"({query})[position() <= {limit}]"
+
+        return query

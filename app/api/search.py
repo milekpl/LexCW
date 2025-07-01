@@ -21,16 +21,16 @@ def get_dictionary_service():
     Returns:
         DictionaryService instance.
     """
-    # Try to use injector first (for testing and dependency injection)
+    # Check if there's a pre-configured service (for testing) - prioritize this
+    if hasattr(current_app, 'dict_service') and current_app.dict_service:
+        return current_app.dict_service
+    
+    # Try to use injector (for production and dependency injection)
     try:
         from app import injector
         return injector.get(DictionaryService)
     except (ImportError, AttributeError):
         pass
-    
-    # Check if there's a pre-configured service (for testing)
-    if hasattr(current_app, 'dict_service') and current_app.dict_service:
-        return current_app.dict_service
     
     # Create a database connector using app config
     connector = create_database_connector(

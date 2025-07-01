@@ -11,7 +11,7 @@ from app.database.corpus_migrator import CorpusMigrator
 from app.services.cache_service import CacheService
 from datetime import datetime
 
-corpus_bp = Blueprint('corpus_api', __name__, url_prefix='/api/corpus')
+corpus_bp = Blueprint('corpus_api', __name__, url_prefix='/corpus')
 logger = logging.getLogger(__name__)
 
 

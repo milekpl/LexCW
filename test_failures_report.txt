@@ -1,0 +1,138 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.5, pytest-8.4.1, pluggy-1.5.0
+rootdir: D:\Dokumenty\slownik-wielki\flask-app
+configfile: pytest.ini
+plugins: anyio-4.3.0, dash-2.17.1, cov-4.1.0, mock-3.11.1
+collected 570 items
+
+tests\test_additional_coverage.py .....................................  [  6%]
+tests\test_advanced_crud.py ........                                     [  7%]
+tests\test_api_caching_improvements.py ....F                             [  8%]
+tests\test_api_comprehensive.py ...........................              [ 13%]
+tests\test_api_entries_fix.py ..                                         [ 13%]
+tests\test_api_integration.py s..........s.                              [ 16%]
+tests\test_app_consistency.py .......                                    [ 17%]
+tests\test_basex_connector.py .....                                      [ 18%]
+tests\test_basic.py ..............                                       [ 20%]
+tests\test_basic_postgresql.py ............                              [ 22%]
+tests\test_cache_service.py .....                                        [ 23%]
+tests\test_caching_integration.py FFFFF                                  [ 24%]
+tests\test_complete_filtering_and_refresh.py .FF..                       [ 25%]
+tests\test_corpus_analytics_fix.py .                                     [ 25%]
+tests\test_corpus_caching.py ..                                          [ 25%]
+tests\test_corpus_management_integration.py ......                       [ 27%]
+tests\test_corpus_management_missing_table.py ..                         [ 27%]
+tests\test_corpus_management_view.py FFF                                 [ 27%]
+tests\test_corpus_migrator_stats.py ...                                  [ 28%]
+tests\test_corpus_routes.py .........                                    [ 30%]
+tests\test_dashboard.py ......................                           [ 33%]
+tests\test_dashboard_mock_only.py .                                      [ 34%]
+tests\test_dashboard_optimized.py ......................                 [ 37%]
+tests\test_debug_relations.py .                                          [ 38%]
+tests\test_dictionary_service.py .........                               [ 39%]
+tests\test_dictionary_service_filtering.py .....                         [ 40%]
+tests\test_enhanced_relations.py ..                                      [ 40%]
+tests\test_enhanced_relations_ui.py F....                                [ 41%]
+tests\test_entries_api_postgresql_integration.py ...                     [ 42%]
+tests\test_entries_filtering_integration.py .....                        [ 43%]
+tests\test_entry_display.py ...                                          [ 43%]
+tests\test_entry_model_comprehensive.py ................                 [ 46%]
+tests\test_etymology_ui.py ............                                  [ 48%]
+tests\test_expanded_coverage.py .........                                [ 50%]
+tests\test_exporter_integration.py FFFF.F                                [ 51%]
+tests\test_fast_corpus_processing.py .FF.F
+
+================================== FAILURES ===================================
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_api_caching_improvements.py:142: assert 404 == 200
+C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\flask\templating.py:98: jinja2.exceptions.TemplateNotFound: index.html
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_caching_integration.py:82: assert False is True
+C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\flask\templating.py:98: jinja2.exceptions.TemplateNotFound: corpus_management.html
+C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\flask\templating.py:98: jinja2.exceptions.TemplateNotFound: corpus_management.html
+C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\flask\templating.py:98: jinja2.exceptions.TemplateNotFound: corpus_management.html
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_complete_filtering_and_refresh.py:72: assert 500 == 200
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_complete_filtering_and_refresh.py:81: assert 500 == 200
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_corpus_management_view.py:56: assert 0 == 1000
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_corpus_management_view.py:90: TypeError: argument of type 'NoneType' is not iterable
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_corpus_management_view.py:125: AssertionError: assert 'Loading...' == 'N/A'
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_enhanced_relations_ui.py:84: assert None is not None
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_exporter_integration.py:205: AssertionError: Export file is empty
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_exporter_integration.py:277: PermissionError: [WinError 32] Proces nie mo┐e uzyskaŠ dostŕpu do pliku, poniewa┐ jest on u┐ywany przez inny proces: 'C:\\Users\\ADMIN\\AppData\\Local\\Temp\\tmplikeajfy.html'
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_exporter_integration.py:344: PermissionError: [WinError 32] Proces nie mo┐e uzyskaŠ dostŕpu do pliku, poniewa┐ jest on u┐ywany przez inny proces: 'C:\\Users\\ADMIN\\AppData\\Local\\Temp\\tmpz5til_lz.db'
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_exporter_integration.py:401: PermissionError: [WinError 32] Proces nie mo┐e uzyskaŠ dostŕpu do pliku, poniewa┐ jest on u┐ywany przez inny proces: 'C:\\Users\\ADMIN\\AppData\\Local\\Temp\\tmpwwi547fn.db'
+D:\Dokumenty\slownik-wielki\flask-app\app\exporters\kindle_exporter.py:103: app.utils.exceptions.ExportError: Failed to export to Kindle format: Failed to list entries: Failed to count entries: Connection failed: Database 'test_empty_export_3bc3b6e5' was not found.
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_fast_corpus_processing.py:70: assert 0.1435542106628418 < 0.01
+D:\Dokumenty\slownik-wielki\flask-app\app\services\fast_corpus_processor.py:164: TypeError: 'Mock' object is not iterable
+D:\Dokumenty\slownik-wielki\flask-app\tests\test_fast_corpus_processing.py:130: AssertionError: Parallel speedup 0.3x insufficient
+============================== warnings summary ===============================
+C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\spacy\cli\_util.py:23
+  C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\spacy\cli\_util.py:23: DeprecationWarning: Importing 'parser.split_arg_string' is deprecated, it will only be available in 'shell_completion' in Click 9.0.
+    from click.parser import split_arg_string
+
+C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\weasel\util\config.py:8
+  C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\site-packages\weasel\util\config.py:8: DeprecationWarning: Importing 'parser.split_arg_string' is deprecated, it will only be available in 'shell_completion' in Click 9.0.
+    from click.parser import split_arg_string
+
+tests\test_fast_corpus_processing.py:262
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_fast_corpus_processing.py:262: PytestUnknownMarkWarning: Unknown pytest.mark.performance - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.performance
+
+tests\test_focused_coverage.py:312
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_focused_coverage.py:312: PytestUnknownMarkWarning: Unknown pytest.mark.coverage_focused - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.coverage_focused
+
+tests\test_parser_comprehensive.py:535
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_parser_comprehensive.py:535: PytestUnknownMarkWarning: Unknown pytest.mark.parser_integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.parser_integration
+
+tests\test_performance_benchmarks.py:306
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_performance_benchmarks.py:306: PytestUnknownMarkWarning: Unknown pytest.mark.performance - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.performance
+
+tests\test_postgresql_integration.py:396
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_postgresql_integration.py:396: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests\test_postgresql_integration.py:422
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_postgresql_integration.py:422: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests\test_search_integration_comprehensive.py:392
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_search_integration_comprehensive.py:392: PytestUnknownMarkWarning: Unknown pytest.mark.search_integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.search_integration
+
+tests\test_word_sketch_integration.py:479
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_word_sketch_integration.py:479: PytestUnknownMarkWarning: Unknown pytest.mark.postgresql - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    pytest.mark.postgresql,
+
+tests\test_word_sketch_integration.py:480
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_word_sketch_integration.py:480: PytestUnknownMarkWarning: Unknown pytest.mark.word_sketch - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    pytest.mark.word_sketch,
+
+tests\test_word_sketch_integration.py:481
+  D:\Dokumenty\slownik-wielki\flask-app\tests\test_word_sketch_integration.py:481: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    pytest.mark.integration
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_api_caching_improvements.py::TestAPICachingImprovements::test_corpus_stats_api_caching
+FAILED tests/test_caching_integration.py::TestDashboardWithCaching::test_homepage_with_caching_enabled
+FAILED tests/test_caching_integration.py::TestDashboardWithCaching::test_dashboard_api_endpoint_with_caching
+FAILED tests/test_caching_integration.py::TestCorpusManagementWithCaching::test_corpus_management_with_cache_miss
+FAILED tests/test_caching_integration.py::TestCorpusManagementWithCaching::test_corpus_management_with_cache_hit
+FAILED tests/test_caching_integration.py::TestCorpusManagementWithCaching::test_corpus_management_cache_fallback
+FAILED tests/test_complete_filtering_and_refresh.py::TestCompleteFilteringAndRefresh::test_dashboard_cache_clear_endpoint
+FAILED tests/test_complete_filtering_and_refresh.py::TestCompleteFilteringAndRefresh::test_entries_cache_clear_endpoint
+FAILED tests/test_corpus_management_view.py::TestCorpusManagement::test_corpus_management_displays_stats_when_connected
+FAILED tests/test_corpus_management_view.py::TestCorpusManagement::test_corpus_management_handles_connection_failure
+FAILED tests/test_corpus_management_view.py::TestCorpusManagement::test_corpus_management_handles_empty_stats
+FAILED tests/test_enhanced_relations_ui.py::test_relation_search_returns_entries_with_senses
+FAILED tests/test_exporter_integration.py::TestExporterIntegration::test_kindle_exporter_real_data
+FAILED tests/test_exporter_integration.py::TestExporterIntegration::test_kindle_exporter_custom_options
+FAILED tests/test_exporter_integration.py::TestExporterIntegration::test_sqlite_exporter_real_data
+FAILED tests/test_exporter_integration.py::TestExporterIntegration::test_sqlite_exporter_schema_validation
+FAILED tests/test_exporter_integration.py::TestExporterIntegration::test_empty_database_export
+FAILED tests/test_fast_corpus_processing.py::TestFastCorpusProcessor::test_batch_processing_performance
+FAILED tests/test_fast_corpus_processing.py::TestFastCorpusProcessor::test_linguistic_caching
+FAILED tests/test_fast_corpus_processing.py::TestFastCorpusProcessor::test_parallel_processing
+!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 20 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+=========== 20 failed, 275 passed, 2 skipped, 12 warnings in 11.03s ===========

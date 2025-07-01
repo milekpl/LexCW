@@ -52,10 +52,31 @@ class TestAdvancedCRUD:
         # Now update it with senses via BaseX direct update
         db_name = dict_service_with_db.db_connector.database
         
-        # Add senses and examples via direct BaseX update
-        update_query = f"""
-        xquery 
-        let $entry := collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id="complex_entry"]
+        # Add senses and examples via direct BaseX update with proper namespace
+        from app.utils.xquery_builder import XQueryBuilder
+        
+        # We need to detect if the test database uses namespaces
+        # For test databases created by our fixture, they typically don't use namespaces
+        # Let's use a simple approach based on what works in other tests
+        try:
+            # Try to check if the database uses namespaces by attempting a simple query
+            test_query = f"exists(collection('{db_name}')//lift:lift)"
+            prologue = f'''
+            declare namespace lift = "{XQueryBuilder.LIFT_NAMESPACE}";
+            declare namespace flex = "{XQueryBuilder.FLEX_NAMESPACE}";
+            '''
+            dict_service_with_db.db_connector.execute_query(prologue + test_query)
+            # If this succeeds, database uses namespaces
+            has_ns = True
+            entry_selector = f"lift:entry[@id=\"complex_entry\"]"
+        except:
+            # If it fails, database likely doesn't use namespaces
+            has_ns = False
+            prologue = ''
+            entry_selector = "*[local-name()='entry'][@id=\"complex_entry\"]"
+        
+        update_query = f"""{prologue}
+        let $entry := collection('{db_name}')//{entry_selector}
         return (
             insert node 
             <sense id="sense1">
@@ -200,7 +221,8 @@ class TestAdvancedCRUD:
         entry2 = Entry(id_="word2", lexical_unit={"en": "word2"})
         
         # Add relationship from entry1 to entry2
-        entry1.relations = [{"type": "synonym", "ref": "word2"}]
+        from app.models.entry import Relation
+        entry1.relations = [Relation(type="synonym", ref="word2")]
         
         # Create the entries
         dict_service_with_db.create_entry(entry1)
@@ -223,7 +245,7 @@ class TestAdvancedCRUD:
         assert len(related_entries) == 0
         
         # Add another relation
-        entry1.relations.append({"type": "antonym", "ref": "word2"})
+        entry1.relations.append(Relation(type="antonym", ref="word2"))
         dict_service_with_db.update_entry(entry1)
         
         # Get related entries with the new relation type
@@ -236,9 +258,26 @@ class TestAdvancedCRUD:
         # Add entries with grammatical info directly with BaseX
         db_name = dict_service_with_db.db_connector.database
         
-        # Insert test entries with grammatical info
-        insert_query = f"""
-        xquery
+        # Insert test entries with grammatical info using proper namespace handling
+        from app.utils.xquery_builder import XQueryBuilder
+        
+        # Detect namespace usage for this test database
+        try:
+            test_query = f"exists(collection('{db_name}')//lift:lift)"
+            prologue = f'''
+            declare namespace lift = "{XQueryBuilder.LIFT_NAMESPACE}";
+            declare namespace flex = "{XQueryBuilder.FLEX_NAMESPACE}";
+            '''
+            dict_service_with_db.db_connector.execute_query(prologue + test_query)
+            # If this succeeds, database uses namespaces
+            lift_path = "lift:lift"
+            namespace_prologue = prologue
+        except:
+            # If it fails, database likely doesn't use namespaces
+            lift_path = "*[local-name()='lift']"
+            namespace_prologue = ""
+        
+        insert_query = f"""{namespace_prologue}
         insert node 
         <entry id="noun1">
             <lexical-unit>
@@ -253,7 +292,7 @@ class TestAdvancedCRUD:
                 </gloss>
             </sense>
         </entry>
-        into collection('{db_name}')/*[local-name()='lift'],
+        into collection('{db_name}')//{lift_path},
         
         insert node 
         <entry id="verb1">
@@ -269,7 +308,7 @@ class TestAdvancedCRUD:
                 </gloss>
             </sense>
         </entry>
-        into collection('{db_name}')/*[local-name()='lift'],
+        into collection('{db_name}')//{lift_path},
         
         insert node 
         <entry id="adj1">
@@ -285,7 +324,7 @@ class TestAdvancedCRUD:
                 </gloss>
             </sense>
         </entry>
-        into collection('{db_name}')/*[local-name()='lift'],
+        into collection('{db_name}')//{lift_path},
         
         insert node 
         <entry id="noun2">
@@ -301,7 +340,7 @@ class TestAdvancedCRUD:
                 </gloss>
             </sense>
         </entry>
-        into collection('{db_name}')/*[local-name()='lift']
+        into collection('{db_name}')//{lift_path}
         """
         
         dict_service_with_db.db_connector.execute_update(insert_query)
@@ -324,10 +363,10 @@ class TestAdvancedCRUD:
         adv_entries = dict_service_with_db.get_entries_by_grammatical_info("adverb")
         assert len(adv_entries) == 0
         
-        # Clean up the test entries
-        cleanup_query = f"""
-        xquery
-        for $id in ("noun1", "verb1", "adj1", "noun2")
-        return delete node collection('{db_name}')/*[local-name()='lift']/*[local-name()='entry'][@id=$id]
-        """
-        dict_service_with_db.db_connector.execute_update(cleanup_query)
+        # Clean up the test entries using individual delete operations
+        for entry_id in ["noun1", "verb1", "adj1", "noun2"]:
+            try:
+                dict_service_with_db.delete_entry(entry_id)
+            except:
+                pass  # Entry might not exist, which is fine
+  

@@ -29,7 +29,7 @@ from flask.testing import FlaskClient
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")  # Changed from session to function to force re-evaluation
 def basex_available() -> bool:
     """Check if BaseX server is available."""
     try:
@@ -38,10 +38,12 @@ def basex_available() -> bool:
             port=int(os.getenv('BASEX_PORT', '1984')),
             username=os.getenv('BASEX_USERNAME', 'admin'),
             password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database='test_connection_check',            
+            database=None,  # Don't try to open a specific database            
         )
-        connector.connect()
-        connector.disconnect()
+        # Just test the session creation without opening a database
+        from BaseXClient.BaseXClient import Session as BaseXSession
+        session = BaseXSession(connector.host, connector.port, connector.username, connector.password)
+        session.close()
         return True
     except Exception as e:
         logger.warning(f"BaseX server not available: {e}")
@@ -60,21 +62,26 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
     if not basex_available:
         pytest.skip("BaseX server not available")
     
+    # First create connector without database to create the database
     connector = BaseXConnector(
         host=os.getenv('BASEX_HOST', 'localhost'),
         port=int(os.getenv('BASEX_PORT', '1984')),
         username=os.getenv('BASEX_USERNAME', 'admin'),
         password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database=test_db_name,
-        
+        database=None,  # No database initially
     )
     
     try:
-        # Connect and create test database
+        # Connect without opening a database
         connector.connect()
         
-        # Create empty test database
+        # Create the test database
         connector.create_database(test_db_name)
+        
+        # Now set the database name and reconnect
+        connector.database = test_db_name
+        connector.disconnect()
+        connector.connect()  # Reconnect with the database
         
         # Add sample LIFT content using BaseX command
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
@@ -98,27 +105,27 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         # Use BaseX ADD command to add the document to the database
         try:
             connector.execute_command(f"ADD {temp_file}")
-            logger.info(f"Added LIFT data to test database using ADD command")
+            logger.info("Added LIFT data to test database using ADD command")
         except Exception as e:
             logger.warning(f"Failed to add data with ADD command: {e}")
             # Try alternative approach - use REPLACE command to add root document
             try:
                 connector.execute_update(f"db:replace('{test_db_name}', '{temp_file}', 'lift.xml')")
-                logger.info(f"Added LIFT data to test database using REPLACE command")
+                logger.info("Added LIFT data to test database using REPLACE command")
             except Exception as e2:
                 logger.warning(f"Failed to add data with REPLACE command: {e2}")
                 # Final fallback - directly insert LIFT XML
                 try:
                     lift_xml = sample_lift.replace('<?xml version="1.0" encoding="UTF-8"?>\n', '')
                     connector.execute_update(f"db:add('{test_db_name}', '{lift_xml}', 'lift.xml')")
-                    logger.info(f"Added LIFT data to test database using db:add function")
+                    logger.info("Added LIFT data to test database using db:add function")
                 except Exception as e3:
                     logger.error(f"All methods failed to add data: {e3}")
                     # Create a minimal database structure
                     try:
                         minimal_lift = '<lift version="0.13"></lift>'
                         connector.execute_update(f"db:add('{test_db_name}', '{minimal_lift}', 'lift.xml')")
-                        logger.info(f"Created minimal LIFT structure in test database")
+                        logger.info("Created minimal LIFT structure in test database")
                     except Exception as e4:
                         logger.error(f"Failed to create minimal structure: {e4}")
         
@@ -138,7 +145,7 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
     finally:
         # Cleanup: drop test database and disconnect
         try:
-            if connector.session:
+            if connector._session:  # Check the actual session attribute
                 connector.drop_database(test_db_name)
                 logger.info(f"Dropped test database: {test_db_name}")
                 connector.disconnect()
@@ -226,9 +233,12 @@ def dict_service_with_test_db(basex_available: bool):
 @pytest.fixture
 def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]:
     """Create and configure a Flask app for testing with real database."""
-    # Create a minimal Flask app for testing
+    # Create a minimal Flask app for testing with correct template directory
     from flask import Flask
-    app = Flask(__name__)
+    import os
+    
+    template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app', 'templates')
+    app = Flask(__name__, template_folder=template_dir)
     app.config.update({
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
@@ -241,6 +251,10 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     # Register the validation blueprint
     from app.api.validation import validation_bp
     app.register_blueprint(validation_bp)
+    
+    # Register the corpus routes blueprint
+    from app.routes.corpus_routes import corpus_bp
+    app.register_blueprint(corpus_bp)
     
     # Register the main views blueprint
     from app.views import main_bp
