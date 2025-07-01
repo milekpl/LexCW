@@ -20,6 +20,53 @@ logger = logging.getLogger(__name__)
 worksets_bp = Blueprint('worksets', __name__)
 
 
+@worksets_bp.route('/api/worksets', methods=['GET'])
+@swag_from({
+    'tags': ['Worksets'],
+    'summary': 'List all worksets',
+    'description': 'Retrieve a list of all available worksets',
+    'responses': {
+        200: {
+            'description': 'Worksets retrieved successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'worksets': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'id': {'type': 'string'},
+                                'name': {'type': 'string'},
+                                'total_entries': {'type': 'integer'},
+                                'created_at': {'type': 'string'},
+                                'query': {'type': 'object'}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {'description': 'Internal server error'}
+    }
+})
+def list_worksets() -> tuple[Dict[str, Any], int]:
+    """List all available worksets."""
+    try:
+        workset_service = WorksetService()
+        worksets = workset_service.list_worksets()
+        
+        return {
+            'success': True,
+            'worksets': [workset.to_dict() for workset in worksets]
+        }, 200
+        
+    except Exception as e:
+        logger.error(f"Error listing worksets: {e}")
+        return {'error': 'Failed to list worksets'}, 500
+
+
 @worksets_bp.route('/api/worksets', methods=['POST'])
 @swag_from({
     'tags': ['Worksets'],

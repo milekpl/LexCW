@@ -398,9 +398,17 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
             
-            # Build sort expression
+            # Use namespace-aware query building
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            
+            # Build sort expression with namespace-aware paths
             if sort_by == "lexical_unit":
-                sort_expr = "($entry/lexical-unit/form/text)[1]"  # Use first form text for sorting
+                sort_expr = f"($entry/{lexical_unit_path}/{form_path}/{text_path})[1]"  # Use first form text for sorting
             else:
                 sort_expr = "$entry/@id"
             
@@ -408,12 +416,12 @@ class DictionaryService:
             if sort_order.lower() == "desc":
                 sort_expr += " descending"
             
-            # Build filter expression
+            # Build filter expression with namespace-aware paths
             filter_expr = ""
             if filter_text:
                 # Filter by lexical unit text containing the filter text (case-insensitive)
-                # Use 'some' expression to handle multiple forms properly
-                filter_expr = f"[some $form in lexical-unit/form/text satisfies contains(lower-case($form), lower-case('{filter_text}'))]"
+                # Use 'some' expression to handle multiple forms properly with namespace-aware paths
+                filter_expr = f"[some $form in {lexical_unit_path}/{form_path}/{text_path} satisfies contains(lower-case($form), lower-case('{filter_text}'))]"
             
             # Build pagination expression
             pagination_expr = ""
@@ -422,11 +430,9 @@ class DictionaryService:
                 end = offset + limit
                 pagination_expr = f"[position() = {start} to {end}]"
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            
+            # Build complete namespace-aware query
             query = f"""
+            {prologue}
             (for $entry in collection('{db_name}')//{entry_path}{filter_expr}
             order by {sort_expr}
             return $entry){pagination_expr}
@@ -692,11 +698,12 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Use namespace-aware query
+            # Use namespace-aware query with prologue
             has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
             entry_path = self._query_builder.get_element_path("entry", has_ns)
             
-            query = f"count(collection('{db_name}')//{entry_path})"
+            query = f"{prologue} count(collection('{db_name}')//{entry_path})"
             result = self.db_connector.execute_query(query)
             
             return int(result) if result else 0
@@ -975,8 +982,18 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            ranges_xml = self.db_connector.execute_query(f"xquery collection('{db_name}/ranges.xml')")
-
+            # Try to get the ranges document from the database
+            # First try to get ranges.xml document if it exists
+            ranges_xml = self.db_connector.execute_query(f"collection('{db_name}')//lift-ranges")
+            
+            if not ranges_xml:
+                # Try alternative path - if ranges were added as a separate document
+                ranges_xml = self.db_connector.execute_query(f"doc('{db_name}/ranges.xml')")
+                
+            if not ranges_xml:
+                # Try to get any ranges from the main LIFT document
+                ranges_xml = self.db_connector.execute_query(f"collection('{db_name}')//ranges")
+                
             if not ranges_xml:
                 self.logger.warning("LIFT ranges not found in database, using defaults.")
                 self.ranges = self._get_default_ranges()
@@ -1072,18 +1089,23 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
             
-            # Build filter expression
+            # Use namespace-aware query building
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            
+            # Build filter expression with namespace-aware paths
             filter_expr = ""
             if filter_text:
                 # Filter by lexical unit text containing the filter text (case-insensitive)
-                # Use 'some' expression to handle multiple forms properly
-                filter_expr = f"[some $form in lexical-unit/form/text satisfies contains(lower-case($form), lower-case('{filter_text}'))]"
+                # Use 'some' expression to handle multiple forms properly with namespace-aware paths
+                filter_expr = f"[some $form in {lexical_unit_path}/{form_path}/{text_path} satisfies contains(lower-case($form), lower-case('{filter_text}'))]"
             
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
-            entry_path = self._query_builder.get_element_path("entry", has_ns)
-            
-            query = f"count(collection('{db_name}')//{entry_path}{filter_expr})"
+            # Build complete namespace-aware query
+            query = f"{prologue} count(collection('{db_name}')//{entry_path}{filter_expr})"
             
             result = self.db_connector.execute_query(query)
             

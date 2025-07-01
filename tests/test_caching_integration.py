@@ -25,7 +25,7 @@ class TestDashboardWithCaching:
         if cache.is_available():
             cache.clear_pattern('dashboard_stats*')
         
-        with patch('app.injector.get') as mock_injector_get:
+        with patch('app.views.injector.get') as mock_injector_get:
             mock_dict_service = Mock()
             mock_dict_service.count_entries.return_value = 150
             mock_dict_service.count_senses_and_examples.return_value = (300, 450)
@@ -56,7 +56,7 @@ class TestDashboardWithCaching:
         if cache.is_available():
             cache.delete('dashboard_stats_api')  # Clear the specific key used by the API
         
-        with patch('app.injector.get') as mock_injector_get:
+        with patch('app.views.injector.get') as mock_injector_get:
             mock_dict_service = Mock()
             mock_dict_service.count_entries.return_value = 200
             mock_dict_service.count_senses_and_examples.return_value = (400, 600)

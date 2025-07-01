@@ -103,9 +103,15 @@ class TestDashboard:
         assert '{"db_connected"' not in homepage_response_text
         assert 'storage_percent' not in homepage_response_text
 
-    @patch('app.injector.get')
+    @patch('app.views.injector.get')
     def test_homepage_with_specific_mock_data(self, mock_injector_get, shared_client, mock_dict_service):
         """Test homepage with specific mocked data to verify rendering."""
+        # Clear any existing cache to ensure fresh data
+        from app.services.cache_service import CacheService
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear_pattern('dashboard_stats*')
+        
         mock_injector_get.return_value = mock_dict_service
         
         response = shared_client.get('/')
@@ -118,7 +124,7 @@ class TestDashboard:
         assert '300' in response_text  # sense count
         assert '450' in response_text  # example count
 
-    @patch('app.injector.get')
+    @patch('app.views.injector.get')
     def test_homepage_with_database_error(self, mock_injector_get, shared_client):
         """Test homepage when database service throws an error."""
         mock_service = Mock(spec=DictionaryService)
@@ -148,7 +154,7 @@ class TestDashboard:
         # Ensure storage_percent is numeric
         assert isinstance(data['storage_percent'], (int, float))
 
-    @patch('app.injector.get')
+    @patch('app.views.injector.get')
     def test_system_status_api_with_mock_data(self, mock_injector_get, shared_client, mock_dict_service):
         """Test system status API with mocked data."""
         mock_injector_get.return_value = mock_dict_service
@@ -197,7 +203,7 @@ class TestDashboard:
                 'Add' in homepage_response_text or 
                 'btn' in homepage_response_text)
 
-    @patch('app.injector.get')
+    @patch('app.views.injector.get')
     def test_homepage_error_handling(self, mock_injector_get, shared_client, caplog):
         """Test that homepage handles errors gracefully."""
         mock_service = Mock(spec=DictionaryService)

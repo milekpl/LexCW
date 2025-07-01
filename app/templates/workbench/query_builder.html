@@ -224,7 +224,9 @@
                         <button type="button" class="btn btn-info" id="preview-query-btn">
                             <i class="bi bi-eye"></i> Preview Results
                         </button>
-                        <button type="button" class="btn btn-success" id="execute-query-btn">
+                        <button type="button" class="btn btn-success" id="execute-query-btn" 
+                                data-bs-toggle="tooltip" data-bs-placement="top" 
+                                title="Create a new workset from the current query to perform bulk operations">
                             <i class="bi bi-play-circle"></i> Create Workset
                         </button>
                         <button type="button" class="btn btn-outline-secondary" id="save-query-btn">
@@ -331,6 +333,15 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Initialize Bootstrap tooltips
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+        
         // Query Builder JavaScript
         let filterIndex = 1;
 
@@ -361,7 +372,21 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Value</label>
-                            <input type="text" class="form-control value-input" placeholder="Enter value">
+                            <div class="input-group">
+                                <input type="text" class="form-control value-input" placeholder="Enter value">
+                                <button class="btn btn-outline-secondary dropdown-toggle reference-btn" type="button" data-bs-toggle="dropdown" title="Reference other elements">
+                                    <i class="bi bi-link-45deg"></i>
+                                </button>
+                                <ul class="dropdown-menu element-reference-menu">
+                                    <li><a class="dropdown-item" href="#" data-reference-type="static">Static Value</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li class="dropdown-header">Reference Elements:</li>
+                                    <!-- Dynamic list will be populated by JavaScript -->
+                                </ul>
+                            </div>
+                            <small class="text-muted reference-hint" style="display: none;">
+                                🔗 Referenced to: <span class="reference-target"></span>
+                            </small>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
@@ -499,6 +524,7 @@
         document.addEventListener('change', function(e) {
             if (e.target.matches('.field-select')) {
                 updateElementReferences();
+                updateValueSuggestions(e.target);
             }
         });
 
@@ -587,6 +613,65 @@
                 button.disabled = false;
             }
         });
+        
+        // Update value suggestions based on selected field
+        async function updateValueSuggestions(fieldSelect) {
+            const fieldValue = fieldSelect.value;
+            const condition = fieldSelect.closest('.filter-condition');
+            const valueInput = condition.querySelector('.value-input');
+            
+            // Map field names to range IDs
+            const fieldToRangeMap = {
+                'relation.type': 'relation-types',
+                'variant.type': 'variant-types',
+                'grammatical_info': 'grammatical-info',
+                'pos': 'grammatical-info'
+            };
+            
+            const rangeId = fieldToRangeMap[fieldValue];
+            if (!rangeId || !window.rangesLoader) {
+                // Remove any existing datalist
+                const existingDatalist = condition.querySelector('datalist');
+                if (existingDatalist) {
+                    existingDatalist.remove();
+                }
+                valueInput.removeAttribute('list');
+                return;
+            }
+            
+            try {
+                const range = await window.rangesLoader.loadRange(rangeId);
+                if (range && range.values) {
+                    // Create or update datalist for suggestions
+                    let datalist = condition.querySelector('datalist');
+                    if (!datalist) {
+                        datalist = document.createElement('datalist');
+                        datalist.id = `suggestions-${condition.dataset.filterIndex || Math.random().toString(36).substr(2, 9)}`;
+                        condition.appendChild(datalist);
+                        valueInput.setAttribute('list', datalist.id);
+                    }
+                    
+                    // Clear existing options
+                    datalist.innerHTML = '';
+                    
+                    // Add options from range
+                    range.values.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.value || item.id;
+                        option.textContent = item.value || item.id;
+                        if (item.description && item.description.en) {
+                            option.setAttribute('title', item.description.en);
+                        }
+                        datalist.appendChild(option);
+                    });
+                    
+                    // Update placeholder
+                    valueInput.placeholder = `Select or enter ${rangeId.replace('-', ' ')}...`;
+                }
+            } catch (error) {
+                console.warn(`Failed to load suggestions for ${fieldValue}:`, error);
+            }
+        }
         
         function getCurrentQuery() {
             const filters = [];
@@ -721,10 +806,22 @@
                     // Clear input
                     document.getElementById('workset-name-input').value = '';
                     
-                    // Show success message
+                    // Show success message with navigation options
                     showValidationResult('success', 
                         `✅ Workset "${result.workset_name}" created successfully with ${result.entry_count} entries! 
-                         <a href="/workbench/worksets" class="alert-link">View worksets</a>`);
+                         <div class="mt-2">
+                            <a href="/workbench/worksets" class="btn btn-sm btn-outline-primary me-2">
+                                <i class="bi bi-collection"></i> View All Worksets
+                            </a>
+                            <a href="/workbench/worksets/${result.workset_id || ''}" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-eye"></i> Open This Workset
+                            </a>
+                         </div>`);
+                    
+                    // Auto-redirect option (disabled by default, can be enabled via user preference)
+                    // setTimeout(() => {
+                    //     window.location.href = '/workbench/worksets';
+                    // }, 3000);
                 } else {
                     showValidationResult('danger', `Failed to create workset: ${result.error || 'Unknown error'}`);
                 }
@@ -744,5 +841,8 @@
         // Initialize query preview
         updateQueryPreview();
     </script>
+    
+    <!-- Load ranges for dynamic suggestions -->
+    <script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
 </body>
 </html>

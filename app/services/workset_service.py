@@ -48,31 +48,32 @@ class WorksetService:
             raise
     
     def get_workset(self, workset_id: str, limit: int = 50, offset: int = 0) -> Optional[Workset]:
-        """Get workset with pagination."""
-        try:
-            workset = self._worksets.get(workset_id)
-            if not workset:
-                return None
-            
-            # Apply pagination to entries
-            paginated_entries = workset.entries[offset:offset + limit]
-            
-            # Create a copy with paginated entries
-            result = Workset(
-                id=workset.id,
-                name=workset.name,
-                query=workset.query,
-                total_entries=workset.total_entries,
-                created_at=workset.created_at,
-                updated_at=workset.updated_at,
-                entries=paginated_entries
-            )
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Failed to get workset {workset_id}: {e}")
+        """Retrieve workset with pagination."""
+        if workset_id not in self._worksets:
             return None
+        
+        workset = self._worksets[workset_id]
+        
+        # Apply pagination to entries
+        start_idx = offset
+        end_idx = offset + limit
+        
+        # Create a copy with paginated entries
+        paginated_workset = Workset(
+            id=workset.id,
+            name=workset.name,
+            query=workset.query,
+            total_entries=workset.total_entries,
+            entries=workset.entries[start_idx:end_idx],
+            created_at=workset.created_at,
+            updated_at=workset.updated_at
+        )
+        
+        return paginated_workset
+    
+    def list_worksets(self) -> List[Workset]:
+        """List all available worksets."""
+        return list(self._worksets.values())
     
     def update_workset_query(self, workset_id: str, query: WorksetQuery) -> Optional[int]:
         """Update workset query criteria and refresh entries."""

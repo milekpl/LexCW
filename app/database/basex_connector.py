@@ -109,6 +109,23 @@ class BaseXConnector:
             self.logger.error(error_msg)
             raise DatabaseError(error_msg)
     
+    def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
+        """
+        Execute a LIFT-specific query with namespace handling.
+        
+        Args:
+            query: XQuery query string (may include namespace prologue)
+            has_namespace: Whether the database contains namespaced LIFT elements
+            
+        Returns:
+            Query result as string
+        """
+        # Ensure the query has the 'xquery' prefix for BaseX compatibility
+        if not query.strip().startswith('xquery'):
+            query = f"xquery {query}"
+        
+        return self.execute_query(query)
+
     def execute_command(self, command: str) -> str:
         """
         Execute a BaseX command.

@@ -242,6 +242,7 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     app.config.update({
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
+        'SECRET_KEY': 'test-secret-key-for-sessions'
     })
     
     # Register the main API blueprint
@@ -268,9 +269,35 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     from app.api.query_builder import query_builder_bp
     app.register_blueprint(query_builder_bp)
     
+    # Register the ranges blueprint
+    from app.api.ranges import ranges_bp
+    app.register_blueprint(ranges_bp)
+    
     # Register the workbench views blueprint
     from app.views import workbench_bp
     app.register_blueprint(workbench_bp)
+    
+    # Set up dependency injection for the test app
+    from injector import Injector, singleton
+    from app.database.basex_connector import BaseXConnector
+    from app.services.dictionary_service import DictionaryService
+    
+    test_injector = Injector()
+    
+    def configure_test_dependencies(binder):
+        binder.bind(DictionaryService, to=dict_service_with_db, scope=singleton)
+        # Create a test BaseXConnector if needed
+        if hasattr(dict_service_with_db, 'db_connector'):
+            binder.bind(BaseXConnector, to=dict_service_with_db.db_connector, scope=singleton)
+    
+    test_injector.binder.install(configure_test_dependencies)
+    
+    # Make the injector available to the app
+    app.injector = test_injector  # type: ignore
+    
+    # Import and make injector available globally (like in real app)
+    import app as app_module
+    app_module.injector = test_injector
     
     # Attach the test dictionary service (use the same instance as dict_service_with_db)
     app.dict_service = dict_service_with_db  # type: ignore

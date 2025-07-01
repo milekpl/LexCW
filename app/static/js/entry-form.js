@@ -363,7 +363,7 @@ function addPronunciation() {
 /**
  * Add a new sense
  */
-function addSense() {
+async function addSense() {
     const container = document.getElementById('senses-container');
     const senseItems = container.querySelectorAll('.sense-item');
     const newIndex = senseItems.length;
@@ -379,7 +379,8 @@ function addSense() {
     temp.innerHTML = template;
     
     // Append the new sense item
-    container.appendChild(temp.firstElementChild);
+    const newSenseElement = temp.firstElementChild;
+    container.appendChild(newSenseElement);
     
     // Initialize Select2 for the new sense
     $(`.sense-item[data-sense-index="${newIndex}"] .select2-tags`).select2({
@@ -388,6 +389,18 @@ function addSense() {
         tokenSeparators: [',', ' '],
         placeholder: 'Enter or select values...'
     });
+    
+    // Load grammatical info options for the new sense
+    if (window.rangesLoader) {
+        const grammaticalSelect = newSenseElement.querySelector('.dynamic-grammatical-info');
+        if (grammaticalSelect) {
+            await window.rangesLoader.populateSelectWithFallback(grammaticalSelect, 'grammatical-info', {
+                emptyOption: 'Select part of speech',
+                valueField: 'value',
+                labelField: 'value'
+            });
+        }
+    }
 }
 
 /**

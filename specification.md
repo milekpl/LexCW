@@ -22,6 +22,7 @@ The LCW will:
 - Support complex semantic relation management and validation
 - Allow extensive customization through profile-based field mapping
 - Maintain full LIFT format compatibility with round-trip validation
+- **Dynamically load all type/category options from LIFT RANGES file, ensuring complete linguistic coverage**
 
 ## 2. System Architecture
 
@@ -58,12 +59,14 @@ The LCW v2.0 employs a sophisticated hybrid database architecture optimized for 
 - **Workbench Interface**: Query-driven views for bulk operations
 - **Mobile-First Design**: Responsive components tested across devices
 - **AI Assistant UI**: Integrated suggestion and validation interfaces
+- **Dynamic UI Components**: All dropdown menus and selectors populated from LIFT RANGES
 
 #### 2.3.2 Application Layer
 
 - **Bulk Processing Engine**: Handles worksets of 1000+ entries efficiently
 - **AI/ML Services**: Content generation, quality assessment, pattern recognition
 - **Workflow Management**: Approval chains, validation pipelines, audit trails
+- **Dynamic Range Services**: Real-time loading of LIFT ranges for UI population
 
 #### 2.3.3 Data Access Layer
 
@@ -71,31 +74,49 @@ The LCW v2.0 employs a sophisticated hybrid database architecture optimized for 
 - **Caching Layer**: Redis for high-frequency queries and session management
 - **Data Synchronization**: Bi-directional sync between XML and relational stores
 
-2. **Application Layer**
-   - Dictionary management services
-   - Import/Export services
-   - Analysis tools
-   - Search and filter services
-
-3. **Data Access Layer**
-   - BaseX XML database connector
-   - LIFT format parser/generator
-   - Cache management for improved performance
-
 ## 3. Core Features (Workbench-Driven)
 
-### 3.1 Workbench Interfaces
+### 3.1 Dynamic Range Management
 
-#### 3.1.1 Query-Based Worksets
+#### 3.1.1 LIFT RANGES Integration
+
+**Critical Requirement**: All type/category options throughout the application MUST be dynamically loaded from the LIFT RANGES file, not hardcoded. This ensures:
+
+- **Complete Linguistic Coverage**: All grammatical categories, relationship types, variant types, and other linguistic classifications from the LIFT RANGES file are available in the UI
+- **Hierarchical Support**: Parent-child relationships between categories are preserved and displayed
+- **Multilingual Labels**: Support for multiple language labels and abbreviations as defined in the LIFT RANGES
+- **Extensibility**: New categories can be added to the LIFT RANGES file without code changes
+
+#### 3.1.2 Affected UI Components
+
+The following UI components MUST use dynamic ranges:
+
+- **Entry Form Grammatical Info**: All grammatical categories from the LIFT RANGES file
+- **Relationship Type Selectors**: All lexical relation types with proper abbreviations
+- **Variant Type Selectors**: All variant types (dialectal, spelling, morphological, etc.)
+- **Etymology Type Selectors**: All etymology types and classifications
+- **Search Filters**: All dropdown filters use the same dynamic ranges
+- **Query Builder**: Value suggestions based on available ranges
+
+#### 3.1.3 Technical Implementation
+
+- **API Endpoints**: `/api/ranges` and `/api/ranges/{range_id}` provide real-time access to LIFT ranges
+- **JavaScript Integration**: `ranges-loader.js` utility handles dynamic population of select elements
+- **Fallback Support**: Default ranges available when database is unavailable
+- **Caching Strategy**: Ranges are cached for performance but refreshed when LIFT RANGES file changes
+
+### 3.2 Workbench Interfaces
+
+#### 3.2.1 Query-Based Worksets
 
 **Test-Driven Specification**: Each workset view must be validated through comprehensive UI and API tests.
 
-- **Dynamic Query Builder**: TDD-validated interface for creating complex entry filters
+- **Dynamic Query Builder**: TDD-validated interface for creating complex entry filters using dynamic ranges
 - **Workset Management**: Save, load, and share filtered entry collections
 - **Bulk Operations**: Apply changes to hundreds or thousands of entries simultaneously
 - **Progress Tracking**: Real-time feedback for long-running operations
 
-#### 3.1.2 AI-Augmented Curation Workflows
+#### 3.2.2 AI-Augmented Curation Workflows
 
 - **Content Generation Workbench**: 
   - Machine-generated example sentences with human approval workflow
@@ -1357,6 +1378,7 @@ Based on the existing codebase analysis, the following features have been implem
 
 - 🔴 **Bulk Processing Framework** - Not implemented
   - Design bulk operation architecture
+  - The UI can use a table metaphor (spreadsheet-like view on a database) with sortable and filtrable (through search and maybe otherwise) columns, hidden/shown, reordered
   - Implement atomic transaction support
   - Add progress tracking for long operations
   - Create rollback and recovery mechanisms
@@ -1542,6 +1564,11 @@ Based on the existing codebase analysis, the following features have been implem
   - Add sense hierarchy organization
   - Create semantic coverage analysis
   - Build gap identification tools
+
+- 🔴 **Constrast and Compare with Other Sources** - Not implemented
+  - Implement mapping with other (mostly machine-readable) dictionaries for assessing completeness of coverage
+  - For instance, Dante can be used to add (additional, implicit for end users, English definitions for English headwords)
+
 
 **Week 35-36: Future-Proofing**
 - 🔴 **Plugin Architecture** - Not implemented

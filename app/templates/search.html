@@ -67,15 +67,7 @@
                         <label for="pos-filter" class="form-label">Part of Speech</label>
                         <select class="form-select" id="pos-filter" name="pos">
                             <option value="">Any</option>
-                            <option value="noun">Noun</option>
-                            <option value="verb">Verb</option>
-                            <option value="adjective">Adjective</option>
-                            <option value="adverb">Adverb</option>
-                            <option value="pronoun">Pronoun</option>
-                            <option value="preposition">Preposition</option>
-                            <option value="conjunction">Conjunction</option>
-                            <option value="interjection">Interjection</option>
-                            <option value="article">Article</option>
+                            <!-- Options will be dynamically loaded from LIFT ranges -->
                         </select>
                     </div>
                     
@@ -234,5 +226,21 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
 <script src="{{ url_for('static', filename='js/search.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    // Load grammatical info options dynamically
+    const posFilter = document.getElementById('pos-filter');
+    if (posFilter && window.rangesLoader) {
+        const selectedValue = new URLSearchParams(window.location.search).get('pos') || '';
+        await window.rangesLoader.populateSelectWithFallback(posFilter, 'grammatical-info', {
+            emptyOption: 'Any',
+            selectedValue: selectedValue,
+            valueField: 'value',
+            labelField: 'value'
+        });
+    }
+});
+</script>
 {% endblock %}

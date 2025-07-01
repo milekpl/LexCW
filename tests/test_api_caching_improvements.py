@@ -24,7 +24,7 @@ class TestAPICachingImprovements:
         if cache.is_available():
             cache.clear_pattern('dashboard_stats*')
         
-        with patch('app.injector.get') as mock_injector_get:
+        with patch('app.api.dashboard.injector.get') as mock_injector_get:
             mock_dict_service = Mock()
             mock_dict_service.count_entries.return_value = 200
             mock_dict_service.count_senses_and_examples.return_value = (400, 600)
@@ -108,7 +108,7 @@ class TestAPICachingImprovements:
 
     def test_api_error_handling_with_cache(self, client: FlaskClient) -> None:
         """Test that APIs handle errors properly even with caching enabled."""
-        with patch('app.injector.get') as mock_injector_get:
+        with patch('app.api.dashboard.injector.get') as mock_injector_get:
             # Mock service to raise an exception
             mock_dict_service = Mock()
             mock_dict_service.count_entries.side_effect = Exception("Database error")

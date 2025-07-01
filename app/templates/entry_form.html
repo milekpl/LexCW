@@ -55,17 +55,10 @@
                     
                     <div class="mb-3">
                         <label for="part-of-speech" class="form-label">Part of Speech <span class="text-danger">*</span></label>
-                        <select class="form-select" id="part-of-speech" name="grammatical_info.part_of_speech" required>
+                        <select class="form-select dynamic-grammatical-info" id="part-of-speech" name="grammatical_info.part_of_speech" required
+                                data-selected="{% if entry.grammatical_info %}{{ entry.grammatical_info.part_of_speech }}{% endif %}">
                             <option value="">Select part of speech</option>
-                            <option value="noun" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'noun' %}selected{% endif %}>Noun</option>
-                            <option value="verb" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'verb' %}selected{% endif %}>Verb</option>
-                            <option value="adjective" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'adjective' %}selected{% endif %}>Adjective</option>
-                            <option value="adverb" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'adverb' %}selected{% endif %}>Adverb</option>
-                            <option value="pronoun" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'pronoun' %}selected{% endif %}>Pronoun</option>
-                            <option value="preposition" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'preposition' %}selected{% endif %}>Preposition</option>
-                            <option value="conjunction" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'conjunction' %}selected{% endif %}>Conjunction</option>
-                            <option value="interjection" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'interjection' %}selected{% endif %}>Interjection</option>
-                            <option value="article" {% if entry.grammatical_info and entry.grammatical_info.part_of_speech == 'article' %}selected{% endif %}>Article</option>
+                            <!-- Options will be dynamically loaded from LIFT ranges -->
                         </select>
                     </div>
                     
@@ -272,17 +265,10 @@
                                         
                                         <div class="mb-3">
                                             <label class="form-label">Part of Speech</label>
-                                            <select class="form-select" name="senses[{{ loop.index0 }}].grammatical_info">
+                                            <select class="form-select dynamic-grammatical-info" name="senses[{{ loop.index0 }}].grammatical_info"
+                                                    data-selected="{{ sense.grammatical_info }}">
                                                 <option value="">Select part of speech</option>
-                                                <option value="noun" {% if sense.grammatical_info == 'noun' %}selected{% endif %}>Noun</option>
-                                                <option value="verb" {% if sense.grammatical_info == 'verb' %}selected{% endif %}>Verb</option>
-                                                <option value="adjective" {% if sense.grammatical_info == 'adjective' %}selected{% endif %}>Adjective</option>
-                                                <option value="adverb" {% if sense.grammatical_info == 'adverb' %}selected{% endif %}>Adverb</option>
-                                                <option value="pronoun" {% if sense.grammatical_info == 'pronoun' %}selected{% endif %}>Pronoun</option>
-                                                <option value="preposition" {% if sense.grammatical_info == 'preposition' %}selected{% endif %}>Preposition</option>
-                                                <option value="conjunction" {% if sense.grammatical_info == 'conjunction' %}selected{% endif %}>Conjunction</option>
-                                                <option value="interjection" {% if sense.grammatical_info == 'interjection' %}selected{% endif %}>Interjection</option>
-                                                <option value="article" {% if sense.grammatical_info == 'article' %}selected{% endif %}>Article</option>
+                                                <!-- Options will be dynamically loaded from LIFT ranges -->
                                             </select>
                                             <div class="form-text">Grammatical category for this sense.</div>
                                         </div>
@@ -376,17 +362,9 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Part of Speech</label>
-                                        <select class="form-select" name="senses[0].grammatical_info">
+                                        <select class="form-select dynamic-grammatical-info" name="senses[0].grammatical_info">
                                             <option value="">Select part of speech</option>
-                                            <option value="noun">Noun</option>
-                                            <option value="verb">Verb</option>
-                                            <option value="adjective">Adjective</option>
-                                            <option value="adverb">Adverb</option>
-                                            <option value="pronoun">Pronoun</option>
-                                            <option value="preposition">Preposition</option>
-                                            <option value="conjunction">Conjunction</option>
-                                            <option value="interjection">Interjection</option>
-                                            <option value="article">Article</option>
+                                            <!-- Options will be dynamically loaded from LIFT ranges -->
                                         </select>
                                         <div class="form-text">Grammatical category for this sense.</div>
                                     </div>
@@ -524,17 +502,9 @@
             
             <div class="mb-3">
                 <label class="form-label">Part of Speech</label>
-                <select class="form-select" name="senses[INDEX].grammatical_info">
+                <select class="form-select dynamic-grammatical-info" name="senses[INDEX].grammatical_info">
                     <option value="">Select part of speech</option>
-                    <option value="noun">Noun</option>
-                    <option value="verb">Verb</option>
-                    <option value="adjective">Adjective</option>
-                    <option value="adverb">Adverb</option>
-                    <option value="pronoun">Pronoun</option>
-                    <option value="preposition">Preposition</option>
-                    <option value="conjunction">Conjunction</option>
-                    <option value="interjection">Interjection</option>
-                    <option value="article">Article</option>
+                    <!-- Options will be dynamically loaded from LIFT ranges -->
                 </select>
             </div>
             
@@ -650,13 +620,34 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/relations.js') }}"></script>
 <script src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // Initialize Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Load grammatical info options for all selects
+    if (window.rangesLoader) {
+        const grammaticalSelects = document.querySelectorAll('.dynamic-grammatical-info');
+        for (const select of grammaticalSelects) {
+            const selectedValue = select.dataset.selected || '';
+            await window.rangesLoader.populateSelectWithFallback(select, 'grammatical-info', {
+                emptyOption: 'Select part of speech',
+                selectedValue: selectedValue,
+                valueField: 'value',
+                labelField: 'value'
+            });
+        }
+    }
+    
     // Initialize component managers after DOM is loaded
     
     // Initialize variant forms manager

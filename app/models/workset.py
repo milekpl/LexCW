@@ -62,13 +62,19 @@ class WorksetQuery:
 @dataclass
 class Workset:
     """Workset containing filtered collection of entries."""
-    id: str
-    name: str
-    query: WorksetQuery
-    total_entries: int = 0
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-    entries: List[Dict[str, Any]] = field(default_factory=list)
+    
+    def __init__(self, id: str, name: str, query: WorksetQuery, 
+                 total_entries: int = 0, 
+                 entries: Optional[List[Dict[str, Any]]] = None,
+                 created_at: Optional[datetime] = None,
+                 updated_at: Optional[datetime] = None):
+        self.id = id
+        self.name = name
+        self.query = query
+        self.total_entries = total_entries
+        self.entries = entries or []
+        self.created_at = created_at or datetime.now()
+        self.updated_at = updated_at or datetime.now()
     
     def to_dict(self) -> Dict[str, Any]:
         return {
