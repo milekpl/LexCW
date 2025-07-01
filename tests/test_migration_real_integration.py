@@ -1,24 +1,28 @@
 """
-Tests for SQLite to PostgreSQL migration functionality.
+Tests for SQLite to PostgreSQL corpus migration functionality.
 
 Tests the complete migration pipeline with real database connections
-and validates data integrity, performance, and error handling.
+using the new high-performance CSV export and PostgreSQL COPY workflow.
+Validates data integrity, performance, and error handling for corpus data.
 """
 import os
 import pytest
 import tempfile
 import sqlite3
 import json
+import csv
+import time
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any
 
-from app.database.sqlite_postgres_migrator import SQLiteToPostgreSQLMigrator, MigrationStats
-from app.database.postgresql_connector import PostgreSQLConnector, PostgreSQLConfig
+from app.database.corpus_migrator import CorpusMigrator, MigrationStats
+from app.database.postgresql_connector import PostgreSQLConfig
 from app.utils.exceptions import ValidationError, DatabaseError
 
 
-class TestSQLiteToPostgreSQLMigration:
-    """Test SQLite to PostgreSQL migration with real database connections."""
+class TestCorpusMigration:
+    """Test corpus migration with real database connections using new workflow."""
     
     @pytest.fixture(scope="class")
     def postgres_config(self) -> PostgreSQLConfig:
@@ -32,217 +36,82 @@ class TestSQLiteToPostgreSQLMigration:
         )
     
     @pytest.fixture(scope="class")
-    def migrator(self, postgres_config: PostgreSQLConfig) -> SQLiteToPostgreSQLMigrator:
+    def migrator(self, postgres_config: PostgreSQLConfig) -> CorpusMigrator:
         """Real migrator instance for testing."""
         try:
-            migrator = SQLiteToPostgreSQLMigrator(postgres_config)
-            # Test connection
-            migrator.postgres_connector.fetch_all("SELECT 1")
+            migrator = CorpusMigrator(postgres_config)
+            # Test connection by getting stats (creates minimal connection)
+            migrator.get_corpus_stats()
             return migrator
-        except (Exception,) as e:
+        except Exception as e:
             pytest.skip(f"PostgreSQL not available for migration testing: {e}")
     
     @pytest.fixture(scope="function")
-    def clean_postgres_tables(self, migrator: SQLiteToPostgreSQLMigrator):
+    def clean_postgres_tables(self, migrator: CorpusMigrator):
         """Clean PostgreSQL tables before and after each test."""
-        tables = ['examples', 'senses', 'entries', 'frequency_data', 'word_sketches']
-        
-        for table in tables:
+        def cleanup():
             try:
-                migrator.postgres_connector.execute_query(f"DROP TABLE IF EXISTS {table} CASCADE")
+                # Clean up using a direct connection
+                conn = migrator._get_postgres_connection()
+                with conn.cursor() as cur:
+                    cur.execute("DROP TABLE IF EXISTS corpus.parallel_corpus CASCADE")
+                    cur.execute("DROP SCHEMA IF EXISTS corpus CASCADE")
+                conn.commit()
+                conn.close()
             except Exception:
                 pass
+        
+        # Clean up before test
+        cleanup()
         
         yield
         
         # Clean up after test
-        for table in tables:
-            try:
-                migrator.postgres_connector.execute_query(f"DROP TABLE IF EXISTS {table} CASCADE")
-            except Exception:
-                pass
+        cleanup()
     
     @pytest.fixture
-    def comprehensive_sqlite_data(self):
-        """Create comprehensive SQLite database with complex test data."""
+    def corpus_sqlite_data(self):
+        """Create SQLite database with corpus test data in para_crawl format."""
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         temp_file.close()
         
         conn = sqlite3.connect(temp_file.name)
         cursor = conn.cursor()
         
-        # Create schema
+        # Create schema matching para_crawl format (c0en, c1pl columns)
         cursor.execute("""
-            CREATE TABLE entries (
-                id TEXT PRIMARY KEY,
-                headword TEXT NOT NULL,
-                pronunciation TEXT,
-                grammatical_info TEXT,
-                date_created TEXT,
-                date_modified TEXT,
-                custom_fields TEXT,
-                frequency_rank INTEGER,
-                subtlex_frequency REAL
+            CREATE TABLE tmdata_content (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                c0en TEXT NOT NULL,
+                c1pl TEXT NOT NULL
             )
         """)
         
-        cursor.execute("""
-            CREATE TABLE senses (
-                id TEXT PRIMARY KEY,
-                entry_id TEXT NOT NULL,
-                definition TEXT,
-                grammatical_info TEXT,
-                custom_fields TEXT,
-                sort_order INTEGER,
-                FOREIGN KEY (entry_id) REFERENCES entries (id)
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE examples (
-                id TEXT PRIMARY KEY,
-                sense_id TEXT NOT NULL,
-                text TEXT NOT NULL,
-                translation TEXT,
-                custom_fields TEXT,
-                sort_order INTEGER,
-                FOREIGN KEY (sense_id) REFERENCES senses (id)
-            )
-        """)
-        
-        # Insert comprehensive test data
-        now = datetime.now().isoformat()
-        
-        # Entries with various data types
-        entries_data = [
-            {
-                'id': 'entry_001', 'headword': 'test', 'pronunciation': '/tɛst/',
-                'grammatical_info': '{"type": "noun", "number": "singular", "gender": "neuter"}',
-                'date_created': now, 'date_modified': now,
-                'custom_fields': '{"frequency": 1000, "difficulty": "easy", "tags": ["common", "basic"]}',
-                'frequency_rank': 100, 'subtlex_frequency': 15.3
-            },
-            {
-                'id': 'entry_002', 'headword': 'example', 'pronunciation': '/ɪɡˈzæm.pəl/',
-                'grammatical_info': '{"type": "noun", "number": "singular"}',
-                'date_created': now, 'date_modified': now,
-                'custom_fields': '{"frequency": 800, "difficulty": "medium"}',
-                'frequency_rank': 200, 'subtlex_frequency': 12.7
-            },
-            {
-                'id': 'entry_003', 'headword': 'complex', 'pronunciation': '/ˈkɒm.pleks/',
-                'grammatical_info': '{"type": "adjective"}',
-                'date_created': now, 'date_modified': now,
-                'custom_fields': None,  # Test NULL handling
-                'frequency_rank': None, 'subtlex_frequency': None
-            },
-            {
-                'id': 'entry_004', 'headword': 'special_chars', 'pronunciation': None,
-                'grammatical_info': 'simple_string',  # Test non-JSON grammatical info
-                'date_created': '2023-01-01', 'date_modified': '2023-06-15T10:30:00',
-                'custom_fields': 'not_json_either',  # Test non-JSON custom fields
-                'frequency_rank': 500, 'subtlex_frequency': 5.2
-            }
+        # Insert comprehensive test data with various text types
+        corpus_data = [
+            ("Hello world", "Witaj świecie"),
+            ("This is a test", "To jest test"),
+            ("The cat is sleeping", "Kot śpi"),
+            ("I love programming", "Kocham programowanie"),
+            ("Python is great", "Python jest świetny"),
+            ("Database migration", "Migracja bazy danych"),
+            ("Complex sentence with many words and punctuation!", "Złożone zdanie z wieloma słowami i interpunkcją!"),
+            ("Special chars: @#$%^&*()", "Znaki specjalne: @#$%^&*()"),
+            ("Unicode: café, naïve, résumé", "Unicode: café, naïve, résumé"),
+            ("Numbers: 123, 456.78, -99", "Liczby: 123, 456.78, -99"),
+            ("Empty target", ""),  # Edge case: empty target
+            ("", "Pusty źródło"),  # Edge case: empty source
+            ("Very long text that might test the limits of the migration system and see how it handles large amounts of text in a single field", 
+             "Bardzo długi tekst, który może testować limity systemu migracji i zobaczyć, jak radzi sobie z dużymi ilościami tekstu w jednym polu"),
+            ("Text with\nline breaks\nand\ttabs", "Tekst z\nłamaniami linii\ni\ttabulatorami"),
+            ("Quotes: \"double\" and 'single'", "Cudzysłowy: \"podwójne\" i 'pojedyncze'"),
         ]
         
-        for entry_data in entries_data:
+        for source, target in corpus_data:
             cursor.execute("""
-                INSERT INTO entries (id, headword, pronunciation, grammatical_info, 
-                                   date_created, date_modified, custom_fields, 
-                                   frequency_rank, subtlex_frequency)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                entry_data['id'], entry_data['headword'], entry_data['pronunciation'],
-                entry_data['grammatical_info'], entry_data['date_created'], 
-                entry_data['date_modified'], entry_data['custom_fields'],
-                entry_data['frequency_rank'], entry_data['subtlex_frequency']
-            ))
-        
-        # Senses with various relationships
-        senses_data = [
-            {
-                'id': 'sense_001', 'entry_id': 'entry_001', 
-                'definition': 'A procedure intended to establish the quality or performance of something.',
-                'grammatical_info': '{"type": "noun"}', 'custom_fields': '{"examples_count": 3}',
-                'sort_order': 0
-            },
-            {
-                'id': 'sense_002', 'entry_id': 'entry_001',
-                'definition': 'A means of examining knowledge or ability.',
-                'grammatical_info': '{"type": "noun"}', 'custom_fields': None,
-                'sort_order': 1
-            },
-            {
-                'id': 'sense_003', 'entry_id': 'entry_002',
-                'definition': 'A thing characteristic of its kind or illustrating a general rule.',
-                'grammatical_info': None, 'custom_fields': '{"difficulty": "high"}',
-                'sort_order': 0
-            },
-            {
-                'id': 'sense_004', 'entry_id': 'entry_003',
-                'definition': 'Consisting of many different and connected parts.',
-                'grammatical_info': 'adjective', 'custom_fields': 'simple_text',
-                'sort_order': 0
-            }
-        ]
-        
-        for sense_data in senses_data:
-            cursor.execute("""
-                INSERT INTO senses (id, entry_id, definition, grammatical_info, 
-                                  custom_fields, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                sense_data['id'], sense_data['entry_id'], sense_data['definition'],
-                sense_data['grammatical_info'], sense_data['custom_fields'],
-                sense_data['sort_order']
-            ))
-        
-        # Examples with various languages and formats
-        examples_data = [
-            {
-                'id': 'example_001', 'sense_id': 'sense_001',
-                'text': 'The test results were positive.',
-                'translation': 'Wyniki testu były pozytywne.',
-                'custom_fields': '{"language": "English", "register": "formal"}',
-                'sort_order': 0
-            },
-            {
-                'id': 'example_002', 'sense_id': 'sense_001',
-                'text': 'We need to test the new software.',
-                'translation': 'Musimy przetestować nowe oprogramowanie.',
-                'custom_fields': None, 'sort_order': 1
-            },
-            {
-                'id': 'example_003', 'sense_id': 'sense_002',
-                'text': 'The final test is tomorrow.',
-                'translation': 'Egzamin końcowy jest jutro.',
-                'custom_fields': '{"language": "English", "register": "informal"}',
-                'sort_order': 0
-            },
-            {
-                'id': 'example_004', 'sense_id': 'sense_003',
-                'text': 'For example, water boils at 100°C.',
-                'translation': 'Na przykład, woda wrze w temperaturze 100°C.',
-                'custom_fields': 'scientific_context', 'sort_order': 0
-            },
-            {
-                'id': 'example_005', 'sense_id': 'sense_004',
-                'text': 'This is a complex problem.',
-                'translation': 'To jest skomplikowany problem.',
-                'custom_fields': None, 'sort_order': 0
-            }
-        ]
-        
-        for example_data in examples_data:
-            cursor.execute("""
-                INSERT INTO examples (id, sense_id, text, translation, 
-                                    custom_fields, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                example_data['id'], example_data['sense_id'], example_data['text'],
-                example_data['translation'], example_data['custom_fields'],
-                example_data['sort_order']
-            ))
+                INSERT INTO tmdata_content (c0en, c1pl)
+                VALUES (?, ?)
+            """, (source, target))
         
         conn.commit()
         conn.close()
@@ -252,170 +121,169 @@ class TestSQLiteToPostgreSQLMigration:
         # Cleanup
         os.unlink(temp_file.name)
     
-    def test_sqlite_schema_validation(self, migrator: SQLiteToPostgreSQLMigrator, 
-                                    comprehensive_sqlite_data: str):
-        """Test SQLite schema validation."""
-        # Valid schema should pass
-        assert migrator.validate_sqlite_schema(comprehensive_sqlite_data)
+    def _get_connection_helper(self, migrator: CorpusMigrator):
+        """Helper method to get database connection."""
+        return migrator._get_postgres_connection()
+    
+    def test_schema_creation(self, migrator: CorpusMigrator, clean_postgres_tables: None):
+        """Test PostgreSQL schema creation."""
+        # Create schema
+        migrator.create_schema()
         
-        # Test with invalid schema
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as temp_file:
-            temp_db_path = temp_file.name
+        # Verify table was created
+        conn = self._get_connection_helper(migrator)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_schema = 'corpus' AND table_name = 'parallel_corpus'
+                """)
+                result = cur.fetchone()
+                assert result is not None
+                assert result[0] == 'parallel_corpus'
+                
+                # Verify table structure
+                cur.execute("""
+                    SELECT column_name, data_type 
+                    FROM information_schema.columns 
+                    WHERE table_schema = 'corpus' AND table_name = 'parallel_corpus'
+                    ORDER BY ordinal_position
+                """)
+                columns = cur.fetchall()
+                column_names = [col[0] for col in columns]
+                
+                expected_columns = ['id', 'source_text', 'target_text', 'created_at']
+                for expected_col in expected_columns:
+                    assert expected_col in column_names
+        finally:
+            conn.close()
+    
+    def test_csv_export_import_workflow(self, migrator: CorpusMigrator, 
+                                       corpus_sqlite_data: str, clean_postgres_tables: None):
+        """Test CSV export and import workflow."""
+        sqlite_path = Path(corpus_sqlite_data)
+        
+        # Create schema first
+        migrator.create_schema()
+        
+        # Test CSV export
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.csv', delete=False, encoding='utf-8') as temp_csv:
+            csv_path = Path(temp_csv.name)
         
         try:
-            # Use context manager to ensure proper connection closure
-            with sqlite3.connect(temp_db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Create incomplete schema (missing examples table)
-                cursor.execute("""
-                    CREATE TABLE entries (
-                        id TEXT PRIMARY KEY,
-                        headword TEXT NOT NULL
-                    )
-                """)
-                cursor.execute("""
-                    CREATE TABLE senses (
-                        id TEXT PRIMARY KEY,
-                        entry_id TEXT NOT NULL
-                    )
-                """)
-                conn.commit()
+            # Export SQLite to CSV
+            exported_count = migrator.export_sqlite_to_csv(sqlite_path, csv_path)
             
-            # Should fail validation
-            assert not migrator.validate_sqlite_schema(temp_db_path)
-        finally:
-            # Cleanup - ensure file is deleted even if test fails
+            # Verify CSV file was created and has content
+            assert csv_path.exists()
+            assert exported_count > 0
+            
+            # Check CSV content
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                assert header == ['source_text', 'target_text']
+                
+                rows = list(reader)
+                assert len(rows) == exported_count
+                
+                # Check specific data
+                found_hello = False
+                for row in rows:
+                    if row[0] == 'Hello world' and row[1] == 'Witaj świecie':
+                        found_hello = True
+                        break
+                assert found_hello, "Expected test data not found in CSV"
+            
+            # Import CSV to PostgreSQL
+            imported_count = migrator.import_csv_to_postgres(csv_path)
+            assert imported_count > 0
+            
+            # Verify data in PostgreSQL
+            conn = self._get_connection_helper(migrator)
             try:
-                os.unlink(temp_db_path)
-            except (FileNotFoundError, PermissionError):
-                pass  # Ignore cleanup errors
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
+                    result = cur.fetchone()
+                    db_count = result[0] if result else 0
+                    assert db_count == imported_count
+                    
+                    # Check specific record
+                    cur.execute("""
+                        SELECT source_text, target_text 
+                        FROM corpus.parallel_corpus 
+                        WHERE source_text = %s
+                    """, ('Hello world',))
+                    result = cur.fetchone()
+                    assert result is not None
+                    assert result[1] == 'Witaj świecie'
+            finally:
+                conn.close()
+        
+        finally:
+            # Cleanup
+            if csv_path.exists():
+                csv_path.unlink()
     
-    def test_data_transformation(self, migrator: SQLiteToPostgreSQLMigrator):
-        """Test data transformation for PostgreSQL compatibility."""
-        # Test JSON field transformation
-        sqlite_data = {
-            'id': 'test_001',
-            'headword': 'test',
-            'grammatical_info': '{"type": "noun", "number": "singular"}',
-            'custom_fields': '{"tags": ["common"], "frequency": 100}',
-            'date_created': '2023-01-01',
-            'date_modified': '2023-06-15T10:30:00'
-        }
+    def test_complete_migration_workflow(self, migrator: CorpusMigrator,
+                                       corpus_sqlite_data: str, clean_postgres_tables: None):
+        """Test complete migration process using the main workflow."""
+        sqlite_path = Path(corpus_sqlite_data)
         
-        transformed = migrator.transform_data_for_postgresql(sqlite_data)
-        
-        # Check JSON parsing
-        assert isinstance(transformed['grammatical_info'], dict)
-        assert transformed['grammatical_info']['type'] == 'noun'
-        assert isinstance(transformed['custom_fields'], dict)
-        assert transformed['custom_fields']['frequency'] == 100
-        
-        # Check datetime parsing
-        assert isinstance(transformed['date_created'], datetime)
-        assert isinstance(transformed['date_modified'], datetime)
-        
-        # Test invalid JSON handling
-        invalid_json_data = {
-            'grammatical_info': 'not_json',
-            'custom_fields': 'also_not_json',
-            'date_created': 'invalid_date'
-        }
-        
-        transformed_invalid = migrator.transform_data_for_postgresql(invalid_json_data)
-        
-        # Should wrap non-JSON strings
-        assert transformed_invalid['grammatical_info']['raw'] == 'not_json'
-        assert transformed_invalid['custom_fields']['raw'] == 'also_not_json'
-        # Should handle invalid dates gracefully
-        assert isinstance(transformed_invalid['date_created'], datetime)
-    
-    def test_postgresql_schema_creation(self, migrator: SQLiteToPostgreSQLMigrator, 
-                                      clean_postgres_tables):
-        """Test PostgreSQL schema creation."""
-        # Setup schema
-        migrator.setup_postgresql_schema()
-        
-        # Verify tables were created
-        tables_result = migrator.postgres_connector.fetch_all("""
-            SELECT table_name FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            ORDER BY table_name
-        """)
-        
-        table_names = [row['table_name'] for row in tables_result]
-        expected_tables = ['entries', 'senses', 'examples', 'frequency_data', 'word_sketches']
-        
-        for expected_table in expected_tables:
-            assert expected_table in table_names
-        
-        # Verify foreign key constraints
-        constraints_result = migrator.postgres_connector.fetch_all("""
-            SELECT constraint_name, table_name, column_name 
-            FROM information_schema.key_column_usage 
-            WHERE table_schema = 'public' AND constraint_name LIKE '%fkey%'
-        """)
-        
-        assert len(constraints_result) >= 2  # At least senses->entries and examples->senses
-        
-        # Verify indexes were created
-        indexes_result = migrator.postgres_connector.fetch_all("""
-            SELECT indexname FROM pg_indexes 
-            WHERE schemaname = 'public' AND indexname LIKE 'idx_%'
-        """)
-        
-        assert len(indexes_result) >= 5  # Multiple indexes should be created
-    
-    def test_complete_migration(self, migrator: SQLiteToPostgreSQLMigrator,
-                              comprehensive_sqlite_data: str, clean_postgres_tables):
-        """Test complete migration process."""
-        # Perform migration
-        stats = migrator.migrate_database(comprehensive_sqlite_data, validate_integrity=True)
+        # Perform complete migration
+        stats = migrator.migrate_sqlite_corpus(sqlite_path, cleanup_temp=True)
         
         # Check migration statistics
-        assert stats.entries_migrated == 4
-        assert stats.senses_migrated == 4
-        assert stats.examples_migrated == 5
-        assert len(stats.errors) == 0
+        assert stats.records_exported > 0
+        assert stats.records_imported > 0
+        assert stats.records_processed > 0
+        assert stats.errors_count == 0
+        assert stats.duration is not None
+        assert stats.duration > 0
         
         # Verify data was migrated correctly
-        entries = migrator.postgres_connector.fetch_all("""
-            SELECT entry_id, headword, pronunciation, grammatical_info, custom_fields 
-            FROM entries ORDER BY entry_id
-        """)
-        
-        assert len(entries) == 4
-        
-        # Check specific entry data
-        test_entry = next(e for e in entries if e['entry_id'] == 'entry_001')
-        assert test_entry['headword'] == 'test'
-        assert test_entry['pronunciation'] == '/tɛst/'
-        
-        # Check JSON fields were properly converted
-        grammatical_info = test_entry['grammatical_info']  # Already a dict from JSONB
-        assert grammatical_info['type'] == 'noun'
-        assert grammatical_info['number'] == 'singular'
-        
-        custom_fields = test_entry['custom_fields']  # Already a dict from JSONB
-        assert custom_fields['frequency'] == 1000
-        assert 'common' in custom_fields['tags']
-        
-        # Check relationships are preserved
-        complex_query = migrator.postgres_connector.fetch_all("""
-            SELECT e.headword, s.definition, ex.text, ex.translation
-            FROM entries e
-            JOIN senses s ON e.entry_id = s.entry_id
-            JOIN examples ex ON s.sense_id = ex.sense_id
-            WHERE e.headword = 'test'
-            ORDER BY s.sort_order, ex.sort_order
-        """)
-        
-        assert len(complex_query) == 3  # 'test' has 2 senses with 3 total examples
-        assert complex_query[0]['text'] == 'The test results were positive.'
-        assert complex_query[0]['translation'] == 'Wyniki testu były pozytywne.'
+        conn = self._get_connection_helper(migrator)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
+                result = cur.fetchone()
+                total_count = result[0] if result else 0
+                assert total_count == stats.records_imported
+                
+                # Check specific test data exists
+                cur.execute("""
+                    SELECT source_text, target_text 
+                    FROM corpus.parallel_corpus 
+                    WHERE source_text = %s
+                """, ('Database migration',))
+                result = cur.fetchone()
+                assert result is not None
+                assert result[1] == 'Migracja bazy danych'
+                
+                # Check Unicode handling
+                cur.execute("""
+                    SELECT source_text, target_text 
+                    FROM corpus.parallel_corpus 
+                    WHERE source_text LIKE %s
+                """, ('Unicode: café%',))
+                unicode_result = cur.fetchone()
+                assert unicode_result is not None
+                assert 'café' in unicode_result[1]
+                
+                # Verify indexes were created
+                cur.execute("""
+                    SELECT indexname FROM pg_indexes 
+                    WHERE schemaname = 'corpus' AND tablename = 'parallel_corpus'
+                """)
+                indexes = cur.fetchall()
+                index_names = [idx[0] for idx in indexes]
+                
+                # Should have primary key and the created indexes
+                assert len(index_names) >= 2  # At least primary key + some indexes
+        finally:
+            conn.close()
     
-    def test_migration_with_edge_cases(self, migrator: SQLiteToPostgreSQLMigrator, 
-                                     clean_postgres_tables):
+    def test_migration_with_edge_cases(self, migrator: CorpusMigrator, clean_postgres_tables: None):
         """Test migration with edge cases and problematic data."""
         # Create SQLite with edge cases
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
@@ -426,106 +294,158 @@ class TestSQLiteToPostgreSQLMigration:
         
         # Create schema
         cursor.execute("""
-            CREATE TABLE entries (
-                id TEXT PRIMARY KEY,
-                headword TEXT NOT NULL,
-                pronunciation TEXT,
-                grammatical_info TEXT,
-                date_created TEXT,
-                date_modified TEXT,
-                custom_fields TEXT
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE senses (
-                id TEXT PRIMARY KEY,
-                entry_id TEXT NOT NULL,
-                definition TEXT,
-                grammatical_info TEXT,
-                custom_fields TEXT,
-                sort_order INTEGER,
-                FOREIGN KEY (entry_id) REFERENCES entries (id)
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE examples (
-                id TEXT PRIMARY KEY,
-                sense_id TEXT NOT NULL,
-                text TEXT NOT NULL,
-                translation TEXT,
-                custom_fields TEXT,
-                sort_order INTEGER,
-                FOREIGN KEY (sense_id) REFERENCES senses (id)
+            CREATE TABLE tmdata_content (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                c0en TEXT NOT NULL,
+                c1pl TEXT NOT NULL
             )
         """)
         
         # Insert edge case data
         edge_cases = [
-            # Entry with Unicode characters
-            ('edge_001', 'café', '/kaˈfe/', '{"type": "noun", "origin": "français"}', 
-             '2023-01-01', '2023-01-01', '{"unicode": "test", "emoji": "☕"}'),
-            # Entry with very long text
-            ('edge_002', 'supercalifragilisticexpialidocious', None, 
-             '{"type": "adjective", "note": "' + 'x' * 1000 + '"}',
-             None, None, None),
-            # Entry with special characters
-            ('edge_003', 'test&<>"\'', '/test/', '{"type": "noun&verb"}',
-             'invalid-date', '2023-13-45', '{"key": "value with \\"quotes\\""}'),
+            # Text with null bytes (should be cleaned)
+            ('Text with\x00null bytes', 'Tekst z\x00bajtami null'),
+            # Very long text
+            ('A' * 10000, 'B' * 10000),
+            # Special characters and quotes
+            ('Text with "quotes" and \'apostrophes\'', 'Tekst z "cudzysłowami" i \'apostrofami\''),
+            # Multiple whitespace (should be normalized)
+            ('Text   with    multiple     spaces', 'Tekst   z    wieloma     spacjami'),
+            # Newlines and tabs
+            ('Text\nwith\nlines\tand\ttabs', 'Tekst\nz\nliniami\ti\ttabulatorami'),
+            # Empty strings (should be handled)
+            ('', ''),
+            # Non-ASCII characters
+            ('Café naïve résumé', 'Café naïve résumé'),
         ]
         
-        for edge_case in edge_cases:
+        for source, target in edge_cases:
             cursor.execute("""
-                INSERT INTO entries (id, headword, pronunciation, grammatical_info,
-                                   date_created, date_modified, custom_fields)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, edge_case)
-        
-        # Add senses and examples for edge cases
-        cursor.execute("""
-            INSERT INTO senses (id, entry_id, definition, sort_order)
-            VALUES ('edge_sense_001', 'edge_001', 'A coffee shop.', 0)
-        """)
-        
-        cursor.execute("""
-            INSERT INTO examples (id, sense_id, text, sort_order)
-            VALUES ('edge_example_001', 'edge_sense_001', 'Let\\'s go to the café.', 0)
-        """)
+                INSERT INTO tmdata_content (c0en, c1pl)
+                VALUES (?, ?)
+            """, (source, target))
         
         conn.commit()
         conn.close()
         
         try:
             # Perform migration
-            stats = migrator.migrate_database(temp_file.name, validate_integrity=True)
+            sqlite_path = Path(temp_file.name)
+            stats = migrator.migrate_sqlite_corpus(sqlite_path, cleanup_temp=True)
             
             # Should handle edge cases gracefully
-            assert stats.entries_migrated == 3
-            assert stats.senses_migrated == 1
-            assert stats.examples_migrated == 1
+            assert stats.records_imported > 0
+            assert stats.errors_count == 0
             
-            # Verify Unicode handling
-            unicode_entry = migrator.postgres_connector.fetch_all("""
-                SELECT headword, grammatical_info, custom_fields 
-                FROM entries WHERE entry_id = 'edge_001'
-            """)
-            
-            assert len(unicode_entry) == 1
-            assert unicode_entry[0]['headword'] == 'café'
-            
-            # Verify JSON with Unicode
-            custom_fields = json.loads(unicode_entry[0]['custom_fields'])
-            assert custom_fields['emoji'] == '☕'
-            
+            # Verify text cleaning worked
+            conn = self._get_connection_helper(migrator)
+            try:
+                with conn.cursor() as cur:
+                    # Check null bytes were removed
+                    cur.execute("""
+                        SELECT source_text, target_text 
+                        FROM corpus.parallel_corpus 
+                        WHERE source_text LIKE %s
+                    """, ('Text with%null bytes',))
+                    result = cur.fetchone()
+                    assert result is not None
+                    assert '\x00' not in result[0]
+                    assert '\x00' not in result[1]
+                    
+                    # Check whitespace normalization
+                    cur.execute("""
+                        SELECT source_text 
+                        FROM corpus.parallel_corpus 
+                        WHERE source_text LIKE %s
+                    """, ('Text with multiple%',))
+                    whitespace_result = cur.fetchone()
+                    assert whitespace_result is not None
+                    # Should have normalized whitespace
+                    assert '    ' not in whitespace_result[0]  # Multiple spaces should be reduced
+            finally:
+                conn.close()
+        
         finally:
             # Cleanup
             os.unlink(temp_file.name)
     
-    def test_migration_performance(self, migrator: SQLiteToPostgreSQLMigrator, 
-                                 clean_postgres_tables):
+    def test_deduplication(self, migrator: CorpusMigrator, clean_postgres_tables: None):
+        """Test corpus deduplication functionality."""
+        # Create SQLite with duplicate data
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+        temp_file.close()
+        
+        conn = sqlite3.connect(temp_file.name)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE tmdata_content (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                c0en TEXT NOT NULL,
+                c1pl TEXT NOT NULL
+            )
+        """)
+        
+        # Insert data with duplicates
+        test_data = [
+            ('Hello world', 'Witaj świecie'),
+            ('Hello world', 'Witaj świecie'),  # Duplicate
+            ('Goodbye', 'Do widzenia'),
+            ('Hello world', 'Witaj świecie'),  # Another duplicate
+            ('Good morning', 'Dzień dobry'),
+        ]
+        
+        for source, target in test_data:
+            cursor.execute("""
+                INSERT INTO tmdata_content (c0en, c1pl)
+                VALUES (?, ?)
+            """, (source, target))
+        
+        conn.commit()
+        conn.close()
+        
+        try:
+            # Perform migration (includes deduplication)
+            sqlite_path = Path(temp_file.name)
+            stats = migrator.migrate_sqlite_corpus(sqlite_path, cleanup_temp=True)
+            
+            # Check that deduplication occurred
+            conn = self._get_connection_helper(migrator)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
+                    result = cur.fetchone()
+                    total_count = result[0] if result else 0
+                    
+                    # Should have fewer records than input due to deduplication
+                    assert total_count < len(test_data)
+                    
+                    # Check specific duplicates were removed
+                    cur.execute("""
+                        SELECT COUNT(*) FROM corpus.parallel_corpus 
+                        WHERE source_text = %s AND target_text = %s
+                    """, ('Hello world', 'Witaj świecie'))
+                    result = cur.fetchone()
+                    hello_count = result[0] if result else 0
+                    assert hello_count == 1  # Should have only one instance
+                    
+                    # Check unique records still exist
+                    cur.execute("""
+                        SELECT COUNT(*) FROM corpus.parallel_corpus 
+                        WHERE source_text = %s
+                    """, ('Good morning',))
+                    result = cur.fetchone()
+                    morning_count = result[0] if result else 0
+                    assert morning_count == 1
+            finally:
+                conn.close()
+        
+        finally:
+            # Cleanup
+            os.unlink(temp_file.name)
+    
+    def test_migration_performance(self, migrator: CorpusMigrator, clean_postgres_tables: None):
         """Test migration performance with larger dataset."""
-        import time
         import random
         import string
         
@@ -540,124 +460,69 @@ class TestSQLiteToPostgreSQLMigration:
                 
                 # Create schema
                 cursor.execute("""
-                    CREATE TABLE entries (
-                        id TEXT PRIMARY KEY,
-                        headword TEXT NOT NULL,
-                        pronunciation TEXT,
-                        grammatical_info TEXT,
-                        date_created TEXT,
-                        date_modified TEXT,
-                        custom_fields TEXT
-                    )
-                """)
-                
-                cursor.execute("""
-                    CREATE TABLE senses (
-                        id TEXT PRIMARY KEY,
-                        entry_id TEXT NOT NULL,
-                        definition TEXT,
-                        grammatical_info TEXT,
-                        custom_fields TEXT,
-                        sort_order INTEGER,
-                        FOREIGN KEY (entry_id) REFERENCES entries (id)
-                    )
-                """)
-                
-                cursor.execute("""
-                    CREATE TABLE examples (
-                        id TEXT PRIMARY KEY,
-                        sense_id TEXT NOT NULL,
-                        text TEXT NOT NULL,
-                        translation TEXT,
-                        custom_fields TEXT,
-                        sort_order INTEGER,
-                        FOREIGN KEY (sense_id) REFERENCES senses (id)
+                    CREATE TABLE tmdata_content (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        c0en TEXT NOT NULL,
+                        c1pl TEXT NOT NULL
                     )
                 """)
                 
                 # Generate test data
-                num_entries = 500
-                now = datetime.now().isoformat()
+                num_records = 1000  # Reasonable size for testing
                 
-                print(f"Generating {num_entries} entries for performance test...")
+                print(f"Generating {num_records} records for performance test...")
                 
-                # Insert entries
-                for i in range(num_entries):
-                    entry_id = f'perf_entry_{i:04d}'
-                    headword = ''.join(random.choices(string.ascii_lowercase, k=random.randint(3, 12)))
-                    pronunciation = f'/{headword}/'
-                    grammatical_info = json.dumps({
-                        'type': random.choice(['noun', 'verb', 'adjective', 'adverb']),
-                        'complexity': random.randint(1, 5)
-                    })
-                    custom_fields = json.dumps({
-                        'frequency': random.randint(1, 10000),
-                        'tags': random.sample(['common', 'rare', 'technical', 'colloquial'], k=2)
-                    })
+                # Insert records in batches for better performance
+                batch_size = 100
+                for batch_start in range(0, num_records, batch_size):
+                    batch_data = []
+                    for i in range(batch_start, min(batch_start + batch_size, num_records)):
+                        source_text = f"English text {i}: " + ''.join(random.choices(string.ascii_lowercase + ' ', k=50))
+                        target_text = f"Polish text {i}: " + ''.join(random.choices(string.ascii_lowercase + ' ', k=50))
+                        batch_data.append((source_text, target_text))
                     
-                    cursor.execute("""
-                        INSERT INTO entries (id, headword, pronunciation, grammatical_info,
-                                           date_created, date_modified, custom_fields)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (entry_id, headword, pronunciation, grammatical_info, now, now, custom_fields))
-                    
-                    # Add 1-3 senses per entry
-                    num_senses = random.randint(1, 3)
-                    for j in range(num_senses):
-                        sense_id = f'perf_sense_{i:04d}_{j}'
-                        definition = f'Definition {j+1} for {headword}'
-                        
-                        cursor.execute("""
-                            INSERT INTO senses (id, entry_id, definition, sort_order)
-                            VALUES (?, ?, ?, ?)
-                        """, (sense_id, entry_id, definition, j))
-                        
-                        # Add 0-2 examples per sense
-                        num_examples = random.randint(0, 2)
-                        for k in range(num_examples):
-                            example_id = f'perf_example_{i:04d}_{j}_{k}'
-                            text = f'Example {k+1} for sense {j+1} of {headword}'
-                            translation = f'Przykład {k+1} dla znaczenia {j+1} słowa {headword}'
-                            
-                            cursor.execute("""
-                                INSERT INTO examples (id, sense_id, text, translation, sort_order)
-                                VALUES (?, ?, ?, ?, ?)
-                            """, (example_id, sense_id, text, translation, k))
+                    cursor.executemany("""
+                        INSERT INTO tmdata_content (c0en, c1pl)
+                        VALUES (?, ?)
+                    """, batch_data)
                 
                 conn.commit()
             
             # Perform timed migration
             start_time = time.time()
-            stats = migrator.migrate_database(temp_db_path, validate_integrity=True)
+            sqlite_path = Path(temp_db_path)
+            stats = migrator.migrate_sqlite_corpus(sqlite_path, cleanup_temp=True)
             migration_time = time.time() - start_time
             
             print(f"Migration completed in {migration_time:.2f} seconds")
-            print(f"Entries migrated: {stats.entries_migrated}")
-            print(f"Senses migrated: {stats.senses_migrated}")
-            print(f"Examples migrated: {stats.examples_migrated}")
+            print(f"Records processed: {stats.records_processed}")
+            print(f"Records imported: {stats.records_imported}")
             
             # Performance assertions
-            assert stats.entries_migrated == num_entries
-            assert migration_time < 60.0  # Should complete within 1 minute for 500 entries
-            assert len(stats.errors) == 0
+            assert stats.records_imported >= num_records * 0.9  # Allow for some deduplication
+            assert migration_time < 30.0  # Should complete within 30 seconds for 1000 records
+            assert stats.errors_count == 0
             
             # Test query performance on migrated data
-            query_start = time.time()
-            complex_results = migrator.postgres_connector.fetch_all("""
-                SELECT e.headword, COUNT(s.sense_id) as sense_count, COUNT(ex.example_id) as example_count
-                FROM entries e
-                LEFT JOIN senses s ON e.entry_id = s.entry_id
-                LEFT JOIN examples ex ON s.sense_id = ex.sense_id
-                GROUP BY e.entry_id, e.headword
-                ORDER BY sense_count DESC, example_count DESC
-                LIMIT 50
-            """)
-            query_time = time.time() - query_start
-            
-            print(f"Complex query completed in {query_time:.3f} seconds")
-            
-            assert len(complex_results) == 50
-            assert query_time < 5.0  # Complex query should be fast
+            conn = self._get_connection_helper(migrator)
+            try:
+                with conn.cursor() as cur:
+                    query_start = time.time()
+                    cur.execute("""
+                        SELECT COUNT(*) 
+                        FROM corpus.parallel_corpus 
+                        WHERE source_text LIKE %s
+                    """, ('%English text%',))
+                    result = cur.fetchone()
+                    count_result = result[0] if result else 0
+                    query_time = time.time() - query_start
+                    
+                    print(f"Query completed in {query_time:.3f} seconds")
+                    
+                    assert count_result > 0
+                    assert query_time < 5.0  # Query should be fast
+            finally:
+                conn.close()
             
         finally:
             # Cleanup - ensure file is deleted even if test fails
@@ -666,12 +531,45 @@ class TestSQLiteToPostgreSQLMigration:
             except (FileNotFoundError, PermissionError):
                 pass  # Ignore cleanup errors
     
-    def test_migration_error_handling(self, migrator: SQLiteToPostgreSQLMigrator, 
-                                    clean_postgres_tables):
+    def test_corpus_stats(self, migrator: CorpusMigrator, corpus_sqlite_data: str, clean_postgres_tables: None):
+        """Test corpus statistics functionality."""
+        # First migrate some data
+        sqlite_path = Path(corpus_sqlite_data)
+        stats = migrator.migrate_sqlite_corpus(sqlite_path, cleanup_temp=True)
+        
+        # Get corpus statistics
+        corpus_stats = migrator.get_corpus_stats()
+        
+        # Verify statistics are reasonable
+        assert corpus_stats['total_records'] == stats.records_imported
+        assert corpus_stats['avg_source_length'] > 0
+        assert corpus_stats['avg_target_length'] > 0
+        assert corpus_stats['first_record'] is not None
+        assert corpus_stats['last_record'] is not None
+        
+        # Test stats for empty corpus
+        # Clean the corpus table manually
+        conn = self._get_connection_helper(migrator)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("TRUNCATE TABLE corpus.parallel_corpus")
+            conn.commit()
+        finally:
+            conn.close()
+            
+        clean_stats = migrator.get_corpus_stats()
+        assert clean_stats['total_records'] == 0
+    
+    def test_migration_error_handling(self, migrator: CorpusMigrator, clean_postgres_tables: None):
         """Test migration error handling and recovery."""
         # Test with non-existent SQLite file
-        with pytest.raises(ValidationError):
-            migrator.migrate_database('/non/existent/file.db')
+        non_existent_path = Path('/non/existent/file.db')
+        try:
+            migrator.migrate_sqlite_corpus(non_existent_path)
+            assert False, "Should have raised an exception"
+        except Exception as e:
+            # Should handle the error gracefully
+            assert "does not exist" in str(e).lower() or "no such file" in str(e).lower() or "unable to open" in str(e).lower()
         
         # Test with invalid SQLite file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as temp_file:
@@ -679,8 +577,12 @@ class TestSQLiteToPostgreSQLMigration:
             temp_db_path = temp_file.name
         
         try:
-            with pytest.raises(ValidationError):
-                migrator.migrate_database(temp_db_path)
+            invalid_path = Path(temp_db_path)
+            migrator.migrate_sqlite_corpus(invalid_path)
+            assert False, "Should have raised an exception"
+        except Exception as e:
+            # Should handle the error gracefully
+            assert "not a database" in str(e).lower() or "file is not a database" in str(e).lower()
         finally:
             # Cleanup - ensure file is deleted even if test fails
             try:
@@ -690,5 +592,5 @@ class TestSQLiteToPostgreSQLMigration:
 
 
 if __name__ == '__main__':
-    # Run migration tests
+    # Run corpus migration tests
     pytest.main([__file__, '-v', '--tb=short', '-x'])

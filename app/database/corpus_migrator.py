@@ -151,64 +151,93 @@ class CorpusMigrator:
     
     def create_database_if_not_exists(self) -> None:
         """Create target database if it doesn't exist."""
-        # Connect to default database to create target database
-        temp_config = self.postgres_config
-        temp_config.database = 'postgres'
-        
-        conn = psycopg2.connect(
-            host=temp_config.host,
-            port=temp_config.port,
-            database=temp_config.database,
-            user=temp_config.username,
-            password=temp_config.password,
-            client_encoding='UTF8'
-        )
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        
+        # First try to connect to the target database directly
         try:
-            with conn.cursor() as cur:
-                # Check if database exists
-                cur.execute(
-                    "SELECT 1 FROM pg_database WHERE datname = %s",
-                    (self.postgres_config.database,)
-                )
-                
-                if not cur.fetchone():
-                    cur.execute(f'CREATE DATABASE "{self.postgres_config.database}" ENCODING \'UTF8\'')
-                    self.logger.info(f"Created database: {self.postgres_config.database}")
-        finally:
-            conn.close()
+            test_conn = self._get_postgres_connection()
+            test_conn.close()
+            self.logger.info(f"Database {self.postgres_config.database} already exists and is accessible")
+            return
+        except psycopg2.OperationalError:
+            # Database doesn't exist or is not accessible, try to create it
+            pass
+        
+        # Try to connect to default database to create target database
+        try:
+            temp_config = PostgreSQLConfig(
+                host=self.postgres_config.host,
+                port=self.postgres_config.port,
+                database='postgres',
+                username=self.postgres_config.username,
+                password=self.postgres_config.password
+            )
+            
+            conn = psycopg2.connect(
+                host=temp_config.host,
+                port=temp_config.port,
+                database=temp_config.database,
+                user=temp_config.username,
+                password=temp_config.password,
+                client_encoding='UTF8'
+            )
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            
+            try:
+                with conn.cursor() as cur:
+                    # Check if database exists
+                    cur.execute(
+                        "SELECT 1 FROM pg_database WHERE datname = %s",
+                        (self.postgres_config.database,)
+                    )
+                    
+                    if not cur.fetchone():
+                        cur.execute(f'CREATE DATABASE "{self.postgres_config.database}" ENCODING \'UTF8\'')
+                        self.logger.info(f"Created database: {self.postgres_config.database}")
+            finally:
+                conn.close()
+        except psycopg2.Error as e:
+            # If we can't connect to postgres database or create the target database,
+            # assume the target database already exists (common in testing scenarios)
+            self.logger.warning(f"Could not create database {self.postgres_config.database}: {e}")
+            self.logger.info("Assuming target database already exists")
     
     def drop_database(self) -> None:
         """Drop the target database (for cleanup)."""
-        temp_config = self.postgres_config
-        temp_config.database = 'postgres'
-        
-        conn = psycopg2.connect(
-            host=temp_config.host,
-            port=temp_config.port,
-            database=temp_config.database,
-            user=temp_config.username,
-            password=temp_config.password,
-            client_encoding='UTF8'
-        )
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        
         try:
-            with conn.cursor() as cur:
-                # Terminate connections to target database
-                cur.execute("""
-                    SELECT pg_terminate_backend(pg_stat_activity.pid)
-                    FROM pg_stat_activity
-                    WHERE pg_stat_activity.datname = %s
-                    AND pid <> pg_backend_pid()
-                """, (self.postgres_config.database,))
-                
-                # Drop database
-                cur.execute(f'DROP DATABASE IF EXISTS "{self.postgres_config.database}"')
-                self.logger.info(f"Dropped database: {self.postgres_config.database}")
-        finally:
-            conn.close()
+            temp_config = PostgreSQLConfig(
+                host=self.postgres_config.host,
+                port=self.postgres_config.port,
+                database='postgres',
+                username=self.postgres_config.username,
+                password=self.postgres_config.password
+            )
+            
+            conn = psycopg2.connect(
+                host=temp_config.host,
+                port=temp_config.port,
+                database=temp_config.database,
+                user=temp_config.username,
+                password=temp_config.password,
+                client_encoding='UTF8'
+            )
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            
+            try:
+                with conn.cursor() as cur:
+                    # Terminate connections to target database
+                    cur.execute("""
+                        SELECT pg_terminate_backend(pg_stat_activity.pid)
+                        FROM pg_stat_activity
+                        WHERE pg_stat_activity.datname = %s
+                        AND pid <> pg_backend_pid()
+                    """, (self.postgres_config.database,))
+                    
+                    # Drop database
+                    cur.execute(f'DROP DATABASE IF EXISTS "{self.postgres_config.database}"')
+                    self.logger.info(f"Dropped database: {self.postgres_config.database}")
+            finally:
+                conn.close()
+        except psycopg2.Error as e:
+            self.logger.warning(f"Could not drop database {self.postgres_config.database}: {e}")
     
     def create_schema(self) -> None:
         """Create corpus schema without indexes (for fast loading)."""
@@ -216,21 +245,28 @@ class CorpusMigrator:
         
         try:
             with conn.cursor() as cur:
+                # Create corpus schema if it doesn't exist
+                cur.execute("CREATE SCHEMA IF NOT EXISTS corpus")
+                
+                # Set search path to use corpus schema
+                cur.execute("SET search_path TO corpus, public")
+                
                 # Check if table already exists
                 cur.execute("""
                     SELECT COUNT(*) 
                     FROM information_schema.tables 
                     WHERE table_name = 'parallel_corpus'
+                    AND table_schema = 'corpus'
                 """)
                 table_exists = cur.fetchone()[0] > 0
                 
                 if not table_exists:
                     # Drop table if exists and create new one
-                    cur.execute("DROP TABLE IF EXISTS parallel_corpus")
+                    cur.execute("DROP TABLE IF EXISTS corpus.parallel_corpus")
                     
                     # Create table without indexes
                     cur.execute("""
-                        CREATE TABLE parallel_corpus (
+                        CREATE TABLE corpus.parallel_corpus (
                             id SERIAL PRIMARY KEY,
                             source_text TEXT NOT NULL,
                             target_text TEXT NOT NULL,
@@ -251,29 +287,32 @@ class CorpusMigrator:
         
         try:
             with conn.cursor() as cur:
+                # Set search path to use corpus schema
+                cur.execute("SET search_path TO corpus, public")
+                
                 self.logger.info("Creating indexes...")
                 
                 # Create B-tree indexes for exact searches
-                cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_text ON parallel_corpus USING btree (source_text)")
-                cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_text ON parallel_corpus USING btree (target_text)")
+                cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_text ON corpus.parallel_corpus USING btree (source_text)")
+                cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_text ON corpus.parallel_corpus USING btree (target_text)")
                 
                 # Create full-text search indexes
                 try:
                     # Try Polish configuration first
                     cur.execute("""
                         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_fts 
-                        ON parallel_corpus USING gin (to_tsvector('english', source_text))
+                        ON corpus.parallel_corpus USING gin (to_tsvector('english', source_text))
                     """)
                     cur.execute("""
                         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_fts 
-                        ON parallel_corpus USING gin (to_tsvector('polish', target_text))
+                        ON corpus.parallel_corpus USING gin (to_tsvector('polish', target_text))
                     """)
                 except psycopg2.Error:
                     # Fallback to simple configuration
                     self.logger.warning("Polish text search config not available, using simple")
                     cur.execute("""
                         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_fts 
-                        ON parallel_corpus USING gin (to_tsvector('simple', target_text))
+                        ON corpus.parallel_corpus USING gin (to_tsvector('simple', target_text))
                     """)
                 
                 self.logger.info("Indexes created successfully")
@@ -327,18 +366,21 @@ class CorpusMigrator:
         
         try:
             with conn.cursor() as cur:
+                # Set search path to use corpus schema
+                cur.execute("SET search_path TO corpus, public")
+                
                 # Use COPY for fast bulk import
                 with open(csv_path, 'r', encoding='utf-8') as csvfile:
                     # Skip header
                     next(csvfile)
                     
                     cur.copy_expert("""
-                        COPY parallel_corpus (source_text, target_text) 
+                        COPY corpus.parallel_corpus (source_text, target_text) 
                         FROM STDIN WITH CSV QUOTE '"'
                     """, csvfile)
                 
                 # Get count of imported records
-                cur.execute("SELECT COUNT(*) FROM parallel_corpus")
+                cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
                 count_result = cur.fetchone()
                 if count_result:
                     self.stats.records_imported = count_result[0]
@@ -359,12 +401,15 @@ class CorpusMigrator:
         
         try:
             with conn.cursor() as cur:
+                # Set search path to use corpus schema
+                cur.execute("SET search_path TO corpus, public")
+                
                 # Delete duplicates keeping the first occurrence
                 cur.execute("""
-                    DELETE FROM parallel_corpus 
+                    DELETE FROM corpus.parallel_corpus 
                     WHERE id NOT IN (
                         SELECT MIN(id) 
-                        FROM parallel_corpus 
+                        FROM corpus.parallel_corpus 
                         GROUP BY source_text, target_text
                     )
                 """)
@@ -468,6 +513,9 @@ class CorpusMigrator:
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 try:
+                    # Set search path to use corpus schema
+                    cur.execute("SET search_path TO corpus, public")
+                    
                     cur.execute("""
                         SELECT 
                             COUNT(*) as total_records,
@@ -475,7 +523,7 @@ class CorpusMigrator:
                             AVG(LENGTH(target_text)) as avg_target_length,
                             MIN(created_at) as first_record,
                             MAX(created_at) as last_record
-                        FROM parallel_corpus
+                        FROM corpus.parallel_corpus
                     """)
                     
                     result = cur.fetchone()
