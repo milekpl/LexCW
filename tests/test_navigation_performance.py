@@ -13,7 +13,13 @@ from app import create_app
 @pytest.fixture
 def app():
     """Create test Flask app."""
-    return create_app('testing')
+    app = create_app('testing')
+    
+    # Ensure injector is available on the app
+    from app import injector
+    app.injector = injector  # type: ignore
+    
+    return app
 
 
 @pytest.fixture  

@@ -512,8 +512,8 @@ class CorpusMigrator:
         
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                # First try the new corpus schema
                 try:
-                    # Set search path to use corpus schema
                     cur.execute("SET search_path TO corpus, public")
                     
                     cur.execute("""
@@ -527,19 +527,43 @@ class CorpusMigrator:
                     """)
                     
                     result = cur.fetchone()
-                    if result:
+                    if result and result['total_records'] > 0:
                         return dict(result)
-                    return {}
                 
                 except psycopg2.errors.UndefinedTable:
-                    # Table doesn't exist, return default stats
-                    return {
-                        'total_records': 0,
-                        'avg_source_length': 0.0,
-                        'avg_target_length': 0.0,
-                        'first_record': None,
-                        'last_record': None
-                    }
+                    # Table doesn't exist in corpus schema, rollback and try public schema
+                    conn.rollback()
+                
+                # Fallback to public schema (legacy location)
+                try:
+                    cur.execute("SET search_path TO public")
+                    
+                    cur.execute("""
+                        SELECT 
+                            COUNT(*) as total_records,
+                            AVG(LENGTH(source_text)) as avg_source_length,
+                            AVG(LENGTH(target_text)) as avg_target_length,
+                            MIN(created_at) as first_record,
+                            MAX(created_at) as last_record
+                        FROM parallel_corpus
+                    """)
+                    
+                    result = cur.fetchone()
+                    if result:
+                        return dict(result)
+                        
+                except psycopg2.errors.UndefinedTable:
+                    # Neither table exists
+                    conn.rollback()
+                
+                # No data found in either location
+                return {
+                    'total_records': 0,
+                    'avg_source_length': 0.0,
+                    'avg_target_length': 0.0,
+                    'first_record': None,
+                    'last_record': None
+                }
         
         finally:
             conn.close()

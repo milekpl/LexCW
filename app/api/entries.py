@@ -4,12 +4,12 @@ API endpoints for managing dictionary entries.
 
 import json
 import logging
+from typing import Any
 from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
-from app.database.connector_factory import create_database_connector
 from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
 
@@ -18,32 +18,18 @@ entries_bp = Blueprint('entries', __name__)
 logger = logging.getLogger(__name__)
 
 
-def get_dictionary_service():
+def get_dictionary_service() -> DictionaryService:
     """
-    Get an instance of the dictionary service.
+    Get an instance of the dictionary service from the current app context.
     
     Returns:
         DictionaryService instance.
     """
-    # Check if there's a pre-configured service (for testing)
-    if hasattr(current_app, 'dict_service') and current_app.dict_service:
-        return current_app.dict_service
-    
-    # Create a database connector using app config
-    connector = create_database_connector(
-        host=current_app.config.get('BASEX_HOST', 'localhost'),
-        port=current_app.config.get('BASEX_PORT', 1984),
-        username=current_app.config.get('BASEX_USERNAME', 'admin'),
-        password=current_app.config.get('BASEX_PASSWORD', 'admin'),
-        database=current_app.config.get('BASEX_DATABASE', 'dictionary'),
-    )
-    
-    # Create and return a dictionary service
-    return DictionaryService(connector)
+    return current_app.injector.get(DictionaryService)
 
 
 @entries_bp.route('/', methods=['GET'], strict_slashes=False)
-def list_entries():
+def list_entries() -> Any:
     """
     List dictionary entries with pagination, filtering, and sorting
     ---
@@ -225,8 +211,8 @@ def list_entries():
         return jsonify({'error': str(e)}), 500
 
 
-@entries_bp.route('/<entry_id>', methods=['GET'])
-def get_entry(entry_id):
+@entries_bp.route('/<string:entry_id>', methods=['GET'])
+def get_entry(entry_id: str) -> Any:
     """
     Get a dictionary entry by ID
     ---
@@ -296,7 +282,7 @@ def get_entry(entry_id):
 
 
 @entries_bp.route('/', methods=['POST'], strict_slashes=False)
-def create_entry():
+def create_entry() -> Any:
     """
     Create a new dictionary entry
     ---
@@ -437,8 +423,8 @@ def create_entry():
         return jsonify({'error': str(e)}), 500
 
 
-@entries_bp.route('/<entry_id>', methods=['PUT'])
-def update_entry(entry_id):
+@entries_bp.route('/<string:entry_id>', methods=['PUT'])
+def update_entry(entry_id: str) -> Any:
     """
     Update a dictionary entry
     ---
@@ -566,8 +552,8 @@ def update_entry(entry_id):
         return jsonify({'error': str(e)}), 500
 
 
-@entries_bp.route('/<entry_id>', methods=['DELETE'])
-def delete_entry(entry_id):
+@entries_bp.route('/<string:entry_id>', methods=['DELETE'])
+def delete_entry(entry_id: str) -> Any:
     """
     Delete a dictionary entry.
     
@@ -593,8 +579,8 @@ def delete_entry(entry_id):
         return jsonify({'error': str(e)}), 500
 
 
-@entries_bp.route('/<entry_id>/related', methods=['GET'])
-def get_related_entries(entry_id):
+@entries_bp.route('/<string:entry_id>/related', methods=['GET'])
+def get_related_entries(entry_id: str) -> Any:
     """
     Get entries related to the specified entry.
     

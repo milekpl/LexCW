@@ -20,6 +20,10 @@ applyTo: '**'
 4. **Clean Up Helper Files**  
    - After implementing features or running scripts, always remove or clean up any temporary, helper, or test files created during development.  
    - Ensure the repository remains tidy and free of unnecessary artifacts.
+
+5. **Do not use python -c**
+   - Avoid using `python -c` for running scripts or commands. Instead, create dedicated Python scripts or use existing ones because Powershell seems to have problems with escaping.
+
 ---
 applyTo: '*.py'
 ---

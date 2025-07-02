@@ -19,6 +19,11 @@ def app():
     test_app = Flask(__name__)
     test_app.config['TESTING'] = True
     test_app.register_blueprint(corpus_bp)
+    
+    # Ensure injector is available on the app  
+    from app import injector
+    test_app.injector = injector  # type: ignore
+    
     return test_app
 
 

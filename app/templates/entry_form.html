@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if entry.id %}Edit Entry: {{ entry.lexical_unit }}{% else %}Add New Entry{% endif %}{% endblock %}
+{% block title %}{% if entry.id %}Edit Entry: {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% else %}Add New Entry{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
@@ -12,7 +12,7 @@
     <div class="col-md-8">
         <h2>
             {% if entry.id %}
-            <i class="fas fa-edit"></i> Edit Entry: <span class="text-primary">{{ entry.lexical_unit }}</span>
+            <i class="fas fa-edit"></i> Edit Entry: <span class="text-primary">{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}</span>
             {% else %}
             <i class="fas fa-plus"></i> Add New Entry
             {% endif %}
@@ -42,7 +42,7 @@
                     <div class="mb-3">
                         <label for="lexical-unit" class="form-label">Lexical Unit <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="lexical-unit" name="lexical_unit" 
-                               value="{{ entry.lexical_unit }}" required>
+                               value="{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}" required>
                         <div class="form-text">The headword as it appears in the dictionary.</div>
                     </div>
                     
@@ -56,9 +56,50 @@
                     <div class="mb-3">
                         <label for="part-of-speech" class="form-label">Part of Speech <span class="text-danger">*</span></label>
                         <select class="form-select dynamic-grammatical-info" id="part-of-speech" name="grammatical_info.part_of_speech" required
-                                data-selected="{% if entry.grammatical_info %}{{ entry.grammatical_info.part_of_speech }}{% endif %}">
+                                data-selected="{% if entry.grammatical_info %}{{ entry.grammatical_info.part_of_speech }}{% endif %}"
+                                data-range-id="grammatical-info">
                             <option value="">Select part of speech</option>
                             <!-- Options will be dynamically loaded from LIFT ranges -->
+                        </select>
+                    </div>
+
+                    <!-- LIFT Ranges: Semantic Domain -->
+                    <div class="mb-3">
+                        <label for="semantic-domain-list" class="form-label">Semantic Domain</label>
+                        <select class="form-select dynamic-lift-range" id="semantic-domain-list" name="semantic_domain" data-range-id="semantic-domain-list">
+                            <option value="">Select semantic domain</option>
+                        </select>
+                    </div>
+
+                    <!-- LIFT Ranges: Usage Type -->
+                    <div class="mb-3">
+                        <label for="usage-type" class="form-label">Usage Type</label>
+                        <select class="form-select dynamic-lift-range" id="usage-type" name="usage_type" data-range-id="usage-type">
+                            <option value="">Select usage type</option>
+                        </select>
+                    </div>
+
+                    <!-- LIFT Ranges: Status -->
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select dynamic-lift-range" id="status" name="status" data-range-id="status">
+                            <option value="">Select status</option>
+                        </select>
+                    </div>
+
+                    <!-- LIFT Ranges: Variant Type -->
+                    <div class="mb-3">
+                        <label for="variant-type" class="form-label">Variant Type</label>
+                        <select class="form-select dynamic-lift-range" id="variant-type" name="variant_type" data-range-id="variant-types">
+                            <option value="">Select variant type</option>
+                        </select>
+                    </div>
+
+                    <!-- LIFT Ranges: Relation Type -->
+                    <div class="mb-3">
+                        <label for="relation-type" class="form-label">Relation Type</label>
+                        <select class="form-select dynamic-lift-range" id="relation-type" name="relation_type" data-range-id="relation-types">
+                            <option value="">Select relation type</option>
                         </select>
                     </div>
                     
@@ -83,7 +124,58 @@
                 <div class="card-body">
                     <div id="pronunciation-container">
                         {% if entry.pronunciations %}
-                            {% for pron in entry.pronunciations %}
+                            {% if entry.pronunciations is mapping %}
+                                {% for type, value in entry.pronunciations.items() %}
+                                <div class="pronunciation-item mb-3 border-bottom pb-3">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <label class="form-label">IPA</label>
+                                            <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].value" 
+                                                   value="{{ value }}" placeholder="IPA transcription">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Type</label>
+                                            <select class="form-select" name="pronunciations[{{ loop.index0 }}].type" title="Pronunciation type">
+                                                <option value="ipa" {% if type == 'ipa' %}selected{% endif %}>IPA</option>
+                                                <option value="seh-fonipa" {% if type == 'seh-fonipa' %}selected{% endif %}>seh-fonipa</option>
+                                                <option value="audio" {% if type == 'audio' %}selected{% endif %}>Audio</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-2 mb-2">
+                                        <label class="form-label">Audio File</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_file" 
+                                                   value="" readonly title="Audio file path" placeholder="No audio file">
+                                            <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
+                                                    data-index="{{ loop.index0 }}" title="Generate audio">
+                                                <i class="fas fa-microphone"></i> Generate
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="1" 
+                                               id="pron-default-{{ loop.index0 }}" name="pronunciations[{{ loop.index0 }}].is_default"
+                                               {% if loop.first %}checked{% endif %}>
+                                        <label class="form-check-label" for="pron-default-{{ loop.index0 }}">
+                                            Default pronunciation
+                                        </label>
+                                    </div>
+                                    
+                                    {% if not loop.first %}
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-pronunciation-btn" 
+                                                data-index="{{ loop.index0 }}" title="Remove pronunciation">
+                                            <i class="fas fa-trash"></i> Remove
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                {% for pron in entry.pronunciations %}
                                 <div class="pronunciation-item mb-3 border-bottom pb-3">
                                     <div class="row">
                                         <div class="col-md-8">
@@ -93,8 +185,9 @@
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label">Type</label>
-                                            <select class="form-select" name="pronunciations[{{ loop.index0 }}].type">
+                                            <select class="form-select" name="pronunciations[{{ loop.index0 }}].type" title="Pronunciation type">
                                                 <option value="ipa" {% if pron.type == 'ipa' %}selected{% endif %}>IPA</option>
+                                                <option value="seh-fonipa" {% if pron.type == 'seh-fonipa' %}selected{% endif %}>seh-fonipa</option>
                                                 <option value="audio" {% if pron.type == 'audio' %}selected{% endif %}>Audio</option>
                                             </select>
                                         </div>
@@ -104,9 +197,9 @@
                                         <label class="form-label">Audio File</label>
                                         <div class="input-group">
                                             <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_file" 
-                                                   value="{{ pron.audio_file }}" readonly>
+                                                   value="{{ pron.audio_file }}" readonly title="Audio file path" placeholder="No audio file">
                                             <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
-                                                    data-index="{{ loop.index0 }}">
+                                                    data-index="{{ loop.index0 }}" title="Generate audio">
                                                 <i class="fas fa-microphone"></i> Generate
                                             </button>
                                         </div>
@@ -124,13 +217,14 @@
                                     {% if not loop.first %}
                                     <div class="mt-2">
                                         <button type="button" class="btn btn-sm btn-outline-danger remove-pronunciation-btn" 
-                                                data-index="{{ loop.index0 }}">
+                                                data-index="{{ loop.index0 }}" title="Remove pronunciation">
                                             <i class="fas fa-trash"></i> Remove
                                         </button>
                                     </div>
                                     {% endif %}
                                 </div>
-                            {% endfor %}
+                                {% endfor %}
+                            {% endif %}
                         {% else %}
                             <div class="pronunciation-item mb-3 border-bottom pb-3">
                                 <div class="row">
@@ -141,8 +235,9 @@
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label">Type</label>
-                                        <select class="form-select" name="pronunciations[0].type">
+                                        <select class="form-select" name="pronunciations[0].type" title="Pronunciation type">
                                             <option value="ipa" selected>IPA</option>
+                                            <option value="seh-fonipa">seh-fonipa</option>
                                             <option value="audio">Audio</option>
                                         </select>
                                     </div>
@@ -152,9 +247,9 @@
                                     <label class="form-label">Audio File</label>
                                     <div class="input-group">
                                         <input type="text" class="form-control" name="pronunciations[0].audio_file" 
-                                               value="" readonly>
+                                               value="" readonly title="Audio file path" placeholder="No audio file">
                                         <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
-                                                data-index="0">
+                                                data-index="0" title="Generate audio">
                                             <i class="fas fa-microphone"></i> Generate
                                         </button>
                                     </div>
@@ -264,11 +359,11 @@
                                         </div>
                                         
                                         <div class="mb-3">
-                                            <label class="form-label">Part of Speech</label>
+                                            <label for="part-of-speech" class="form-label">Part of Speech</label>
                                             <select class="form-select dynamic-grammatical-info" name="senses[{{ loop.index0 }}].grammatical_info"
-                                                    data-selected="{{ sense.grammatical_info }}">
+                                                    data-selected="{{ sense.grammatical_info }}"
+                                                    data-range-id="grammatical-info">
                                                 <option value="">Select part of speech</option>
-                                                <!-- Options will be dynamically loaded from LIFT ranges -->
                                             </select>
                                             <div class="form-text">Grammatical category for this sense.</div>
                                         </div>
@@ -290,41 +385,28 @@
                                             
                                             <div class="examples-container">
                                                 {% if sense.examples %}
-                                                    {% for example in sense.examples %}
-                                                        <div class="example-item card mb-3">
-                                                            <div class="card-header bg-light py-2">
-                                                                <div class="d-flex justify-content-between align-items-center">
-                                                                    <small>Example {{ loop.index }}</small>
-                                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-example-btn" 
-                                                                            data-sense-index="{{ loop.parent.loop.index0 }}" 
-                                                                            data-example-index="{{ loop.index0 }}">
-                                                                        <i class="fas fa-times"></i>
-                                                                    </button>
-                                                                </div>
+                                                {% for example in sense.examples %}
+                                                    <div class="example-item card mb-3" data-example-index="{{ loop.index0 }}">
+                                                        <div class="card-body">
+                                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                <h6 class="mb-0">Example {{ loop.index }}</h6>
+                                                                <button type="button" class="btn btn-sm btn-outline-danger remove-example-btn"
+                                                                        data-sense-index="0" data-example-index="{{ loop.index0 }}">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
                                                             </div>
-                                                            <div class="card-body">
-                                                                <div class="mb-2">
-                                                                    <label class="form-label">Example Text <span class="text-danger">*</span></label>
-                                                                    <textarea class="form-control" 
-                                                                              name="senses[{{ loop.parent.loop.index0 }}].examples[{{ loop.index0 }}].text" 
-                                                                              rows="2" required>{{ example.text }}</textarea>
-                                                                </div>
-                                                                
-                                                                <div class="mb-2">
-                                                                    <label class="form-label">Translation</label>
-                                                                    <textarea class="form-control" 
-                                                                              name="senses[{{ loop.parent.loop.index0 }}].examples[{{ loop.index0 }}].translation" 
-                                                                              rows="2">{{ example.translation }}</textarea>
-                                                                </div>
-                                                                
-                                                                <div class="mb-2">
-                                                                    <label class="form-label">Reference</label>
-                                                                    <input type="text" class="form-control" 
-                                                                           name="senses[{{ loop.parent.loop.index0 }}].examples[{{ loop.index0 }}].reference" 
-                                                                           value="{{ example.reference }}">
-                                                                </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Example Sentence</label>
+                                                                <textarea class="form-control" name="senses[0].examples[{{ loop.index0 }}].sentence"
+                                                                          rows="2">{{ example.sentence }}</textarea>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Translation</label>
+                                                                <textarea class="form-control" name="senses[0].examples[{{ loop.index0 }}].translation"
+                                                                          rows="2">{{ example.translation }}</textarea>
                                                             </div>
                                                         </div>
+                                                    </div>
                                                     {% endfor %}
                                                 {% else %}
                                                     <div class="no-examples text-center text-muted py-3 border rounded">
@@ -362,9 +444,9 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Part of Speech</label>
-                                        <select class="form-select dynamic-grammatical-info" name="senses[0].grammatical_info">
+                                        <select class="form-select dynamic-grammatical-info" name="senses[0].grammatical_info"
+                                                data-range-id="grammatical-info">
                                             <option value="">Select part of speech</option>
-                                            <!-- Options will be dynamically loaded from LIFT ranges -->
                                         </select>
                                         <div class="form-text">Grammatical category for this sense.</div>
                                     </div>
@@ -442,6 +524,7 @@
                 <label class="form-label">Type</label>
                 <select class="form-select" name="pronunciations[INDEX].type">
                     <option value="ipa" selected>IPA</option>
+                    <option value="seh-fonipa">seh-fonipa</option>
                     <option value="audio">Audio</option>
                 </select>
             </div>
@@ -504,7 +587,6 @@
                 <label class="form-label">Part of Speech</label>
                 <select class="form-select dynamic-grammatical-info" name="senses[INDEX].grammatical_info">
                     <option value="">Select part of speech</option>
-                    <!-- Options will be dynamically loaded from LIFT ranges -->
                 </select>
             </div>
             
@@ -651,16 +733,25 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize component managers after DOM is loaded
     
     // Initialize variant forms manager
-    if (window.VariantFormsManager && document.getElementById('variant-forms-container')) {
+    if (window.VariantFormsManager && document.getElementById('variants-container')) {
         const variantForms = {{ entry.variants | tojson | safe }} || [];
-        window.variantFormsManager = new VariantFormsManager('variant-forms-container', {
+        window.variantFormsManager = new VariantFormsManager('variants-container', {
             variants: variantForms
         });
     }
 
     // Initialize relations manager
     if (window.RelationsManager && document.getElementById('relations-container')) {
-        const relations = {{ entry.relations | tojson | safe }} || [];
+        {% if entry.relations %}
+            {% set relations_data = [] %}
+            {% for relation in entry.relations %}
+                {% set relation_dict = {'type': relation.type, 'ref': relation.ref} %}
+                {% set _ = relations_data.append(relation_dict) %}
+            {% endfor %}
+            const relations = {{ relations_data | tojson | safe }};
+        {% else %}
+            const relations = [];
+        {% endif %}
         window.relationsManager = new RelationsManager('relations-container', {
             relations: relations
         });

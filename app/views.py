@@ -5,6 +5,7 @@ Views for the Dictionary Writing System's frontend.
 import json
 import logging
 import os
+import sys
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_from_directory
 
@@ -14,7 +15,6 @@ from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.database.postgresql_connector import PostgreSQLConfig
 from app.database.corpus_migrator import CorpusMigrator
-from app import injector
 
 # Create blueprints
 main_bp = Blueprint('main', __name__)
@@ -97,7 +97,7 @@ def index():
     
     # Get actual stats from the database if possible
     try:
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         entry_count = dict_service.count_entries()
         stats['entries'] = entry_count
         
@@ -158,7 +158,7 @@ def view_entry(entry_id):
     """
     try:
         # Get dictionary service
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         
         # Get entry
         entry = dict_service.get_entry(entry_id)
@@ -183,40 +183,40 @@ def edit_entry(entry_id):
     Args:
         entry_id: ID of the entry to edit.
     """
+    import time
+    logger.info(f"[DEBUG] edit_entry called for entry_id={entry_id} at {time.time()}")
     try:
-        # Get dictionary service
-        dict_service = injector.get(DictionaryService)
-        
+        dict_service = current_app.injector.get(DictionaryService)
+        logger.info(f"[DEBUG] Got DictionaryService at {time.time()}")
         if request.method == 'POST':
-            # Handle form submission
             data = request.get_json()
+            logger.info(f"[DEBUG] POST data: {data}")
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
-            
-            # Create entry object
             entry = Entry.from_dict(data)
             entry.id = entry_id
-            
-            # Update entry
             dict_service.update_entry(entry)
-            
-            # Return success response
+            logger.info(f"[DEBUG] Entry updated: {entry_id}")
             return jsonify({'id': entry_id, 'message': 'Entry updated successfully'})
-        
-        # Get entry for display
+        logger.info(f"[DEBUG] About to get_entry({entry_id}) at {time.time()}")
         entry = dict_service.get_entry(entry_id)
-        
-        return render_template('entry_form.html', entry=entry.to_dict())
-    
-    except NotFoundError:
+        logger.info(f"[DEBUG] Got entry: {getattr(entry, 'id', None)} at {time.time()}")
+        ranges = dict_service.get_lift_ranges()
+        logger.info(f"[DEBUG] Got ranges at {time.time()} (keys: {list(ranges.keys()) if hasattr(ranges, 'keys') else type(ranges)})")
+        return render_template('entry_form.html', entry=entry, ranges=ranges)
+    except NotFoundError as e:
+        logger.warning(f"Entry with ID {entry_id} not found: {e}")
+        import traceback
+        logger.warning(f"Traceback: {traceback.format_exc()}")
         flash(f"Entry with ID {entry_id} not found.", "danger")
         return redirect(url_for('main.entries'))
-    
     except ValidationError as e:
+        logger.error(f"[DEBUG] ValidationError: {e}")
         return jsonify({'error': str(e)}), 400
-    
     except Exception as e:
         logger.error(f"Error editing entry {entry_id}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         flash(f"Error loading entry: {str(e)}", "danger")
         return redirect(url_for('main.entries'))
 
@@ -227,6 +227,9 @@ def add_entry():
     Render the add entry page.
     """
     try:
+        # Get dictionary service
+        dict_service = current_app.injector.get(DictionaryService)
+
         if request.method == 'POST':
             # Handle form submission
             data = request.get_json()
@@ -235,9 +238,6 @@ def add_entry():
             
             # Create entry object
             entry = Entry.from_dict(data)
-            
-            # Get dictionary service
-            dict_service = injector.get(DictionaryService)
             
             # Create entry
             entry_id = dict_service.create_entry(entry)
@@ -248,7 +248,10 @@ def add_entry():
         # Create an empty entry for the form
         entry = Entry()
         
-        return render_template('entry_form.html', entry=entry.to_dict())
+        # Get LIFT ranges for dropdowns
+        ranges = dict_service.get_lift_ranges()
+
+        return render_template('entry_form.html', entry=entry, ranges=ranges)
     
     except ValidationError as e:
         return jsonify({'error': str(e)}), 400
@@ -279,7 +282,7 @@ def search():
     
     if query:
         try:
-            dict_service = injector.get(DictionaryService)
+            dict_service = current_app.injector.get(DictionaryService)
             offset = (page - 1) * per_page
             entries, total = dict_service.search_entries(
                 query=query,
@@ -336,7 +339,7 @@ def import_lift():
             file.save(filepath)
             
             # Get dictionary service
-            dict_service = injector.get(DictionaryService)
+            dict_service = current_app.injector.get(DictionaryService)
             
             # Import the LIFT file
             entry_count = dict_service.import_lift(filepath)
@@ -359,7 +362,7 @@ def export_lift():
     """
     try:
         # Get dictionary service
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         
         # Generate the LIFT file
         lift_content = dict_service.export_lift()
@@ -395,7 +398,7 @@ def export_kindle():
     """
     try:
         # Get dictionary service
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         
         # Create exports directory if it doesn't exist
         exports_dir = os.path.join(current_app.instance_path, 'exports')
@@ -454,7 +457,7 @@ def export_sqlite():
     """
     try:
         # Get dictionary service
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         
         # Create exports directory if it doesn't exist
         exports_dir = os.path.join(current_app.instance_path, 'exports')
@@ -623,7 +626,7 @@ def api_stats():
     Get dictionary statistics.
     """
     try:
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         entry_count = dict_service.count_entries()
         sense_count, example_count = dict_service.count_senses_and_examples()
         
@@ -643,7 +646,7 @@ def api_system_status():
     Get system status.
     """
     try:
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         return jsonify(dict_service.get_system_status())
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
@@ -659,7 +662,7 @@ def api_activity():
         # Get limit parameter
         limit = request.args.get('limit', 5, type=int)
         
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         activities = dict_service.get_recent_activity(limit=limit)
         
         return jsonify({
@@ -719,7 +722,7 @@ def test_search():
     
     if query:
         try:
-            dict_service = injector.get(DictionaryService)
+            dict_service = current_app.injector.get(DictionaryService)
             entries, total = dict_service.search_entries(
                 query=query,
                 limit=limit,
@@ -751,7 +754,7 @@ def api_test_search():
         if not query:
             return jsonify({'error': 'No search query provided'}), 400
         
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         entries, total = dict_service.search_entries(
             query=query,
             limit=limit,

@@ -11,8 +11,9 @@ Only makes HTTP requests when absolutely necessary (API endpoints, error tests).
 
 import pytest
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 from flask import Flask
+from flask.testing import FlaskClient
 
 from app import create_app
 from app.services.dictionary_service import DictionaryService
@@ -21,21 +22,13 @@ from app.services.dictionary_service import DictionaryService
 class TestDashboard:
     """Test cases for the dashboard homepage."""
 
-    @pytest.fixture(scope='class')
-    def shared_app(self):
-        """Create a shared Flask application for all tests in this class."""
-        app = create_app()
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
-        return app
+    @pytest.fixture
+    def shared_client(self, app: Flask) -> FlaskClient:
+        """Create a shared test client using the properly configured app fixture."""
+        return app.test_client()
 
-    @pytest.fixture(scope='class')
-    def shared_client(self, shared_app):
-        """Create a shared test client for all tests in this class."""
-        return shared_app.test_client()
-
-    @pytest.fixture(scope='class')
-    def homepage_response_text(self, shared_client):
+    @pytest.fixture
+    def homepage_response_text(self, shared_client: FlaskClient) -> str:
         """Get the homepage response text once and reuse it for all text-based tests."""
         response = shared_client.get('/')
         assert response.status_code == 200
@@ -103,8 +96,8 @@ class TestDashboard:
         assert '{"db_connected"' not in homepage_response_text
         assert 'storage_percent' not in homepage_response_text
 
-    @patch('app.views.injector.get')
-    def test_homepage_with_specific_mock_data(self, mock_injector_get, shared_client, mock_dict_service):
+    @patch('app.views.current_app', new_callable=MagicMock)
+    def test_homepage_with_specific_mock_data(self, mock_current_app, shared_client, mock_dict_service):
         """Test homepage with specific mocked data to verify rendering."""
         # Clear any existing cache to ensure fresh data
         from app.services.cache_service import CacheService
@@ -112,7 +105,8 @@ class TestDashboard:
         if cache.is_available():
             cache.clear_pattern('dashboard_stats*')
         
-        mock_injector_get.return_value = mock_dict_service
+        # Set up the mock current_app.injector.get to return our mock service
+        mock_current_app.injector.get.return_value = mock_dict_service
         
         response = shared_client.get('/')
         assert response.status_code == 200
@@ -124,12 +118,12 @@ class TestDashboard:
         assert '300' in response_text  # sense count
         assert '450' in response_text  # example count
 
-    @patch('app.views.injector.get')
-    def test_homepage_with_database_error(self, mock_injector_get, shared_client):
+    @patch('app.views.current_app')
+    def test_homepage_with_database_error(self, mock_current_app, shared_client):
         """Test homepage when database service throws an error."""
         mock_service = Mock(spec=DictionaryService)
         mock_service.count_entries.side_effect = Exception("Database connection failed")
-        mock_injector_get.return_value = mock_service
+        mock_current_app.injector.get.return_value = mock_service
         
         response = shared_client.get('/')
         assert response.status_code == 200
@@ -154,10 +148,10 @@ class TestDashboard:
         # Ensure storage_percent is numeric
         assert isinstance(data['storage_percent'], (int, float))
 
-    @patch('app.views.injector.get')
-    def test_system_status_api_with_mock_data(self, mock_injector_get, shared_client, mock_dict_service):
+    @patch('app.views.current_app', new_callable=MagicMock)
+    def test_system_status_api_with_mock_data(self, mock_current_app, shared_client, mock_dict_service):
         """Test system status API with mocked data."""
-        mock_injector_get.return_value = mock_dict_service
+        mock_current_app.injector.get.return_value = mock_dict_service
         
         response = shared_client.get('/api/system/status')
         assert response.status_code == 200
@@ -203,15 +197,15 @@ class TestDashboard:
                 'Add' in homepage_response_text or 
                 'btn' in homepage_response_text)
 
-    @patch('app.views.injector.get')
-    def test_homepage_error_handling(self, mock_injector_get, shared_client, caplog):
+    @patch('app.views.current_app')
+    def test_homepage_error_handling(self, mock_current_app, shared_client, caplog):
         """Test that homepage handles errors gracefully."""
         mock_service = Mock(spec=DictionaryService)
         mock_service.count_entries.side_effect = Exception("Database error")
         mock_service.count_senses_and_examples.side_effect = Exception("Database error")
         mock_service.get_recent_activity.side_effect = Exception("Database error")
         mock_service.get_system_status.side_effect = Exception("Database error")
-        mock_injector_get.return_value = mock_service
+        mock_current_app.injector.get.return_value = mock_service
         
         response = shared_client.get('/')
         

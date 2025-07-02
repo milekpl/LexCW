@@ -2,11 +2,10 @@
 API endpoints for entry and dictionary validation.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
+from app.models.entry import Entry
 from app.services.dictionary_service import DictionaryService
 from app.utils.exceptions import NotFoundError, ValidationError
-from app import injector
-from app.models.entry import Entry
 
 validation_bp = Blueprint('validation_bp', __name__)
 
@@ -36,7 +35,7 @@ def validate_entry(entry_id: str):
       404:
         description: Entry not found.
     """
-    dictionary_service = injector.get(DictionaryService)
+    dictionary_service = current_app.injector.get(DictionaryService)
     try:
         entry = dictionary_service.get_entry(entry_id)
         try:
@@ -74,7 +73,7 @@ def validate_dictionary():
                     items:
                       type: string
     """
-    dictionary_service = injector.get(DictionaryService)
+    dictionary_service = current_app.injector.get(DictionaryService)
     try:
         entries, _ = dictionary_service.list_entries(limit=None)
         all_errors = []
@@ -284,3 +283,61 @@ def get_validation_rules():
         return jsonify(rules), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@validation_bp.route('/validation/check', methods=['POST'])
+def validation_check():
+    """
+    Checks a single dictionary entry for validation issues.
+    """
+    data = request.get_json()
+    if not data or 'entry' not in data:
+        return jsonify({'error': 'Invalid JSON. "entry" field is required.'}), 400
+
+    try:
+        dictionary_service = current_app.injector.get(DictionaryService)
+        validation_result = dictionary_service.validate_entry(data['entry'])
+        return jsonify(validation_result)
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+@validation_bp.route('/validation/batch', methods=['POST'])
+def validation_batch():
+    """
+    Validates a batch of dictionary entries.
+    """
+    data = request.get_json()
+    if not data or 'entries' not in data:
+        return jsonify({'error': 'Invalid JSON. "entries" field is required.'}), 400
+
+    try:
+        dictionary_service = current_app.injector.get(DictionaryService)
+        results = dictionary_service.validate_batch(data['entries'])
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+@validation_bp.route('/validation/schema', methods=['GET'])
+def validation_schema():
+    """
+    Returns the validation schema for dictionary entries.
+    """
+    try:
+        dictionary_service = current_app.injector.get(DictionaryService)
+        schema = dictionary_service.get_validation_schema()
+        return jsonify(schema)
+    except Exception as e:
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+
+@validation_bp.route('/validation/rules', methods=['GET'])
+def validation_rules():
+    """
+    Returns the validation rules for dictionary entries.
+    """
+    try:
+        dictionary_service = current_app.injector.get(DictionaryService)
+        rules = dictionary_service.get_validation_rules()
+        return jsonify(rules)
+    except Exception as e:
+        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500

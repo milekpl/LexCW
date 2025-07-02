@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from flask import Blueprint, jsonify, request
+from flasgger import swag_from
 from app.database.postgresql_connector import PostgreSQLConfig
 from app.database.corpus_migrator import CorpusMigrator
 from app.services.cache_service import CacheService
@@ -16,6 +17,48 @@ logger = logging.getLogger(__name__)
 
 
 @corpus_bp.route('/stats', methods=['GET'])
+@swag_from({
+    'tags': ['Corpus'],
+    'summary': 'Get corpus statistics',
+    'description': 'Retrieve fresh corpus statistics from PostgreSQL database, bypassing cache. Supports both new corpus schema and legacy public schema locations.',
+    'responses': {
+        200: {
+            'description': 'Corpus statistics retrieved successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': True},
+                    'stats': {
+                        'type': 'object',
+                        'properties': {
+                            'total_records': {'type': 'integer', 'example': 74740856, 'description': 'Total number of parallel corpus records'},
+                            'avg_source_length': {'type': 'number', 'example': 67.22, 'description': 'Average character length of source texts'},
+                            'avg_target_length': {'type': 'number', 'example': 68.56, 'description': 'Average character length of target texts'}
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            'description': 'Error retrieving corpus statistics',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': False},
+                    'error': {'type': 'string', 'example': 'Database connection failed'},
+                    'stats': {
+                        'type': 'object',
+                        'properties': {
+                            'total_records': {'type': 'integer', 'example': 0},
+                            'avg_source_length': {'type': 'number', 'example': 0},
+                            'avg_target_length': {'type': 'number', 'example': 0}
+                        }
+                    }
+                }
+            }
+        }
+    }
+})
 def get_corpus_stats():
     """
     Get fresh corpus statistics, bypassing cache.
@@ -81,6 +124,33 @@ def get_corpus_stats():
 
 
 @corpus_bp.route('/clear-cache', methods=['POST'])
+@swag_from({
+    'tags': ['Corpus'],
+    'summary': 'Clear corpus cache',
+    'description': 'Clear the corpus statistics cache to force fresh data retrieval on next request.',
+    'responses': {
+        200: {
+            'description': 'Cache cleared successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': True},
+                    'message': {'type': 'string', 'example': 'Cache cleared successfully'}
+                }
+            }
+        },
+        500: {
+            'description': 'Error clearing cache',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': False},
+                    'error': {'type': 'string', 'example': 'Cache service not available'}
+                }
+            }
+        }
+    }
+})
 def clear_corpus_cache():
     """
     Clear the corpus statistics cache.

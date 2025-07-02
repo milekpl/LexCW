@@ -5,59 +5,57 @@ Test enhanced relations UI with sense-level targeting.
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
-from app import create_app, injector
-from app.database.mock_connector import MockDatabaseConnector
+from app import create_app
+from app.models.entry import Entry
 from app.services.dictionary_service import DictionaryService
+from app.database.mock_connector import MockDatabaseConnector
 
 
 @pytest.fixture
-def relations_app():
+def relations_app() -> Flask:
     """Create test app with mock database for relations testing."""
-    app = create_app('testing')
-    app.config['TESTING'] = True
-    
-    # Setup mock database with test entries - bind to injector  
     mock_connector = MockDatabaseConnector()
-    injector.binder.bind(DictionaryService, 
-                       lambda: DictionaryService(mock_connector))
+    mock_dictionary_service = DictionaryService(mock_connector)
+
+    # Create test entries with senses
+    test_entry1 = {
+        'id': 'test_entry_1',
+        'lexical_unit': {'en': 'test word'},            'senses': [
+            {
+                'id': 'sense_1_1',
+                'glosses': {'en': 'first meaning'},
+                'definition': {'en': 'First definition of test word'}
+            },
+            {
+                'id': 'sense_1_2', 
+                'glosses': {'en': 'second meaning'},
+                'definition': {'en': 'Second definition of test word'}
+            }
+        ]
+    }
     
-    # Create test entries with senses using the injected service
-    with app.app_context():
-        dict_service = injector.get(DictionaryService)
-        
-        # Create test entries with senses
-        test_entry1 = {
-            'id': 'test_entry_1',
-            'lexical_unit': {'en': 'test word'},            'senses': [
-                {
-                    'id': 'sense_1_1',
-                    'glosses': {'en': 'first meaning'},
-                    'definition': {'en': 'First definition of test word'}
-                },
-                {
-                    'id': 'sense_1_2', 
-                    'glosses': {'en': 'second meaning'},
-                    'definition': {'en': 'Second definition of test word'}
-                }
-            ]
-        }
-        
-        test_entry2 = {
-            'id': 'test_entry_2',
-            'lexical_unit': {'en': 'another word'},
-            'senses': [
-                {
-                    'id': 'sense_2_1',
-                    'glosses': {'en': 'another meaning'},
-                    'definition': {'en': 'Definition of another word'}
-                }
-            ]
-        }
-        
-        # Add entries to mock database
-        from app.models.entry import Entry
-        dict_service.create_entry(Entry.from_dict(test_entry1))
-        dict_service.create_entry(Entry.from_dict(test_entry2))
+    test_entry2 = {
+        'id': 'test_entry_2',
+        'lexical_unit': {'en': 'another word'},
+        'senses': [
+            {
+                'id': 'sense_2_1',
+                'glosses': {'en': 'another meaning'},
+                'definition': {'en': 'Definition of another word'}
+            }
+        ]
+    }
+    
+    mock_dictionary_service.create_entry(Entry.from_dict(test_entry1))
+    mock_dictionary_service.create_entry(Entry.from_dict(test_entry2))
+
+    app = create_app(test_config={
+        'TESTING': True,
+        'DICTIONARY_SERVICE': mock_dictionary_service,
+        # Mock other dependencies if needed
+        'POSTGRESQL_CONFIG': None, 
+        'BASEX_CONFIG': None,
+    })
     
     return app
 
@@ -93,17 +91,16 @@ def test_relation_search_returns_entries_with_senses(client: FlaskClient) -> Non
     # The key requirement is that the search API returns structured entry data
 
 
-def test_relation_ui_page_loads_with_enhanced_search(client):
+def test_relation_ui_page_loads_with_enhanced_search(client: FlaskClient):
     """Test that the relation UI page includes enhanced search functionality."""
     # Create a test entry first
     with client.application.app_context():
-        dict_service = injector.get(DictionaryService)
+        dict_service = client.application.injector.get(DictionaryService)
         test_entry = {
             'id': 'main_test_entry',
             'lexical_unit': {'en': 'main word'},
             'senses': [{'id': 'main_sense', 'glosses': {'en': 'main meaning'}}]
         }
-        from app.models.entry import Entry
         created_entry_id = dict_service.create_entry(Entry.from_dict(test_entry))
         created_entry = dict_service.get_entry(created_entry_id)
     
@@ -119,10 +116,10 @@ def test_relation_ui_page_loads_with_enhanced_search(client):
     assert 'RelationsManager' in html_content
 
 
-def test_entry_creation_with_sense_level_relations(client):
+def test_entry_creation_with_sense_level_relations(client: FlaskClient):
     """Test creating an entry with relations pointing to specific senses."""
     with client.application.app_context():
-        dict_service = injector.get(DictionaryService)
+        dict_service = client.application.injector.get(DictionaryService)
         
         # Create an entry with sense-level relation
         entry_data = {
@@ -152,13 +149,12 @@ def test_entry_creation_with_sense_level_relations(client):
         assert relation['ref'] == 'test_entry_1#sense_1_1'
 
 
-def test_relation_form_submission_with_sense_target(client):
+def test_relation_form_submission_with_sense_target(client: FlaskClient):
     """Test submitting a relation form with sense-level targeting."""
     with client.application.app_context():
-        dict_service = injector.get(DictionaryService)
+        dict_service = client.application.injector.get(DictionaryService)
         
         # Create a base entry
-        from app.models.entry import Entry
         base_entry_id = dict_service.create_entry(Entry.from_dict({
             'id': 'base_entry',
             'lexical_unit': {'en': 'base word'},
@@ -213,7 +209,7 @@ def test_relation_form_submission_with_sense_target(client):
         assert has_relation, "Sense-level relation should be saved"
 
 
-def test_api_search_with_sense_filtering(client):
+def test_api_search_with_sense_filtering(client: FlaskClient):
     """Test API search that can filter and return sense information."""
     # Test searching for specific glosses that would help identify senses
     response = client.get('/api/search?q=first meaning&fields=glosses&limit=5')

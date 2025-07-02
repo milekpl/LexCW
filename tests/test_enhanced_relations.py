@@ -22,6 +22,9 @@ def app():
     injector.binder.bind(DictionaryService, 
                        lambda: DictionaryService(mock_connector))
     
+    # Make sure the injector is attached to the Flask app
+    app.injector = injector  # type: ignore
+    
     return app
 
 

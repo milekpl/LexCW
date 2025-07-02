@@ -6,7 +6,8 @@ Tests etymology editing with proper Form/Gloss object support and LIFT complianc
 
 import pytest
 from unittest.mock import Mock
-from app import create_app, injector
+from flask import Flask
+from app import create_app
 from app.models.entry import Entry, Etymology, Form, Gloss
 from app.services.dictionary_service import DictionaryService
 from app.database.mock_connector import MockDatabaseConnector
@@ -104,21 +105,24 @@ class TestEtymologyAPISupport:
     """Test API support for etymology management."""
     
     @pytest.fixture
-    def app(self):
+    def app(self) -> Flask:
         """Create test app with mock connector."""
-        app = create_app('testing')
-        
-        # Inject mock connector
         mock_connector = MockDatabaseConnector()
-        injector.binder.bind(DictionaryService, 
-                           lambda: DictionaryService(mock_connector))
+        mock_dictionary_service = DictionaryService(mock_connector)
+
+        app = create_app(test_config={
+            'TESTING': True,
+            'DICTIONARY_SERVICE': mock_dictionary_service,
+            'POSTGRESQL_CONFIG': None,
+            'BASEX_CONFIG': None,
+        })
         
         return app
 
-    def test_api_entry_creation_with_etymologies(self, app):
+    def test_api_entry_creation_with_etymologies(self, app: Flask):
         """Test creating entries with etymologies via API."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             entry_data = {
                 "lexical_unit": {"en": "water"},
@@ -139,10 +143,10 @@ class TestEtymologyAPISupport:
             assert len(entry.etymologies) == 1
             assert entry.etymologies[0].type == "inheritance"
 
-    def test_api_entry_update_with_etymologies(self, app):
+    def test_api_entry_update_with_etymologies(self, app: Flask):
         """Test updating entry etymologies via API."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create entry
             entry = Entry(lexical_unit={"en": "book"})
@@ -180,14 +184,19 @@ class TestEtymologyRangesIntegration:
     """Test integration with LIFT ranges for etymology types."""
     
     @pytest.fixture
-    def app(self):
+    def app(self) -> Flask:
         """Create test app."""
-        return create_app('testing')
+        return create_app(test_config={
+            'TESTING': True,
+            'DICTIONARY_SERVICE': Mock(spec=DictionaryService),
+            'POSTGRESQL_CONFIG': None,
+            'BASEX_CONFIG': None,
+        })
     
-    def test_etymology_types_from_ranges(self, app):
+    def test_etymology_types_from_ranges(self, app: Flask):
         """Test that etymology types can be retrieved from ranges."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             ranges = dict_service.get_ranges()
             
             # Should have etymology-types in ranges
@@ -219,21 +228,24 @@ class TestEtymologyLifecycle:
     """Test complete etymology lifecycle operations."""
     
     @pytest.fixture
-    def app(self):
+    def app(self) -> Flask:
         """Create test app with mock connector."""
-        app = create_app('testing')
-        
-        # Inject mock connector  
         mock_connector = MockDatabaseConnector()
-        injector.binder.bind(DictionaryService,
-                           lambda: DictionaryService(mock_connector))
+        mock_dictionary_service = DictionaryService(mock_connector)
+
+        app = create_app(test_config={
+            'TESTING': True,
+            'DICTIONARY_SERVICE': mock_dictionary_service,
+            'POSTGRESQL_CONFIG': None,
+            'BASEX_CONFIG': None,
+        })
         
         return app
 
-    def test_add_etymology_to_existing_entry(self, app):
+    def test_add_etymology_to_existing_entry(self, app: Flask):
         """Test adding an etymology to an existing entry."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create base entry
             entry = Entry(lexical_unit={"en": "house"})
@@ -259,10 +271,10 @@ class TestEtymologyLifecycle:
             assert updated.etymologies[0].type == "inheritance"
             assert updated.etymologies[0].source == "Old English"
 
-    def test_remove_etymology_from_entry(self, app):
+    def test_remove_etymology_from_entry(self, app: Flask):
         """Test removing an etymology from an entry."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create entry with etymologies
             entry = Entry(
@@ -296,10 +308,10 @@ class TestEtymologyLifecycle:
             assert len(updated.etymologies) == 1
             assert updated.etymologies[0].source == "keep_source"
 
-    def test_modify_etymology_in_entry(self, app):
+    def test_modify_etymology_in_entry(self, app: Flask):
         """Test modifying an existing etymology."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create entry with etymology
             entry = Entry(

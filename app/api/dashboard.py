@@ -5,12 +5,11 @@ API endpoints for dashboard statistics and system information.
 import json
 import logging
 from datetime import datetime
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
 from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
-from app import injector
 
 # Create blueprint
 dashboard_bp = Blueprint('dashboard_api', __name__, url_prefix='/dashboard')
@@ -97,7 +96,7 @@ def get_dashboard_stats():
                     logger.warning(f"Invalid cached dashboard API data: {e}")
         
         # Get fresh data from database
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         
         # Get entry count
         entry_count = dict_service.count_entries()

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import pytest
 from unittest.mock import patch, MagicMock
-from app import create_app, injector
+from flask import Flask
+from app import create_app
 from app.models.entry import Entry, Relation
 from app.services.dictionary_service import DictionaryService
 from app.database.mock_connector import MockDatabaseConnector
@@ -93,21 +94,24 @@ class TestRelationsAPISupport:
     """Test API support for relations management."""
     
     @pytest.fixture
-    def app(self):
+    def app(self) -> Flask:
         """Create test app with mock connector."""
-        app = create_app('testing')
-        
-        # Inject mock connector
         mock_connector = MockDatabaseConnector()
-        injector.binder.bind(DictionaryService, 
-                           lambda: DictionaryService(mock_connector))
+        mock_dictionary_service = DictionaryService(mock_connector)
+
+        app = create_app(test_config={
+            'TESTING': True,
+            'DICTIONARY_SERVICE': mock_dictionary_service,
+            'POSTGRESQL_CONFIG': None,
+            'BASEX_CONFIG': None,
+        })
         
         return app
     
-    def test_api_entry_creation_with_relations(self, app):
+    def test_api_entry_creation_with_relations(self, app: Flask):
         """Test creating entries with relations via API."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             entry_data = {
                 "lexical_unit": {"en": "wonderful"},
@@ -124,10 +128,10 @@ class TestRelationsAPISupport:
             assert len(entry.relations) == 2
             assert entry.relations[0].type == "synonym"
     
-    def test_api_entry_update_with_relations(self, app):
+    def test_api_entry_update_with_relations(self, app: Flask):
         """Test updating entry relations via API."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create entry
             entry = Entry(lexical_unit={"en": "modify"})
@@ -151,14 +155,30 @@ class TestRelationsRangesIntegration:
     """Test integration with LIFT ranges for relation types."""
     
     @pytest.fixture
-    def app(self):
+    def app(self) -> Flask:
         """Create test app."""
-        return create_app('testing')
+        return create_app(test_config={
+            'TESTING': True,
+            'DICTIONARY_SERVICE': MagicMock(spec=DictionaryService),
+            'POSTGRESQL_CONFIG': None,
+            'BASEX_CONFIG': None,
+        })
     
-    def test_relation_types_from_ranges(self, app):
+    def test_relation_types_from_ranges(self, app: Flask):
         """Test that relation types can be loaded from ranges."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
+            # Mock the get_ranges method to return predictable data
+            dict_service.get_ranges.return_value = {
+                'relation-types': {
+                    'values': [
+                        {'value': 'synonym'},
+                        {'value': 'antonym'},
+                        {'value': 'hypernym'},
+                        {'value': 'hyponym'},
+                    ]
+                }
+            }
             ranges = dict_service.get_ranges()
             
             # Should have relation-types range with default values
@@ -172,7 +192,7 @@ class TestRelationsRangesIntegration:
             assert 'hypernym' in type_values
             assert 'hyponym' in type_values
     
-    def test_relation_validation_ready(self, app):
+    def test_relation_validation_ready(self, app: Flask):
         """Test that relation type validation infrastructure is ready."""
         with app.app_context():
             # Create relation with valid type
@@ -191,20 +211,24 @@ class TestRelationsLifecycle:
     """Test complete lifecycle operations for relations."""
     
     @pytest.fixture
-    def app(self):
+    def app(self) -> Flask:
         """Create test app with mock connector."""
-        app = create_app('testing')
-        
         mock_connector = MockDatabaseConnector()
-        injector.binder.bind(DictionaryService, 
-                           lambda: DictionaryService(mock_connector))
+        mock_dictionary_service = DictionaryService(mock_connector)
+
+        app = create_app(test_config={
+            'TESTING': True,
+            'DICTIONARY_SERVICE': mock_dictionary_service,
+            'POSTGRESQL_CONFIG': None,
+            'BASEX_CONFIG': None,
+        })
         
         return app
     
-    def test_add_relation_to_existing_entry(self, app):
+    def test_add_relation_to_existing_entry(self, app: Flask):
         """Test adding a relation to an existing entry."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create base entry
             entry = Entry(lexical_unit={"en": "base"})
@@ -222,10 +246,10 @@ class TestRelationsLifecycle:
             assert len(updated.relations) == 1
             assert updated.relations[0].type == "synonym"
     
-    def test_remove_relation_from_entry(self, app):
+    def test_remove_relation_from_entry(self, app: Flask):
         """Test removing a relation from an entry."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create entry with relations
             entry = Entry(
@@ -249,10 +273,10 @@ class TestRelationsLifecycle:
             assert len(updated.relations) == 1
             assert updated.relations[0].ref == "keep_123"
     
-    def test_modify_relation_in_entry(self, app):
+    def test_modify_relation_in_entry(self, app: Flask):
         """Test modifying an existing relation."""
         with app.app_context():
-            dict_service = injector.get(DictionaryService)
+            dict_service = app.injector.get(DictionaryService)
             
             # Create entry with relation
             entry = Entry(

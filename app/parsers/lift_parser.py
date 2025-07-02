@@ -867,11 +867,14 @@ class LIFTRangesParser:
         Returns:
             Dictionary containing range data.
         """
+        range_id = range_elem.get('id', '')
         range_data = {
-            'id': range_elem.get('id', ''),
+            'id': range_id,
             'guid': range_elem.get('guid', ''),
             'values': [],
-            'description': {}        }        # Parse range labels (handle LIFT form structure)
+            'description': {}
+        }
+        # Parse range labels (handle LIFT form structure)
         for label_elem in self._find_elements(range_elem, './lift:label', './label'):
             lang = label_elem.get('lang')
             if lang:
@@ -890,12 +893,17 @@ class LIFTRangesParser:
                             text_elem = self._find_element(form_elem, './lift:text', './text')
                             if text_elem is not None and text_elem.text:
                                 range_data['description'][lang] = text_elem.text.strip()
-                                break        # Parse range values (only direct children)
+                                break
+        # Parse range values (only direct children)
         for value_elem in self._find_elements(range_elem, './lift:range-element', './range-element'):
+            value_id = value_elem.get('id', '')
+            # Normalize orthographic -> spelling for variant types
+            if range_id in ('variant-type', 'variant-types') and value_id == 'orthographic':
+                value_id = 'spelling'
             value = {
-                'id': value_elem.get('id', ''),
+                'id': value_id,
                 'guid': value_elem.get('guid', ''),
-                'value': value_elem.get('value', ''),
+                'value': value_elem.get('value', '') or value_id,
                 'abbrev': '',  # Will be set below if abbrev element exists
                 'description': {},
                 'children': []

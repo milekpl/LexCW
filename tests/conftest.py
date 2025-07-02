@@ -11,7 +11,7 @@ import tempfile
 import uuid
 import logging
 from unittest.mock import patch, MagicMock
-from typing import Generator, Any
+from typing import Generator
 
 # Add parent directory to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -129,9 +129,112 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
                     except Exception as e4:
                         logger.error(f"Failed to create minimal structure: {e4}")
         
-        # Clean up temp file
+        # Add sample ranges.xml to the test database
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            sample_ranges = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift-ranges>
+    <range id="grammatical-info">
+        <range-element id="Noun" label="Noun" abbrev="n">
+            <description>This is a noun.</description>
+        </range-element>
+        <range-element id="Verb" label="Verb" abbrev="v">
+            <description>This is a verb.</description>
+        </range-element>
+        <range-element id="Adjective" label="Adjective" abbrev="adj">
+            <description>This is an adjective.</description>
+        </range-element>
+        <range-element id="Adverb" label="Adverb" abbrev="adv">
+            <description>This is an adverb.</description>
+        </range-element>
+        <range-element id="Pronoun" label="Pronoun" abbrev="pr">
+            <description>This is a pronoun.</description>
+        </range-element>
+        <range-element id="Preposition" label="Preposition" abbrev="pre">
+            <description>This is a preposition.</description>
+        </range-element>
+        <range-element id="Conjunction" label="Conjunction" abbrev="conj">
+            <description>This is a conjunction.</description>
+        </range-element>
+        <range-element id="Interjection" label="Interjection" abbrev="int">
+            <description>This is an interjection.</description>
+        </range-element>
+    </range>
+    <range id="variant-type">
+        <range-element id="dialectal" label="Dialectal Variant">
+            <description>A dialect variant</description>
+        </range-element>
+        <range-element id="orthographic" label="Orthographic Variant">
+            <description>Alternative spelling</description>
+        </range-element>
+    </range>
+    <range id="relation-type">
+        <range-element id="synonym" label="Synonym">
+            <description>Words with same meaning</description>
+        </range-element>
+        <range-element id="antonym" label="Antonym">
+            <description>Words with opposite meaning</description>
+        </range-element>
+    </range>
+    <range id="academic-domain">
+        <range-element id="linguistics" label="Linguistics">
+            <description>Linguistic terminology</description>
+        </range-element>
+        <range-element id="mathematics" label="Mathematics">
+            <description>Mathematical terminology</description>
+        </range-element>
+    </range>
+    <range id="usage-type">
+        <range-element id="formal" label="Formal">
+            <description>Formal language</description>
+        </range-element>
+        <range-element id="informal" label="Informal">
+            <description>Informal or colloquial language</description>
+        </range-element>
+    </range>
+    <range id="etymology-type">
+        <range-element id="borrowed" label="Borrowed">
+            <description>A word borrowed from another language.</description>
+        </range-element>
+        <range-element id="proto" label="Proto-language">
+            <description>A reconstructed word from a proto-language.</description>
+        </range-element>
+    </range>
+    <range id="semantic-domain">
+        <range-element id="agriculture" label="Agriculture">
+            <description>Related to farming and agriculture.</description>
+        </range-element>
+        <range-element id="technology" label="Technology">
+            <description>Related to technology and engineering.</description>
+        </range-element>
+    </range>
+</lift-ranges>'''
+            f.write(sample_ranges)
+            ranges_file = f.name
+
+        try:
+            # Try using the file path instead of raw XML string
+            connector.execute_command(f"ADD {ranges_file}")
+            logger.info("Added ranges.xml using ADD command with file path")
+        except Exception as e:
+            logger.warning(f"Failed to add ranges.xml with ADD command: {e}")
+            # Try alternative method with db:add function
+            try:
+                # Escape the XML content properly
+                escaped_ranges = sample_ranges.replace("'", "''").replace('"', '&quot;')
+                connector.execute_update(f"db:add('{test_db_name}', '{escaped_ranges}', 'ranges.xml')")
+                logger.info(f"Added ranges.xml to test database: {test_db_name}")
+            except Exception as e2:
+                logger.warning(f"Failed to add ranges.xml to test database with escaped content: {e2}")
+                try:
+                    connector.execute_update(f"db:replace('{test_db_name}', '{ranges_file}', 'ranges.xml')")
+                    logger.info("Added ranges.xml using REPLACE command")
+                except Exception as e3:
+                    logger.error(f"All methods failed to add ranges.xml: {e3}")
+        
+        # Clean up temp files
         try:
             os.unlink(temp_file)
+            os.unlink(ranges_file)
         except OSError:
             pass
             
@@ -303,6 +406,10 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     app.dict_service = dict_service_with_db  # type: ignore
     app.dict_service_with_db = dict_service_with_db  # type: ignore - alias for compatibility
     
+    # Initialize cache service for tests (matching production app initialization)
+    from app.services.cache_service import CacheService
+    app.cache_service = CacheService()  # type: ignore
+    
     # Create application context
     with app.app_context():
         yield app
@@ -342,7 +449,14 @@ def mock_dict_service() -> MagicMock:
     service.create_entry.return_value = True
     service.list_entries.return_value = ([], 0)
     service.search_entries.return_value = ([], 0)
-    service.count_entries.return_value = 0
+    service.count_entries.return_value = 150
+    service.count_senses_and_examples.return_value = (300, 450)
+    service.get_recent_activity.return_value = []
+    service.get_system_status.return_value = {
+        'db_connected': True,
+        'last_backup': '2025-06-27 00:15',
+        'storage_percent': 25
+    }
     
     return service
 
@@ -371,9 +485,21 @@ def sample_entry() -> Entry:
         translations={"pl": "To jest test."}
     )
     
-    sense.examples.append(example.to_dict())
-    entry.senses.append(sense.to_dict())
+    sense.examples.append(example)
+    entry.senses.append(sense)
     
+    return entry
+
+
+@pytest.fixture
+def sample_entry_with_pronunciation() -> Entry:
+    """Create a sample Entry object with a specific pronunciation for testing."""
+    entry = Entry(
+        id_="test_pronunciation_entry",
+        lexical_unit={"en": "pronunciation test"},
+        pronunciations={"seh-fonipa": "/pro.nun.si.eɪ.ʃən/"},
+        grammatical_info="noun"
+    )
     return entry
 
 
@@ -495,6 +621,99 @@ def ensure_test_database(connector: BaseXConnector, db_name: str):
                 logger.info(f"Added minimal LIFT content to test database: {db_name}")
             except Exception as e:
                 logger.warning(f"Failed to add content to test database {db_name}: {e}")
+        
+        # Ensure ranges.xml exists in the database
+        try:
+            result = connector.execute_query("doc('ranges.xml')")
+            ranges_exist = bool(result and len(result.strip()) > 0)
+        except Exception:
+            ranges_exist = False
+            
+        if not ranges_exist:
+            # Add sample ranges.xml
+            ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift-ranges>
+    <range id="grammatical-info">
+        <range-element id="Noun" label="Noun" abbrev="n">
+            <description>This is a noun.</description>
+        </range-element>
+        <range-element id="Verb" label="Verb" abbrev="v">
+            <description>This is a verb.</description>
+        </range-element>
+        <range-element id="Adjective" label="Adjective" abbrev="adj">
+            <description>This is an adjective.</description>
+        </range-element>
+        <range-element id="Adverb" label="Adverb" abbrev="adv">
+            <description>This is an adverb.</description>
+        </range-element>
+        <range-element id="Pronoun" label="Pronoun" abbrev="pr">
+            <description>This is a pronoun.</description>
+        </range-element>
+        <range-element id="Preposition" label="Preposition" abbrev="pre">
+            <description>This is a preposition.</description>
+        </range-element>
+        <range-element id="Conjunction" label="Conjunction" abbrev="conj">
+            <description>This is a conjunction.</description>
+        </range-element>
+        <range-element id="Interjection" label="Interjection" abbrev="int">
+            <description>This is an interjection.</description>
+        </range-element>
+    </range>
+    <range id="variant-type">
+        <range-element id="dialectal" label="Dialectal Variant">
+            <description>A dialect variant</description>
+        </range-element>
+        <range-element id="orthographic" label="Orthographic Variant">
+            <description>Alternative spelling</description>
+        </range-element>
+    </range>
+    <range id="relation-type">
+        <range-element id="synonym" label="Synonym">
+            <description>Words with same meaning</description>
+        </range-element>
+        <range-element id="antonym" label="Antonym">
+            <description>Words with opposite meaning</description>
+        </range-element>
+    </range>
+    <range id="academic-domain">
+        <range-element id="linguistics" label="Linguistics">
+            <description>Linguistic terminology</description>
+        </range-element>
+        <range-element id="mathematics" label="Mathematics">
+            <description>Mathematical terminology</description>
+        </range-element>
+    </range>
+    <range id="usage-type">
+        <range-element id="formal" label="Formal">
+            <description>Formal language</description>
+        </range-element>
+        <range-element id="informal" label="Informal">
+            <description>Informal or colloquial language</description>
+        </range-element>
+    </range>
+    <range id="etymology-type">
+        <range-element id="borrowed" label="Borrowed">
+            <description>A word borrowed from another language.</description>
+        </range-element>
+        <range-element id="proto" label="Proto-language">
+            <description>A reconstructed word from a proto-language.</description>
+        </range-element>
+    </range>
+    <range id="semantic-domain">
+        <range-element id="agriculture" label="Agriculture">
+            <description>Related to farming and agriculture.</description>
+        </range-element>
+        <range-element id="technology" label="Technology">
+            <description>Related to technology and engineering.</description>
+        </range-element>
+    </range>
+</lift-ranges>'''
+            
+            try:
+                connector.execute_update(f"db:add('{db_name}', '{ranges_xml}', 'ranges.xml')")
+                logger.info(f"Added sample ranges.xml to test database: {db_name}")
+            except Exception as e:
+                logger.warning(f"Failed to add ranges.xml to test database {db_name}: {e}")
                 
     except Exception as e:
         logger.error(f"Failed to ensure test database {db_name}: {e}")

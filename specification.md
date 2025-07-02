@@ -1276,7 +1276,6 @@ Based on the existing codebase analysis, the following features have been implem
   - ✅ Established foundation for 90%+ coverage achievement
   - ✅ **FIXED**: BaseX test infrastructure - resolved fixture connectivity and database setup issues
   - ✅ **ENABLED**: Previously skipped advanced CRUD tests now running (7 failing due to namespace issues, 1 passing)
-  - ✅ Implement CI/CD pipeline as Github Actions (not yet deployed since tests were failing)
   - 🔄 **Next**: Fix remaining XQuery namespace issues in advanced CRUD tests
   - 🔄 **Next**: Complete coverage to 90%+ 
   - 🔄 **Next**: Add performance benchmarks for core operations
@@ -1326,7 +1325,8 @@ Based on the existing codebase analysis, the following features have been implem
   - ✅ **COMPLETED**: Fixed BaseX connector command execution (execute_command vs execute_update)
   - ✅ **COMPLETED**: Resolved all test regressions in entry validation, sense handling, and search functionality
   - ✅ **COMPLETED**: Database connection cleanup and locking issue resolution
-  - ✅ **TESTED**: All search functionality tests (7 test cases) and entry model tests passing
+  - ✅ **COMPLETED**: Enhanced query performance with optimized XQuery
+  - ✅ **COMPLETED**: Comprehensive test suite for query builder and workset management
   - 🔄 **NEXT**: Build UI for complex multi-criteria queries (e.g., lexical, semantic, grammatical)
   - 🔄 **NEXT**: Integrate advanced search capabilities (regex, vector search)
   - 🔄 **NEXT**: Implement query validation and optimization engine
@@ -1363,18 +1363,23 @@ Based on the existing codebase analysis, the following features have been implem
 
 **Week 7-8: Enhanced Entry Editing UI**
 
-- 🔄 **CURRENT**: **LIFT-Compliant Entry Editing Interface** - ⭐ **IN PROGRESS** (July 1, 2025)
+- 🔄 **CURRENT**: **LIFT-Compliant Entry Editing Interface** - ⭐ **IN PROGRESS** (July 2, 2025)
   - 🎯 **CRITICAL FOCUS**: Comprehensive UI rebuild for complete LIFT element support
   - ✅ **COMPLETED**: UI requirements analysis and gap identification
   - ✅ **COMPLETED**: Detailed specifications for all missing UI components
-  - 🔄 **Phase 2A (Week 7)**: Core LIFT Element Support
-    - 🔄 **NEXT**: Implement variant forms editing UI (Critical Priority)
-    - 🔄 **NEXT**: Integrate LIFT ranges for dynamic dropdowns (Critical Priority)  
+  - ✅ **COMPLETED**: Basic entry form structure and JavaScript framework
+  - 🔄 **Phase 2A (Week 7)**: Core LIFT Element Support - **ACTIVE ISSUES IDENTIFIED**
+    - � **BLOCKING**: LIFT ranges not loading in edit form dropdowns (variant types, relation types, grammatical info)
+    - 🔴 **BLOCKING**: seh-fonipa pronunciations not displaying in edit form (147 pronunciations in database)
+    - 🔴 **BLOCKING**: Advanced search not using ranges for filtering
+    - 🔴 **MISSING**: Usages and Academic Domains not visible in edit form
+    - 🔄 **NEXT**: Fix LIFT ranges integration for dynamic dropdowns (Critical Priority)
+    - 🔄 **NEXT**: Fix pronunciation display for seh-fonipa language support (Critical Priority)
     - 🔄 **NEXT**: Enhance relations UI with proper type/ref structure (Critical Priority)
-  - 🔄 **Phase 2B (Week 8)**: Advanced Editing Features
+  - 🔄 **Phase 2B (Week 8)**: Advanced Editing Features  
     - 🔄 **NEXT**: Rebuild etymology editor with Form/Gloss objects (Medium Priority)
     - 🔄 **NEXT**: Add multilingual editing with language attributes (High Priority)
-    - 🔄 **NEXT**: Enhance pronunciation editing with language support for seh-fonipa (High Priority)
+    - 🔄 **NEXT**: Complete pronunciation editing with full language support (High Priority)
 
 - 🔴 **Bulk Processing Framework** - Not implemented
   - Design bulk operation architecture
@@ -1955,6 +1960,7 @@ CREATE TABLE frequency_analysis (
     corpus_frequency INTEGER DEFAULT 0, -- From parallel corpus
     corpus_relative_freq FLOAT,
     subtlex_frequency FLOAT, -- From SUBTLEX norms
+   
     subtlex_context_diversity FLOAT,
     frequency_ratio FLOAT, -- corpus_freq / subtlex_freq for domain analysis
     psychological_accessibility FLOAT, -- Computed accessibility score
@@ -2251,3 +2257,329 @@ def get_dictionary_service():
 - Documentation updated to reflect namespace handling requirements
 
 This namespace fix initiative ensures the LCW system maintains robust, reliable functionality across all CRUD operations, search capabilities, and API integrations while preserving the strict TDD methodology and high code quality standards established for the project.
+
+## 21. Comprehensive LIFT Ranges Support Roadmap
+
+### 21.1 Overview
+
+The LCW system must support the complete LIFT standard for linguistic ranges, as demonstrated by the comprehensive `sample-lift-file.lift-ranges` file. This roadmap outlines the implementation strategy for full LIFT ranges support, ensuring compatibility with all possible linguistic categorization systems.
+
+### 21.2 Current Range Types Analysis
+
+Based on the comprehensive sample LIFT ranges file, the following range types must be fully supported:
+
+#### 21.2.1 Core Linguistic Ranges (Priority 1)
+- **etymology**: Borrowed/proto language origins
+- **grammatical-info**: Parts of speech with hierarchical structure (Noun > Countable Noun, etc.)
+- **lexical-relation**: Cross-references between entries (synonyms, antonyms, etc.)
+- **semantic-domain-ddp4**: Comprehensive semantic domain classification (~9,000+ domains)
+- **usage-type**: Register and formality levels (formal, informal, technical, etc.)
+- **status**: Entry completion/review status
+
+#### 21.2.2 Advanced Metadata Ranges (Priority 2)
+- **note-type**: Classification of editorial notes
+- **paradigm**: Morphological paradigm references
+- **reversal-type**: Reverse index categorization
+- **translation-type**: Translation relationship types
+- **users**: Editorial responsibility tracking
+- **location**: Geographic distribution data
+
+#### 21.2.3 Specialized Linguistic Ranges (Priority 3)
+- **anthro-code**: Anthropological/cultural classification
+- **inflection-feature**: Morphological feature system
+- **inflection-feature-type**: Feature type categorization
+- **from-part-of-speech**: Derivational morphology tracking
+- **morph-type**: Morpheme classification
+- **num-feature-value**: Numerical grammatical features
+- **domain-type**: Specialized domain classifications
+- **Publications**: Publishing workflow metadata
+- **do-not-publish-in**: Publication exclusion lists
+
+### 21.3 Implementation Strategy
+
+#### 21.3.1 Phase 1: Dynamic Range Loading (Current Sprint)
+**Status**: 🟡 In Progress
+
+**Objectives**:
+- ✅ Load ranges dynamically from LIFT ranges file/database
+- ✅ Provide API endpoints for all range types (`/api/ranges/{type}`)
+- ✅ Support hierarchical range structures (parent-child relationships)
+- ⚠️ Handle alternative naming conventions (singular/plural, hyphen/underscore)
+
+**Implementation**:
+```python
+# Enhanced DictionaryService.get_lift_ranges() method
+def get_lift_ranges(self) -> Dict[str, Any]:
+    """Load all LIFT ranges with full type coverage."""
+    # Support all 21+ range types from comprehensive LIFT standard
+    # Handle hierarchical structures (grammatical-info parent-child)
+    # Cache for performance with large semantic domain sets
+```
+
+**Tests**:
+- ✅ `test_comprehensive_lift_ranges_support()` - Verify all 21+ range types
+- ✅ `test_lift_ranges_dynamic_loading()` - No hardcoded data
+- ✅ `test_lift_ranges_api_performance()` - Handle 9,000+ semantic domains
+
+#### 21.3.2 Phase 2: UI Integration (Next Sprint)
+**Status**: 🔴 Not Started
+
+**Objectives**:
+- Dynamic form field population for all range types
+- Hierarchical selection widgets for complex ranges
+- Search/filter capabilities for large range sets (semantic domains)
+- Autocomplete for range values
+- Validation against available ranges
+
+**Implementation Requirements**:
+```javascript
+// Dynamic range loading in entry forms
+class RangeSelector {
+    async loadRanges(rangeType) {
+        // Fetch from /api/ranges/{rangeType}
+        // Populate select/autocomplete widgets
+        // Handle hierarchical display for grammatical-info
+    }
+}
+```
+
+**Templates to Update**:
+- `entry_form.html` - Dynamic range selectors
+- `search.html` - Range-based filtering
+- `workbench/query_builder.html` - Range query support
+
+#### 21.3.3 Phase 3: Advanced Range Features (Future Sprint)
+**Status**: 🔴 Not Started
+
+**Objectives**:
+- Custom range definitions and extensions
+- Range validation and consistency checking
+- Bulk range assignment operations
+- Range usage analytics and reporting
+- Import/export of range definitions
+
+### 21.4 Technical Implementation Details
+
+#### 21.4.1 Database Schema Enhancements
+
+**BaseX Integration**:
+```xquery
+(: Enhanced range query support :)
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+
+for $range in doc('ranges.xml')//lift:range
+where $range/@id = $requested-range-type
+return $range
+```
+
+**PostgreSQL Analytics Support**:
+```sql
+-- Range usage analytics tables
+CREATE TABLE range_usage_stats (
+    range_type VARCHAR(50),
+    range_value VARCHAR(200),
+    usage_count INTEGER,
+    last_updated TIMESTAMP
+);
+```
+
+#### 21.4.2 API Enhancements
+
+**Comprehensive Range Endpoints**:
+```python
+@ranges_bp.route('/<range_type>')
+def get_range_by_type(range_type: str):
+    """Get specific range with all supported types."""
+    # Support all 21+ range types
+    # Handle hierarchical data (grammatical-info)
+    # Efficient caching for large datasets (semantic-domain-ddp4)
+```
+
+**Range Validation**:
+```python
+@api_bp.route('/validate/range-value', methods=['POST'])
+def validate_range_value():
+    """Validate if a value is valid for a specific range type."""
+    # Real-time validation for entry forms
+    # Support for hierarchical value validation
+```
+#### 21.4.3 Performance Considerations
+
+**Large Dataset Handling**:
+- Semantic domain ranges contain 9,000+ entries
+- Implement pagination for UI presentation
+- Use caching strategies for frequently accessed ranges
+- Optimize XQuery for hierarchical range traversal
+
+**Memory Management**:
+```python
+@lru_cache(maxsize=50)
+def get_cached_range(range_type: str) -> Dict[str, Any]:
+    """Cache frequently accessed ranges."""
+    # Cache management for large range sets
+    # Invalidation strategy for range updates
+```
+### 21.5 Testing Strategy
+
+#### 21.5.1 Comprehensive Range Coverage Tests
+
+**Required Test Coverage**:
+```python
+def test_all_lift_range_types_supported():
+    """Verify all 21+ standard LIFT range types are supported."""
+    expected_types = {
+        'etymology', 'grammatical-info', 'lexical-relation',
+        'note-type', 'paradigm', 'reversal-type', 'semantic-domain-ddp4',
+        'status', 'users', 'location', 'anthro-code', 'translation-type',
+        'inflection-feature', 'inflection-feature-type', 'from-part-of-speech',
+        'morph-type', 'num-feature-value', 'Publications', 'do-not-publish-in',
+        'domain-type', 'usage-type'
+    }
+    # Test each type via API and UI integration
+```
+
+#### 21.5.2 Performance Tests
+
+**Load Testing**:
+```python
+def test_semantic_domain_performance():
+    """Test performance with 9,000+ semantic domain entries."""
+    # API response time < 1s for large range sets
+    # UI rendering performance for hierarchical displays
+    # Memory usage optimization validation
+```
+
+#### 21.5.3 Integration Tests
+
+**End-to-End Workflows**:
+```python
+def test_range_based_entry_creation():
+    """Test creating entries using all range types."""
+    # Create entry with values from each range type
+    # Validate proper storage and retrieval
+    # Test LIFT export/import round-trip
+```
+### 21.6 Migration and Backward Compatibility
+
+#### 21.6.1 Existing Data Migration
+
+**Legacy Range Handling**:
+- Detect existing range usage patterns
+- Map legacy range values to new comprehensive system
+- Maintain backward compatibility for existing entries
+
+#### 21.6.2 Progressive Enhancement
+
+**Deployment Strategy**:
+1. Deploy with basic range support (Phase 1)
+2. Enhance UI progressively (Phase 2)
+3. Add advanced features incrementally (Phase 3)
+4. Maintain service availability throughout migration
+
+### 21.7 Success Criteria
+
+#### 21.7.1 Functional Requirements
+- ✅ All 21+ LIFT range types accessible via API
+- 🔴 Dynamic UI population for all range types
+- 🔴 Hierarchical range display (grammatical-info)
+- 🔴 Efficient handling of large range sets (semantic-domain-ddp4)
+- 🔴 Range-based search and filtering
+- 🔴 Bulk operations using range criteria
+
+#### 21.7.2 Performance Requirements
+- API response time < 1 second for any range type
+- UI rendering < 500ms for range selection widgets
+- Memory usage < 100MB for complete range data caching
+- Support for 10,000+ entries in a single range type
+
+#### 21.7.3 Quality Requirements
+- 100% test coverage for range-related functionality
+- Zero regressions in existing range-based features
+- LIFT standard compliance verification
+- Cross-browser compatibility for all range UI components
+
+### 21.8 Timeline and Milestones
+
+#### 21.8.1 Phase 1 (Current Sprint - Week 1-2)
+- ✅ Dynamic range loading implementation
+- ✅ API endpoint completion
+- ⚠️ Comprehensive test suite creation
+- 🔴 Performance optimization for large ranges
+
+#### 21.8.2 Phase 2 (Next Sprint - Week 3-4)
+- 🔴 UI component development
+- 🔴 Template integration
+- 🔴 Search/filter enhancement
+- 🔴 User acceptance testing
+
+#### 21.8.3 Phase 3 (Future Sprint - Week 5-6)
+- 🔴 Advanced features implementation
+- 🔴 Analytics and reporting
+- 🔴 Custom range support
+- 🔴 Production deployment
+
+**Legend**: ✅ Complete | ⚠️ In Progress | 🔴 Not Started
+
+This comprehensive LIFT ranges support roadmap ensures the LCW system will handle the full spectrum of linguistic categorization requirements, supporting professional lexicographic workflows with complete LIFT standard compliance.
+
+---
+
+## 22. Relations and Etymology Support Roadmap
+
+### 22.1 Current Status
+
+The LCW system currently has placeholder implementations for relations and etymology features. This roadmap outlines the development path to full support for these critical lexicographic features.
+
+### 22.2 Relations Support Implementation
+
+#### 22.2.1 Phase 1: Basic Relations Infrastructure
+**Status**: 🔴 Not Started
+
+**Objectives**:
+- Implement lexical-relation range support
+- Create relation API endpoints
+- Add database storage for cross-references
+- Basic UI for relation management
+
+**API Endpoints Required**:
+```python
+# Relations API endpoints
+@api_bp.route('/entries/<entry_id>/relations', methods=['GET', 'POST'])
+def manage_entry_relations(entry_id: str):
+    """Manage relations for a specific entry."""
+    
+@api_bp.route('/relations/search')
+def search_relations():
+    """Search for potential relation targets."""
+```
+
+#### 22.2.2 Phase 2: Advanced Relations Features
+**Status**: 🔴 Not Started
+
+**Objectives**:
+- Bidirectional relation management
+- Relation validation and consistency checking
+- Bulk relation operations
+- Relation analytics and visualization
+
+### 22.3 Etymology Support Implementation
+
+#### 22.3.1 Phase 1: Basic Etymology Support
+**Status**: 🔴 Not Started
+
+**Objectives**:
+- Etymology range integration
+- API endpoints for etymology management
+- Database schema for etymology data
+- Basic etymology UI components
+
+#### 22.3.2 Phase 2: Advanced Etymology Features
+**Status**: 🔴 Not Started
+
+**Objectives**:
+- Etymology validation
+- Historical language support
+- Etymology visualization
+- Bulk etymology operations
+
+This roadmap ensures systematic development of critical lexicographic features while maintaining the project's TDD methodology and quality standards.

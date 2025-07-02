@@ -13,6 +13,7 @@ import pytest
 import json
 from unittest.mock import Mock, patch
 from flask import Flask
+from flask.testing import FlaskClient
 
 from app import create_app
 from app.services.dictionary_service import DictionaryService
@@ -21,21 +22,13 @@ from app.services.dictionary_service import DictionaryService
 class TestDashboard:
     """Test cases for the dashboard homepage."""
 
-    @pytest.fixture(scope='class')
-    def shared_app(self):
-        """Create a shared Flask application for all tests in this class."""
-        app = create_app()
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
-        return app
+    @pytest.fixture
+    def shared_client(self, app: Flask) -> FlaskClient:
+        """Create a shared test client using the properly configured app fixture."""
+        return app.test_client()
 
-    @pytest.fixture(scope='class')
-    def shared_client(self, shared_app):
-        """Create a shared test client for all tests in this class."""
-        return shared_app.test_client()
-
-    @pytest.fixture(scope='class')
-    def homepage_response_text(self, shared_client):
+    @pytest.fixture
+    def homepage_response_text(self, shared_client: FlaskClient) -> str:
         """Get the homepage response text once and reuse it for all text-based tests."""
         response = shared_client.get('/')
         assert response.status_code == 200

@@ -108,7 +108,11 @@ def create_app(config_name=None):
     from app.routes.corpus_routes import corpus_bp
     app.register_blueprint(corpus_bp)
     
-    from app.api.worksets import worksets_bp
+    # Register additional API routes
+    from app.routes.api_routes import api_bp as additional_api_bp
+    app.register_blueprint(additional_api_bp)
+    
+    from app.routes.worksets_routes import worksets_bp
     app.register_blueprint(worksets_bp)
     
     from app.api.query_builder import query_builder_bp
@@ -116,9 +120,6 @@ def create_app(config_name=None):
     
     from app.views import workbench_bp
     app.register_blueprint(workbench_bp)
-    
-    from app.api.search import search_bp
-    app.register_blueprint(search_bp, url_prefix='/api/search')
     
     # Initialize Swagger documentation
     swagger_config = {
@@ -178,5 +179,12 @@ def create_app(config_name=None):
     # Add dict_service to app for testing compatibility
     app.dict_service = dictionary_service
     app.dict_service_with_db = dictionary_service  # Alias for test compatibility
+    
+    # Attach the global injector to the app for dependency injection
+    app.injector = injector
+    
+    # Initialize cache service
+    from app.services.cache_service import CacheService
+    app.cache_service = CacheService()
     
     return app

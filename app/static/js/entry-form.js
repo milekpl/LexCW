@@ -5,6 +5,26 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
+    const rangesLoader = new RangesLoader();
+
+    // Function to initialize dynamic selects
+    function initializeDynamicSelects(container) {
+        const dynamicSelects = container.querySelectorAll('.dynamic-grammatical-info');
+        dynamicSelects.forEach(select => {
+            const rangeId = select.dataset.rangeId;
+            const selectedValue = select.dataset.selected;
+            if (rangeId) {
+                rangesLoader.populateSelect(select, rangeId, { 
+                    selectedValue: selectedValue,
+                    emptyOption: 'Select part of speech' 
+                });
+            }
+        });
+    }
+
+    // Initial load for selects already on the page
+    initializeDynamicSelects(document.body);
+
     // Initialize Select2 for tag inputs
     $('.select2-tags').select2({
         theme: 'bootstrap-5',

@@ -355,6 +355,27 @@ class XQueryBuilder:
         return query
 
     @staticmethod
+    def build_get_lift_ranges_query(db_name: str, has_namespace: bool = True) -> str:
+        """
+        Build query to retrieve all LIFT ranges.
+
+        Args:
+            db_name: Name of the database
+            has_namespace: Whether XML uses namespaces
+
+        Returns:
+            Complete XQuery string
+        """
+        prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        lift_ranges_path = XQueryBuilder.get_element_path("lift-ranges", has_namespace)
+
+        # Find the lift-ranges element, wherever it may be.
+        # It could be in the main document or a separate ranges document.
+        return f"""{prologue}
+        collection('{db_name}')//{lift_ranges_path}
+        """
+
+    @staticmethod
     def build_range_query(
         range_name: str, db_name: str, has_namespace: bool = True
     ) -> str:

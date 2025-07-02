@@ -245,18 +245,25 @@ def get_ranges():
     Returns:
         JSON response with ranges data.
     """
-    try:        # Get dictionary service
+    try:        
+        # Get dictionary service
         dict_service = get_dictionary_service()
         
-        # Get ranges (placeholder - needs implementation)
+        # Get ranges from service
         ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
         
         # Return response
-        return jsonify(ranges)
+        return jsonify({
+            'success': True,
+            'data': ranges
+        })
         
     except Exception as e:
         logger.error("Error getting ranges: %s", str(e))
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @search_bp.route('/ranges/<range_id>', methods=['GET'])
@@ -270,17 +277,125 @@ def get_range_values(range_id):
     Returns:
         JSON response with range values.
     """
-    try:        # Get dictionary service
+    try:        
+        # Get dictionary service
         dict_service = get_dictionary_service()
         
-        # Get range values (placeholder - needs implementation)
-        values = dict_service.get_range_values(range_id) if hasattr(dict_service, 'get_range_values') else []
+        # Get all ranges
+        ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
+        
+        # Special case handling for renamed ranges
+        if range_id == 'relation-types' and 'relation-type' in ranges:
+            range_id = 'relation-type'
+        elif range_id == 'variant-types' and 'variant-type' in ranges:
+            range_id = 'variant-type'
+        
+        # Check if range exists
+        if range_id not in ranges:
+            raise NotFoundError(f"Range '{range_id}' not found")
         
         # Return response
-        return jsonify(values)
+        return jsonify({
+            'success': True,
+            'data': ranges[range_id]
+        })
         
     except NotFoundError as e:
-        return jsonify({'error': str(e)}), 404
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
     except Exception as e:
         logger.error("Error getting range values for %s: %s", range_id, str(e))
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@search_bp.route('/ranges/relation-types', methods=['GET'])
+def get_relation_types():
+    """
+    Get the relation types from ranges.
+    
+    Returns:
+        JSON response with relation types.
+    """
+    try:
+        # Get dictionary service
+        dict_service = get_dictionary_service()
+        
+        # Get all ranges
+        ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
+        
+        # Look for relation types in different formats
+        relation_types = None
+        if 'relation-types' in ranges:
+            relation_types = ranges['relation-types']
+        elif 'relation-type' in ranges:
+            relation_types = ranges['relation-type']
+        
+        if not relation_types:
+            raise NotFoundError("Relation types not found in ranges")
+        
+        # Return response
+        return jsonify({
+            'success': True,
+            'data': relation_types
+        })
+        
+    except NotFoundError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error("Error getting relation types: %s", str(e))
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@search_bp.route('/ranges/variant-types', methods=['GET'])
+def get_variant_types():
+    """
+    Get the variant types from ranges.
+    
+    Returns:
+        JSON response with variant types.
+    """
+    try:
+        # Get dictionary service
+        dict_service = get_dictionary_service()
+        
+        # Get all ranges
+        ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
+        
+        # Look for variant types in different formats
+        variant_types = None
+        if 'variant-types' in ranges:
+            variant_types = ranges['variant-types']
+        elif 'variant-type' in ranges:
+            variant_types = ranges['variant-type']
+        
+        if not variant_types:
+            raise NotFoundError("Variant types not found in ranges")
+        
+        # Return response
+        return jsonify({
+            'success': True,
+            'data': variant_types
+        })
+        
+    except NotFoundError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error("Error getting variant types: %s", str(e))
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
