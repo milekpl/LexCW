@@ -74,67 +74,7 @@ def get_all_ranges() -> Union[Response, Tuple[Response, int]]:
               type: string
               description: Error message
     """
-    import os
-    from flask import current_app
-    import sys
-    # --- TEST HARNESS PATCH: Return minimal test ranges if running under pytest, TESTING, or Flask test mode ---
-    is_testing = current_app.config.get('TESTING', False) or os.getenv('TESTING') == 'true' or 'pytest' in globals() or 'pytest' in sys.modules
-    if is_testing:
-        import logging
-        logging.getLogger(__name__).info('[TEST PATCH] Returning minimal test LIFT ranges from /api/ranges')
-        test_ranges = {
-            'grammatical-info': {
-                'id': 'grammatical-info',
-                'values': [
-                    {'id': 'Noun', 'value': 'Noun', 'label': 'Noun'},
-                    {'id': 'Adjective', 'value': 'Adjective', 'label': 'Adjective'},
-                    {'id': 'Verb', 'value': 'Verb', 'label': 'Verb'},
-                    {'id': 'Adverb', 'value': 'Adverb', 'label': 'Adverb'},
-                    {'id': 'Preposition', 'value': 'Preposition', 'label': 'Preposition'},
-                    {'id': 'Conjunction', 'value': 'Conjunction', 'label': 'Conjunction'},
-                ]
-            },
-            'variant-types': {
-                'id': 'variant-types',
-                'values': [
-                    {'id': 'spelling', 'value': 'spelling', 'label': 'Spelling'}
-                ]
-            },
-            'relation-types': {
-                'id': 'relation-types',
-                'values': [
-                    {'id': '_component-lexeme', 'value': '_component-lexeme', 'label': 'Component Lexeme'}
-                ]
-            },
-            'semantic-domain-list': {
-                'id': 'semantic-domain-list',
-                'values': [
-                    {'id': '1', 'value': '1', 'label': 'Universe, creation'},
-                    {'id': '2', 'value': '2', 'label': 'Person'}
-                ]
-            },
-            'usage-type': {
-                'id': 'usage-type',
-                'values': [
-                    {'id': 'colloquial', 'value': 'colloquial', 'label': 'Colloquial'}
-                ]
-            },
-            'status': {
-                'id': 'status',
-                'values': [
-                    {'id': 'active', 'value': 'active', 'label': 'Active'}
-                ]
-            },
-            'etymology-types': {
-                'id': 'etymology-types',
-                'values': [
-                    {'id': 'borrowing', 'value': 'borrowing', 'label': 'Borrowing'},
-                    {'id': 'inheritance', 'value': 'inheritance', 'label': 'Inheritance'}
-                ]
-            }
-        }
-        return jsonify({'success': True, 'data': test_ranges})
-    # --- END PATCH ---
+    # Remove hardcoded test ranges - use dynamic ranges from service layer
     try:
         # Get dictionary service using dependency injection
         from app import injector

@@ -110,12 +110,8 @@ class TestEtymologyAPISupport:
         mock_connector = MockDatabaseConnector()
         mock_dictionary_service = DictionaryService(mock_connector)
 
-        app = create_app(test_config={
-            'TESTING': True,
-            'DICTIONARY_SERVICE': mock_dictionary_service,
-            'POSTGRESQL_CONFIG': None,
-            'BASEX_CONFIG': None,
-        })
+        app = create_app('testing')
+        app.config['DICTIONARY_SERVICE'] = mock_dictionary_service
         
         return app
 
@@ -186,12 +182,9 @@ class TestEtymologyRangesIntegration:
     @pytest.fixture
     def app(self) -> Flask:
         """Create test app."""
-        return create_app(test_config={
-            'TESTING': True,
-            'DICTIONARY_SERVICE': Mock(spec=DictionaryService),
-            'POSTGRESQL_CONFIG': None,
-            'BASEX_CONFIG': None,
-        })
+        app = create_app('testing')
+        app.config['DICTIONARY_SERVICE'] = Mock(spec=DictionaryService)
+        return app
     
     def test_etymology_types_from_ranges(self, app: Flask):
         """Test that etymology types can be retrieved from ranges."""
@@ -233,12 +226,8 @@ class TestEtymologyLifecycle:
         mock_connector = MockDatabaseConnector()
         mock_dictionary_service = DictionaryService(mock_connector)
 
-        app = create_app(test_config={
-            'TESTING': True,
-            'DICTIONARY_SERVICE': mock_dictionary_service,
-            'POSTGRESQL_CONFIG': None,
-            'BASEX_CONFIG': None,
-        })
+        app = create_app('testing')
+        app.config['DICTIONARY_SERVICE'] = mock_dictionary_service
         
         return app
 

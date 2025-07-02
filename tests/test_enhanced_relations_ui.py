@@ -49,13 +49,8 @@ def relations_app() -> Flask:
     mock_dictionary_service.create_entry(Entry.from_dict(test_entry1))
     mock_dictionary_service.create_entry(Entry.from_dict(test_entry2))
 
-    app = create_app(test_config={
-        'TESTING': True,
-        'DICTIONARY_SERVICE': mock_dictionary_service,
-        # Mock other dependencies if needed
-        'POSTGRESQL_CONFIG': None, 
-        'BASEX_CONFIG': None,
-    })
+    app = create_app('testing')
+    app.config['DICTIONARY_SERVICE'] = mock_dictionary_service
     
     return app
 

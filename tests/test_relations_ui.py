@@ -99,12 +99,8 @@ class TestRelationsAPISupport:
         mock_connector = MockDatabaseConnector()
         mock_dictionary_service = DictionaryService(mock_connector)
 
-        app = create_app(test_config={
-            'TESTING': True,
-            'DICTIONARY_SERVICE': mock_dictionary_service,
-            'POSTGRESQL_CONFIG': None,
-            'BASEX_CONFIG': None,
-        })
+        app = create_app('testing')
+        app.config['DICTIONARY_SERVICE'] = mock_dictionary_service
         
         return app
     
@@ -157,12 +153,9 @@ class TestRelationsRangesIntegration:
     @pytest.fixture
     def app(self) -> Flask:
         """Create test app."""
-        return create_app(test_config={
-            'TESTING': True,
-            'DICTIONARY_SERVICE': MagicMock(spec=DictionaryService),
-            'POSTGRESQL_CONFIG': None,
-            'BASEX_CONFIG': None,
-        })
+        app = create_app('testing')
+        app.config['DICTIONARY_SERVICE'] = MagicMock(spec=DictionaryService)
+        return app
     
     def test_relation_types_from_ranges(self, app: Flask):
         """Test that relation types can be loaded from ranges."""
@@ -216,12 +209,8 @@ class TestRelationsLifecycle:
         mock_connector = MockDatabaseConnector()
         mock_dictionary_service = DictionaryService(mock_connector)
 
-        app = create_app(test_config={
-            'TESTING': True,
-            'DICTIONARY_SERVICE': mock_dictionary_service,
-            'POSTGRESQL_CONFIG': None,
-            'BASEX_CONFIG': None,
-        })
+        app = create_app('testing')
+        app.config['DICTIONARY_SERVICE'] = mock_dictionary_service
         
         return app
     

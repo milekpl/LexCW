@@ -733,6 +733,85 @@ class LIFTParser:
         
         return entry_elem
 
+    def _parse_multilingual_content(self, element: ET.Element, element_types: List[str]) -> Dict[str, str]:
+        """
+        Parse multilingual content from label and description elements.
+        
+        Args:
+            element: Parent element to search in
+            element_types: List of element types to search for (e.g., ['label', 'description'])
+            
+        Returns:
+            Dictionary mapping language codes to text content
+        """
+        content = {}
+        
+        for element_type in element_types:
+            # Find all elements of this type
+            for content_elem in self._find_elements(element, f'./lift:{element_type}', f'./{element_type}'):
+                # Check for direct lang attribute and text
+                lang = content_elem.get('lang')
+                if lang and content_elem.text and content_elem.text.strip():
+                    content[lang] = content_elem.text.strip()
+                    continue
+                
+                # Look for form/text structure
+                for form_elem in self._find_elements(content_elem, './lift:form', './form'):
+                    form_lang = form_elem.get('lang')
+                    if form_lang:
+                        text_elem = self._find_element(form_elem, './lift:text', './text')
+                        if text_elem is not None and text_elem.text and text_elem.text.strip():
+                            content[form_lang] = text_elem.text.strip()
+        
+        return content
+
+    def _parse_range_element_full(self, elem: ET.Element, element_id: str) -> Dict[str, Any]:
+        """
+        Parse a range element with full feature support.
+        
+        Args:
+            elem: Element representing a range element
+            element_id: ID of the element
+            
+        Returns:
+            Dictionary containing range element data
+        """
+        element_data = {
+            'id': element_id,
+            'guid': elem.get('guid', ''),
+            'value': elem.get('value', '') or element_id,
+            'abbrev': '',
+            'description': {},
+            'children': [],
+            'traits': {}
+        }
+        
+        # Parse multilingual labels and descriptions
+        element_data['description'] = self._parse_multilingual_content(elem, ['label', 'description'])
+        
+        # Parse abbreviation (handle LIFT form structure)
+        abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
+        if abbrev_elem is not None:
+            # First try direct text content
+            if abbrev_elem.text and abbrev_elem.text.strip():
+                element_data['abbrev'] = abbrev_elem.text.strip()
+            else:
+                # Try form/text structure
+                for form_elem in self._find_elements(abbrev_elem, './lift:form', './form'):
+                    text_elem = self._find_element(form_elem, './lift:text', './text')
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
+                        element_data['abbrev'] = text_elem.text.strip()
+                        break
+        
+        # Parse traits (name-value pairs)
+        for trait_elem in self._find_elements(elem, './lift:trait', './trait'):
+            trait_name = trait_elem.get('name')
+            trait_value = trait_elem.get('value')
+            if trait_name:
+                element_data['traits'][trait_name] = trait_value or ''
+        
+        return element_data
+        
 
 class LIFTRangesParser:
     """
@@ -874,78 +953,24 @@ class LIFTRangesParser:
             'values': [],
             'description': {}
         }
-        # Parse range labels (handle LIFT form structure)
-        for label_elem in self._find_elements(range_elem, './lift:label', './label'):
-            lang = label_elem.get('lang')
-            if lang:
-                # First try direct text content
-                if label_elem.text and label_elem.text.strip():
-                    range_data['description'][lang] = label_elem.text.strip()
-                else:
-                    # Try form/text structure
-                    text_elem = self._find_element(label_elem, './lift:form/lift:text', './form/text')
-                    if text_elem is not None and text_elem.text:
-                        range_data['description'][lang] = text_elem.text.strip()
-                    # Also try nested form elements with matching lang attribute
-                    for form_elem in self._find_elements(label_elem, './lift:form', './form'):
-                        form_lang = form_elem.get('lang')
-                        if form_lang == lang or not form_lang:
-                            text_elem = self._find_element(form_elem, './lift:text', './text')
-                            if text_elem is not None and text_elem.text:
-                                range_data['description'][lang] = text_elem.text.strip()
-                                break
-        # Parse range values (only direct children)
-        for value_elem in self._find_elements(range_elem, './lift:range-element', './range-element'):
-            value_id = value_elem.get('id', '')
-            # Normalize orthographic -> spelling for variant types
-            if range_id in ('variant-type', 'variant-types') and value_id == 'orthographic':
-                value_id = 'spelling'
-            value = {
-                'id': value_id,
-                'guid': value_elem.get('guid', ''),
-                'value': value_elem.get('value', '') or value_id,
-                'abbrev': '',  # Will be set below if abbrev element exists
-                'description': {},
-                'children': []
-            }
-            
-            # Parse abbrev element (handle LIFT form structure)
-            abbrev_elem = self._find_element(value_elem, './lift:abbrev', './abbrev')
-            if abbrev_elem is not None:
-                # First try direct text content
-                if abbrev_elem.text and abbrev_elem.text.strip():
-                    value['abbrev'] = abbrev_elem.text.strip()
-                else:
-                    # Try form/text structure
-                    text_elem = self._find_element(abbrev_elem, './lift:form/lift:text', './form/text')
-                    if text_elem is not None and text_elem.text:
-                        value['abbrev'] = text_elem.text.strip()            # Parse value labels (handle LIFT form structure)
-            for label_elem in self._find_elements(value_elem, './lift:label', './label'):
-                lang = label_elem.get('lang')
-                if lang:
-                    # First try direct text content
-                    if label_elem.text and label_elem.text.strip():
-                        value['description'][lang] = label_elem.text.strip()
-                    else:
-                        # Try form/text structure
-                        text_elem = self._find_element(label_elem, './lift:form/lift:text', './form/text')
-                        if text_elem is not None and text_elem.text:
-                            value['description'][lang] = text_elem.text.strip()
-                        # Also try nested form elements with matching lang attribute
-                        for form_elem in self._find_elements(label_elem, './lift:form', './form'):
-                            form_lang = form_elem.get('lang')
-                            if form_lang == lang or not form_lang:
-                                text_elem = self._find_element(form_elem, './lift:text', './text')
-                                if text_elem is not None and text_elem.text:
-                                    value['description'][lang] = text_elem.text.strip()
-                                    break
-              # Parse child values (for hierarchical ranges, direct children only)
-            for child_elem in self._find_elements(value_elem, './lift:range-element', './range-element'):
-                child_value = self._parse_range_element(child_elem)
-                value['children'].append(child_value)
-            
-            range_data['values'].append(value)
         
+        # Parse range labels and descriptions
+        range_data['description'] = self._parse_multilingual_content(range_elem, ['label', 'description'])
+        
+        # Check if this range uses parent attributes for hierarchy
+        # Look for any range-element with a parent attribute
+        has_parent_attributes = False
+        for elem in self._find_elements(range_elem, './lift:range-element', './range-element'):
+            if elem.get('parent'):
+                has_parent_attributes = True
+                break
+        
+        if has_parent_attributes:
+            # Handle parent-attribute based hierarchy
+            range_data['values'] = self._parse_parent_based_hierarchy(range_elem, range_id)
+        else:
+            # Handle nested XML hierarchy
+            range_data['values'] = self._parse_nested_hierarchy(range_elem, range_id)
         return range_data
     
     def _parse_range_element(self, elem: ET.Element) -> Dict[str, Any]:
@@ -978,30 +1003,186 @@ class LIFTRangesParser:
                 if text_elem is not None and text_elem.text:
                     element_data['abbrev'] = text_elem.text.strip()
         
-        # Parse element labels (handle LIFT form structure)
-        for label_elem in self._find_elements(elem, './lift:label', './label'):
-            lang = label_elem.get('lang')
-            if lang:
-                # First try direct text content
-                if label_elem.text and label_elem.text.strip():
-                    element_data['description'][lang] = label_elem.text.strip()
-                else:
-                    # Try form/text structure
-                    text_elem = self._find_element(label_elem, './lift:form/lift:text', './form/text')
-                    if text_elem is not None and text_elem.text:
-                        element_data['description'][lang] = text_elem.text.strip()
-                    # Also try nested form elements with matching lang attribute
-                    for form_elem in self._find_elements(label_elem, './lift:form', './form'):
-                        form_lang = form_elem.get('lang')
-                        if form_lang == lang or not form_lang:
-                            text_elem = self._find_element(form_elem, './lift:text', './text')
-                            if text_elem is not None and text_elem.text:
-                                element_data['description'][lang] = text_elem.text.strip()
-                                break
+        # Parse element labels and descriptions (handle LIFT form structure)
+        element_data['description'] = self._parse_multilingual_content(elem, ['label', 'description'])
         
         # Parse child elements (recursive, direct children only)
         for child_elem in self._find_elements(elem, './lift:range-element', './range-element'):
             child_data = self._parse_range_element(child_elem)
             element_data['children'].append(child_data)
+        
+        return element_data
+
+    def _parse_parent_based_hierarchy(self, range_elem: ET.Element, range_id: str) -> List[Dict[str, Any]]:
+        """
+        Parse hierarchy using parent attributes (flat structure with parent references).
+        
+        Args:
+            range_elem: Range element containing range-elements with parent attributes
+            range_id: ID of the range
+            
+        Returns:
+            List of root elements with nested children
+        """
+        # Collect all elements (including nested ones)
+        all_elements = {}
+        parent_child_map = {}
+        
+        for value_elem in self._find_elements(range_elem, './/lift:range-element', './/range-element'):
+            value_id = value_elem.get('id', '')
+            parent_id = value_elem.get('parent', '')
+            
+            # Normalize orthographic -> spelling for variant types
+            if range_id in ('variant-type', 'variant-types') and value_id == 'orthographic':
+                value_id = 'spelling'
+                
+            value = self._parse_range_element_full(value_elem, value_id)
+            all_elements[value_id] = value
+            
+            # Track parent-child relationships
+            if parent_id:
+                if parent_id not in parent_child_map:
+                    parent_child_map[parent_id] = []
+                parent_child_map[parent_id].append(value_id)
+        
+        # Build hierarchical structure recursively
+        built = set()  # Track which elements have had their children built
+        
+        def build_children(element_id: str) -> None:
+            """Recursively build children for an element."""
+            if element_id in built or element_id not in parent_child_map:
+                return
+                
+            built.add(element_id)
+            element = all_elements[element_id]
+            
+            for child_id in parent_child_map[element_id]:
+                if child_id in all_elements:
+                    child_element = all_elements[child_id]
+                    element['children'].append(child_element)
+                    # Recursively build children for this child
+                    build_children(child_id)
+        
+        # Build all hierarchical relationships
+        for element_id in all_elements:
+            build_children(element_id)
+        
+        # Find root elements (those with no parent or parent not in our set)
+        root_elements = []
+        for element_id, element in all_elements.items():
+            is_root = True
+            for parent_id, children in parent_child_map.items():
+                if element_id in children and parent_id in all_elements:
+                    is_root = False
+                    break
+            
+            if is_root:
+                root_elements.append(element)
+        
+        return root_elements
+
+    def _parse_nested_hierarchy(self, range_elem: ET.Element, range_id: str) -> List[Dict[str, Any]]:
+        """
+        Parse hierarchy using nested XML structure (parent-child via nesting).
+        
+        Args:
+            range_elem: Range element containing nested range-elements
+            range_id: ID of the range
+            
+        Returns:
+            List of top-level elements with nested children
+        """
+        root_elements = []
+        
+        # Only get direct children, not all descendants
+        for value_elem in self._find_elements(range_elem, './lift:range-element', './range-element'):
+            value_id = value_elem.get('id', '')
+            
+            # Normalize orthographic -> spelling for variant types
+            if range_id in ('variant-type', 'variant-types') and value_id == 'orthographic':
+                value_id = 'spelling'
+            
+            # Parse the element and its children recursively
+            value = self._parse_range_element(value_elem)
+            root_elements.append(value)
+        
+        return root_elements
+
+    def _parse_multilingual_content(self, element: ET.Element, element_types: List[str]) -> Dict[str, str]:
+        """
+        Parse multilingual content from label and description elements.
+        
+        Args:
+            element: Parent element to search in
+            element_types: List of element types to search for (e.g., ['label', 'description'])
+            
+        Returns:
+            Dictionary mapping language codes to text content
+        """
+        content = {}
+        
+        for element_type in element_types:
+            # Find all elements of this type
+            for content_elem in self._find_elements(element, f'./lift:{element_type}', f'./{element_type}'):
+                # Check for direct lang attribute and text
+                lang = content_elem.get('lang')
+                if lang and content_elem.text and content_elem.text.strip():
+                    content[lang] = content_elem.text.strip()
+                    continue
+                
+                # Look for form/text structure
+                for form_elem in self._find_elements(content_elem, './lift:form', './form'):
+                    form_lang = form_elem.get('lang')
+                    if form_lang:
+                        text_elem = self._find_element(form_elem, './lift:text', './text')
+                        if text_elem is not None and text_elem.text and text_elem.text.strip():
+                            content[form_lang] = text_elem.text.strip()
+        
+        return content
+
+    def _parse_range_element_full(self, elem: ET.Element, element_id: str) -> Dict[str, Any]:
+        """
+        Parse a range element with full feature support.
+        
+        Args:
+            elem: Element representing a range element
+            element_id: ID of the element
+            
+        Returns:
+            Dictionary containing range element data
+        """
+        element_data = {
+            'id': element_id,
+            'guid': elem.get('guid', ''),
+            'value': elem.get('value', '') or element_id,
+            'abbrev': '',
+            'description': {},
+            'children': [],
+            'traits': {}
+        }
+        
+        # Parse multilingual labels and descriptions
+        element_data['description'] = self._parse_multilingual_content(elem, ['label', 'description'])
+        
+        # Parse abbreviation (handle LIFT form structure)
+        abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
+        if abbrev_elem is not None:
+            # First try direct text content
+            if abbrev_elem.text and abbrev_elem.text.strip():
+                element_data['abbrev'] = abbrev_elem.text.strip()
+            else:
+                # Try form/text structure
+                for form_elem in self._find_elements(abbrev_elem, './lift:form', './form'):
+                    text_elem = self._find_element(form_elem, './lift:text', './text')
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
+                        element_data['abbrev'] = text_elem.text.strip()
+                        break
+        
+        # Parse traits (name-value pairs)
+        for trait_elem in self._find_elements(elem, './lift:trait', './trait'):
+            trait_name = trait_elem.get('name')
+            trait_value = trait_elem.get('value')
+            if trait_name:
+                element_data['traits'][trait_name] = trait_value or ''
         
         return element_data

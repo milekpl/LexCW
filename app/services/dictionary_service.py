@@ -1209,8 +1209,22 @@ class DictionaryService:
     def _get_default_ranges(self) -> Dict[str, Any]:
         """
         Provides default LIFT ranges for fallback when database is unavailable.
-        These ranges support the basic UI functionality.
+        Attempts to load from sample LIFT ranges file first, then falls back to minimal hardcoded ranges.
         """
+        # Try to load from sample LIFT ranges file first
+        import os
+        sample_ranges_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                         'sample-lift-file', 'sample-lift-file.lift-ranges')
+        
+        if os.path.exists(sample_ranges_path):
+            try:
+                self.logger.info(f"Loading default ranges from sample file: {sample_ranges_path}")
+                return self.ranges_parser.parse_file(sample_ranges_path)
+            except Exception as e:
+                self.logger.warning(f"Failed to load sample ranges file {sample_ranges_path}: {e}")
+        
+        # Fall back to minimal hardcoded ranges if sample file is not available
+        self.logger.info("Using minimal hardcoded fallback ranges")
         default_ranges = {
             'variant-type': {
                 'id': 'variant-type',
