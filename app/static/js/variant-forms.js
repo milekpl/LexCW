@@ -6,43 +6,75 @@
  */
 
 class VariantFormsManager {
-    constructor(containerId, rangesApiUrl = '/api/ranges/variant-types') {
+    constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
-        this.rangesApiUrl = rangesApiUrl;
+        this.rangeId = options.rangeId || 'variant-types-from-traits'; // Use traits-based variant types
         this.variantTypes = [];
-        this.languageCodes = [
-            'en', 'en-US', 'en-GB', 'en-CA', 'en-AU',
-            'es', 'fr', 'de', 'it', 'pt', 'ru', 'zh',
-            'ja', 'ko', 'ar', 'hi', 'seh-fonipa'
-        ];
+        this.languageCodes = []; // Will be dynamically loaded from API
         
         this.init();
     }
     
     async init() {
-        await this.loadVariantTypes();
+        await Promise.all([
+            this.loadVariantTypes(),
+            this.loadLanguageCodes()
+        ]);
         this.setupEventListeners();
         this.renderExistingVariants();
     }
     
     async loadVariantTypes() {
         try {
-            const response = await fetch(this.rangesApiUrl);
+            // Use the global rangesLoader if available
+            if (window.rangesLoader) {
+                const rangeData = await window.rangesLoader.loadRange(this.rangeId);
+                if (rangeData && rangeData.values) {
+                    this.variantTypes = rangeData.values;
+                    return;
+                }
+            }
+            
+            // Fallback to direct API call if rangesLoader isn't available
+            const response = await fetch(`/api/ranges/${this.rangeId}`);
             if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data && result.data.values) {
                     this.variantTypes = result.data.values;
+                    return;
                 }
             }
         } catch (error) {
-            console.warn('Failed to load variant types from ranges:', error);
-            // Fallback to basic types
-            this.variantTypes = [
-                { id: 'dialectal', value: 'dialectal', abbrev: 'dial', description: { en: 'Dialectal variant' } },
-                { id: 'spelling', value: 'spelling', abbrev: 'sp', description: { en: 'Spelling variant' } },
-                { id: 'morphological', value: 'morphological', abbrev: 'morph', description: { en: 'Morphological variant' } }
-            ];
+            console.warn(`Failed to load variant types from range '${this.rangeId}':`, error);
         }
+        
+        // Fallback to basic types if loading fails
+        this.variantTypes = [
+            { id: 'dialectal', value: 'dialectal', abbrev: 'dial', description: { en: 'Dialectal variant' } },
+            { id: 'spelling', value: 'spelling', abbrev: 'sp', description: { en: 'Spelling variant' } },
+            { id: 'morphological', value: 'morphological', abbrev: 'morph', description: { en: 'Morphological variant' } }
+        ];
+    }
+    
+    async loadLanguageCodes() {
+        try {
+            // Load language codes from API
+            const response = await fetch('/api/ranges/language-codes');
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && Array.isArray(result.data)) {
+                    this.languageCodes = result.data;
+                    return;
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load language codes:', error);
+        }
+        
+        // Fallback to basic codes if loading fails
+        this.languageCodes = [
+            'en', 'seh-fonipa'
+        ];
     }
     
     setupEventListeners() {
@@ -136,6 +168,18 @@ class VariantFormsManager {
         
         // Initialize Select2 for language dropdown
         this.initializeLanguageDropdown(index);
+        
+        // Initialize the variant type dropdown using the ranges loader
+        if (window.rangesLoader) {
+            const typeSelect = this.container.querySelector(`.variant-item[data-variant-index="${index}"] .variant-type-select`);
+            if (typeSelect) {
+                window.rangesLoader.populateSelect(typeSelect, this.rangeId, {
+                    selectedValue: variant.type || '',
+                    hierarchical: true,
+                    searchable: true
+                });
+            }
+        }
     }
     
     createVariantHtml(variant, index) {
@@ -181,10 +225,12 @@ class VariantFormsManager {
                     
                     <div class="row mt-3">
                         <div class="col-md-6">
-                            <label class="form-label">Variant Type</label>
-                            <select class="form-select" name="variants[${index}].type">
+                            <label class="form-label">Morphological Type</label>
+                            <select class="form-select variant-type-select" 
+                                   name="variants[${index}].type"
+                                   data-range-id="${this.rangeId}" 
+                                   data-selected="${variant.type || ''}">
                                 <option value="">Select type</option>
-                                ${this.createVariantTypeOptions(variant.type)}
                             </select>
                             <div class="form-text">Type of variant (optional)</div>
                         </div>
@@ -307,6 +353,19 @@ class VariantFormsManager {
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('variants-container')) {
-        window.variantFormsManager = new VariantFormsManager('variants-container');
+        // Get variants data from the page if available
+        let variants = [];
+        try {
+            if (typeof entryVariants !== 'undefined') {
+                variants = entryVariants;
+            }
+        } catch (e) {
+            console.warn('No variants data found, starting with empty state');
+        }
+        
+        window.variantFormsManager = new VariantFormsManager('variants-container', {
+            rangeId: 'variant-types-from-traits', // Use traits-based variant types instead of morph-type
+            variants: variants
+        });
     }
 });

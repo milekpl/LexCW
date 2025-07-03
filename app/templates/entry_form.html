@@ -66,7 +66,10 @@
                     <!-- LIFT Ranges: Semantic Domain -->
                     <div class="mb-3">
                         <label for="semantic-domain-list" class="form-label">Semantic Domain</label>
-                        <select class="form-select dynamic-lift-range" id="semantic-domain-list" name="semantic_domain" data-range-id="semantic-domain-list">
+                        <select class="form-select dynamic-lift-range" id="semantic-domain-ddp4" name="semantic_domain" 
+                                data-range-id="semantic-domain-ddp4" 
+                                data-hierarchical="true" 
+                                data-searchable="true">
                             <option value="">Select semantic domain</option>
                         </select>
                     </div>
@@ -74,7 +77,10 @@
                     <!-- LIFT Ranges: Usage Type -->
                     <div class="mb-3">
                         <label for="usage-type" class="form-label">Usage Type</label>
-                        <select class="form-select dynamic-lift-range" id="usage-type" name="usage_type" data-range-id="usage-type">
+                        <select class="form-select dynamic-lift-range" id="usage-type" name="usage_type" 
+                                data-range-id="usage-type"
+                                data-hierarchical="true"
+                                data-searchable="true">
                             <option value="">Select usage type</option>
                         </select>
                     </div>
@@ -82,26 +88,26 @@
                     <!-- LIFT Ranges: Status -->
                     <div class="mb-3">
                         <label for="status" class="form-label">Status</label>
-                        <select class="form-select dynamic-lift-range" id="status" name="status" data-range-id="status">
+                        <select class="form-select dynamic-lift-range" id="status" name="status" 
+                                data-range-id="status"
+                                data-hierarchical="true"
+                                data-searchable="true">
                             <option value="">Select status</option>
                         </select>
                     </div>
 
-                    <!-- LIFT Ranges: Variant Type -->
+                    <!-- LIFT Ranges: Morphological Type -->
                     <div class="mb-3">
-                        <label for="variant-type" class="form-label">Variant Type</label>
-                        <select class="form-select dynamic-lift-range" id="variant-type" name="variant_type" data-range-id="variant-types">
-                            <option value="">Select variant type</option>
+                        <label for="morph-type" class="form-label">Morphological Type</label>
+                        <select class="form-select dynamic-lift-range" id="morph-type" name="morph_type" 
+                                data-range-id="morph-type"
+                                data-hierarchical="true"
+                                data-searchable="true">
+                            <option value="">Select morphological type</option>
                         </select>
                     </div>
 
-                    <!-- LIFT Ranges: Relation Type -->
-                    <div class="mb-3">
-                        <label for="relation-type" class="form-label">Relation Type</label>
-                        <select class="form-select dynamic-lift-range" id="relation-type" name="relation_type" data-range-id="relation-types">
-                            <option value="">Select relation type</option>
-                        </select>
-                    </div>
+
                     
                     <div class="mb-3">
                         <label for="etymology" class="form-label">Etymology</label>
@@ -123,133 +129,30 @@
                 </div>
                 <div class="card-body">
                     <div id="pronunciation-container">
+                        <!-- Server-side rendered pronunciation items -->
                         {% if entry.pronunciations %}
-                            {% if entry.pronunciations is mapping %}
-                                {% for type, value in entry.pronunciations.items() %}
-                                <div class="pronunciation-item mb-3 border-bottom pb-3">
-                                    <div class="row">
-                                        <div class="col-md-8">
-                                            <label class="form-label">IPA</label>
-                                            <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].value" 
-                                                   value="{{ value }}" placeholder="IPA transcription">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label">Type</label>
-                                            <select class="form-select" name="pronunciations[{{ loop.index0 }}].type" title="Pronunciation type">
-                                                <option value="ipa" {% if type == 'ipa' %}selected{% endif %}>IPA</option>
-                                                <option value="seh-fonipa" {% if type == 'seh-fonipa' %}selected{% endif %}>seh-fonipa</option>
-                                                <option value="audio" {% if type == 'audio' %}selected{% endif %}>Audio</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mt-2 mb-2">
-                                        <label class="form-label">Audio File</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_file" 
-                                                   value="" readonly title="Audio file path" placeholder="No audio file">
-                                            <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
-                                                    data-index="{{ loop.index0 }}" title="Generate audio">
-                                                <i class="fas fa-microphone"></i> Generate
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" value="1" 
-                                               id="pron-default-{{ loop.index0 }}" name="pronunciations[{{ loop.index0 }}].is_default"
-                                               {% if loop.first %}checked{% endif %}>
-                                        <label class="form-check-label" for="pron-default-{{ loop.index0 }}">
-                                            Default pronunciation
-                                        </label>
-                                    </div>
-                                    
-                                    {% if not loop.first %}
-                                    <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-danger remove-pronunciation-btn" 
-                                                data-index="{{ loop.index0 }}" title="Remove pronunciation">
-                                            <i class="fas fa-trash"></i> Remove
-                                        </button>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                {% for pron in entry.pronunciations %}
-                                <div class="pronunciation-item mb-3 border-bottom pb-3">
-                                    <div class="row">
-                                        <div class="col-md-8">
-                                            <label class="form-label">IPA</label>
-                                            <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].value" 
-                                                   value="{{ pron.value }}" placeholder="IPA transcription">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label">Type</label>
-                                            <select class="form-select" name="pronunciations[{{ loop.index0 }}].type" title="Pronunciation type">
-                                                <option value="ipa" {% if pron.type == 'ipa' %}selected{% endif %}>IPA</option>
-                                                <option value="seh-fonipa" {% if pron.type == 'seh-fonipa' %}selected{% endif %}>seh-fonipa</option>
-                                                <option value="audio" {% if pron.type == 'audio' %}selected{% endif %}>Audio</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mt-2 mb-2">
-                                        <label class="form-label">Audio File</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_file" 
-                                                   value="{{ pron.audio_file }}" readonly title="Audio file path" placeholder="No audio file">
-                                            <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
-                                                    data-index="{{ loop.index0 }}" title="Generate audio">
-                                                <i class="fas fa-microphone"></i> Generate
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" value="1" 
-                                               id="pron-default-{{ loop.index0 }}" name="pronunciations[{{ loop.index0 }}].is_default"
-                                               {% if pron.is_default %}checked{% endif %}>
-                                        <label class="form-check-label" for="pron-default-{{ loop.index0 }}">
-                                            Default pronunciation
-                                        </label>
-                                    </div>
-                                    
-                                    {% if not loop.first %}
-                                    <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-danger remove-pronunciation-btn" 
-                                                data-index="{{ loop.index0 }}" title="Remove pronunciation">
-                                            <i class="fas fa-trash"></i> Remove
-                                        </button>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                {% endfor %}
-                            {% endif %}
-                        {% else %}
-                            <div class="pronunciation-item mb-3 border-bottom pb-3">
+                            {% for ws, pronunciation in entry.pronunciations.items() %}
+                            <div class="pronunciation-item mb-3 border-bottom pb-3" data-index="{{ loop.index0 }}">
                                 <div class="row">
-                                    <div class="col-md-8">
+                                    <div class="col-12">
                                         <label class="form-label">IPA</label>
-                                        <input type="text" class="form-control" name="pronunciations[0].value" 
-                                               value="" placeholder="IPA transcription">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Type</label>
-                                        <select class="form-select" name="pronunciations[0].type" title="Pronunciation type">
-                                            <option value="ipa" selected>IPA</option>
-                                            <option value="seh-fonipa">seh-fonipa</option>
-                                            <option value="audio">Audio</option>
-                                        </select>
+                                        <input type="text" class="form-control ipa-input" 
+                                               name="pronunciations[{{ loop.index0 }}].value" 
+                                               value="{{ pronunciation }}" 
+                                               placeholder="IPA transcription">
+                                        <input type="hidden" name="pronunciations[{{ loop.index0 }}].type" value="{{ ws }}">
+                                        <div class="form-text">International Phonetic Alphabet (IPA)</div>
                                     </div>
                                 </div>
                                 
                                 <div class="mt-2 mb-2">
                                     <label class="form-label">Audio File</label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control" name="pronunciations[0].audio_file" 
-                                               value="" readonly title="Audio file path" placeholder="No audio file">
+                                        <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_file" 
+                                               value="" readonly 
+                                               title="Audio file path" placeholder="No audio file">
                                         <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
-                                                data-index="0" title="Generate audio">
+                                                data-index="{{ loop.index0 }}" title="Generate audio">
                                             <i class="fas fa-microphone"></i> Generate
                                         </button>
                                     </div>
@@ -257,12 +160,30 @@
                                 
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" value="1" 
-                                           id="pron-default-0" name="pronunciations[0].is_default" checked>
-                                    <label class="form-check-label" for="pron-default-0">
+                                           id="pron-default-{{ loop.index0 }}" name="pronunciations[{{ loop.index0 }}].is_default"
+                                           {% if loop.index0 == 0 %}checked{% endif %}>
+                                    <label class="form-check-label" for="pron-default-{{ loop.index0 }}">
                                         Default pronunciation
                                     </label>
                                 </div>
+                                
+                                {% if loop.index0 > 0 %}
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-danger remove-pronunciation-btn" 
+                                            data-index="{{ loop.index0 }}" title="Remove pronunciation">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                </div>
+                                {% endif %}
                             </div>
+                            {% endfor %}
+                        {% endif %}
+                        
+                        <!-- Fallback message if no pronunciations exist -->
+                        {% if not entry.pronunciations %}
+                        <div class="text-muted mb-3" id="no-pronunciations-message">
+                            No pronunciations added yet. Click "Add Pronunciation" to get started.
+                        </div>
                         {% endif %}
                     </div>
                     
@@ -522,11 +443,10 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label">Type</label>
-                <select class="form-select" name="pronunciations[INDEX].type">
-                    <option value="ipa" selected>IPA</option>
-                    <option value="seh-fonipa">seh-fonipa</option>
-                    <option value="audio">Audio</option>
-                </select>
+                <input type="hidden" name="pronunciations[INDEX].type" value="seh-fonipa">
+                <input type="text" class="form-control" value="seh-fonipa" disabled
+                       title="Only seh-fonipa is supported for IPA pronunciations">
+                <div class="form-text">International Phonetic Alphabet (IPA)</div>
             </div>
         </div>
         
@@ -585,7 +505,10 @@
             
             <div class="mb-3">
                 <label class="form-label">Part of Speech</label>
-                <select class="form-select dynamic-grammatical-info" name="senses[INDEX].grammatical_info">
+                <select class="form-select dynamic-grammatical-info" name="senses[INDEX].grammatical_info"
+                        data-range-id="grammatical-info"
+                        data-hierarchical="true"
+                        data-searchable="true">
                     <option value="">Select part of speech</option>
                 </select>
             </div>
@@ -703,6 +626,7 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/relations.js') }}"></script>
 <script src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
@@ -716,21 +640,62 @@ document.addEventListener('DOMContentLoaded', async function() {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
     
-    // Load grammatical info options for all selects
-    if (window.rangesLoader) {
-        const grammaticalSelects = document.querySelectorAll('.dynamic-grammatical-info');
-        for (const select of grammaticalSelects) {
-            const selectedValue = select.dataset.selected || '';
-            await window.rangesLoader.populateSelectWithFallback(select, 'grammatical-info', {
-                emptyOption: 'Select part of speech',
-                selectedValue: selectedValue,
-                valueField: 'value',
-                labelField: 'value'
-            });
-        }
-    }
+    // Note: Range selects are automatically populated by ranges-loader.js
+    // No manual range loading needed - just ensure data-range-id attributes are set
     
     // Initialize component managers after DOM is loaded
+    
+    // Initialize pronunciation forms manager
+    if (window.PronunciationFormsManager && document.getElementById('pronunciation-container')) {
+        // Get pronunciation data - ensure it's always an object
+        const pronunciationData = {{ entry.pronunciations | default({}) | tojson | safe }};
+        
+        console.log('[DEBUG] Pronunciation data:', pronunciationData);
+        
+        // Convert dictionary format to array format expected by PronunciationFormsManager
+        const pronunciationArray = [];
+        
+        // Handle different data formats
+        if (pronunciationData) {
+            if (Array.isArray(pronunciationData)) {
+                // Already an array - use as is
+                pronunciationArray.push(...pronunciationData);
+            } else if (typeof pronunciationData === 'object') {
+                // Dictionary format - convert to array
+                for (const [writingSystem, value] of Object.entries(pronunciationData)) {
+                    if (value && value.trim()) {  // Only add non-empty values
+                        pronunciationArray.push({
+                            type: writingSystem,
+                            value: value,
+                            audio_file: "",
+                            is_default: true
+                        });
+                    }
+                }
+            }
+        }
+        
+        console.log('[DEBUG] Pronunciation array:', pronunciationArray);
+        console.log('[DEBUG] Container:', document.getElementById('pronunciation-container'));
+        
+        // Hide the "no pronunciations" message if pronunciations exist
+        const noPronunciationsMessage = document.getElementById('no-pronunciations-message');
+        const existingItems = document.querySelectorAll('.pronunciation-item');
+        if (noPronunciationsMessage && existingItems.length > 0) {
+            noPronunciationsMessage.style.display = 'none';
+        }
+        
+        // Always initialize the pronunciation manager
+        window.pronunciationFormsManager = new PronunciationFormsManager('pronunciation-container', {
+            pronunciations: pronunciationArray
+        });
+        
+        console.log('[DEBUG] Pronunciation manager created:', window.pronunciationFormsManager);
+    } else {
+        console.log('[DEBUG] Pronunciation initialization failed:');
+        console.log('  PronunciationFormsManager available:', !!window.PronunciationFormsManager);
+        console.log('  Container available:', !!document.getElementById('pronunciation-container'));
+    }
     
     // Initialize variant forms manager
     if (window.VariantFormsManager && document.getElementById('variants-container')) {
@@ -761,7 +726,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (window.EtymologyFormsManager && document.getElementById('etymology-container')) {
         const etymologies = {{ entry.etymologies | tojson | safe }} || [];
         window.etymologyFormsManager = new EtymologyFormsManager('etymology-container', {
-            etymologies: etymologies
+            etymologies: etymologies,
+            rangeId: 'etymology-types'
         });
     }
 });

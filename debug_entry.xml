@@ -1,0 +1,54 @@
+<?xml version="1.0" ?>
+<entry dateCreated="2013-03-24T20:24:33Z" dateModified="2013-04-03T22:35:47Z" id="Protestantism_b97495fb-d52f-4755-94bf-a7a762339605" guid="b97495fb-d52f-4755-94bf-a7a762339605">
+  
+
+  <lexical-unit>
+    
+
+    <form lang="en">
+      <text>Protestantism</text>
+    </form>
+    
+
+  </lexical-unit>
+  
+
+  <trait name="morph-type" value="stem"/>
+  
+
+  <pronunciation>
+    
+
+    <form lang="seh-fonipa">
+      <text>ˈprɒtɪstəntɪzm</text>
+    </form>
+    
+
+  </pronunciation>
+  
+
+  <sense id="9d59157c-25c1-4370-8e80-fe7030498fb6">
+    
+
+    <grammatical-info value="Noun">
+</grammatical-info>
+    
+
+    <definition>
+      
+
+      <form lang="pl">
+        <text>protestantyzm</text>
+      </form>
+      
+
+    </definition>
+    
+
+    <trait name="domain-type" value="religia"/>
+    
+
+  </sense>
+  
+
+</entry>

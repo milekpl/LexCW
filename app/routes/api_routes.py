@@ -139,16 +139,36 @@ def get_range_by_type(range_type: str):
         if range_type in ranges:
             range_data = ranges[range_type]
         else:
-            # Try alternative mappings
+            # Try alternative mappings based on actual LIFT data
             type_mappings = {
-                'grammatical-info': ['grammatical-info', 'grammatical-infos'],
-                'relation-types': ['lexical-relation', 'lexical-relations', 'relation-types'],
+                'grammatical-info': ['grammatical-info'],
+                'relation-type': ['lexical-relation'],
+                'relation-types': ['lexical-relation'],
+                'etymology-types': ['etymology'],
+                'etymology-type': ['etymology'],
                 'variant-types': ['variant-types', 'variants'],
-                'semantic-domains': ['semantic-domain', 'semantic-domains', 'semantic-domain-ddp4'],
-                'usage-types': ['usage-type', 'usage-types'],
+                'variant-types-from-traits': ['variant-types', 'variants'],
+                'semantic-domains': ['semantic-domain-ddp4'],
+                'semantic-domain': ['semantic-domain-ddp4'],
+                'usage-types': ['usage-type'],
+                'usage-type': ['usage-type'],
                 'status': ['status'],
-                'etymology': ['etymology'],
-                'note-types': ['note-type', 'note-types'],
+                'note-types': ['note-type'],
+                'note-type': ['note-type'],
+                'morph-type': ['morph-type'],
+                'domain-type': ['domain-type'],
+                'from-part-of-speech': ['from-part-of-speech'],
+                'anthro-code': ['anthro-code'],
+                'translation-type': ['translation-type'],
+                'inflection-feature': ['inflection-feature'],
+                'inflection-feature-type': ['inflection-feature-type'],
+                'paradigm': ['paradigm'],
+                'reversal-type': ['reversal-type'],
+                'users': ['users'],
+                'location': ['location'],
+                'num-feature-value': ['num-feature-value'],
+                'publications': ['Publications'],
+                'do-not-publish-in': ['do-not-publish-in'],
             }
             
             for alt_key in type_mappings.get(range_type, []):
@@ -166,6 +186,34 @@ def get_range_by_type(range_type: str):
         
     except Exception as e:
         logger.error(f"Error getting range {range_type}: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/ranges/language-codes')
+def get_language_codes():
+    """Get available language codes for variant forms."""
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        
+        # Extract language codes from the LIFT data
+        # This could be enhanced to get actual codes from the data
+        # For now, provide a basic set of common language codes
+        language_codes = [
+            {'code': 'en', 'name': 'English'},
+            {'code': 'seh', 'name': 'Sena'},
+            {'code': 'seh-fonipa', 'name': 'Sena (IPA)'},
+            {'code': 'pt', 'name': 'Portuguese'},
+            {'code': 'fr', 'name': 'French'},
+            {'code': 'es', 'name': 'Spanish'},
+        ]
+        
+        return jsonify({
+            'language_codes': language_codes,
+            'count': len(language_codes)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting language codes: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 

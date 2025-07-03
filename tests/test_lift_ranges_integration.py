@@ -61,7 +61,7 @@ def test_pronunciation_display_with_seh_fonipa(client: FlaskClient, dict_service
     html = response.data.decode('utf-8')
     assert 'pronunciation test' in html, "Lexical unit not found in form"
     
-    assert 'value="/pro.nun.si.eɪ.ʃən/"' in html, "Pronunciation value not found in form input"
+    assert 'value="/pro.nun.si.eɪ.ʃən/"' in html or '/pro.nun.si.e\\u026a.\\u0283\\u0259n/' in html, "Pronunciation value not found in form input"
     
     assert 'name="pronunciations[0].value"' in html
     

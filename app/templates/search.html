@@ -65,7 +65,10 @@
                     
                     <div class="mb-3">
                         <label for="pos-filter" class="form-label">Part of Speech</label>
-                        <select class="form-select" id="pos-filter" name="pos">
+                        <select class="form-select" id="pos-filter" name="pos"
+                               data-range-id="grammatical-info"
+                               data-hierarchical="true"
+                               data-searchable="true">
                             <option value="">Any</option>
                             <!-- Options will be dynamically loaded from LIFT ranges -->
                         </select>

@@ -10,6 +10,7 @@ class EtymologyFormsManager {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
         this.etymologies = options.etymologies || [];
+        this.rangeId = options.rangeId || 'etymology-types'; // Default to using 'etymology-types' range
         this.ranges = null;
         this.options = {
             allowAdd: options.allowAdd !== false,
@@ -33,16 +34,29 @@ class EtymologyFormsManager {
     
     async loadRanges() {
         try {
-            const response = await fetch('/api/ranges/etymology-types');
+            // Use the global rangesLoader if available
+            if (window.rangesLoader) {
+                const rangeData = await window.rangesLoader.loadRange(this.rangeId);
+                if (rangeData && rangeData.values) {
+                    this.ranges = rangeData.values;
+                    return;
+                }
+            }
+            
+            // Fallback to direct API call if rangesLoader isn't available
+            const response = await fetch(`/api/ranges/${this.rangeId}`);
             if (response.ok) {
-                const data = await response.json();
-                this.ranges = data.values || [];
+                const result = await response.json();
+                if (result.success && result.data && result.data.values) {
+                    this.ranges = result.data.values;
+                    return;
+                }
             } else {
-                console.warn('Failed to load etymology types, using defaults');
+                console.warn(`Failed to load etymology types from range '${this.rangeId}', using defaults`);
                 this.ranges = this.getDefaultEtymologyTypes();
             }
         } catch (error) {
-            console.error('Error loading etymology types:', error);
+            console.error(`Error loading etymology types from range '${this.rangeId}':`, error);
             this.ranges = this.getDefaultEtymologyTypes();
         }
     }
@@ -80,12 +94,88 @@ class EtymologyFormsManager {
                 </div>
             </div>
         `;
+        
+        // Replace select placeholders with actual select elements
+        this.etymologies.forEach((etymology, index) => {
+            const placeholder = this.container.querySelector(`.etymology-type-select-placeholder[data-index="${index}"]`);
+            if (placeholder) {
+                // Create a new select element
+                const selectElement = document.createElement('select');
+                selectElement.className = 'form-control etymology-type-select';
+                selectElement.name = `etymologies[${index}][type]`;
+                selectElement.required = true;
+                selectElement.dataset.index = index;
+                
+                // Replace the placeholder with the select
+                placeholder.parentNode.replaceChild(selectElement, placeholder);
+                
+                // Populate the select with rangesLoader
+                if (window.rangesLoader) {
+                    window.rangesLoader.populateSelect(selectElement, this.rangeId, {
+                        selectedValue: etymology.type || '',
+                        hierarchical: true,
+                        searchable: true
+                    });
+                } else {
+                    // Fallback if rangesLoader isn't available
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = 'Select type...';
+                    selectElement.appendChild(emptyOption);
+                    
+                    this.ranges.forEach(type => {
+                        const option = document.createElement('option');
+                        option.value = type.value;
+                        option.textContent = type.value;
+                        if (etymology.type === type.value) {
+                            option.selected = true;
+                        }
+                        selectElement.appendChild(option);
+                    });
+                }
+            }
+        });
     }
     
     renderEtymologyForm(etymology, index) {
-        const etymologyTypes = this.ranges.map(type => 
-            `<option value="${type.value}" ${etymology.type === type.value ? 'selected' : ''}>${type.value}</option>`
-        ).join('');
+        // Create select element for etymology types with support for hierarchy
+        const selectElement = document.createElement('select');
+        selectElement.className = 'form-control etymology-type-select';
+        selectElement.name = `etymologies[${index}][type]`;
+        selectElement.required = true;
+        selectElement.dataset.index = index;
+        
+        // Add empty option
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = 'Select type...';
+        selectElement.appendChild(emptyOption);
+        
+        // Populate the select element
+        if (window.rangesLoader) {
+            // Defer this to post-rendering to ensure the element is in the DOM
+            setTimeout(() => {
+                window.rangesLoader.populateSelect(selectElement, this.rangeId, {
+                    selectedValue: etymology.type || '',
+                    hierarchical: true,
+                    searchable: true
+                });
+            }, 0);
+        } else {
+            // Fallback to direct rendering if rangesLoader isn't available
+            this.ranges.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type.value;
+                option.textContent = type.value;
+                if (etymology.type === type.value) {
+                    option.selected = true;
+                }
+                selectElement.appendChild(option);
+            });
+        }
+        
+        // Create the HTML for the select - we'll replace it with the actual element after rendering
+        const selectPlaceholder = `<div class="etymology-type-select-placeholder" data-index="${index}"></div>`;
         
         return `
             <div class="etymology-form-item card mb-3" data-index="${index}">
@@ -102,11 +192,7 @@ class EtymologyFormsManager {
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label class="form-label">Etymology Type</label>
-                                <select class="form-control etymology-type-select" 
-                                        name="etymologies[${index}][type]" required>
-                                    <option value="">Select type...</option>
-                                    ${etymologyTypes}
-                                </select>
+                                ${selectPlaceholder}
                             </div>
                         </div>
                         <div class="col-md-6">

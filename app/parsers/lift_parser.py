@@ -129,43 +129,53 @@ class LIFTParser:
         
         return element.findall(xpath_without_ns)
 
-    def _find_elements(self, parent: ET.Element, xpath: str) -> List[ET.Element]:
+    def _find_elements(self, parent: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> List[ET.Element]:
         """
         Find elements with fallback to non-namespaced xpath.
         
         Args:
             parent: Parent element to search in.
-            xpath: XPath expression with lift: namespace prefix.
+            xpath_with_ns: XPath expression with lift: namespace prefix.
+            xpath_without_ns: Optional XPath without namespace prefix (auto-generated if None).
             
         Returns:
-            List of matching elements.
+            List of found elements or empty list if none found.
         """
-        # Try namespace-aware first
-        elements = parent.findall(xpath, self.NSMAP)
-        if not elements:
-            # Fallback to non-namespaced
-            non_ns_xpath = xpath.replace('lift:', '').replace('.//lift:', './/')
-            elements = parent.findall(non_ns_xpath)
-        return elements
+        if xpath_without_ns is None:
+            # Auto-generate non-namespaced version by removing 'lift:' prefix
+            xpath_without_ns = xpath_with_ns.replace('lift:', '')
+            
+        # Try with namespace first
+        found = parent.findall(xpath_with_ns, self.NSMAP)
+        if found:
+            return found
+            
+        # Fall back to non-namespaced version
+        return parent.findall(xpath_without_ns)
 
-    def _find_element(self, parent: ET.Element, xpath: str) -> Optional[ET.Element]:
+    def _find_element(self, parent: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> Optional[ET.Element]:
         """
         Find single element with fallback to non-namespaced xpath.
         
         Args:
             parent: Parent element to search in.
-            xpath: XPath expression with lift: namespace prefix.
+            xpath_with_ns: XPath expression with lift: namespace prefix.
+            xpath_without_ns: Optional XPath without namespace prefix (auto-generated if None).
             
         Returns:
             Matching element or None.
         """
+        if xpath_without_ns is None:
+            # Auto-generate non-namespaced version by removing 'lift:' prefix
+            xpath_without_ns = xpath_with_ns.replace('lift:', '')
+            
         # Try namespace-aware first
-        element = parent.find(xpath, self.NSMAP)
-        if element is None:
-            # Fallback to non-namespaced
-            non_ns_xpath = xpath.replace('lift:', '').replace('.//lift:', './/')
-            element = parent.find(non_ns_xpath)
-        return element
+        element = parent.find(xpath_with_ns, self.NSMAP)
+        if element is not None:
+            return element
+            
+        # Fall back to non-namespaced version
+        return parent.find(xpath_without_ns)
     
     def parse_file(self, file_path: str) -> List[Entry]:
         """
@@ -346,11 +356,30 @@ class LIFTParser:
                 citations.append(citation)
           # Parse pronunciations
         pronunciations = {}
-        for pron_elem in self._find_elements(entry_elem, './/lift:pronunciation'):
-            writing_system = pron_elem.get('writing-system')
-            value = pron_elem.get('value')
-            if writing_system and value:
-                pronunciations[writing_system] = value
+        pron_elements = self._find_elements(entry_elem, './/lift:pronunciation')
+        self.logger.debug(f"Found {len(pron_elements)} pronunciation elements")
+        
+        for pron_elem in pron_elements:
+            form_elem = self._find_element(pron_elem, './/lift:form')
+            if form_elem is not None:
+                writing_system = form_elem.get('lang', '')
+                text_elem = self._find_element(form_elem, './/lift:text')
+                value = text_elem.text if text_elem is not None else ''
+                
+                self.logger.debug(f"Extracted pronunciation: {writing_system} = '{value}'")
+                if writing_system and value:
+                    pronunciations[writing_system] = value
+            else:
+                # Legacy format
+                writing_system = pron_elem.get('writing-system')
+                value = pron_elem.get('value')
+                if writing_system and value:
+                    pronunciations[writing_system] = value
+        
+        if pronunciations:
+            self.logger.debug(f"Final pronunciations: {pronunciations}")
+        else:
+            self.logger.debug("No pronunciations found")
         
         # Parse variant forms
         variants = []
@@ -379,9 +408,23 @@ class LIFTParser:
         
         # Parse notes
         notes = {}
-        for note_elem in entry_elem.findall('.//lift:note', self.NSMAP):
+        for note_elem in self._find_elements(entry_elem, './/lift:note', './/note'):
             note_type = note_elem.get('type', 'general')
-            if note_elem.text:
+            
+            # Check for the new format: <note><form lang=...><text>...</text></form></note>
+            form_elem = self._find_element(note_elem, './/lift:form', './/form')
+            
+            if form_elem is not None:
+                # New structured format
+                lang = form_elem.get('lang', '')
+                text_elem = self._find_element(form_elem, './/lift:text', './/text')
+                
+                if text_elem is not None and text_elem.text:
+                    if note_type not in notes:
+                        notes[note_type] = {}
+                    notes[note_type][lang] = text_elem.text
+            elif note_elem.text:
+                # Legacy format: <note>text</note>
                 notes[note_type] = note_elem.text
         
         # Parse custom fields
@@ -656,10 +699,21 @@ class LIFTParser:
                 relation_elem.set('ref', '')
         
         # Add notes
-        for note_type, note_text in entry.notes.items():
+        for note_type, note_content in entry.notes.items():
             note_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}note')
             note_elem.set('type', note_type)
-            note_elem.text = note_text
+            
+            # Check if this is the new structured format (dict of languages) or legacy format (string)
+            if isinstance(note_content, dict):
+                # New format: Create form elements for each language
+                for lang, text in note_content.items():
+                    form_elem = ET.SubElement(note_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                    form_elem.set('lang', lang)
+                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
+            else:
+                # Legacy format: Direct text content
+                note_elem.text = note_content
         
         # Add custom fields
         for field_type, field_value in entry.custom_fields.items():
@@ -813,6 +867,157 @@ class LIFTParser:
         return element_data
         
 
+        """
+        Extract all unique variant types from <trait> elements in variant forms.
+        
+        This extracts the 'type' traits from all variant elements in the LIFT file,
+        which represent the actual variant types used in the document rather than
+        using the standard ranges.
+        
+        Args:
+            xml_string: LIFT XML string
+            
+        Returns:
+            List of variant type objects in the format expected by the range API
+        """
+        self.logger.info("Extracting variant types from traits in LIFT file")
+        try:
+            root = ET.fromstring(xml_string)
+            # Find all variant elements and extract their types
+            variant_types: set[str] = set()
+            
+            # Use both namespaced and non-namespaced XPath for compatibility
+            variant_elems = self._find_elements(root, './/lift:variant', './/variant')
+            
+            for variant_elem in variant_elems:
+                # Extract the type attribute directly from variant element
+                variant_type = variant_elem.get('type')
+                if variant_type and variant_type.strip():
+                    variant_types.add(variant_type.strip())
+                
+                # Also look for trait elements that might indicate variant types
+                for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
+                    trait_name = trait_elem.get('name')
+                    trait_value = trait_elem.get('value')
+                    if trait_name == 'type' and trait_value and trait_value.strip():
+                        variant_types.add(trait_value.strip())
+            
+            # Format the results as expected by the ranges API
+            result: List[Dict[str, Any]] = []
+            for variant_type in sorted(variant_types):
+                # Create a standardized structure for each variant type
+                result.append({
+                    'id': variant_type,
+                    'value': variant_type,
+                    'abbrev': variant_type[:3].lower(),  # Simple abbreviation
+                    'description': {'en': f'{variant_type} variant'}
+                })
+                
+            self.logger.info(f"Extracted {len(result)} variant types from LIFT file")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
+            return []
+            
+
+    def extract_variant_types_from_traits(self, xml_string: str) -> List[Dict[str, Any]]:
+        """
+        Extract all unique variant types from <trait> elements in variant forms.
+        
+        This extracts the 'type' traits from all variant elements in the LIFT file,
+        which represent the actual variant types used in the document rather than
+        using the standard ranges.
+        
+        Args:
+            xml_string: LIFT XML string
+            
+        Returns:
+            List of variant type objects in the format expected by the range API
+        """
+        self.logger.info("Extracting variant types from traits in LIFT file")
+        try:
+            root = ET.fromstring(xml_string)
+            # Find all variant elements and extract their types
+            variant_types: set[str] = set()
+            
+            # Use both namespaced and non-namespaced XPath for compatibility
+            variant_elems = self._find_elements(root, './/lift:variant', './/variant')
+            
+            for variant_elem in variant_elems:
+                # Extract the type attribute directly from variant element
+                variant_type = variant_elem.get('type')
+                if variant_type and variant_type.strip():
+                    variant_types.add(variant_type.strip())
+                
+                # Also look for trait elements that might indicate variant types
+                for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
+                    trait_name = trait_elem.get('name')
+                    trait_value = trait_elem.get('value')
+                    if trait_name == 'type' and trait_value and trait_value.strip():
+                        variant_types.add(trait_value.strip())
+            
+            # Format the results as expected by the ranges API
+            result: List[Dict[str, Any]] = []
+            for variant_type in sorted(variant_types):
+                # Create a standardized structure for each variant type
+                result.append({
+                    'id': variant_type,
+                    'value': variant_type,
+                    'abbrev': variant_type[:3].lower(),  # Simple abbreviation
+                    'description': {'en': f'{variant_type} variant'}
+                })
+                
+            self.logger.info(f"Extracted {len(result)} variant types from LIFT file")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
+            return []
+            
+    def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
+        """
+        Extract all unique language codes used in the LIFT file.
+        
+        This scans all elements with 'lang' attributes to find the actual 
+        language codes used in the project, rather than using a predefined list.
+        
+        Args:
+            xml_string: LIFT XML string
+            
+        Returns:
+            List of unique language codes found in the LIFT file
+        """
+        self.logger.info("Extracting language codes from LIFT file")
+        try:
+            root = ET.fromstring(xml_string)
+            # Find all elements with lang attributes
+            language_codes: set[str] = set()
+            
+            # Function to collect lang attributes from any element
+            def collect_lang_attrs(element: ET.Element) -> None:
+                lang = element.get('lang')
+                if lang and lang.strip():
+                    language_codes.add(lang.strip())
+                for child in element:
+                    collect_lang_attrs(child)
+            
+            # Traverse the XML tree
+            collect_lang_attrs(root)
+            
+            # Always include seh-fonipa for IPA pronunciations if not already found
+            if 'seh-fonipa' not in language_codes:
+                language_codes.add('seh-fonipa')
+                
+            self.logger.info(f"Extracted {len(language_codes)} language codes from LIFT file")
+            return sorted(list(language_codes))
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting language codes from LIFT: {e}", exc_info=True)
+            # Return a minimal default set
+            return ['seh-fonipa']
+
+
 class LIFTRangesParser:
     """
     Parser for LIFT ranges files.
@@ -958,9 +1163,9 @@ class LIFTRangesParser:
         range_data['description'] = self._parse_multilingual_content(range_elem, ['label', 'description'])
         
         # Check if this range uses parent attributes for hierarchy
-        # Look for any range-element with a parent attribute
+        # Look for ANY range-element with a parent attribute, including nested ones
         has_parent_attributes = False
-        for elem in self._find_elements(range_elem, './lift:range-element', './range-element'):
+        for elem in self._find_elements(range_elem, './/lift:range-element', './/range-element'):
             if elem.get('parent'):
                 has_parent_attributes = True
                 break
@@ -986,6 +1191,7 @@ class LIFTRangesParser:
             'id': elem.get('id', ''),
             'guid': elem.get('guid', ''),
             'value': elem.get('value', ''),
+            'parent': elem.get('parent', ''),  # Add parent attribute parsing
             'abbrev': '',  # Will be set below if abbrev element exists
             'description': {},
             'children': []
@@ -1186,3 +1392,99 @@ class LIFTRangesParser:
                 element_data['traits'][trait_name] = trait_value or ''
         
         return element_data
+
+    def extract_variant_types_from_traits(self, xml_string: str) -> List[Dict[str, Any]]:
+        """
+        Extract all unique variant types from <trait> elements in variant forms.
+        
+        This extracts the 'type' traits from all variant elements in the LIFT file,
+        which represent the actual variant types used in the document rather than
+        using the standard ranges.
+        
+        Args:
+            xml_string: LIFT XML string
+            
+        Returns:
+            List of variant type objects in the format expected by the range API
+        """
+        self.logger.info("Extracting variant types from traits in LIFT file")
+        try:
+            root = ET.fromstring(xml_string)
+            # Find all variant elements and extract their types
+            variant_types: set[str] = set()
+            
+            # Use both namespaced and non-namespaced XPath for compatibility
+            variant_elems = self._find_elements(root, './/lift:variant', './/variant')
+            
+            for variant_elem in variant_elems:
+                # Extract the type attribute directly from variant element
+                variant_type = variant_elem.get('type')
+                if variant_type and variant_type.strip():
+                    variant_types.add(variant_type.strip())
+                
+                # Also look for trait elements that might indicate variant types
+                for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
+                    trait_name = trait_elem.get('name')
+                    trait_value = trait_elem.get('value')
+                    if trait_name == 'type' and trait_value and trait_value.strip():
+                        variant_types.add(trait_value.strip())
+            
+            # Format the results as expected by the ranges API
+            result: List[Dict[str, Any]] = []
+            for variant_type in sorted(variant_types):
+                # Create a standardized structure for each variant type
+                result.append({
+                    'id': variant_type,
+                    'value': variant_type,
+                    'abbrev': variant_type[:3].lower(),  # Simple abbreviation
+                    'description': {'en': f'{variant_type} variant'}
+                })
+                
+            self.logger.info(f"Extracted {len(result)} variant types from LIFT file")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
+            return []
+            
+    def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
+        """
+        Extract all unique language codes used in the LIFT file.
+        
+        This scans all elements with 'lang' attributes to find the actual 
+        language codes used in the project, rather than using a predefined list.
+        
+        Args:
+            xml_string: LIFT XML string
+            
+        Returns:
+            List of unique language codes found in the LIFT file
+        """
+        self.logger.info("Extracting language codes from LIFT file")
+        try:
+            root = ET.fromstring(xml_string)
+            # Find all elements with lang attributes
+            language_codes: set[str] = set()
+            
+            # Function to collect lang attributes from any element
+            def collect_lang_attrs(element: ET.Element) -> None:
+                lang = element.get('lang')
+                if lang and lang.strip():
+                    language_codes.add(lang.strip())
+                for child in element:
+                    collect_lang_attrs(child)
+            
+            # Traverse the XML tree
+            collect_lang_attrs(root)
+            
+            # Always include seh-fonipa for IPA pronunciations if not already found
+            if 'seh-fonipa' not in language_codes:
+                language_codes.add('seh-fonipa')
+                
+            self.logger.info(f"Extracted {len(language_codes)} language codes from LIFT file")
+            return sorted(list(language_codes))
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting language codes from LIFT: {e}", exc_info=True)
+            # Return a minimal default set
+            return ['seh-fonipa']

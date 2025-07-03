@@ -173,8 +173,24 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         dict_service = injector.get(DictionaryService)
         ranges = dict_service.get_ranges()
 
-        # Fallback logic for plural/singular keys
-        lookup_id = range_id
+        # Define specific mappings for known problematic range names
+        range_mappings = {
+            'relation-type': 'lexical-relation',
+            'relation-types': 'lexical-relation', 
+            'etymology-types': 'etymology',
+            'etymology-type': 'etymology',
+            'variant-types-from-traits': 'variant-types',
+            'semantic-domains': 'semantic-domain-ddp4',
+            'semantic-domain': 'semantic-domain-ddp4',
+            'usage-types': 'usage-type',
+            'note-types': 'note-type',
+            'publications': 'Publications',
+        }
+
+        # First check direct mapping
+        lookup_id = range_mappings.get(range_id, range_id)
+        
+        # If direct mapping doesn't exist, try the original fallback logic
         if lookup_id not in ranges:
             # Try singular/plural fallback
             if lookup_id.endswith('s') and lookup_id[:-1] in ranges:
@@ -230,6 +246,7 @@ def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
     Get variant types range.
     
     Convenience endpoint for accessing variant type categories.
+    Provides fallback data when LIFT ranges don't include variant-types.
     
     Returns:
         JSON response with variant types range.
@@ -241,12 +258,80 @@ def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
     responses:
       200:
         description: Successfully retrieved variant types range
-      404:
-        description: Variant types range not found
       500:
         description: Error retrieving range
     """
-    return get_specific_range('variant-types')
+    try:
+        # Get dictionary service using dependency injection
+        from app import injector
+        dict_service = injector.get(DictionaryService)
+        ranges = dict_service.get_ranges()
+        
+        # Check if variant-types exists in LIFT ranges
+        if 'variant-types' in ranges:
+            return jsonify({
+                'success': True,
+                'data': ranges['variant-types']
+            })
+        
+        # If not found in LIFT ranges, provide fallback data
+        fallback_data = {
+            'id': 'variant-types',
+            'description': {},
+            'guid': '',
+            'values': [
+                {
+                    'id': 'dialectal',
+                    'value': 'dialectal',
+                    'abbrev': 'dial',
+                    'description': {'en': 'Dialectal variant'},
+                    'guid': '',
+                    'children': []
+                },
+                {
+                    'id': 'spelling',
+                    'value': 'spelling',
+                    'abbrev': 'sp',
+                    'description': {'en': 'Spelling variant'},
+                    'guid': '',
+                    'children': []
+                },
+                {
+                    'id': 'phonetic',
+                    'value': 'phonetic',
+                    'abbrev': 'phon',
+                    'description': {'en': 'Phonetic variant'},
+                    'guid': '',
+                    'children': []
+                },
+                {
+                    'id': 'formal',
+                    'value': 'formal',
+                    'abbrev': 'form',
+                    'description': {'en': 'Formal variant'},
+                    'guid': '',
+                    'children': []
+                },
+                {
+                    'id': 'informal',
+                    'value': 'informal',
+                    'abbrev': 'inf',
+                    'description': {'en': 'Informal variant'},
+                    'guid': '',
+                    'children': []
+                }
+            ]
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': fallback_data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @ranges_bp.route('/relation-types', methods=['GET'])
@@ -354,3 +439,137 @@ def get_etymology_types_range() -> Union[Response, Tuple[Response, int]]:
         description: Error retrieving range
     """
     return get_specific_range('etymology-types')
+
+
+@ranges_bp.route('/variant-types-from-traits', methods=['GET'])
+def get_variant_types_from_traits() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get variant types extracted from traits in the LIFT data.
+    
+    This endpoint provides variant types actually used in the LIFT file,
+    rather than predefined ranges, extracted from <trait> elements.
+    
+    Returns:
+        JSON response with variant types from traits.
+    ---
+    tags:
+      - ranges
+    summary: Get variant types from traits
+    description: Retrieve variant types from traits in LIFT data
+    responses:
+      200:
+        description: Successfully retrieved variant types
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Range identifier
+                values:
+                  type: array
+                  description: Array of variant type values
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      value:
+                        type: string
+                      abbrev:
+                        type: string
+                      description:
+                        type: object
+      500:
+        description: Error retrieving variant types
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            error:
+              type: string
+              description: Error message
+    """
+    try:
+        # Get dictionary service using dependency injection
+        from app import injector
+        dict_service = injector.get(DictionaryService)
+        variant_types = dict_service.get_variant_types_from_traits()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': 'variant-types-from-traits',
+                'values': variant_types
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@ranges_bp.route('/language-codes', methods=['GET'])
+def get_language_codes() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get language codes used in the LIFT file.
+    
+    This endpoint provides the actual language codes used in the LIFT file,
+    rather than a predefined list.
+    
+    Returns:
+        JSON response with language codes from the LIFT file.
+    ---
+    tags:
+      - ranges
+    summary: Get language codes
+    description: Retrieve language codes used in the LIFT file
+    responses:
+      200:
+        description: Successfully retrieved language codes
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: array
+              description: Array of language codes
+              items:
+                type: string
+      500:
+        description: Error retrieving language codes
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            error:
+              type: string
+              description: Error message
+    """
+    try:
+        # Get dictionary service using dependency injection
+        from app import injector
+        dict_service = injector.get(DictionaryService)
+        language_codes = dict_service.get_language_codes()
+        
+        return jsonify({
+            'success': True,
+            'data': language_codes
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

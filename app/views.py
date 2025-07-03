@@ -810,4 +810,11 @@ def bulk_operations():
                              error_message="Failed to load bulk operations"), 500
 
 
+@main_bp.route('/debug/ranges')
+def debug_ranges():
+    """Debug page for testing ranges loading."""
+    return render_template('ranges_test.html')
+
+
+
 

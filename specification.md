@@ -87,16 +87,42 @@ The LCW v2.0 employs a sophisticated hybrid database architecture optimized for 
 - **Multilingual Labels**: Support for multiple language labels and abbreviations as defined in the LIFT RANGES
 - **Extensibility**: New categories can be added to the LIFT RANGES file without code changes
 
-#### 3.1.2 Affected UI Components
+#### 3.1.2 Dynamic Variant Types from LIFT Traits
 
-The following UI components MUST use dynamic ranges:
+**Critical Requirement**: Variant types MUST be extracted from `<trait>` elements in the LIFT XML, not from the RANGES file. This ensures:
+
+- **Real-World Usage**: Only variant types actually used in the data are displayed
+- **Precise Categorization**: Variant types match actual data content, not predefined theoretical categories
+- **Data-Driven UI**: The UI adapts to the actual data without requiring manual configuration
+
+#### 3.1.3 Language Codes from LIFT Data
+
+**Critical Requirement**: All language dropdowns (vernacular, translation, etc.) MUST only offer language codes that are actually found in the LIFT XML. This ensures:
+
+- **Consistency**: Only codes actually used in the data are available for selection
+- **Reduced Errors**: Users cannot select languages that aren't represented in the data
+- **Project Relevance**: UI is tailored to the specific language codes of the current project
+
+#### 3.1.4 Pronunciation Language Restrictions
+
+**Critical Requirement**: Pronunciation language MUST be restricted to only "seh-fonipa" with no language selector exposed in the UI. This ensures:
+
+- **IPA Standardization**: All phonetic transcriptions use the IPA standard for Sena
+- **UI Simplification**: No language dropdown is shown for pronunciation fields
+- **Consistency**: All pronunciation data uses the same language code
+
+#### 3.1.5 Affected UI Components
+
+The following UI components MUST use dynamic ranges and follow the above requirements:
 
 - **Entry Form Grammatical Info**: All grammatical categories from the LIFT RANGES file
-- **Relationship Type Selectors**: All lexical relation types with proper abbreviations
-- **Variant Type Selectors**: All variant types (dialectal, spelling, morphological, etc.)
-- **Etymology Type Selectors**: All etymology types and classifications
-- **Search Filters**: All dropdown filters use the same dynamic ranges
-- **Query Builder**: Value suggestions based on available ranges
+- **Relationship Type Selectors**: All lexical relation types with proper abbreviations from LIFT RANGES
+- **Variant Type Selectors**: All variant types extracted from `<trait>` elements in LIFT data
+- **Etymology Type Selectors**: All etymology types and classifications from LIFT RANGES
+- **Note Language Selectors**: Limited to project-relevant language codes found in LIFT data
+- **Search Filters**: All dropdown filters use the appropriate dynamic sources
+- **Query Builder**: Value suggestions based on available ranges or traits as appropriate
+- **Pronunciation Fields**: Fixed to "seh-fonipa" with no language selector
 
 #### 3.1.3 Technical Implementation
 
@@ -2269,7 +2295,7 @@ This namespace fix initiative ensures the LCW system maintains robust, reliable 
 
 ### 21.1 Overview
 
-The LCW system must support the complete LIFT standard for linguistic ranges, as demonstrated by the comprehensive `sample-lift-file.lift-ranges` file. This roadmap outlines the implementation strategy for full LIFT ranges support, ensuring compatibility with all possible linguistic categorization systems.
+The LCW system must support the complete LIFT standard for linguistic ranges, as demonstrated by the comprehensive `sample-lift-file.lift-ranges` file. This roadmap outlines the implementation path for full LIFT ranges support, ensuring compatibility with all possible linguistic categorization systems.
 
 ### 21.2 Current Range Types Analysis
 

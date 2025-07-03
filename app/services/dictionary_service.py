@@ -1434,3 +1434,101 @@ class DictionaryService:
         default_ranges['semantic-domains'] = default_ranges['semantic-domain']  # Fixed: was semantic-domain-list
         
         return default_ranges
+
+    def get_language_codes(self) -> List[str]:
+        """
+        Get all language codes used in the LIFT file.
+        
+        Returns:
+            List of language codes from the LIFT file, or a default set if extraction fails
+        """
+        try:
+            # Get the LIFT XML from the database
+            db_name = self.db_connector.database
+            if not db_name:
+                self.logger.warning("No database configured, using default language codes")
+                return ['en', 'seh-fonipa']
+                
+            # Get a sample of the LIFT document to extract language codes
+            lift_xml = self.db_connector.execute_query(
+                f"string-join((for $entry in collection('{db_name}')//entry[position() <= 50] return serialize($entry)), '')"
+            )
+            
+            if not lift_xml:
+                self.logger.warning("Could not retrieve LIFT data for language code extraction")
+                return ['en', 'seh-fonipa']
+                
+            # Extract language codes from the LIFT XML
+            language_codes = self.lift_parser.extract_language_codes_from_file(lift_xml)
+            return language_codes
+            
+        except Exception as e:
+            self.logger.error(f"Error retrieving language codes: {str(e)}", exc_info=True)
+            # Default language codes as fallback
+            return ['en', 'seh-fonipa']
+            
+    def get_variant_types_from_traits(self) -> List[Dict[str, Any]]:
+        """
+        Get all variant types from traits in the LIFT file.
+        
+        Returns:
+            List of variant type objects extracted from the LIFT file
+        """
+        try:
+            # Get the LIFT XML from the database
+            db_name = self.db_connector.database
+            if not db_name:
+                self.logger.warning("No database configured, using default variant types")
+                return self._get_default_variant_types()
+                
+            # Get a sample of variants from the LIFT document
+            lift_xml = self.db_connector.execute_query(
+                f"string-join((for $variant in collection('{db_name}')//variant return serialize($variant)), '')"
+            )
+            
+            if not lift_xml:
+                self.logger.warning("Could not retrieve variant data for trait extraction")
+                return self._get_default_variant_types()
+                
+            # Extract variant types from the LIFT XML
+            variant_types = self.lift_parser.extract_variant_types_from_traits(lift_xml)
+            
+            # If no variant types were found, use default types
+            if not variant_types:
+                self.logger.warning("No variant types found in LIFT file, using defaults")
+                return self._get_default_variant_types()
+                
+            return variant_types
+            
+        except Exception as e:
+            self.logger.error(f"Error retrieving variant types from traits: {str(e)}", exc_info=True)
+            # Return default variant types as fallback
+            return self._get_default_variant_types()
+            
+    def _get_default_variant_types(self) -> List[Dict[str, Any]]:
+        """
+        Get default variant types when extraction fails.
+        
+        Returns:
+            List of default variant type objects
+        """
+        return [
+            {
+                'id': 'dialectal',
+                'value': 'dialectal',
+                'abbrev': 'dia',
+                'description': {'en': 'Dialectal variant'}
+            },
+            {
+                'id': 'spelling',
+                'value': 'spelling',
+                'abbrev': 'spe',
+                'description': {'en': 'Spelling variant'}
+            },
+            {
+                'id': 'morphological',
+                'value': 'morphological',
+                'abbrev': 'mor',
+                'description': {'en': 'Morphological variant'}
+            }
+        ]

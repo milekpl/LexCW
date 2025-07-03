@@ -6,10 +6,11 @@
  */
 
 class RelationsManager {
-    constructor(containerId, rangesApiUrl = '/api/ranges/relation-types') {
+    constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
-        this.rangesApiUrl = rangesApiUrl;
+        this.rangeId = 'relation-type'; // Always use LIFT ranges for relation types
         this.relationTypes = [];
+        this.relations = options.relations || [];
         
         this.init();
     }
@@ -22,24 +23,36 @@ class RelationsManager {
     
     async loadRelationTypes() {
         try {
-            const response = await fetch(this.rangesApiUrl);
+            // Use the global rangesLoader if available
+            if (window.rangesLoader) {
+                const rangeData = await window.rangesLoader.loadRange(this.rangeId);
+                if (rangeData?.values) {
+                    this.relationTypes = rangeData.values;
+                    return;
+                }
+            }
+            
+            // Fallback to direct API call if rangesLoader isn't available
+            const response = await fetch(`/api/ranges/${this.rangeId}`);
             if (response.ok) {
                 const result = await response.json();
-                if (result.success && result.data && result.data.values) {
+                if (result.success && result.data?.values) {
                     this.relationTypes = result.data.values;
+                    return;
                 }
             }
         } catch (error) {
-            console.warn('Failed to load relation types from ranges:', error);
-            // Fallback to basic types
-            this.relationTypes = [
-                { id: 'synonym', value: 'synonym', abbrev: 'syn', description: { en: 'Synonym - word with the same or similar meaning' } },
-                { id: 'antonym', value: 'antonym', abbrev: 'ant', description: { en: 'Antonym - word with opposite meaning' } },
-                { id: 'hypernym', value: 'hypernym', abbrev: 'hyper', description: { en: 'Hypernym - more general term' } },
-                { id: 'hyponym', value: 'hyponym', abbrev: 'hypo', description: { en: 'Hyponym - more specific term' } },
-                { id: 'meronym', value: 'meronym', abbrev: 'mero', description: { en: 'Meronym - part-whole relationship' } }
-            ];
+            console.warn(`Failed to load relation types from range '${this.rangeId}':`, error);
         }
+        
+        // Fallback to basic types if loading fails
+        this.relationTypes = [
+            { id: 'synonym', value: 'synonym', abbrev: 'syn', description: { en: 'Synonym - word with the same or similar meaning' } },
+            { id: 'antonym', value: 'antonym', abbrev: 'ant', description: { en: 'Antonym - word with opposite meaning' } },
+            { id: 'hypernym', value: 'hypernym', abbrev: 'hyper', description: { en: 'Hypernym - more general term' } },
+            { id: 'hyponym', value: 'hyponym', abbrev: 'hypo', description: { en: 'Hyponym - more specific term' } },
+            { id: 'meronym', value: 'meronym', abbrev: 'mero', description: { en: 'Meronym - part-whole relationship' } }
+        ];
     }
     
     setupEventListeners() {
@@ -136,17 +149,23 @@ class RelationsManager {
         const relationHtml = this.createRelationHtml(relation, index);
         this.container.insertAdjacentHTML('beforeend', relationHtml);
         
+        // Initialize the relation type dropdown using the ranges loader
+        if (window.rangesLoader) {
+            const typeSelect = this.container.querySelector(`.relation-item[data-relation-index="${index}"] .relation-type-select`);
+            if (typeSelect) {
+                window.rangesLoader.populateSelect(typeSelect, this.rangeId, {
+                    selectedValue: relation.type || '',
+                    hierarchical: true,
+                    searchable: true
+                });
+            }
+        }
+        
         // Initialize search for the reference input
         this.initializeEntrySearch(index);
     }
     
     createRelationHtml(relation, index) {
-        const typeOptions = this.relationTypes.map(type => 
-            `<option value="${type.value}" ${relation.type === type.value ? 'selected' : ''}>
-                ${type.description.en || type.value} (${type.abbrev})
-             </option>`
-        ).join('');
-        
         return `
             <div class="relation-item card mb-3" data-relation-index="${index}">
                 <div class="card-header bg-light">
@@ -165,11 +184,12 @@ class RelationsManager {
                     <div class="row">
                         <div class="col-md-4">
                             <label class="form-label">Relation Type</label>
-                            <select class="form-select" 
+                            <select class="form-select relation-type-select" 
                                     name="relations[${index}].type" 
+                                    data-range-id="${this.rangeId}"
+                                    data-selected="${relation.type || ''}"
                                     data-index="${index}" required>
                                 <option value="">Select type</option>
-                                ${typeOptions}
                             </select>
                             <div class="form-text">Type of semantic relation</div>
                         </div>
