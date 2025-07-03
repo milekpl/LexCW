@@ -225,14 +225,14 @@ class VariantFormsManager {
                     
                     <div class="row mt-3">
                         <div class="col-md-6">
-                            <label class="form-label">Morphological Type</label>
+                            <label class="form-label">Variant Type</label>
                             <select class="form-select variant-type-select" 
                                    name="variants[${index}].type"
                                    data-range-id="${this.rangeId}" 
                                    data-selected="${variant.type || ''}">
-                                <option value="">Select type</option>
+                                <option value="">Select variant type</option>
                             </select>
-                            <div class="form-text">Type of variant (optional)</div>
+                            <div class="form-text">Type of variant from LIFT traits (optional)</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Note</label>

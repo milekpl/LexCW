@@ -182,6 +182,15 @@ function displayEntries(entries) {
         entryLink.textContent = headword;
         entryLink.href = `/entries/${entry.id}`;
         
+        // Add homograph number as subscript if present
+        if (entry.homograph_number) {
+            const subscript = document.createElement('sub');
+            subscript.textContent = entry.homograph_number;
+            subscript.style.fontSize = '0.8em';
+            subscript.style.color = '#6c757d';
+            entryLink.appendChild(subscript);
+        }
+        
         // If we have multiple languages, show them in a smaller font
         if (typeof entry.lexical_unit === 'object' && Object.keys(entry.lexical_unit).length > 1) {
             const languages = Object.keys(entry.lexical_unit).join(', ');

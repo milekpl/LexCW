@@ -302,7 +302,18 @@ class LIFTParser:
         # Get entry ID
         entry_id = entry_elem.get('id')
         if not entry_id:
-            self.logger.warning("Entry without ID found, generating a new one")        # Parse lexical unit
+            self.logger.warning("Entry without ID found, generating a new one")
+            
+        # Get homograph number from order attribute (LIFT specification)
+        homograph_number = entry_elem.get('order')
+        if homograph_number:
+            try:
+                homograph_number = int(homograph_number)
+            except ValueError:
+                self.logger.warning(f"Invalid homograph number '{homograph_number}' for entry {entry_id}")
+                homograph_number = None
+        else:
+            homograph_number = None        # Parse lexical unit
         lexical_unit = {}
         lexical_unit_elem = self._find_element(entry_elem, './/lift:lexical-unit')
         if lexical_unit_elem is not None:
@@ -476,7 +487,8 @@ class LIFTParser:
             etymologies=etymologies,
             notes=notes,
             custom_fields=custom_fields,
-            senses=senses
+            senses=senses,
+            homograph_number=homograph_number
         )
         
         return entry
@@ -667,6 +679,10 @@ class LIFTParser:
         """
         entry_elem = ET.SubElement(parent, '{' + self.NSMAP['lift'] + '}entry')
         entry_elem.set('id', entry.id)
+        
+        # Add homograph number if present (using 'order' attribute per LIFT specification)
+        if entry.homograph_number is not None:
+            entry_elem.set('order', str(entry.homograph_number))
         
         # Add lexical unit
         if entry.lexical_unit:

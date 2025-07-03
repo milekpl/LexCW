@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if entry.id %}Edit Entry: {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% else %}Add New Entry{% endif %}{% endblock %}
+{% block title %}{% if entry.id %}Edit Entry: {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% else %}Add New Entry{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
@@ -12,7 +12,7 @@
     <div class="col-md-8">
         <h2>
             {% if entry.id %}
-            <i class="fas fa-edit"></i> Edit Entry: <span class="text-primary">{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}</span>
+            <i class="fas fa-edit"></i> Edit Entry: <span class="text-primary">{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}</span>
             {% else %}
             <i class="fas fa-plus"></i> Add New Entry
             {% endif %}
@@ -45,6 +45,22 @@
                                value="{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}" required>
                         <div class="form-text">The headword as it appears in the dictionary.</div>
                     </div>
+                    
+                    <!-- Homograph Number Display -->
+                    {% if entry.homograph_number %}
+                    <div class="mb-3">
+                        <label for="homograph-number" class="form-label">Homograph Number</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="homograph-number" name="homograph_number" 
+                                   value="{{ entry.homograph_number }}" readonly>
+                            <span class="input-group-text">
+                                <i class="fas fa-info-circle" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Homograph numbers distinguish entries with the same lexical unit. This field is read-only and automatically assigned."></i>
+                            </span>
+                        </div>
+                        <div class="form-text">Automatically assigned to distinguish homographs (entries sharing the same headword).</div>
+                    </div>
+                    {% endif %}
                     
                     <div class="mb-3">
                         <label for="citation-form" class="form-label">Citation Form</label>

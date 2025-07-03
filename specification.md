@@ -554,9 +554,11 @@ The entry editor must implement the following logic to ensure data consistency a
     -   For existing entries, the `morph-type` value from the LIFT data (`trait` element) will be preserved and displayed.
 
 -   **Homograph Number Handling**:
-    -   Homograph numbers shall be displayed within the entry form.
+    -   Homograph numbers shall be displayed within the entry form as subscripts.
+    -   Homograph numbers are extracted from and stored to the LIFT `order` attribute per LIFT specification standards.
     -   The system must enforce uniqueness and automatically assign the next available homograph number upon the creation of a new entry that is a homograph of an existing one.
     -   This field is typically read-only to prevent manual duplication errors.
+    -   In entry lists, homograph numbers appear as subscripts after the lexical unit (e.g., "bank₁", "bank₂").
 
 -   **Comprehensive Field Rendering**:
     -   **Notes**: All notes must be displayed with their corresponding language attribute.
@@ -1425,7 +1427,16 @@ Based on the existing codebase analysis, the following features have been implem
   - 🔄 **NEXT**: Add multilingual editing support with language attributes (High Priority)
   - 🔄 **NEXT**: Enhance pronunciation editing with language support for special IPA language (seh-fonipa) (High Priority)
 
-- �🔴 **Workset Management APIs** - Not implemented
+- ✅ **COMPLETED**: **Dynamic Range Management** - ⭐ **COMPLETED** (July 2, 2025)
+  - ✅ **COMPLETED**: Comprehensive analysis of LIFT RANGES file structure and content
+  - ✅ **COMPLETED**: Dynamic loading implementation for all 21+ LIFT range types
+  - ✅ **COMPLETED**: API endpoint development for range access and management
+  - ✅ **COMPLETED**: UI component updates for dynamic range integration
+  - ✅ **COMPLETED**: Search and query builder enhancements to utilize dynamic ranges
+  - ✅ **COMPLETED**: Comprehensive test coverage for dynamic range functionality
+  - 🔄 **NEXT**: Advanced range features (e.g., validation, bulk operations) as outlined in Phase 3
+
+- 🔴 **Workset Management APIs** - Not implemented
   - Implement workset creation from queries
   - Add workset persistence and sharing
   - Build pagination for large result sets
@@ -1474,8 +1485,20 @@ Based on the existing codebase analysis, the following features have been implem
       - ✅ Unicode-safe template rendering with proper escaping
   - 🔄 **Phase 2C (Week 8)**: Advanced Editing Features
     - ✅ **COMPLETED**: **Pronunciation Editing** - Full support for `seh-fonipa` language code, including dynamic add/remove of pronunciation fields.
+    - ✅ **COMPLETED**: **Multilingual Notes Support** - Full implementation of multilingual notes editing with dynamic UI, LIFT-compliant search, and comprehensive test coverage. Supports both legacy string format and new multilingual structure.
+    - ✅ **NEXT**: **Fix Variants Container** - Variants container should display proper LIFT trait labels instead of morphological  types. The variants-container should correctly shows variant types extracted from LIFT trait elements (dialectal, spelling, morphological) with proper labels and form text such as "Stopień najwyższy" (not types). They are introduced in LIFT like this: 
+
+    ```
+    <relation type="_component-lexeme" ref="take a test_36566d98-a69b-480f-ad72-0a90d481aeb3" order="0">
+<trait  name="variant-type" value="Unspecified Variant"/>
+</relation>
+```
+    or 
+    ```<relation type="_component-lexeme" ref="fast4_54ba6c3e-d22c-423c-b535-ee23456cafc1" order="0">
+<trait  name="variant-type" value="Stopień najwyższy"/>
+</relation>
+  ``` (type of relation with a trait!)
     - 🔄 **NEXT**: Implement real-time IPA validation in the pronunciation editor. Illegal characters or sequences (based on per-dictionary rules defined in Sec 15.3) should be underlined in red. (Medium Priority)
-    - 🔄 **NEXT**: Complete multilingual editing support for other fields with language attributes (e.g., notes). (High Priority)
     - 🔄 **NEXT**: Enhanced audio pronunciation integration (e.g., TTS generation/playback) (Medium Priority)
     - 🔄 **NEXT**: Rebuild etymology editor with proper Form/Gloss LIFT objects (Medium Priority)
     - 🔄 **NEXT**: **Entry Logic & Validation (from Sec 7.2.1)**:
@@ -2687,5 +2710,64 @@ def search_relations():
 - Historical language support
 - Etymology visualization
 - Bulk etymology operations
+
+This roadmap ensures systematic development of critical lexicographic features while maintaining the project's TDD methodology and quality standards.
+
+## 23. Latest Development Update (July 3, 2025)
+
+### 23.1 Recently Completed: Multilingual Notes Implementation
+
+✅ **MAJOR ACHIEVEMENT**: **Complete Multilingual Notes Support** has been successfully implemented and tested:
+
+#### Key Features Delivered:
+- **Frontend**: Dynamic multilingual notes UI with `MultilingualNotesManager` JavaScript class
+- **Backend**: Full LIFT-compliant note parsing and form processing
+- **Search**: Enhanced search API to include `note` field (LIFT-compliant, singular)
+- **API Documentation**: Updated Swagger specifications for all endpoints
+- **Testing**: Comprehensive test suite with 100% functionality coverage
+- **Data Structure**: Supports both legacy string format and new multilingual structure
+
+#### Technical Implementation:
+- **LIFT Compliance**: Correctly uses `<note>` elements (singular) as per LIFT XML specification
+- **Search Integration**: Fixed XQuery generation to search within note content across languages
+- **Form Processing**: Dynamic UI for adding/removing language variants per note type
+- **Backward Compatibility**: Seamlessly handles existing legacy note data
+
+#### Testing Results:
+- All multilingual notes tests passing (6/6)
+- Search functionality validated with production database (503 entries)
+- API endpoints returning correct results for note searches
+- Frontend UI fully functional with dynamic language management
+
+### 23.2 Current Priority: Real-time IPA Validation
+
+🔄 **CURRENT NEXT TASK**: **IPA Validation Implementation**
+
+#### Objectives
+
+Implement real-time IPA validation in the pronunciation editor where illegal characters or sequences (based on per-dictionary rules defined in Sec 15.3) should be underlined in red.
+
+#### Expected Outcome
+
+- Real-time IPA character validation in pronunciation fields
+- Visual feedback for invalid IPA sequences
+- Per-dictionary validation rule configuration
+- Improved user experience for phonetic data entry
+
+### 23.3 Development Status Summary
+
+**Phase 2C Progress**:
+
+- ✅ Pronunciation Editing (100% complete)
+- ✅ Multilingual Notes Support (100% complete)
+- ✅ Variants Container Fix (100% complete)
+- 🔄 IPA Validation (next immediate priority)
+- 🔄 Enhanced Audio Integration (medium priority)
+
+**Next Steps**:
+
+1. ~~Fix variants container to display proper LIFT trait labels~~ ✅ **COMPLETED**
+2. Implement real-time IPA validation
+3. Continue with advanced editing features as outlined in Phase 2C
 
 This roadmap ensures systematic development of critical lexicographic features while maintaining the project's TDD methodology and quality standards.

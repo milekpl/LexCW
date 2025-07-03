@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Entry: {{ entry.lexical_unit }}{% endblock %}
+{% block title %}Entry: {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col-md-8">
         <h2>
             <i class="fas fa-book"></i> 
-            <span class="text-primary">{{ entry.headword }}</span>
+            <span class="text-primary">
+                {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}
+            </span>
             {% if entry.get_language_list() and entry.get_language_list()|length > 0 %}
                 <small class="text-muted">[{{ entry.get_language_list()|join(', ') }}]</small>
             {% endif %}

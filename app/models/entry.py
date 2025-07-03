@@ -107,6 +107,7 @@ class Entry(BaseModel):
         variants: List of variant forms for the entry.
         notes: Dictionary mapping note types to either simple text (legacy) or language-text mappings (multilingual).
         custom_fields: Dictionary of custom fields for the entry.
+        homograph_number: Optional integer identifying the homograph number when entries share the same lexical unit.
     """
 
     def __init__(self, id_: Optional[str] = None, **kwargs: Any):
@@ -131,6 +132,7 @@ class Entry(BaseModel):
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
         self.notes: Dict[str, Union[str, Dict[str, str]]] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
+        self.homograph_number: Optional[int] = kwargs.get('homograph_number')
 
         # Handle senses
         from app.models.sense import Sense
