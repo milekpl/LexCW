@@ -1486,18 +1486,7 @@ Based on the existing codebase analysis, the following features have been implem
   - 🔄 **Phase 2C (Week 8)**: Advanced Editing Features
     - ✅ **COMPLETED**: **Pronunciation Editing** - Full support for `seh-fonipa` language code, including dynamic add/remove of pronunciation fields.
     - ✅ **COMPLETED**: **Multilingual Notes Support** - Full implementation of multilingual notes editing with dynamic UI, LIFT-compliant search, and comprehensive test coverage. Supports both legacy string format and new multilingual structure.
-    - ✅ **NEXT**: **Fix Variants Container** - Variants container should display proper LIFT trait labels instead of morphological  types. The variants-container should correctly shows variant types extracted from LIFT trait elements (dialectal, spelling, morphological) with proper labels and form text such as "Stopień najwyższy" (not types). They are introduced in LIFT like this: 
-
-    ```
-    <relation type="_component-lexeme" ref="take a test_36566d98-a69b-480f-ad72-0a90d481aeb3" order="0">
-<trait  name="variant-type" value="Unspecified Variant"/>
-</relation>
-```
-    or 
-    ```<relation type="_component-lexeme" ref="fast4_54ba6c3e-d22c-423c-b535-ee23456cafc1" order="0">
-<trait  name="variant-type" value="Stopień najwyższy"/>
-</relation>
-  ``` (type of relation with a trait!)
+    - ✅ **COMPLETED**: **Fix Variants Container** - Variants container now correctly displays proper LIFT trait labels from relations with variant-type traits. The variants-container correctly shows variant types extracted from LIFT relation elements (dialectal, spelling, morphological) with proper labels and form text such as "Stopień najwyższy" (not generic types). Relations with variant-type traits are now displayed as read-only variant information, managed through the Relations section. Implemented with comprehensive test coverage and proper LIFT compliance.
     - 🔄 **NEXT**: Implement real-time IPA validation in the pronunciation editor. Illegal characters or sequences (based on per-dictionary rules defined in Sec 15.3) should be underlined in red. (Medium Priority)
     - 🔄 **NEXT**: Enhanced audio pronunciation integration (e.g., TTS generation/playback) (Medium Priority)
     - 🔄 **NEXT**: Rebuild etymology editor with proper Form/Gloss LIFT objects (Medium Priority)

@@ -293,9 +293,16 @@ def edit_entry(entry_id):
         logger.info(f"[DEBUG] About to get_entry({entry_id}) at {time.time()}")
         entry = dict_service.get_entry(entry_id)
         logger.info(f"[DEBUG] Got entry: {getattr(entry, 'id', None)} at {time.time()}")
+        
         ranges = dict_service.get_lift_ranges()
         logger.info(f"[DEBUG] Got ranges at {time.time()} (keys: {list(ranges.keys()) if hasattr(ranges, 'keys') else type(ranges)})")
-        return render_template('entry_form.html', entry=entry, ranges=ranges)
+        
+        # Explicitly extract variant_relations for template
+        variant_relations_data = []
+        if entry:
+            variant_relations_data = entry.variant_relations
+        
+        return render_template('entry_form.html', entry=entry, ranges=ranges, variant_relations=variant_relations_data)
     except NotFoundError as e:
         logger.warning(f"Entry with ID {entry_id} not found: {e}")
         import traceback

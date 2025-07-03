@@ -415,7 +415,15 @@ class LIFTParser:
             relation_type = relation_elem.get('type')
             ref = relation_elem.get('ref')
             if relation_type and ref:
-                relations.append(Relation(type=relation_type, ref=ref))
+                # Parse traits within this relation
+                traits = {}
+                for trait_elem in self._find_elements(relation_elem, './/lift:trait'):
+                    trait_name = trait_elem.get('name')
+                    trait_value = trait_elem.get('value')
+                    if trait_name and trait_value:
+                        traits[trait_name] = trait_value
+                
+                relations.append(Relation(type=relation_type, ref=ref, traits=traits))
         
         # Parse notes
         notes = {}
@@ -751,10 +759,25 @@ class LIFTParser:
             if hasattr(relation, 'type') and hasattr(relation, 'ref'):
                 relation_elem.set('type', relation.type)
                 relation_elem.set('ref', relation.ref)
+                
+                # Add traits if present
+                if hasattr(relation, 'traits') and relation.traits:
+                    for trait_name, trait_value in relation.traits.items():
+                        trait_elem = ET.SubElement(relation_elem, '{' + self.NSMAP['lift'] + '}trait')
+                        trait_elem.set('name', trait_name)
+                        trait_elem.set('value', trait_value)
+                        
             elif isinstance(relation, dict):
                 # Fallback for dictionary format
                 relation_elem.set('type', relation.get('type', 'unspecified'))
                 relation_elem.set('ref', relation.get('ref', ''))
+                
+                # Add traits from dictionary format if present
+                if 'traits' in relation and relation['traits']:
+                    for trait_name, trait_value in relation['traits'].items():
+                        trait_elem = ET.SubElement(relation_elem, '{' + self.NSMAP['lift'] + '}trait')
+                        trait_elem.set('name', trait_name)
+                        trait_elem.set('value', trait_value)
             else:
                 # Default fallback
                 relation_elem.set('type', 'unspecified')

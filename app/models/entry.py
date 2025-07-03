@@ -62,13 +62,15 @@ class Etymology(BaseModel):
 
 class Relation(BaseModel):
     """
-    Represents a relation to another entry.
+    Represents a relation to another entry with optional traits.
     """
 
-    def __init__(self, type: str, ref: str, **kwargs: Any):
+    def __init__(self, type: str, ref: str, traits: Optional[Dict[str, str]] = None, order: Optional[int] = None, **kwargs: Any):
         super().__init__(**kwargs)
         self.type = type
         self.ref = ref
+        self.traits = traits or {}
+        self.order = order
 
 
 class Variant(BaseModel):
@@ -267,6 +269,16 @@ class Entry(BaseModel):
             return next(iter(self.lexical_unit.values()))
         return ""
 
+    @property
+    def variant_relations(self) -> List[Dict[str, Any]]:
+        """
+        Get variant relations for template access.
+        
+        Returns:
+            List of variant relation dictionaries.
+        """
+        return self.get_variant_relations()
+
     def get_lexical_unit(self, lang: Optional[str] = None) -> str:
         """
         Get the lexical unit in the specified language.
@@ -385,4 +397,75 @@ class Entry(BaseModel):
                         converted_items.append(item)
                 result[attr_name] = converted_items
 
+        # Add variant relations derived from relations with variant-type traits
+        result['variant_relations'] = self.get_variant_relations()
+
         return result
+
+    def get_variant_relations(self) -> List[Dict[str, Any]]:
+        """
+        Extract variant information from relations with variant-type traits.
+        
+        Returns:
+            List of dictionaries containing variant information extracted from relations.
+            Each dictionary contains:
+            - ref: Reference to the target entry
+            - variant_type: The variant type from the trait value
+            - type: The relation type
+            - order: The relation order (if present)
+        """
+        variant_relations = []
+        
+        for relation in self.relations:
+            try:
+                # Ensure relation has required attributes and they're not None/Undefined
+                if (hasattr(relation, 'traits') and relation.traits and 
+                    isinstance(relation.traits, dict) and 'variant-type' in relation.traits and
+                    hasattr(relation, 'ref') and relation.ref and
+                    hasattr(relation, 'type') and relation.type):
+                    
+                    variant_info = {
+                        'ref': str(relation.ref),  # Ensure string
+                        'variant_type': str(relation.traits['variant-type']),  # Ensure string
+                        'type': str(relation.type),  # Ensure string
+                    }
+                    
+                    # Include order if available and valid
+                    if (hasattr(relation, 'order') and relation.order is not None and 
+                        isinstance(relation.order, (int, str))):
+                        try:
+                            variant_info['order'] = int(relation.order)
+                        except (ValueError, TypeError):
+                            # Skip invalid order values
+                            pass
+                        
+                    variant_relations.append(variant_info)
+            except (AttributeError, TypeError, KeyError) as e:
+                # Skip relations that can't be processed
+                continue
+        
+        # Sort by order if available, otherwise by ref
+        try:
+            variant_relations.sort(key=lambda x: (x.get('order', 999), x['ref']))
+        except (TypeError, KeyError):
+            # If sorting fails, just return unsorted
+            pass
+        
+        return variant_relations
+
+    def find_sense_by_id(self, sense_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Find a sense by ID, including in related entries.
+
+        Args:
+            sense_id: ID of the sense to find.
+
+        Returns:
+            Sense with the given ID, or None if not found.
+        """
+        # First, try to find the sense in the current entry
+        sense = self.get_sense_by_id(sense_id)
+        if sense:
+            return sense
+
+        return None

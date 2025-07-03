@@ -327,17 +327,125 @@
             </div>
             
             <div class="card mb-4">
-                <div class="card-header bg-warning text-white">
-                    <h5><i class="fas fa-exchange-alt"></i> Variant Forms</h5>
+                <div class="card-header bg-success text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-code-branch"></i> Variants</h5>
+                        <button type="button" class="btn btn-sm btn-light" id="add-variant-btn">
+                            <i class="fas fa-plus"></i> Add Variant
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="variants-container">
-                        <!-- Variant forms will be populated by JavaScript -->
+                        <!-- Server-side rendered variant items -->
+                        {% if variant_relations %}
+                            {% for variant in variant_relations %}
+                            <div class="variant-item card mb-3" data-variant-index="{{ loop.index0 }}">
+                                <div class="card-header bg-success text-white">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-code-branch me-2"></i>
+                                            Variant Relation {{ loop.index }}: {{ variant.variant_type or 'Unknown Type' }}
+                                        </h6>
+                                        <button type="button" class="btn btn-sm btn-light remove-variant-btn" 
+                                                data-index="{{ loop.index0 }}" title="Remove variant">
+                                            <i class="fas fa-trash text-danger"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <label class="form-label fw-bold">Target Entry Reference</label>
+                                            <input type="text" class="form-control" 
+                                                   name="variant_relations[{{ loop.index0 }}][ref]"
+                                                   value="{{ variant.ref or '' }}" 
+                                                   placeholder="Entry ID that this entry is a variant of"
+                                                   required>
+                                            <div class="form-text">LIFT entry ID or GUID of the main/canonical entry</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">Variant Type</label>
+                                            <select class="form-control" 
+                                                    name="variant_relations[{{ loop.index0 }}][variant_type]" required>
+                                                <option value="">Select variant type</option>
+                                                <option value="Spelling Variant" {% if variant.variant_type == 'Spelling Variant' %}selected{% endif %}>Spelling Variant</option>
+                                                <option value="Dialectal Variant" {% if variant.variant_type == 'Dialectal Variant' %}selected{% endif %}>Dialectal Variant</option>
+                                                <option value="Unspecified Variant" {% if variant.variant_type == 'Unspecified Variant' %}selected{% endif %}>Unspecified Variant</option>
+                                                <option value="Stopień najwyższy" {% if variant.variant_type == 'Stopień najwyższy' %}selected{% endif %}>Stopień najwyższy</option>
+                                                <option value="Plural Form" {% if variant.variant_type == 'Plural Form' %}selected{% endif %}>Plural Form</option>
+                                                <option value="Past Tense" {% if variant.variant_type == 'Past Tense' %}selected{% endif %}>Past Tense</option>
+                                            </select>
+                                            <div class="form-text">Type of variant relationship</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mt-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">Relation Type</label>
+                                            <input type="text" class="form-control" 
+                                                   name="variant_relations[{{ loop.index0 }}][type]"
+                                                   value="{{ variant.type or '_component-lexeme' }}" 
+                                                   readonly>
+                                            <div class="form-text">LIFT relation type (typically "_component-lexeme")</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">Order</label>
+                                            <input type="number" class="form-control" 
+                                                   name="variant_relations[{{ loop.index0 }}][order]"
+                                                   value="{{ variant.order or loop.index0 }}" 
+                                                   placeholder="0" min="0">
+                                            <div class="form-text">Order of the relation</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">Status</label>
+                                            <div class="mt-2">
+                                                <span class="badge bg-success fs-6">
+                                                    <i class="fas fa-check-circle me-1"></i>Active Variant
+                                                </span>
+                                                <div class="form-text">This variant will be saved to the LIFT file</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="alert alert-info mt-3">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Variant Relationship:</strong> This entry is a variant of the target entry 
+                                        (<code>{{ variant.ref or 'target entry' }}</code>). 
+                                        In LIFT format, this creates a relation with a variant-type trait.
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <!-- Empty state when no variants exist -->
+                        <div class="empty-state text-center py-4">
+                            <i class="fas fa-code-branch fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No Variant Relations</h5>
+                            <p class="text-muted">This entry does not have any variant relations defined.</p>
+                            <p class="text-muted">
+                                <strong>What are variants?</strong> Variants are different forms or spellings of the same lexical item, 
+                                such as "protestor" vs "protester", or "Protestant ethic" vs "Protestant work ethic".
+                            </p>
+                            <p class="text-muted">
+                                <strong>How variants work:</strong> Variants are stored as LIFT relations with variant-type traits. 
+                                When you create a relation with a variant-type trait, it will appear here as a variant.
+                            </p>
+                        </div>
+                        {% endif %}
                     </div>
                     
-                    <button type="button" class="btn btn-sm btn-warning" id="add-variant-btn">
-                        <i class="fas fa-plus"></i> Add Variant
-                    </button>
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>About Variants:</strong> 
+                        Variants represent different forms, spellings, or morphological variations of the same lexical item. 
+                        Examples include "protestor" vs "protester", "Protestant ethic" vs "Protestant work ethic", 
+                        or inflected forms like plurals and past tense forms.
+                        <br><br>
+                        <strong>Technical Note:</strong> Variants are stored as LIFT relations with variant-type traits.
+                        This section displays only relations that have variant-type traits, making them distinct 
+                        from other lexical relations shown in the Relations section below.
+                    </div>
                 </div>
             </div>
             
@@ -830,13 +938,52 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.log('  Container available:', !!document.getElementById('pronunciation-container'));
     }
     
-    // Initialize variant forms manager
-    if (window.VariantFormsManager && document.getElementById('variants-container')) {
-        const variantForms = {{ entry.variants | tojson | safe }} || [];
-        window.variantFormsManager = new VariantFormsManager('variants-container', {
-            variants: variantForms
-        });
-    }
+    console.log('[TEMPLATE DEBUG] Script execution starting...');
+    console.log('[TEMPLATE DEBUG] VariantFormsManager available:', typeof window.VariantFormsManager);
+    console.log('[TEMPLATE DEBUG] variants-container exists:', !!document.getElementById('variants-container'));
+    
+    // Wrap in setTimeout to ensure all scripts are loaded
+    setTimeout(function() {
+        console.log('[TEMPLATE DEBUG] setTimeout execution - VariantFormsManager available:', typeof window.VariantFormsManager);
+        
+        // Initialize variant forms manager
+        if (window.VariantFormsManager && document.getElementById('variants-container')) {
+            // Pass variant_relations data to JavaScript with safe fallback
+            try {
+                const variantRelations = {{ (variant_relations or []) | tojson | safe }};
+                window.variantRelations = variantRelations;
+            } catch (error) {
+                console.warn('[TEMPLATE DEBUG] Failed to load variant relations:', error);
+                window.variantRelations = [];
+            }
+            
+            console.log('[TEMPLATE DEBUG] Initializing VariantFormsManager...');
+            window.variantFormsManager = new VariantFormsManager('variants-container');
+            console.log('[TEMPLATE DEBUG] VariantFormsManager initialized:', !!window.variantFormsManager);
+            
+            // Force re-render after a small delay to ensure everything is loaded
+            setTimeout(() => {
+                // Only force render if the container is empty (no server-side content)
+                const container = document.getElementById('variants-container');
+                const hasServerSideContent = container && container.querySelector('.variant-item');
+                
+                console.log('[TEMPLATE DEBUG] Container has server-side content:', !!hasServerSideContent);
+                
+                if (window.variantFormsManager && window.variantFormsManager.forceRender && !hasServerSideContent) {
+                    console.log('[TEMPLATE DEBUG] Calling forceRender() because no server-side content found');
+                    window.variantFormsManager.forceRender();
+                } else if (hasServerSideContent) {
+                    console.log('[TEMPLATE DEBUG] Skipping forceRender() because server-side content exists');
+                } else {
+                    console.log('[TEMPLATE DEBUG] forceRender() not available or container not found');
+                }
+            }, 50);
+        } else {
+            console.log('[TEMPLATE DEBUG] Variant forms manager initialization failed:');
+            console.log('  VariantFormsManager available:', !!window.VariantFormsManager);
+            console.log('  Container available:', !!document.getElementById('variants-container'));
+        }
+    }, 100); // Small delay to ensure all scripts are loaded
 
     // Initialize relations manager
     if (window.RelationsManager && document.getElementById('relations-container')) {
