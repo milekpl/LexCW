@@ -1475,13 +1475,21 @@ Based on the existing codebase analysis, the following features have been implem
   - 🔄 **Phase 2C (Week 8)**: Advanced Editing Features
     - ✅ **COMPLETED**: **Pronunciation Editing** - Full support for `seh-fonipa` language code, including dynamic add/remove of pronunciation fields.
     - 🔄 **NEXT**: Implement real-time IPA validation in the pronunciation editor. Illegal characters or sequences (based on per-dictionary rules defined in Sec 15.3) should be underlined in red. (Medium Priority)
-    - 🔄 **NEXT**: Complete multilingual editing support for other fields with language attributes (High Priority)
+    - 🔄 **NEXT**: Complete multilingual editing support for other fields with language attributes (e.g., notes). (High Priority)
     - 🔄 **NEXT**: Enhanced audio pronunciation integration (e.g., TTS generation/playback) (Medium Priority)
     - 🔄 **NEXT**: Rebuild etymology editor with proper Form/Gloss LIFT objects (Medium Priority)
-
+    - 🔄 **NEXT**: **Entry Logic & Validation (from Sec 7.2.1)**:
+        - 🔄 Implement grammatical category inheritance from senses with discrepancy validation. (High Priority)
+        - 🔄 Implement automatic morph-type classification for new entries based on headword form. (Medium Priority)
+        - 🔄 Display homograph numbers and implement automatic, unique assignment on creation. (High Priority)
+    - 🔄 **NEXT**: **Field Rendering & Usability (from Sec 7.2.1)**:
+        - 🔄 Render all custom fields from LIFT `<field>` tags. (High Priority)
+        - 🔄 Add support for specifying example translation types (e.g., literal, free). (Medium Priority)
+        - 🔄 Implement user-configurable field visibility (always visible, hide when empty, always hidden). (Medium Priority)
+    - 🔄 **NEXT**: **Enhanced Relation Editor (from Sec 7.2.1)**: Replace relation GUID input with a progressive search form for linking entries/senses. (High Priority)
 - 🔴 **Bulk Processing Framework** - Not implemented
   - Design bulk operation architecture
-  - The UI can use a table metaphor (spreadsheet-like view on a database) with sortable and filtrable (through search and maybe otherwise) columns, hidden/shown, reordered
+  - The UI will use a table metaphor (spreadsheet-like view on a database) with sortable and filtrable (through search and maybe otherwise) columns, hidden/shown, reordered
   - Implement atomic transaction support
   - Add progress tracking for long operations
   - Create rollback and recovery mechanisms

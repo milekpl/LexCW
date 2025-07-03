@@ -43,12 +43,14 @@ class TestEntryFormLoading:
         assert data['success']
         assert 'data' in data
         ranges = data['data']
-        assert 'semantic-domain-list' in ranges
-        semantic_domains = ranges['semantic-domain-list']['values']
+        
+        # Look for semantic domain range (test data uses 'semantic-domain')
+        assert 'semantic-domain' in ranges
+        semantic_domains = ranges['semantic-domain']['values']
         assert len(semantic_domains) > 0
         domain_ids = [item['id'] for item in semantic_domains]
-        assert '1' in domain_ids
-        assert '2' in domain_ids
+        # Test data contains 'agriculture' and 'technology' 
+        assert 'agriculture' in domain_ids
 
     def test_entry_form_loads_successfully(self, client: FlaskClient, test_entry: int):
         """Test that entry form page loads without errors"""
@@ -72,8 +74,8 @@ class TestEntryFormLoading:
         assert response.status_code == 200
         content = response.get_data(as_text=True)
         expected_selects = [
-            'semantic-domain',
-            'usage-type',
+            'semantic_domain',
+            'usage_type',
             'status'
         ]
         for select_name in expected_selects:

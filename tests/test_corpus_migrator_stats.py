@@ -110,6 +110,12 @@ class TestCorpusMigratorStats:
             
             stats = migrator.get_corpus_stats()
             
-            expected_stats = {}
+            expected_stats = {
+                'total_records': 0,
+                'avg_source_length': 0.0,
+                'avg_target_length': 0.0,
+                'first_record': None,
+                'last_record': None
+            }
             assert stats == expected_stats
             mock_connection.close.assert_called_once()

@@ -57,7 +57,7 @@ class TestPronunciationUnicodeDisplay:
                 assert pronunciation_script is not None, "PronunciationFormsManager initialization script not found"
                 
                 # Check that pronunciation data is included
-                assert 'pronunciations.push(' in pronunciation_script
+                assert 'pronunciationArray.push(' in pronunciation_script or 'pronunciations: pronunciationArray' in pronunciation_script
                 
                 # Check that Unicode characters are properly escaped
                 # ˈ should be escaped as \u02c8 and ɛ should be escaped as \u025b
@@ -112,8 +112,8 @@ class TestPronunciationUnicodeDisplay:
     def test_api_endpoints_work(self, app: Flask, client):
         """Test that the API endpoints we fixed are working."""
         with app.app_context():
-            # Test relation-type endpoint
-            response = client.get('/api/ranges/relation-type')
+            # Test relation-types endpoint (plural, not singular)
+            response = client.get('/api/ranges/relation-types')
             assert response.status_code == 200
             data = response.get_json()
             assert data['success'] is True

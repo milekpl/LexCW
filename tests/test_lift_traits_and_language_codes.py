@@ -154,7 +154,8 @@ class TestLIFTTraitsAndLanguageCodes:
         # Check pronunciations in all entries
         for entry in entries:
             if hasattr(entry, 'pronunciations') and entry.pronunciations:
-                # In our model, pronunciations are stored as a list of Form objects
-                for pron in entry.pronunciations:
+                # In our model, pronunciations are stored as a dictionary mapping language codes to strings
+                for lang_code, pronunciation_text in entry.pronunciations.items():
                     # Check that the language is always seh-fonipa
-                    assert pron.form.lang == 'seh-fonipa'
+                    assert lang_code == 'seh-fonipa', f"Expected seh-fonipa, got {lang_code}"
+                    assert isinstance(pronunciation_text, str), f"Pronunciation text should be string: {pronunciation_text}"

@@ -167,19 +167,21 @@ class TestLIFTRangesEndToEndIntegration:
             response = client.get('/api/ranges')
             
             if response.status_code == 200:
-                ranges = response.get_json()
+                response_data = response.get_json()
+                ranges = response_data.get('data', {})
                 
                 # Look for ranges with multilingual content
                 multilingual_found = False
                 for range_name, range_data in ranges.items():
-                    for element in range_data.get('values', []):
-                        description = element.get('description', {})
-                        if isinstance(description, dict) and len(description) > 1:
-                            multilingual_found = True
-                            print(f"✅ Multilingual: Found range {range_name} with multilingual descriptions: {list(description.keys())}")
+                    if isinstance(range_data, dict) and 'values' in range_data:
+                        for element in range_data.get('values', []):
+                            description = element.get('description', {})
+                            if isinstance(description, dict) and len(description) > 1:
+                                multilingual_found = True
+                                print(f"✅ Multilingual: Found range {range_name} with multilingual descriptions: {list(description.keys())}")
+                                break
+                        if multilingual_found:
                             break
-                    if multilingual_found:
-                        break
                 
                 # If no multilingual content found in API, that's OK - test parser directly
                 if not multilingual_found:
@@ -225,13 +227,14 @@ class TestLIFTRangesEndToEndIntegration:
             assert response.status_code == 200, "Ranges API should be accessible"
             assert api_time < 2.0, f"API response should be under 2 seconds, took {api_time:.2f}s"
             
-            ranges = response.get_json()
-            total_elements = sum(len(range_data.get('values', [])) for range_data in ranges.values())
+            ranges_response = response.get_json()
+            ranges_data = ranges_response.get('data', {})
+            total_elements = sum(len(range_data.get('values', [])) for range_data in ranges_data.values() if isinstance(range_data, dict))
             
-            print(f"✅ Performance: API returned {len(ranges)} ranges with {total_elements} total elements in {api_time:.2f}s")
+            print(f"✅ Performance: API returned {len(ranges_data)} ranges with {total_elements} total elements in {api_time:.2f}s")
             
             # Test individual large range performance
-            if 'semantic-domain-ddp4' in ranges:
+            if 'semantic-domain-ddp4' in ranges_data:
                 start_time = time.time()
                 response = client.get('/api/ranges/semantic-domain-ddp4')
                 individual_time = time.time() - start_time

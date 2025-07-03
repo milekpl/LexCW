@@ -162,7 +162,7 @@ class TestRelationsRangesIntegration:
         with app.app_context():
             dict_service = app.injector.get(DictionaryService)
             # Mock the get_ranges method to return predictable data
-            dict_service.get_ranges.return_value = {
+            with patch.object(dict_service, 'get_ranges', return_value={
                 'relation-types': {
                     'values': [
                         {'value': 'synonym'},
@@ -171,8 +171,8 @@ class TestRelationsRangesIntegration:
                         {'value': 'hyponym'},
                     ]
                 }
-            }
-            ranges = dict_service.get_ranges()
+            }):
+                ranges = dict_service.get_ranges()
             
             # Should have relation-types range with default values
             assert 'relation-types' in ranges

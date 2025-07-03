@@ -176,9 +176,12 @@ class TestLIFTParserComprehensive:
                 
                 # Check pronunciations
                 if hasattr(entry, 'pronunciations') and entry.pronunciations:
-                    assert isinstance(entry.pronunciations, list), "Pronunciations should be list"
-                    pronunciation = entry.pronunciations[0]
-                    assert isinstance(pronunciation, (Pronunciation, dict)), "Should have pronunciation data"
+                    assert isinstance(entry.pronunciations, dict), "Pronunciations should be dict"
+                    # Check that we have at least one pronunciation
+                    assert len(entry.pronunciations) > 0, "Should have at least one pronunciation"
+                    # Check that values are strings
+                    for writing_system, value in entry.pronunciations.items():
+                        assert isinstance(value, str), f"Pronunciation value should be string: {value}"
                     print(f"Entry has {len(entry.pronunciations)} pronunciations")
                 
                 # Check senses

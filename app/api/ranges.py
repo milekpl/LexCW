@@ -192,11 +192,20 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         
         # If direct mapping doesn't exist, try the original fallback logic
         if lookup_id not in ranges:
-            # Try singular/plural fallback
-            if lookup_id.endswith('s') and lookup_id[:-1] in ranges:
-                lookup_id = lookup_id[:-1]
-            elif lookup_id + 's' in ranges:
-                lookup_id = lookup_id + 's'
+            # For relation-types, try different variations
+            if range_id == 'relation-types':
+                if 'relation-types' in ranges:
+                    lookup_id = 'relation-types'
+                elif 'relation-type' in ranges:
+                    lookup_id = 'relation-type'
+                elif 'lexical-relation' in ranges:
+                    lookup_id = 'lexical-relation'
+            else:
+                # Try singular/plural fallback for other ranges
+                if lookup_id.endswith('s') and lookup_id[:-1] in ranges:
+                    lookup_id = lookup_id[:-1]
+                elif lookup_id + 's' in ranges:
+                    lookup_id = lookup_id + 's'
 
         if lookup_id not in ranges:
             return jsonify({

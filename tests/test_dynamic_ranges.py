@@ -56,8 +56,10 @@ def test_relation_types_range(client: FlaskClient) -> None:
     relation_ids = [rt['id'] for rt in relation_types]
     
     # Should have basic relation types
-    assert 'synonym' in relation_ids
-    assert 'antonym' in relation_ids
+    # In test environment with mock data, we expect English IDs
+    # In real environment with actual LIFT ranges, we have Polish IDs (synonim, antonim)
+    assert 'synonym' in relation_ids or 'synonim' in relation_ids
+    assert 'antonym' in relation_ids or 'antonim' in relation_ids
 
 
 def test_variant_types_range(client: FlaskClient) -> None:
