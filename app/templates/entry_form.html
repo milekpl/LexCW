@@ -114,12 +114,129 @@
                         <textarea class="form-control" id="etymology" name="etymology" rows="3">{{ entry.etymology }}</textarea>
                         <div class="form-text">Historical origin or derivation of the word.</div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="entry-note" class="form-label">Entry Note</label>
-                        <textarea class="form-control" id="entry-note" name="note" rows="3">{{ entry.note }}</textarea>
-                        <div class="form-text">Additional notes about this entry.</div>
+                </div>
+            </div>
+            
+            <!-- Multilingual Notes Section -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5><i class="fas fa-sticky-note"></i> Entry Notes</h5>
+                </div>
+                <div class="card-body">
+                    <div id="notes-container">
+                        <!-- Server-side rendered note items -->
+                        {% if entry.notes %}
+                            {% for note_type, note_content in entry.notes.items() %}
+                            <div class="note-item mb-4 border rounded p-3" data-note-type="{{ note_type }}">
+                                <div class="row align-items-center mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Note Type</label>
+                                        <select class="form-select note-type-select" name="notes[{{ note_type }}][type]">
+                                            <option value="general" {% if note_type == 'general' %}selected{% endif %}>General</option>
+                                            <option value="usage" {% if note_type == 'usage' %}selected{% endif %}>Usage</option>
+                                            <option value="semantic" {% if note_type == 'semantic' %}selected{% endif %}>Semantic</option>
+                                            <option value="etymology" {% if note_type == 'etymology' %}selected{% endif %}>Etymology</option>
+                                            <option value="cultural" {% if note_type == 'cultural' %}selected{% endif %}>Cultural</option>
+                                            <option value="anthropology" {% if note_type == 'anthropology' %}selected{% endif %}>Anthropology</option>
+                                            <option value="discourse" {% if note_type == 'discourse' %}selected{% endif %}>Discourse</option>
+                                            <option value="phonology" {% if note_type == 'phonology' %}selected{% endif %}>Phonology</option>
+                                            <option value="sociolinguistics" {% if note_type == 'sociolinguistics' %}selected{% endif %}>Sociolinguistics</option>
+                                            <option value="bibliography" {% if note_type == 'bibliography' %}selected{% endif %}>Bibliography</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-note-btn" 
+                                                title="Remove note">
+                                            <i class="fas fa-trash"></i> Remove Note
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="multilingual-forms">
+                                    {% if note_content is mapping %}
+                                        <!-- Multilingual note -->
+                                        {% for lang, text in note_content.items() %}
+                                        <div class="mb-3 language-form" data-language="{{ lang }}">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Language</label>
+                                                    <select class="form-select language-select" name="notes[{{ note_type }}][{{ lang }}][lang]">
+                                                        <option value="en" {% if lang == 'en' %}selected{% endif %}>English</option>
+                                                        <option value="pt" {% if lang == 'pt' %}selected{% endif %}>Portuguese</option>
+                                                        <option value="seh" {% if lang == 'seh' %}selected{% endif %}>Sena</option>
+                                                        <option value="fr" {% if lang == 'fr' %}selected{% endif %}>French</option>
+                                                        <option value="es" {% if lang == 'es' %}selected{% endif %}>Spanish</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label">Note Text</label>
+                                                    <textarea class="form-control note-text" 
+                                                              name="notes[{{ note_type }}][{{ lang }}][text]" 
+                                                              rows="2" 
+                                                              placeholder="Enter note text in {{ lang }}">{{ text }}</textarea>
+                                                </div>
+                                                <div class="col-md-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
+                                                            title="Remove language">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <!-- Legacy single text note -->
+                                        <div class="mb-3 language-form" data-language="en">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Language</label>
+                                                    <select class="form-select language-select" name="notes[{{ note_type }}][en][lang]">
+                                                        <option value="en" selected>English</option>
+                                                        <option value="pt">Portuguese</option>
+                                                        <option value="seh">Sena</option>
+                                                        <option value="fr">French</option>
+                                                        <option value="es">Spanish</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label">Note Text</label>
+                                                    <textarea class="form-control note-text" 
+                                                              name="notes[{{ note_type }}][en][text]" 
+                                                              rows="2" 
+                                                              placeholder="Enter note text in English">{{ note_content }}</textarea>
+                                                </div>
+                                                <div class="col-md-1 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
+                                                            title="Remove language">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-language-btn" 
+                                            title="Add another language">
+                                        <i class="fas fa-plus"></i> Add Language
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                        
+                        <!-- Fallback message if no notes exist -->
+                        {% if not entry.notes %}
+                        <div class="text-muted mb-3" id="no-notes-message">
+                            No notes added yet. Click "Add Note" to get started.
+                        </div>
+                        {% endif %}
                     </div>
+                    
+                    <button type="button" class="btn btn-sm btn-primary" id="add-note-btn">
+                        <i class="fas fa-plus"></i> Add Note
+                    </button>
                 </div>
             </div>
             
@@ -728,6 +845,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         window.etymologyFormsManager = new EtymologyFormsManager('etymology-container', {
             etymologies: etymologies,
             rangeId: 'etymology-types'
+        });
+    }
+
+    // Initialize multilingual notes manager
+    if (window.MultilingualNotesManager && document.getElementById('notes-container')) {
+        {% set notes_data = entry.notes or {} %}
+        const notesData = {{ notes_data | tojson | safe }};
+        window.multilingualNotesManager = new MultilingualNotesManager('notes-container', {
+            notes: notesData
         });
     }
 });

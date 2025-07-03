@@ -8,11 +8,13 @@ import os
 import sys
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_from_directory
+from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
 from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
+from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 from app.database.postgresql_connector import PostgreSQLConfig
 from app.database.corpus_migrator import CorpusMigrator
 
@@ -178,6 +180,88 @@ def view_entry(entry_id):
 @main_bp.route('/entries/<entry_id>/edit', methods=['GET', 'POST'])
 def edit_entry(entry_id):
     """
+    Edit an existing dictionary entry
+    ---
+    tags:
+      - entries
+    parameters:
+      - name: entry_id
+        in: path
+        type: string
+        required: true
+        description: ID of the entry to edit
+      - name: body
+        in: body
+        required: false
+        description: Entry data (for POST requests)
+        schema:
+          type: object
+          properties:
+            lexical_unit:
+              type: object
+              description: Lexical unit forms by language code
+              example: {"en": "house", "pt": "casa"}
+            notes:
+              type: object
+              description: |
+                Entry notes, supporting both legacy string format and multilingual object format.
+                Form field format: notes[type][language][text]
+              additionalProperties:
+                oneOf:
+                  - type: string
+                    description: Legacy format - simple string note
+                  - type: object
+                    description: Multilingual format - notes by language code
+                    additionalProperties:
+                      type: string
+              example: {
+                "general": {"en": "Updated note in English", "pt": "Nota atualizada em português"},
+                "usage": "Updated usage note"
+              }
+            grammatical_info:
+              type: string
+              description: Grammatical information
+            senses:
+              type: array
+              description: Array of sense objects
+    responses:
+      200:
+        description: |
+          Entry form page (GET request) or entry updated successfully (POST request)
+        content:
+          text/html:
+            schema:
+              type: string
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: ID of the updated entry
+                message:
+                  type: string
+                  description: Success message
+      400:
+        description: Invalid input data
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      404:
+        description: Entry not found
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+    """
+    """
     Render the entry edit page.
     
     Args:
@@ -193,7 +277,15 @@ def edit_entry(entry_id):
             logger.info(f"[DEBUG] POST data: {data}")
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
-            entry = Entry.from_dict(data)
+            
+            # Get existing entry data for merging
+            existing_entry = dict_service.get_entry(entry_id)
+            existing_data = existing_entry.to_dict() if existing_entry else {}
+            
+            # Merge form data with existing entry data, processing multilingual notes
+            merged_data = merge_form_data_with_entry_data(data, existing_data)
+            
+            entry = Entry.from_dict(merged_data)
             entry.id = entry_id
             dict_service.update_entry(entry)
             logger.info(f"[DEBUG] Entry updated: {entry_id}")
@@ -224,6 +316,81 @@ def edit_entry(entry_id):
 @main_bp.route('/entries/add', methods=['GET', 'POST'])
 def add_entry():
     """
+    Add a new dictionary entry
+    ---
+    tags:
+      - entries
+    parameters:
+      - name: body
+        in: body
+        required: false
+        description: Entry data (for POST requests)
+        schema:
+          type: object
+          properties:
+            lexical_unit:
+              type: object
+              description: Lexical unit forms by language code
+              example: {"en": "house", "pt": "casa"}
+            notes:
+              type: object
+              description: |
+                Entry notes, supporting both legacy string format and multilingual object format.
+                Form field format: notes[type][language][text]
+              additionalProperties:
+                oneOf:
+                  - type: string
+                    description: Legacy format - simple string note
+                  - type: object
+                    description: Multilingual format - notes by language code
+                    additionalProperties:
+                      type: string
+              example: {
+                "general": {"en": "A general note in English", "pt": "Uma nota geral em português"},
+                "usage": "Simple usage note"
+              }
+            grammatical_info:
+              type: string
+              description: Grammatical information
+            senses:
+              type: array
+              description: Array of sense objects
+    responses:
+      200:
+        description: Entry form page (GET request)
+        content:
+          text/html:
+            schema:
+              type: string
+      201:
+        description: Entry created successfully (POST request)
+        schema:
+          type: object
+          properties:
+            id:
+              type: string
+              description: ID of the created entry
+            message:
+              type: string
+              description: Success message
+      400:
+        description: Invalid input data
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+    """
+    """
     Render the add entry page.
     """
     try:
@@ -236,8 +403,12 @@ def add_entry():
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
             
+            # Process multilingual form data (starting with empty entry data for new entries)
+            empty_entry_data = {}
+            merged_data = merge_form_data_with_entry_data(data, empty_entry_data)
+            
             # Create entry object
-            entry = Entry.from_dict(data)
+            entry = Entry.from_dict(merged_data)
             
             # Create entry
             entry_id = dict_service.create_entry(entry)

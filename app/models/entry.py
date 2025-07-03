@@ -105,7 +105,7 @@ class Entry(BaseModel):
         etymologies: List of etymology objects for the entry.
         relations: List of semantic relations to other entries.
         variants: List of variant forms for the entry.
-        notes: Dictionary mapping note types to note content.
+        notes: Dictionary mapping note types to either simple text (legacy) or language-text mappings (multilingual).
         custom_fields: Dictionary of custom fields for the entry.
     """
 
@@ -129,7 +129,7 @@ class Entry(BaseModel):
         self.citations: List[Dict[str, Any]] = kwargs.get('citations', [])
         self.pronunciations: Dict[str, str] = kwargs.get('pronunciations', {})
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
-        self.notes: Dict[str, str] = kwargs.get('notes', {})
+        self.notes: Dict[str, Union[str, Dict[str, str]]] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
 
         # Handle senses

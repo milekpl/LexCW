@@ -411,18 +411,20 @@ class LIFTParser:
         for note_elem in self._find_elements(entry_elem, './/lift:note', './/note'):
             note_type = note_elem.get('type', 'general')
             
-            # Check for the new format: <note><form lang=...><text>...</text></form></note>
-            form_elem = self._find_element(note_elem, './/lift:form', './/form')
+            # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
+            form_elements = self._find_elements(note_elem, './/lift:form', './/form')
             
-            if form_elem is not None:
-                # New structured format
-                lang = form_elem.get('lang', '')
-                text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                
-                if text_elem is not None and text_elem.text:
-                    if note_type not in notes:
-                        notes[note_type] = {}
-                    notes[note_type][lang] = text_elem.text
+            if form_elements:
+                # New structured format with potentially multiple languages
+                if note_type not in notes:
+                    notes[note_type] = {}
+                    
+                for form_elem in form_elements:
+                    lang = form_elem.get('lang', '')
+                    text_elem = self._find_element(form_elem, './/lift:text', './/text')
+                    
+                    if text_elem is not None and text_elem.text:
+                        notes[note_type][lang] = text_elem.text
             elif note_elem.text:
                 # Legacy format: <note>text</note>
                 notes[note_type] = note_elem.text
@@ -432,9 +434,29 @@ class LIFTParser:
         for field_elem in entry_elem.findall('.//lift:field', self.NSMAP):
             field_type = field_elem.get('type', '')
             if field_type:
-                value_elem = field_elem.find('.//lift:form/lift:text', self.NSMAP)
-                if value_elem is not None and value_elem.text:
-                    custom_fields[field_type] = value_elem.text
+                # Check for multilingual structured format: <field><form lang=...><text>...</text></form></field>
+                form_elements = self._find_elements(field_elem, './/lift:form', './/form')
+                
+                if form_elements:
+                    # Multilingual format
+                    for form_elem in form_elements:
+                        lang = form_elem.get('lang', '')
+                        text_elem = self._find_element(form_elem, './/lift:text', './/text')
+                        
+                        if text_elem is not None and text_elem.text:
+                            if field_type not in custom_fields:
+                                custom_fields[field_type] = {}
+                            
+                            if isinstance(custom_fields[field_type], dict):
+                                custom_fields[field_type][lang] = text_elem.text
+                            else:
+                                # Convert single value to multilingual
+                                old_value = custom_fields[field_type]
+                                custom_fields[field_type] = {'': old_value, lang: text_elem.text}
+                else:
+                    # Legacy format - single value
+                    if field_elem.text:
+                        custom_fields[field_type] = field_elem.text
           # Parse senses
         senses = []
         for sense_elem in self._find_elements(entry_elem, './/lift:sense'):
@@ -511,12 +533,36 @@ class LIFTParser:
         if gram_info_elem is not None:
             grammatical_info = gram_info_elem.get('value')
         
+        # Parse notes
+        notes = {}
+        for note_elem in self._find_elements(sense_elem, './/lift:note', './/note'):
+            note_type = note_elem.get('type', 'general')
+            
+            # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
+            form_elements = self._find_elements(note_elem, './/lift:form', './/form')
+            
+            if form_elements:
+                # New structured format with potentially multiple languages
+                if note_type not in notes:
+                    notes[note_type] = {}
+                    
+                for form_elem in form_elements:
+                    lang = form_elem.get('lang', '')
+                    text_elem = self._find_element(form_elem, './/lift:text', './/text')
+                    
+                    if text_elem is not None and text_elem.text:
+                        notes[note_type][lang] = text_elem.text
+            elif note_elem.text:
+                # Legacy format: <note>text</note>
+                notes[note_type] = note_elem.text
+        
         # Create and return Sense object
         return Sense(
             id_=sense_id,            glosses=glosses,            definitions=definitions,
             examples=examples,
             relations=relations,
-            grammatical_info=grammatical_info
+            grammatical_info=grammatical_info,
+            notes=notes
         )
         
     def _parse_example(self, example_elem: ET.Element, example_id: Optional[str] = None) -> Example:

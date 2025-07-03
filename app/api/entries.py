@@ -100,6 +100,24 @@ def list_entries() -> Any:
                   senses:
                     type: array
                     description: Array of sense objects
+                  notes:
+                    type: object
+                    description: |
+                      Entry notes, supporting both legacy string format and multilingual object format.
+                      Legacy format: {"general": "simple string note"}
+                      Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
+                    additionalProperties:
+                      oneOf:
+                        - type: string
+                          description: Legacy format - simple string note
+                        - type: object
+                          description: Multilingual format - notes by language code
+                          additionalProperties:
+                            type: string
+                  custom_fields:
+                    type: object
+                    description: Custom fields for the entry
+                    additionalProperties: true
                   date_modified:
                     type: string
                     description: Last modification date
@@ -240,6 +258,28 @@ def get_entry(entry_id: str) -> Any:
             senses:
               type: array
               description: Array of sense objects
+            notes:
+              type: object
+              description: |
+                Entry notes, supporting both legacy string format and multilingual object format.
+                Legacy format: {"general": "simple string note"}
+                Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
+              additionalProperties:
+                oneOf:
+                  - type: string
+                    description: Legacy format - simple string note
+                  - type: object
+                    description: Multilingual format - notes by language code
+                    additionalProperties:
+                      type: string
+              example: {
+                "general": {"en": "A general note in English", "pt": "Uma nota geral em português"},
+                "usage": "Simple usage note"
+              }
+            custom_fields:
+              type: object
+              description: Custom fields for the entry
+              additionalProperties: true
             date_modified:
               type: string
               description: Last modification date
@@ -365,6 +405,32 @@ def create_entry() -> Any:
                   form:
                     type: object
                     description: Variant form by language
+            notes:
+              type: object
+              description: |
+                Entry notes, supporting both legacy string format and multilingual object format.
+                Legacy format: {"general": "simple string note"}
+                Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
+              additionalProperties:
+                oneOf:
+                  - type: string
+                    description: Legacy format - simple string note
+                    example: "This is a general note"
+                  - type: object
+                    description: Multilingual format - notes by language code
+                    additionalProperties:
+                      type: string
+                    example: {"en": "English note", "pt": "Portuguese note"}
+              example: {
+                "general": {"en": "A general note in English", "pt": "Uma nota geral em português"},
+                "usage": "Simple usage note",
+                "etymology": {"en": "From Latin etymologia"}
+              }
+            custom_fields:
+              type: object
+              description: Custom fields for the entry
+              additionalProperties: true
+              example: {"field1": "value1", "field2": {"subfield": "value"}}
     responses:
       201:
         description: Entry created successfully
@@ -484,6 +550,38 @@ def update_entry(entry_id: str) -> Any:
             variants:
               type: array
               description: Variant forms
+              items:
+                type: object
+                properties:
+                  form:
+                    type: object
+                    description: Variant form by language
+            notes:
+              type: object
+              description: |
+                Entry notes, supporting both legacy string format and multilingual object format.
+                Legacy format: {"general": "simple string note"}
+                Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
+              additionalProperties:
+                oneOf:
+                  - type: string
+                    description: Legacy format - simple string note
+                    example: "This is a general note"
+                  - type: object
+                    description: Multilingual format - notes by language code
+                    additionalProperties:
+                      type: string
+                    example: {"en": "English note", "pt": "Portuguese note"}
+              example: {
+                "general": {"en": "A general note in English", "pt": "Uma nota geral em português"},
+                "usage": "Simple usage note",
+                "etymology": {"en": "From Latin etymologia"}
+              }
+            custom_fields:
+              type: object
+              description: Custom fields for the entry
+              additionalProperties: true
+              example: {"field1": "value1", "field2": {"subfield": "value"}}
     responses:
       200:
         description: Entry updated successfully

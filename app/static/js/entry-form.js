@@ -574,3 +574,281 @@ function generateAudio(word, ipa, index) {
         alert('Error generating audio. Please try again.');
     });
 }
+
+/**
+ * Multilingual Notes Manager
+ * Handles dynamic creation and management of multilingual note forms
+ */
+class MultilingualNotesManager {
+    constructor(containerId, options = {}) {
+        this.container = document.getElementById(containerId);
+        this.options = options;
+        this.noteCounter = 0;
+        this.languageCounter = 0;
+        
+        // Available note types
+        this.noteTypes = [
+            { value: 'general', label: 'General' },
+            { value: 'usage', label: 'Usage' },
+            { value: 'semantic', label: 'Semantic' },
+            { value: 'etymology', label: 'Etymology' },
+            { value: 'cultural', label: 'Cultural' },
+            { value: 'anthropology', label: 'Anthropology' },
+            { value: 'discourse', label: 'Discourse' },
+            { value: 'phonology', label: 'Phonology' },
+            { value: 'sociolinguistics', label: 'Sociolinguistics' },
+            { value: 'bibliography', label: 'Bibliography' }
+        ];
+        
+        // Available languages
+        this.languages = [
+            { value: 'en', label: 'English' },
+            { value: 'pt', label: 'Portuguese' },
+            { value: 'seh', label: 'Sena' },
+            { value: 'fr', label: 'French' },
+            { value: 'es', label: 'Spanish' }
+        ];
+        
+        this.init();
+    }
+    
+    init() {
+        if (!this.container) {
+            console.error('Multilingual notes container not found');
+            return;
+        }
+        
+        // Initialize existing note items
+        this.container.querySelectorAll('.note-item').forEach((item, index) => {
+            this.attachNoteEventListeners(item, index);
+        });
+        
+        // Attach event listener to add note button
+        const addNoteBtn = document.getElementById('add-note-btn');
+        if (addNoteBtn) {
+            addNoteBtn.addEventListener('click', () => this.addNote());
+        }
+        
+        // Hide "no notes" message if notes exist
+        this.updateNoNotesMessage();
+    }
+    
+    attachNoteEventListeners(noteItem, index) {
+        // Remove note button
+        const removeNoteBtn = noteItem.querySelector('.remove-note-btn');
+        if (removeNoteBtn) {
+            removeNoteBtn.addEventListener('click', () => this.removeNote(noteItem));
+        }
+        
+        // Add language button
+        const addLanguageBtn = noteItem.querySelector('.add-language-btn');
+        if (addLanguageBtn) {
+            addLanguageBtn.addEventListener('click', () => this.addLanguageToNote(noteItem));
+        }
+        
+        // Remove language buttons
+        noteItem.querySelectorAll('.remove-language-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const languageForm = e.target.closest('.language-form');
+                this.removeLanguageFromNote(languageForm);
+            });
+        });
+        
+        // Note type change
+        const noteTypeSelect = noteItem.querySelector('.note-type-select');
+        if (noteTypeSelect) {
+            noteTypeSelect.addEventListener('change', () => {
+                this.updateNoteType(noteItem, noteTypeSelect.value);
+            });
+        }
+    }
+    
+    addNote() {
+        const noteType = 'general';
+        const language = 'en';
+        
+        const noteHtml = this.generateNoteHtml(noteType, language);
+        
+        // Hide "no notes" message
+        const noNotesMessage = document.getElementById('no-notes-message');
+        if (noNotesMessage) {
+            noNotesMessage.style.display = 'none';
+        }
+        
+        // Insert before the add button
+        const addNoteBtn = document.getElementById('add-note-btn');
+        addNoteBtn.insertAdjacentHTML('beforebegin', noteHtml);
+        
+        // Get the newly added note item and attach event listeners
+        const newNoteItems = this.container.querySelectorAll('.note-item');
+        const newNoteItem = newNoteItems[newNoteItems.length - 1];
+        
+        this.attachNoteEventListeners(newNoteItem, this.noteCounter);
+        this.noteCounter++;
+        
+        // Focus on the note text textarea
+        const textArea = newNoteItem.querySelector('.note-text');
+        if (textArea) {
+            textArea.focus();
+        }
+    }
+    
+    removeNote(noteItem) {
+        if (confirm('Are you sure you want to remove this note?')) {
+            noteItem.remove();
+            this.updateNoNotesMessage();
+        }
+    }
+    
+    addLanguageToNote(noteItem) {
+        const noteType = noteItem.dataset.noteType;
+        const existingLanguages = Array.from(noteItem.querySelectorAll('.language-select'))
+            .map(select => select.value);
+        
+        // Find first available language
+        const availableLanguage = this.languages.find(lang => 
+            !existingLanguages.includes(lang.value)
+        );
+        
+        if (!availableLanguage) {
+            alert('All supported languages have been added to this note.');
+            return;
+        }
+        
+        const languageHtml = this.generateLanguageFormHtml(noteType, availableLanguage.value);
+        
+        const multilingualForms = noteItem.querySelector('.multilingual-forms');
+        multilingualForms.insertAdjacentHTML('beforeend', languageHtml);
+        
+        // Attach event listeners to the new language form
+        const newLanguageForms = multilingualForms.querySelectorAll('.language-form');
+        const newLanguageForm = newLanguageForms[newLanguageForms.length - 1];
+        
+        const removeBtn = newLanguageForm.querySelector('.remove-language-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                this.removeLanguageFromNote(newLanguageForm);
+            });
+        }
+        
+        // Focus on the text area
+        const textArea = newLanguageForm.querySelector('.note-text');
+        if (textArea) {
+            textArea.focus();
+        }
+    }
+    
+    removeLanguageFromNote(languageForm) {
+        const noteItem = languageForm.closest('.note-item');
+        const remainingForms = noteItem.querySelectorAll('.language-form');
+        
+        if (remainingForms.length <= 1) {
+            alert('A note must have at least one language.');
+            return;
+        }
+        
+        if (confirm('Are you sure you want to remove this language?')) {
+            languageForm.remove();
+        }
+    }
+    
+    updateNoteType(noteItem, newNoteType) {
+        noteItem.dataset.noteType = newNoteType;
+        
+        // Update all name attributes within this note
+        const inputs = noteItem.querySelectorAll('input, textarea, select');
+        inputs.forEach(input => {
+            if (input.name && input.name.includes('notes[')) {
+                // Replace the note type in the name attribute
+                input.name = input.name.replace(/notes\[[^\]]+\]/, `notes[${newNoteType}]`);
+            }
+        });
+    }
+    
+    updateNoNotesMessage() {
+        const noNotesMessage = document.getElementById('no-notes-message');
+        const noteItems = this.container.querySelectorAll('.note-item');
+        
+        if (noNotesMessage) {
+            noNotesMessage.style.display = noteItems.length === 0 ? 'block' : 'none';
+        }
+    }
+    
+    generateNoteHtml(noteType, language) {
+        const noteTypeOptions = this.noteTypes.map(type => 
+            `<option value="${type.value}" ${type.value === noteType ? 'selected' : ''}>${type.label}</option>`
+        ).join('');
+        
+        return `
+            <div class="note-item mb-4 border rounded p-3" data-note-type="${noteType}">
+                <div class="row align-items-center mb-2">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Note Type</label>
+                        <select class="form-select note-type-select" name="notes[${noteType}][type]" title="Select note type">
+                            ${noteTypeOptions}
+                        </select>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-note-btn" 
+                                title="Remove note">
+                            <i class="fas fa-trash"></i> Remove Note
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="multilingual-forms">
+                    ${this.generateLanguageFormHtml(noteType, language)}
+                </div>
+                
+                <div class="mt-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-language-btn" 
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    generateLanguageFormHtml(noteType, language) {
+        const languageOptions = this.languages.map(lang => 
+            `<option value="${lang.value}" ${lang.value === language ? 'selected' : ''}>${lang.label}</option>`
+        ).join('');
+        
+        return `
+            <div class="mb-3 language-form" data-language="${language}">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Language</label>
+                        <select class="form-select language-select" 
+                                name="notes[${noteType}][${language}][lang]" 
+                                title="Select language">
+                            ${languageOptions}
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Note Text</label>
+                        <textarea class="form-control note-text" 
+                                  name="notes[${noteType}][${language}][text]" 
+                                  rows="2" 
+                                  placeholder="Enter note text in ${this.getLanguageLabel(language)}"></textarea>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
+                                title="Remove language">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    getLanguageLabel(languageCode) {
+        const language = this.languages.find(lang => lang.value === languageCode);
+        return language ? language.label : languageCode;
+    }
+}
+
+// Make MultilingualNotesManager globally available
+window.MultilingualNotesManager = MultilingualNotesManager;

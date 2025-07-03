@@ -546,7 +546,7 @@ class DictionaryService:
             DatabaseError: If there is an error searching entries.
         """
         if not fields:
-            fields = ["lexical_unit", "glosses", "definitions"]
+            fields = ["lexical_unit", "glosses", "definitions", "note"]
         
         try:
             db_name = self.db_connector.database
@@ -573,12 +573,44 @@ class DictionaryService:
                 gloss_path = self._query_builder.get_element_path("gloss", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
                 conditions.append(f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies contains(lower-case($gloss), '{q_escaped.lower()}'))")
-            if "definitions" in fields:
+            if "definitions" in fields or "definition" in fields:
                 sense_path = self._query_builder.get_element_path("sense", has_ns)
                 definition_path = self._query_builder.get_element_path("definition", has_ns)
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
                 conditions.append(f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies contains(lower-case($def), '{q_escaped.lower()}'))")
+            if "citation_form" in fields:
+                # Search in citation elements
+                citation_path = self._query_builder.get_element_path("citation", has_ns)
+                form_path = self._query_builder.get_element_path("form", has_ns)
+                text_path = self._query_builder.get_element_path("text", has_ns)
+                conditions.append(f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies contains(lower-case($citation), '{q_escaped.lower()}'))")
+            if "example" in fields:
+                # Search in example elements
+                sense_path = self._query_builder.get_element_path("sense", has_ns)
+                example_path = self._query_builder.get_element_path("example", has_ns)
+                form_path = self._query_builder.get_element_path("form", has_ns)
+                text_path = self._query_builder.get_element_path("text", has_ns)
+                conditions.append(f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies contains(lower-case($example), '{q_escaped.lower()}'))")
+            if "note" in fields:
+                # Search in both entry-level and sense-level notes
+                note_path = self._query_builder.get_element_path("note", has_ns)
+                form_path = self._query_builder.get_element_path("form", has_ns)
+                text_path = self._query_builder.get_element_path("text", has_ns)
+                sense_path = self._query_builder.get_element_path("sense", has_ns)
+                
+                # Entry-level notes
+                entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
+                
+                # Sense-level notes
+                sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
+                
+                conditions.append(f"({entry_notes_condition} or {sense_notes_condition})")
+            
+            # Safety check: if no conditions were added, return empty results
+            if not conditions:
+                self.logger.warning("No valid search fields provided: %s", fields)
+                return [], 0
             
             search_condition = " or ".join(conditions)
             

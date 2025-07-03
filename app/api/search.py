@@ -64,8 +64,8 @@ def search_entries():
         type: string
         required: false
         description: Comma-separated list of fields to search in
-        default: "lexical_unit,glosses,definitions"
-        example: "lexical_unit,pronunciations,senses"
+        default: "lexical_unit,glosses,definitions,note"
+        example: "lexical_unit,pronunciations,senses,note"
       - name: limit
         in: query
         type: integer
@@ -157,7 +157,7 @@ def search_entries():
     try:
         # Get query parameters
         query = request.args.get('q', '')
-        fields_str = request.args.get('fields', 'lexical_unit,glosses,definitions')
+        fields_str = request.args.get('fields', 'lexical_unit,glosses,definitions,note,citation_form,example')
         limit = request.args.get('limit', 100, type=int)
         offset = request.args.get('offset', 0, type=int)
         
