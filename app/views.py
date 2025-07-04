@@ -294,15 +294,21 @@ def edit_entry(entry_id):
         entry = dict_service.get_entry(entry_id)
         logger.info(f"[DEBUG] Got entry: {getattr(entry, 'id', None)} at {time.time()}")
         
+        # DEBUG: Check variant relations
+        if entry:
+            variant_count = len(entry.variant_relations)
+            logger.info(f"[DEBUG] Entry has {variant_count} variant relations")
+            for i, variant in enumerate(entry.variant_relations):
+                logger.info(f"[DEBUG] Variant {i}: {variant}")
+        
         ranges = dict_service.get_lift_ranges()
         logger.info(f"[DEBUG] Got ranges at {time.time()} (keys: {list(ranges.keys()) if hasattr(ranges, 'keys') else type(ranges)})")
         
         # Explicitly extract variant_relations for template
         variant_relations_data = []
         if entry:
-            # Get complete variant relations (both directions) with dictionary service
-            dict_service = current_app.injector.get(DictionaryService)
-            variant_relations_data = entry.get_complete_variant_relations(dict_service)
+            variant_relations_data = entry.variant_relations
+            logger.info(f"[DEBUG] Extracted {len(variant_relations_data)} variant relations for template")
         
         return render_template('entry_form.html', entry=entry, ranges=ranges, variant_relations=variant_relations_data)
     except NotFoundError as e:

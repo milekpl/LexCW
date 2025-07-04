@@ -527,7 +527,142 @@
                 </div>
                 <div class="card-body">
                     <div id="relations-container">
-                        <!-- Relations will be populated by JavaScript -->
+                        <!-- Server-side rendered relation items -->
+                        {% if entry.relations %}
+                            {% set filtered_relations = [] %}
+                            {% for relation in entry.relations %}
+                                {% if not (relation.type == '_component-lexeme' and relation.traits and 'variant-type' in relation.traits) %}
+                                    {% set _ = filtered_relations.append(relation) %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if filtered_relations %}
+                                {% for relation in filtered_relations %}
+                                <div class="relation-item card mb-3" data-relation-index="{{ loop.index0 }}">
+                                    <div class="card-header bg-primary text-white">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-link me-2"></i>
+                                                Relation: {{ relation.type or 'Unknown Type' }}
+                                            </h6>
+                                            <button type="button" class="btn btn-sm btn-light remove-relation-btn" 
+                                                    data-index="{{ loop.index0 }}" title="Remove relation">
+                                                <i class="fas fa-trash text-danger"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-bold">Relation Type</label>
+                                                <select class="form-control relation-type-select" 
+                                                        name="relations[{{ loop.index0 }}][type]" 
+                                                        data-range-id="lexical-relation"
+                                                        data-hierarchical="true"
+                                                        data-searchable="true"
+                                                        required>
+                                                    <option value="">Select type</option>
+                                                    <!-- Options will be populated dynamically from LIFT ranges -->
+                                                </select>
+                                                <div class="form-text">Type of semantic relation</div>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <label class="form-label fw-bold">Target Entry</label>
+                                                {% if relation.ref_display_text %}
+                                                <!-- Show clickable link to target entry -->
+                                                <div class="alert alert-light mb-2">
+                                                    <i class="fas fa-external-link-alt me-2"></i>
+                                                    <strong>Related to: </strong>
+                                                    <a href="{{ url_for('main.edit_entry', entry_id=relation.ref) }}" 
+                                                       class="text-decoration-none text-primary fw-bold"
+                                                       title="Edit target entry">
+                                                        {{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}
+                                                    </a>
+                                                </div>
+                                                {% endif %}
+                                                
+                                                <!-- Hidden input field for form submission (NO raw ID visible to user) -->
+                                                <input type="hidden" 
+                                                       name="relations[{{ loop.index0 }}][ref]"
+                                                       value="{{ relation.ref or '' }}">
+                                                
+                                                <!-- Search interface for adding/changing relations -->
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control relation-search-input" 
+                                                           placeholder="Search for entry to relate to..."
+                                                           data-relation-index="{{ loop.index0 }}">
+                                                    <button type="button" class="btn btn-outline-secondary relation-search-btn" 
+                                                            data-relation-index="{{ loop.index0 }}">
+                                                        <i class="fas fa-search"></i> Search
+                                                    </button>
+                                                </div>
+                                                <div class="form-text">Search for entries by headword or definition - no raw IDs needed</div>
+                                                <div class="search-results mt-2" id="search-results-{{ loop.index0 }}" style="display: none;"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="alert alert-info mt-3">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            <strong>Semantic Relationship:</strong> This entry has a "{{ relation.type }}" relationship with 
+                                            {% if relation.ref_display_text %}
+                                            "<strong>
+                                                <a href="{{ url_for('main.edit_entry', entry_id=relation.ref) }}" 
+                                                   class="text-decoration-none">
+                                                    {{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}
+                                                </a>
+                                            </strong>".
+                                            {% else %}
+                                            the target entry.
+                                            {% endif %}
+                                            In LIFT format, this creates a relation element with the specified type.
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                            <!-- Empty state when no non-variant relations exist -->
+                            <div class="empty-state text-center py-4">
+                                <i class="fas fa-link fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No Semantic Relations</h5>
+                                <p class="text-muted">This entry does not have any semantic relations defined.</p>
+                                <p class="text-muted">
+                                    <strong>What are relations?</strong> Relations connect this entry to other entries through semantic relationships 
+                                    like synonymy, antonymy, hyponymy, etc. These help build the semantic network of the dictionary.
+                                </p>
+                                <p class="text-muted">
+                                    <strong>How relations work:</strong> Relations are stored as LIFT relation elements. 
+                                    They differ from variants, which represent different forms of the same lexical item.
+                                </p>
+                            </div>
+                            {% endif %}
+                        {% else %}
+                        <!-- Empty state when no relations exist at all -->
+                        <div class="empty-state text-center py-4">
+                            <i class="fas fa-link fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No Semantic Relations</h5>
+                            <p class="text-muted">This entry does not have any semantic relations defined.</p>
+                            <p class="text-muted">
+                                <strong>What are relations?</strong> Relations connect this entry to other entries through semantic relationships 
+                                like synonymy, antonymy, hyponymy, etc. These help build the semantic network of the dictionary.
+                            </p>
+                            <p class="text-muted">
+                                <strong>How relations work:</strong> Relations are stored as LIFT relation elements. 
+                                They differ from variants, which represent different forms of the same lexical item.
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>About Relations:</strong> 
+                        Relations represent semantic connections between different lexical entries. 
+                        Examples include synonyms (words with similar meanings), antonyms (opposite meanings), 
+                        hyponyms (specific instances of a general term), and hypernyms (general terms for specific instances).
+                        <br><br>
+                        <strong>Technical Note:</strong> Relations are stored as LIFT relation elements.
+                        This section displays semantic relations between lexical entries, which are distinct 
+                        from variants that represent different forms of the same lexical item.
                     </div>
                 </div>
             </div>
@@ -1052,22 +1187,29 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }, 100); // Small delay to ensure all scripts are loaded
 
-    // Initialize relations manager
-    if (window.RelationsManager && document.getElementById('relations-container')) {
-        {% if entry.relations %}
-            {% set relations_data = [] %}
-            {% for relation in entry.relations %}
-                {% set relation_dict = {'type': relation.type, 'ref': relation.ref} %}
-                {% set _ = relations_data.append(relation_dict) %}
-            {% endfor %}
-            const relations = {{ relations_data | tojson | safe }};
-        {% else %}
-            const relations = [];
-        {% endif %}
-        window.relationsManager = new RelationsManager('relations-container', {
-            relations: relations
-        });
-    }
+    // Initialize relations manager with a small delay to ensure all scripts are loaded
+    setTimeout(function() {
+        if (window.RelationsManager && document.getElementById('relations-container')) {
+            {% if entry.relations %}
+                {% set relations_data = [] %}
+                {% for relation in entry.relations %}
+                    {% set relation_dict = {'type': relation.type, 'ref': relation.ref} %}
+                    {% set _ = relations_data.append(relation_dict) %}
+                {% endfor %}
+                const relations = {{ relations_data | tojson | safe }};
+            {% else %}
+                const relations = [];
+            {% endif %}
+            window.relationsManager = new RelationsManager('relations-container', {
+                relations: relations
+            });
+            console.log('RelationsManager initialized successfully');
+        } else {
+            console.log('RelationsManager initialization failed:');
+            console.log('  RelationsManager available:', !!window.RelationsManager);
+            console.log('  Container available:', !!document.getElementById('relations-container'));
+        }
+    }, 100); // Small delay to ensure all scripts are loaded
 
     // Initialize etymology forms manager
     if (window.EtymologyFormsManager && document.getElementById('etymology-container')) {

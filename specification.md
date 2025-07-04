@@ -520,21 +520,13 @@ BaseX is an XML database management system optimized for storing, querying, and 
 
 ## 7. User Interface Design
 
-### 7.1 Core Design Principles
-
-#### 7.1.1 Lexicographic User Experience
-
-- **No Internal IDs in UI**: Technical identifiers (GUIDs, database IDs) must never be displayed to lexicographers. All references should use human-readable headwords with homograph numbers when needed.
-- **Headword-Based Navigation**: All cross-references and links should display the target entry's headword as a clickable link, optionally with homograph numbers in subscript format.
-- **Professional Lexicographic Conventions**: The interface should follow established lexicographic software conventions, hiding technical implementation details from the linguistic workflow.
-
-### 7.2 Layout
+### 7.1 Layout
 
 - Responsive design for all screen sizes
 - Split-pane interface for efficient editing
 - Collapsible panels for advanced features
 
-### 7.3 Entry Editor
+### 7.2 Entry Editor
 
 - **Formatted Dictionary Layout**: The primary view for an entry will be a formatted, dictionary-style layout, not a raw data-entry form. This allows lexicographers to review entries in a natural, intuitive format, making it easier to spot errors and inconsistencies.
 - **In-Place Editing**: Editing will be performed in-place or through minimal, context-sensitive overlays that appear on-click, preserving the dictionary-like view during curation.

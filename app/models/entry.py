@@ -510,18 +510,9 @@ class Entry(BaseModel):
                             
                             # Check if the relation points to our current entry
                             if str(relation.ref) == self.id:
-                                # Get the lexical unit and format with homograph number
-                                lexical_unit = entry.get_lexical_unit()
-                                display_text = lexical_unit
-                                if entry.homograph_number and entry.homograph_number > 1:
-                                    # Add subscript homograph number
-                                    display_text = f"{lexical_unit}₍{entry.homograph_number}₎"
-                                
                                 variant_info = {
                                     'ref': entry.id,  # The entry that IS a variant of this one
-                                    'ref_lexical_unit': lexical_unit,  # Human-readable text without homograph
-                                    'ref_display_text': display_text,  # Human-readable text with homograph if needed
-                                    'ref_homograph_number': entry.homograph_number,  # Homograph number for styling
+                                    'ref_lexical_unit': entry.get_lexical_unit(),  # Add human-readable text
                                     'variant_type': str(relation.traits['variant-type']),
                                     'type': str(relation.type),
                                     'direction': 'incoming'  # Mark as reverse relation
@@ -567,26 +558,6 @@ class Entry(BaseModel):
         outgoing = self.get_variant_relations()
         for relation in outgoing:
             relation['direction'] = 'outgoing'
-            
-            # Look up the target entry to get its lexical unit and homograph number
-            if dict_service:
-                try:
-                    target_entry = dict_service.get_entry(relation['ref'])
-                    if target_entry:
-                        lexical_unit = target_entry.get_lexical_unit()
-                        relation['ref_lexical_unit'] = lexical_unit
-                        
-                        # Create display text with homograph number if needed
-                        display_text = lexical_unit
-                        if target_entry.homograph_number and target_entry.homograph_number > 1:
-                            display_text = f"{lexical_unit}₍{target_entry.homograph_number}₎"
-                        relation['ref_display_text'] = display_text
-                        relation['ref_homograph_number'] = target_entry.homograph_number
-                except Exception:
-                    # If lookup fails, just use the ref as display text
-                    relation['ref_lexical_unit'] = relation['ref']
-                    relation['ref_display_text'] = relation['ref']
-                    relation['ref_homograph_number'] = None
             
         # Get incoming relations (other entries ARE variants of this entry)  
         incoming = self.get_reverse_variant_relations(dict_service)

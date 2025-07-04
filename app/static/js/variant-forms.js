@@ -62,28 +62,14 @@ class VariantFormsManager {
     }
     
     renderExistingVariants() {
-        console.log('[VARIANT DEBUG] renderExistingVariants() called');
-        
-        // Check if there's already server-side rendered content
-        const hasServerSideContent = this.container.querySelector('.variant-item');
-        console.log('[VARIANT DEBUG] Has server-side content:', !!hasServerSideContent);
-        
-        if (hasServerSideContent) {
-            console.log('[VARIANT DEBUG] Preserving server-side rendered variant content');
-            // Don't clear the container - preserve server-side rendered content
-            // Just set up event listeners for existing content
-            this.setupExistingVariantEventListeners();
-            return;
-        }
-        
         // Get variant data from the entry's variant_relations
         const existingVariants = this.getExistingVariantRelationsFromEntry();
         
-        console.log('[VARIANT DEBUG] No server-side content, rendering from JS data');
+        console.log('[VARIANT DEBUG] renderExistingVariants() called');
         console.log('[VARIANT DEBUG] Existing variants:', existingVariants);
         console.log('[VARIANT DEBUG] Variant count:', existingVariants.length);
         
-        // Clear container only if no server-side content
+        // Clear container
         this.container.innerHTML = '';
         
         // Render each existing variant relation
@@ -99,37 +85,6 @@ class VariantFormsManager {
         } else {
             console.log('[VARIANT DEBUG] Rendered', existingVariants.length, 'variants');
         }
-    }
-    
-    setupExistingVariantEventListeners() {
-        console.log('[VARIANT DEBUG] Setting up event listeners for existing variant content');
-        
-        // Set up remove button event listeners for server-side rendered content
-        const removeButtons = this.container.querySelectorAll('.remove-variant-btn');
-        removeButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                const index = parseInt(e.target.dataset.index);
-                this.removeVariant(index);
-            });
-        });
-        
-        // Set up variant type change listeners
-        const variantTypeSelects = this.container.querySelectorAll('select[name*="variant_type"]');
-        variantTypeSelects.forEach(select => {
-            select.addEventListener('change', (e) => {
-                const variantItem = e.target.closest('.variant-item');
-                if (variantItem) {
-                    const header = variantItem.querySelector('.card-header h6');
-                    const index = parseInt(variantItem.dataset.variantIndex) + 1;
-                    if (header) {
-                        header.innerHTML = `
-                            <i class="fas fa-code-branch me-2"></i>
-                            Variant Relation ${index}: ${e.target.value || 'Unknown Type'}
-                        `;
-                    }
-                }
-            });
-        });
     }
     
     getExistingVariantRelationsFromEntry() {
