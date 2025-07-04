@@ -300,7 +300,9 @@ def edit_entry(entry_id):
         # Explicitly extract variant_relations for template
         variant_relations_data = []
         if entry:
-            variant_relations_data = entry.variant_relations
+            # Get complete variant relations (both directions) with dictionary service
+            dict_service = current_app.injector.get(DictionaryService)
+            variant_relations_data = entry.get_complete_variant_relations(dict_service)
         
         return render_template('entry_form.html', entry=entry, ranges=ranges, variant_relations=variant_relations_data)
     except NotFoundError as e:

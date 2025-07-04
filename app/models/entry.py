@@ -469,3 +469,139 @@ class Entry(BaseModel):
             return sense
 
         return None
+
+    def get_reverse_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+        """
+        Find entries that are variants of this entry (reverse lookup).
+        
+        Args:
+            dict_service: DictionaryService instance for searching entries
+            
+        Returns:
+            List of dictionaries containing reverse variant information.
+            Each dictionary contains:
+            - ref: Reference from the variant entry (the entry that is a variant of this one)
+            - variant_type: The variant type from the trait value  
+            - type: The relation type
+            - order: The relation order (if present)
+            - direction: 'incoming' to indicate this is a reverse relation
+        """
+        if not dict_service:
+            # If no service provided, we can't search - return empty list
+            return []
+            
+        reverse_relations = []
+        
+        try:
+            # Search all entries to find those with variant relations pointing to this entry
+            all_entries, _ = dict_service.list_entries(limit=None)  # Get all entries
+            
+            for entry in all_entries:
+                if entry.id == self.id:
+                    continue  # Skip self
+                    
+                # Check if this entry has variant relations
+                for relation in entry.relations:
+                    try:
+                        if (hasattr(relation, 'traits') and relation.traits and 
+                            isinstance(relation.traits, dict) and 'variant-type' in relation.traits and
+                            hasattr(relation, 'ref') and relation.ref and
+                            hasattr(relation, 'type') and relation.type):
+                            
+                            # Check if the relation points to our current entry
+                            if str(relation.ref) == self.id:
+                                # Get the lexical unit and format with homograph number
+                                lexical_unit = entry.get_lexical_unit()
+                                display_text = lexical_unit
+                                if entry.homograph_number and entry.homograph_number > 1:
+                                    # Add subscript homograph number
+                                    display_text = f"{lexical_unit}₍{entry.homograph_number}₎"
+                                
+                                variant_info = {
+                                    'ref': entry.id,  # The entry that IS a variant of this one
+                                    'ref_lexical_unit': lexical_unit,  # Human-readable text without homograph
+                                    'ref_display_text': display_text,  # Human-readable text with homograph if needed
+                                    'ref_homograph_number': entry.homograph_number,  # Homograph number for styling
+                                    'variant_type': str(relation.traits['variant-type']),
+                                    'type': str(relation.type),
+                                    'direction': 'incoming'  # Mark as reverse relation
+                                }
+                                
+                                # Include order if available
+                                if (hasattr(relation, 'order') and relation.order is not None and 
+                                    isinstance(relation.order, (int, str))):
+                                    try:
+                                        variant_info['order'] = int(relation.order)
+                                    except (ValueError, TypeError):
+                                        pass
+                                        
+                                reverse_relations.append(variant_info)
+                    except (AttributeError, TypeError, KeyError):
+                        continue
+                        
+        except Exception as e:
+            # If search fails, just return empty list - don't break the page
+            pass
+            
+        # Sort by lexical unit for consistent display
+        try:
+            reverse_relations.sort(key=lambda x: (x.get('order', 999), x.get('ref_lexical_unit', x['ref'])))
+        except (TypeError, KeyError):
+            pass
+            
+        return reverse_relations
+
+    def get_complete_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+        """
+        Get complete variant relations including both directions:
+        - Outgoing: entries this entry is a variant of
+        - Incoming: entries that are variants of this entry
+        
+        Args:
+            dict_service: DictionaryService instance for searching entries
+            
+        Returns:
+            List of all variant relations with direction markers
+        """
+        # Get outgoing relations (this entry IS a variant of others)
+        outgoing = self.get_variant_relations()
+        for relation in outgoing:
+            relation['direction'] = 'outgoing'
+            
+            # Look up the target entry to get its lexical unit and homograph number
+            if dict_service:
+                try:
+                    target_entry = dict_service.get_entry(relation['ref'])
+                    if target_entry:
+                        lexical_unit = target_entry.get_lexical_unit()
+                        relation['ref_lexical_unit'] = lexical_unit
+                        
+                        # Create display text with homograph number if needed
+                        display_text = lexical_unit
+                        if target_entry.homograph_number and target_entry.homograph_number > 1:
+                            display_text = f"{lexical_unit}₍{target_entry.homograph_number}₎"
+                        relation['ref_display_text'] = display_text
+                        relation['ref_homograph_number'] = target_entry.homograph_number
+                except Exception:
+                    # If lookup fails, just use the ref as display text
+                    relation['ref_lexical_unit'] = relation['ref']
+                    relation['ref_display_text'] = relation['ref']
+                    relation['ref_homograph_number'] = None
+            
+        # Get incoming relations (other entries ARE variants of this entry)  
+        incoming = self.get_reverse_variant_relations(dict_service)
+        
+        # Combine both
+        all_relations = outgoing + incoming
+        
+        # Sort by direction first (outgoing, then incoming), then by lexical unit
+        try:
+            all_relations.sort(key=lambda x: (
+                0 if x.get('direction') == 'outgoing' else 1,
+                x.get('order', 999), 
+                x.get('ref_lexical_unit', x.get('ref', ''))
+            ))
+        except (TypeError, KeyError):
+            pass
+            
+        return all_relations
