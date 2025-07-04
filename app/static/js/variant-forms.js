@@ -98,6 +98,9 @@ class VariantFormsManager {
         } else {
             console.log('[VARIANT DEBUG] Rendered', existingVariants.length, 'variants');
         }
+        
+        // Initialize tooltips for any existing content
+        this.initializeTooltips();
     }
     
     getExistingVariantRelationsFromEntry() {
@@ -184,6 +187,9 @@ class VariantFormsManager {
     renderVariantRelation(variantRelation, index) {
         const variantHtml = this.createVariantRelationHtml(variantRelation, index);
         this.container.insertAdjacentHTML('beforeend', variantHtml);
+        
+        // Initialize tooltips for the newly added content
+        this.initializeTooltips();
     }
     
     createVariantRelationHtml(variantRelation, index) {
@@ -226,7 +232,7 @@ class VariantFormsManager {
                             </div>
                             ` : ''}
                             
-                            <!-- Hidden input field for form submission (NO raw ID visible to user) -->
+                            <!-- Hidden input field for form submission -->
                             <input type="hidden" 
                                    name="variant_relations[${index}][ref]"
                                    value="${variantRelation.ref || ''}">
@@ -245,7 +251,14 @@ class VariantFormsManager {
                             <div class="search-results mt-2" id="variant-search-results-${index}" style="display: none;"></div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-bold">Variant Type</label>
+                            <label class="form-label fw-bold">
+                                Variant Type
+                                <i class="fas fa-question-circle ms-1 form-tooltip" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top"
+                                   data-bs-html="true"
+                                   title="About Variant Types: Different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', or inflected forms like plurals and past tense forms."></i>
+                            </label>
                             <select class="form-control" 
                                     name="variant_relations[${index}][variant_type]" required>
                                 <option value="">Select variant type</option>
@@ -260,23 +273,7 @@ class VariantFormsManager {
                         </div>
                     </div>
                     
-                    <div class="row mt-3">
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">Relation Type</label>
-                            <input type="text" class="form-control" 
-                                   name="variant_relations[${index}][type]"
-                                   value="${variantRelation.type || '_component-lexeme'}" 
-                                   readonly>
-                            <div class="form-text">LIFT relation type (typically "_component-lexeme")</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">Order</label>
-                            <input type="number" class="form-control" 
-                                   name="variant_relations[${index}][order]"
-                                   value="${variantRelation.order || index}" 
-                                   placeholder="0" min="0">
-                            <div class="form-text">Order of the relation</div>
-                        </div>
+                    <div class="row mt-3">                        
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Status</label>
                             <div class="mt-2">
@@ -288,12 +285,6 @@ class VariantFormsManager {
                         </div>
                     </div>
                     
-                    <div class="alert alert-info mt-3">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Variant Relationship:</strong> This entry is a variant of the target entry 
-                        (<code>${variantRelation.ref || 'target entry'}</code>). 
-                        In LIFT format, this creates a relation with a variant-type trait.
-                    </div>
                 </div>
             </div>
         `;
@@ -340,22 +331,6 @@ class VariantFormsManager {
             <div class="empty-state text-center py-5">
                 <i class="fas fa-code-branch fa-3x text-muted mb-3"></i>
                 <h5 class="text-muted">No Variants Found</h5>
-                <p class="text-muted">
-                    This entry does not have any variant relations defined.
-                </p>
-                <p class="text-muted">
-                    <strong>What are variants?</strong> Variants are different forms or spellings of the same lexical item, 
-                    such as "protestor" vs "protester", or "Protestant ethic" vs "Protestant work ethic".
-                </p>
-                <p class="text-muted">
-                    <strong>How variants work:</strong> Variants are stored as LIFT relations with variant-type traits. 
-                    When you create a relation with a variant-type trait, it will appear here as a variant.
-                </p>
-                <div class="mt-3">
-                    <button type="button" class="btn btn-success" onclick="window.variantFormsManager.addVariant()">
-                        <i class="fas fa-plus me-2"></i>Add New Variant
-                    </button>
-                </div>
             </div>
         `;
     }
@@ -497,6 +472,20 @@ class VariantFormsManager {
     forceRender() {
         console.log('[VARIANT DEBUG] forceRender() called');
         this.renderExistingVariants();
+    }
+    
+    /**
+     * Initialize Bootstrap tooltips for all tooltip elements in the container
+     */
+    initializeTooltips() {
+        // Check if Bootstrap tooltip is available
+        if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+            // Initialize tooltips for any elements with data-bs-toggle="tooltip"
+            const tooltipTriggerList = this.container.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltipTriggerList.forEach(tooltipTriggerEl => {
+                new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        }
     }
 }
 

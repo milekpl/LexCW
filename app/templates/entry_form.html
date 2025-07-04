@@ -5,6 +5,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/form-tooltips.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -329,7 +330,14 @@
             <div class="card mb-4">
                 <div class="card-header bg-success text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-code-branch"></i> Variants</h5>
+                        <h5 class="mb-0">
+                            <i class="fas fa-code-branch"></i> Variants
+                            <i class="fas fa-question-circle ms-2 form-tooltip" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top"
+                               data-bs-html="true"
+                               title="<strong>About Variants:</strong><br>Variants represent different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', 'Protestant ethic' vs 'Protestant work ethic', or inflected forms like plurals and past tense forms."></i>
+                        </h5>
                         <button type="button" class="btn btn-sm btn-light" id="add-variant-btn">
                             <i class="fas fa-plus"></i> Add Variant
                         </button>
@@ -392,30 +400,18 @@
                                             {% endif %}
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label fw-bold">Variant Type</label>
+                                            <label class="form-label fw-bold">
+                                                Variant Type
+                                                <i class="fas fa-question-circle ms-1 form-tooltip" 
+                                                   data-bs-toggle="tooltip" 
+                                                   data-bs-placement="top"
+                                                   data-bs-html="true"
+                                                   title="<strong>Reverse Relationship:</strong><br>{% if variant.ref_display_text %}The entry '<strong>{{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}</strong>' is marked as a {{ variant.variant_type }} of this entry.{% elif variant.ref %}An entry with ID '{{ variant.ref }}' is marked as a {{ variant.variant_type }} of this entry, but the entry could not be found.{% else %}An unknown entry is marked as a {{ variant.variant_type }} of this entry.{% endif %} This relationship is defined in the other entry's data."></i>
+                                            </label>
                                             <div class="form-control-plaintext">
                                                 <span class="badge bg-info fs-6">{{ variant.variant_type }}</span>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div class="alert alert-info mt-3">
-                                        <i class="fas fa-info-circle me-2"></i>
-                                        <strong>Reverse Relationship:</strong> 
-                                        {% if variant.ref_display_text %}
-                                        The entry 
-                                        "<strong>
-                                            <a href="{{ url_for('main.edit_entry', entry_id=variant.ref) }}" 
-                                               class="text-decoration-none">
-                                                {{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}
-                                            </a>
-                                        </strong>" 
-                                        is marked as a {{ variant.variant_type }} of this entry.
-                                        {% elif variant.ref %}
-                                        An entry with ID <code>{{ variant.ref }}</code> is marked as a {{ variant.variant_type }} of this entry, but the entry could not be found.
-                                        {% else %}
-                                        An unknown entry is marked as a {{ variant.variant_type }} of this entry.
-                                        {% endif %}
-                                        This relationship is defined in the other entry's data.
                                     </div>
                                     {% else %}
                                     <!-- Outgoing: This entry IS a variant of another (editable) -->
@@ -438,8 +434,8 @@
                                             <div class="alert alert-danger mb-2">
                                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                                 <strong>Target Entry Not Found: </strong>
-                                                The referenced entry ID "<code>{{ variant.ref }}</code>" could not be found in the dictionary.
-                                                <br><small>This may indicate a missing entry or an incorrect ID.</small>
+                                                The referenced entry could not be found in the dictionary.
+                                                <br><small>This may indicate a missing entry or an incorrect reference.</small>
                                             </div>
                                             {% endif %}
                                             
@@ -447,6 +443,13 @@
                                             <input type="hidden" 
                                                    name="variant_relations[{{ loop.index0 }}][ref]"
                                                    value="{{ variant.ref or '' }}">
+                                            <!-- Hidden technical fields -->
+                                            <input type="hidden" 
+                                                   name="variant_relations[{{ loop.index0 }}][type]"
+                                                   value="{{ variant.type or '_component-lexeme' }}">
+                                            <input type="hidden" 
+                                                   name="variant_relations[{{ loop.index0 }}][order]"
+                                                   value="{{ variant.order or loop.index0 }}">
                                             
                                             <!-- Search interface for adding/changing variant targets -->
                                             <div class="input-group">
@@ -478,49 +481,22 @@
                                     </div>
                                     
                                     <div class="row mt-3">
-                                        <div class="col-md-4">
-                                            <label class="form-label fw-bold">Relation Type</label>
-                                            <input type="text" class="form-control" 
-                                                   name="variant_relations[{{ loop.index0 }}][type]"
-                                                   value="{{ variant.type or '_component-lexeme' }}" 
-                                                   readonly>
-                                            <div class="form-text">LIFT relation type (typically "_component-lexeme")</div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label fw-bold">Order</label>
-                                            <input type="number" class="form-control" 
-                                                   name="variant_relations[{{ loop.index0 }}][order]"
-                                                   value="{{ variant.order or loop.index0 }}" 
-                                                   placeholder="0" min="0">
-                                            <div class="form-text">Order of the relation</div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label fw-bold">Status</label>
+                                        <div class="col-md-12">
+                                            <label class="form-label fw-bold">
+                                                Status
+                                                <i class="fas fa-question-circle ms-1 form-tooltip" 
+                                                   data-bs-toggle="tooltip" 
+                                                   data-bs-placement="top"
+                                                   data-bs-html="true"
+                                                   title="<strong>Variant Relationship:</strong><br>This entry is a variant of {% if variant.ref_display_text %}'<strong>{{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}</strong>'.{% elif variant.ref %}a target entry that could not be found.{% else %}an unspecified entry.{% endif %}"></i>
+                                            </label>
                                             <div class="mt-2">
                                                 <span class="badge bg-success fs-6">
                                                     <i class="fas fa-check-circle me-1"></i>Active Variant
                                                 </span>
-                                                <div class="form-text">This variant will be saved to the LIFT file</div>
+                                                <div class="form-text">This variant will be saved to the dictionary</div>
                                             </div>
                                         </div>
-                                    </div>
-                                    
-                                    <div class="alert alert-info mt-3">
-                                        <i class="fas fa-info-circle me-2"></i>
-                                        <strong>Variant Relationship:</strong> This entry is a variant of 
-                                        {% if variant.ref_display_text %}
-                                        "<strong>
-                                            <a href="{{ url_for('main.edit_entry', entry_id=variant.ref) }}" 
-                                               class="text-decoration-none">
-                                                {{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}
-                                            </a>
-                                        </strong>".
-                                        {% elif variant.ref %}
-                                        <span class="text-danger">a target entry that could not be found (ID: <code>{{ variant.ref }}</code>)</span>.
-                                        {% else %}
-                                        a target entry that needs to be specified.
-                                        {% endif %}
-                                        In LIFT format, this creates a relation with a variant-type trait.
                                     </div>
                                     {% endif %}
                                 </div>
@@ -536,24 +512,8 @@
                                 <strong>What are variants?</strong> Variants are different forms or spellings of the same lexical item, 
                                 such as "protestor" vs "protester", or "Protestant ethic" vs "Protestant work ethic".
                             </p>
-                            <p class="text-muted">
-                                <strong>How variants work:</strong> Variants are stored as LIFT relations with variant-type traits. 
-                                When you create a relation with a variant-type trait, it will appear here as a variant.
-                            </p>
                         </div>
                         {% endif %}
-                    </div>
-                    
-                    <div class="alert alert-info mt-3">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>About Variants:</strong> 
-                        Variants represent different forms, spellings, or morphological variations of the same lexical item. 
-                        Examples include "protestor" vs "protester", "Protestant ethic" vs "Protestant work ethic", 
-                        or inflected forms like plurals and past tense forms.
-                        <br><br>
-                        <strong>Technical Note:</strong> Variants are stored as LIFT relations with variant-type traits.
-                        This section displays only relations that have variant-type traits, making them distinct 
-                        from other lexical relations shown in the Relations section below.
                     </div>
                 </div>
             </div>
@@ -561,7 +521,14 @@
             <!-- Component Relations Section -->
             <div class="card mb-4">
                 <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="fas fa-layer-group"></i> Complex Form Components</h5>
+                    <h5 class="mb-0">
+                        <i class="fas fa-layer-group"></i> Complex Form Components
+                        <i class="fas fa-question-circle ms-2 form-tooltip" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           data-bs-html="true"
+                           title="<strong>About Complex Forms:</strong><br>Complex forms are entries like compounds ('basketball'), phrases ('Protestant work ethic'), or other multi-word expressions that function as single lexical units. They are composed of multiple lexical components."></i>
+                    </h5>
                 </div>
                 <div class="card-body">
                     {% if component_relations and component_relations|length > 0 %}
@@ -616,30 +583,11 @@
                         </div>
                         {% endfor %}
                         
-                        <div class="alert alert-info mt-3">
-                            <i class="fas fa-lightbulb me-2"></i>
-                            <strong>About Complex Forms:</strong> 
-                            This entry is marked as a complex form ({{ component_relations[0].complex_form_type if component_relations else 'Unknown Type' }}) 
-                            composed of multiple lexical components. Complex forms include compounds, phrases, and other multi-word expressions 
-                            that function as single lexical units.
-                            <br><br>
-                            <strong>Technical Note:</strong> These relationships are stored as LIFT _component-lexeme relations 
-                            with complex-form-type traits, defining the compositional structure of this entry.
-                        </div>
                     {% else %}
                         <!-- Empty state when no component relations exist -->
                         <div class="empty-state text-center py-4">
                             <i class="fas fa-puzzle-piece fa-3x text-muted mb-3"></i>
-                            <h5 class="text-muted">No Complex Form Components</h5>
-                            <p class="text-muted">This entry is not marked as a complex form composed of other entries.</p>
-                            <p class="text-muted">
-                                <strong>What are complex forms?</strong> Complex forms are entries like compounds ("basketball"), 
-                                phrases ("Protestant work ethic"), or other multi-word expressions that function as single lexical units.
-                            </p>
-                            <p class="text-muted">
-                                <strong>How it works:</strong> When an entry is a complex form, it has component relationships 
-                                to its constituent parts, stored as LIFT _component-lexeme relations with complex-form-type traits.
-                            </p>
+                            <h5 class="text-muted">No Complex Form Components</h5>                            
                         </div>
                     {% endif %}
                 </div>
@@ -648,7 +596,14 @@
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-link"></i> Relations</h5>
+                        <h5 class="mb-0">
+                            <i class="fas fa-link"></i> Relations
+                            <i class="fas fa-question-circle ms-2 form-tooltip" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top"
+                               data-bs-html="true"
+                               title="<strong>About Relations:</strong><br>Relations represent semantic connections between different lexical entries. Examples include synonyms (words with similar meanings), antonyms (opposite meanings), hyponyms (specific instances of a general term), and hypernyms (general terms for specific instances). These are distinct from variants that represent different forms of the same lexical item."></i>
+                        </h5>
                         <button type="button" class="btn btn-sm btn-light" id="add-relation-btn">
                             <i class="fas fa-plus"></i> Add Relation
                         </button>
@@ -684,7 +639,14 @@
                                     <div class="card-body">
                                         <div class="row">
                                             <div class="col-md-4">
-                                                <label class="form-label fw-bold">Relation Type</label>
+                                                <label class="form-label fw-bold">
+                                                    Relation Type
+                                                    <i class="fas fa-question-circle ms-1 form-tooltip" 
+                                                       data-bs-toggle="tooltip" 
+                                                       data-bs-placement="top"
+                                                       data-bs-html="true"
+                                                       title="<strong>Semantic Relationship:</strong><br>This entry has a '{{ relation.type }}' relationship with {% if relation.ref_display_text %}'<strong>{{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}</strong>'.{% else %}the target entry.{% endif %}"></i>
+                                                </label>
                                                 <select class="form-control relation-type-select" 
                                                         name="relations[{{ loop.index0 }}][type]" 
                                                         data-range-id="lexical-relation"
@@ -731,21 +693,6 @@
                                             </div>
                                         </div>
                                         
-                                        <div class="alert alert-info mt-3">
-                                            <i class="fas fa-info-circle me-2"></i>
-                                            <strong>Semantic Relationship:</strong> This entry has a "{{ relation.type }}" relationship with 
-                                            {% if relation.ref_display_text %}
-                                            "<strong>
-                                                <a href="{{ url_for('main.edit_entry', entry_id=relation.ref) }}" 
-                                                   class="text-decoration-none">
-                                                    {{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}
-                                                </a>
-                                            </strong>".
-                                            {% else %}
-                                            the target entry.
-                                            {% endif %}
-                                            In LIFT format, this creates a relation element with the specified type.
-                                        </div>
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -754,15 +701,6 @@
                             <div class="empty-state text-center py-4">
                                 <i class="fas fa-link fa-3x text-muted mb-3"></i>
                                 <h5 class="text-muted">No Semantic Relations</h5>
-                                <p class="text-muted">This entry does not have any semantic relations defined.</p>
-                                <p class="text-muted">
-                                    <strong>What are relations?</strong> Relations connect this entry to other entries through semantic relationships 
-                                    like synonymy, antonymy, hyponymy, etc. These help build the semantic network of the dictionary.
-                                </p>
-                                <p class="text-muted">
-                                    <strong>How relations work:</strong> Relations are stored as LIFT relation elements. 
-                                    They differ from variants, which represent different forms of the same lexical item.
-                                </p>
                             </div>
                             {% endif %}
                         {% else %}
@@ -770,30 +708,10 @@
                         <div class="empty-state text-center py-4">
                             <i class="fas fa-link fa-3x text-muted mb-3"></i>
                             <h5 class="text-muted">No Semantic Relations</h5>
-                            <p class="text-muted">This entry does not have any semantic relations defined.</p>
-                            <p class="text-muted">
-                                <strong>What are relations?</strong> Relations connect this entry to other entries through semantic relationships 
-                                like synonymy, antonymy, hyponymy, etc. These help build the semantic network of the dictionary.
-                            </p>
-                            <p class="text-muted">
-                                <strong>How relations work:</strong> Relations are stored as LIFT relation elements. 
-                                They differ from variants, which represent different forms of the same lexical item.
-                            </p>
                         </div>
                         {% endif %}
                     </div>
                     
-                    <div class="alert alert-info mt-3">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>About Relations:</strong> 
-                        Relations represent semantic connections between different lexical entries. 
-                        Examples include synonyms (words with similar meanings), antonyms (opposite meanings), 
-                        hyponyms (specific instances of a general term), and hypernyms (general terms for specific instances).
-                        <br><br>
-                        <strong>Technical Note:</strong> Relations are stored as LIFT relation elements.
-                        This section displays semantic relations between lexical entries, which are distinct 
-                        from variants that represent different forms of the same lexical item.
-                    </div>
                 </div>
             </div>
 
@@ -1357,6 +1275,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         window.multilingualNotesManager = new MultilingualNotesManager('notes-container', {
             notes: notesData
         });
+    }
+    
+    // Initialize Bootstrap tooltips globally
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        console.log('[TOOLTIP DEBUG] Initialized', tooltipList.length, 'tooltips');
     }
 });
 </script>

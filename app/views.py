@@ -2,21 +2,16 @@
 Views for the Dictionary Writing System's frontend.
 """
 
-import json
 import logging
 import os
-import sys
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_from_directory
-from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
 from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
-from app.database.postgresql_connector import PostgreSQLConfig
-from app.database.corpus_migrator import CorpusMigrator
 
 # Create blueprints
 main_bp = Blueprint('main', __name__)
@@ -49,7 +44,6 @@ def index():
     """
     Render the dashboard/home page with cached stats for performance.
     """
-    from app.services.cache_service import CacheService
     import json
     
     # Default data for dashboard if DB connection fails
@@ -296,9 +290,9 @@ def edit_entry(entry_id):
         
         # DEBUG: Check variant relations
         if entry:
-            variant_count = len(entry.variant_relations)
+            variant_count = len(entry.variant_relations())
             logger.info(f"[DEBUG] Entry has {variant_count} variant relations")
-            for i, variant in enumerate(entry.variant_relations):
+            for i, variant in enumerate(entry.variant_relations()):
                 logger.info(f"[DEBUG] Variant {i}: {variant}")
         
         ranges = dict_service.get_lift_ranges()

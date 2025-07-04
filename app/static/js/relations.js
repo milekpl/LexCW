@@ -407,15 +407,6 @@ class RelationsManager {
             <div class="empty-state text-center py-4">
                 <i class="fas fa-link fa-3x text-muted mb-3"></i>
                 <h5 class="text-muted">No Semantic Relations</h5>
-                <p class="text-muted">This entry does not have any semantic relations defined.</p>
-                <p class="text-muted">
-                    <strong>What are relations?</strong> Relations connect this entry to other entries through semantic relationships 
-                    like synonymy, antonymy, hyponymy, etc. These help build the semantic network of the dictionary.
-                </p>
-                <p class="text-muted">
-                    <strong>How relations work:</strong> Relations are stored as LIFT relation elements. 
-                    They differ from variants, which represent different forms of the same lexical item.
-                </p>
             </div>
         `;
     }

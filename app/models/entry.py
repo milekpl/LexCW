@@ -126,7 +126,10 @@ class Entry(BaseModel):
         etymologies_data = kwargs.pop('etymologies', [])
         relations_data = kwargs.pop('relations', [])
         variants_data = kwargs.pop('variants', [])
-
+        
+        # Handle variant_relations if provided (convert to relations)
+        variant_relations_data = kwargs.pop('variant_relations', [])
+        
         super().__init__(id_, **kwargs)
         self.lexical_unit: Dict[str, str] = kwargs.get('lexical_unit', {})
         self.citations: List[Dict[str, Any]] = kwargs.get('citations', [])
@@ -162,13 +165,27 @@ class Entry(BaseModel):
             elif isinstance(etymology_data, Etymology):
                 self.etymologies.append(etymology_data)
 
-        # Handle relations
+        # Handle relations (including converted variant_relations)
         self.relations: List[Relation] = []
+        
+        # First add regular relations
         for relation_data in relations_data:
             if isinstance(relation_data, dict):
                 self.relations.append(Relation(**relation_data))
             elif isinstance(relation_data, Relation):
                 self.relations.append(relation_data)
+        
+        # Convert variant_relations to regular relations with variant-type traits
+        for variant_relation_data in variant_relations_data:
+            if isinstance(variant_relation_data, dict):
+                # Convert variant_relation to a relation with variant-type trait
+                relation_dict = {
+                    'type': variant_relation_data.get('type', '_component-lexeme'),
+                    'ref': variant_relation_data['ref'],
+                    'traits': {'variant-type': variant_relation_data.get('variant_type', 'Unspecified Variant')},
+                    'order': variant_relation_data.get('order', len(self.relations))
+                }
+                self.relations.append(Relation(**relation_dict))
 
         # Handle variants
         self.variants: List[Variant] = []
@@ -269,7 +286,6 @@ class Entry(BaseModel):
             return next(iter(self.lexical_unit.values()))
         return ""
 
-    @property
     def variant_relations(self) -> List[Dict[str, Any]]:
         """
         Get variant relations for template access.
@@ -375,10 +391,10 @@ class Entry(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Convert the entry to a dictionary, including computed properties.
+        Convert the entry to a dictionary for serialization (round-trip safe).
 
         Returns:
-            Dictionary representation of the entry.
+            Dictionary representation of the entry with computed properties.
         """
         result = super().to_dict()
 
@@ -397,6 +413,20 @@ class Entry(BaseModel):
                         converted_items.append(item)
                 result[attr_name] = converted_items
 
+        # Add variant relations derived from relations with variant-type traits
+        result['variant_relations'] = self.get_variant_relations()
+
+        return result
+
+    def to_template_dict(self) -> Dict[str, Any]:
+        """
+        Convert the entry to a dictionary for template use, including computed properties.
+
+        Returns:
+            Dictionary representation of the entry with computed properties.
+        """
+        result = self.to_dict()
+        
         # Add variant relations derived from relations with variant-type traits
         result['variant_relations'] = self.get_variant_relations()
         
@@ -488,7 +518,6 @@ class Entry(BaseModel):
         
         return component_relations
 
-    @property
     def component_relations(self) -> List[Dict[str, Any]]:
         """
         Get component relations for template access.

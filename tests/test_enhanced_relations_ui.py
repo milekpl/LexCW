@@ -3,6 +3,7 @@ Test enhanced relations UI with sense-level targeting.
 """
 
 import pytest
+import uuid
 from flask import Flask
 from flask.testing import FlaskClient
 from app import create_app
@@ -91,8 +92,9 @@ def test_relation_ui_page_loads_with_enhanced_search(client: FlaskClient):
     # Create a test entry first
     with client.application.app_context():
         dict_service = client.application.injector.get(DictionaryService)
+        unique_id = f'main_test_entry_{uuid.uuid4().hex[:8]}'
         test_entry = {
-            'id': 'main_test_entry',
+            'id': unique_id,
             'lexical_unit': {'en': 'main word'},
             'senses': [{'id': 'main_sense', 'glosses': {'en': 'main meaning'}}]
         }
@@ -117,8 +119,9 @@ def test_entry_creation_with_sense_level_relations(client: FlaskClient):
         dict_service = client.application.injector.get(DictionaryService)
         
         # Create an entry with sense-level relation
+        unique_id = f'entry_with_sense_relation_{uuid.uuid4().hex[:8]}'
         entry_data = {
-            'id': 'entry_with_sense_relation',
+            'id': unique_id,
             'lexical_unit': {'en': 'related word'},
             'senses': [{
                 'id': 'related_sense',
@@ -133,7 +136,7 @@ def test_entry_creation_with_sense_level_relations(client: FlaskClient):
         from app.models.entry import Entry
         created_entry_id = dict_service.create_entry(Entry.from_dict(entry_data))
         created_entry = dict_service.get_entry(created_entry_id)
-        assert created_entry.id == 'entry_with_sense_relation'
+        assert created_entry.id == unique_id
         
         # Verify the relation was created correctly
         assert len(created_entry.senses) == 1
@@ -150,8 +153,9 @@ def test_relation_form_submission_with_sense_target(client: FlaskClient):
         dict_service = client.application.injector.get(DictionaryService)
         
         # Create a base entry
+        base_unique_id = f'base_entry_{uuid.uuid4().hex[:8]}'
         base_entry_id = dict_service.create_entry(Entry.from_dict({
-            'id': 'base_entry',
+            'id': base_unique_id,
             'lexical_unit': {'en': 'base word'},
             'senses': [{'id': 'base_sense', 'glosses': {'en': 'base meaning'}}]
         }))
