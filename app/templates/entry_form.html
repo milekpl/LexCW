@@ -365,6 +365,7 @@
                                     <div class="row">
                                         <div class="col-md-8">
                                             <label class="form-label fw-bold">Entry that is a variant of this one</label>
+                                            {% if variant.ref_display_text %}
                                             <div class="alert alert-light">
                                                 <i class="fas fa-info-circle me-2"></i>
                                                 <strong>
@@ -375,6 +376,20 @@
                                                     </a>
                                                 </strong>
                                             </div>
+                                            {% elif variant.ref %}
+                                            <!-- Show error marker for missing target entry -->
+                                            <div class="alert alert-danger">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                <strong>Entry Not Found: </strong>
+                                                The entry ID "<code>{{ variant.ref }}</code>" could not be found in the dictionary.
+                                                <br><small>This may indicate a missing entry or an incorrect reference.</small>
+                                            </div>
+                                            {% else %}
+                                            <div class="alert alert-warning">
+                                                <i class="fas fa-question-circle me-2"></i>
+                                                <strong>No Entry Referenced</strong>
+                                            </div>
+                                            {% endif %}
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">Variant Type</label>
@@ -385,7 +400,9 @@
                                     </div>
                                     <div class="alert alert-info mt-3">
                                         <i class="fas fa-info-circle me-2"></i>
-                                        <strong>Reverse Relationship:</strong> The entry 
+                                        <strong>Reverse Relationship:</strong> 
+                                        {% if variant.ref_display_text %}
+                                        The entry 
                                         "<strong>
                                             <a href="{{ url_for('main.edit_entry', entry_id=variant.ref) }}" 
                                                class="text-decoration-none">
@@ -393,6 +410,11 @@
                                             </a>
                                         </strong>" 
                                         is marked as a {{ variant.variant_type }} of this entry.
+                                        {% elif variant.ref %}
+                                        An entry with ID <code>{{ variant.ref }}</code> is marked as a {{ variant.variant_type }} of this entry, but the entry could not be found.
+                                        {% else %}
+                                        An unknown entry is marked as a {{ variant.variant_type }} of this entry.
+                                        {% endif %}
                                         This relationship is defined in the other entry's data.
                                     </div>
                                     {% else %}
@@ -411,15 +433,33 @@
                                                     {{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}
                                                 </a>
                                             </div>
+                                            {% elif variant.ref %}
+                                            <!-- Show error marker for missing target entry -->
+                                            <div class="alert alert-danger mb-2">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                <strong>Target Entry Not Found: </strong>
+                                                The referenced entry ID "<code>{{ variant.ref }}</code>" could not be found in the dictionary.
+                                                <br><small>This may indicate a missing entry or an incorrect ID.</small>
+                                            </div>
                                             {% endif %}
                                             
-                                            <!-- Technical input field (for editing/validation) -->
-                                            <input type="text" class="form-control" 
+                                            <!-- Hidden input field for form submission (NO raw ID visible to user) -->
+                                            <input type="hidden" 
                                                    name="variant_relations[{{ loop.index0 }}][ref]"
-                                                   value="{{ variant.ref or '' }}" 
-                                                   placeholder="Entry ID that this entry is a variant of"
-                                                   required>
-                                            <div class="form-text">LIFT entry ID or GUID of the main/canonical entry</div>
+                                                   value="{{ variant.ref or '' }}">
+                                            
+                                            <!-- Search interface for adding/changing variant targets -->
+                                            <div class="input-group">
+                                                <input type="text" class="form-control variant-search-input" 
+                                                       placeholder="Search for entry to create variant relationship with..."
+                                                       data-variant-index="{{ loop.index0 }}">
+                                                <button type="button" class="btn btn-outline-secondary variant-search-btn" 
+                                                        data-variant-index="{{ loop.index0 }}">
+                                                    <i class="fas fa-search"></i> Search
+                                                </button>
+                                            </div>
+                                            <div class="form-text">Search for entries by headword or definition - no raw IDs needed</div>
+                                            <div class="search-results mt-2" id="variant-search-results-{{ loop.index0 }}" style="display: none;"></div>
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">Variant Type</label>
@@ -475,8 +515,10 @@
                                                 {{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}
                                             </a>
                                         </strong>".
+                                        {% elif variant.ref %}
+                                        <span class="text-danger">a target entry that could not be found (ID: <code>{{ variant.ref }}</code>)</span>.
                                         {% else %}
-                                        the target entry (<code>{{ variant.ref or 'target entry' }}</code>).
+                                        a target entry that needs to be specified.
                                         {% endif %}
                                         In LIFT format, this creates a relation with a variant-type trait.
                                     </div>

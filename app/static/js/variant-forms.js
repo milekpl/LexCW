@@ -41,6 +41,19 @@ class VariantFormsManager {
                 const index = parseInt(e.target.dataset.index);
                 this.removeVariant(index);
             }
+            
+            // Handle search button clicks
+            if (e.target.classList.contains('variant-search-btn')) {
+                const variantIndex = e.target.dataset.variantIndex;
+                this.openEntrySearchModal(variantIndex);
+            }
+        });
+        
+        // Handle entry search input
+        this.container.addEventListener('input', (e) => {
+            if (e.target.classList.contains('variant-search-input')) {
+                this.handleEntrySearch(e.target);
+            }
         });
         
         // Update header when variant type changes
@@ -191,13 +204,45 @@ class VariantFormsManager {
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-8">
-                            <label class="form-label fw-bold">Target Entry Reference</label>
-                            <input type="text" class="form-control" 
+                            <label class="form-label fw-bold">Target Entry</label>
+                            ${variantRelation.ref_display_text ? `
+                            <!-- Show clickable link to target entry -->
+                            <div class="alert alert-light mb-2">
+                                <i class="fas fa-external-link-alt me-2"></i>
+                                <strong>This entry is a variant of: </strong>
+                                <a href="/entries/${variantRelation.ref}/edit" 
+                                   class="text-decoration-none text-primary fw-bold"
+                                   title="Edit target entry">
+                                    ${variantRelation.ref_display_text || variantRelation.ref_lexical_unit || variantRelation.ref}
+                                </a>
+                            </div>
+                            ` : variantRelation.ref ? `
+                            <!-- Show error marker for missing target entry -->
+                            <div class="alert alert-danger mb-2">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Target Entry Not Found: </strong>
+                                The referenced entry ID "<code>${variantRelation.ref}</code>" could not be found in the dictionary.
+                                <br><small>This may indicate a missing entry or an incorrect ID.</small>
+                            </div>
+                            ` : ''}
+                            
+                            <!-- Hidden input field for form submission (NO raw ID visible to user) -->
+                            <input type="hidden" 
                                    name="variant_relations[${index}][ref]"
-                                   value="${variantRelation.ref || ''}" 
-                                   placeholder="Entry ID that this entry is a variant of"
-                                   required>
-                            <div class="form-text">LIFT entry ID or GUID of the main/canonical entry</div>
+                                   value="${variantRelation.ref || ''}">
+                            
+                            <!-- Search interface for adding/changing variant targets -->
+                            <div class="input-group">
+                                <input type="text" class="form-control variant-search-input" 
+                                       placeholder="Search for entry to create variant relationship with..."
+                                       data-variant-index="${index}">
+                                <button type="button" class="btn btn-outline-secondary variant-search-btn" 
+                                        data-variant-index="${index}">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                            <div class="form-text">Search for entries by headword or definition - no raw IDs needed</div>
+                            <div class="search-results mt-2" id="variant-search-results-${index}" style="display: none;"></div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Variant Type</label>
@@ -322,6 +367,97 @@ class VariantFormsManager {
         }
     }
     
+    async handleEntrySearch(input) {
+        const searchTerm = input.value.trim();
+        const variantIndex = input.dataset.variantIndex;
+        const resultsContainer = document.getElementById(`variant-search-results-${variantIndex}`);
+        
+        if (searchTerm.length < 2) {
+            resultsContainer.style.display = 'none';
+            return;
+        }
+        
+        try {
+            // Search for entries using the API
+            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=5`);
+            if (response.ok) {
+                const result = await response.json();
+                this.displaySearchResults(result.entries || [], resultsContainer, variantIndex);
+            }
+        } catch (error) {
+            console.warn('[VariantFormsManager] Entry search failed:', error);
+        }
+    }
+    
+    displaySearchResults(entries, container, variantIndex) {
+        if (entries.length === 0) {
+            container.innerHTML = `
+                <div class="text-muted p-2 border rounded">No entries found</div>
+            `;
+            container.style.display = 'block';
+            return;
+        }
+        
+        const resultsHtml = entries.map(entry => `
+            <div class="search-result-item p-2 border-bottom cursor-pointer" 
+                 data-entry-id="${entry.id}" 
+                 data-entry-headword="${entry.headword || entry.lexical_unit}"
+                 data-variant-index="${variantIndex}">
+                <div class="fw-bold">${entry.headword || entry.lexical_unit}</div>
+                ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
+            </div>
+        `).join('');
+        
+        container.innerHTML = `
+            <div class="border rounded bg-white shadow-sm">
+                ${resultsHtml}
+            </div>
+        `;
+        container.style.display = 'block';
+        
+        // Add click handlers for search results
+        container.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                this.selectSearchResult(item);
+            });
+        });
+    }
+    
+    selectSearchResult(resultItem) {
+        const entryId = resultItem.dataset.entryId;
+        const entryHeadword = resultItem.dataset.entryHeadword;
+        const variantIndex = resultItem.dataset.variantIndex;
+        
+        // Update the hidden input with the entry ID
+        const hiddenInput = this.container.querySelector(`input[name="variant_relations[${variantIndex}][ref]"]`);
+        if (hiddenInput) {
+            hiddenInput.value = entryId;
+        }
+        
+        // Update the search input to show the selected entry
+        const searchInput = this.container.querySelector(`input[data-variant-index="${variantIndex}"]`);
+        if (searchInput) {
+            searchInput.value = entryHeadword;
+        }
+        
+        // Hide the search results
+        const resultsContainer = document.getElementById(`variant-search-results-${variantIndex}`);
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+        
+        console.log(`[VariantFormsManager] Selected entry "${entryHeadword}" (${entryId}) for variant ${variantIndex}`);
+    }
+    
+    openEntrySearchModal(variantIndex) {
+        // For now, just focus on the search input
+        // Could be extended to open a more sophisticated search modal
+        const searchInput = this.container.querySelector(`input[data-variant-index="${variantIndex}"]`);
+        if (searchInput) {
+            searchInput.focus();
+        }
+    }
+    
     /**
      * Force re-render of variants - useful when called from template after data is loaded
      */
@@ -344,3 +480,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Also make the class available immediately
 console.log('[VARIANT DEBUG] VariantFormsManager class defined');
+
+// Expose the class globally for template initialization
+window.VariantFormsManager = VariantFormsManager;

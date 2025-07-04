@@ -402,9 +402,12 @@ class Entry(BaseModel):
 
         return result
 
-    def get_variant_relations(self) -> List[Dict[str, Any]]:
+    def get_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
         """
         Extract variant information from relations with variant-type traits.
+        
+        Args:
+            dict_service: DictionaryService instance for enriching variant data
         
         Returns:
             List of dictionaries containing variant information extracted from relations.
@@ -413,6 +416,8 @@ class Entry(BaseModel):
             - variant_type: The variant type from the trait value
             - type: The relation type
             - order: The relation order (if present)
+            - ref_lexical_unit: Human-readable text from target entry (if found)
+            - ref_display_text: Display text from target entry (if found)
         """
         variant_relations = []
         
@@ -438,6 +443,18 @@ class Entry(BaseModel):
                         except (ValueError, TypeError):
                             # Skip invalid order values
                             pass
+                    
+                    # Enrich with target entry information if dict_service is available
+                    if dict_service:
+                        try:
+                            target_entry = dict_service.get_entry(variant_info['ref'])
+                            if target_entry:
+                                variant_info['ref_lexical_unit'] = target_entry.get_lexical_unit()
+                                variant_info['ref_display_text'] = target_entry.get_lexical_unit()
+                        except Exception:
+                            # If we can't find the target entry, leave it without enrichment
+                            # The template will show an error marker for missing targets
+                            pass
                         
                     variant_relations.append(variant_info)
             except (AttributeError, TypeError, KeyError) as e:
@@ -446,7 +463,7 @@ class Entry(BaseModel):
         
         # Sort by order if available, otherwise by ref
         try:
-            variant_relations.sort(key=lambda x: (x.get('order', 999), x['ref']))
+            variant_relations.sort(key=lambda x: (x.get('order', 999), x.get('ref_lexical_unit', x['ref'])))
         except (TypeError, KeyError):
             # If sorting fails, just return unsorted
             pass
@@ -513,6 +530,7 @@ class Entry(BaseModel):
                                 variant_info = {
                                     'ref': entry.id,  # The entry that IS a variant of this one
                                     'ref_lexical_unit': entry.get_lexical_unit(),  # Add human-readable text
+                                    'ref_display_text': entry.get_lexical_unit(),  # Add display text for template
                                     'variant_type': str(relation.traits['variant-type']),
                                     'type': str(relation.type),
                                     'direction': 'incoming'  # Mark as reverse relation
@@ -555,7 +573,7 @@ class Entry(BaseModel):
             List of all variant relations with direction markers
         """
         # Get outgoing relations (this entry IS a variant of others)
-        outgoing = self.get_variant_relations()
+        outgoing = self.get_variant_relations(dict_service)
         for relation in outgoing:
             relation['direction'] = 'outgoing'
             

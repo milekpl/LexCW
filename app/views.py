@@ -304,11 +304,11 @@ def edit_entry(entry_id):
         ranges = dict_service.get_lift_ranges()
         logger.info(f"[DEBUG] Got ranges at {time.time()} (keys: {list(ranges.keys()) if hasattr(ranges, 'keys') else type(ranges)})")
         
-        # Explicitly extract variant_relations for template
+        # Explicitly extract enriched variant_relations for template (with display text and error markers)
         variant_relations_data = []
         if entry:
-            variant_relations_data = entry.variant_relations
-            logger.info(f"[DEBUG] Extracted {len(variant_relations_data)} variant relations for template")
+            variant_relations_data = entry.get_complete_variant_relations(dict_service)
+            logger.info(f"[DEBUG] Extracted {len(variant_relations_data)} enriched variant relations for template")
         
         return render_template('entry_form.html', entry=entry, ranges=ranges, variant_relations=variant_relations_data)
     except NotFoundError as e:
