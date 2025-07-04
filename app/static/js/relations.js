@@ -278,6 +278,36 @@ class RelationsManager {
         `;
     }
     
+    getEntryDisplayText(entry) {
+        // First try headword (simple string)
+        if (entry.headword && typeof entry.headword === 'string') {
+            return entry.headword;
+        }
+        
+        // Then try lexical_unit (may be object or string)
+        if (entry.lexical_unit) {
+            if (typeof entry.lexical_unit === 'string') {
+                return entry.lexical_unit;
+            } else if (typeof entry.lexical_unit === 'object') {
+                // Extract first available language value
+                const languages = ['en', 'pl', 'cs', 'sk']; // Common languages
+                for (const lang of languages) {
+                    if (entry.lexical_unit[lang]) {
+                        return entry.lexical_unit[lang];
+                    }
+                }
+                // If no common language found, use first available value
+                const firstKey = Object.keys(entry.lexical_unit)[0];
+                if (firstKey) {
+                    return entry.lexical_unit[firstKey];
+                }
+            }
+        }
+        
+        // Fallback to entry ID if nothing else available
+        return entry.id || 'Unknown Entry';
+    }
+
     async handleEntrySearch(input) {
         const searchTerm = input.value.trim();
         const relationIndex = input.dataset.relationIndex;
@@ -309,15 +339,18 @@ class RelationsManager {
             return;
         }
         
-        const resultsHtml = entries.map(entry => `
+        const resultsHtml = entries.map(entry => {
+            // Extract display text from headword or lexical_unit (which may be an object)
+            const displayText = this.getEntryDisplayText(entry);
+            return `
             <div class="search-result-item p-2 border-bottom cursor-pointer" 
                  data-entry-id="${entry.id}" 
-                 data-entry-headword="${entry.headword || entry.lexical_unit}"
+                 data-entry-headword="${displayText}"
                  data-relation-index="${relationIndex}">
-                <div class="fw-bold">${entry.headword || entry.lexical_unit}</div>
+                <div class="fw-bold">${displayText}</div>
                 ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
             </div>
-        `).join('');
+        `}).join('');
         
         container.innerHTML = `
             <div class="border rounded bg-white shadow-sm">

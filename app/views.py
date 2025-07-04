@@ -306,11 +306,18 @@ def edit_entry(entry_id):
         
         # Explicitly extract enriched variant_relations for template (with display text and error markers)
         variant_relations_data = []
+        component_relations_data = []
         if entry:
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
             logger.info(f"[DEBUG] Extracted {len(variant_relations_data)} enriched variant relations for template")
+            
+            # Extract enriched component_relations for template (with display text for main entries)
+            component_relations_data = entry.get_component_relations(dict_service)
+            logger.info(f"[DEBUG] Extracted {len(component_relations_data)} enriched component relations for template")
         
-        return render_template('entry_form.html', entry=entry, ranges=ranges, variant_relations=variant_relations_data)
+        return render_template('entry_form.html', entry=entry, ranges=ranges, 
+                             variant_relations=variant_relations_data, 
+                             component_relations=component_relations_data)
     except NotFoundError as e:
         logger.warning(f"Entry with ID {entry_id} not found: {e}")
         import traceback
