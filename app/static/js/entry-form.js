@@ -1485,5 +1485,121 @@ document.addEventListener('DOMContentLoaded', function() {
     // Small delay to ensure modal is ready
     setTimeout(() => {
         window.fieldVisibilityManager = new FieldVisibilityManager();
+        
+        // Initialize Phase 3: Auto-Save & Conflict Resolution
+        initializeAutoSaveSystem();
     }, 200);
 });
+
+/**
+ * Phase 3: Auto-Save & Conflict Resolution Initialization
+ * Integrates the AutoSaveManager with the form state management and validation systems
+ */
+function initializeAutoSaveSystem() {
+    try {
+        // Check if required components are available
+        if (typeof FormStateManager === 'undefined') {
+            console.warn('FormStateManager not available, auto-save disabled');
+            return;
+        }
+        
+        if (typeof ClientValidationEngine === 'undefined') {
+            console.warn('ClientValidationEngine not available, auto-save disabled');
+            return;
+        }
+        
+        if (typeof AutoSaveManager === 'undefined') {
+            console.warn('AutoSaveManager not available, auto-save disabled');
+            return;
+        }
+        
+        // Initialize form state manager
+        window.formStateManager = new FormStateManager();
+        
+        // Initialize client validation engine
+        window.validationEngine = new ClientValidationEngine();
+        
+        // Initialize auto-save manager
+        window.autoSaveManager = new AutoSaveManager(
+            window.formStateManager, 
+            window.validationEngine
+        );
+        
+        // Check if we're editing an existing entry
+        const entryIdField = document.querySelector('[name="id"]');
+        const entryId = entryIdField ? entryIdField.value : null;
+        
+        if (entryId) {
+            // Get initial version if available
+            const versionField = document.querySelector('[name="version"]');
+            const version = versionField ? versionField.value : Date.now().toString();
+            
+            // Start auto-save for existing entry
+            window.autoSaveManager.start();
+            
+            console.log(`Auto-save enabled for entry: ${entryId}`);
+        } else {
+            console.log('Auto-save disabled for new entry (no ID yet)');
+        }
+        
+        // Add Ctrl+S shortcut for manual save
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (window.autoSaveManager && window.autoSaveManager.isActive) {
+                    window.autoSaveManager.forceSave().then(result => {
+                        if (result.success) {
+                            showToast('Entry saved manually', 'success');
+                        } else {
+                            showToast(`Save failed: ${result.reason}`, 'error');
+                        }
+                    });
+                }
+            }
+        });
+        
+        // Integration with form submission
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Stop auto-save during manual submission
+                if (window.autoSaveManager) {
+                    window.autoSaveManager.stop();
+                }
+            });
+        }
+        
+        console.log('Phase 3: Auto-Save & Conflict Resolution initialized successfully');
+        
+    } catch (error) {
+        console.error('Failed to initialize auto-save system:', error);
+    }
+}
+
+/**
+ * Show toast notification for auto-save feedback
+ */
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-dismissible position-fixed`;
+    toast.style.cssText = `
+        top: 20px; 
+        right: 20px; 
+        z-index: 9999; 
+        min-width: 300px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    `;
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 3000);
+}

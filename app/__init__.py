@@ -124,6 +124,10 @@ def create_app(config_name=None):
     from app.views import workbench_bp
     app.register_blueprint(workbench_bp)
     
+    # Register auto-save API for Phase 3
+    from app.api.entry_autosave_working import autosave_bp
+    app.register_blueprint(autosave_bp)
+    
     # Initialize Swagger documentation
     swagger_config = {
         "headers": [],
