@@ -374,9 +374,21 @@ class ValidationEngine:
         
         senses = data.get('senses', [])
         for i, sense in enumerate(senses):
-            has_definition = bool(sense.get('definition', '').strip())
-            has_gloss = bool(sense.get('gloss', '').strip())
-            has_variant_ref = bool(sense.get('variant_of', '').strip())
+            # Handle both string and multilingual dictionary formats
+            definition = sense.get('definition', '')
+            if isinstance(definition, dict):
+                has_definition = any(bool(str(v).strip()) for v in definition.values() if v)
+            else:
+                has_definition = bool(str(definition).strip()) if definition else False
+                
+            gloss = sense.get('gloss', '')
+            if isinstance(gloss, dict):
+                has_gloss = any(bool(str(v).strip()) for v in gloss.values() if v)
+            else:
+                has_gloss = bool(str(gloss).strip()) if gloss else False
+                
+            variant_of = sense.get('variant_of', '')
+            has_variant_ref = bool(str(variant_of).strip()) if variant_of else False
             
             # Also check if the sense itself references a variant
             is_variant_sense = bool(sense.get('is_variant', False))

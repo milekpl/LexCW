@@ -17,9 +17,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app import create_app
-from app.models import Entry
-from app.extensions import db
-from config import TestConfig
+from config import TestingConfig
 
 class TestMorphTypeInheritance:
     """Test that morph-type respects existing LIFT data and doesn't auto-override"""
@@ -27,7 +25,7 @@ class TestMorphTypeInheritance:
     @pytest.fixture(scope="class")
     def setup_class(self):
         """Set up the test environment"""
-        self.app = create_app(TestConfig)
+        self.app = create_app(TestingConfig)
         self.app_context = self.app.app_context()
         self.app_context.push()
         

@@ -128,6 +128,10 @@ def create_app(config_name=None):
     from app.api.entry_autosave_working import autosave_bp
     app.register_blueprint(autosave_bp)
     
+    # Register real-time validation API for Phase 4
+    from app.api.validation_endpoints import validation_api
+    app.register_blueprint(validation_api, url_prefix='/api/validation')
+    
     # Initialize Swagger documentation
     swagger_config = {
         "headers": [],

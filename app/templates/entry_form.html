@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/form-tooltips.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/validation-feedback.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -1224,6 +1225,8 @@
 <script src="{{ url_for('static', filename='js/form-state-manager.js') }}"></script>
 <script src="{{ url_for('static', filename='js/client-validation-engine.js') }}"></script>
 <script src="{{ url_for('static', filename='js/auto-save-manager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/validation-ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/inline-validation.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>

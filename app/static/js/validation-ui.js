@@ -1,12 +1,491 @@
 /**
- * ValidationUI - User interface for displaying validation results
+ * Validation UI Components
  * 
- * Handles the display of validation errors, warnings, and success states
- * with inline field feedback and section-level summaries.
- * 
- * @author Dictionary System
- * @version 1.0.0
+ * Provides real-time validation feedback UI components including:
+ * - Inline error display
+ * - Section validation badges
+ * - Field validation styling
+ * - Accessibility support
  */
+
+class ValidationUI {
+    constructor() {
+        this.validationStates = new Map();
+        this.errorContainers = new Map();
+        this.sectionBadges = new Map();
+        this.accessibilityEnabled = true;
+        
+        this.init();
+    }
+    
+    init() {
+        this.createValidationStyles();
+        this.setupValidationContainers();
+        this.setupSectionBadges();
+        this.setupAccessibilityFeatures();
+        
+        console.log('✅ ValidationUI initialized');
+    }
+    
+    /**
+     * Create CSS classes for validation feedback
+     */
+    createValidationStyles() {
+        if (document.getElementById('validation-ui-styles')) {
+            return; // Already exists
+        }
+        
+        const style = document.createElement('style');
+        style.id = 'validation-ui-styles';
+        style.textContent = `
+            /* Field validation states */
+            .valid-field {
+                border-color: #28a745 !important;
+                background-color: #f8fff9;
+            }
+            
+            .invalid-field {
+                border-color: #dc3545 !important;
+                background-color: #fff8f8;
+            }
+            
+            .warning-field {
+                border-color: #ffc107 !important;
+                background-color: #fffbf0;
+            }
+            
+            /* Validation feedback containers */
+            .validation-feedback {
+                display: block;
+                margin-top: 0.25rem;
+                font-size: 0.875rem;
+            }
+            
+            .invalid-feedback {
+                color: #dc3545;
+            }
+            
+            .valid-feedback {
+                color: #28a745;
+            }
+            
+            .warning-feedback {
+                color: #856404;
+            }
+            
+            /* Validation error lists */
+            .validation-error-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            
+            .validation-error-item {
+                padding: 0.125rem 0;
+                display: flex;
+                align-items: center;
+            }
+            
+            .validation-error-item::before {
+                content: "⚠️";
+                margin-right: 0.25rem;
+            }
+            
+            .validation-error-item.error::before {
+                content: "❌";
+            }
+            
+            .validation-error-item.warning::before {
+                content: "⚠️";
+            }
+            
+            .validation-error-item.success::before {
+                content: "✅";
+            }
+            
+            /* Section validation badges */
+            .validation-badge {
+                display: inline-flex;
+                align-items: center;
+                padding: 0.25rem 0.5rem;
+                font-size: 0.75rem;
+                font-weight: 600;
+                border-radius: 0.375rem;
+                margin-left: 0.5rem;
+            }
+            
+            .validation-badge.badge-success {
+                color: #155724;
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+            }
+            
+            .validation-badge.badge-danger {
+                color: #721c24;
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+            }
+            
+            .validation-badge.badge-warning {
+                color: #856404;
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+            }
+            
+            .validation-badge.badge-info {
+                color: #0c5460;
+                background-color: #d1ecf1;
+                border: 1px solid #bee5eb;
+            }
+            
+            /* Loading states */
+            .validation-loading {
+                opacity: 0.6;
+                pointer-events: none;
+            }
+            
+            .validation-spinner {
+                display: inline-block;
+                width: 1rem;
+                height: 1rem;
+                border: 2px solid #f3f3f3;
+                border-top: 2px solid #007bff;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin-right: 0.5rem;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            /* Accessibility enhancements */
+            .validation-feedback[aria-live] {
+                position: relative;
+            }
+            
+            .sr-only {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                padding: 0;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0, 0, 0, 0);
+                white-space: nowrap;
+                border: 0;
+            }
+        `;
+        
+        document.head.appendChild(style);
+    }
+    
+    /**
+     * Setup validation containers for form fields
+     */
+    setupValidationContainers() {
+        const formFields = document.querySelectorAll('input, textarea, select');
+        
+        formFields.forEach(field => {
+            const fieldContainer = field.closest('.mb-3, .form-group, .col-md-6, .col-md-4');
+            if (!fieldContainer) return;
+            
+            // Check if validation container already exists
+            let validationContainer = fieldContainer.querySelector('.validation-feedback');
+            
+            if (!validationContainer) {
+                validationContainer = document.createElement('div');
+                validationContainer.className = 'validation-feedback';
+                validationContainer.setAttribute('aria-live', 'polite');
+                validationContainer.setAttribute('role', 'status');
+                
+                // Insert after the field
+                const insertAfter = field.nextElementSibling?.classList.contains('form-text') 
+                    ? field.nextElementSibling 
+                    : field;
+                insertAfter.parentNode.insertBefore(validationContainer, insertAfter.nextSibling);
+            }
+            
+            // Store reference
+            const fieldId = field.id || field.name || `field_${Date.now()}_${Math.random()}`;
+            this.errorContainers.set(fieldId, validationContainer);
+            
+            // Add validation attributes
+            field.setAttribute('data-validation-target', fieldId);
+            validationContainer.setAttribute('id', `${fieldId}-feedback`);
+            field.setAttribute('aria-describedby', `${fieldId}-feedback`);
+        });
+    }
+    
+    /**
+     * Setup section validation badges
+     */
+    setupSectionBadges() {
+        const sections = document.querySelectorAll('.card .card-header h5, .card .card-header h4');
+        
+        sections.forEach(header => {
+            const sectionId = this.getSectionId(header);
+            if (!sectionId) return;
+            
+            // Check if badge already exists
+            let badge = header.querySelector('.validation-badge');
+            
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'validation-badge badge-info section-status';
+                badge.textContent = 'Not validated';
+                badge.setAttribute('role', 'status');
+                badge.setAttribute('aria-live', 'polite');
+                
+                header.appendChild(badge);
+            }
+            
+            this.sectionBadges.set(sectionId, badge);
+        });
+    }
+    
+    /**
+     * Setup accessibility features
+     */
+    setupAccessibilityFeatures() {
+        // Add aria-invalid to form fields
+        const formFields = document.querySelectorAll('input, textarea, select');
+        formFields.forEach(field => {
+            if (!field.hasAttribute('aria-invalid')) {
+                field.setAttribute('aria-invalid', 'false');
+            }
+        });
+        
+        // Create screen reader announcements container
+        if (!document.getElementById('validation-announcements')) {
+            const announcements = document.createElement('div');
+            announcements.id = 'validation-announcements';
+            announcements.className = 'sr-only';
+            announcements.setAttribute('aria-live', 'assertive');
+            announcements.setAttribute('role', 'alert');
+            document.body.appendChild(announcements);
+        }
+    }
+    
+    /**
+     * Display field validation result
+     */
+    displayFieldValidation(fieldId, result) {
+        const field = document.querySelector(`[data-validation-target="${fieldId}"]`) || 
+                     document.getElementById(fieldId) ||
+                     document.querySelector(`[name="${fieldId}"]`);
+        
+        if (!field) return;
+        
+        const container = this.errorContainers.get(fieldId);
+        if (!container) return;
+        
+        // Update field state
+        this.validationStates.set(fieldId, result);
+        
+        // Remove existing validation classes
+        field.classList.remove('valid-field', 'invalid-field', 'warning-field');
+        container.classList.remove('invalid-feedback', 'valid-feedback', 'warning-feedback');
+        
+        // Clear container
+        container.innerHTML = '';
+        
+        if (result.errors && result.errors.length > 0) {
+            // Show errors
+            field.classList.add('invalid-field');
+            container.classList.add('invalid-feedback');
+            field.setAttribute('aria-invalid', 'true');
+            
+            const errorList = document.createElement('ul');
+            errorList.className = 'validation-error-list';
+            
+            result.errors.forEach(error => {
+                const errorItem = document.createElement('li');
+                errorItem.className = 'validation-error-item error';
+                errorItem.textContent = error;
+                errorList.appendChild(errorItem);
+            });
+            
+            container.appendChild(errorList);
+            this.announceValidation(`Error in ${fieldId}: ${result.errors.join(', ')}`);
+            
+        } else if (result.warnings && result.warnings.length > 0) {
+            // Show warnings
+            field.classList.add('warning-field');
+            container.classList.add('warning-feedback');
+            field.setAttribute('aria-invalid', 'false');
+            
+            const warningList = document.createElement('ul');
+            warningList.className = 'validation-error-list';
+            
+            result.warnings.forEach(warning => {
+                const warningItem = document.createElement('li');
+                warningItem.className = 'validation-error-item warning';
+                warningItem.textContent = warning;
+                warningList.appendChild(warningItem);
+            });
+            
+            container.appendChild(warningList);
+            
+        } else if (result.valid) {
+            // Show success
+            field.classList.add('valid-field');
+            container.classList.add('valid-feedback');
+            field.setAttribute('aria-invalid', 'false');
+            
+            const successItem = document.createElement('div');
+            successItem.className = 'validation-error-item success';
+            successItem.textContent = 'Valid';
+            container.appendChild(successItem);
+        }
+    }
+    
+    /**
+     * Update section validation badge
+     */
+    updateSectionStatus(sectionId, sectionResult) {
+        const badge = this.sectionBadges.get(sectionId);
+        if (!badge) return;
+        
+        // Remove existing badge classes
+        badge.classList.remove('badge-success', 'badge-danger', 'badge-warning', 'badge-info');
+        
+        if (sectionResult.section_valid) {
+            badge.classList.add('badge-success');
+            badge.textContent = `✓ Valid (${sectionResult.summary.valid_fields}/${sectionResult.summary.total_fields})`;
+        } else if (sectionResult.summary.errors.length > 0) {
+            badge.classList.add('badge-danger');
+            badge.textContent = `✗ Errors (${sectionResult.summary.errors.length})`;
+        } else if (sectionResult.summary.fields_with_warnings > 0) {
+            badge.classList.add('badge-warning');
+            badge.textContent = `⚠ Warnings (${sectionResult.summary.fields_with_warnings})`;
+        } else {
+            badge.classList.add('badge-info');
+            badge.textContent = 'Validating...';
+        }
+    }
+    
+    /**
+     * Show validation loading state
+     */
+    showValidationLoading(fieldId) {
+        const field = document.querySelector(`[data-validation-target="${fieldId}"]`) || 
+                     document.getElementById(fieldId);
+        
+        if (field) {
+            field.classList.add('validation-loading');
+        }
+        
+        const container = this.errorContainers.get(fieldId);
+        if (container) {
+            container.innerHTML = '<span class="validation-spinner"></span>Validating...';
+        }
+    }
+    
+    /**
+     * Hide validation loading state
+     */
+    hideValidationLoading(fieldId) {
+        const field = document.querySelector(`[data-validation-target="${fieldId}"]`) || 
+                     document.getElementById(fieldId);
+        
+        if (field) {
+            field.classList.remove('validation-loading');
+        }
+    }
+    
+    /**
+     * Get section ID from header element
+     */
+    getSectionId(header) {
+        const card = header.closest('.card');
+        if (!card) return null;
+        
+        // Try to determine section from classes or content
+        if (card.classList.contains('basic-info-section') || 
+            header.textContent.toLowerCase().includes('basic')) {
+            return 'basic_info';
+        }
+        
+        if (card.classList.contains('senses-section') || 
+            header.textContent.toLowerCase().includes('sense')) {
+            return 'senses';
+        }
+        
+        if (card.classList.contains('pronunciation-section') || 
+            header.textContent.toLowerCase().includes('pronunciation')) {
+            return 'pronunciation';
+        }
+        
+        // Default fallback
+        return card.id || 'unknown_section';
+    }
+    
+    /**
+     * Announce validation changes for screen readers
+     */
+    announceValidation(message) {
+        if (!this.accessibilityEnabled) return;
+        
+        const announcements = document.getElementById('validation-announcements');
+        if (announcements) {
+            announcements.textContent = message;
+            
+            // Clear after a delay to allow re-announcement
+            setTimeout(() => {
+                announcements.textContent = '';
+            }, 1000);
+        }
+    }
+    
+    /**
+     * Get current validation state for a field
+     */
+    getFieldValidationState(fieldId) {
+        return this.validationStates.get(fieldId);
+    }
+    
+    /**
+     * Clear all validation states
+     */
+    clearAllValidation() {
+        // Clear field states
+        this.validationStates.clear();
+        
+        // Reset field appearances
+        document.querySelectorAll('.valid-field, .invalid-field, .warning-field').forEach(field => {
+            field.classList.remove('valid-field', 'invalid-field', 'warning-field');
+            field.setAttribute('aria-invalid', 'false');
+        });
+        
+        // Clear validation containers
+        this.errorContainers.forEach(container => {
+            container.innerHTML = '';
+            container.classList.remove('invalid-feedback', 'valid-feedback', 'warning-feedback');
+        });
+        
+        // Reset section badges
+        this.sectionBadges.forEach(badge => {
+            badge.classList.remove('badge-success', 'badge-danger', 'badge-warning');
+            badge.classList.add('badge-info');
+            badge.textContent = 'Not validated';
+        });
+    }
+}
+
+// Global validation UI instance
+window.validationUI = null;
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    window.validationUI = new ValidationUI();
+});
+
+// Export for module usage
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = ValidationUI;
+}
 
 class ValidationUI {
     /**
