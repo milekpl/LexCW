@@ -102,6 +102,9 @@ def create_app(config_name=None):
     from app.api.ranges import ranges_bp
     app.register_blueprint(ranges_bp)
     
+    from app.api.pronunciation import pronunciation_bp
+    app.register_blueprint(pronunciation_bp)
+    
     from app.views import main_bp
     app.register_blueprint(main_bp)
     

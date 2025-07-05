@@ -8,22 +8,169 @@ document.addEventListener('DOMContentLoaded', function() {
     window.rangesLoader = new RangesLoader();
 
     // Function to initialize dynamic selects
-    function initializeDynamicSelects(container) {
+    async function initializeDynamicSelects(container) {
         const dynamicSelects = container.querySelectorAll('.dynamic-grammatical-info');
-        dynamicSelects.forEach(select => {
+        
+        // Load all ranges first
+        const promises = Array.from(dynamicSelects).map(async select => {
             const rangeId = select.dataset.rangeId;
             const selectedValue = select.dataset.selected;
             if (rangeId) {
-                window.rangesLoader.populateSelect(select, rangeId, { 
+                await window.rangesLoader.populateSelect(select, rangeId, { 
                     selectedValue: selectedValue,
                     emptyOption: 'Select part of speech' 
                 });
             }
         });
+        
+        // Wait for all ranges to load
+        await Promise.all(promises);
+        
+        // Then trigger inheritance logic if it's available
+        if (typeof updateGrammaticalCategoryInheritance === 'function') {
+            // Add a small delay to ensure all DOM updates are complete
+            setTimeout(() => {
+                updateGrammaticalCategoryInheritance();
+            }, 100);
+        }
     }
 
     // Initial load for selects already on the page
-    initializeDynamicSelects(document.body);
+    initializeDynamicSelects(document.body).then(() => {
+        // Morph-type is now handled server-side, no client-side auto-classification needed
+        console.log('Dynamic selects initialized, morph-type handled by backend');
+    });
+
+    /**
+     * Grammatical Category Inheritance Logic
+     * Automatically derives entry-level grammatical category from senses
+     * and validates for discrepancies as specified in section 7.2.1
+     */
+    async function updateGrammaticalCategoryInheritance() {
+        const entryPartOfSpeechSelect = document.getElementById('part-of-speech');
+        const requiredIndicator = document.getElementById('pos-required-indicator');
+        if (!entryPartOfSpeechSelect) return;
+
+        // Get all sense grammatical categories
+        const senseGrammaticalSelects = document.querySelectorAll('#senses-container .dynamic-grammatical-info');
+        const senseCategories = Array.from(senseGrammaticalSelects)
+            .map(select => select.value)
+            .filter(value => value && value.trim()); // Only non-empty values
+
+        // Clear any existing error styling
+        entryPartOfSpeechSelect.classList.remove('is-invalid', 'is-valid');
+        const existingFeedback = entryPartOfSpeechSelect.parentElement.querySelector('.invalid-feedback, .valid-feedback');
+        if (existingFeedback) {
+            existingFeedback.remove();
+        }
+
+        if (senseCategories.length === 0) {
+            // No senses with grammatical categories
+            // Check if entry already has a POS value - if so, it might be inherited
+            if (entryPartOfSpeechSelect.value && entryPartOfSpeechSelect.value.trim() !== '') {
+                // Entry has POS but no sense POS loaded yet - field is optional
+                entryPartOfSpeechSelect.required = false;
+                if (requiredIndicator) requiredIndicator.style.display = 'none';
+                return;
+            } else {
+                // No entry POS and no sense POS - field is optional per specification
+                entryPartOfSpeechSelect.required = false;
+                if (requiredIndicator) requiredIndicator.style.display = 'none';
+                return;
+            }
+        }
+
+        // Check for consistency among sense categories
+        const uniqueCategories = [...new Set(senseCategories)];
+        
+        if (uniqueCategories.length === 1) {
+            // All senses have the same grammatical category - auto-inherit, field not required
+            const commonCategory = uniqueCategories[0];
+            const currentValue = entryPartOfSpeechSelect.value;
+            
+            // Check if entry POS already matches the common category
+            if (currentValue === commonCategory) {
+                // Already correctly inherited - field not required
+                entryPartOfSpeechSelect.required = false;
+                if (requiredIndicator) {
+                    requiredIndicator.style.display = 'none';
+                }
+                
+                // Add success feedback
+                entryPartOfSpeechSelect.classList.add('is-valid');
+                const feedback = document.createElement('div');
+                feedback.className = 'valid-feedback';
+                feedback.textContent = 'Automatically inherited from senses';
+                entryPartOfSpeechSelect.parentElement.appendChild(feedback);
+            } else {
+                // Entry POS doesn't match - update it
+                entryPartOfSpeechSelect.value = commonCategory;
+                entryPartOfSpeechSelect.required = false;
+                if (requiredIndicator) {
+                    requiredIndicator.style.display = 'none';
+                }
+                
+                // Add success feedback
+                entryPartOfSpeechSelect.classList.add('is-valid');
+                const feedback = document.createElement('div');
+                feedback.className = 'valid-feedback';
+                feedback.textContent = 'Automatically inherited from senses';
+                entryPartOfSpeechSelect.parentElement.appendChild(feedback);
+            }
+        } else {
+            // Discrepancy detected - field is required, show error
+            entryPartOfSpeechSelect.required = true;
+            if (requiredIndicator) requiredIndicator.style.display = 'inline';
+            entryPartOfSpeechSelect.classList.add('is-invalid');
+            const feedback = document.createElement('div');
+            feedback.className = 'invalid-feedback';
+            feedback.innerHTML = `
+                <strong>Grammatical category discrepancy detected!</strong><br>
+                Senses have different categories: ${uniqueCategories.join(', ')}<br>
+                Please manually select the appropriate entry-level category.
+            `;
+            entryPartOfSpeechSelect.parentElement.appendChild(feedback);
+        }
+    }
+
+    /**
+     * Grammatical Category Inheritance Logic  
+     * Automatically derives entry-level grammatical category from senses
+     * and validates for discrepancies as specified in section 7.2.1
+     */
+    // Set up event listeners for grammatical category inheritance
+    function setupGrammaticalInheritanceListeners() {
+        // Listen for changes in sense grammatical categories
+        document.addEventListener('change', function(e) {
+            if (e.target.matches('#senses-container .dynamic-grammatical-info')) {
+                updateGrammaticalCategoryInheritance();
+            }
+        });
+
+        // Listen for addition/removal of senses
+        const sensesContainer = document.querySelector('#senses-container');
+        if (sensesContainer) {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList') {
+                        updateGrammaticalCategoryInheritance();
+                    }
+                });
+            });
+            observer.observe(sensesContainer, { childList: true, subtree: true });
+        }
+    }
+
+    // Initialize inheritance logic
+    setupGrammaticalInheritanceListeners();
+    
+    // Run initial updates after ranges are loaded
+    setTimeout(async () => {
+        await updateGrammaticalCategoryInheritance();
+    }, 500);
+
+    // Expose functions to global scope for use by other components
+    window.updateGrammaticalCategoryInheritance = updateGrammaticalCategoryInheritance;
 
     // Initialize Select2 for tag inputs
     $('.select2-tags').select2({
@@ -124,6 +271,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (senseItem && confirm('Are you sure you want to remove this sense and all its examples?')) {
                     senseItem.remove();
                     reindexSenses();
+                    
+                    // Trigger grammatical category inheritance update after removal
+                    setTimeout(() => {
+                        if (typeof updateGrammaticalCategoryInheritance === 'function') {
+                            updateGrammaticalCategoryInheritance();
+                        }
+                    }, 10);
                     return;
                 }
             }
@@ -223,7 +377,9 @@ function validateForm(showValidationModal = false) {
     }
     
     const partOfSpeech = document.getElementById('part-of-speech')?.value;
-    if (!partOfSpeech) {
+    const partOfSpeechElement = document.getElementById('part-of-speech');
+    // Only require PoS if the field is marked as required (determined by inheritance logic)
+    if (partOfSpeechElement && partOfSpeechElement.required && !partOfSpeech) {
         errors.push('Part of Speech is required');
         isValid = false;
     }
@@ -277,38 +433,49 @@ function validateForm(showValidationModal = false) {
  * Submit the form via AJAX
  */
 function submitForm() {
+    console.log('submitForm() called');
     const form = document.getElementById('entry-form');
-    if (!form) return;
+    if (!form) {
+        console.error('Form not found');
+        return;
+    }
     
-    // Convert form data to structured object
-    const formData = new FormData(form);
-    const jsonData = {};
+    console.log('Form found, starting submission');
     
-    formData.forEach((value, key) => {
-        // Handle bracket notation for nested objects
-        const keys = key.split(/[\[\]]/).filter(k => k !== '');
-        let current = jsonData;
-        
-        for (let i = 0; i < keys.length; i++) {
-            const keyPart = keys[i];
-            const isLast = i === keys.length - 1;
-            
-            if (isLast) {
-                current[keyPart] = value;
-            } else {
-                // Handle numeric array indices
-                const nextKey = keys[i + 1];
-                const useArray = !isNaN(parseInt(nextKey));
-                
-                if (!current[keyPart]) {
-                    current[keyPart] = useArray ? [] : {};
-                }
-                
-                // Move into nested object/array
-                current = current[keyPart];
-            }
+    // Use the robust form serializer
+    let jsonData;
+    try {
+        if (typeof window.FormSerializer === 'undefined') {
+            throw new Error('FormSerializer not loaded. Please ensure form-serializer.js is included.');
         }
-    });
+        
+        // Validate form structure before serialization
+        const validation = window.FormSerializer.validateFormForSerialization(form);
+        if (!validation.success) {
+            console.error('Form validation errors:', validation.errors);
+            throw new Error('Form structure validation failed: ' + validation.errors.join(', '));
+        }
+        
+        if (validation.warnings.length > 0) {
+            console.warn('Form validation warnings:', validation.warnings);
+        }
+        
+        // Serialize form to JSON
+        jsonData = window.FormSerializer.serializeFormToJSON(form, {
+            includeEmpty: false, // Don't include empty fields
+            transform: (value, key) => {
+                // Trim string values
+                return typeof value === 'string' ? value.trim() : value;
+            }
+        });
+        
+        console.log('Final JSON data to be sent:', JSON.stringify(jsonData, null, 2));
+        
+    } catch (error) {
+        console.error('Form serialization error:', error);
+        alert(`Form serialization failed: ${error.message}`);
+        return;
+    }
     
     // Show loading state
     const saveBtn = document.getElementById('save-btn');
@@ -325,20 +492,27 @@ function submitForm() {
         body: JSON.stringify(jsonData)
     })
     .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
+        return response.json().then(data => {
+            if (!response.ok) {
+                // Server returned an error response
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            }
+            return data;
+        });
     })
     .then(data => {
-        window.location.href = `/entries/${data.id}`;
+        if (data.id) {
+            window.location.href = `/entries/${data.id}`;
+        } else {
+            throw new Error('No entry ID returned from server');
+        }
     })
     .catch(error => {
         console.error('Error:', error);
         // Reset button
         saveBtn.innerHTML = originalText;
         saveBtn.disabled = false;
-        alert('Error saving entry. Please try again.');
+        alert(`Error saving entry: ${error.message}`);
     });
 }
 
@@ -411,8 +585,22 @@ async function addSense() {
                     labelField: 'value'
                 }
             );
+            
+            // Add change listener for grammatical category inheritance
+            grammaticalSelect.addEventListener('change', function() {
+                if (typeof updateGrammaticalCategoryInheritance === 'function') {
+                    updateGrammaticalCategoryInheritance();
+                }
+            });
         }
     }
+    
+    // Trigger inheritance update after adding the sense
+    setTimeout(() => {
+        if (typeof updateGrammaticalCategoryInheritance === 'function') {
+            updateGrammaticalCategoryInheritance();
+        }
+    }, 100);
 }
 
 /**
@@ -600,13 +788,16 @@ class MultilingualNotesManager {
             { value: 'bibliography', label: 'Bibliography' }
         ];
         
-        // Available languages
+        // Available languages - comprehensive list including commonly used codes
         this.languages = [
             { value: 'en', label: 'English' },
             { value: 'pt', label: 'Portuguese' },
             { value: 'seh', label: 'Sena' },
+            { value: 'seh-fonipa', label: 'Sena (IPA)' },
             { value: 'fr', label: 'French' },
-            { value: 'es', label: 'Spanish' }
+            { value: 'es', label: 'Spanish' },
+            { value: 'de', label: 'German' },
+            { value: 'it', label: 'Italian' }
         ];
         
         this.init();
@@ -617,7 +808,6 @@ class MultilingualNotesManager {
             console.error('Multilingual notes container not found');
             return;
         }
-        
         // Initialize existing note items
         this.container.querySelectorAll('.note-item').forEach((item, index) => {
             this.attachNoteEventListeners(item, index);
@@ -850,5 +1040,450 @@ class MultilingualNotesManager {
     }
 }
 
-// Make MultilingualNotesManager globally available
-window.MultilingualNotesManager = MultilingualNotesManager;
+/**
+ * IPA Validation Module
+ * Implements real-time validation against admissible IPA characters and sequences
+ * as specified in Section 15.3 of the specification
+ */
+class IPAValidator {
+    constructor() {
+        // Primary IPA symbols as defined in Section 15.3.1
+        this.vowels = 'ɑæɒəɜɪiʊuʌeɛoɔ';
+        this.consonants = 'bdfghjklmnprstwvzðθŋʃʒ';
+        this.lengthMarkers = 'ː';
+        this.stressMarkers = 'ˈˌ';
+        this.specialSymbols = 'ᵻ';
+        this.diphthongs = ['eɪ', 'aɪ', 'ɔɪ', 'əʊ', 'aʊ', 'ɪə', 'eə', 'ʊə', 'oʊ'];
+        this.complexConsonants = ['tʃ', 'dʒ'];
+        
+        // Build complete valid character set
+        this.validChars = this.vowels + this.consonants + this.lengthMarkers + 
+                         this.stressMarkers + this.specialSymbols + ' .';
+        
+        // Invalid sequences as defined in Section 15.3.3
+        this.invalidSequences = [
+            'ˈˈ', 'ˌˌ', 'ˈˌ', 'ˌˈ', // Double stress markers
+            'ːː', // Double length markers
+        ];
+    }
+    
+    /**
+     * Validate IPA text and return validation result
+     * @param {string} ipaText - The IPA text to validate
+     * @returns {Object} Validation result with isValid, errors, and positions
+     */
+    validate(ipaText) {
+        const result = {
+            isValid: true,
+            errors: [],
+            invalidPositions: []
+        };
+        
+        if (!ipaText || ipaText.trim() === '') {
+            return result; // Empty is valid
+        }
+        
+        // Check for invalid characters
+        for (let i = 0; i < ipaText.length; i++) {
+            const char = ipaText[i];
+            if (!this.validChars.includes(char)) {
+                result.isValid = false;
+                result.errors.push(`Invalid IPA character: '${char}' at position ${i + 1}`);
+                result.invalidPositions.push(i);
+            }
+        }
+        
+        // Check for invalid sequences
+        this.invalidSequences.forEach(sequence => {
+            let index = ipaText.indexOf(sequence);
+            while (index !== -1) {
+                result.isValid = false;
+                result.errors.push(`Invalid sequence: '${sequence}' at position ${index + 1}`);
+                for (let j = index; j < index + sequence.length; j++) {
+                    if (!result.invalidPositions.includes(j)) {
+                        result.invalidPositions.push(j);
+                    }
+                }
+                index = ipaText.indexOf(sequence, index + 1);
+            }
+        });
+        
+        return result;
+    }
+    
+    /**
+     * Apply visual feedback to an input field based on validation result
+     * @param {HTMLInputElement} inputField - The input field to style
+     * @param {Object} validationResult - Result from validate() method
+     */
+    applyVisualFeedback(inputField, validationResult) {
+        // Remove existing validation classes
+        inputField.classList.remove('is-invalid', 'is-valid', 'ipa-invalid');
+        
+        // Remove existing feedback elements
+        const existingFeedback = inputField.parentElement.querySelector('.invalid-feedback, .valid-feedback');
+        if (existingFeedback) {
+            existingFeedback.remove();
+        }
+        
+        if (inputField.value.trim() === '') {
+            return; // No validation for empty fields
+        }
+        
+        if (validationResult.isValid) {
+            inputField.classList.add('is-valid');
+            
+            // Add success feedback
+            const feedback = document.createElement('div');
+            feedback.className = 'valid-feedback';
+            feedback.textContent = 'Valid IPA transcription';
+            inputField.parentElement.appendChild(feedback);
+        } else {
+            inputField.classList.add('is-invalid', 'ipa-invalid');
+            
+            // Add error feedback
+            const feedback = document.createElement('div');
+            feedback.className = 'invalid-feedback';
+            feedback.innerHTML = '<strong>IPA Validation Errors:</strong><br>' + 
+                               validationResult.errors.join('<br>');
+            inputField.parentElement.appendChild(feedback);
+            
+            // Apply underline styling to invalid characters
+            this.highlightInvalidCharacters(inputField, validationResult.invalidPositions);
+        }
+    }
+    
+    /**
+     * Highlight invalid characters with red underline
+     * @param {HTMLInputElement} inputField - The input field
+     * @param {Array} invalidPositions - Array of invalid character positions
+     */
+    highlightInvalidCharacters(inputField, invalidPositions) {
+        // This would be complex to implement with input fields directly
+        // For now, we rely on the Bootstrap validation classes and feedback
+        // A future enhancement could use a contenteditable div for more granular highlighting
+    }
+}
+
+/**
+ * Initialize IPA validation for all pronunciation input fields
+ */
+function initializeIPAValidation() {
+    const validator = new IPAValidator();
+    
+    function validateIPAField(inputField) {
+        const validationResult = validator.validate(inputField.value);
+        validator.applyVisualFeedback(inputField, validationResult);
+    }
+    
+    // Apply validation to existing IPA input fields
+    document.querySelectorAll('.ipa-input').forEach(inputField => {
+        // Real-time validation on input
+        inputField.addEventListener('input', function() {
+            validateIPAField(this);
+        });
+        
+        // Validation on blur for better UX
+        inputField.addEventListener('blur', function() {
+            validateIPAField(this);
+        });
+        
+        // Initial validation if field has content
+        if (inputField.value.trim()) {
+            validateIPAField(inputField);
+        }
+    });
+    
+    // Add validation CSS if not already present
+    if (!document.querySelector('#ipa-validation-styles')) {
+        const style = document.createElement('style');
+        style.id = 'ipa-validation-styles';
+        style.textContent = `
+            .ipa-invalid {
+                border-color: #dc3545 !important;
+                box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+            }
+            
+            .ipa-invalid:focus {
+                border-color: #dc3545 !important;
+                box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+            }
+            
+            .ipa-input.is-valid {
+                border-color: #198754 !important;
+            }
+            
+            .ipa-input.is-valid:focus {
+                border-color: #198754 !important;
+                box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25) !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+/**
+ * Field Visibility Management
+ * Implements user-configurable field visibility as specified in Section 7.2.1
+ */
+class FieldVisibilityManager {
+    constructor() {
+        this.storageKey = 'entryFormFieldVisibility';
+        this.defaultSettings = {
+            'basic-info-section': true,
+            'custom-fields-section': true,
+            'notes-section': true,
+            'pronunciation-section': true,
+            'variants-section': true,
+            'relations-section': true,
+            'senses-section': true
+        };
+        this.currentSettings = this.loadSettings();
+        this.initializeControls();
+        this.applySettings();
+    }
+    
+    /**
+     * Load settings from localStorage
+     */
+    loadSettings() {
+        try {
+            const stored = localStorage.getItem(this.storageKey);
+            return stored ? { ...this.defaultSettings, ...JSON.parse(stored) } : { ...this.defaultSettings };
+        } catch (error) {
+            console.warn('Failed to load field visibility settings:', error);
+            return { ...this.defaultSettings };
+        }
+    }
+    
+    /**
+     * Save settings to localStorage
+     */
+    saveSettings() {
+        try {
+            localStorage.setItem(this.storageKey, JSON.stringify(this.currentSettings));
+        } catch (error) {
+            console.warn('Failed to save field visibility settings:', error);
+        }
+    }
+    
+    /**
+     * Initialize event listeners for visibility controls
+     */
+    initializeControls() {
+        // Individual section toggles
+        document.querySelectorAll('.field-visibility-toggle').forEach(checkbox => {
+            const sectionClass = checkbox.dataset.target?.replace('.', '');
+            if (sectionClass) {
+                // Set initial state from settings
+                checkbox.checked = this.currentSettings[sectionClass];
+                
+                // Add change listener
+                checkbox.addEventListener('change', () => {
+                    this.currentSettings[sectionClass] = checkbox.checked;
+                    this.saveSettings();
+                    this.applySectionVisibility(sectionClass, checkbox.checked);
+                });
+            }
+        });
+        
+        // Reset to defaults button
+        const resetBtn = document.getElementById('reset-field-visibility');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                this.resetToDefaults();
+            });
+        }
+        
+        // Hide empty sections button
+        const hideEmptyBtn = document.getElementById('hide-empty-sections');
+        if (hideEmptyBtn) {
+            hideEmptyBtn.addEventListener('click', () => {
+                this.hideEmptySections();
+            });
+        }
+        
+        // Show all sections button
+        const showAllBtn = document.getElementById('show-all-sections');
+        if (showAllBtn) {
+            showAllBtn.addEventListener('click', () => {
+                this.showAllSections();
+            });
+        }
+    }
+    
+    /**
+     * Apply all current visibility settings
+     */
+    applySettings() {
+        Object.entries(this.currentSettings).forEach(([sectionClass, isVisible]) => {
+            this.applySectionVisibility(sectionClass, isVisible);
+        });
+    }
+    
+    /**
+     * Apply visibility to a specific section
+     */
+    applySectionVisibility(sectionClass, isVisible) {
+        const elements = document.querySelectorAll(`.${sectionClass}`);
+        elements.forEach(element => {
+            if (isVisible) {
+                element.style.display = '';
+                element.classList.remove('field-hidden');
+            } else {
+                element.style.display = 'none';
+                element.classList.add('field-hidden');
+            }
+        });
+    }
+    
+    /**
+     * Reset all settings to defaults
+     */
+    resetToDefaults() {
+        this.currentSettings = { ...this.defaultSettings };
+        this.saveSettings();
+        
+        // Update checkboxes
+        document.querySelectorAll('.field-visibility-toggle').forEach(checkbox => {
+            const sectionClass = checkbox.dataset.target?.replace('.', '');
+            if (sectionClass) {
+                checkbox.checked = this.currentSettings[sectionClass];
+            }
+        });
+        
+        // Apply settings
+        this.applySettings();
+        
+        // Show feedback
+        this.showFeedback('Field visibility reset to defaults', 'success');
+    }
+    
+    /**
+     * Hide sections that appear to be empty
+     */
+    hideEmptySections() {
+        Object.keys(this.currentSettings).forEach(sectionClass => {
+            const sections = document.querySelectorAll(`.${sectionClass}`);
+            sections.forEach(section => {
+                if (this.isSectionEmpty(section)) {
+                    this.currentSettings[sectionClass] = false;
+                    this.applySectionVisibility(sectionClass, false);
+                    
+                    // Update corresponding checkbox
+                    const checkbox = document.querySelector(`[data-target=".${sectionClass}"]`);
+                    if (checkbox) {
+                        checkbox.checked = false;
+                    }
+                }
+            });
+        });
+        
+        this.saveSettings();
+        this.showFeedback('Empty sections hidden', 'info');
+    }
+    
+    /**
+     * Show all sections
+     */
+    showAllSections() {
+        Object.keys(this.currentSettings).forEach(sectionClass => {
+            this.currentSettings[sectionClass] = true;
+            this.applySectionVisibility(sectionClass, true);
+            
+            // Update corresponding checkbox
+            const checkbox = document.querySelector(`[data-target=".${sectionClass}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+        
+        this.saveSettings();
+        this.showFeedback('All sections shown', 'success');
+    }
+    
+    /**
+     * Check if a section appears to be empty
+     */
+    isSectionEmpty(section) {
+        // For custom fields section
+        if (section.classList.contains('custom-fields-section')) {
+            const customFieldItems = section.querySelectorAll('.custom-field-item');
+            return customFieldItems.length === 0;
+        }
+        
+        // For notes section
+        if (section.classList.contains('notes-section')) {
+            const noteItems = section.querySelectorAll('.note-item');
+            return noteItems.length === 0;
+        }
+        
+        // For pronunciation section
+        if (section.classList.contains('pronunciation-section')) {
+            const pronunciationItems = section.querySelectorAll('.pronunciation-item');
+            return pronunciationItems.length === 0;
+        }
+        
+        // For variants section
+        if (section.classList.contains('variants-section')) {
+            const variantItems = section.querySelectorAll('.variant-item');
+            return variantItems.length === 0;
+        }
+        
+        // For relations section
+        if (section.classList.contains('relations-section')) {
+            const relationItems = section.querySelectorAll('.relation-item');
+            return relationItems.length === 0;
+        }
+        
+        // For senses section - never hide as it's required
+        if (section.classList.contains('senses-section')) {
+            return false;
+        }
+        
+        // Default: check for input/textarea/select elements with values
+        const inputs = section.querySelectorAll('input[type="text"], textarea, select');
+        const hasContent = Array.from(inputs).some(input => 
+            input.value && input.value.trim() !== ''
+        );
+        
+        return !hasContent;
+    }
+    
+    /**
+     * Show feedback message to user
+     */
+    showFeedback(message, type = 'info') {
+        // Create a temporary toast-like notification
+        const feedback = document.createElement('div');
+        feedback.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        feedback.style.cssText = `
+            top: 20px; 
+            right: 20px; 
+            z-index: 9999; 
+            min-width: 300px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        `;
+        feedback.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(feedback);
+        
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            if (feedback.parentNode) {
+                feedback.remove();
+            }
+        }, 3000);
+    }
+}
+
+// Initialize field visibility management
+document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to ensure modal is ready
+    setTimeout(() => {
+        window.fieldVisibilityManager = new FieldVisibilityManager();
+    }, 200);
+});

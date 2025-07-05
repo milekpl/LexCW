@@ -50,8 +50,9 @@ class PronunciationFormsManager {
         const existingItems = this.container.querySelectorAll('.pronunciation-item');
         
         if (existingItems.length > 0) {
-            // Server-side rendered fields exist - don't clear them, just ensure event handlers are attached
+            // Server-side rendered fields exist - attach event handlers
             console.log('[DEBUG] Found', existingItems.length, 'server-side rendered pronunciation fields');
+            this.attachEventHandlersToExisting();
             return;
         }
         
@@ -70,12 +71,54 @@ class PronunciationFormsManager {
         });
     }
     
+    attachEventHandlersToExisting() {
+        // Attach event handlers to existing remove audio buttons
+        const existingRemoveButtons = this.container.querySelectorAll('.remove-audio-btn');
+        existingRemoveButtons.forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const audioPreview = e.target.closest('.audio-preview');
+                const pronunciationItem = e.target.closest('.pronunciation-item');
+                
+                if (audioPreview && pronunciationItem) {
+                    const audioInput = pronunciationItem.querySelector('input[name$=".audio_path"]');
+                    const filename = audioInput.value;
+                    
+                    if (filename) {
+                        try {
+                            // Delete the file from server
+                            const response = await fetch(`/api/pronunciation/delete/${filename}`, {
+                                method: 'DELETE'
+                            });
+                            
+                            if (response.ok) {
+                                console.log('Audio file deleted from server');
+                            } else {
+                                console.warn('Failed to delete audio file from server');
+                            }
+                        } catch (error) {
+                            console.warn('Error deleting audio file:', error);
+                        }
+                    }
+                    
+                    // Clear the audio input value
+                    audioInput.value = '';
+                    
+                    // Remove the preview
+                    audioPreview.remove();
+                    
+                    // Show feedback
+                    this.showMessage('Audio file removed', 'info');
+                }
+            });
+        });
+    }
+    
     addPronunciation() {
         const index = this.getNextIndex();
         const newPronunciation = {
             value: '',
             type: this.languageCode,
-            audio_file: '',
+            audio_path: '',
             is_default: index === 0 // First pronunciation is default
         };
         
@@ -116,8 +159,8 @@ class PronunciationFormsManager {
                 <div class="mt-2 mb-2">
                     <label class="form-label">Audio File</label>
                     <div class="input-group">
-                        <input type="text" class="form-control" name="pronunciations[${index}].audio_file" 
-                               value="${pronunciation.audio_file || ''}" readonly 
+                        <input type="text" class="form-control" name="pronunciations[${index}].audio_path" 
+                               value="${pronunciation.audio_path || ''}" readonly 
                                title="Audio file path" placeholder="No audio file">
                         <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
                                 data-index="${index}" title="Generate audio">
@@ -213,20 +256,207 @@ class PronunciationFormsManager {
         if (!item) return;
         
         const ipaInput = item.querySelector('input[name$=".value"]');
-        const audioInput = item.querySelector('input[name$=".audio_file"]');
+        const audioInput = item.querySelector('input[name$=".audio_path"]');
+        const generateBtn = item.querySelector('.generate-audio-btn');
         
         if (!ipaInput || !ipaInput.value.trim()) {
             alert('Please enter an IPA transcription first.');
             return;
         }
         
-        // In a real implementation, this would make an API call to generate audio
-        // For now, we'll just update the UI with a mock file path
-        const mockFilePath = `audio/${Date.now()}_${Math.floor(Math.random() * 1000)}.mp3`;
-        audioInput.value = mockFilePath;
+        // Create a file input for audio upload
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'audio/*,.mp3,.wav,.ogg';
+        fileInput.style.display = 'none';
         
-        // Show a success message
-        alert('Audio generation would happen here in a real implementation.');
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|ogg)$/i)) {
+                alert('Please select a valid audio file (MP3, WAV, or OGG).');
+                return;
+            }
+            
+            // Validate file size (limit to 10MB)
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                alert('Audio file is too large. Please choose a file smaller than 10MB.');
+                return;
+            }
+            
+            // Store original button state
+            const originalText = generateBtn.innerHTML;
+            
+            try {
+                // Create FormData for upload
+                const formData = new FormData();
+                formData.append('audio_file', file); // API expects 'audio_file' as form field name
+                formData.append('ipa_value', ipaInput.value);
+                formData.append('index', index);
+                
+                // Show loading state
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                generateBtn.disabled = true;
+                
+                // Upload the file
+                const response = await fetch('/api/pronunciation/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    // Update the hidden input with the filename
+                    audioInput.value = result.filename;
+                    
+                    // Add audio preview
+                    this.addAudioPreview(item, result.filename);
+                    
+                    // Show success message
+                    this.showMessage('Audio uploaded successfully!', 'success');
+                    
+                    // Update button text to indicate upload complete
+                    generateBtn.innerHTML = '<i class="fas fa-check"></i> Uploaded';
+                    
+                    // Reset button after 2 seconds
+                    setTimeout(() => {
+                        generateBtn.innerHTML = originalText;
+                        generateBtn.disabled = false;
+                    }, 2000);
+                } else {
+                    throw new Error(result.message || 'Upload failed');
+                }
+            } catch (error) {
+                console.error('Audio upload error:', error);
+                this.showMessage('Failed to upload audio: ' + error.message, 'error');
+                
+                // Restore button state immediately on error
+                generateBtn.innerHTML = originalText;
+                generateBtn.disabled = false;
+            }
+            
+            // Clean up file input
+            if (document.body.contains(fileInput)) {
+                document.body.removeChild(fileInput);
+            }
+        });
+        
+        // Trigger file selection
+        document.body.appendChild(fileInput);
+        fileInput.click();
+    }
+    
+    addAudioPreview(item, filename) {
+        // Remove existing preview
+        const existingPreview = item.querySelector('.audio-preview');
+        if (existingPreview) {
+            existingPreview.remove();
+        }
+        
+        // Determine the audio file extension for proper MIME type
+        const fileExtension = filename.split('.').pop().toLowerCase();
+        let mimeType = 'audio/mpeg'; // default
+        
+        if (fileExtension === 'wav') {
+            mimeType = 'audio/wav';
+        } else if (fileExtension === 'ogg') {
+            mimeType = 'audio/ogg';
+        } else if (fileExtension === 'm4a') {
+            mimeType = 'audio/mp4';
+        }
+        
+        // Create audio preview element
+        const audioPreview = document.createElement('div');
+        audioPreview.className = 'audio-preview mt-2';
+        audioPreview.innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <small class="text-muted d-block">Audio file: ${filename}</small>
+                    <audio controls class="w-100 mt-1" preload="metadata">
+                        <source src="/static/audio/${filename}" type="${mimeType}">
+                        <source src="/static/audio/${filename}">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-audio-btn" 
+                        title="Remove audio file">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        // Add event listener for audio removal
+        const removeBtn = audioPreview.querySelector('.remove-audio-btn');
+        removeBtn.addEventListener('click', async () => {
+            try {
+                // Optional: Delete the file from server
+                const response = await fetch(`/api/pronunciation/delete/${filename}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    console.log('Audio file deleted from server');
+                } else {
+                    console.warn('Failed to delete audio file from server');
+                }
+            } catch (error) {
+                console.warn('Error deleting audio file:', error);
+            }
+            
+            // Clear the audio input value
+            const audioInput = item.querySelector('input[name$=".audio_path"]');
+            audioInput.value = '';
+            
+            // Remove the preview
+            audioPreview.remove();
+            
+            // Show feedback
+            this.showMessage('Audio file removed', 'info');
+        });
+        
+        // Insert preview after the audio file input group
+        const audioInputGroup = item.querySelector('.input-group');
+        if (audioInputGroup && audioInputGroup.parentNode) {
+            audioInputGroup.parentNode.insertBefore(audioPreview, audioInputGroup.nextSibling);
+        }
+        
+        // Add error handling for audio element
+        const audioElement = audioPreview.querySelector('audio');
+        audioElement.addEventListener('error', (e) => {
+            console.error('Audio playback error:', e);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'text-danger small mt-1';
+            errorDiv.textContent = 'Audio file could not be loaded';
+            audioElement.parentNode.appendChild(errorDiv);
+        });
+        
+        audioElement.addEventListener('loadedmetadata', () => {
+            console.log('Audio loaded successfully:', filename);
+        });
+    }
+    
+    showMessage(message, type = 'info') {
+        // Create a toast-like message
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+        messageDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+        messageDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(messageDiv);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, 5000);
     }
 }
 

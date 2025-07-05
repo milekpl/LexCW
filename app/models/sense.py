@@ -59,7 +59,7 @@ class Sense(BaseModel):
     
     def validate(self) -> bool:
         """
-        Validate the sense.
+        Validate the sense using the centralized validation system.
         
         Returns:
             True if the sense is valid.
@@ -67,14 +67,38 @@ class Sense(BaseModel):
         Raises:
             ValidationError: If the sense is invalid.
         """
-        errors = []
+        from app.services.validation_engine import ValidationEngine
         
-        # Validate required fields
-        if not self.id:
-            errors.append("Sense ID is required")
+        # Convert sense to entry-like structure for validation
+        sense_data = {
+            'id': 'temp_entry_id',  # Temporary entry ID for validation context
+            'lexical_unit': {'en': 'temp'},  # Temporary lexical unit
+            'senses': [self.to_dict()]  # Validate this sense as part of an entry
+        }
         
-        if errors:
-            raise ValidationError("Sense validation failed", errors)
+        # Use centralized validation system
+        engine = ValidationEngine()
+        result = engine.validate_entry(sense_data)
+        
+        # Collect all relevant errors (sense-specific and any that could apply to this sense)
+        sense_errors = []
+        for error in result.errors:
+            # Include errors that are related to sense validation
+            if ('sense' in error.rule_id.lower() or 
+                'senses[0]' in error.message or 
+                'Sense at index 0' in error.message or
+                error.rule_id.startswith('R2.')):  # All R2.x rules are sense-related
+                sense_errors.append(error.message)
+        
+        # Also check if this sense specifically has validation issues
+        sense_dict = self.to_dict()
+        
+        # Direct validation of sense ID
+        if not sense_dict.get('id') or (isinstance(sense_dict['id'], str) and not sense_dict['id'].strip()):
+            sense_errors.append("Sense ID is required and must be non-empty")
+        
+        if sense_errors:
+            raise ValidationError("Sense validation failed", sense_errors)
         
         return True
     

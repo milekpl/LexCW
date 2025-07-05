@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form State Management Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Form State Management Demo</h1>
+        <p class="text-muted">Testing FormStateManager, JSONPathBinder, ClientValidationEngine, and ValidationUI</p>
+        
+        <form id="entry-form">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Basic Entry Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="entry-id" class="form-label">Entry ID</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="entry-id" 
+                                       name="entry-id"
+                                       data-json-path="$.id"
+                                       data-validation-rules="R1.1.1"
+                                       placeholder="e.g., demo_entry_1">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="lexical_unit_seh" class="form-label">Lexical Unit (Sena)</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="lexical_unit_seh" 
+                                       name="lexical_unit_seh"
+                                       data-json-path="$.lexical_unit.seh"
+                                       data-validation-rules="R1.1.2,R3.2.2"
+                                       data-debounce="500"
+                                       placeholder="Word in Sena language">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="lexical_unit_en" class="form-label">Lexical Unit (English)</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="lexical_unit_en" 
+                                       name="lexical_unit_en"
+                                       data-json-path="$.lexical_unit.en"
+                                       data-debounce="300"
+                                       placeholder="Word in English">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Sense Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="sense-item" data-sense-index="0">
+                                <div class="mb-3">
+                                    <label for="sense_0_definition_en" class="form-label">Definition (English)</label>
+                                    <textarea class="form-control" 
+                                              id="sense_0_definition_en" 
+                                              name="sense_0_definition_en"
+                                              data-json-path="$.senses[0].definition.en"
+                                              data-validation-rules="R2.1.2"
+                                              data-debounce="500"
+                                              rows="3"
+                                              placeholder="Definition of the word"></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="sense_0_gloss_en" class="form-label">Gloss (English)</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="sense_0_gloss_en" 
+                                           name="sense_0_gloss_en"
+                                           data-json-path="$.senses[0].gloss.en"
+                                           data-debounce="300"
+                                           placeholder="Brief gloss">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Pronunciation</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="pronunciation-item">
+                                <div class="mb-3">
+                                    <label for="pronunciation_0_lang" class="form-label">Language</label>
+                                    <select class="form-control" 
+                                            id="pronunciation_0_lang" 
+                                            name="pronunciation_0_lang"
+                                            data-json-path="$.pronunciations[0].lang">
+                                        <option value="seh-fonipa">seh-fonipa</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="pronunciation_0_text" class="form-label">IPA Pronunciation</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="pronunciation_0_text" 
+                                           name="pronunciation_0_text"
+                                           data-json-path="$.pronunciations[0].text"
+                                           data-validation-rules="R4.1.1,R4.1.2"
+                                           data-debounce="500"
+                                           placeholder="IPA pronunciation">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Debug Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <h6>Current JSON State:</h6>
+                                <pre id="json-state" class="bg-light p-3 rounded" style="font-size: 0.8rem; max-height: 300px; overflow-y: auto;"></pre>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Changed Fields:</h6>
+                                <ul id="changed-fields" class="list-group list-group-flush"></ul>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <button type="button" id="validate-btn" class="btn btn-primary me-2">
+                                    <i class="fas fa-check"></i> Validate
+                                </button>
+                                <button type="button" id="clear-btn" class="btn btn-secondary">
+                                    <i class="fas fa-trash"></i> Clear Validation
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-12">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Entry
+                    </button>
+                    <button type="button" id="reset-btn" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-undo"></i> Reset Form
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/form-state-manager.js"></script>
+    <script src="/static/js/json-path-binder.js"></script>
+    <script src="/static/js/client-validation-engine.js"></script>
+    <script src="/static/js/validation-ui.js"></script>
+    
+    <script>
+        // Demo initialization
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('=== Form State Management Demo ===');
+            
+            // Initialize components
+            const initialData = {
+                id: '',
+                lexical_unit: {},
+                senses: [{ id: 'sense_1', definition: {}, gloss: {} }],
+                pronunciations: [{ lang: 'seh-fonipa', text: '' }]
+            };
+            
+            const stateManager = new FormStateManager(initialData);
+            const pathBinder = new JSONPathBinder(stateManager);
+            const validationEngine = new ClientValidationEngine();
+            const validationUI = new ValidationUI();
+            
+            // Initialize bindings
+            pathBinder.initializeBindings();
+            stateManager.captureInitialState();
+            
+            // Set up change listener for debug display
+            stateManager.addChangeListener((changes) => {
+                updateDebugDisplay(stateManager, changes);
+            });
+            
+            // Set up debounced validation
+            const debouncedValidate = debounce(async () => {
+                const formData = stateManager.serializeFormToJSON();
+                try {
+                    const result = await validationEngine.validateCompleteForm(formData);
+                    validationUI.displayFormValidation(result);
+                    console.log('Validation result:', result);
+                } catch (error) {
+                    console.warn('Validation failed, using client-side validation:', error);
+                    const result = await validationEngine.validateFormDataLocally(formData);
+                    validationUI.displayFormValidation(result);
+                }
+            }, 500);
+            
+            stateManager.addChangeListener(debouncedValidate);
+            
+            // Button event handlers
+            document.getElementById('validate-btn').addEventListener('click', async () => {
+                const formData = stateManager.serializeFormToJSON();
+                try {
+                    const result = await validationEngine.validateCompleteForm(formData);
+                    validationUI.displayFormValidation(result);
+                    console.log('Manual validation result:', result);
+                } catch (error) {
+                    console.warn('Server validation failed, using client-side:', error);
+                    const result = await validationEngine.validateFormDataLocally(formData);
+                    validationUI.displayFormValidation(result);
+                }
+            });
+            
+            document.getElementById('clear-btn').addEventListener('click', () => {
+                validationUI.clearAllValidation();
+            });
+            
+            document.getElementById('reset-btn').addEventListener('click', () => {
+                document.getElementById('entry-form').reset();
+                stateManager.updateFromJSON(initialData);
+                validationUI.clearAllValidation();
+                updateDebugDisplay(stateManager, []);
+            });
+            
+            // Form submission handler
+            document.getElementById('entry-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = stateManager.serializeFormToJSON();
+                console.log('Form submission data:', formData);
+                
+                try {
+                    const result = await validationEngine.validateCompleteForm(formData);
+                    const criticalErrors = result.errors.filter(e => e.priority === 'critical');
+                    
+                    if (criticalErrors.length > 0) {
+                        validationUI.showValidationModal(criticalErrors);
+                        return;
+                    }
+                    
+                    // Simulate successful submission
+                    validationUI.showToast('Success', 'Entry saved successfully!', 'success');
+                    
+                } catch (error) {
+                    validationUI.showNetworkError();
+                }
+            });
+            
+            // Initial debug display
+            updateDebugDisplay(stateManager, []);
+            
+            console.log('Demo initialized successfully');
+            console.log('Components:', { stateManager, pathBinder, validationEngine, validationUI });
+        });
+        
+        function updateDebugDisplay(stateManager, changes) {
+            // Update JSON state display
+            const jsonState = document.getElementById('json-state');
+            const currentState = stateManager.serializeFormToJSON();
+            jsonState.textContent = JSON.stringify(currentState, null, 2);
+            
+            // Update changed fields display
+            const changedFields = document.getElementById('changed-fields');
+            changedFields.innerHTML = '';
+            
+            if (changes.length === 0) {
+                const li = document.createElement('li');
+                li.className = 'list-group-item text-muted';
+                li.textContent = 'No changes detected';
+                changedFields.appendChild(li);
+            } else {
+                changes.forEach(change => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.innerHTML = `
+                        <strong>${change.path}</strong><br>
+                        <small class="text-muted">
+                            ${change.type}: ${JSON.stringify(change.original)} → ${JSON.stringify(change.current)}
+                        </small>
+                    `;
+                    changedFields.appendChild(li);
+                });
+            }
+        }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+    </script>
+</body>
+</html>

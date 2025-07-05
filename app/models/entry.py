@@ -34,7 +34,6 @@ class Gloss(BaseModel):
         self.lang = lang
         self.text = text
 
-
 class Etymology(BaseModel):
     """
     Represents an etymology in a LIFT entry.
@@ -131,12 +130,82 @@ class Entry(BaseModel):
         variant_relations_data = kwargs.pop('variant_relations', [])
         
         super().__init__(id_, **kwargs)
-        self.lexical_unit: Dict[str, str] = kwargs.get('lexical_unit', {})
-        self.citations: List[Dict[str, Any]] = kwargs.get('citations', [])
-        self.pronunciations: Dict[str, str] = kwargs.get('pronunciations', {})
+        
+        # Handle lexical_unit - ensure it's a dictionary
+        lexical_unit_raw = kwargs.get('lexical_unit', {})
+        if isinstance(lexical_unit_raw, dict):
+            self.lexical_unit: Dict[str, str] = lexical_unit_raw
+        elif isinstance(lexical_unit_raw, str):
+            # Convert string to dict for backward compatibility
+            self.lexical_unit: Dict[str, str] = {'en': lexical_unit_raw} if lexical_unit_raw.strip() else {}
+        elif isinstance(lexical_unit_raw, list):
+            # Handle case where lexical_unit is passed as a list (form processing error)
+            # Take the first non-empty item or use default
+            if lexical_unit_raw and isinstance(lexical_unit_raw[0], str):
+                self.lexical_unit: Dict[str, str] = {'en': lexical_unit_raw[0]} if lexical_unit_raw[0].strip() else {}
+            else:
+                self.lexical_unit: Dict[str, str] = {}
+        else:
+            self.lexical_unit: Dict[str, str] = {}
+            
+        # Handle citations - ensure it's a list of dictionaries
+        citations_raw = kwargs.get('citations', [])
+        if isinstance(citations_raw, list):
+            self.citations: List[Dict[str, Any]] = []
+            for citation in citations_raw:
+                if isinstance(citation, dict):
+                    self.citations.append(citation)
+                elif isinstance(citation, str):
+                    # Convert string to dict format for default language
+                    self.citations.append({'en': citation})
+        else:
+            self.citations: List[Dict[str, Any]] = []
+        
+        # Handle pronunciations - ensure it's a dictionary
+        pronunciations_raw = kwargs.get('pronunciations', {})
+        if isinstance(pronunciations_raw, dict):
+            self.pronunciations: Dict[str, str] = pronunciations_raw
+        elif isinstance(pronunciations_raw, list):
+            # Handle case where pronunciations might be passed as a list
+            # Convert list to dict format expected by the LIFT parser
+            self.pronunciations: Dict[str, str] = {}
+            for item in pronunciations_raw:
+                if isinstance(item, dict):
+                    # If list contains dict items with .value, .type' pattern
+                    if '.value' in item and '.type' in item:
+                        self.pronunciations[item['.type']] = item['.value']
+                    elif 'value' in item and 'type' in item:
+                        self.pronunciations[item['type']] = item['value']
+                elif isinstance(item, str):
+                    # If list contains string items, use default type
+                    self.pronunciations['seh-fonipa'] = item
+        else:
+            self.pronunciations: Dict[str, str] = {}
+            
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
-        self.notes: Dict[str, Union[str, Dict[str, str]]] = kwargs.get('notes', {})
-        self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
+        
+        # Handle morphological type with auto-classification if not provided
+        self.morph_type: Optional[str] = self._get_or_classify_morph_type(kwargs.get('morph_type'))
+        
+        # Handle notes - ensure it's a dictionary
+        notes_raw = kwargs.get('notes', {})
+        if isinstance(notes_raw, dict):
+            self.notes: Dict[str, Union[str, Dict[str, str]]] = notes_raw
+        elif isinstance(notes_raw, list):
+            # Handle case where notes might be passed as a list
+            self.notes: Dict[str, Union[str, Dict[str, str]]] = {}
+        else:
+            self.notes: Dict[str, Union[str, Dict[str, str]]] = {}
+            
+        # Handle custom_fields - ensure it's a dictionary
+        custom_fields_raw = kwargs.get('custom_fields', {})
+        if isinstance(custom_fields_raw, dict):
+            self.custom_fields: Dict[str, Any] = custom_fields_raw
+        elif isinstance(custom_fields_raw, list):
+            # Convert list to dict if needed (shouldn't happen but defensive)
+            self.custom_fields: Dict[str, Any] = {}
+        else:
+            self.custom_fields: Dict[str, Any] = {}
         self.homograph_number: Optional[int] = kwargs.get('homograph_number')
 
         # Handle senses
@@ -195,9 +264,12 @@ class Entry(BaseModel):
             elif isinstance(variant_data, Variant):
                 self.variants.append(variant_data)
 
+        # Apply part-of-speech inheritance logic
+        self._apply_pos_inheritance()
+
     def validate(self) -> bool:
         """
-        Validate the entry.
+        Validate the entry using the centralized validation system.
 
         Returns:
             True if the entry is valid.
@@ -205,24 +277,84 @@ class Entry(BaseModel):
         Raises:
             ValidationError: If the entry is invalid.
         """
-        errors = []
-
-        # Validate required fields
-        if not self.id:
-            errors.append("Entry ID is required")
-
-        if not self.lexical_unit:
-            errors.append("Lexical unit is required")
-
-        # Validate senses
-        for i, sense in enumerate(self.senses):
-            if not sense.id:
-                errors.append(f"Sense at index {i} is missing an ID")
-
-        if errors:
-            raise ValidationError("Entry validation failed", errors)
-
+        from app.services.validation_engine import ValidationEngine
+        
+        # Use centralized validation system
+        engine = ValidationEngine()
+        result = engine.validate_entry(self)
+        
+        if not result.is_valid:
+            # Convert ValidationError objects to strings for legacy compatibility
+            error_messages = [error.message for error in result.errors]
+            raise ValidationError("Entry validation failed", error_messages)
+        
         return True
+
+    def _is_valid_id_format(self, id_string: str) -> bool:
+        """Check if ID follows valid format pattern."""
+        import re
+        return bool(re.match(r'^[a-zA-Z0-9_-]+$', id_string))
+
+    def _is_valid_language_code(self, lang_code: str) -> bool:
+        """Check if language code is valid for this project."""
+        valid_codes = {"seh", "en", "pt", "fr", "de", "seh-fonipa"}
+        return lang_code in valid_codes
+
+    def _has_content_or_is_variant(self, sense: Any) -> bool:
+        """Check if sense has content (definition/gloss) or is a variant."""
+        # Check if it's a variant sense
+        if hasattr(sense, 'variant_of') and sense.variant_of:
+            return True
+        
+        # Check if it has definition
+        if hasattr(sense, 'definition') and sense.definition:
+            return bool(sense.definition.strip()) if isinstance(sense.definition, str) else True
+        
+        # Check if it has gloss
+        if hasattr(sense, 'gloss') and sense.gloss:
+            return bool(sense.gloss.strip()) if isinstance(sense.gloss, str) else True
+        
+        return False
+
+    def _validate_ipa(self, ipa_text: str) -> List[str]:
+        """Validate IPA text according to project rules."""
+        errors: List[str] = []
+        if not ipa_text:
+            return errors
+        
+        # Valid IPA characters for this project
+        vowels = 'ɑæɒəɜɪiʊuʌeɛoɔ'
+        consonants = 'bdfghjklmnprstwvzðθŋʃʒ'
+        length_markers = 'ː'
+        stress_markers = 'ˈˌ'
+        special_symbols = 'ᵻ'
+        valid_chars = vowels + consonants + length_markers + stress_markers + special_symbols + ' .'
+        
+        # R4.1.2: Check for invalid characters
+        for i, char in enumerate(ipa_text):
+            if char not in valid_chars:
+                errors.append(f"Invalid IPA character: '{char}' at position {i + 1}")
+        
+        # R4.2.1: Check for double stress markers
+        double_stress_patterns = ['ˈˈ', 'ˌˌ', 'ˈˌ', 'ˌˈ']
+        for pattern in double_stress_patterns:
+            if pattern in ipa_text:
+                errors.append("Double stress markers not allowed")
+                break
+        
+        # R4.2.2: Check for double length markers
+        if 'ːː' in ipa_text:
+            errors.append("Double length markers not allowed")
+        
+        return errors
+
+    def _is_valid_relation_type(self, relation_type: str) -> bool:
+        """Check if relation type is valid."""
+        valid_types = {
+            "synonym", "antonym", "hypernym", "hyponym", 
+            "_component-lexeme", "variant", "compare"
+        }
+        return relation_type in valid_types
 
     def add_sense(self, sense: Union[Sense, Dict[str, Any]]) -> None:
         """
@@ -717,3 +849,142 @@ class Entry(BaseModel):
             pass
             
         return all_relations
+
+    def _apply_pos_inheritance(self) -> None:
+        """
+        Apply part-of-speech inheritance logic.
+        
+        If the entry doesn't have an explicit grammatical_info (part of speech),
+        inherit it from the senses if all senses have the same POS.
+        """
+        # Helper function to extract POS value from various formats
+        def extract_pos_value(grammatical_info):
+            if not grammatical_info:
+                return ""
+            if isinstance(grammatical_info, str):
+                return grammatical_info.strip()
+            elif isinstance(grammatical_info, dict):
+                # Handle dict format (e.g., from form data with dots)
+                pos_val = grammatical_info.get('part_of_speech', '')
+                return pos_val.strip() if isinstance(pos_val, str) else ""
+            else:
+                return ""
+        
+        # Only apply inheritance if entry has no explicit POS or empty POS
+        # Be more aggressive about detecting empty POS values
+        entry_pos_value = extract_pos_value(self.grammatical_info)
+        entry_has_pos = (
+            entry_pos_value and 
+            entry_pos_value not in ['', 'null', 'None', 'undefined']
+        )
+        
+        if entry_has_pos:
+            return  # Entry has explicit POS, don't override
+        
+        if not self.senses:
+            return  # No senses to inherit from
+        
+        # Collect all unique POS values from senses
+        sense_pos_values = set()
+        for sense in self.senses:
+            if hasattr(sense, 'grammatical_info') and sense.grammatical_info:
+                pos_value = sense.grammatical_info.strip()
+                if pos_value and pos_value not in ['', 'null', 'None', 'undefined']:
+                    sense_pos_values.add(pos_value)
+        
+        # Only inherit if all senses have the same POS
+        if len(sense_pos_values) == 1:
+            inherited_pos = next(iter(sense_pos_values))
+            self.grammatical_info = inherited_pos
+            # Log this for debugging
+            print(f"[DEBUG] Entry {self.id} inherited POS '{inherited_pos}' from senses")
+
+    def _validate_pos_consistency(self, errors: List[str]) -> None:
+        """
+        Validate part-of-speech consistency between entry and senses.
+        
+        Args:
+            errors: List to append validation errors to.
+        """
+        if not self.senses:
+            return  # No senses to validate against
+        
+        # Helper function to extract POS value from various formats
+        def extract_pos_value(grammatical_info):
+            if not grammatical_info:
+                return ""
+            if isinstance(grammatical_info, str):
+                return grammatical_info.strip()
+            elif isinstance(grammatical_info, dict):
+                # Handle dict format (e.g., from form data with dots)
+                pos_val = grammatical_info.get('part_of_speech', '')
+                return pos_val.strip() if isinstance(pos_val, str) else ""
+            else:
+                return ""
+        
+        # Get entry POS (string format)
+        entry_pos = extract_pos_value(self.grammatical_info)
+        
+        # Collect all unique POS values from senses
+        sense_pos_values = set()
+        for sense in self.senses:
+            if hasattr(sense, 'grammatical_info') and sense.grammatical_info:
+                pos_value = sense.grammatical_info.strip()
+                if pos_value:
+                    sense_pos_values.add(pos_value)
+        
+        # If entry has no POS but senses do, check if senses are consistent
+        if not entry_pos and sense_pos_values:
+            if len(sense_pos_values) > 1:
+                errors.append(f"Senses have inconsistent part-of-speech values: {', '.join(sorted(sense_pos_values))}. Please set the entry part-of-speech manually.")
+        
+        # If entry has POS and senses have POS, check for consistency
+        elif entry_pos and sense_pos_values:
+            if entry_pos not in sense_pos_values:
+                errors.append(f"Entry part-of-speech '{entry_pos}' does not match any sense part-of-speech values: {', '.join(sorted(sense_pos_values))}")
+            elif len(sense_pos_values) > 1:
+                # Entry POS matches at least one sense, but senses are inconsistent
+                errors.append(f"Senses have inconsistent part-of-speech values: {', '.join(sorted(sense_pos_values))}. Entry POS '{entry_pos}' matches some but not all senses.")
+
+    def _get_or_classify_morph_type(self, existing_morph_type: Optional[str]) -> Optional[str]:
+        """
+        Get existing morph type or auto-classify based on lexical unit.
+        
+        Args:
+            existing_morph_type: Existing morph type from LIFT data
+            
+        Returns:
+            Morph type (existing if provided, otherwise auto-classified)
+        """
+        # If already set from LIFT data, preserve it
+        if existing_morph_type and existing_morph_type.strip():
+            return existing_morph_type.strip()
+        
+        # Auto-classify based on lexical unit
+        if not self.lexical_unit:
+            return 'stem'  # Default
+            
+        # Get the primary headword (usually English)
+        headword = ''
+        if 'en' in self.lexical_unit:
+            headword = self.lexical_unit['en']
+        elif self.lexical_unit:
+            # Use first available language
+            headword = next(iter(self.lexical_unit.values()))
+            
+        if not headword or not headword.strip():
+            return 'stem'  # Default
+            
+        headword = headword.strip()
+        
+        # Classification logic (same as JavaScript)
+        if ' ' in headword:
+            return 'phrase'
+        elif headword.endswith('-') and not headword.startswith('-'):
+            return 'prefix'
+        elif headword.startswith('-') and not headword.endswith('-'):
+            return 'suffix'
+        elif headword.startswith('-') and headword.endswith('-'):
+            return 'infix'
+        else:
+            return 'stem'  # Default for regular words

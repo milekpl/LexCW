@@ -1,0 +1,371 @@
+{
+  "version": "1.0",
+  "description": "Centralized validation rules for Dictionary Writing System",
+  "rules": {
+    "R1.1.1": {
+      "name": "entry_id_required",
+      "description": "Entry ID is required and must be non-empty",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.id",
+      "condition": "required",
+      "validation": {
+        "type": "string",
+        "minLength": 1
+      },
+      "error_message": "Entry ID is required and must be non-empty",
+      "client_side": true
+    },
+    "R1.1.2": {
+      "name": "lexical_unit_required",
+      "description": "Lexical unit is required and must contain at least one language entry",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.lexical_unit",
+      "condition": "required",
+      "validation": {
+        "type": "object",
+        "minProperties": 1
+      },
+      "error_message": "Lexical unit is required and must contain at least one language entry",
+      "client_side": true
+    },
+    "R1.1.3": {
+      "name": "sense_required",
+      "description": "At least one sense is required per entry",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.senses",
+      "condition": "required",
+      "validation": {
+        "type": "array",
+        "minItems": 1
+      },
+      "error_message": "At least one sense is required per entry",
+      "client_side": true
+    },
+    "R1.2.1": {
+      "name": "entry_id_format",
+      "description": "Entry ID must match valid format pattern",
+      "category": "entry_level",
+      "priority": "warning",
+      "path": "$.id",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9_-]+$"
+      },
+      "error_message": "Invalid entry ID format. Use only letters, numbers, underscores, and hyphens",
+      "client_side": true
+    },
+    "R1.2.3": {
+      "name": "language_code_validation",
+      "description": "Language codes must be from approved project list",
+      "category": "entry_level",
+      "priority": "warning",
+      "path": "$.lexical_unit",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_language_codes",
+        "allowed_languages": ["seh", "en", "pt", "fr", "de", "seh-fonipa"]
+      },
+      "error_message": "Invalid language code: {value}. Must be one of: seh, en, pt, fr, de, seh-fonipa",
+      "client_side": true
+    },
+    "R2.1.1": {
+      "name": "sense_id_required",
+      "description": "Sense ID is required and must be non-empty",
+      "category": "sense_level",
+      "priority": "critical",
+      "path": "$.senses[*].id",
+      "condition": "required",
+      "validation": {
+        "type": "string",
+        "minLength": 1
+      },
+      "error_message": "Sense ID is required and must be non-empty",
+      "client_side": true
+    },
+    "R2.1.2": {
+      "name": "sense_content_or_variant",
+      "description": "Sense definition OR gloss is required (except for variant senses)",
+      "category": "sense_level",
+      "priority": "critical",
+      "path": "$.senses[*]",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_sense_content_or_variant"
+      },
+      "error_message": "Sense must have definition, gloss, or be a variant reference",
+      "client_side": true
+    },
+    "R2.2.1": {
+      "name": "definition_content_validation",
+      "description": "Sense definitions must be non-empty strings when provided",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*].definition",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S+"
+      },
+      "error_message": "Sense definition cannot be empty or contain only whitespace",
+      "client_side": true
+    },
+    "R2.2.2": {
+      "name": "gloss_content_validation",
+      "description": "Sense glosses must be non-empty strings when provided",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*].gloss",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S+"
+      },
+      "error_message": "Sense gloss cannot be empty or contain only whitespace",
+      "client_side": true
+    },
+    "R2.2.3": {
+      "name": "example_text_validation",
+      "description": "Example texts must be non-empty when example is present",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*].examples[*].text",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S+"
+      },
+      "error_message": "Example text cannot be empty or contain only whitespace",
+      "client_side": true
+    },
+    "R3.1.1": {
+      "name": "unique_note_types",
+      "description": "Note types must be unique per entry",
+      "category": "note_validation",
+      "priority": "warning",
+      "path": "$.notes",
+      "condition": "if_present",
+      "validation": {
+        "custom_function": "validate_unique_note_types"
+      },
+      "error_message": "Duplicate note type found. Each note type can appear only once per entry",
+      "client_side": true
+    },
+    "R3.1.2": {
+      "name": "note_content_validation",
+      "description": "Note content must be non-empty when note type is specified",
+      "category": "note_validation",
+      "priority": "warning",
+      "path": "$.notes.*",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S+"
+      },
+      "error_message": "Note content cannot be empty for specified type",
+      "client_side": true
+    },
+    "R4.1.1": {
+      "name": "pronunciation_language_restriction",
+      "description": "Pronunciation language restricted to seh-fonipa only",
+      "category": "pronunciation",
+      "priority": "critical",
+      "path": "$.pronunciations",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_pronunciation_language_codes",
+        "allowed_languages": ["seh-fonipa"]
+      },
+      "error_message": "Pronunciation language must be 'seh-fonipa', found: {value}",
+      "client_side": true
+    },
+    "R4.1.2": {
+      "name": "ipa_character_validation",
+      "description": "IPA characters must be from approved character set",
+      "category": "pronunciation",
+      "priority": "critical",
+      "path": "$.pronunciations['seh-fonipa']",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "pattern": "^[ɑæɒəɜɪiʊuʌeɛoɔbdfghjklmnprstwvzðθŋʃʒːˈˌᵻ \\.]*$"
+      },
+      "error_message": "Invalid IPA characters in pronunciation. Only approved IPA characters are allowed",
+      "client_side": true
+    },
+    "R4.2.1": {
+      "name": "no_double_stress_markers",
+      "description": "No double stress markers allowed",
+      "category": "pronunciation",
+      "priority": "warning",
+      "path": "$.pronunciations['seh-fonipa']",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "not_pattern": "(ˈˈ|ˌˌ|ˈˌ|ˌˈ)"
+      },
+      "error_message": "Double stress markers not allowed in IPA pronunciation",
+      "client_side": true
+    },
+    "R4.2.2": {
+      "name": "no_double_length_markers",
+      "description": "No double length markers allowed",
+      "category": "pronunciation",
+      "priority": "warning",
+      "path": "$.pronunciations['seh-fonipa']",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "not_pattern": "ːː"
+      },
+      "error_message": "Double length markers not allowed in IPA pronunciation",
+      "client_side": true
+    },
+    "R8.1.1": {
+      "name": "media_file_validation",
+      "description": "Media file references must point to existing files",
+      "category": "resource_validation",
+      "priority": "critical",
+      "path": "$.pronunciations.media[*].href",
+      "condition": "if_present",
+      "validation": {
+        "custom_function": "validate_file_exists"
+      },
+      "error_message": "Media file not found: {value}",
+      "client_side": false,
+      "server_side": true
+    },
+    "R8.1.2": {
+      "name": "illustration_file_validation",
+      "description": "Illustration file references must point to existing files",
+      "category": "resource_validation",
+      "priority": "critical",
+      "path": "$.senses[*].illustrations[*].href",
+      "condition": "if_present",
+      "validation": {
+        "custom_function": "validate_file_exists"
+      },
+      "error_message": "Illustration file not found: {value}",
+      "client_side": false,
+      "server_side": true
+    },
+    "R8.2.1": {
+      "name": "rfc4646_language_format",
+      "description": "Language codes must follow RFC 4646 format",
+      "category": "language_validation",
+      "priority": "warning",
+      "path": "$..lang",
+      "condition": "if_present",
+      "validation": {
+        "type": "string",
+        "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2}|[0-9]{3})?(-[a-zA-Z0-9]{5,8}|[0-9][a-zA-Z0-9]{3})*(-[a-zA-Z0-9]{1,8})*$"
+      },
+      "error_message": "Invalid language code format. Must follow RFC 4646 (e.g., 'en', 'seh-fonipa', 'pt-BR')",
+      "client_side": true
+    },
+    "R8.2.2": {
+      "name": "unique_language_codes_multitext",
+      "description": "Language codes must be unique per multitext content",
+      "category": "language_validation",
+      "priority": "critical",
+      "path": "$..forms",
+      "condition": "if_present",
+      "validation": {
+        "custom_function": "validate_unique_languages_in_multitext"
+      },
+      "error_message": "Duplicate language code in multitext content",
+      "client_side": true
+    },
+    "R8.3.1": {
+      "name": "iso_date_format",
+      "description": "Date formats must be valid ISO dates",
+      "category": "date_validation",
+      "priority": "critical",
+      "path": "$",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_date_fields",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+      },
+      "error_message": "Invalid date format. Use ISO 8601 format (YYYY-MM-DD or full datetime)",
+      "client_side": true
+    },
+    "R8.5.1": {
+      "name": "abbreviation_expansion_length",
+      "description": "Abbreviation-expansion length validation",
+      "category": "relation_validation",
+      "priority": "warning",
+      "path": "$.relations[*]",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_abbreviation_expansion_length"
+      },
+      "error_message": "Suspicious {relation_type} relation: target length suggests reversed relationship",
+      "client_side": false,
+      "server_side": true
+    },
+    "R8.5.2": {
+      "name": "synonym_antonym_exclusion",
+      "description": "Entry cannot have both synonym and antonym relations to same target",
+      "category": "relation_validation",
+      "priority": "warning",
+      "path": "$.relations",
+      "condition": "if_present",
+      "validation": {
+        "custom_function": "validate_synonym_antonym_exclusion"
+      },
+      "error_message": "Conflicting relations: entry has both synonym and antonym relations to same target",
+      "client_side": true
+    },
+    "R8.7.1": {
+      "name": "subsense_depth_limit",
+      "description": "Subsense nesting should not exceed 3 levels",
+      "category": "hierarchical_validation",
+      "priority": "warning",
+      "path": "$.senses[*]",
+      "condition": "if_present",
+      "validation": {
+        "custom_function": "validate_subsense_depth"
+      },
+      "error_message": "Subsense nesting exceeds maximum depth of 3 levels",
+      "client_side": true
+    }
+  },
+  "custom_functions": {
+    "validate_sense_content_or_variant": {
+      "description": "Validates that sense has definition, gloss, or variant reference",
+      "implementation": "javascript"
+    },
+    "validate_unique_note_types": {
+      "description": "Validates that note types are unique within entry",
+      "implementation": "javascript"
+    },
+    "validate_file_exists": {
+      "description": "Validates that referenced file exists on file system",
+      "implementation": "python"
+    },
+    "validate_unique_languages_in_multitext": {
+      "description": "Validates unique language codes in multitext content",
+      "implementation": "javascript"
+    },
+    "validate_abbreviation_expansion_length": {
+      "description": "Validates abbreviation-expansion relationship length logic",
+      "implementation": "python"
+    },
+    "validate_synonym_antonym_exclusion": {
+      "description": "Validates no conflicting synonym/antonym relations",
+      "implementation": "javascript"
+    },
+    "validate_subsense_depth": {
+      "description": "Validates subsense nesting depth limits",
+      "implementation": "javascript"
+    }
+  }
+}

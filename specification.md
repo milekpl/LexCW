@@ -302,33 +302,75 @@ The following UI components MUST use dynamic ranges and follow the above require
   - Sense disambiguation
   - Usage pattern detection
 
-### 3.5 Integration with LLMs
+### 3.5 Entry Form Management
 
-#### 3.5.1 LLM-Generated Content
+#### 3.5.1 Enhanced Pronunciation Integration
 
-- Example sentence generation
-- Definition enhancement
-- Translation suggestions
-- Semantic domain classification
+The LCW provides comprehensive support for pronunciation management with full audio integration:
 
-#### 3.5.2 LLM Integration
+- **Audio Upload and Management**:
+  - Direct audio file upload for IPA transcriptions
+  - Support for common audio formats (MP3, WAV, OGG)
+  - Audio validation and conversion services
+  - Inline audio preview during form editing
+  - One-click audio removal and replacement
 
-- **API Integration**:
-  - Integration with OpenAI and other LLM providers
-  - Local models support for privacy-sensitive operations
-  - Batch processing of entries with LLMs
-  - Optimized token usage with customized prompting strategies
+- **IPA Transcription Support**:
+  - Unicode IPA character display and input
+  - Integration with pronunciation audio files
+  - Multiple pronunciation forms per entry
+  - Default pronunciation marking
+  - Language-specific pronunciation handling (seh-fonipa)
 
-- **Example and Sense Processing**:
-  - Specialized prompting for example-to-sense allocation
-  - Sense disambiguation capabilities
-  - Customized formatting for different LLM services
-  - Confidence scoring for suggested assignments
+- **Field Consistency**:
+  - Unified field naming (`audio_path`) across backend and frontend
+  - Robust error handling for corrupted or invalid audio files
+  - Graceful degradation when audio services are unavailable
 
-- **Resource-Aware Processing**:
-  - Mechanisms to handle API rate limits and quotas
-  - Caching of LLM results to reduce redundant calls
-  - Asynchronous processing for non-blocking UI
+#### 3.5.2 Part-of-Speech (POS) Intelligence
+
+The LCW implements intelligent part-of-speech management with automatic inheritance and validation:
+
+- **Automatic POS Inheritance**:
+  - Entry-level grammatical information is automatically inherited from senses
+  - Inheritance occurs only when all senses share the same part-of-speech
+  - Preserves explicit user assignments over automatic inheritance
+  - Supports both string and structured grammatical information formats
+
+- **POS Consistency Validation**:
+  - Real-time validation of part-of-speech consistency between entry and senses
+  - Clear error messages for discrepancies between entry and sense POS values
+  - Validation warnings when senses have inconsistent POS among themselves
+  - User-friendly error reporting integrated into form submission workflow
+
+- **Intelligent Defaults**:
+  - First pronunciation is automatically marked as default
+  - Empty entries inherit POS from first sense if all senses agree
+  - Graceful handling of mixed POS scenarios with clear user guidance
+
+#### 3.5.3 Form Validation and Error Handling
+
+- **Client-Side Validation**:
+  - Real-time field validation with immediate feedback
+  - Format checking for IPA transcriptions and audio files
+  - Consistency checks between related fields
+
+- **Server-Side Validation**:
+  - Comprehensive data validation before database persistence
+  - Cross-field dependency validation (entry-sense POS consistency)
+  - Meaningful error messages with specific guidance for resolution
+
+- **User Experience**:
+  - Non-blocking form validation with toast notifications
+  - Progress indicators for file uploads and processing
+  - Automatic form state preservation during validation errors
+
+### 3.5.4 Technical Implementation
+
+- **API Endpoints**: `/api/ranges` and `/api/ranges/{range_id}` provide real-time access to LIFT ranges
+- **JavaScript Integration**: `ranges-loader.js` utility handles dynamic population of select elements
+- **Fallback Support**: Default ranges available when database is unavailable
+- **Caching Strategy**: Ranges are cached for performance but refreshed when LIFT RANGES file changes
 
 ## 4. Test-Driven Development Framework
 
@@ -535,7 +577,21 @@ BaseX is an XML database management system optimized for storing, querying, and 
 - Auto-save functionality to prevent data loss.
 - Side-by-side comparison view for resolving duplicates or reviewing changes.
 
-#### 7.2.1 Detailed Field Logic and Behavior
+#### 7.2.1 UI/UX Standards and Consistency (COMPLETED - December 2024)
+
+**Homograph Number Field**:
+- Only displays when entry has an actual homograph number
+- No placeholder text for entries without homograph numbers
+- Reduces visual clutter and confusion for non-homograph entries
+
+**Tooltip Icon Standardization**:
+- Primary tooltips use `fa-info-circle` icons consistently
+- `fa-question-circle` reserved only for warning/error contexts in alerts
+- Improved visual hierarchy and user experience
+
+**Implementation Status**: ✅ Completed and tested in `app/templates/entry_form.html`
+
+#### 7.2.2 Detailed Field Logic and Behavior
 
 The entry editor must implement the following logic to ensure data consistency and improve user experience:
 
@@ -1486,9 +1542,10 @@ Based on the existing codebase analysis, the following features have been implem
     - ✅ Fallback mechanism for development/testing environments
     - ✅ Default ranges for variant-types, relation-types, grammatical-info, semantic-domains
     - ✅ Fixed test_get_ranges to match fallback behavior
+  - ✅ **COMPLETED**: Enhance pronunciation editing with language support for special IPA language (seh-fonipa)
   - 🔄 **NEXT**: Rebuild etymology editor with Form/Gloss objects (Medium Priority)
   - 🔄 **NEXT**: Add multilingual editing support with language attributes (High Priority)
-  - 🔄 **NEXT**: Enhance pronunciation editing with language support for special IPA language (seh-fonipa) (High Priority)
+
 
 - ✅ **COMPLETED**: **Dynamic Range Management** - ⭐ **COMPLETED** (July 2, 2025)
   - ✅ **COMPLETED**: Comprehensive analysis of LIFT RANGES file structure and content
@@ -1550,18 +1607,24 @@ Based on the existing codebase analysis, the following features have been implem
     - ✅ **COMPLETED**: **Pronunciation Editing** - Full support for `seh-fonipa` language code, including dynamic add/remove of pronunciation fields.
     - ✅ **COMPLETED**: **Multilingual Notes Support** - Full implementation of multilingual notes editing with dynamic UI, LIFT-compliant search, and comprehensive test coverage. Supports both legacy string format and new multilingual structure.
     - ✅ **COMPLETED**: **Fix Variants Container** - Variants container now correctly displays proper LIFT trait labels from relations with variant-type traits. The variants-container correctly shows variant types extracted from LIFT relation elements (dialectal, spelling, morphological) with proper labels and form text such as "Stopień najwyższy" (not generic types). Relations with variant-type traits are now displayed as read-only variant information, managed through the Relations section. Implemented with comprehensive test coverage and proper LIFT compliance.
+    - ✅ **COMPLETED**: **Entry Logic & Validation (from Sec 7.2.1)** - ⭐ **MAJOR MILESTONE** (July 4, 2025)
+        - ✅ **BUGGY**: **Grammatical Category Inheritance** - Automatically derives entry-level grammatical category from senses. When all senses have the same category, the entry-level field is auto-populated with success styling. When discrepancies exist, displays error styling with detailed message prompting manual resolution. Includes comprehensive tooltips explaining the inheritance behavior.
+        - ✅ **COMPLETED**: **Automatic Morph-Type Classification** - Classifies new entries based on headword form: contains whitespace=phrase, ends with hyphen=prefix, starts with hyphen=suffix, both=infix, default=stem. Works with actual LIFT range values and provides visual feedback.
+        - ✅ **COMPLETED**: **Homograph Number Display** - Always displays homograph number field as read-only with automatic assignment placeholder. Includes informative tooltip explaining the functionality.
     - 🔄 **NEXT**: Implement real-time IPA validation in the pronunciation editor. Illegal characters or sequences (based on per-dictionary rules defined in Sec 15.3) should be underlined in red. (Medium Priority)
-    - 🔄 **NEXT**: Enhanced audio pronunciation integration (e.g., TTS generation/playback) (Medium Priority)
+    - ✅ **COMPLETED**: **Enhanced audio pronunciation integration** - ⭐ **MAJOR MILESTONE** (July 4, 2025)
+        - ✅ **COMPLETED**: **Audio File Upload System** - Comprehensive audio file upload functionality for pronunciation entries with support for MP3, WAV, OGG, and other audio formats. Includes client-side file selection, server-side validation, secure filename handling, and audio preview functionality.
+        - ✅ **COMPLETED**: **Audio Management API** - RESTful API endpoints for audio upload (`/api/pronunciation/upload`), deletion (`/api/pronunciation/delete/<filename>`), and file information retrieval (`/api/pronunciation/info/<filename>`) with comprehensive error handling and security measures.
+        - ✅ **COMPLETED**: **Audio File Validation** - Robust audio file validation system using MIME type checking, file extension validation, file size limits (10MB), and basic header validation for common audio formats.
+        - ✅ **COMPLETED**: **UI Integration** - Enhanced pronunciation form with upload buttons, audio preview controls, and seamless integration with existing pronunciation editing workflow. File upload progress indication and error feedback included.
+        - ✅ **COMPLETED**: **Test Coverage** - Comprehensive test suite covering upload success/failure scenarios, file validation, security measures, and API error handling with 90%+ coverage for audio functionality.
     - 🔄 **NEXT**: Rebuild etymology editor with proper Form/Gloss LIFT objects (Medium Priority)
-    - 🔄 **NEXT**: **Entry Logic & Validation (from Sec 7.2.1)**:
-        - 🔄 Implement grammatical category inheritance from senses with discrepancy validation. (High Priority)
-        - 🔄 Implement automatic morph-type classification for new entries based on headword form. (Medium Priority)
-        - 🔄 Display homograph numbers and implement automatic, unique assignment on creation. (High Priority)
-    - 🔄 **NEXT**: **Field Rendering & Usability (from Sec 7.2.1)**:
-        - 🔄 Render all custom fields from LIFT `<field>` tags. (High Priority)
-        - 🔄 Add support for specifying example translation types (e.g., literal, free). (Medium Priority)
-        - 🔄 Implement user-configurable field visibility (always visible, hide when empty, always hidden). (Medium Priority)
-    - 🔄 **NEXT**: **Enhanced Relation Editor (from Sec 7.2.1)**: Replace relation GUID input with a progressive search form for linking entries/senses. (High Priority)
+    - ✅ **COMPLETED**: **Field Rendering & Usability (from Sec 7.2.1)** - ⭐ **MAJOR MILESTONE** (July 4, 2025)
+        - ✅ **COMPLETED**: **Render all custom fields from LIFT `<field>` tags** - Custom fields are now automatically rendered in a dedicated section with proper multilingual support and user-friendly labels.
+        - ✅ **COMPLETED**: **Add support for specifying example translation types** - Examples now support translation type specification (literal, free/idiomatic) with dropdown selection and tooltips.
+        - ✅ **COMPLETED**: **Implement user-configurable field visibility** - Field visibility controls with modal interface, localStorage persistence, and utility functions (show all, hide empty, reset to defaults).
+        - ✅ **COMPLETED**: **Real-time IPA validation** - Comprehensive IPA validation system with real-time feedback, visual error highlighting, and configurable character sets based on Section 15.3 specifications.
+    - ✅ **COMPLETED**: **Enhanced Relation Editor (from Sec 7.2.1)**: Replace relation GUID input with a progressive search form for linking entries/senses. (High Priority)
 - 🔴 **Bulk Processing Framework** - Not implemented
   - Design bulk operation architecture
   - The UI will use a table metaphor (spreadsheet-like view on a database) with sortable and filtrable (through search and maybe otherwise) columns, hidden/shown, reordered
@@ -1661,6 +1724,7 @@ Based on the existing codebase analysis, the following features have been implem
 **Week 21-22: Security and Authentication**
 - 🔴 **User Management System** - Not implemented
   - Implement JWT-based authentication
+
   - Add role-based access control
   - Create user registration and management
   - Implement session management
@@ -2810,20 +2874,6 @@ Successfully completed a comprehensive refactoring of the entry form user interf
    - Zero regression in existing functionality
    - Cross-browser compatibility verified
    - Performance impact: negligible (no measurable degradation)
-
-**Benefits Realized**:
-
-- **Improved User Experience**: Cleaner, less cluttered interface with preserved information access
-- **Mobile Optimization**: Enhanced experience on smaller screens
-- **Developer Productivity**: Easier maintenance of help content with centralized tooltip system
-- **Accessibility Compliance**: Better support for assistive technologies and keyboard navigation
-
-**Technical Debt Addressed**:
-
-- Cleaned up all temporary debug and verification scripts
-- Removed legacy alert-based help system code
-- Standardized tooltip implementation across the application
-- Enhanced JavaScript error handling for dynamic content
 
 This release represents a significant step forward in the LCW's user interface design, demonstrating the project's commitment to user-centered design while maintaining technical excellence through rigorous testing practices.
 

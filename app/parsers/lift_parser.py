@@ -483,6 +483,15 @@ class LIFTParser:
             sense = self._parse_sense(sense_elem, sense_id)
             senses.append(sense)  # Keep as Sense object, don't convert to dict
         
+        # Parse entry-level traits (like morph-type)
+        morph_type = None
+        for trait_elem in self._find_elements(entry_elem, './/lift:trait', './/trait'):
+            trait_name = trait_elem.get('name')
+            trait_value = trait_elem.get('value')
+            if trait_name == 'morph-type' and trait_value:
+                morph_type = trait_value
+                break  # Only need the first morph-type trait
+        
         # Create and return Entry object
         entry = Entry(
             id_=entry_id,
@@ -491,6 +500,7 @@ class LIFTParser:
             pronunciations=pronunciations,
             variants=variants,
             grammatical_info=grammatical_info,
+            morph_type=morph_type,  # Add morph_type
             relations=relations,
             etymologies=etymologies,
             notes=notes,
@@ -737,15 +747,26 @@ class LIFTParser:
         # Add variant forms
         for variant in entry.variants:
             variant_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}variant')
-            variant_type = variant.get('type', 'unspecified')
-            variant_elem.set('type', variant_type)
             
-            for lang, text in variant.items():
-                if lang != 'type':
-                    form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form.set('lang', lang)
-                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
+            # Handle both Variant objects and raw dictionaries
+            if hasattr(variant, 'form') and hasattr(variant.form, 'lang') and hasattr(variant.form, 'text'):
+                # Variant object with Form
+                variant_elem.set('type', getattr(variant, 'type', 'unspecified'))
+                form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                form.set('lang', variant.form.lang)
+                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                text_elem.text = variant.form.text
+            elif isinstance(variant, dict):
+                # Raw dictionary format
+                variant_type = variant.get('type', 'unspecified')
+                variant_elem.set('type', variant_type)
+                
+                for lang, text in variant.items():
+                    if lang != 'type':
+                        form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                        form.set('lang', lang)
+                        text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                        text_elem.text = text
         
         # Add grammatical info
         if entry.grammatical_info:

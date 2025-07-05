@@ -520,7 +520,10 @@ class DictionaryService:
             if not result:
                 return [], total_count
             
-            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            # Use non-validating parser for listing to avoid validation errors
+            # Validation should only be done during create/update operations
+            non_validating_parser = LIFTParser(validate=False)
+            entries = non_validating_parser.parse_string(f"<lift>{result}</lift>")
             
             return entries, total_count            
         except Exception as e:
@@ -637,7 +640,9 @@ class DictionaryService:
             if not result:
                 return [], total_count
             
-            entries = self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            # Use non-validating parser for search to avoid validation errors
+            non_validating_parser = LIFTParser(validate=False)
+            entries = non_validating_parser.parse_string(f"<lift>{result}</lift>")
             
             # Additional validation to ensure pagination is correctly applied
             if limit is not None and len(entries) > limit:
@@ -749,7 +754,9 @@ class DictionaryService:
             if not result:
                 return []
             
-            return self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            # Use non-validating parser for related entries to avoid validation errors
+            non_validating_parser = LIFTParser(validate=False)
+            return non_validating_parser.parse_string(f"<lift>{result}</lift>")
             
         except NotFoundError:
             raise
@@ -785,8 +792,10 @@ class DictionaryService:
 
             if not result:
                 return []
-
-            return self.lift_parser.parse_string(f"<lift>{result}</lift>")
+            
+            # Use non-validating parser for grammatical info queries to avoid validation errors
+            non_validating_parser = LIFTParser(validate=False)
+            return non_validating_parser.parse_string(f"<lift>{result}</lift>")
 
         except Exception as e:
             self.logger.error("Error getting entries by grammatical info %s: %s", grammatical_info, str(e))

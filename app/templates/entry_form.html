@@ -20,6 +20,9 @@
         </h2>
     </div>
     <div class="col-md-4 text-end">
+        <button type="button" class="btn btn-outline-info me-2" data-bs-toggle="modal" data-bs-target="#fieldVisibilityModal">
+            <i class="fas fa-cog"></i> Field Settings
+        </button>
         {% if entry.id %}
         <a href="{{ url_for('main.view_entry', entry_id=entry.id) }}" class="btn btn-outline-primary">
             <i class="fas fa-eye"></i> View Entry
@@ -35,7 +38,7 @@
       action="{{ url_for('main.edit_entry', entry_id=entry.id) if entry.id else url_for('main.add_entry') }}">
     <div class="row">
         <div class="col-md-4">
-            <div class="card mb-4">
+            <div class="card mb-4 basic-info-section">
                 <div class="card-header bg-primary text-white">
                     <h5><i class="fas fa-book"></i> Basic Information</h5>
                 </div>
@@ -47,18 +50,18 @@
                         <div class="form-text">The headword as it appears in the dictionary.</div>
                     </div>
                     
-                    <!-- Homograph Number Display -->
+                    <!-- Homograph Number Display - Only show if entry has a homograph number -->
                     {% if entry.homograph_number %}
                     <div class="mb-3">
-                        <label for="homograph-number" class="form-label">Homograph Number</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="homograph-number" name="homograph_number" 
-                                   value="{{ entry.homograph_number }}" readonly>
-                            <span class="input-group-text">
-                                <i class="fas fa-info-circle" data-bs-toggle="tooltip" data-bs-placement="top" 
-                                   title="Homograph numbers distinguish entries with the same lexical unit. This field is read-only and automatically assigned."></i>
+                        <label for="homograph-number" class="form-label">
+                            Homograph Number
+                            <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                                <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="This entry is assigned homograph number {{ entry.homograph_number }} to distinguish it from other entries with the same lexical unit."></i>
                             </span>
-                        </div>
+                        </label>
+                        <input type="text" class="form-control" id="homograph-number" name="homograph_number" 
+                               value="{{ entry.homograph_number }}" readonly>
                         <div class="form-text">Automatically assigned to distinguish homographs (entries sharing the same headword).</div>
                     </div>
                     {% endif %}
@@ -71,9 +74,15 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="part-of-speech" class="form-label">Part of Speech <span class="text-danger">*</span></label>
-                        <select class="form-select dynamic-grammatical-info" id="part-of-speech" name="grammatical_info.part_of_speech" required
-                                data-selected="{% if entry.grammatical_info %}{{ entry.grammatical_info.part_of_speech }}{% endif %}"
+                        <label for="part-of-speech" class="form-label">
+                            Part of Speech <span class="text-muted" id="pos-required-indicator" style="display: none;">*</span>
+                            <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                                <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="This field is automatically inherited from senses. If all senses have the same grammatical category, it will be set automatically. If there are discrepancies, you'll need to resolve them manually."></i>
+                            </span>
+                        </label>
+                        <select class="form-select dynamic-grammatical-info" id="part-of-speech" name="grammatical_info.part_of_speech"
+                                data-selected="{% if entry.grammatical_info %}{{ entry.grammatical_info }}{% endif %}"
                                 data-range-id="grammatical-info">
                             <option value="">Select part of speech</option>
                             <!-- Options will be dynamically loaded from LIFT ranges -->
@@ -115,9 +124,16 @@
 
                     <!-- LIFT Ranges: Morphological Type -->
                     <div class="mb-3">
-                        <label for="morph-type" class="form-label">Morphological Type</label>
+                        <label for="morph-type" class="form-label">
+                            Morphological Type
+                            <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                                <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Automatically classified based on headword form: contains whitespace=phrase, ends with hyphen=prefix, starts with hyphen=suffix, both=infix, default=stem."></i>
+                            </span>
+                        </label>
                         <select class="form-select dynamic-lift-range" id="morph-type" name="morph_type" 
                                 data-range-id="morph-type"
+                                data-selected="{% if entry.morph_type %}{{ entry.morph_type }}{% endif %}"
                                 data-hierarchical="true"
                                 data-searchable="true">
                             <option value="">Select morphological type</option>
@@ -133,9 +149,65 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Custom Fields Section -->
+            {% if entry.custom_fields %}
+            <div class="card mb-4 custom-fields-section">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-cogs"></i> Custom Fields 
+                        <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                            <i class="fas fa-info-circle text-white" data-bs-toggle="tooltip" data-bs-placement="top" 
+                               title="Custom fields defined in the LIFT data. These fields contain additional metadata and domain-specific information not covered by standard LIFT elements."></i>
+                        </span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for field_type, field_content in entry.custom_fields.items() %}
+                    <div class="custom-field-item mb-4 border rounded p-3 bg-light" data-field-type="{{ field_type }}">
+                        <div class="row align-items-center mb-2">
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold text-capitalize">{{ field_type|replace('_', ' ')|title }}</label>
+                                <small class="text-muted d-block">Field Type: {{ field_type }}</small>
+                            </div>
+                        </div>
+                        
+                        {% if field_content is mapping %}
+                            <!-- Multilingual custom field -->
+                            <div class="multilingual-forms">
+                                {% for lang, text in field_content.items() %}
+                                <div class="mb-3 language-form" data-language="{{ lang }}">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Language</label>
+                                            <input type="text" class="form-control bg-white" value="{{ lang }}" readonly>
+                                        </div>
+                                        <div class="col-md-9">
+                                            <label class="form-label">Content</label>
+                                            <textarea class="form-control" 
+                                                      name="custom_fields[{{ field_type }}][{{ lang }}]" 
+                                                      rows="2">{{ text }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <!-- Simple custom field -->
+                            <div class="mb-3">
+                                <label class="form-label">Content</label>
+                                <textarea class="form-control" 
+                                          name="custom_fields[{{ field_type }}]" 
+                                          rows="2">{{ field_content }}</textarea>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
             
             <!-- Multilingual Notes Section -->
-            <div class="card mb-4">
+            <div class="card mb-4 notes-section">
                 <div class="card-header bg-secondary text-white">
                     <h5><i class="fas fa-sticky-note"></i> Entry Notes</h5>
                 </div>
@@ -257,7 +329,7 @@
                 </div>
             </div>
             
-            <div class="card mb-4">
+            <div class="card mb-4 pronunciation-section">
                 <div class="card-header bg-info text-white">
                     <h5><i class="fas fa-microphone"></i> Pronunciation</h5>
                 </div>
@@ -282,14 +354,33 @@
                                 <div class="mt-2 mb-2">
                                     <label class="form-label">Audio File</label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_file" 
-                                               value="" readonly 
+                                        <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_path" 
+                                               value="{{ pronunciation.audio_path if pronunciation.audio_path else '' }}" readonly 
                                                title="Audio file path" placeholder="No audio file">
                                         <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
-                                                data-index="{{ loop.index0 }}" title="Generate audio">
-                                            <i class="fas fa-microphone"></i> Generate
+                                                data-index="{{ loop.index0 }}" title="Upload audio file">
+                                            <i class="fas fa-upload"></i> Upload Audio
                                         </button>
                                     </div>
+                                    
+                                    <!-- Show existing audio preview if audio file exists -->
+                                    {% if pronunciation.audio_path %}
+                                    <div class="audio-preview mt-2">
+                                        <div class="d-flex align-items-center">
+                                            <div class="flex-grow-1">
+                                                <small class="text-muted d-block">Audio file: {{ pronunciation.audio_path }}</small>
+                                                <audio controls class="w-100 mt-1" preload="metadata">
+                                                    <source src="{{ url_for('static', filename='audio/' + pronunciation.audio_path) }}">
+                                                    Your browser does not support the audio element.
+                                                </audio>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-audio-btn" 
+                                                    title="Remove audio file">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 
                                 <div class="form-check">
@@ -327,12 +418,12 @@
                 </div>
             </div>
             
-            <div class="card mb-4">
+            <div class="card mb-4 variants-section">
                 <div class="card-header bg-success text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="fas fa-code-branch"></i> Variants
-                            <i class="fas fa-question-circle ms-2 form-tooltip" 
+                            <i class="fas fa-info-circle ms-2 form-tooltip" 
                                data-bs-toggle="tooltip" 
                                data-bs-placement="top"
                                data-bs-html="true"
@@ -401,12 +492,11 @@
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">
-                                                Variant Type
-                                                <i class="fas fa-question-circle ms-1 form-tooltip" 
-                                                   data-bs-toggle="tooltip" 
-                                                   data-bs-placement="top"
-                                                   data-bs-html="true"
-                                                   title="<strong>Reverse Relationship:</strong><br>{% if variant.ref_display_text %}The entry '<strong>{{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}</strong>' is marked as a {{ variant.variant_type }} of this entry.{% elif variant.ref %}An entry with ID '{{ variant.ref }}' is marked as a {{ variant.variant_type }} of this entry, but the entry could not be found.{% else %}An unknown entry is marked as a {{ variant.variant_type }} of this entry.{% endif %} This relationship is defined in the other entry's data."></i>
+                                                Variant Type                                <i class="fas fa-info-circle ms-1 form-tooltip" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top"
+                                   data-bs-html="true"
+                                   title="<strong>Reverse Relationship:</strong><br>{% if variant.ref_display_text %}The entry '<strong>{{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}</strong>' is marked as a {{ variant.variant_type }} of this entry.{% elif variant.ref %}An entry with ID '{{ variant.ref }}' is marked as a {{ variant.variant_type }} of this entry, but the entry could not be found.{% else %}An unknown entry is marked as a {{ variant.variant_type }} of this entry.{% endif %} This relationship is defined in the other entry's data."></i>
                                             </label>
                                             <div class="form-control-plaintext">
                                                 <span class="badge bg-info fs-6">{{ variant.variant_type }}</span>
@@ -484,7 +574,7 @@
                                         <div class="col-md-12">
                                             <label class="form-label fw-bold">
                                                 Status
-                                                <i class="fas fa-question-circle ms-1 form-tooltip" 
+                                                <i class="fas fa-info-circle ms-1 form-tooltip" 
                                                    data-bs-toggle="tooltip" 
                                                    data-bs-placement="top"
                                                    data-bs-html="true"
@@ -523,7 +613,7 @@
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-layer-group"></i> Complex Form Components
-                        <i class="fas fa-question-circle ms-2 form-tooltip" 
+                        <i class="fas fa-info-circle ms-2 form-tooltip" 
                            data-bs-toggle="tooltip" 
                            data-bs-placement="top"
                            data-bs-html="true"
@@ -593,12 +683,12 @@
                 </div>
             </div>
             
-            <div class="card mb-4">
+            <div class="card mb-4 relations-section">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="fas fa-link"></i> Relations
-                            <i class="fas fa-question-circle ms-2 form-tooltip" 
+                            <i class="fas fa-info-circle ms-2 form-tooltip" 
                                data-bs-toggle="tooltip" 
                                data-bs-placement="top"
                                data-bs-html="true"
@@ -641,7 +731,7 @@
                                             <div class="col-md-4">
                                                 <label class="form-label fw-bold">
                                                     Relation Type
-                                                    <i class="fas fa-question-circle ms-1 form-tooltip" 
+                                                    <i class="fas fa-info-circle ms-1 form-tooltip" 
                                                        data-bs-toggle="tooltip" 
                                                        data-bs-placement="top"
                                                        data-bs-html="true"
@@ -731,7 +821,7 @@
         </div>
         
         <div class="col-md-8">
-            <div class="card">
+            <div class="card senses-section">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Senses</h5>
@@ -757,6 +847,9 @@
                                         </div>
                                     </div>
                                     <div class="card-body">
+                                        <!-- Hidden field for sense ID -->
+                                        <input type="hidden" name="senses[{{ loop.index0 }}].id" value="{{ sense.id }}">
+                                        
                                         <div class="mb-3">
                                             <label class="form-label">Definition <span class="text-danger">*</span></label>
                                             <textarea class="form-control" name="senses[{{ loop.index0 }}].definition" 
@@ -816,6 +909,23 @@
                                                                 <label class="form-label">Translation</label>
                                                                 <textarea class="form-control" name="senses[0].examples[{{ loop.index0 }}].translation"
                                                                           rows="2">{{ example.translation }}</textarea>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Translation Type
+                                                                    <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                                                                        <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                                                           title="Specify the type of translation: 'literal' for word-for-word translation, 'free' for natural/idiomatic translation, or other types as defined in your project."></i>
+                                                                    </span>
+                                                                </label>
+                                                                <select class="form-select dynamic-lift-range" 
+                                                                        name="senses[0].examples[{{ loop.index0 }}].translation_type"
+                                                                        data-range-id="translation-type"
+                                                                        data-hierarchical="false"
+                                                                        data-searchable="true">
+                                                                    <option value="">Select translation type</option>
+                                                                    <option value="literal" {% if example.translation_type == 'literal' %}selected{% endif %}>Literal</option>
+                                                                    <option value="free" {% if example.translation_type == 'free' %}selected{% endif %}>Free/Idiomatic</option>
+                                                                </select>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -929,7 +1039,7 @@
         <div class="row">
             <div class="col-md-8">
                 <label class="form-label">IPA</label>
-                <input type="text" class="form-control" name="pronunciations[INDEX].value" 
+                <input type="text" class="form-control ipa-input" name="pronunciations[INDEX].value" 
                        value="" placeholder="IPA transcription">
             </div>
             <div class="col-md-4">
@@ -944,11 +1054,11 @@
         <div class="mt-2 mb-2">
             <label class="form-label">Audio File</label>
             <div class="input-group">
-                <input type="text" class="form-control" name="pronunciations[INDEX].audio_file" 
-                       value="" readonly>
+                <input type="text" class="form-control" name="pronunciations[INDEX].audio_path" 
+                       value="" readonly placeholder="No audio file">
                 <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
-                        data-index="INDEX">
-                    <i class="fas fa-microphone"></i> Generate
+                        data-index="INDEX" title="Upload audio file">
+                    <i class="fas fa-upload"></i> Upload Audio
                 </button>
             </div>
         </div>
@@ -982,6 +1092,9 @@
             </div>
         </div>
         <div class="card-body">
+            <!-- Hidden field for sense ID (will be populated when adding new senses) -->
+            <input type="hidden" name="senses[INDEX].id" value="">
+            
             <div class="mb-3">
                 <label class="form-label">Definition <span class="text-danger">*</span></label>
                 <textarea class="form-control" name="senses[INDEX].definition" 
@@ -1057,6 +1170,24 @@
             </div>
             
             <div class="mb-2">
+                <label class="form-label">Translation Type
+                    <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                        <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" 
+                           title="Specify the type of translation: 'literal' for word-for-word translation, 'free' for natural/idiomatic translation."></i>
+                    </span>
+                </label>
+                <select class="form-select dynamic-lift-range" 
+                        name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].translation_type"
+                        data-range-id="translation-type"
+                        data-hierarchical="false"
+                        data-searchable="true">
+                    <option value="">Select translation type</option>
+                    <option value="literal">Literal</option>
+                    <option value="free">Free/Idiomatic</option>
+                </select>
+            </div>
+            
+            <div class="mb-2">
                 <label class="form-label">Reference</label>
                 <input type="text" class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].reference" 
                        value="">
@@ -1085,37 +1216,11 @@
     </div>
 </div>
 
-<!-- Audio Preview Modal -->
-<div class="modal fade" id="audioPreviewModal" tabindex="-1" aria-labelledby="audioPreviewModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="audioPreviewModalLabel">Audio Preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center">
-                <div class="mb-3">
-                    <audio id="audio-preview-player" controls>
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>
-                <div>
-                    <button type="button" class="btn btn-primary" id="save-audio-btn">
-                        <i class="fas fa-save"></i> Save Audio
-                    </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="{{ url_for('static', filename='js/form-serializer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
@@ -1158,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         pronunciationArray.push({
                             type: writingSystem,
                             value: value,
-                            audio_file: "",
+                            audio_path: "",
                             is_default: true
                         });
                     }
@@ -1285,4 +1390,87 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 });
 </script>
+
+<!-- Field Visibility Settings Modal -->
+<div class="modal fade" id="fieldVisibilityModal" tabindex="-1" aria-labelledby="fieldVisibilityModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fieldVisibilityModalLabel">
+                    <i class="fas fa-cog"></i> Field Visibility Settings
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-4">
+                    Control which field sections are visible in the entry form. Settings are saved automatically.
+                </p>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Main Sections</h6>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-basic-info" 
+                                   data-target=".basic-info-section" checked>
+                            <label class="form-check-label" for="show-basic-info">Basic Information</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-custom-fields" 
+                                   data-target=".custom-fields-section" checked>
+                            <label class="form-check-label" for="show-custom-fields">Custom Fields</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-notes" 
+                                   data-target=".notes-section" checked>
+                            <label class="form-check-label" for="show-notes">Entry Notes</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-pronunciation" 
+                                   data-target=".pronunciation-section" checked>
+                            <label class="form-check-label" for="show-pronunciation">Pronunciation</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Content Sections</h6>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-variants" 
+                                   data-target=".variants-section" checked>
+                            <label class="form-check-label" for="show-variants">Variants</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-relations" 
+                                   data-target=".relations-section" checked>
+                            <label class="form-check-label" for="show-relations">Relations</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-senses" 
+                                   data-target=".senses-section" checked>
+                            <label class="form-check-label" for="show-senses">Senses & Definitions</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary" id="reset-field-visibility">
+                        <i class="fas fa-undo"></i> Reset to Defaults
+                    </button>
+                    <div>
+                        <button type="button" class="btn btn-outline-primary" id="hide-empty-sections">
+                            <i class="fas fa-eye-slash"></i> Hide Empty Sections
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" id="show-all-sections">
+                            <i class="fas fa-eye"></i> Show All Sections
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

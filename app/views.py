@@ -261,16 +261,23 @@ def edit_entry(entry_id):
     Args:
         entry_id: ID of the entry to edit.
     """
-    import time
-    logger.info(f"[DEBUG] edit_entry called for entry_id={entry_id} at {time.time()}")
     try:
         dict_service = current_app.injector.get(DictionaryService)
-        logger.info(f"[DEBUG] Got DictionaryService at {time.time()}")
         if request.method == 'POST':
-            data = request.get_json()
-            logger.info(f"[DEBUG] POST data: {data}")
+            # Handle both JSON and form data
+            data = None
+            try:
+                data = request.get_json()
+            except Exception:
+                # If JSON parsing fails, fallback to form data
+                pass
+                
             if not data:
-                return jsonify({'error': 'No data provided'}), 400
+                # If no JSON, try to get form data
+                if request.form:
+                    data = dict(request.form)
+                else:
+                    return jsonify({'error': 'No data provided'}), 400
             
             # Get existing entry data for merging
             existing_entry = dict_service.get_entry(entry_id)
@@ -282,49 +289,36 @@ def edit_entry(entry_id):
             entry = Entry.from_dict(merged_data)
             entry.id = entry_id
             dict_service.update_entry(entry)
-            logger.info(f"[DEBUG] Entry updated: {entry_id}")
             return jsonify({'id': entry_id, 'message': 'Entry updated successfully'})
-        logger.info(f"[DEBUG] About to get_entry({entry_id}) at {time.time()}")
+            
         entry = dict_service.get_entry(entry_id)
-        logger.info(f"[DEBUG] Got entry: {getattr(entry, 'id', None)} at {time.time()}")
         
-        # DEBUG: Check variant relations
+        # Apply POS inheritance when loading entry for editing
         if entry:
-            variant_count = len(entry.variant_relations())
-            logger.info(f"[DEBUG] Entry has {variant_count} variant relations")
-            for i, variant in enumerate(entry.variant_relations()):
-                logger.info(f"[DEBUG] Variant {i}: {variant}")
+            entry._apply_pos_inheritance()
         
         ranges = dict_service.get_lift_ranges()
-        logger.info(f"[DEBUG] Got ranges at {time.time()} (keys: {list(ranges.keys()) if hasattr(ranges, 'keys') else type(ranges)})")
         
         # Explicitly extract enriched variant_relations for template (with display text and error markers)
         variant_relations_data = []
         component_relations_data = []
         if entry:
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
-            logger.info(f"[DEBUG] Extracted {len(variant_relations_data)} enriched variant relations for template")
             
             # Extract enriched component_relations for template (with display text for main entries)
             component_relations_data = entry.get_component_relations(dict_service)
-            logger.info(f"[DEBUG] Extracted {len(component_relations_data)} enriched component relations for template")
         
         return render_template('entry_form.html', entry=entry, ranges=ranges, 
                              variant_relations=variant_relations_data, 
                              component_relations=component_relations_data)
     except NotFoundError as e:
         logger.warning(f"Entry with ID {entry_id} not found: {e}")
-        import traceback
-        logger.warning(f"Traceback: {traceback.format_exc()}")
         flash(f"Entry with ID {entry_id} not found.", "danger")
         return redirect(url_for('main.entries'))
     except ValidationError as e:
-        logger.error(f"[DEBUG] ValidationError: {e}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error editing entry {entry_id}: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
         flash(f"Error loading entry: {str(e)}", "danger")
         return redirect(url_for('main.entries'))
 
@@ -414,10 +408,20 @@ def add_entry():
         dict_service = current_app.injector.get(DictionaryService)
 
         if request.method == 'POST':
-            # Handle form submission
-            data = request.get_json()
+            # Handle both JSON and form data
+            data = None
+            try:
+                data = request.get_json()
+            except Exception:
+                # If JSON parsing fails, fallback to form data
+                pass
+                
             if not data:
-                return jsonify({'error': 'No data provided'}), 400
+                # If no JSON, try to get form data
+                if request.form:
+                    data = dict(request.form)
+                else:
+                    return jsonify({'error': 'No data provided'}), 400
             
             # Process multilingual form data (starting with empty entry data for new entries)
             empty_entry_data = {}
@@ -429,8 +433,12 @@ def add_entry():
             # Create entry
             entry_id = dict_service.create_entry(entry)
             
-            # Return success response
-            return jsonify({'id': entry_id, 'message': 'Entry created successfully'})
+            # Return appropriate response format
+            if request.is_json:
+                return jsonify({'id': entry_id, 'message': 'Entry created successfully'})
+            else:
+                flash('Entry created successfully!', 'success')
+                return redirect(url_for('main.view_entry', entry_id=entry_id))
         
         # Create an empty entry for the form
         entry = Entry()

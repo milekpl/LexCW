@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Form Debug Test</title>
+</head>
+<body>
+    <h1>Debug Form Submission</h1>
+    
+    <form id="test-form">
+        <input type="text" name="lexical_unit[en]" value="Test" />
+        <input type="text" name="grammatical_info.part_of_speech" value="Noun" />
+        <input type="text" name="notes[general][en]" value="Test note" />
+        <button type="submit">Submit</button>
+    </form>
+
+    <script>
+    document.getElementById('test-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Simulate the exact same logic as entry-form.js
+        const form = this;
+        const formData = new FormData(form);
+        const jsonData = {};
+        
+        formData.forEach((value, key) => {
+            console.log(`Processing: ${key} = ${value}`);
+            
+            // Handle bracket notation AND dot notation for nested objects
+            // Split on brackets first, then on dots within each part
+            const bracketParts = key.split(/[\[\]]/).filter(k => k !== '');
+            const keys = [];
+            
+            // Process each bracket part and split on dots
+            bracketParts.forEach(part => {
+                if (part.includes('.')) {
+                    // Split on dots and add each part
+                    keys.push(...part.split('.'));
+                } else {
+                    keys.push(part);
+                }
+            });
+            
+            console.log(`Keys array: [${keys.join(', ')}]`);
+            
+            let current = jsonData;
+            
+            for (let i = 0; i < keys.length; i++) {
+                const keyPart = keys[i];
+                const isLast = i === keys.length - 1;
+                
+                if (isLast) {
+                    current[keyPart] = value;
+                } else {
+                    // Handle numeric array indices
+                    const nextKey = keys[i + 1];
+                    const useArray = !isNaN(parseInt(nextKey));
+                    
+                    if (!current[keyPart]) {
+                        current[keyPart] = useArray ? [] : {};
+                    }
+                    
+                    // Move into nested object/array
+                    current = current[keyPart];
+                }
+            }
+        });
+        
+        console.log('Final JSON Data:', JSON.stringify(jsonData, null, 2));
+        
+        // Send to debug server
+        fetch('http://localhost:5001/debug-form', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(jsonData)
+        })
+        .then(response => response.json())
+        .then(data => console.log('Response:', data))
+        .catch(error => console.error('Error:', error));
+    });
+    </script>
+</body>
+</html>
