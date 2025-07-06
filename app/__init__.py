@@ -13,6 +13,7 @@ from injector import Injector, singleton
 
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
+from app.config_manager import ConfigManager
 
 
 # Create a global injector
@@ -39,11 +40,19 @@ if not (os.getenv('TESTING') == 'true' or 'pytest' in sys.modules):
 # Create a DictionaryService instance using the BaseXConnector
 dictionary_service = DictionaryService(db_connector=basex_connector)
 
+# Initialize ConfigManager early
+# Note: Flask app's instance_path is not available yet.
+# We'll use a temporary path or handle it inside ConfigManager if needed,
+# or re-initialize/update it once the app object is created.
+# For now, let's assume ConfigManager can handle a None path initially or uses a default.
+# A better approach is to initialize it inside create_app.
+
 def configure_dependencies(binder):
     """Configure dependencies for the application."""
     # Bind the pre-created instances as singletons
     binder.bind(BaseXConnector, to=basex_connector, scope=singleton)
     binder.bind(DictionaryService, to=dictionary_service, scope=singleton)
+    # ConfigManager will be bound after app creation
 
 injector.binder.install(configure_dependencies)
 
@@ -148,6 +157,10 @@ def create_app(config_name=None):
     # Register entries API
     from app.api.entries import entries_bp
     app.register_blueprint(entries_bp, url_prefix='/api/entries')
+
+    # Register settings blueprint
+    from app.routes.settings_routes import settings_bp
+    app.register_blueprint(settings_bp)
     
     # Initialize Swagger documentation
     swagger_config = {
@@ -210,6 +223,17 @@ def create_app(config_name=None):
     
     # Attach the global injector to the app for dependency injection
     app.injector = injector
+
+    # Initialize ConfigManager with app's instance_path
+    config_manager = ConfigManager(app.instance_path)
+    app.config_manager = config_manager
+    app.config['PROJECT_SETTINGS'] = config_manager.get_all_settings()
+
+    # Bind ConfigManager to the injector
+    def configure_app_specific_dependencies(binder):
+        binder.bind(ConfigManager, to=config_manager, scope=singleton)
+
+    app.injector.binder.install(configure_app_specific_dependencies)
     
     # Initialize cache service
     from app.services.cache_service import CacheService

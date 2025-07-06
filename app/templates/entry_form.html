@@ -122,8 +122,8 @@
                                                 {% for lang, text in sense.definition.items() %}
                                                 <div class="definition-item input-group mb-2" data-def-index="{{ loop.index0 }}">
                                                     <select name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][lang]" class="form-select lang-select" style="max-width: 120px;">
-                                                        {% for code, label in project_languages.items() %}
-                                                            <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label }}</option>
+                                                        {% for code, label in project_languages %}
+                                                            <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
                                                         {% endfor %}
                                                     </select>
                                                     <input type="text" class="form-control" name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][text]" value="{{ text }}" placeholder="Definition">
@@ -131,13 +131,15 @@
                                                 </div>
                                                 {% endfor %}
                                             {% else %}
+                                                {# Default to source language if definition is a simple string #}
+                                                {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
                                                 <div class="definition-item input-group mb-2" data-def-index="0">
-                                                    <select name="senses[{{ loop.index0 }}][definition][pl][lang]" class="form-select lang-select" style="max-width: 120px;">
-                                                        {% for code, label in project_languages.items() %}
-                                                            <option value="{{ code }}">{{ label }}</option>
+                                                    <select name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][lang]" class="form-select lang-select" style="max-width: 120px;">
+                                                        {% for code, label in project_languages %}
+                                                            <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                                         {% endfor %}
                                                     </select>
-                                                    <input type="text" class="form-control" name="senses[{{ loop.index0 }}][definition][pl][text]" value="{{ sense.definition }}" placeholder="Definition">
+                                                    <input type="text" class="form-control" name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][text]" value="{{ sense.definition }}" placeholder="Definition">
                                                     <button type="button" class="btn btn-outline-danger remove-definition" title="Remove"><i class="fas fa-minus"></i></button>
                                                 </div>
                                             {% endif %}
@@ -346,10 +348,9 @@
                                                 <div class="col-md-3">
                                                     <label class="form-label">Language</label>
                                                     <select class="form-select language-select" name="notes[{{ note_type }}][{{ lang }}][lang]">
-                                                        <option value="en" {% if lang == 'en' %}selected{% endif %}>English</option>
-                                                        <option value="pt" {% if lang == 'pt' %}selected{% endif %}>Portuguese</option>
-                                                        <option value="fr" {% if lang == 'fr' %}selected{% endif %}>French</option>
-                                                        <option value="pl" {% if lang == 'pl' %}selected{% endif %}>Polish</option>
+                                                        {% for code, label in project_languages %}
+                                                            <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                                                        {% endfor %}
                                                     </select>
                                                 </div>
                                                 <div class="col-md-8">
@@ -370,24 +371,24 @@
                                         {% endfor %}
                                     {% else %}
                                         <!-- Legacy single text note -->
-                                        <div class="mb-3 language-form" data-language="en">
+                                        {# Default to source language if note is a simple string #}
+                                        {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                                        <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
                                             <div class="row">
                                                 <div class="col-md-3">
                                                     <label class="form-label">Language</label>
-                                                    <select class="form-select language-select" name="notes[{{ note_type }}][en][lang]">
-                                                        <option value="en" selected>English</option>
-                                                        <option value="pt">Portuguese</option>
-                                                        <option value="pl">Polish</option>
-                                                        <option value="fr">French</option>
-                                                        <option value="es">Spanish</option>
+                                                    <select class="form-select language-select" name="notes[{{ note_type }}][{{ default_lang_code }}][lang]">
+                                                        {% for code, label in project_languages %}
+                                                            <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                        {% endfor %}
                                                     </select>
                                                 </div>
                                                 <div class="col-md-8">
                                                     <label class="form-label">Note Text</label>
                                                     <textarea class="form-control note-text" 
-                                                              name="notes[{{ note_type }}][en][text]" 
+                                                              name="notes[{{ note_type }}][{{ default_lang_code }}][text]"
                                                               rows="2" 
-                                                              placeholder="Enter note text in English">{{ note_content }}</textarea>
+                                                              placeholder="Enter note text in {{ default_lang_code }}">{{ note_content }}</textarea>
                                                 </div>
                                                 <div class="col-md-1 d-flex align-items-end">
                                                     <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
@@ -1331,6 +1332,7 @@
 <script src="{{ url_for('static', filename='js/validation-ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/inline-validation.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/relations.js') }}"></script>
@@ -1467,6 +1469,40 @@ document.addEventListener('DOMContentLoaded', async function() {
         const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
         console.log('[TOOLTIP DEBUG] Initialized', tooltipList.length, 'tooltips');
     }
+
+    // Initialize SortableJS for senses
+    const sensesContainer = document.getElementById('senses-container');
+    if (sensesContainer && typeof Sortable !== 'undefined') {
+        new Sortable(sensesContainer, {
+            animation: 150,
+            handle: '.card-header', // Allow dragging by the card header
+            ghostClass: 'sortable-ghost', // Class name for the drop placeholder
+            chosenClass: 'sortable-chosen', // Class name for the chosen item
+            dragClass: 'sortable-drag', // Class name for the dragging item
+            onEnd: function (evt) {
+                // Update sense indices and names after reordering
+                const senseItems = sensesContainer.querySelectorAll('.sense-item');
+                senseItems.forEach((item, newIndex) => {
+                    item.dataset.senseIndex = newIndex;
+                    // Update labels like "Sense X"
+                    const senseLabel = item.querySelector('.card-header span');
+                    if (senseLabel) {
+                        senseLabel.textContent = `Sense ${newIndex + 1}`;
+                    }
+                    // Update input names to reflect new order
+                    item.querySelectorAll('[name^="senses"]').forEach(input => {
+                        const oldName = input.getAttribute('name');
+                        const newName = oldName.replace(/senses\[\d+\]/, `senses[${newIndex}]`);
+                        input.setAttribute('name', newName);
+                    });
+                });
+                console.log('Senses reordered and indices updated.');
+            }
+        });
+    } else {
+        console.error('SortableJS or senses container not found.');
+    }
+
 });
 </script>
 
