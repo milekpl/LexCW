@@ -76,14 +76,6 @@ class EtymologyFormsManager {
     render() {
         this.container.innerHTML = `
             <div class="etymology-forms-wrapper">
-                <div class="etymology-forms-header">
-                    <h4>Etymology</h4>
-                    ${this.options.allowAdd ? `
-                        <button type="button" class="btn btn-sm btn-success add-etymology-btn">
-                            <i class="fas fa-plus"></i> Add Etymology
-                        </button>
-                    ` : ''}
-                </div>
                 <div class="etymology-forms-list">
                     ${this.etymologies.length === 0 ? `
                         <div class="no-etymologies-message text-muted">
@@ -250,7 +242,7 @@ class EtymologyFormsManager {
     attachEventListeners() {
         // Add etymology button
         if (this.options.allowAdd) {
-            const addButton = this.container.querySelector('.add-etymology-btn');
+            const addButton = document.getElementById('add-etymology-btn');
             if (addButton) {
                 addButton.addEventListener('click', () => this.addEtymology());
             }
