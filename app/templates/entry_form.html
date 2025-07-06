@@ -839,8 +839,17 @@
             <div class="card mb-4">
                 <div class="card-header bg-warning text-dark">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-history"></i> Etymology</h5>
-                        <small class="text-muted">Historical word origin and development</small>
+                        <h5 class="mb-0">
+                            <i class="fas fa-history"></i> Etymology
+                            <i class="fas fa-info-circle ms-2 form-tooltip" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top"
+                               data-bs-html="true"
+                               title="<strong>About Etymology:</strong><br>Etymology traces the historical origin and development of words. This includes information about source languages, etymological forms, meanings, and the type of linguistic change (inheritance, borrowing, derivation, etc.)."></i>
+                        </h5>
+                        <button type="button" class="btn btn-sm btn-light" id="add-etymology-btn">
+                            <i class="fas fa-plus"></i> Add Etymology
+                        </button>
                     </div>
                 </div>
                 <div class="card-body">
