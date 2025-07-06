@@ -479,38 +479,57 @@ function submitForm() {
     
     // Show loading state
     const saveBtn = document.getElementById('save-btn');
-    if (!saveBtn) return;
+    if (!saveBtn) return; // Should not happen if the form exists
     
     const originalText = saveBtn.innerHTML;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
     saveBtn.disabled = true;
+
+    // Determine API URL and Method based on whether it's a new or existing entry
+    const entryIdField = form.querySelector('input[name="id"]');
+    const existingEntryId = entryIdField ? entryIdField.value.trim() : null;
+
+    let apiUrl;
+    let apiMethod;
+
+    if (existingEntryId && existingEntryId !== "") {
+        // Editing an existing entry
+        apiUrl = `/api/entries/${existingEntryId}`;
+        apiMethod = 'PUT';
+    } else {
+        // Adding a new entry
+        apiUrl = '/api/entries/'; // Note the trailing slash for consistency with Flask Blueprint routes
+        apiMethod = 'POST';
+    }
     
+    console.log(`Submitting to URL: ${apiUrl}, Method: ${apiMethod}`);
+
     // Send request
-    fetch(form.action, {
-        method: form.method || 'POST',
+    fetch(apiUrl, { // Use determined apiUrl
+        method: apiMethod, // Use determined apiMethod
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jsonData)
     })
-    .then(async response => {
-        let data;
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-        } else {
-            // Not JSON, likely an HTML error page
-            const text = await response.text();
-            throw new Error('Server returned an unexpected response.\n' + text.substring(0, 500));
-        }
-        if (!response.ok) {
-            throw new Error(data.error || `HTTP error! status: ${response.status}`);
-        }
-        return data;
+    .then(response => {
+        return response.json().then(responseData => { // Renamed to responseData to avoid conflict
+            if (!response.ok) {
+                // Server returned an error response
+                throw new Error(responseData.error || responseData.message || `HTTP error! status: ${response.status}`);
+            }
+            return responseData;
+        });
     })
-    .then(data => {
-        if (data.id) {
-            window.location.href = `/entries/${data.id}`;
+    .then(responseData => { // Renamed to responseData
+        // For POST (create), the API /api/entries/ returns 'entry_id'
+        // For PUT (update), the API /api/entries/<id> returns 'success: true' (and ideally 'entry_id')
+        const idForRedirect = responseData.entry_id || existingEntryId;
+
+        if (idForRedirect) {
+            window.location.href = `/entries/${idForRedirect}`;
         } else {
-            throw new Error('No entry ID returned from server');
+             // Fallback if no ID is found (should not happen for create, might for update if API not changed)
+            console.warn("No entry ID found in response or form for redirect. Redirecting to entries list.");
+            window.location.href = '/entries';
         }
     })
     .catch(error => {
