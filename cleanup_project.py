@@ -21,6 +21,7 @@ def get_files_to_cleanup():
     # Patterns for files to remove
     cleanup_patterns = [
         r'^debug_.*\.py$',
+        r'^fix_.*\.py$',
         r'^test_.*\.py$',  # Test files in root should be moved to tests/
         r'^.*_demo\.py$',
         r'^.*_test\.html$',
