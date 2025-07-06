@@ -827,8 +827,7 @@ class MultilingualNotesManager {
         this.languages = [
             { value: 'en', label: 'English' },
             { value: 'pt', label: 'Portuguese' },
-            { value: 'seh', label: 'Sena' },
-            { value: 'seh-fonipa', label: 'Sena (IPA)' },
+            { value: 'seh-fonipa', label: 'IPA' },
             { value: 'fr', label: 'French' },
             { value: 'es', label: 'Spanish' },
             { value: 'de', label: 'German' },

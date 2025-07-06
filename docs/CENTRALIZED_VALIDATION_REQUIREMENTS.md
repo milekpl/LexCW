@@ -56,7 +56,7 @@ This document consolidates all validation requirements for the Lexicographic Cur
 
 - **R1.2.3**: Language codes must be from approved project list
   - **Current Implementation**: `app/models/entry.py:300` + `_is_valid_language_code` method
-  - **Valid Codes**: {"seh", "en", "pt", "fr", "de", "seh-fonipa"}
+  - **Valid Codes**: {"en", "pl", "fr", "de", "seh-fonipa"}
   - **Error Message**: "Invalid language code: {lang_code}"
   - **Priority**: Warning (Should Fix)
 

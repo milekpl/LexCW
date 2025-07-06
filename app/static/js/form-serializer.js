@@ -81,22 +81,48 @@ function serializeFormToJSON(input, options = {}) {
 function setNestedValue(obj, path, value) {
     const keys = parseFieldPath(path);
     let current = obj;
-    
     for (let i = 0; i < keys.length; i++) {
         const { key, isArrayIndex } = keys[i];
         const isLast = i === keys.length - 1;
-        
+
         if (isLast) {
-            current[key] = value;
+            if (isArrayIndex) {
+                // If the last key is an array index, ensure current is an array
+                if (!Array.isArray(current)) {
+                    // Convert to array if not already
+                    const arr = [];
+                    Object.keys(current).forEach(k => {
+                        if (!isNaN(Number(k))) arr[Number(k)] = current[k];
+                    });
+                    current = arr;
+                }
+                const index = parseInt(key);
+                while (current.length <= index) {
+                    current.push(undefined);
+                }
+                current[index] = value;
+            } else {
+                current[key] = value;
+            }
             return;
         }
-        
-        // Not the last key - navigate or create structure
+
         if (isArrayIndex) {
             // This is an array index - current should be an array
+            if (!Array.isArray(current)) {
+                // Convert to array if not already
+                const arr = [];
+                Object.keys(current).forEach(k => {
+                    if (!isNaN(Number(k))) arr[Number(k)] = current[k];
+                });
+                current = arr;
+            }
             const index = parseInt(key);
             while (current.length <= index) {
                 current.push({});
+            }
+            if (typeof current[index] !== 'object' || current[index] === null) {
+                current[index] = {};
             }
             current = current[index];
         } else {
