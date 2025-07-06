@@ -66,7 +66,7 @@
 </div>
 
 <form id="entry-form" method="post"
-      action="{{ url_for('api.entries') if not entry.id else url_for('api.entry_detail', entry_id=entry.id) }}">
+      action="{{ url_for('api.entries') if not entry.id else url_for('main.edit_entry', entry_id=entry.id) }}">
     <div class="row">
         <div class="col-md-4">
             <div class="card mb-4 basic-info-section">
