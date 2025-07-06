@@ -87,6 +87,19 @@ def create_app(config_name=None):
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    # Add rotating file handler for application logs
+    from logging.handlers import RotatingFileHandler
+    # Ensure logs directory exists under instance path
+    log_dir = os.path.join(app.instance_path, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    file_handler = RotatingFileHandler(
+        os.path.join(log_dir, 'app.log'), maxBytes=10240, backupCount=10
+    )
+    file_handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    )
+    file_handler.setLevel(logging.INFO)
+    app.logger.addHandler(file_handler)
     
     # Create instance directories
     os.makedirs(os.path.join(app.instance_path, 'audio'), exist_ok=True)
@@ -131,6 +144,10 @@ def create_app(config_name=None):
     # Register real-time validation API for Phase 4
     from app.api.validation_endpoints import validation_api
     app.register_blueprint(validation_api, url_prefix='/api/validation')
+    
+    # Register entries API
+    from app.api.entries import entries_bp
+    app.register_blueprint(entries_bp, url_prefix='/api/entries')
     
     # Initialize Swagger documentation
     swagger_config = {

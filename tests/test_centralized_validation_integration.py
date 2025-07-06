@@ -26,7 +26,7 @@ class TestCentralizedValidationIntegration:
         # Test valid entry passes validation
         valid_entry = Entry(
             id="test_entry",
-            lexical_unit={"seh": "test"},
+            lexical_unit={"en": "test"},
             senses=[Sense(id="sense1", gloss="test")]
         )
         
@@ -57,7 +57,7 @@ class TestCentralizedValidationIntegration:
         with pytest.raises(ValidationError) as exc_info:
             invalid_entry = Entry(
                 id="test_entry",
-                lexical_unit={"seh": "test"},
+                lexical_unit={"en": "test"},
                 senses=[]  # No senses
             )
             invalid_entry.validate()
@@ -124,7 +124,7 @@ class TestCentralizedValidationIntegration:
         # Test data with both critical and warning issues
         mixed_data = {
             "id": "test@invalid",  # Invalid format (warning)
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"en": "test"},
             "senses": []  # Missing senses (critical)
         }
         
@@ -142,7 +142,7 @@ class TestCentralizedValidationIntegration:
         # Test data that would trigger custom validation
         data_with_notes = {
             "id": "test_entry",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"en": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}],
             "notes": [
                 {"type": "etymology", "content": "test"},
@@ -161,7 +161,7 @@ class TestCentralizedValidationIntegration:
         """Test that model to_dict() output is compatible with validation engine."""
         entry = Entry(
             id="test_entry",
-            lexical_unit={"seh": "test"},
+            lexical_unit={"en": "test"},
             senses=[Sense(id="sense1", gloss="test")]
         )
         
@@ -186,7 +186,6 @@ class TestCentralizedValidationIntegration:
         
         # Test that non-validating parser (used in listing) accepts variant entries
         non_validating_parser = LIFTParser(validate=False)
-        
         # This variant entry would normally fail validation but should be accepted when validation is disabled
         variant_entry_xml = """
         <lift>
@@ -205,16 +204,13 @@ class TestCentralizedValidationIntegration:
             </entry>
         </lift>
         """
-        
         # This should NOT raise a validation error
         entries = non_validating_parser.parse_string(variant_entry_xml)
         assert len(entries) == 1
         assert entries[0].id == "variant_entry_test"
-        
         # Test that dictionary service listing operations work without validation errors
         mock_db = MockDatabaseConnector()
         dict_service = DictionaryService(mock_db)
-        
         # This should succeed without validation errors
         entries, count = dict_service.list_entries(limit=10)
         assert isinstance(entries, list)
@@ -232,13 +228,13 @@ class TestValidationEnginePerformance:
         # Create a reasonably sized entry for testing
         test_data = {
             "id": "performance_test",
-            "lexical_unit": {"seh": "test", "en": "test"},
+            "lexical_unit": {"en": "test"},
             "senses": [
                 {"id": f"sense_{i}", "gloss": f"test gloss {i}"} 
                 for i in range(10)
             ],
             "notes": {"etymology": "test etymology"},
-            "pronunciations": {"seh-fonipa": "test"}
+            "pronunciations": {"ipa": "test"}
         }
         
         # Measure validation time
@@ -264,7 +260,7 @@ class TestValidationEnginePerformance:
         for i in range(50):
             test_entries.append({
                 "id": f"entry_{i}",
-                "lexical_unit": {"seh": f"word_{i}"},
+                "lexical_unit": {"en": f"word_{i}"},
                 "senses": [{"id": f"sense_{i}", "gloss": f"meaning {i}"}]
             })
         

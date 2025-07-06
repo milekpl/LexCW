@@ -30,35 +30,49 @@ def simulate_js_form_parsing(form_fields):
         
         # Remove empty parts
         bracket_parts = [part for part in bracket_parts if part]
-        
+
         keys = []
-        
         # Process each bracket part and split on dots
         for part in bracket_parts:
             if '.' in part:
-                # Split on dots and add each part
-                keys.extend(part.split('.'))
+                keys.extend([p for p in part.split('.') if p])
             else:
-                keys.append(part)
+                if part:
+                    keys.append(part)
         
         # Build nested structure
         current = json_data
-        
         for i, key_part in enumerate(keys):
             is_last = i == len(keys) - 1
-            
+            is_index = key_part.isdigit()
+            if is_index:
+                key_part = int(key_part)
             if is_last:
-                current[key_part] = value
+                if isinstance(current, list) and isinstance(key_part, int):
+                    # Extend list if needed
+                    while len(current) <= key_part:
+                        current.append({})
+                    current[key_part] = value
+                else:
+                    current[key_part] = value
             else:
-                # Handle numeric array indices
                 next_key = keys[i + 1] if i + 1 < len(keys) else None
                 use_array = next_key and next_key.isdigit()
-                
-                if key_part not in current:
-                    current[key_part] = [] if use_array else {}
-                
-                # Move into nested object/array
-                current = current[key_part]
+                if isinstance(current, list) and isinstance(key_part, int):
+                    # Extend list if needed
+                    while len(current) <= key_part:
+                        current.append({})
+                    if use_array:
+                        if not isinstance(current[key_part], list):
+                            current[key_part] = []
+                    else:
+                        if not isinstance(current[key_part], dict):
+                            current[key_part] = {}
+                    current = current[key_part]
+                else:
+                    if key_part not in current:
+                        current[key_part] = [] if use_array else {}
+                    current = current[key_part]
     
     return json_data
 

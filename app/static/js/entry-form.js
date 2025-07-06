@@ -491,14 +491,20 @@ function submitForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jsonData)
     })
-    .then(response => {
-        return response.json().then(data => {
-            if (!response.ok) {
-                // Server returned an error response
-                throw new Error(data.error || `HTTP error! status: ${response.status}`);
-            }
-            return data;
-        });
+    .then(async response => {
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            // Not JSON, likely an HTML error page
+            const text = await response.text();
+            throw new Error('Server returned an unexpected response.\n' + text.substring(0, 500));
+        }
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        }
+        return data;
     })
     .then(data => {
         if (data.id) {
@@ -512,7 +518,17 @@ function submitForm() {
         // Reset button
         saveBtn.innerHTML = originalText;
         saveBtn.disabled = false;
-        alert(`Error saving entry: ${error.message}`);
+        // Show error in a user-friendly way
+        let errorDiv = document.getElementById('form-error-message');
+        if (!errorDiv) {
+            errorDiv = document.createElement('div');
+            errorDiv.id = 'form-error-message';
+            errorDiv.className = 'alert alert-danger mt-3';
+            form.prepend(errorDiv);
+        }
+        errorDiv.textContent = error.message;
+        // Optionally, also alert
+        // alert(`Error saving entry: ${error.message}`);
     });
 }
 
