@@ -95,13 +95,19 @@ The LCW v2.0 employs a sophisticated hybrid database architecture optimized for 
 - **Precise Categorization**: Variant types match actual data content, not predefined theoretical categories
 - **Data-Driven UI**: The UI adapts to the actual data without requiring manual configuration
 
-#### 3.1.3 Language Codes from LIFT Data
 
-**Critical Requirement**: All language dropdowns (vernacular, translation, etc.) MUST only offer language codes that are actually found in the LIFT XML. This ensures:
+#### 3.1.3 Language Codes from LIFT Data and Project Settings
 
-- **Consistency**: Only codes actually used in the data are available for selection
-- **Reduced Errors**: Users cannot select languages that aren't represented in the data
+**Critical Requirement**: All language dropdowns (vernacular, translation, etc.) MUST only offer language codes that are actually found in the LIFT XML **or** are explicitly enabled in the project settings. This ensures:
+
+- **Consistency**: Only codes actually used in the data or configured for the project are available for selection
+- **Reduced Errors**: Users cannot select languages that aren't represented in the data or project
 - **Project Relevance**: UI is tailored to the specific language codes of the current project
+- **Per-Project Customization**: Each project can define its own admissible language codes in a project settings file (e.g., `project_settings.yaml` or via the database), overriding or extending those found in the LIFT XML.
+
+**Implementation Note**: Project-level settings for admissible languages are not yet implemented, but MUST be supported in the future. Until then, language codes are derived from LIFT data. When project settings are available, the UI and API must use the union of LIFT-derived and project-configured codes.
+
+**Action Item**: Implement a per-project settings mechanism (e.g., `project_settings.yaml` or database table) to define admissible language codes and other project-specific options. All language dropdowns must use this configuration when available.
 
 #### 3.1.4 Pronunciation Language Restrictions
 
