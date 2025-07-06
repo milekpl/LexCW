@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="fas fa-cog"></i> {{ title }}</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-header">
+            Update Project Configuration
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('settings.manage_settings') }}" novalidate>
+                {{ form.hidden_tag() }}
+
+                <fieldset class="mb-4">
+                    <legend class="h6">Project Details</legend>
+                    {{ render_field(form.project_name, class="form-control", placeholder="Enter project name") }}
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Source Language (Vernacular)
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="This is the primary language of the dictionary, often the local or indigenous language being documented."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.source_language_code, class="form-select") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.source_language_name, class="form-control", placeholder="e.g., Sena, English") }}
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Target Language
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="This is the language used for definitions, translations, and glosses, often a national or international language."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.target_language_code, class="form-select") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.target_language_name, class="form-control", placeholder="e.g., Portuguese, English") }}
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div class="mt-4">
+                    {{ form.submit(class="btn btn-primary") }}
+                    <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            Current Settings Overview
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-4">Project Name:</dt>
+                <dd class="col-sm-8">{{ current_settings.project_name }}</dd>
+
+                <dt class="col-sm-4">Source Language (Vernacular):</dt>
+                <dd class="col-sm-8">{{ current_settings.source_language.name }} ({{ current_settings.source_language.code }})</dd>
+
+                <dt class="col-sm-4">Target Language:</dt>
+                <dd class="col-sm-8">{{ current_settings.target_language.name }} ({{ current_settings.target_language.code }})</dd>
+            </dl>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_css %}
+{{ super() }} {# Include CSS from base.html if any #}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+<style>
+    /* Ensure select2 dropdowns appear correctly in modal or otherwise */
+    .select2-container--bootstrap-5 .select2-dropdown {
+        z-index: 1060; /* Higher than Bootstrap modal z-index (1050-1055) */
+    }
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: calc(1.5em + .75rem + 2px); /* Match BS input height */
+        padding: .375rem .75rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }} {# Include JS from base.html if any #}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize Bootstrap tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Initialize Select2 for language dropdowns
+        $(document).ready(function() {
+            $('#source_language_code').select2({
+                theme: "bootstrap-5",
+                placeholder: "Select source language",
+                width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
+            });
+            $('#target_language_code').select2({
+                theme: "bootstrap-5",
+                placeholder: "Select target language",
+                width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
+            });
+        });
+    });
+</script>
+{% endblock %}
