@@ -18,7 +18,7 @@ class TestMultilingualNotesFormProcessing:
             'lexical_unit': 'mukwa',
             'notes[general][en][text]': 'This is an English general note',
             'notes[general][pt][text]': 'Esta é uma nota geral em português',
-            'notes[general][seh][text]': 'Ichi ndi chida chachikulu mu Chisena',
+            'notes[general][pl][text]': 'Ichi ndi chida chachikulu mu Chisena',
             'notes[usage][en][text]': 'Used in formal contexts',
             'notes[usage][pt][text]': 'Usado em contextos formais',
             'notes[semantic][en][text]': 'Refers to large trees'

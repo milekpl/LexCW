@@ -24,6 +24,13 @@ class TestMultilingualFieldEditing:
                         <text>mukwa</text>
                     </form>
                 </lexical-unit>
+                <sense id="sense1">
+                    <definition>
+                        <form lang="en">
+                            <text>A tree species</text>
+                        </form>
+                    </definition>
+                </sense>
                 <note type="general">
                     <form lang="en">
                         <text>This is an English note</text>
@@ -197,7 +204,7 @@ class TestMultilingualFieldEditing:
         form_data = {
             'notes[general][en]': 'Updated English note',
             'notes[general][pt]': 'Nota atualizada em português',
-            'notes[general][seh]': 'Chida chakupanduka mu Chisena',
+            'notes[general][pl]': 'Chida chakupanduka mu Chisena',
             'notes[usage][en]': 'Usage note in English',
             'notes[usage][pt]': 'Nota de uso em português'
         }
@@ -230,6 +237,13 @@ class TestMultilingualFieldEditing:
                         <text>mukwa</text>
                     </form>
                 </lexical-unit>
+                <sense id="sense1">
+                    <definition>
+                        <form lang="en">
+                            <text>A tree species</text>
+                        </form>
+                    </definition>
+                </sense>
                 <field type="source">
                     <form lang="en">
                         <text>Wilson (1995)</text>

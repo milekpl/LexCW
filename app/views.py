@@ -156,8 +156,8 @@ def view_entry(entry_id):
         # Get dictionary service
         dict_service = current_app.injector.get(DictionaryService)
         
-        # Get entry
-        entry = dict_service.get_entry(entry_id)
+        # Get entry (use non-validating method to allow viewing invalid entries)
+        entry = dict_service.get_entry_for_editing(entry_id)
         
         return render_template('entry_view.html', entry=entry)
     
@@ -279,8 +279,8 @@ def edit_entry(entry_id):
                 else:
                     return jsonify({'error': 'No data provided'}), 400
             
-            # Get existing entry data for merging
-            existing_entry = dict_service.get_entry(entry_id)
+            # Get existing entry data for merging (use non-validating method for editing)
+            existing_entry = dict_service.get_entry_for_editing(entry_id)
             existing_data = existing_entry.to_dict() if existing_entry else {}
             
             # Merge form data with existing entry data, processing multilingual notes
@@ -291,13 +291,20 @@ def edit_entry(entry_id):
             dict_service.update_entry(entry)
             return jsonify({'id': entry_id, 'message': 'Entry updated successfully'})
             
-        entry = dict_service.get_entry(entry_id)
+        entry = dict_service.get_entry_for_editing(entry_id)  # Use non-validating method for editing
         
         # Apply POS inheritance when loading entry for editing
         if entry:
             entry._apply_pos_inheritance()
         
         ranges = dict_service.get_lift_ranges()
+        
+        # Get validation results for the entry to show as guidance (not as blockers)
+        validation_result = None
+        if entry:
+            from app.services.validation_engine import ValidationEngine
+            validation_engine = ValidationEngine()
+            validation_result = validation_engine.validate_entry(entry)
         
         # Explicitly extract enriched variant_relations for template (with display text and error markers)
         variant_relations_data = []
@@ -310,7 +317,8 @@ def edit_entry(entry_id):
         
         return render_template('entry_form.html', entry=entry, ranges=ranges, 
                              variant_relations=variant_relations_data, 
-                             component_relations=component_relations_data)
+                             component_relations=component_relations_data,
+                             validation_result=validation_result)
     except NotFoundError as e:
         logger.warning(f"Entry with ID {entry_id} not found: {e}")
         flash(f"Entry with ID {entry_id} not found.", "danger")

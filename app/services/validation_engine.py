@@ -159,13 +159,22 @@ class ValidationEngine:
             
             # Handle different condition types
             if condition == "required":
-                if not matches:
-                    errors.append(self._create_error(rule_id, rule_config, path, None))
-                else:
-                    # Validate each match
+                # For array element paths like $.senses[*].id, only validate if elements exist
+                # Don't require the elements themselves to exist
+                if '[*]' in path:
+                    # This is an array element path - only validate existing elements
                     for match in matches:
                         if not self._validate_value(match.value, validation):
                             errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
+                else:
+                    # This is a direct field path - require it to exist
+                    if not matches:
+                        errors.append(self._create_error(rule_id, rule_config, path, None))
+                    else:
+                        # Validate each match
+                        for match in matches:
+                            if not self._validate_value(match.value, validation):
+                                errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
             
             elif condition == "if_present":
                 # Only validate if the field is present
@@ -339,6 +348,8 @@ class ValidationEngine:
         
         if custom_function == 'validate_sense_content_or_variant':
             errors.extend(self._validate_sense_content_or_variant(rule_id, rule_config, data))
+        elif custom_function == 'validate_sense_required_non_variant':
+            errors.extend(self._validate_sense_required_non_variant(rule_id, rule_config, data))
         elif custom_function == 'validate_unique_note_types':
             errors.extend(self._validate_unique_note_types(rule_id, rule_config, data))
         elif custom_function == 'validate_synonym_antonym_exclusion':
@@ -402,6 +413,38 @@ class ValidationEngine:
                     priority=ValidationPriority(rule_config['priority']),
                     category=ValidationCategory(rule_config['category'])
                 ))
+        
+        return errors
+    
+    def _validate_sense_required_non_variant(self, rule_id: str, rule_config: Dict[str, Any], 
+                                           data: Dict[str, Any]) -> List[ValidationError]:
+        """R1.1.3: Validate that at least one sense is required, except for variant entries."""
+        errors: List[ValidationError] = []
+        
+        # Check if this entry is a variant form (has _component-lexeme relation with variant-type trait)
+        relations = data.get('relations', [])
+        is_variant_entry = any(
+            rel.get('type') == '_component-lexeme' and 
+            isinstance(rel.get('traits'), dict) and 
+            'variant-type' in rel.get('traits', {})
+            for rel in relations
+        )
+        
+        # If this is a variant entry, it doesn't need senses
+        if is_variant_entry:
+            return errors
+        
+        # For non-variant entries, check if there is at least one sense
+        senses = data.get('senses', [])
+        if not senses or len(senses) == 0:
+            errors.append(ValidationError(
+                rule_id=rule_id,
+                rule_name=rule_config['name'],
+                message=rule_config['error_message'],
+                path="$.senses",
+                priority=ValidationPriority(rule_config['priority']),
+                category=ValidationCategory(rule_config['category'])
+            ))
         
         return errors
     

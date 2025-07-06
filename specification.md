@@ -360,10 +360,19 @@ The LCW implements intelligent part-of-speech management with automatic inherita
   - Cross-field dependency validation (entry-sense POS consistency)
   - Meaningful error messages with specific guidance for resolution
 
+- **Critical Validation Policy: Invalid Entries Must Always Be Editable**:
+  - **Entry Loading**: All entries, regardless of validation state, can be loaded for viewing and editing
+  - **Non-Blocking Validation**: Validation errors are displayed as guidance, never as editing blockers
+  - **Lexicographer Access**: Ensures lexicographers can always fix broken/invalid entries
+  - **Implementation**: Uses `get_entry_for_editing()` method with non-validating LIFT parser
+  - **Validation Display**: Critical errors, warnings, and info messages shown as guidance in UI
+  - **Search Inclusion**: Invalid entries appear in search results and entry lists
+
 - **User Experience**:
   - Non-blocking form validation with toast notifications
   - Progress indicators for file uploads and processing
   - Automatic form state preservation during validation errors
+  - Validation errors displayed as helpful guidance, not barriers
 
 ### 3.5.4 Technical Implementation
 
