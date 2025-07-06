@@ -172,7 +172,7 @@ class TestFormSerializerUnit:
         }
         
         assert 'é' in form_data['lexical_unit']
-        assert 'ś' in form_data['senses[0].definition']
+        assert 'ł' in form_data['senses[0].definition']
         assert 'æ' in form_data['pronunciation']
     
     @pytest.mark.performance

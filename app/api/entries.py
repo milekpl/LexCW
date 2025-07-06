@@ -346,11 +346,11 @@ def create_entry() -> Any:
             lexical_unit:
               type: object
               description: Lexical unit forms by language code
-              example: {"en": "test", "seh": "teste"}
+              example: {"en": "test", "pl": "test"}
             pronunciations:
               type: object
               description: Pronunciation forms by writing system (supports non-standard codes like 'seh-fonipa')
-              example: {"seh-fonipa": "/tɛstɛ/", "en-ipa": "/tɛst/"}
+              example: {"seh-fonipa": "/tɛstɛ/"}
             grammatical_info:
               type: string
               description: Grammatical information
@@ -517,11 +517,11 @@ def update_entry(entry_id: str) -> Any:
             lexical_unit:
               type: object
               description: Lexical unit forms by language code
-              example: {"en": "test", "seh": "teste"}
+              example: {"en": "test", "pl": "test"}
             pronunciations:
               type: object
               description: Pronunciation forms by writing system (supports non-standard codes like 'seh-fonipa')
-              example: {"seh-fonipa": "/tɛstɛ/", "en-ipa": "/tɛst/"}
+              example: {"seh-fonipa": "/tɛstɛ/"}
             grammatical_info:
               type: string
               description: Grammatical information

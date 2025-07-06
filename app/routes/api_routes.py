@@ -200,9 +200,8 @@ def get_language_codes():
         # For now, provide a basic set of common language codes
         language_codes = [
             {'code': 'en', 'name': 'English'},
-            {'code': 'seh', 'name': 'Sena'},
             {'code': 'seh-fonipa', 'name': 'Sena (IPA)'},
-            {'code': 'pt', 'name': 'Portuguese'},
+            {'code': 'pl', 'name': 'Polish'},
             {'code': 'fr', 'name': 'French'},
             {'code': 'es', 'name': 'Spanish'},
         ]

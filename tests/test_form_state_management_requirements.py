@@ -17,7 +17,7 @@ class TestFormStateManagerRequirements:
         # For now, we define the expected behavior
         initial_data = {
             "id": "test_entry_1",
-            "lexical_unit": {"seh": "test_word"},
+            "lexical_unit": {"pl": "test_word"},
             "senses": [{"id": "sense_1", "definition": {"en": "test definition"}}]
         }
         
@@ -29,7 +29,7 @@ class TestFormStateManagerRequirements:
         """Test requirements for JSON path binding system"""
         # Define expected JSONPath mappings for form fields
         expected_mappings = {
-            "lexical_unit_seh": "$.lexical_unit.seh",
+            "lexical_unit_pl": "$.lexical_unit.pl",
             "sense_0_definition_en": "$.senses[0].definition.en", 
             "sense_0_gloss_en": "$.senses[0].gloss.en",
             "pronunciation_0_text": "$.pronunciations[0].text",
@@ -47,16 +47,16 @@ class TestFormStateManagerRequirements:
         # and track which specific fields have changed
         
         original_state = {
-            "lexical_unit": {"seh": "original_word"},
+            "lexical_unit": {"pl": "original_word"},
             "senses": [{"definition": {"en": "original definition"}}]
         }
         
         modified_state = {
-            "lexical_unit": {"seh": "modified_word"},  # Changed
+            "lexical_unit": {"pl": "modified_word"},  # Changed
             "senses": [{"definition": {"en": "original definition"}}]  # Unchanged
         }
         
-        # Expected: Should detect that lexical_unit.seh changed
+        # Expected: Should detect that lexical_unit.pl changed
         # but senses[0].definition.en did not change
         assert original_state != modified_state
     
@@ -65,7 +65,7 @@ class TestFormStateManagerRequirements:
         # Form data should serialize to valid entry JSON format
         expected_json_structure = {
             "id": str,
-            "lexical_unit": dict,  # {"seh": "...", "en": "...", etc.}
+            "lexical_unit": dict,  # {"pl": "...", "en": "...", etc.}
             "senses": list,        # [{"id": "...", "definition": {...}, ...}]
             "pronunciations": list, # [{"lang": "...", "text": "...", ...}]
             "notes": dict,         # {"etymology": "...", "grammar": "...", ...}

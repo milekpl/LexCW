@@ -295,11 +295,6 @@ class Entry(BaseModel):
         import re
         return bool(re.match(r'^[a-zA-Z0-9_-]+$', id_string))
 
-    def _is_valid_language_code(self, lang_code: str) -> bool:
-        """Check if language code is valid for this project."""
-        valid_codes = {"seh", "en", "pt", "fr", "de", "seh-fonipa"}
-        return lang_code in valid_codes
-
     def _has_content_or_is_variant(self, sense: Any) -> bool:
         """Check if sense has content (definition/gloss) or is a variant."""
         # Check if it's a variant sense

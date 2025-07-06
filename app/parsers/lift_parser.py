@@ -771,7 +771,15 @@ class LIFTParser:
         # Add grammatical info
         if entry.grammatical_info:
             gram_info = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-            gram_info.set('value', entry.grammatical_info)
+            # If grammatical_info is a dict, extract the part_of_speech or join values
+            if isinstance(entry.grammatical_info, dict):
+                # Prefer 'part_of_speech' key if present, else join all values
+                value: str | None = entry.grammatical_info['part_of_speech'] if 'part_of_speech' in entry.grammatical_info else None
+                if value is None:
+                    value = ','.join(str(v) for v in entry.grammatical_info.values())
+                gram_info.set('value', value)
+            else:
+                gram_info.set('value', str(entry.grammatical_info))
         
         # Add relations
         for relation in entry.relations:
