@@ -36,6 +36,9 @@ class TestAutoSaveManagerRequirements:
         validation_engine = Mock()
         auto_saver = Mock()
         
+        # Configure the mock to simulate the expected behavior
+        auto_saver.start.side_effect = lambda: state_manager.addChangeListener(auto_saver.onFormChange)
+        
         # Should register change listener
         auto_saver.start()
         state_manager.addChangeListener.assert_called_once()

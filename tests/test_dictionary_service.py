@@ -87,9 +87,11 @@ class TestDictionaryService:
     def test_create_entry(self, dict_service):
         """Test creating a new entry."""
         # Create a new entry
-        entry = Entry()
-        entry.id = "new_test_entry"
-        entry.lexical_unit = {'en': 'new test'}
+        entry = Entry(
+            id_="new_test_entry",
+            lexical_unit={'en': 'new test'},
+            senses=[{"id": "sense_1", "definition": {"en": "a new test entry"}}]
+        )
         
         # Add it to the database
         entry_id = dict_service.create_entry(entry)

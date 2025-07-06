@@ -122,6 +122,12 @@ class TestEtymologyAPISupport:
             
             entry_data = {
                 "lexical_unit": {"en": "water"},
+                "senses": [
+                    {
+                        "id": "sense-1",
+                        "definition": {"en": "transparent liquid"}
+                    }
+                ],
                 "etymologies": [
                     {
                         "type": "inheritance",
@@ -145,7 +151,10 @@ class TestEtymologyAPISupport:
             dict_service = app.injector.get(DictionaryService)
             
             # Create entry
-            entry = Entry(lexical_unit={"en": "book"})
+            entry = Entry(
+                lexical_unit={"en": "book"}, 
+                senses=[{"id": "sense-1", "definition": {"en": "printed work"}}]
+            )
             entry_id = dict_service.create_entry(entry)
             
             # Get the entry from database to ensure we have the correct object
@@ -237,7 +246,10 @@ class TestEtymologyLifecycle:
             dict_service = app.injector.get(DictionaryService)
             
             # Create base entry
-            entry = Entry(lexical_unit={"en": "house"})
+            entry = Entry(
+                lexical_unit={"en": "house"}, 
+                senses=[{"id": "sense-1", "definition": {"en": "dwelling place"}}]
+            )
             entry_id = dict_service.create_entry(entry)
             
             # Get the entry from database to ensure we have the correct object
@@ -268,6 +280,7 @@ class TestEtymologyLifecycle:
             # Create entry with etymologies
             entry = Entry(
                 lexical_unit={"en": "test"}, 
+                senses=[{"id": "sense-1", "definition": {"en": "test word"}}],
                 etymologies=[
                     {
                         "type": "inheritance",
@@ -305,6 +318,7 @@ class TestEtymologyLifecycle:
             # Create entry with etymology
             entry = Entry(
                 lexical_unit={"en": "test"},
+                senses=[{"id": "sense_1", "definition": {"en": "test definition"}}],
                 etymologies=[{
                     "type": "borrowing",
                     "source": "old_source", 

@@ -26,7 +26,7 @@ class TestDictionaryServiceFilteringSorting:
         mock_connector.connect.return_value = None
         mock_connector.execute_command.return_value = "test_db"  # For database list check
         mock_connector.execute_update.return_value = None
-        mock_connector.execute_query.return_value = "<entry id='entry1'><lexical-unit><form><text>apple</text></form></lexical-unit></entry><entry id='entry2'><lexical-unit><form><text>banana</text></form></lexical-unit></entry>"
+        mock_connector.execute_query.return_value = ""  # Default empty - will be overridden by parse_string mock
         
         # Create service with testing environment
         with patch.dict('os.environ', {'TESTING': 'true'}):
@@ -43,8 +43,10 @@ class TestDictionaryServiceFilteringSorting:
              patch.object(service.lift_parser, 'parse_string') as mock_parse:
             
             mock_parse.return_value = [
-                Entry(id_="entry1", lexical_unit={"en": "apple"}),
-                Entry(id_="entry2", lexical_unit={"en": "banana"})
+                Entry(id_="entry1", lexical_unit={"en": "apple"},
+                      senses=[{"id": "sense_1", "definition": {"en": "a fruit"}}]),
+                Entry(id_="entry2", lexical_unit={"en": "banana"},
+                      senses=[{"id": "sense_1", "definition": {"en": "another fruit"}}])
             ]
             
             # Test ascending sort order
@@ -68,8 +70,10 @@ class TestDictionaryServiceFilteringSorting:
              patch.object(service.lift_parser, 'parse_string') as mock_parse:
             
             mock_parse.return_value = [
-                Entry(id_="entry2", lexical_unit={"en": "banana"}),
-                Entry(id_="entry1", lexical_unit={"en": "apple"})
+                Entry(id_="entry2", lexical_unit={"en": "banana"},
+                      senses=[{"id": "sense_1", "definition": {"en": "another fruit"}}]),
+                Entry(id_="entry1", lexical_unit={"en": "apple"},
+                      senses=[{"id": "sense_1", "definition": {"en": "a fruit"}}])
             ]
             
             # Test descending sort order
@@ -91,7 +95,8 @@ class TestDictionaryServiceFilteringSorting:
              patch.object(service.lift_parser, 'parse_string') as mock_parse:
             
             mock_parse.return_value = [
-                Entry(id_="entry1", lexical_unit={"en": "apple"})
+                Entry(id_="entry1", lexical_unit={"en": "apple"}, 
+                      senses=[{"id": "sense_1", "definition": {"en": "a fruit"}}])
             ]
             
             # Test text filtering
@@ -115,8 +120,10 @@ class TestDictionaryServiceFilteringSorting:
              patch.object(service.lift_parser, 'parse_string') as mock_parse:
             
             mock_parse.return_value = [
-                Entry(id_="entry3", lexical_unit={"en": "application"}),
-                Entry(id_="entry1", lexical_unit={"en": "apple"})
+                Entry(id_="entry3", lexical_unit={"en": "application"},
+                      senses=[{"id": "sense_1", "definition": {"en": "a program"}}]),
+                Entry(id_="entry1", lexical_unit={"en": "apple"},
+                      senses=[{"id": "sense_1", "definition": {"en": "a fruit"}}])
             ]
             
             # Test combined filtering and sorting
@@ -139,7 +146,8 @@ class TestDictionaryServiceFilteringSorting:
              patch.object(service.lift_parser, 'parse_string') as mock_parse:
             
             mock_parse.return_value = [
-                Entry(id_="entry1", lexical_unit={"en": "test"})
+                Entry(id_="entry1", lexical_unit={"en": "test"},
+                      senses=[{"id": "sense_1", "definition": {"en": "a test word"}}])
             ]
             
             # Test without new parameters (backward compatibility)

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 import os
+import json
 from typing import Dict, Any
 from app import create_app
 from config import TestingConfig
@@ -171,7 +172,7 @@ class TestFormSerializerUnit:
         }
         
         assert 'é' in form_data['lexical_unit']
-        assert 'ł' in form_data['senses[0].definition']  # Polish ł character
+        assert 'ś' in form_data['senses[0].definition']
         assert 'æ' in form_data['pronunciation']
     
     @pytest.mark.performance

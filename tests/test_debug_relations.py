@@ -6,8 +6,16 @@ from app.models.entry import Entry, Relation
 def test_debug_relations(dict_service_with_db):
     """Debug the related entries functionality."""
     # Create entries with relationships
-    entry1 = Entry(id_="word1", lexical_unit={"en": "word1"})
-    entry2 = Entry(id_="word2", lexical_unit={"en": "word2"})
+    entry1 = Entry(
+        id_="word1", 
+        lexical_unit={"en": "word1"},
+        senses=[{"id": "sense_1", "definition": {"en": "first word"}}]
+    )
+    entry2 = Entry(
+        id_="word2", 
+        lexical_unit={"en": "word2"},
+        senses=[{"id": "sense_1", "definition": {"en": "second word"}}]
+    )
     
     # Add relationship from entry1 to entry2
     entry1.relations = [Relation(type="synonym", ref="word2")]

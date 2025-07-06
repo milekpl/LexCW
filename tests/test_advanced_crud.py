@@ -16,7 +16,11 @@ class TestAdvancedCRUD:
     def test_create_entry_duplicate_id(self, dict_service_with_db: DictionaryService) -> None:
         """Test creating an entry with a duplicate ID."""
         # Create an entry with an ID that already exists
-        entry = Entry(id_="test_entry_1", lexical_unit={"en": "duplicate"})
+        entry = Entry(
+            id_="test_entry_1", 
+            lexical_unit={"en": "duplicate"},
+            senses=[{"id": "sense_1", "definition": {"en": "a duplicate entry"}}]
+        )
         
         # Attempt to create the entry - should raise ValidationError
         with pytest.raises(ValidationError):
@@ -37,6 +41,7 @@ class TestAdvancedCRUD:
         entry = Entry(
             id_="complex_entry",
             lexical_unit={"en": "complex", "pl": "złożony"},
+            senses=[{"id": "initial_sense", "definition": {"en": "initial definition"}}],
             pronunciations={"seh-fonipa": "kɒmplɛks"}
         )
         
@@ -134,8 +139,8 @@ class TestAdvancedCRUD:
         retrieved_entry = dict_service_with_db.get_entry("complex_entry")
         assert retrieved_entry.id == "complex_entry"
         
-        # Check for the senses
-        assert len(retrieved_entry.senses) == 2
+        # Check for the senses (initial sense + 2 added via BaseX)
+        assert len(retrieved_entry.senses) == 3
         
         # Check the sense IDs
         sense_ids = [sense.id for sense in retrieved_entry.senses]
@@ -176,7 +181,11 @@ class TestAdvancedCRUD:
     def test_update_nonexistent_entry(self, dict_service_with_db):
         """Test updating an entry that doesn't exist."""
         # Create an entry but don't add it to the database
-        entry = Entry(id_="nonexistent_entry", lexical_unit={"en": "nonexistent"})
+        entry = Entry(
+            id_="nonexistent_entry", 
+            lexical_unit={"en": "nonexistent"},
+            senses=[{"id": "sense_1", "definition": {"en": "a nonexistent word"}}]
+        )
         
         # Attempt to update the entry - should raise NotFoundError
         with pytest.raises(NotFoundError):
@@ -191,7 +200,11 @@ class TestAdvancedCRUD:
     def test_create_or_update_entry(self, dict_service_with_db):
         """Test the create_or_update_entry method."""
         # Create a new entry
-        new_entry = Entry(id_="new_entry", lexical_unit={"en": "new"})
+        new_entry = Entry(
+            id_="new_entry", 
+            lexical_unit={"en": "new"},
+            senses=[{"id": "sense_1", "definition": {"en": "a new entry"}}]
+        )
         
         # Use create_or_update_entry - should create
         entry_id = dict_service_with_db.create_or_update_entry(new_entry)
@@ -217,8 +230,16 @@ class TestAdvancedCRUD:
     def test_related_entries(self, dict_service_with_db):
         """Test creating and retrieving related entries."""
         # Create entries with relationships
-        entry1 = Entry(id_="word1", lexical_unit={"en": "word1"})
-        entry2 = Entry(id_="word2", lexical_unit={"en": "word2"})
+        entry1 = Entry(
+            id_="word1", 
+            lexical_unit={"en": "word1"},
+            senses=[{"id": "sense_1", "definition": {"en": "first word"}}]
+        )
+        entry2 = Entry(
+            id_="word2", 
+            lexical_unit={"en": "word2"},
+            senses=[{"id": "sense_1", "definition": {"en": "second word"}}]
+        )
         
         # Add relationship from entry1 to entry2
         from app.models.entry import Relation
