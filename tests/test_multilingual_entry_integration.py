@@ -46,11 +46,11 @@ class TestMultilingualEntryIntegration:
     def test_entry_update_with_multilingual_notes(self):
         """Test updating an existing entry with multilingual notes."""
         # Create an existing entry
-        existing_entry = Entry(
-            id_='test-entry-1',
+        existing_entry = Entry(id_='test-entry-1',
             lexical_unit={'en': 'old_house'},
             notes={'general': {'en': 'Old note'}}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         existing_data = existing_entry.to_dict()
         
         # Simulate form data for update
@@ -84,8 +84,7 @@ class TestMultilingualEntryIntegration:
     def test_entry_roundtrip_to_dict_from_dict(self):
         """Test that entry with multilingual notes survives to_dict/from_dict roundtrip."""
         # Create an entry with multilingual notes
-        original_entry = Entry(
-            id_='test-entry-roundtrip',
+        original_entry = Entry(id_='test-entry-roundtrip',
             lexical_unit={'en': 'book', 'pt': 'livro'},
             notes={
                 'general': {
@@ -97,7 +96,8 @@ class TestMultilingualEntryIntegration:
                     'pt': 'Pode ser físico ou digital'
                 }
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Convert to dict and back
         entry_dict = original_entry.to_dict()
@@ -169,8 +169,7 @@ class TestMultilingualEntryIntegration:
     
     def test_entry_json_serialization_with_multilingual_notes(self):
         """Test JSON serialization of entries with multilingual notes."""
-        entry = Entry(
-            id_='test-json',
+        entry = Entry(id_='test-json',
             lexical_unit={'en': 'test', 'pt': 'teste'},
             notes={
                 'general': {
@@ -178,7 +177,8 @@ class TestMultilingualEntryIntegration:
                     'pt': 'Nota em português'
                 }
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test JSON serialization
         json_str = entry.to_json()

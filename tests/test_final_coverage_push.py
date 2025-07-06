@@ -448,7 +448,8 @@ class TestFinalCoveragePush:
                 
                 # Test generation with various entry structures
                 test_entries = [
-                    Entry(id="simple", lexical_unit={"en": "test"}),
+                    Entry(id="simple", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}]),
                     Entry(
                         id="complex",
                         lexical_unit={"en": "test", "pl": "test"},

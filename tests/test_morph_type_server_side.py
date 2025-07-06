@@ -18,66 +18,60 @@ class TestMorphTypeServerSide:
 
     def test_existing_morph_type_preserved(self):
         """Test that existing LIFT morph-type values are preserved."""
-        entry = Entry(
-            id_='test_entry',
+        entry = Entry(id_='test_entry',
             lexical_unit={'en': 'test'},
-            morph_type='stem'  # Already set from LIFT
-        )
+            morph_type='stem',  # Already set from LIFT
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Should preserve existing value
         assert entry.morph_type == 'stem'
     
     def test_auto_classify_phrase(self):
         """Test auto-classification of phrases."""
-        entry = Entry(
-            id_='test_entry',
+        entry = Entry(id_='test_entry',
             lexical_unit={'en': 'test phrase'},
             # No morph_type set - should auto-classify
-        )
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Should auto-classify as phrase
         assert entry.morph_type == 'phrase'
     
     def test_auto_classify_prefix(self):
         """Test auto-classification of prefixes."""
-        entry = Entry(
-            id_='test_entry',
+        entry = Entry(id_='test_entry',
             lexical_unit={'en': 'pre-'},
             # No morph_type set - should auto-classify
-        )
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Should auto-classify as prefix
         assert entry.morph_type == 'prefix'
     
     def test_auto_classify_suffix(self):
         """Test auto-classification of suffixes."""
-        entry = Entry(
-            id_='test_entry',
+        entry = Entry(id_='test_entry',
             lexical_unit={'en': '-ing'},
             # No morph_type set - should auto-classify
-        )
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Should auto-classify as suffix
         assert entry.morph_type == 'suffix'
     
     def test_auto_classify_infix(self):
         """Test auto-classification of infixes."""
-        entry = Entry(
-            id_='test_entry',
+        entry = Entry(id_='test_entry',
             lexical_unit={'en': '-um-'},
             # No morph_type set - should auto-classify
-        )
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Should auto-classify as infix
         assert entry.morph_type == 'infix'
     
     def test_auto_classify_default_stem(self):
         """Test auto-classification defaults to stem."""
-        entry = Entry(
-            id_='test_entry',
+        entry = Entry(id_='test_entry',
             lexical_unit={'en': 'test'},
             # No morph_type set - should auto-classify
-        )
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Should auto-classify as stem (default)
         assert entry.morph_type == 'stem'

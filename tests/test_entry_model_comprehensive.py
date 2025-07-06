@@ -20,10 +20,10 @@ class TestEntryModelComprehensive:
     
     def test_entry_initialization_minimal(self):
         """Test entry creation with minimal required data."""
-        entry = Entry(
-            id_="test_minimal",
+        entry = Entry(id_="test_minimal",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert entry.id == "test_minimal"
         assert entry.lexical_unit == {"en": "test"}
@@ -112,10 +112,10 @@ class TestEntryModelComprehensive:
     
     def test_entry_to_dict_minimal(self):
         """Test converting minimal entry to dictionary."""
-        entry = Entry(
-            id="to_dict_minimal",
+        entry = Entry(id="to_dict_minimal",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         data = entry.to_dict()
         assert data["id"] == "to_dict_minimal"
@@ -148,7 +148,8 @@ class TestEntryModelComprehensive:
         """Test validation of valid entry."""
         entry = Entry(
             id_="valid_entry",
-            lexical_unit={"en": "test"}
+            lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}]
         )
         
         # Should not raise exception
@@ -156,10 +157,10 @@ class TestEntryModelComprehensive:
     
     def test_entry_validation_missing_id(self):
         """Test validation fails for missing ID."""
-        entry = Entry(
-            id_="",
+        entry = Entry(id_="",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         with pytest.raises(ValidationError) as exc_info:
             entry.validate()
@@ -168,10 +169,10 @@ class TestEntryModelComprehensive:
     
     def test_entry_validation_missing_lexical_unit(self):
         """Test validation fails for missing lexical unit."""
-        entry = Entry(
-            id_="test_entry",
+        entry = Entry(id_="test_entry",
             lexical_unit={}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         with pytest.raises(ValidationError) as exc_info:
             entry.validate()
@@ -196,20 +197,20 @@ class TestEntryModelComprehensive:
     
     def test_entry_str_representation(self):
         """Test string representation of entry."""
-        entry = Entry(
-            id_="test_str",
+        entry = Entry(id_="test_str",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         str_repr = str(entry)
         assert "test_str" in str_repr
     
     def test_entry_repr_representation(self):
         """Test repr representation of entry."""
-        entry = Entry(
-            id_="test_repr",
+        entry = Entry(id_="test_repr",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         repr_str = repr(entry)
         assert "Entry" in repr_str
@@ -234,15 +235,15 @@ class TestEntryModelComprehensive:
     
     def test_entry_with_complex_relations(self):
         """Test entry with complex relation structures."""
-        entry = Entry(
-            id_="relations_test",
+        entry = Entry(id_="relations_test",
             lexical_unit={"en": "test"},
             relations=[
                 {"type": "synonym", "ref": "entry1"},
                 {"type": "antonym", "ref": "entry2"},
                 {"type": "variant", "ref": "entry3", "note": "archaic"}
             ]
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert len(entry.relations) == 3
         synonym_rel = next(r for r in entry.relations if r.type == "synonym")
@@ -253,15 +254,15 @@ class TestEntryModelComprehensive:
     
     def test_entry_with_custom_fields(self):
         """Test entry with custom fields."""
-        entry = Entry(
-            id_="custom_fields_test",
+        entry = Entry(id_="custom_fields_test",
             lexical_unit={"en": "test"},
             custom_fields={
                 "field1": "value1",
                 "field2": {"subfield": "value2"},
                 "field3": ["item1", "item2"]
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert entry.custom_fields["field1"] == "value1"
         assert entry.custom_fields["field2"]["subfield"] == "value2"
@@ -269,10 +270,10 @@ class TestEntryModelComprehensive:
     
     def test_entry_add_sense_method(self):
         """Test the add_sense method if it exists."""
-        entry = Entry(
-            id_="add_sense_test",
+        entry = Entry(id_="add_sense_test",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test adding a sense as a dictionary
         sense_data = {

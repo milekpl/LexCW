@@ -20,7 +20,7 @@ class TestMultilingualFieldEditing:
         <lift xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
             <entry id="test_entry">
                 <lexical-unit>
-                    <form lang="seh">
+                    <form lang="pl">
                         <text>mukwa</text>
                     </form>
                 </lexical-unit>
@@ -31,7 +31,7 @@ class TestMultilingualFieldEditing:
                     <form lang="pt">
                         <text>Esta é uma nota em português</text>
                     </form>
-                    <form lang="seh">
+                    <form lang="pl">
                         <text>Ichi ndi chida chakupanda mu Chisena</text>
                     </form>
                 </note>
@@ -63,11 +63,11 @@ class TestMultilingualFieldEditing:
         assert isinstance(general_note, dict)
         assert 'en' in general_note
         assert 'pt' in general_note
-        assert 'seh' in general_note
+        assert 'pl' in general_note
         # Type ignores to handle current type structure until we update the models
         assert general_note['en'] == "This is an English note"  # type: ignore
         assert general_note['pt'] == "Esta é uma nota em português"  # type: ignore
-        assert general_note['seh'] == "Ichi ndi chida chakupanda mu Chisena"  # type: ignore
+        assert general_note['pl'] == "Ichi ndi chida chakupanda mu Chisena"  # type: ignore
         
         # Usage note should contain two languages
         usage_note = entry.notes['usage']
@@ -79,21 +79,21 @@ class TestMultilingualFieldEditing:
 
     def test_multilingual_note_serialization_to_dict(self):
         """Test that multilingual notes are correctly serialized to dictionary format."""
-        entry = Entry(
-            id_="test_entry",
-            lexical_unit={"seh": "mukwa"},
+        entry = Entry(id_="test_entry",
+            lexical_unit={"pl": "mukwa"},
             notes={
                 "general": {
                     "en": "This is an English note",
                     "pt": "Esta é uma nota em português",
-                    "seh": "Ichi ndi chida chakupanda mu Chisena"
+                    "pl": "Ichi ndi chida chakupanda mu Chisena"
                 },
                 "usage": {
                     "en": "Used in formal contexts",
                     "pt": "Usado em contextos formais"
                 }
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         entry_dict = entry.to_dict()
         
@@ -106,7 +106,7 @@ class TestMultilingualFieldEditing:
         assert isinstance(general_note, dict)
         assert general_note['en'] == "This is an English note"
         assert general_note['pt'] == "Esta é uma nota em português"
-        assert general_note['seh'] == "Ichi ndi chida chakupanda mu Chisena"
+        assert general_note['pl'] == "Ichi ndi chida chakupanda mu Chisena"
         
         usage_note = entry_dict['notes']['usage']
         assert isinstance(usage_note, dict)
@@ -119,7 +119,7 @@ class TestMultilingualFieldEditing:
         <lift xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
             <entry id="test_entry">
                 <lexical-unit>
-                    <form lang="seh">
+                    <form lang="pl">
                         <text>mukwa</text>
                     </form>
                 </lexical-unit>
@@ -166,16 +166,16 @@ class TestMultilingualFieldEditing:
         """Test that multilingual note form fields are properly rendered in the UI."""
         # This test will verify that the entry form template correctly renders 
         # multilingual note fields for user editing
-        entry = Entry(
-            id_="test_entry",
-            lexical_unit={"seh": "mukwa"},
+        entry = Entry(id_="test_entry",
+            lexical_unit={"pl": "mukwa"},
             notes={
                 "general": {
                     "en": "This is an English note",
                     "pt": "Esta é uma nota em português"
                 }
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # For now, we'll just validate that the entry has the correct structure
         # The UI integration will be tested separately
@@ -210,7 +210,7 @@ class TestMultilingualFieldEditing:
             'general': {
                 'en': 'Updated English note',
                 'pt': 'Nota atualizada em português',
-                'seh': 'Chida chakupanduka mu Chisena'
+                'pl': 'Chida chakupanduka mu Chisena'
             },
             'usage': {
                 'en': 'Usage note in English',
@@ -226,7 +226,7 @@ class TestMultilingualFieldEditing:
         <lift xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
             <entry id="test_entry">
                 <lexical-unit>
-                    <form lang="seh">
+                    <form lang="pl">
                         <text>mukwa</text>
                     </form>
                 </lexical-unit>
@@ -245,7 +245,7 @@ class TestMultilingualFieldEditing:
                     <form lang="pt">
                         <text>Árvore sagrada em cerimônias tradicionais</text>
                     </form>
-                    <form lang="seh">
+                    <form lang="pl">
                         <text>Chikwa chakudedza pamicaso yakale</text>
                     </form>
                 </field>
@@ -277,10 +277,10 @@ class TestMultilingualFieldEditing:
         assert isinstance(cultural_note, dict)
         assert 'en' in cultural_note
         assert 'pt' in cultural_note
-        assert 'seh' in cultural_note
+        assert 'pl' in cultural_note
         assert cultural_note['en'] == "Sacred tree in traditional ceremonies"  # type: ignore
         assert cultural_note['pt'] == "Árvore sagrada em cerimônias tradicionais"  # type: ignore
-        assert cultural_note['seh'] == "Chikwa chakudedza pamicaso yakale"  # type: ignore
+        assert cultural_note['pl'] == "Chikwa chakudedza pamicaso yakale"  # type: ignore
 
     def _process_multilingual_note_form_data(self, form_data: Dict[str, str]) -> Dict[str, Dict[str, str]]:
         """

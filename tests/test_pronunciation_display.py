@@ -20,12 +20,12 @@ from app.services.dictionary_service import DictionaryService
 @pytest.fixture
 def mock_entry():
     """Create a mock entry with pronunciations."""
-    entry = Entry(
-        id_="test_pronunciation_entry",
+    entry = Entry(id_="test_pronunciation_entry",
         lexical_unit={"en": "pronunciation test"},
         pronunciations={"seh-fonipa": "/pro.nun.si.eɪ.ʃən/"},
         grammatical_info="noun"
-    )
+    ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
     return entry
 
 def test_pronunciation_display_in_entry_form(client: FlaskClient, app: Flask, mock_entry: Entry):
@@ -81,11 +81,11 @@ def test_pronunciation_conversion(app: Flask):
     from app.models.entry import Entry
     
     # Create an entry with pronunciations in dictionary format
-    entry = Entry(
-        id_="test123",
+    entry = Entry(id_="test123",
         lexical_unit={"en": "Test"},
         pronunciations={"seh-fonipa": "ˈtɛst"}  # Dictionary format
-    )
+    ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
     
     with app.test_request_context():
         # Convert pronunciations dict to JS-compatible array format

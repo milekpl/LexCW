@@ -25,7 +25,7 @@ def test_entry_validation_integration():
     try:
         valid_entry = Entry(
             id_='test_entry_1',
-            lexical_unit={'seh': 'mutu'},
+            lexical_unit={'pl': 'mutu'},
             senses=[{
                 'id': 'sense_1',
                 'definition': 'A person'
@@ -42,7 +42,7 @@ def test_entry_validation_integration():
     try:
         invalid_entry = Entry(
             id_='',  # Empty ID should fail validation
-            lexical_unit={'seh': 'mutu'},
+            lexical_unit={'pl': 'mutu'},
             senses=[{
                 'id': 'sense_1',
                 'definition': 'A person'
@@ -63,7 +63,7 @@ def test_entry_validation_integration():
     try:
         invalid_entry = Entry(
             id_='test_entry_2',
-            lexical_unit={'seh': 'mutu'},
+            lexical_unit={'pl': 'mutu'},
             senses=[]
         )
         invalid_entry.validate()
@@ -128,7 +128,7 @@ def test_centralized_validation_consistency():
     # Create test entry data
     entry_data = {
         'id': 'test_entry_3',
-        'lexical_unit': {'seh': 'mutu'},
+        'lexical_unit': {'pl': 'mutu'},
         'senses': [{
             'id': 'sense_1',
             'definition': 'A person'

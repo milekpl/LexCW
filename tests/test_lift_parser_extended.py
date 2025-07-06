@@ -4,6 +4,7 @@ import pytest
 
 from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser
+from app.utils.exceptions import ValidationError
 
 # LIFT entry with multiple senses and nested data
 COMPLEX_LIFT_ENTRY_2 = '''
@@ -76,16 +77,11 @@ def test_parse_entry_with_multiple_senses(lift_parser: LIFTParser):
 
 def test_parse_minimal_entry(lift_parser: LIFTParser):
     '''
-    Tests that the LIFT parser can handle a minimal entry with only required fields.
+    Tests that the LIFT parser rejects minimal entries that don't meet validation requirements.
     '''
-    # Act
-    entry: Entry = lift_parser.parse_entry(MINIMAL_LIFT_ENTRY)
-
-    # Assert
-    assert entry is not None
-    assert entry.id == "test_id_003"
-    assert entry.lexical_unit.get("en") == "minimal"
-    assert not entry.senses
-    assert not entry.etymologies
-    assert not entry.relations
-    assert not entry.variants
+    # Act & Assert - should raise ValidationError due to missing senses
+    with pytest.raises(ValidationError) as exc_info:
+        lift_parser.parse_entry(MINIMAL_LIFT_ENTRY)
+    
+    # Verify the specific validation error
+    assert "At least one sense is required per entry" in str(exc_info.value)

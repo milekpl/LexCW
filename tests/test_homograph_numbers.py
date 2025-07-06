@@ -21,11 +21,11 @@ class TestHomographNumberModel:
     
     def test_entry_creation_with_homograph_number(self):
         """Test creating an entry with a homograph number."""
-        entry = Entry(
-            id_="test_entry_1",
+        entry = Entry(id_="test_entry_1",
             lexical_unit={"en": "bank"},
             homograph_number=1
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert entry.homograph_number == 1
         assert entry.id == "test_entry_1"
@@ -33,21 +33,21 @@ class TestHomographNumberModel:
     
     def test_entry_creation_without_homograph_number(self):
         """Test creating an entry without a homograph number."""
-        entry = Entry(
-            id_="test_entry_2",
+        entry = Entry(id_="test_entry_2",
             lexical_unit={"en": "river"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert entry.homograph_number is None
         assert entry.id == "test_entry_2"
     
     def test_entry_homograph_number_type_validation(self):
         """Test that homograph number accepts integers."""
-        entry = Entry(
-            id_="test_entry_3",
+        entry = Entry(id_="test_entry_3",
             lexical_unit={"en": "test"},
             homograph_number=2
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert entry.homograph_number == 2
         assert isinstance(entry.homograph_number, int)
@@ -134,11 +134,11 @@ class TestHomographNumberLIFTGeneration:
     
     def test_generate_lift_with_homograph_number(self):
         """Test generating LIFT XML with homograph number."""
-        entry = Entry(
-            id_="bank_1",
+        entry = Entry(id_="bank_1",
             lexical_unit={"en": "bank"},
             homograph_number=1
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         lift_xml = self.parser.generate_lift_string([entry])
         
@@ -149,11 +149,11 @@ class TestHomographNumberLIFTGeneration:
     
     def test_generate_lift_with_homograph_number_2(self):
         """Test generating LIFT XML with homograph number 2."""
-        entry = Entry(
-            id_="bank_2",
+        entry = Entry(id_="bank_2",
             lexical_unit={"en": "bank"},
             homograph_number=2
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         lift_xml = self.parser.generate_lift_string([entry])
         
@@ -163,10 +163,10 @@ class TestHomographNumberLIFTGeneration:
     
     def test_generate_lift_without_homograph_number(self):
         """Test generating LIFT XML without homograph number."""
-        entry = Entry(
-            id_="river_1",
+        entry = Entry(id_="river_1",
             lexical_unit={"en": "river"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         lift_xml = self.parser.generate_lift_string([entry])
         
@@ -178,20 +178,20 @@ class TestHomographNumberLIFTGeneration:
     def test_generate_lift_multiple_entries_with_homograph_numbers(self):
         """Test generating LIFT XML with multiple entries having homograph numbers."""
         entries = [
-            Entry(
-                id_="bank_1",
+            Entry(id_="bank_1",
                 lexical_unit={"en": "bank"},
                 homograph_number=1
-            ),
-            Entry(
-                id_="bank_2",
+            ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}]),
+            Entry(id_="bank_2",
                 lexical_unit={"en": "bank"},
                 homograph_number=2
-            ),
-            Entry(
-                id_="river_1",
+            ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}]),
+            Entry(id_="river_1",
                 lexical_unit={"en": "river"}
-            )
+            ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         ]
         
         lift_xml = self.parser.generate_lift_string(entries)
@@ -251,11 +251,11 @@ class TestHomographNumberUIIntegration:
         template = Template(template_content)
         
         # Test with homograph number
-        entry_with_homograph = Entry(
-            id_="bank_1",
+        entry_with_homograph = Entry(id_="bank_1",
             lexical_unit={"en": "bank"},
             homograph_number=1
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         rendered = template.render(entry=entry_with_homograph)
         assert 'Homograph Number' in rendered
@@ -263,10 +263,10 @@ class TestHomographNumberUIIntegration:
         assert 'readonly' in rendered
         
         # Test without homograph number
-        entry_without_homograph = Entry(
-            id_="river_1",
+        entry_without_homograph = Entry(id_="river_1",
             lexical_unit={"en": "river"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         rendered = template.render(entry=entry_without_homograph)
         assert 'Homograph Number' not in rendered
@@ -280,20 +280,20 @@ class TestHomographNumberUIIntegration:
         template = Template(template_content)
         
         # Test with homograph number
-        entry_with_homograph = Entry(
-            id_="bank_1",
+        entry_with_homograph = Entry(id_="bank_1",
             lexical_unit={"en": "bank"},
             homograph_number=2
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         rendered = template.render(entry=entry_with_homograph).strip()
         assert rendered == "bank<sub>2</sub>"
         
         # Test without homograph number
-        entry_without_homograph = Entry(
-            id_="river_1",
+        entry_without_homograph = Entry(id_="river_1",
             lexical_unit={"en": "river"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         rendered = template.render(entry=entry_without_homograph).strip()
         assert rendered == "river"
@@ -301,11 +301,11 @@ class TestHomographNumberUIIntegration:
     def test_homograph_number_1_displays_in_ui(self):
         """Test that homograph number 1 is displayed in UI (not just numbers > 1)."""
         # Create an entry with homograph number 1
-        entry = Entry(
-            id_="bank1_test",
+        entry = Entry(id_="bank1_test",
             lexical_unit={"en": "bank"},
             homograph_number=1
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test entry list display logic (simulating JavaScript behavior)
         # Should display homograph number 1, not skip it
@@ -331,11 +331,11 @@ class TestHomographNumberUIIntegration:
         entry_view_pattern = '''{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}'''
         
         # Test with homograph number
-        entry_with_homograph = Entry(
-            id_="bank1_test",
+        entry_with_homograph = Entry(id_="bank1_test",
             lexical_unit={"en": "bank"},
             homograph_number=1
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         form_template = Template(entry_form_pattern)
         view_template = Template(entry_view_pattern)
@@ -348,10 +348,10 @@ class TestHomographNumberUIIntegration:
         assert form_result == "bank<sub>1</sub>"
         
         # Test without homograph number
-        entry_without_homograph = Entry(
-            id_="river_test",
+        entry_without_homograph = Entry(id_="river_test",
             lexical_unit={"en": "river"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         form_result_no_hom = form_template.render(entry=entry_without_homograph)
         view_result_no_hom = view_template.render(entry=entry_without_homograph)

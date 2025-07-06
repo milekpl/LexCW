@@ -33,19 +33,19 @@ class TestValidationEngine:
         # Valid entry
         valid_entry = {
             "id": "valid_entry",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}]
         }
         
         # Invalid entries
         missing_id_entry = {
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}]
         }
         
         empty_id_entry = {
             "id": "",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}]
         }
         
@@ -61,7 +61,7 @@ class TestValidationEngine:
         # Valid entry
         valid_entry = {
             "id": "test_entry",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}]
         }
         
@@ -89,19 +89,19 @@ class TestValidationEngine:
         # Valid entry
         valid_entry = {
             "id": "test_entry",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}]
         }
         
         # Invalid entries
         missing_senses = {
             "id": "test_entry",
-            "lexical_unit": {"seh": "test"}
+            "lexical_unit": {"pl": "test"}
         }
         
         empty_senses = {
             "id": "test_entry",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": []
         }
         
@@ -123,7 +123,7 @@ class TestValidationEngine:
         for valid_id in valid_ids:
             entry = {
                 "id": valid_id,
-                "lexical_unit": {"seh": "test"},
+                "lexical_unit": {"pl": "test"},
                 "senses": [{"id": "sense1", "gloss": "test"}]
             }
             result = engine.validate_json(entry)
@@ -133,7 +133,7 @@ class TestValidationEngine:
         for invalid_id in invalid_ids:
             entry = {
                 "id": invalid_id,
-                "lexical_unit": {"seh": "test"},
+                "lexical_unit": {"pl": "test"},
                 "senses": [{"id": "sense1", "gloss": "test"}]
             }
             result = engine.validate_json(entry)
@@ -146,14 +146,14 @@ class TestValidationEngine:
         
         valid_entry = {
             "id": "test_entry",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}],
             "pronunciations": {"seh-fonipa": "test"}
         }
         
         invalid_entry = {
             "id": "test_entry",
-            "lexical_unit": {"seh": "test"},
+            "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}],
             "pronunciations": {"en": "test"}  # Invalid language
         }
@@ -174,7 +174,7 @@ class TestValidationEngine:
         # Variant entry (has _component-lexeme relation) - should pass without sense definition
         variant_entry = {
             "id": "variant_entry",
-            "lexical_unit": {"seh": "variant_form"},
+            "lexical_unit": {"pl": "variant_form"},
             "relations": [
                 {
                     "type": "_component-lexeme",
@@ -193,7 +193,7 @@ class TestValidationEngine:
         # Regular entry (no _component-lexeme relation) - should fail without definition
         regular_entry = {
             "id": "regular_entry",
-            "lexical_unit": {"seh": "regular_form"},
+            "lexical_unit": {"pl": "regular_form"},
             "senses": [
                 {
                     "id": "sense1"
@@ -240,7 +240,7 @@ class TestSchematronValidator:
             <lift xmlns="http://code.google.com/p/lift-standard">
                 <entry id="test_entry">
                     <lexical-unit>
-                        <form lang="seh">
+                        <form lang="pl">
                             <text>test</text>
                         </form>
                     </lexical-unit>

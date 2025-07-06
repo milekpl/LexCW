@@ -89,10 +89,10 @@ class TestRelationBasedVariants:
     def test_generate_lift_with_relation_variant_traits(self):
         """Test generating LIFT XML from entry with relation-based variant traits."""
         # Create entry with relation containing variant-type trait
-        entry = Entry(
-            id_="test_entry",
+        entry = Entry(id_="test_entry",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Create relation with traits
         relation = Relation(
@@ -113,10 +113,10 @@ class TestRelationBasedVariants:
     
     def test_get_variant_type_relations(self):
         """Test method to extract variant-type relations for UI display."""
-        entry = Entry(
-            id_="test_entry",
+        entry = Entry(id_="test_entry",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Add regular relation (not variant-type)
         regular_relation = Relation(type="synonym", ref="synonym_ref")

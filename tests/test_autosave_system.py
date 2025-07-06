@@ -55,7 +55,7 @@ class TestAutoSaveSystem:
         """Test auto-save with valid entry data"""
         valid_entry = {
             'id': 'test_entry_1',
-            'lexical_unit': {'seh': 'test word'},
+            'lexical_unit': {'en': 'test word'},
             'senses': [{'id': 'sense_1', 'gloss': 'test meaning'}]
         }
         
@@ -100,8 +100,8 @@ class TestAutoSaveSystem:
     def test_autosave_with_warnings(self):
         """Test auto-save with warnings (should still save)"""
         entry_with_warnings = {
-            'id': 'test_entry_2',
-            'lexical_unit': {'seh': 'test word', 'xyz': 'invalid language'},  # Invalid language code
+            'id': 'test entry 2',  # Invalid ID format (space) - should trigger warning
+            'lexical_unit': {'pl': 'test word'},
             'senses': [{'id': 'sense_1', 'gloss': 'test meaning'}]
         }
         
@@ -142,7 +142,7 @@ class TestAutoSaveManagerIntegration:
         # Test valid entry
         valid_entry = {
             'id': 'test_entry',
-            'lexical_unit': {'seh': 'test'},
+            'lexical_unit': {'pl': 'test'},
             'senses': [{'id': 'sense_1', 'gloss': 'meaning'}]
         }
         

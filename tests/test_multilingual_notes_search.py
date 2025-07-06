@@ -13,8 +13,7 @@ class TestMultilingualNotesSearch:
     def test_search_multilingual_notes_unit(self):
         """Test that search can find entries by multilingual notes content."""
         # Create entry with multilingual notes
-        entry = Entry(
-            id_='test-search-multilingual',
+        entry = Entry(id_='test-search-multilingual',
             lexical_unit={'en': 'test'},
             notes={
                 'general': {
@@ -25,7 +24,8 @@ class TestMultilingualNotesSearch:
                     'en': 'Usage note with specific content'
                 }
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test that notes are properly structured for search
         assert 'general' in entry.notes
@@ -37,14 +37,14 @@ class TestMultilingualNotesSearch:
     def test_search_legacy_notes_unit(self):
         """Test that search can find entries by legacy notes content."""
         # Create entry with legacy string notes
-        entry = Entry(
-            id_='test-search-legacy',
+        entry = Entry(id_='test-search-legacy',
             lexical_unit={'en': 'test'},
             notes={
                 'general': 'This is a legacy note with EXAMPLE_TRANSLATION',
                 'usage': 'Simple usage note'
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test that legacy notes are properly structured for search
         assert 'general' in entry.notes
@@ -55,8 +55,7 @@ class TestMultilingualNotesSearch:
     def test_search_mixed_notes_unit(self):
         """Test that search can find entries with mixed notes formats."""
         # Create entry with mixed notes (legacy and multilingual)
-        entry = Entry(
-            id_='test-search-mixed',
+        entry = Entry(id_='test-search-mixed',
             lexical_unit={'en': 'test'},
             notes={
                 'general': {
@@ -65,7 +64,8 @@ class TestMultilingualNotesSearch:
                 },
                 'usage': 'Legacy usage note with EXAMPLE_TRANSLATION'
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test that mixed notes are properly structured for search
         assert 'general' in entry.notes
@@ -78,8 +78,7 @@ class TestMultilingualNotesSearch:
     def test_notes_serialization_for_search(self):
         """Test that notes are properly serialized for search indexing."""
         # Create entry with multilingual notes
-        entry = Entry(
-            id_='test-search-serialization',
+        entry = Entry(id_='test-search-serialization',
             lexical_unit={'en': 'test'},
             notes={
                 'general': {
@@ -88,7 +87,8 @@ class TestMultilingualNotesSearch:
                 },
                 'usage': 'Legacy usage note'
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Convert to dict (this is what gets serialized)
         entry_dict = entry.to_dict()

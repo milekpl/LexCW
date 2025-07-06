@@ -36,7 +36,8 @@ class TestHighImpactCoverage:
     def test_base_model_comprehensive(self) -> None:
         """Test BaseModel methods comprehensively."""
         # Test Entry which inherits from BaseModel
-        entry = Entry(id="test_base", lexical_unit={"en": "test"})
+        entry = Entry(id="test_base", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test validation with invalid data
         try:
@@ -61,7 +62,8 @@ class TestHighImpactCoverage:
     def test_entry_model_comprehensive(self) -> None:
         """Test Entry model with all possible scenarios."""
         # Test with minimal data
-        entry1 = Entry(id="minimal", lexical_unit={"en": "test"})
+        entry1 = Entry(id="minimal", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test with full data
         sense = Sense(id="sense1", grammatical_info="noun")
@@ -77,12 +79,14 @@ class TestHighImpactCoverage:
         
         # Test validation scenarios
         try:
-            Entry(id="", lexical_unit={"en": "test"})  # Empty ID
+            Entry(id="", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])  # Empty ID
         except ValidationError:
             pass
         
         try:
-            Entry(id="test", lexical_unit={})  # Empty lexical unit
+            Entry(id="test", lexical_unit={},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])  # Empty lexical unit
         except ValidationError:
             pass
         
@@ -348,7 +352,8 @@ class TestHighImpactCoverage:
             pass  # File operations may fail
         
         # Test generation methods
-        test_entries = [Entry(id="gen_test", lexical_unit={"en": "test"})]
+        test_entries = [Entry(id="gen_test", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])]
         
         try:
             lift_string = parser.generate_lift_string(test_entries)

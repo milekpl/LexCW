@@ -72,6 +72,11 @@ class TestDictionaryStatistics:
                         <text>new test</text>
                     </form>
                 </lexical-unit>
+                <sense id="sense1">
+                    <gloss lang="en">
+                        <text>test definition</text>
+                    </gloss>
+                </sense>
             </entry>
         </lift>
         """)[0]
@@ -100,10 +105,10 @@ class TestDictionaryStatistics:
         from app.models.entry import Entry
         from app.models.sense import Sense
         
-        entry = Entry(
-            id_="multi_sense_entry",
+        entry = Entry(id_="multi_sense_entry",
             lexical_unit={"en": "multi sense"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Add two senses with examples
         sense1 = Sense(id_="sense1", glosses={"pl": "wieloznaczny 1"})

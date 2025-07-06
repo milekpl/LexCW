@@ -69,8 +69,10 @@ class TestAPICachingImprovements:
             
             mock_dict_service = Mock()
             mock_entries = [
-                Entry(id_="test1", lexical_unit={"en": "test1"}),
-                Entry(id_="test2", lexical_unit={"en": "test2"})
+                Entry(id_="test1", lexical_unit={"en": "test1"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}]),
+                Entry(id_="test2", lexical_unit={"en": "test2"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
             ]
             mock_dict_service.list_entries.return_value = (mock_entries, 2)
             mock_get_service.return_value = mock_dict_service

@@ -36,7 +36,7 @@ class TestMultilingualNotesFormProcessing:
         assert isinstance(general_note, dict)
         assert general_note['en'] == 'This is an English general note'
         assert general_note['pt'] == 'Esta é uma nota geral em português'
-        assert general_note['seh'] == 'Ichi ndi chida chachikulu mu Chisena'
+        assert general_note['pl'] == 'Ichi ndi chida chachikulu mu Chisena'
         
         # Check usage note
         assert 'usage' in processed_data['notes']
@@ -55,12 +55,12 @@ class TestMultilingualNotesFormProcessing:
         """Test creating an Entry object with multilingual notes data."""
         entry_data = {
             'id_': 'test_entry',
-            'lexical_unit': {'seh': 'mukwa'},
+            'lexical_unit': {'pl': 'mukwa'},
             'notes': {
                 'general': {
                     'en': 'This is an English general note',
                     'pt': 'Esta é uma nota geral em português',
-                    'seh': 'Ichi ndi chida chachikulu mu Chisena'
+                    'pl': 'Ichi ndi chida chachikulu mu Chisena'
                 },
                 'usage': {
                     'en': 'Used in formal contexts',
@@ -81,7 +81,7 @@ class TestMultilingualNotesFormProcessing:
         assert isinstance(general_note, dict)
         assert general_note['en'] == 'This is an English general note'
         assert general_note['pt'] == 'Esta é uma nota geral em português'
-        assert general_note['seh'] == 'Ichi ndi chida chachikulu mu Chisena'
+        assert general_note['pl'] == 'Ichi ndi chida chachikulu mu Chisena'
         
         usage_note = entry.notes['usage']
         assert isinstance(usage_note, dict)
@@ -90,9 +90,8 @@ class TestMultilingualNotesFormProcessing:
 
     def test_entry_serialization_with_multilingual_notes(self):
         """Test that Entry.to_dict() preserves multilingual notes structure."""
-        entry = Entry(
-            id_='test_entry',
-            lexical_unit={'seh': 'mukwa'},
+        entry = Entry(id_='test_entry',
+            lexical_unit={'pl': 'mukwa'},
             notes={
                 'general': {
                     'en': 'This is an English general note',
@@ -102,7 +101,8 @@ class TestMultilingualNotesFormProcessing:
                     'en': 'Used in formal contexts'
                 }
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         entry_dict = entry.to_dict()
         
@@ -125,7 +125,7 @@ class TestMultilingualNotesFormProcessing:
         """Test that simple (non-multilingual) notes still work."""
         entry_data = {
             'id_': 'test_entry',
-            'lexical_unit': {'seh': 'mukwa'},
+            'lexical_unit': {'pl': 'mukwa'},
             'notes': {
                 'general': 'This is a simple note',
                 'usage': 'Another simple note'

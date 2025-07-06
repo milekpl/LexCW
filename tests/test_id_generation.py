@@ -26,7 +26,7 @@ def test_id_generation():
     
     # Test Entry ID generation
     entry_data = {
-        'lexical_unit': {'seh': 'testword'},
+        'lexical_unit': {'pl': 'testword'},
         'senses': [sense_data]
     }
     

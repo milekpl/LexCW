@@ -37,9 +37,9 @@ class TestVariantContainer:
         ]
 
         # Create entry with these relations
-        entry = Entry(
-            id_="test_entry", lexical_unit={"en": "fast"}, relations=relations
-        )
+        entry = Entry(id_="test_entry", lexical_unit={"en": "fast"}, relations=relations
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
 
         # Extract variant relations
         variant_relations = entry.get_variant_relations()
@@ -75,9 +75,9 @@ class TestVariantContainer:
             ),
         ]
 
-        entry = Entry(
-            id_="test_entry", lexical_unit={"en": "fast"}, relations=relations
-        )
+        entry = Entry(id_="test_entry", lexical_unit={"en": "fast"}, relations=relations
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
 
         variant_relations = entry.get_variant_relations()
 
@@ -101,9 +101,9 @@ class TestVariantContainer:
             ),
         ]
 
-        entry = Entry(
-            id_="test_entry", lexical_unit={"en": "test"}, relations=relations
-        )
+        entry = Entry(id_="test_entry", lexical_unit={"en": "test"}, relations=relations
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
 
         variant_relations = entry.get_variant_relations()
 
@@ -130,9 +130,9 @@ class TestVariantContainer:
             )
         ]
 
-        entry = Entry(
-            id_="test_entry", lexical_unit={"en": "test"}, relations=relations
-        )
+        entry = Entry(id_="test_entry", lexical_unit={"en": "test"}, relations=relations
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
 
         entry_dict = entry.to_dict()
 

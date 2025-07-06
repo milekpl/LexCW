@@ -33,11 +33,11 @@ class TestVariantFormsUI:
             }
         ]
         
-        entry = Entry(
-            id_="test-entry",
+        entry = Entry(id_="test-entry",
             lexical_unit={"en": "color"},
             variants=variants_data
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Verify variants are properly created
         assert len(entry.variants) == 2
@@ -111,11 +111,11 @@ class TestVariantFormsUI:
             }
         ]
         
-        entry = Entry(
-            id_="test-serialization",
+        entry = Entry(id_="test-serialization",
             lexical_unit={"en": "center"},
             variants=variants_data
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test to_dict serialization
         entry_dict = entry.to_dict()
@@ -140,10 +140,10 @@ class TestVariantFormsUI:
 
     def test_empty_variants_handling(self) -> None:
         """Test proper handling of entries with no variants."""
-        entry = Entry(
-            id_="no-variants",
+        entry = Entry(id_="no-variants",
             lexical_unit={"en": "simple"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert entry.variants == []
         
@@ -191,10 +191,10 @@ class TestVariantFormsAPISupport:
     def test_api_entry_update_with_variants(self) -> None:
         """Test API endpoint supports entry updates with variants."""
         # Create entry without variants
-        entry = Entry(
-            id_="update-test",
+        entry = Entry(id_="update-test",
             lexical_unit={"en": "organize"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         assert len(entry.variants) == 0
         
         # Update with variants
@@ -216,11 +216,11 @@ class TestVariantFormsAPISupport:
         }
         
         # Simulate update by creating new entry with updated data
-        updated_entry = Entry(
-            id_=entry.id,
+        updated_entry = Entry(id_=entry.id,
             lexical_unit=entry.lexical_unit,
             **update_data
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert len(updated_entry.variants) == 2
         assert updated_entry.variants[0].form.text == "organise"
@@ -273,10 +273,10 @@ class TestVariantFormsLifecycle:
     def test_add_variant_to_existing_entry(self) -> None:
         """Test adding variants to an existing entry."""
         # Start with entry without variants
-        entry = Entry(
-            id_="lifecycle-test",
+        entry = Entry(id_="lifecycle-test",
             lexical_unit={"en": "honor"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         assert len(entry.variants) == 0
         
         # Add variant (simulating UI action)
@@ -295,11 +295,11 @@ class TestVariantFormsLifecycle:
             {"form": {"lang": "en-CA", "text": "flavour"}}
         ]
         
-        entry = Entry(
-            id_="remove-test",
+        entry = Entry(id_="remove-test",
             lexical_unit={"en": "flavor"},
             variants=variants_data
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         assert len(entry.variants) == 3
         
         # Remove middle variant (simulating UI action)
@@ -316,11 +316,11 @@ class TestVariantFormsLifecycle:
             {"form": {"lang": "en", "text": "colour"}}
         ]
         
-        entry = Entry(
-            id_="modify-test",
+        entry = Entry(id_="modify-test",
             lexical_unit={"en": "color"},
             variants=variants_data
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Modify variant (simulating UI edit)
         entry.variants[0].form.lang = "en-GB"

@@ -62,14 +62,14 @@
       "name": "language_code_validation",
       "description": "Language codes must be from approved project list",
       "category": "entry_level",
-      "priority": "warning",
+      "priority": "critical",
       "path": "$.lexical_unit",
       "condition": "custom",
       "validation": {
         "custom_function": "validate_language_codes",
-        "allowed_languages": ["seh", "en", "pt", "fr", "de", "seh-fonipa"]
+        "allowed_languages": ["pl", "en", "ipa"]
       },
-      "error_message": "Invalid language code: {value}. Must be one of: seh, en, pt, fr, de, seh-fonipa",
+      "error_message": "Invalid language code: {value}. Must be one of: pl, en, ipa",
       "client_side": true
     },
     "R2.1.1": {
@@ -191,7 +191,7 @@
       "description": "IPA characters must be from approved character set",
       "category": "pronunciation",
       "priority": "critical",
-      "path": "$.pronunciations['seh-fonipa']",
+      "path": "$.pronunciations['ipa']",
       "condition": "if_present",
       "validation": {
         "type": "string",

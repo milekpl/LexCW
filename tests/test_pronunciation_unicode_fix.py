@@ -30,11 +30,11 @@ class TestPronunciationUnicodeDisplay:
         """Test that IPA Unicode characters are properly encoded in JavaScript initialization."""
         with app.app_context():
             # Create a test entry with IPA pronunciation containing Unicode characters
-            test_entry = Entry(
-                id="test_unicode_entry",
+            test_entry = Entry(id="test_unicode_entry",
                 lexical_unit={"en": "test"},
                 pronunciations={"seh-fonipa": "ˈtɛst"}  # Contains Unicode ˈ and ɛ
-            )
+            ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
             
             # Mock the dictionary service
             with patch.object(DictionaryService, 'get_entry', return_value=test_entry), \
@@ -76,11 +76,11 @@ class TestPronunciationUnicodeDisplay:
             from flask import render_template_string
             
             # Create test entry with Unicode IPA
-            test_entry = Entry(
-                id="test_template",
+            test_entry = Entry(id="test_template",
                 lexical_unit={"en": "test"}, 
                 pronunciations={"seh-fonipa": "ˈprɒtɪstəntɪzm"}
-            )
+            ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
             
             # Test template with our fix (using tojson filter)
             template = """

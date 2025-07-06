@@ -32,10 +32,10 @@ class TestExpandedCoverage:
     def test_entry_model_coverage(self) -> None:
         """Test Entry model for coverage."""
         # Test Entry creation and basic methods
-        entry = Entry(
-            id="test_entry", 
+        entry = Entry(id="test_entry", 
             lexical_unit={"en": "test", "pl": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test string representations
         entry_str = str(entry)

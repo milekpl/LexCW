@@ -124,26 +124,26 @@ class TestEntryTemplateDisplay(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create sample entries
-        self.entry_en_only = Entry(
-            id_="entry1",
+        self.entry_en_only = Entry(id_="entry1",
             lexical_unit={"en": "English Word"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
-        self.entry_multi_lang = Entry(
-            id_="entry2",
+        self.entry_multi_lang = Entry(id_="entry2",
             lexical_unit={
                 "en": "English Word",
                 "pl": "Polskie Słowo"
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
-        self.entry_no_en = Entry(
-            id_="entry3",
+        self.entry_no_en = Entry(id_="entry3",
             lexical_unit={
                 "pl": "Tylko Polski",
                 "de": "Nur Deutsch"
             }
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
 
     @patch('flask.render_template')
     def test_template_rendering(self, mock_render):

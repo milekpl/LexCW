@@ -43,7 +43,8 @@ def test_entries_api_uses_basex_not_postgresql(client: FlaskClient) -> None:
         # Mock BaseX dictionary service
         from app.models.entry import Entry
         mock_service = MagicMock()
-        mock_entry = Entry(id='test1', lexical_unit='test', pronunciation='/tɛst/')
+        mock_entry = Entry(id='test1', lexical_unit='test', pronunciation='/tɛst/',
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         mock_service.list_entries.return_value = ([mock_entry], 1)
         mock_get_service.return_value = mock_service
         

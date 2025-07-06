@@ -144,7 +144,7 @@ class TestAutoSaveEndpointRequirements:
         # Mock request data
         request_data = {
             'entryData': {
-                'lexical_unit': {'seh': 'test'},
+                'lexical_unit': {'pl': 'test'},
                 'id': '123'
             },
             'version': 1

@@ -75,10 +75,9 @@ class TestEntry:
     
     def test_entry_add_sense(self):
         """Test adding a sense to an entry."""
-        entry = Entry(
-            id_="test_entry_1",
-            lexical_unit={"en": "test"}
-        )
+        entry = Entry(id_="test_entry_1",
+            lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         sense = {
             "id": "sense_1",
@@ -87,16 +86,16 @@ class TestEntry:
         
         entry.add_sense(sense)
         
-        assert len(entry.senses) == 1
-        # After adding, the sense is converted to a Sense object
-        assert entry.senses[0].id == "sense_1"
+        assert len(entry.senses) == 2
+        # After adding, the second sense is converted to a Sense object
+        assert entry.senses[1].id == "sense_1"
     
     def test_entry_add_pronunciation(self):
         """Test adding pronunciation to an entry."""
-        entry = Entry(
-            id_="test_entry_1",
+        entry = Entry(id_="test_entry_1",
             lexical_unit={"en": "test"}
-        )
+        ,
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         entry.add_pronunciation("seh-fonipa", "test")
         

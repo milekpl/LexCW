@@ -75,7 +75,8 @@ class TestEntryValidationRules:
         """Test R1.1.3: At least one sense is required per entry."""
         # Test missing senses
         with pytest.raises(ValidationError) as exc_info:
-            entry = Entry(id_="test_entry", lexical_unit={"seh": "test"})
+            entry = Entry(id_="test_entry", lexical_unit={"seh": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
             entry.validate()
         assert "At least one sense is required" in str(exc_info.value)
 

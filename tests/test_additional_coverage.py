@@ -224,14 +224,15 @@ class TestModelComprehensive:
     
     def test_entry_add_sense_with_validation(self):
         """Test Entry add_sense method with validation."""
-        entry = Entry(id="test", lexical_unit={"en": "test"})
+        entry = Entry(id="test", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Add valid sense
-        sense = Sense(id="sense1", gloss="test gloss")
+        sense = Sense(id="sense2", gloss="test gloss")
         entry.add_sense(sense)
         
-        assert len(entry.senses) == 1
-        assert entry.senses[0].id == "sense1"
+        assert len(entry.senses) == 2
+        assert entry.senses[1].id == "sense2"
         
         # Test adding invalid sense (should raise ValidationError)
         invalid_sense = Sense(id="", gloss="")  # Invalid empty ID
@@ -240,7 +241,8 @@ class TestModelComprehensive:
     
     def test_entry_add_pronunciation_method(self):
         """Test Entry add_pronunciation method."""
-        entry = Entry(id="test", lexical_unit={"en": "test"})
+        entry = Entry(id="test", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Test the actual method signature: add_pronunciation(writing_system, form)
         entry.add_pronunciation("seh-fonipa", "test_form")
@@ -394,7 +396,8 @@ class TestDictionaryServiceEdgeCases:
         assert service.db_connector == mock_connector
         
         # Test with valid entry creation
-        entry = Entry(id="test", lexical_unit={"en": "test"})
+        entry = Entry(id="test", lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         assert entry.id == "test"
         assert entry.lexical_unit["en"] == "test"
 

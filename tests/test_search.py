@@ -380,7 +380,7 @@ class TestSearch:
         assert total == 0  # Should not find anything
         
         # Create a new entry with "update" in lexical_unit
-        entry = Entry(id_="update_test", lexical_unit={"en": "update test"})
+        entry = Entry(id_="update_test", lexical_unit={"en": "update test"}, senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         dict_service.create_entry(entry)
         
         # Search again
