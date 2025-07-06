@@ -16,9 +16,16 @@ from typing import Generator
 def test_entry(client: FlaskClient) -> Generator[int, None, None]:
     """Fixture to create a test entry and clean it up afterwards."""
     api_url = "/api/entries/"
-    test_entry_data: dict[str, dict[str, str] | str] = {
+    test_entry_data: dict[str, str | dict[str, str] | list[dict[str, str | dict[str, str]]]] = {
+        "id": "test-entry-for-loading-123",
         "lexical_unit": {"en": "test-entry-for-loading"},
-        "grammatical_info": "Noun"
+        "grammatical_info": "Noun",
+        "senses": [
+            {
+                "id": "sense-1",
+                "gloss": {"en": "test entry for loading forms"}
+            }
+        ]
     }
     response = client.post(api_url, json=test_entry_data)
     assert response.status_code in [200, 201]

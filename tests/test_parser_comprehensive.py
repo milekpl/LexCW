@@ -81,7 +81,7 @@ class TestLIFTParserComprehensive:
             </form>
         </lexical-unit>
         <pronunciation>
-            <form lang="en-fonipa">
+            <form lang="seh-fonipa">
                 <text>ˈkɒmpleks</text>
             </form>
         </pronunciation>
@@ -266,7 +266,7 @@ class TestLIFTParserComprehensive:
             <form lang="pl">
                 <text>ąćęłńóśźż</text>
             </form>
-            <form lang="fr">
+            <form lang="en">
                 <text>café</text>
             </form>
         </lexical-unit>

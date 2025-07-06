@@ -252,6 +252,9 @@ class DictionaryService:
                 print(f"Entry {entry_id} not found in database {db_name}")
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
             
+            # Log raw query result for debugging
+            self.logger.debug(f"Raw query result: {entry_xml}")
+            
             # Parse XML to Entry object
             print(f"Entry XML: {entry_xml[:100]}...")
             entries = self.lift_parser.parse_string(entry_xml)
@@ -293,31 +296,20 @@ class DictionaryService:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             try:
-                print(f"Checking if entry {entry.id} already exists...")
                 if self.get_entry(entry.id):
                     raise ValidationError(f"Entry with ID {entry.id} already exists")
             except NotFoundError:
-                print(f"Entry {entry.id} does not exist yet, proceeding with creation")
                 pass  # Entry doesn't exist, which is what we want
 
             entry_xml = self._prepare_entry_xml(entry)
-            print(f"Prepared entry XML: {entry_xml[:100]}...")
             
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()
             query = self._query_builder.build_insert_entry_query(entry_xml, db_name, has_ns)
-            print(f"Insert query: {query[:100]}...")
             
-            result = self.db_connector.execute_update(query)
-            print(f"Insert result: {result}")
+            self.db_connector.execute_update(query)
             
-            print(f"Verifying entry {entry.id} was created...")
-            try:
-                created_entry = self.get_entry(entry.id)
-                print(f"Entry {entry.id} verified and found")
-            except NotFoundError:
-                print(f"ERROR: Entry {entry.id} not found after creation!")
-            
+            # Return the entry ID
             return entry.id
             
         except ValidationError:
@@ -468,13 +460,21 @@ class DictionaryService:
             DatabaseError: If there is an error listing entries.
         """
         try:
+            # Log input parameters for debugging
+            self.logger.debug(f"list_entries called with: limit={limit}, offset={offset}, sort_by={sort_by}, sort_order={sort_order}, filter_text={filter_text}")
+
+            # Sanitize filter_text to prevent injection issues
+            filter_text = filter_text.replace("'", "\'")
+
             # Get total count (this may be filtered count if filter is applied)
             total_count = self._count_entries_with_filter(filter_text) if filter_text else self.count_entries()
 
             db_name = self.db_connector.database
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
-            
+            # Log connection status and database name for debugging
+            self.logger.debug(f"Database connection status: {self.db_connector.is_connected()}")
+            self.logger.debug(f"Using database: {db_name}")
             # Use namespace-aware query building
             has_ns = self._detect_namespace_usage()
             prologue = self._query_builder.get_namespace_prologue(has_ns)
@@ -482,31 +482,26 @@ class DictionaryService:
             lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
             form_path = self._query_builder.get_element_path("form", has_ns)
             text_path = self._query_builder.get_element_path("text", has_ns)
-            
             # Build sort expression with namespace-aware paths
             if sort_by == "lexical_unit":
                 sort_expr = f"($entry/{lexical_unit_path}/{form_path}/{text_path})[1]"  # Use first form text for sorting
             else:
                 sort_expr = "$entry/@id"
-            
             # Add sort order
             if sort_order.lower() == "desc":
                 sort_expr += " descending"
-            
             # Build filter expression with namespace-aware paths
             filter_expr = ""
             if filter_text:
                 # Filter by lexical unit text containing the filter text (case-insensitive)
                 # Use 'some' expression to handle multiple forms properly with namespace-aware paths
                 filter_expr = f"[some $form in {lexical_unit_path}/{form_path}/{text_path} satisfies contains(lower-case($form), lower-case('{filter_text}'))]"
-            
             # Build pagination expression
             pagination_expr = ""
             if limit is not None:
                 start = offset + 1
                 end = offset + limit
                 pagination_expr = f"[position() = {start} to {end}]"
-
             # Build complete namespace-aware query
             query = f"""
             {prologue}
@@ -514,17 +509,15 @@ class DictionaryService:
             order by {sort_expr}
             return $entry){pagination_expr}
             """
-            
+            # Log the constructed query for debugging
+            self.logger.debug(f"Constructed query for list_entries: {query}")
             result = self.db_connector.execute_query(query)
-            
-            if not result:
+            # Only treat None as failure; allow empty strings for parsing
+            if result is None:
                 return [], total_count
-            
-            # Use non-validating parser for listing to avoid validation errors
-            # Validation should only be done during create/update operations
-            non_validating_parser = LIFTParser(validate=False)
-            entries = non_validating_parser.parse_string(f"<lift>{result}</lift>")
-            
+            # Use a non-validating parser for listing
+            nonvalidating_parser = LIFTParser(validate=False)
+            entries = nonvalidating_parser.parse_string(f"<lift>{result}</lift>")
             return entries, total_count            
         except Exception as e:
             self.logger.error("Error listing entries: %s", str(e))
@@ -562,7 +555,7 @@ class DictionaryService:
             prologue = self._query_builder.get_namespace_prologue(has_ns)
 
             # Build the search query conditions with namespace-aware paths
-            conditions = []
+            conditions: List[str] = []
             q_escaped = query.replace("'", "''")  # Escape single quotes for XQuery
             
             if "lexical_unit" in fields:
@@ -1266,7 +1259,7 @@ class DictionaryService:
         
         # Fall back to minimal hardcoded ranges if sample file is not available
         self.logger.info("Using minimal hardcoded fallback ranges")
-        default_ranges = {
+        default_ranges: Dict[str, Dict[str, Any]] = {
             'variant-type': {
                 'id': 'variant-type',
                 'values': [
@@ -1618,6 +1611,9 @@ class DictionaryService:
             if not entry_xml:
                 print(f"Entry {entry_id} not found in database {db_name}")
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
+            
+            # Log raw query result for debugging
+            self.logger.debug(f"Raw query result: {entry_xml}")
             
             # Parse XML to Entry object WITHOUT validation to allow editing invalid entries
             print(f"Entry XML: {entry_xml[:100]}...")

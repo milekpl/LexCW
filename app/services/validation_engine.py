@@ -74,6 +74,8 @@ class ValidationResult:
 
 
 class ValidationEngine:
+    # Cache for compiled JSONPath expressions
+    _jsonpath_cache: dict[str, Any] = {}
     """
     Core validation engine implementing centralized validation rules.
     
@@ -81,6 +83,11 @@ class ValidationEngine:
     to JSON data from entry forms, replacing scattered model validation.
     """
     
+    # Class-level cache for rules and custom functions
+    _rules_cache: dict[str, dict[str, Any]] = {}
+    _custom_functions_cache: dict[str, Any] = {}
+    _rules_file_loaded: Optional[str] = None
+
     def __init__(self, rules_file: Optional[str] = None):
         """
         Initialize the validation engine.
@@ -89,9 +96,12 @@ class ValidationEngine:
             rules_file: Path to validation rules JSON file
         """
         self.rules_file = rules_file or "validation_rules.json"
-        self.rules: Dict[str, Dict[str, Any]] = {}
-        self.custom_functions: Dict[str, Any] = {}
-        self._load_rules()
+        # Only load rules if not already cached or if a different file is requested
+        if (ValidationEngine._rules_file_loaded != self.rules_file) or not ValidationEngine._rules_cache:
+            self._load_rules()
+            ValidationEngine._rules_file_loaded = self.rules_file
+        self.rules: Dict[str, Dict[str, Any]] = ValidationEngine._rules_cache
+        self.custom_functions: Dict[str, Any] = ValidationEngine._custom_functions_cache
     
     def _load_rules(self) -> None:
         """Load validation rules from configuration file."""
@@ -103,9 +113,18 @@ class ValidationEngine:
             
             with open(rules_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                self.rules = config.get('rules', {})
-                self.custom_functions = config.get('custom_functions', {})
-                
+                rules = config.get('rules', {})
+                custom_functions = config.get('custom_functions', {})
+                for rule_id, rule_config in rules.items():
+                    validation = rule_config.get('validation', {})
+                    pattern = validation.get('pattern')
+                    if pattern:
+                        try:
+                            validation['compiled_pattern'] = re.compile(pattern)
+                        except re.error as e:
+                            raise ValueError(f"Invalid regex '{pattern}' in rule {rule_id}: {e}")
+                ValidationEngine._rules_cache = rules
+                ValidationEngine._custom_functions_cache = custom_functions
         except FileNotFoundError:
             raise FileNotFoundError(f"Validation rules file not found: {self.rules_file}")
         except json.JSONDecodeError as e:
@@ -152,9 +171,12 @@ class ValidationEngine:
             path = rule_config['path']
             condition = rule_config['condition']
             validation = rule_config['validation']
-            
-            # Parse JSONPath
-            jsonpath_expr = jsonpath_ng.parse(path)
+            # Use cached compiled JSONPath if available
+            if path in ValidationEngine._jsonpath_cache:
+                jsonpath_expr = ValidationEngine._jsonpath_cache[path]
+            else:
+                jsonpath_expr = jsonpath_ng.parse(path)
+                ValidationEngine._jsonpath_cache[path] = jsonpath_expr
             matches = jsonpath_expr.find(data)
             
             # Handle different condition types
@@ -288,10 +310,11 @@ class ValidationEngine:
                 return False
                 
             # Check pattern
-            pattern = validation.get('pattern')
-            if pattern and not re.match(pattern, value):
+            # Use precompiled regex
+            pattern = validation.get('compiled_pattern')
+            if pattern and not pattern.match(value):
                 return False
-                
+                        
         elif val_type == 'array':
             if not isinstance(value, list):
                 return False
