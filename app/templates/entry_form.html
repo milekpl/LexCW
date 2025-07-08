@@ -66,7 +66,7 @@
 </div>
 
 <form id="entry-form" method="post"
-      action="{{ url_for('api.entries') if not entry.id else url_for('main.edit_entry', entry_id=entry.id) }}">
+      action="javascript:void(0);">
       {% if entry.id %}
         <input type="hidden" name="id" value="{{ entry.id }}">
     {% endif %}
@@ -83,7 +83,7 @@
                                value="{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}" required>
                         <div class="form-text">The headword as it appears in the dictionary.</div>
                     </div>
-                    
+
                     <!-- Homograph Number Display - Only show if entry has a homograph number -->
                     {% if entry.homograph_number %}
                     <div class="mb-3">
@@ -98,14 +98,14 @@
                         <div class="form-text">Automatically assigned to distinguish homographs (entries sharing the same headword).</div>
                     </div>
                     {% endif %}
-                    
+
                     <div class="mb-3">
                         <label for="citation-form" class="form-label">Citation Form</label>
                         <input type="text" class="form-control" id="citation-form" name="citation_form" 
                                value="{{ entry.citation_form }}">
                         <div class="form-text">Optional citation form if different from the headword.</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="part-of-speech" class="form-label">
                             Part of Speech <span class="text-muted" id="pos-required-indicator" style="display: none;">*</span>
@@ -871,87 +871,29 @@
                     </div>
                 </div>
 
-                <!-- Senses Section: Multilingual definitions and reordering -->
-        <div class="col-md-8">
-            <div class="card mb-4 senses-section">
-                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-                    <h5><i class="fas fa-lightbulb"></i> Senses</h5>
-                    <button type="button" class="btn btn-sm btn-primary" id="add-sense-btn">
-                        <i class="fas fa-plus"></i> Add Sense
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="senses-container1">
-                        {% if entry.senses %}
-                            {% for sense in entry.senses %}
-                            <div class="sense-item card mb-3" data-sense-index="{{ loop.index0 }}">
-                                <div class="card-header d-flex justify-content-between align-items-center">
-                                    <span>Sense {{ loop.index }}</span>
-                                    <div>
-                                        <button type="button" class="btn btn-sm btn-secondary move-sense-up" title="Move Up">↑</button>
-                                        <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>
-                                        <button type="button" class="btn btn-sm btn-danger remove-sense" title="Remove Sense"><i class="fas fa-trash"></i></button>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <!-- Multilingual Definitions -->
-                                    <div class="definitions-list mb-3">
-                                        <label class="form-label">Definitions <span class="text-danger">*</span></label>
-                                        <div class="definition-items">
-                                            {% if sense.definition is mapping %}
-                                                {% for lang, text in sense.definition.items() %}
-                                                <div class="definition-item input-group mb-2" data-def-index="{{ loop.index0 }}">
-                                                    <select name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][lang]" class="form-select lang-select" style="max-width: 120px;">
-                                                        {% for code, label in project_languages %}
-                                                            <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                    <input type="text" class="form-control" name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][text]" value="{{ text }}" placeholder="Definition">
-                                                    <button type="button" class="btn btn-outline-danger remove-definition" title="Remove"><i class="fas fa-minus"></i></button>
-                                                </div>
-                                                {% endfor %}
-                                            {% else %}
-                                                {# Default to source language if definition is a simple string #}
-                                                {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
-                                                <div class="definition-item input-group mb-2" data-def-index="0">
-                                                    <select name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][lang]" class="form-select lang-select" style="max-width: 120px;">
-                                                        {% for code, label in project_languages %}
-                                                            <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                    <input type="text" class="form-control" name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][text]" value="{{ sense.definition }}" placeholder="Definition">
-                                                    <button type="button" class="btn btn-outline-danger remove-definition" title="Remove"><i class="fas fa-minus"></i></button>
-                                                </div>
-                                            {% endif %}
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-outline-primary add-definition"><i class="fas fa-plus"></i> Add Definition</button>
-                                    </div>
-                                    <!-- Other sense fields can be added here -->
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
                 <div class="card-body">
                     <div id="senses-container">
                         {% if entry.senses %}
                             {% for sense in entry.senses %}
                                 <div class="sense-item card mb-4" data-sense-index="{{ loop.index0 }}">
-                                    <div class="card-header bg-light">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <h6 class="mb-0">Sense {{ loop.index }}</h6>
-                                            {% if loop.index > 1 %}
-                                                <button type="button" class="btn btn-sm btn-outline-danger remove-sense-btn" 
-                                                        data-index="{{ loop.index0 }}">
-                                                    <i class="fas fa-trash"></i> Remove
-                                                </button>
-                                            {% endif %}
-                                        </div>
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <div class="drag-handle me-2" title="Drag to reorder" style="cursor: grab;">
+                                        <i class="fas fa-grip-vertical text-muted"></i>
                                     </div>
+                                    <span>Sense {{ loop.index }}</span>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-secondary move-sense-up" title="Move Up">↑</button>
+                                    <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>                                                                            
+                                    {% if loop.index > 1 %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-sense-btn" 
+                                                data-index="{{ loop.index0 }}">
+                                            <i class="fas fa-trash"></i> Remove
+                                        </button>
+                                    {% endif %}
+                                </div>
+                                </div>
                                     <div class="card-body">
                                         <!-- Hidden field for sense ID -->
                                         <input type="hidden" name="senses[{{ loop.index0 }}].id" value="{{ sense.id }}">
@@ -1342,159 +1284,68 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', async function() {
-    // Initialize Bootstrap tooltips
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+     // Initialize Bootstrap tooltips
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
     
     // Note: Range selects are automatically populated by ranges-loader.js
     // No manual range loading needed - just ensure data-range-id attributes are set
     
     // Initialize component managers after DOM is loaded
     
-    // Initialize pronunciation forms manager
+    // Initialize pronunciation manager (if it exists)
     if (window.PronunciationFormsManager && document.getElementById('pronunciation-container')) {
-        // Get pronunciation data - ensure it's always an object
-        const pronunciationData = {{ entry.pronunciations | default({}) | tojson | safe }};
-        
-        console.log('[DEBUG] Pronunciation data:', pronunciationData);
-        
-        // Convert dictionary format to array format expected by PronunciationFormsManager
-        const pronunciationArray = [];
-        
-        // Handle different data formats
-        if (pronunciationData) {
-            if (Array.isArray(pronunciationData)) {
-                // Already an array - use as is
-                pronunciationArray.push(...pronunciationData);
-            } else if (typeof pronunciationData === 'object') {
-                // Dictionary format - convert to array
-                for (const [writingSystem, value] of Object.entries(pronunciationData)) {
-                    if (value && value.trim()) {  // Only add non-empty values
-                        pronunciationArray.push({
-                            type: writingSystem,
-                            value: value,
-                            audio_path: "",
-                            is_default: true
-                        });
-                    }
-                }
-            }
-        }
-        
-        console.log('[DEBUG] Pronunciation array:', pronunciationArray);
-        console.log('[DEBUG] Container:', document.getElementById('pronunciation-container'));
-        
-        // Hide the "no pronunciations" message if pronunciations exist
-        const noPronunciationsMessage = document.getElementById('no-pronunciations-message');
-        const existingItems = document.querySelectorAll('.pronunciation-item');
-        if (noPronunciationsMessage && existingItems.length > 0) {
-            noPronunciationsMessage.style.display = 'none';
-        }
-        
-        // Always initialize the pronunciation manager
-        window.pronunciationFormsManager = new PronunciationFormsManager('pronunciation-container', {
-            pronunciations: pronunciationArray
-        });
-        
-        console.log('[DEBUG] Pronunciation manager created:', window.pronunciationFormsManager);
-    } else {
-        console.log('[DEBUG] Pronunciation initialization failed:');
-        console.log('  PronunciationFormsManager available:', !!window.PronunciationFormsManager);
-        console.log('  Container available:', !!document.getElementById('pronunciation-container'));
+        // Initialize the manager without data. It should attach listeners to existing items.
+        window.pronunciationFormsManager = new PronunciationFormsManager('pronunciation-container');
     }
-    
-    console.log('[TEMPLATE DEBUG] Script execution starting...');
-    console.log('[TEMPLATE DEBUG] VariantFormsManager available:', typeof window.VariantFormsManager);
-    console.log('[TEMPLATE DEBUG] variants-container exists:', !!document.getElementById('variants-container'));
-    
-                } else if (hasServerSideContent) {
-                    console.log('[TEMPLATE DEBUG] Skipping forceRender() because server-side content exists');
-                } else {
-                    console.log('[TEMPLATE DEBUG] forceRender() not available or container not found');
-                }
-            }, 50);
-        } else {
-            console.log('[TEMPLATE DEBUG] Variant forms manager initialization failed:');
-            console.log('  VariantFormsManager available:', !!window.VariantFormsManager);
-            console.log('  Container available:', !!document.getElementById('variants-container'));
-        }
-    }, 100); // Small delay to ensure all scripts are loaded
 
-    // Initialize relations manager with a small delay to ensure all scripts are loaded
-    setTimeout(function() {
-        if (window.RelationsManager && document.getElementById('relations-container')) {
-            {% if entry.relations %}
-                {% set relations_data = [] %}
-                {% for relation in entry.relations %}
-                    {% set relation_dict = {'type': relation.type, 'ref': relation.ref} %}
-                    {% set _ = relations_data.append(relation_dict) %}
-                {% endfor %}
-                const relations = {{ relations_data | tojson | safe }};
-            {% else %}
-                const relations = [];
-            {% endif %}
-            window.relationsManager = new RelationsManager('relations-container', {
-                relations: relations
-            });
-            console.log('RelationsManager initialized successfully');
-        } else {
-            console.log('RelationsManager initialization failed:');
-            console.log('  RelationsManager available:', !!window.RelationsManager);
-            console.log('  Container available:', !!document.getElementById('relations-container'));
-        }
-    }, 100); // Small delay to ensure all scripts are loaded
+    // Initialize variant forms manager
+    if (window.VariantFormsManager && document.getElementById('variants-container')) {
+        window.variantFormsManager = new VariantFormsManager('variants-container');
+    }
+
+    // Initialize relations manager
+    if (window.RelationsManager && document.getElementById('relations-container')) {
+        window.relationsManager = new RelationsManager('relations-container');
+    }
 
     // Initialize etymology forms manager
     if (window.EtymologyFormsManager && document.getElementById('etymology-container')) {
-        const etymologies = {{ entry.etymologies | tojson | safe }} || [];
         window.etymologyFormsManager = new EtymologyFormsManager('etymology-container', {
-            etymologies: etymologies,
             rangeId: 'etymology-types'
         });
     }
 
     // Initialize multilingual notes manager
     if (window.MultilingualNotesManager && document.getElementById('notes-container')) {
-        {% set notes_data = entry.notes or {} %}
-        const notesData = {{ notes_data | tojson | safe }};
-        window.multilingualNotesManager = new MultilingualNotesManager('notes-container', {
-            notes: notesData
-        });
+        window.multilingualNotesManager = new MultilingualNotesManager('notes-container');
     }
     
-    // Initialize Bootstrap tooltips globally
-    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
-        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
-        console.log('[TOOLTIP DEBUG] Initialized', tooltipList.length, 'tooltips');
-    }
-
-    // Initialize SortableJS for senses
+    // Initialize SortableJS for senses    
     const sensesContainer = document.getElementById('senses-container');
     if (sensesContainer && typeof Sortable !== 'undefined') {
         new Sortable(sensesContainer, {
             animation: 150,
-            handle: '.card-header',
+            handle: '.drag-handle',  // ← Use specific drag handle
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             dragClass: 'sortable-drag',
+            onStart: function(evt) {
+                // Change cursor during drag
+                document.body.style.cursor = 'grabbing';
+            },
             onEnd: function (evt) {
-                const senseItems = sensesContainer.querySelectorAll('.sense-item');
-                senseItems.forEach((item, newIndex) => {
-                    item.dataset.senseIndex = newIndex;
-                    item.querySelector('.card-header span').textContent = `Sense ${newIndex + 1}`;
-                    item.querySelectorAll('[name^="senses"]').forEach(input => {
-                        const oldName = input.getAttribute('name');
-                        const newName = oldName.replace(/senses$$\d+$$/, `senses[${newIndex}]`);
-                        input.setAttribute('name', newName);
-                    });
-                });
+                // Reset cursor
+                document.body.style.cursor = '';
+                // Reindex senses
+                if (typeof reindexSenses === 'function') {
+                    reindexSenses();
+                }
             }
         });
-    }
-
+    }   
+});
 </script>
 
 <!-- Field Visibility Settings Modal -->
