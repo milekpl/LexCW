@@ -343,15 +343,44 @@ function validateForm(showSummaryModal = false) {
     } else {
         document.getElementById('senses-section-header')?.classList.remove('text-danger');
         senses.forEach((sense, index) => {
-            const definitionEl = sense.querySelector(`textarea[name="senses[${index}].definition"]`);
-            if (!definitionEl.value.trim()) {
-                invalidate(definitionEl, `Sense ${index + 1}: Definition is required.`);
+            // Check for multilingual definition fields
+            const definitionForms = sense.querySelectorAll('.definition-forms .language-form');
+            let hasValidDefinition = false;
+            
+            if (definitionForms.length > 0) {
+                // Check each language form for a valid definition
+                definitionForms.forEach(form => {
+                    const textareaEl = form.querySelector('.definition-text');
+                    if (textareaEl && textareaEl.value.trim()) {
+                        hasValidDefinition = true;
+                    }
+                });
+                
+                // If no valid definition found, mark the first textarea as invalid
+                if (!hasValidDefinition) {
+                    const firstTextarea = sense.querySelector('.definition-forms .language-form:first-child .definition-text');
+                    if (firstTextarea) {
+                        invalidate(firstTextarea, `Sense ${index + 1}: Definition is required in at least one language.`);
+                    } else {
+                        errors.push(`Sense ${index + 1}: Definition is required in at least one language.`);
+                        isValid = false;
+                    }
+                }
+            } else {
+                // Fallback to old structure (should not happen with updated template)
+                const definitionEl = sense.querySelector(`textarea[name="senses[${index}].definition"]`);
+                if (definitionEl && !definitionEl.value.trim()) {
+                    invalidate(definitionEl, `Sense ${index + 1}: Definition is required.`);
+                } else if (!definitionEl) {
+                    errors.push(`Sense ${index + 1}: Definition field not found.`);
+                    isValid = false;
+                }
             }
 
             // Validate Examples
             sense.querySelectorAll('.example-item').forEach((example, exIndex) => {
-                const exampleTextEl = example.querySelector(`textarea[name="senses[${index}].examples[${exIndex}].text"]`);
-                if (!exampleTextEl.value.trim()) {
+                const exampleTextEl = example.querySelector(`textarea[name*="examples"][name*="text"]`);
+                if (exampleTextEl && !exampleTextEl.value.trim()) {
                     invalidate(exampleTextEl, `Sense ${index + 1}, Example ${exIndex + 1}: Example text is required.`);
                 }
             });
@@ -373,28 +402,12 @@ function validateForm(showSummaryModal = false) {
 
 
 /**
- * Serializes and submits the form data via AJAX.
+ * Serializes and submits the form data via AJAX with improved error handling.
  */
-function submitForm() {
+async function submitForm() {
     const form = document.getElementById('entry-form');
     if (!form) {
         console.error('Form not found');
-        return;
-    }
-
-    let jsonData;
-    try {
-        if (typeof window.FormSerializer === 'undefined') {
-            throw new Error('FormSerializer library is not loaded.');
-        }
-        // Assuming FormSerializer handles complex nested data correctly.
-        jsonData = window.FormSerializer.serializeFormToJSON(form, {
-            includeEmpty: false,
-            transform: (value) => (typeof value === 'string' ? value.trim() : value)
-        });
-    } catch (error) {
-        console.error('Form serialization error:', error);
-        showToast(`Form serialization failed: ${error.message}`, 'error');
         return;
     }
 
@@ -402,46 +415,120 @@ function submitForm() {
     const originalText = saveBtn.innerHTML;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
     saveBtn.disabled = true;
-
-    const entryId = form.querySelector('input[name="id"]')?.value.trim();
-    const apiUrl = entryId ? `/api/entries/${entryId}` : '/api/entries/';
-    const apiMethod = entryId ? 'PUT' : 'POST';
-
-    console.log(`Submitting to URL: ${apiUrl}, Method: ${apiMethod}`);
-    console.log('Payload:', JSON.stringify(jsonData, null, 2));
-
-    fetch(apiUrl, {
+    
+    // Add a progress indicator
+    const progressContainer = document.createElement('div');
+    progressContainer.className = 'progress mt-2';
+    progressContainer.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>';
+    saveBtn.parentNode.appendChild(progressContainer);
+    const progressBar = progressContainer.querySelector('.progress-bar');
+    
+    try {
+        // Update progress
+        progressBar.style.width = '10%';
+        progressBar.textContent = 'Preparing data...';
+        
+        // Check if we have the safe serialization method
+        if (typeof window.FormSerializer === 'undefined') {
+            throw new Error('FormSerializer library is not loaded.');
+        }
+        
+        // Use a promise-based approach for serialization
+        const serializePromise = new Promise((resolve, reject) => {
+            try {
+                // First try the standard serialization
+                const jsonData = window.FormSerializer.serializeFormToJSON(form, {
+                    includeEmpty: false,
+                    transform: (value) => (typeof value === 'string' ? value.trim() : value)
+                });
+                resolve(jsonData);
+            } catch (error) {
+                reject(error);
+            }
+        });
+        
+        // Set a timeout for serialization
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Form serialization timed out. The form may be too complex.')), 10000);
+        });
+        
+        // Race the serialization against the timeout
+        const jsonData = await Promise.race([serializePromise, timeoutPromise]);
+        
+        // Update progress
+        progressBar.style.width = '30%';
+        progressBar.textContent = 'Data prepared, sending...';
+        
+        const entryId = form.querySelector('input[name="id"]')?.value?.trim();
+        const apiUrl = entryId ? `/api/entries/${entryId}` : '/api/entries/';
+        const apiMethod = entryId ? 'PUT' : 'POST';
+        
+        console.log(`Submitting to URL: ${apiUrl}, Method: ${apiMethod}`);
+        
+        // Set a timeout for the fetch request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        
+        // Update progress
+        progressBar.style.width = '50%';
+        progressBar.textContent = 'Sending to server...';
+        
+        const response = await fetch(apiUrl, {
             method: apiMethod,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify(jsonData)
-        })
-        .then(async response => {
-            const responseData = await response.json();
-            if (!response.ok) {
-                // Extract a more detailed error message if available
-                const errorMessage = responseData.error || responseData.message || `HTTP error! Status: ${response.status}`;
-                throw new Error(errorMessage);
-            }
-            return responseData;
-        })
-        .then(responseData => {
-            const idForRedirect = responseData.entry_id || entryId;
-            if (idForRedirect) {
-                window.location.href = `/entries/${idForRedirect}?status=saved`;
-            } else {
-                console.warn("No entry ID found for redirect. Redirecting to entries list.");
-                window.location.href = '/entries';
-            }
-        })
-        .catch(error => {
-            console.error('Submission Error:', error);
-            saveBtn.innerHTML = originalText;
-            saveBtn.disabled = false;
-            showToast(`Error saving entry: ${error.message}`, 'error');
+            body: JSON.stringify(jsonData),
+            signal: controller.signal
         });
+        
+        // Clear the timeout
+        clearTimeout(timeoutId);
+        
+        // Update progress
+        progressBar.style.width = '80%';
+        progressBar.textContent = 'Processing response...';
+        
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+            // Extract a more detailed error message if available
+            const errorMessage = responseData.error || responseData.message || `HTTP error! Status: ${response.status}`;
+            throw new Error(errorMessage);
+        }
+        
+        // Update progress
+        progressBar.style.width = '100%';
+        progressBar.textContent = 'Complete!';
+        
+        // Redirect after successful save
+        const idForRedirect = responseData.entry_id || entryId;
+        if (idForRedirect) {
+            window.location.href = `/entries/${idForRedirect}?status=saved`;
+        } else {
+            console.warn("No entry ID found for redirect. Redirecting to entries list.");
+            window.location.href = '/entries';
+        }
+        
+    } catch (error) {
+        console.error('Submission Error:', error);
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+        
+        // Update progress to show error
+        progressBar.style.width = '100%';
+        progressBar.className = 'progress-bar bg-danger';
+        progressBar.textContent = 'Error!';
+        
+        // Show detailed error message
+        showToast(`Error saving entry: ${error.message}`, 'error');
+        
+        // Remove progress bar after delay
+        setTimeout(() => {
+            progressContainer.remove();
+        }, 5000);
+    }
 }
 
 // --- Dynamic Element Creation Functions ---
