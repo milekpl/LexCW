@@ -243,6 +243,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return;
             }
+            
+            // Handle move sense up button
+            const moveSenseUpBtn = e.target.closest('.move-sense-up-btn');
+            if (moveSenseUpBtn) {
+                const senseItem = moveSenseUpBtn.closest('.sense-item');
+                const prevSenseItem = senseItem.previousElementSibling;
+                if (prevSenseItem && prevSenseItem.classList.contains('sense-item')) {
+                    sensesContainer.insertBefore(senseItem, prevSenseItem);
+                    reindexSenses();
+                }
+                return;
+            }
+            
+            // Handle move sense down button
+            const moveSenseDownBtn = e.target.closest('.move-sense-down-btn');
+            if (moveSenseDownBtn) {
+                const senseItem = moveSenseDownBtn.closest('.sense-item');
+                const nextSenseItem = senseItem.nextElementSibling;
+                if (nextSenseItem && nextSenseItem.classList.contains('sense-item')) {
+                    sensesContainer.insertBefore(nextSenseItem, senseItem);
+                    reindexSenses();
+                }
+                return;
+            }
 
             const addExampleBtn = e.target.closest('.add-example-btn');
             if (addExampleBtn) {
@@ -631,8 +655,14 @@ function reindexSenses() {
         const oldIndex = sense.dataset.senseIndex;
         if (oldIndex === newIndex.toString()) return; // No change needed
 
-        // Update visual elements
-        sense.querySelector('h6').textContent = `Sense ${newIndex + 1}`;
+        // Update visual elements - find all headers that contain the sense number
+        sense.querySelectorAll('h6').forEach(header => {
+            if (header.textContent.includes('Sense')) {
+                header.textContent = `Sense ${newIndex + 1}`;
+            }
+        });
+        
+        // Update data attribute
         sense.dataset.senseIndex = newIndex;
 
         // Update buttons that rely on the index
@@ -640,17 +670,30 @@ function reindexSenses() {
             btn.dataset.senseIndex = newIndex;
         });
 
-        // FIX: Update field names with a more robust regex.
-        // This regex correctly targets `senses[<number>]` at the beginning of the name attribute.
+        // Update field names with a more robust approach
         sense.querySelectorAll('[name^="senses["]').forEach(field => {
             const name = field.getAttribute('name');
-            field.setAttribute('name', name.replace(`senses[${oldIndex}]`, `senses[${newIndex}]`));
+            field.setAttribute('name', name.replace(new RegExp(`senses\\[${oldIndex}\\]`, 'g'), `senses[${newIndex}]`));
         });
-
-        // Note: Examples within this sense are already correctly indexed relative to the parent,
-        // so we don't need to call reindexExamples here unless their names also need the parent index updated.
-        // The regex above handles that.
+        
+        // Update multilingual field indices if the manager exists
+        if (window.multilingualSenseFieldsManager) {
+            window.multilingualSenseFieldsManager.updateSenseIndices(oldIndex, newIndex);
+        }
+        
+        // Update example buttons and headers
+        sense.querySelectorAll('.add-example-btn').forEach(btn => {
+            btn.dataset.senseIndex = newIndex;
+        });
+        
+        // Reindex examples within this sense
+        reindexExamples(newIndex);
     });
+    
+    // After reindexing, check if we need to update grammatical inheritance
+    if (typeof updateGrammaticalCategoryInheritance === 'function') {
+        updateGrammaticalCategoryInheritance();
+    }
 }
 
 /**

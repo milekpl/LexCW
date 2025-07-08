@@ -332,6 +332,33 @@ def edit_entry(entry_id):
             # Extract enriched component_relations for template (with display text for main entries)
             component_relations_data = entry.get_component_relations(dict_service)
 
+        # Get project languages for multilingual fields
+        project_settings = current_app.config.get('PROJECT_SETTINGS', {})
+        languages = []
+        
+        # Add source language
+        if 'source_language' in project_settings and project_settings['source_language']:
+            source_lang = project_settings['source_language']
+            languages.append((source_lang.get('code', 'en'), source_lang.get('name', 'English')))
+            
+        # Add target language if different from source
+        if 'target_language' in project_settings and project_settings['target_language']:
+            target_lang = project_settings['target_language']
+            target_code = target_lang.get('code')
+            if target_code and not any(code == target_code for code, _ in languages):
+                languages.append((target_code, target_lang.get('name', target_code)))
+                
+        # Add additional languages
+        if 'additional_languages' in project_settings and project_settings['additional_languages']:
+            for lang in project_settings['additional_languages']:
+                code = lang.get('code')
+                if code and not any(existing_code == code for existing_code, _ in languages):
+                    languages.append((code, lang.get('name', code)))
+                    
+        # If no languages found, add English as default
+        if not languages:
+            languages = [('en', 'English')]
+            
         return render_template(
             "entry_form.html",
             entry=entry,
@@ -339,6 +366,7 @@ def edit_entry(entry_id):
             variant_relations=variant_relations_data,
             component_relations=component_relations_data,
             validation_result=validation_result,
+            project_languages=languages,
         )
     except NotFoundError as e:
         logger.warning(f"Entry with ID {entry_id} not found: {e}")
@@ -477,7 +505,34 @@ def add_entry():
         # Get LIFT ranges for dropdowns
         ranges = dict_service.get_lift_ranges()
 
-        return render_template("entry_form.html", entry=entry, ranges=ranges)
+        # Get project languages for multilingual fields
+        project_settings = current_app.config.get('PROJECT_SETTINGS', {})
+        languages = []
+        
+        # Add source language
+        if 'source_language' in project_settings and project_settings['source_language']:
+            source_lang = project_settings['source_language']
+            languages.append((source_lang.get('code', 'en'), source_lang.get('name', 'English')))
+            
+        # Add target language if different from source
+        if 'target_language' in project_settings and project_settings['target_language']:
+            target_lang = project_settings['target_language']
+            target_code = target_lang.get('code')
+            if target_code and not any(code == target_code for code, _ in languages):
+                languages.append((target_code, target_lang.get('name', target_code)))
+                
+        # Add additional languages
+        if 'additional_languages' in project_settings and project_settings['additional_languages']:
+            for lang in project_settings['additional_languages']:
+                code = lang.get('code')
+                if code and not any(existing_code == code for existing_code, _ in languages):
+                    languages.append((code, lang.get('name', code)))
+                    
+        # If no languages found, add English as default
+        if not languages:
+            languages = [('en', 'English')]
+            
+        return render_template("entry_form.html", entry=entry, ranges=ranges, project_languages=languages)
 
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
