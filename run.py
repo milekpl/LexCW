@@ -1,5 +1,5 @@
 """
-Main entry point for the Dictionary Writing System application.
+Main entry point for the Lexicographic Curation Workbench application.
 """
 
 import sys

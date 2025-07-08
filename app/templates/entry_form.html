@@ -90,72 +90,7 @@
                         <label for="homograph-number" class="form-label">
                             Homograph Number
                             <span class="input-group-text border-0 bg-transparent p-0 ms-1">
-                                <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top"
-        <!-- Senses Section: Multilingual definitions and reordering -->
-        <div class="col-md-8">
-            <div class="card mb-4 senses-section">
-                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-                    <h5><i class="fas fa-lightbulb"></i> Senses</h5>
-                    <button type="button" class="btn btn-sm btn-primary" id="add-sense-btn">
-                        <i class="fas fa-plus"></i> Add Sense
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="senses-container">
-                        {% if entry.senses %}
-                            {% for sense in entry.senses %}
-                            <div class="sense-item card mb-3" data-sense-index="{{ loop.index0 }}">
-                                <div class="card-header d-flex justify-content-between align-items-center">
-                                    <span>Sense {{ loop.index }}</span>
-                                    <div>
-                                        <button type="button" class="btn btn-sm btn-secondary move-sense-up" title="Move Up">↑</button>
-                                        <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>
-                                        <button type="button" class="btn btn-sm btn-danger remove-sense" title="Remove Sense"><i class="fas fa-trash"></i></button>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <!-- Multilingual Definitions -->
-                                    <div class="definitions-list mb-3">
-                                        <label class="form-label">Definitions <span class="text-danger">*</span></label>
-                                        <div class="definition-items">
-                                            {% if sense.definition is mapping %}
-                                                {% for lang, text in sense.definition.items() %}
-                                                <div class="definition-item input-group mb-2" data-def-index="{{ loop.index0 }}">
-                                                    <select name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][lang]" class="form-select lang-select" style="max-width: 120px;">
-                                                        {% for code, label in project_languages %}
-                                                            <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                    <input type="text" class="form-control" name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][text]" value="{{ text }}" placeholder="Definition">
-                                                    <button type="button" class="btn btn-outline-danger remove-definition" title="Remove"><i class="fas fa-minus"></i></button>
-                                                </div>
-                                                {% endfor %}
-                                            {% else %}
-                                                {# Default to source language if definition is a simple string #}
-                                                {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
-                                                <div class="definition-item input-group mb-2" data-def-index="0">
-                                                    <select name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][lang]" class="form-select lang-select" style="max-width: 120px;">
-                                                        {% for code, label in project_languages %}
-                                                            <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                    <input type="text" class="form-control" name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][text]" value="{{ sense.definition }}" placeholder="Definition">
-                                                    <button type="button" class="btn btn-outline-danger remove-definition" title="Remove"><i class="fas fa-minus"></i></button>
-                                                </div>
-                                            {% endif %}
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-outline-primary add-definition"><i class="fas fa-plus"></i> Add Definition</button>
-                                    </div>
-                                    <!-- Other sense fields can be added here -->
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-                                   title="This entry is assigned homograph number {{ entry.homograph_number }} to distinguish it from other entries with the same lexical unit."></i>
+                                <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="This entry is assigned homograph number {{ entry.homograph_number }} to distinguish it from other entries with the same lexical unit."></i>
                             </span>
                         </label>
                         <input type="text" class="form-control" id="homograph-number" name="homograph_number" 
@@ -935,6 +870,72 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Senses Section: Multilingual definitions and reordering -->
+        <div class="col-md-8">
+            <div class="card mb-4 senses-section">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-lightbulb"></i> Senses</h5>
+                    <button type="button" class="btn btn-sm btn-primary" id="add-sense-btn">
+                        <i class="fas fa-plus"></i> Add Sense
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="senses-container1">
+                        {% if entry.senses %}
+                            {% for sense in entry.senses %}
+                            <div class="sense-item card mb-3" data-sense-index="{{ loop.index0 }}">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>Sense {{ loop.index }}</span>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-secondary move-sense-up" title="Move Up">↑</button>
+                                        <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>
+                                        <button type="button" class="btn btn-sm btn-danger remove-sense" title="Remove Sense"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Multilingual Definitions -->
+                                    <div class="definitions-list mb-3">
+                                        <label class="form-label">Definitions <span class="text-danger">*</span></label>
+                                        <div class="definition-items">
+                                            {% if sense.definition is mapping %}
+                                                {% for lang, text in sense.definition.items() %}
+                                                <div class="definition-item input-group mb-2" data-def-index="{{ loop.index0 }}">
+                                                    <select name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][lang]" class="form-select lang-select" style="max-width: 120px;">
+                                                        {% for code, label in project_languages %}
+                                                            <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <input type="text" class="form-control" name="senses[{{ loop.parent.index0 }}][definition][{{ lang }}][text]" value="{{ text }}" placeholder="Definition">
+                                                    <button type="button" class="btn btn-outline-danger remove-definition" title="Remove"><i class="fas fa-minus"></i></button>
+                                                </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                {# Default to source language if definition is a simple string #}
+                                                {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                                                <div class="definition-item input-group mb-2" data-def-index="0">
+                                                    <select name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][lang]" class="form-select lang-select" style="max-width: 120px;">
+                                                        {% for code, label in project_languages %}
+                                                            <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <input type="text" class="form-control" name="senses[{{ loop.index0 }}][definition][{{ default_lang_code }}][text]" value="{{ sense.definition }}" placeholder="Definition">
+                                                    <button type="button" class="btn btn-outline-danger remove-definition" title="Remove"><i class="fas fa-minus"></i></button>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary add-definition"><i class="fas fa-plus"></i> Add Definition</button>
+                                    </div>
+                                    <!-- Other sense fields can be added here -->
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
                 <div class="card-body">
                     <div id="senses-container">
                         {% if entry.senses %}
@@ -1475,35 +1476,25 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (sensesContainer && typeof Sortable !== 'undefined') {
         new Sortable(sensesContainer, {
             animation: 150,
-            handle: '.card-header', // Allow dragging by the card header
-            ghostClass: 'sortable-ghost', // Class name for the drop placeholder
-            chosenClass: 'sortable-chosen', // Class name for the chosen item
-            dragClass: 'sortable-drag', // Class name for the dragging item
+            handle: '.card-header',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
             onEnd: function (evt) {
-                // Update sense indices and names after reordering
                 const senseItems = sensesContainer.querySelectorAll('.sense-item');
                 senseItems.forEach((item, newIndex) => {
                     item.dataset.senseIndex = newIndex;
-                    // Update labels like "Sense X"
-                    const senseLabel = item.querySelector('.card-header span');
-                    if (senseLabel) {
-                        senseLabel.textContent = `Sense ${newIndex + 1}`;
-                    }
-                    // Update input names to reflect new order
+                    item.querySelector('.card-header span').textContent = `Sense ${newIndex + 1}`;
                     item.querySelectorAll('[name^="senses"]').forEach(input => {
                         const oldName = input.getAttribute('name');
-                        const newName = oldName.replace(/senses\[\d+\]/, `senses[${newIndex}]`);
+                        const newName = oldName.replace(/senses$$\d+$$/, `senses[${newIndex}]`);
                         input.setAttribute('name', newName);
                     });
                 });
-                console.log('Senses reordered and indices updated.');
             }
         });
-    } else {
-        console.error('SortableJS or senses container not found.');
     }
 
-});
 </script>
 
 <!-- Field Visibility Settings Modal -->
