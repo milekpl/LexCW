@@ -1,7 +1,11 @@
 /**
- * Multilingual Sense Fields Manager
+ * Multilingual Fields Manager
  * 
- * Handles the multilingual definition and gloss fields in the entry form.
+ * Handles the multilingual fields in the entry form:
+ * - Definition fields in senses
+ * - Gloss fields in senses
+ * - Note fields in the entry
+ * 
  * Provides functionality to add and remove language-specific inputs.
  */
 
@@ -32,6 +36,14 @@ class MultilingualSenseFieldsManager {
                 this.addLanguageField(container, senseIndex, 'gloss');
             }
             
+            // Add note language button
+            if (event.target.closest('.add-note-language-btn')) {
+                const button = event.target.closest('.add-note-language-btn');
+                const noteType = button.dataset.noteType;
+                const container = button.closest('.mb-3').querySelector('.multilingual-forms');
+                this.addNoteLanguageField(container, noteType);
+            }
+            
             // Remove definition language button
             if (event.target.closest('.remove-definition-language-btn')) {
                 const button = event.target.closest('.remove-definition-language-btn');
@@ -45,11 +57,18 @@ class MultilingualSenseFieldsManager {
                 const languageForm = button.closest('.language-form');
                 this.removeLanguageField(languageForm);
             }
+            
+            // Remove note language button
+            if (event.target.closest('.remove-note-language-btn')) {
+                const button = event.target.closest('.remove-note-language-btn');
+                const languageForm = button.closest('.language-form');
+                this.removeLanguageField(languageForm);
+            }
         });
     }
 
     /**
-     * Add a new language field to a multilingual container
+     * Add a new language field to a multilingual container for senses
      * @param {HTMLElement} container - The container element
      * @param {string} senseIndex - The index of the sense
      * @param {string} fieldType - The type of field ('definition' or 'gloss')
@@ -133,6 +152,74 @@ class MultilingualSenseFieldsManager {
                 </div>
             `;
         }
+        
+        // Add the new form to the container
+        container.appendChild(newForm);
+        
+        // Initialize any Select2 elements if needed
+        if (window.$ && $.fn.select2) {
+            $(newForm).find('select').select2({
+                theme: 'bootstrap-5'
+            });
+        }
+    }
+    
+    /**
+     * Add a new language field to a multilingual container for notes
+     * @param {HTMLElement} container - The container element
+     * @param {string} noteType - The type of note
+     */
+    addNoteLanguageField(container, noteType) {
+        // Get all existing language codes in this container
+        const existingLanguages = Array.from(container.querySelectorAll('.language-form'))
+            .map(form => form.dataset.language);
+        
+        // Get all available language options
+        const languageOptions = Array.from(container.querySelector('select.language-select').options)
+            .map(option => ({
+                code: option.value,
+                label: option.textContent
+            }))
+            .filter(lang => !existingLanguages.includes(lang.code));
+        
+        // If no more languages available, show a message
+        if (languageOptions.length === 0) {
+            alert('All available languages have already been added.');
+            return;
+        }
+        
+        // Select the first available language
+        const newLang = languageOptions[0];
+        
+        // Create the new language form
+        const newForm = document.createElement('div');
+        newForm.className = 'mb-3 language-form';
+        newForm.dataset.language = newLang.code;
+        
+        newForm.innerHTML = `
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label">Language</label>
+                    <select class="form-select language-select" 
+                            name="notes[${noteType}][${newLang.code}][lang]">
+                        ${this.generateLanguageOptions(languageOptions, newLang.code)}
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Note Text</label>
+                    <textarea class="form-control note-text" 
+                              name="notes[${noteType}][${newLang.code}][text]"
+                              rows="2" 
+                              placeholder="Enter note in ${newLang.code}"></textarea>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-note-language-btn" 
+                            title="Remove language">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
         
         // Add the new form to the container
         container.appendChild(newForm);
