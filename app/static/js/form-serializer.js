@@ -253,10 +253,75 @@ function validateFormForSerialization(form) {
     return result;
 }
 
+/**
+ * Serializes a form to a structured JSON object with safety measures
+ * @param {HTMLFormElement|FormData} input - Form element or FormData object
+ * @param {Object} options - Configuration options
+ * @returns {Promise<Object>} Structured JSON object
+ */
+function serializeFormToJSONSafe(input, options = {}) {
+    return new Promise((resolve, reject) => {
+        // Set a reasonable timeout
+        const timeout = setTimeout(() => {
+            reject(new Error('Form serialization timed out. The form may be too complex.'));
+        }, options.timeout || 10000);
+        
+        try {
+            // Use a worker if available to prevent UI freezing
+            if (window.Worker) {
+                try {
+                    const worker = new Worker('/static/js/form-serializer-worker.js');
+                    
+                    worker.onmessage = function(e) {
+                        clearTimeout(timeout);
+                        if (e.data.error) {
+                            reject(new Error(e.data.error));
+                        } else {
+                            resolve(e.data.result);
+                        }
+                        worker.terminate();
+                    };
+                    
+                    worker.onerror = function(error) {
+                        clearTimeout(timeout);
+                        reject(new Error(`Worker error: ${error.message}`));
+                        worker.terminate();
+                    };
+                    
+                    // Convert form to serializable format
+                    const formData = input instanceof HTMLFormElement ? 
+                        Array.from(new FormData(input).entries()) : 
+                        Array.from(input.entries());
+                    
+                    worker.postMessage({
+                        formData: formData,
+                        options: options
+                    });
+                } catch (workerError) {
+                    console.warn('Web Worker failed, falling back to synchronous processing:', workerError);
+                    // Fallback to synchronous processing
+                    const result = serializeFormToJSON(input, options);
+                    clearTimeout(timeout);
+                    resolve(result);
+                }
+            } else {
+                // Fallback to synchronous processing
+                const result = serializeFormToJSON(input, options);
+                clearTimeout(timeout);
+                resolve(result);
+            }
+        } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+        }
+    });
+}
+
 // Export for both Node.js and browser environments
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         serializeFormToJSON,
+        serializeFormToJSONSafe,
         setNestedValue,
         parseFieldPath,
         validateFormForSerialization
@@ -264,6 +329,7 @@ if (typeof module !== 'undefined' && module.exports) {
 } else if (typeof window !== 'undefined') {
     window.FormSerializer = {
         serializeFormToJSON,
+        serializeFormToJSONSafe,
         setNestedValue,
         parseFieldPath,
         validateFormForSerialization

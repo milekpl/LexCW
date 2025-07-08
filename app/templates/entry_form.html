@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/validation-feedback.css') }}">
 {% endblock %}
 
+
+
 {% block content %}
 {% if validation_result and not validation_result.is_valid %}
 <!-- Validation Guidance Section -->
@@ -66,8 +68,7 @@
 </div>
 
 <form id="entry-form" method="post"
-      action="javascript:void(0);">
-      {% if entry.id %}
+      action="{{ url_for('api.entries') if not entry.id else url_for('main.edit_entry', entry_id=entry.id) }}">      {% if entry.id %}
         <input type="hidden" name="id" value="{{ entry.id }}">
     {% endif %}
     <div class="row">
@@ -900,14 +901,146 @@
                                         
                                         <div class="mb-3">
                                             <label class="form-label">Definition <span class="text-danger">*</span></label>
-                                            <textarea class="form-control" name="senses[{{ loop.index0 }}].definition" 
-                                                      rows="2" required>{{ sense.definition }}</textarea>
+                                            <div class="multilingual-forms definition-forms">
+                                                {% if sense.definition is mapping %}
+                                                    {% for lang, text in sense.definition.items() %}
+                                                    <div class="mb-3 language-form" data-language="{{ lang }}">
+                                                        <div class="row">
+                                                            <div class="col-md-3">
+                                                                <label class="form-label">Language</label>
+                                                                <select class="form-select language-select" 
+                                                                        name="senses[{{ loop.index0 }}].definition[{{ lang }}].lang">
+                                                                    {% for code, label in project_languages %}
+                                                                        <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-8">
+                                                                <label class="form-label">Definition Text</label>
+                                                                <textarea class="form-control definition-text" 
+                                                                          name="senses[{{ loop.index0 }}].definition[{{ lang }}].text" 
+                                                                          rows="2" 
+                                                                          {% if loop.first %}required{% endif %}
+                                                                          placeholder="Enter definition in {{ lang }}">{{ text }}</textarea>
+                                                            </div>
+                                                            <div class="col-md-1 d-flex align-items-end">
+                                                                {% if not loop.first %}
+                                                                <button type="button" class="btn btn-sm btn-outline-danger remove-definition-language-btn" 
+                                                                        title="Remove language">
+                                                                    <i class="fas fa-times"></i>
+                                                                </button>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    {# Default to source language if definition is a simple string #}
+                                                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                                                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                                                        <div class="row">
+                                                            <div class="col-md-3">
+                                                                <label class="form-label">Language</label>
+                                                                <select class="form-select language-select" 
+                                                                        name="senses[{{ loop.index0 }}].definition[{{ default_lang_code }}].lang">
+                                                                    {% for code, label in project_languages %}
+                                                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-8">
+                                                                <label class="form-label">Definition Text</label>
+                                                                <textarea class="form-control definition-text" 
+                                                                          name="senses[{{ loop.index0 }}].definition[{{ default_lang_code }}].text"
+                                                                          rows="2" 
+                                                                          required
+                                                                          placeholder="Enter definition in {{ default_lang_code }}">{{ sense.definition }}</textarea>
+                                                            </div>
+                                                            <div class="col-md-1">
+                                                                <!-- No remove button for primary language -->
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="mt-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn" 
+                                                        data-sense-index="{{ loop.index0 }}"
+                                                        title="Add another language">
+                                                    <i class="fas fa-plus"></i> Add Language
+                                                </button>
+                                            </div>
                                         </div>
                                         
                                         <div class="mb-3">
                                             <label class="form-label">Gloss</label>
-                                            <input type="text" class="form-control" name="senses[{{ loop.index0 }}].gloss" 
-                                                   value="{{ sense.gloss }}">
+                                            <div class="multilingual-forms gloss-forms">
+                                                {% if sense.gloss is mapping %}
+                                                    {% for lang, text in sense.gloss.items() %}
+                                                    <div class="mb-3 language-form" data-language="{{ lang }}">
+                                                        <div class="row">
+                                                            <div class="col-md-3">
+                                                                <label class="form-label">Language</label>
+                                                                <select class="form-select language-select" 
+                                                                        name="senses[{{ loop.index0 }}].gloss[{{ lang }}].lang">
+                                                                    {% for code, label in project_languages %}
+                                                                        <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-8">
+                                                                <label class="form-label">Gloss Text</label>
+                                                                <input type="text" class="form-control gloss-text" 
+                                                                       name="senses[{{ loop.index0 }}].gloss[{{ lang }}].text" 
+                                                                       value="{{ text }}"
+                                                                       placeholder="Enter gloss in {{ lang }}">
+                                                            </div>
+                                                            <div class="col-md-1 d-flex align-items-end">
+                                                                {% if not loop.first %}
+                                                                <button type="button" class="btn btn-sm btn-outline-danger remove-gloss-language-btn" 
+                                                                        title="Remove language">
+                                                                    <i class="fas fa-times"></i>
+                                                                </button>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    {# Default to target language if gloss is a simple string #}
+                                                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                                                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                                                        <div class="row">
+                                                            <div class="col-md-3">
+                                                                <label class="form-label">Language</label>
+                                                                <select class="form-select language-select" 
+                                                                        name="senses[{{ loop.index0 }}].gloss[{{ default_lang_code }}].lang">
+                                                                    {% for code, label in project_languages %}
+                                                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-8">
+                                                                <label class="form-label">Gloss Text</label>
+                                                                <input type="text" class="form-control gloss-text" 
+                                                                       name="senses[{{ loop.index0 }}].gloss[{{ default_lang_code }}].text"
+                                                                       value="{{ sense.gloss }}"
+                                                                       placeholder="Enter gloss in {{ default_lang_code }}">
+                                                            </div>
+                                                            <div class="col-md-1">
+                                                                <!-- No remove button for primary language -->
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="mt-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary add-gloss-language-btn" 
+                                                        data-sense-index="{{ loop.index0 }}"
+                                                        title="Add another language">
+                                                    <i class="fas fa-plus"></i> Add Language
+                                                </button>
+                                            </div>
                                             <div class="form-text">A short equivalent in another language.</div>
                                         </div>
                                         
@@ -1002,13 +1135,77 @@
                                 <div class="card-body">
                                     <div class="mb-3">
                                         <label class="form-label">Definition <span class="text-danger">*</span></label>
-                                        <textarea class="form-control" name="senses[0].definition" 
-                                                  rows="2" required></textarea>
+                                        <div class="multilingual-forms definition-forms">
+                                            {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                                            <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                                                <div class="row">
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Language</label>
+                                                        <select class="form-select language-select" 
+                                                                name="senses[0].definition[{{ default_lang_code }}].lang">
+                                                            {% for code, label in project_languages %}
+                                                                <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-8">
+                                                        <label class="form-label">Definition Text</label>
+                                                        <textarea class="form-control definition-text" 
+                                                                  name="senses[0].definition[{{ default_lang_code }}].text"
+                                                                  rows="2" 
+                                                                  required
+                                                                  placeholder="Enter definition in {{ default_lang_code }}"></textarea>
+                                                    </div>
+                                                    <div class="col-md-1">
+                                                        <!-- No remove button for primary language -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn" 
+                                                    data-sense-index="0"
+                                                    title="Add another language">
+                                                <i class="fas fa-plus"></i> Add Language
+                                            </button>
+                                        </div>
                                     </div>
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Gloss</label>
-                                        <input type="text" class="form-control" name="senses[0].gloss" value="">
+                                        <div class="multilingual-forms gloss-forms">
+                                            {% set default_lang_code = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                                            <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                                                <div class="row">
+                                                    <div class="col-md-3">
+                                                        <label class="form-label">Language</label>
+                                                        <select class="form-select language-select" 
+                                                                name="senses[0].gloss[{{ default_lang_code }}].lang">
+                                                            {% for code, label in project_languages %}
+                                                                <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-8">
+                                                        <label class="form-label">Gloss Text</label>
+                                                        <input type="text" class="form-control gloss-text" 
+                                                               name="senses[0].gloss[{{ default_lang_code }}].text"
+                                                               value=""
+                                                               placeholder="Enter gloss in {{ default_lang_code }}">
+                                                    </div>
+                                                    <div class="col-md-1">
+                                                        <!-- No remove button for primary language -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary add-gloss-language-btn" 
+                                                    data-sense-index="0"
+                                                    title="Add another language">
+                                                <i class="fas fa-plus"></i> Add Language
+                                            </button>
+                                        </div>
                                         <div class="form-text">A short equivalent in another language.</div>
                                     </div>
                                     
@@ -1145,13 +1342,77 @@
             
             <div class="mb-3">
                 <label class="form-label">Definition <span class="text-danger">*</span></label>
-                <textarea class="form-control" name="senses[INDEX].definition" 
-                          rows="2" required></textarea>
+                <div class="multilingual-forms definition-forms">
+                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">Language</label>
+                                <select class="form-select language-select" 
+                                        name="senses[INDEX].definition[{{ default_lang_code }}].lang">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Definition Text</label>
+                                <textarea class="form-control definition-text" 
+                                          name="senses[INDEX].definition[{{ default_lang_code }}].text"
+                                          rows="2" 
+                                          required
+                                          placeholder="Enter definition in {{ default_lang_code }}"></textarea>
+                            </div>
+                            <div class="col-md-1">
+                                <!-- No remove button for primary language -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
             </div>
             
             <div class="mb-3">
                 <label class="form-label">Gloss</label>
-                <input type="text" class="form-control" name="senses[INDEX].gloss" value="">
+                <div class="multilingual-forms gloss-forms">
+                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">Language</label>
+                                <select class="form-select language-select" 
+                                        name="senses[INDEX].gloss[{{ default_lang_code }}].lang">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Gloss Text</label>
+                                <input type="text" class="form-control gloss-text" 
+                                       name="senses[INDEX].gloss[{{ default_lang_code }}].text"
+                                       value=""
+                                       placeholder="Enter gloss in {{ default_lang_code }}">
+                            </div>
+                            <div class="col-md-1">
+                                <!-- No remove button for primary language -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-gloss-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
                 <div class="form-text">A short equivalent in another language.</div>
             </div>
             
@@ -1267,19 +1528,35 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Select2 for enhanced dropdowns -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- Form serialization utilities -->
 <script src="{{ url_for('static', filename='js/form-serializer.js') }}"></script>
+<!-- Form state management -->
 <script src="{{ url_for('static', filename='js/form-state-manager.js') }}"></script>
+<!-- Client validation -->
 <script src="{{ url_for('static', filename='js/client-validation-engine.js') }}"></script>
+<!-- Auto-save functionality -->
 <script src="{{ url_for('static', filename='js/auto-save-manager.js') }}"></script>
+<!-- Validation UI -->
 <script src="{{ url_for('static', filename='js/validation-ui.js') }}"></script>
+<!-- Inline validation -->
 <script src="{{ url_for('static', filename='js/inline-validation.js') }}"></script>
+<!-- Ranges loader -->
 <script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
+<!-- SortableJS for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<!-- Pronunciation management -->
 <script src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
+<!-- Variant relationships management -->
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
+<!-- Relations management -->
 <script src="{{ url_for('static', filename='js/relations.js') }}"></script>
+<!-- Etymology management -->
 <script src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
+<!-- Multilingual fields management -->
+<script src="{{ url_for('static', filename='js/multilingual-sense-fields.js') }}"></script>
+<!-- Entry form functionality (must be last) -->
 <script src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
 
 <script>
