@@ -1043,6 +1043,15 @@ class ValidationUI {
             errorContainers: this.errorContainers.size
         };
     }
+    
+    /**
+     * Get the current validation state for a field by its ID
+     * @param {string} fieldId
+     * @returns {Object|null} Validation state object or null if not found
+     */
+    getFieldValidationState(fieldId) {
+        return this.validationStates.get(fieldId) || null;
+    }
 }
 
 // Global validation UI instance

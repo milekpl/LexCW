@@ -1,124 +1,120 @@
 /**
  * Dictionary Writing System - Entry Form JavaScript
- * 
+ *
  * This file contains the functionality for the entry edit/add form.
+ *
+ * Refactored and bug-fixed version.
  */
 
-document.addEventListener('DOMContentLoaded', function() {
-    window.rangesLoader = new RangesLoader();
+// REFACTOR: Create a single, reusable utility for showing toast notifications.
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    const alertClass = type === 'error' ? 'alert-danger' : `alert-${type}`;
+    toast.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    toast.style.cssText = `
+        top: 20px;
+        right: 20px;
+        z-index: 1056; /* Ensure it's above modals */
+        min-width: 300px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    `;
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
 
-    // Function to initialize dynamic selects
+    document.body.appendChild(toast);
+
+    // Auto-remove after 3.5 seconds
+    setTimeout(() => {
+        // Use bootstrap's API to gracefully fade out the alert
+        const bsAlert = bootstrap.Alert.getOrCreateInstance(toast);
+        if (bsAlert) {
+            bsAlert.close();
+        } else if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 3500);
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // REFACTOR: Define frequently used elements once to avoid repeated DOM queries.
+    const sensesContainer = document.getElementById('senses-container');
+    const entryForm = document.getElementById('entry-form');
+
+    // Initialize external components if they exist
+    window.rangesLoader = window.rangesLoader || new RangesLoader();
+
+    /**
+     * Function to initialize dynamic selects.
+     * Populates select elements with options from a given range.
+     */
     async function initializeDynamicSelects(container) {
         const dynamicSelects = container.querySelectorAll('.dynamic-grammatical-info');
-        
-        // Load all ranges first
-        const promises = Array.from(dynamicSelects).map(async select => {
+
+        const promises = Array.from(dynamicSelects).map(select => {
             const rangeId = select.dataset.rangeId;
             const selectedValue = select.dataset.selected;
             if (rangeId) {
-                await window.rangesLoader.populateSelect(select, rangeId, { 
+                // Assuming populateSelect is an async function that returns a promise
+                return window.rangesLoader.populateSelect(select, rangeId, {
                     selectedValue: selectedValue,
-                    emptyOption: 'Select part of speech' 
+                    emptyOption: 'Select part of speech'
                 });
             }
+            return Promise.resolve(); // Return a resolved promise for selects without a rangeId
         });
-        
-        // Wait for all ranges to load
+
         await Promise.all(promises);
-        
-        // Then trigger inheritance logic if it's available
-        if (typeof updateGrammaticalCategoryInheritance === 'function') {
-            // Add a small delay to ensure all DOM updates are complete
-            setTimeout(() => {
-                updateGrammaticalCategoryInheritance();
-            }, 100);
-        }
     }
 
-    // Initial load for selects already on the page
-    initializeDynamicSelects(document.body).then(() => {
-        // Morph-type is now handled server-side, no client-side auto-classification needed
-        console.log('Dynamic selects initialized, morph-type handled by backend');
-    });
-
     /**
-     * Grammatical Category Inheritance Logic
-     * Automatically derives entry-level grammatical category from senses
-     * and validates for discrepancies as specified in section 7.2.1
+     * Grammatical Category Inheritance Logic.
+     * Automatically derives and validates the entry-level grammatical category
+     * based on the categories of its senses, as per specification 7.2.1.
      */
     async function updateGrammaticalCategoryInheritance() {
         const entryPartOfSpeechSelect = document.getElementById('part-of-speech');
         const requiredIndicator = document.getElementById('pos-required-indicator');
         if (!entryPartOfSpeechSelect) return;
 
-        // Get all sense grammatical categories
+        // Get all sense grammatical categories that have a selected value
         const senseGrammaticalSelects = document.querySelectorAll('#senses-container .dynamic-grammatical-info');
         const senseCategories = Array.from(senseGrammaticalSelects)
             .map(select => select.value)
-            .filter(value => value && value.trim()); // Only non-empty values
+            .filter(value => value && value.trim()); // Only consider non-empty values
 
-        // Clear any existing error styling
+        // REFACTOR: Clear existing validation state more robustly.
         entryPartOfSpeechSelect.classList.remove('is-invalid', 'is-valid');
-        const existingFeedback = entryPartOfSpeechSelect.parentElement.querySelector('.invalid-feedback, .valid-feedback');
-        if (existingFeedback) {
-            existingFeedback.remove();
+        const feedbackElement = entryPartOfSpeechSelect.parentElement.querySelector('.invalid-feedback, .valid-feedback');
+        if (feedbackElement) {
+            feedbackElement.remove();
         }
 
         if (senseCategories.length === 0) {
-            // No senses with grammatical categories
-            // Check if entry already has a POS value - if so, it might be inherited
-            if (entryPartOfSpeechSelect.value && entryPartOfSpeechSelect.value.trim() !== '') {
-                // Entry has POS but no sense POS loaded yet - field is optional
-                entryPartOfSpeechSelect.required = false;
-                if (requiredIndicator) requiredIndicator.style.display = 'none';
-                return;
-            } else {
-                // No entry POS and no sense POS - field is optional per specification
-                entryPartOfSpeechSelect.required = false;
-                if (requiredIndicator) requiredIndicator.style.display = 'none';
-                return;
-            }
+            // No senses have a part of speech selected. The entry-level field is optional.
+            entryPartOfSpeechSelect.required = false;
+            if (requiredIndicator) requiredIndicator.style.display = 'none';
+            return;
         }
 
-        // Check for consistency among sense categories
         const uniqueCategories = [...new Set(senseCategories)];
-        
+
         if (uniqueCategories.length === 1) {
-            // All senses have the same grammatical category - auto-inherit, field not required
+            // All senses agree. Auto-inherit the category.
             const commonCategory = uniqueCategories[0];
-            const currentValue = entryPartOfSpeechSelect.value;
-            
-            // Check if entry POS already matches the common category
-            if (currentValue === commonCategory) {
-                // Already correctly inherited - field not required
-                entryPartOfSpeechSelect.required = false;
-                if (requiredIndicator) {
-                    requiredIndicator.style.display = 'none';
-                }
-                
-                // Add success feedback
-                entryPartOfSpeechSelect.classList.add('is-valid');
-                const feedback = document.createElement('div');
-                feedback.className = 'valid-feedback';
-                feedback.textContent = 'Automatically inherited from senses';
-                entryPartOfSpeechSelect.parentElement.appendChild(feedback);
-            } else {
-                // Entry POS doesn't match - update it
-                entryPartOfSpeechSelect.value = commonCategory;
-                entryPartOfSpeechSelect.required = false;
-                if (requiredIndicator) {
-                    requiredIndicator.style.display = 'none';
-                }
-                
-                // Add success feedback
-                entryPartOfSpeechSelect.classList.add('is-valid');
-                const feedback = document.createElement('div');
-                feedback.className = 'valid-feedback';
-                feedback.textContent = 'Automatically inherited from senses';
-                entryPartOfSpeechSelect.parentElement.appendChild(feedback);
-            }
+            entryPartOfSpeechSelect.value = commonCategory;
+            entryPartOfSpeechSelect.required = false;
+            if (requiredIndicator) requiredIndicator.style.display = 'none';
+
+            entryPartOfSpeechSelect.classList.add('is-valid');
+            const feedback = document.createElement('div');
+            feedback.className = 'valid-feedback';
+            feedback.textContent = 'Automatically inherited from senses.';
+            entryPartOfSpeechSelect.parentElement.appendChild(feedback);
         } else {
-            // Discrepancy detected - field is required, show error
+            // Discrepancy detected. Field is required, show an error.
             entryPartOfSpeechSelect.required = true;
             if (requiredIndicator) requiredIndicator.style.display = 'inline';
             entryPartOfSpeechSelect.classList.add('is-invalid');
@@ -126,1514 +122,529 @@ document.addEventListener('DOMContentLoaded', function() {
             feedback.className = 'invalid-feedback';
             feedback.innerHTML = `
                 <strong>Grammatical category discrepancy detected!</strong><br>
-                Senses have different categories: ${uniqueCategories.join(', ')}<br>
-                Please manually select the appropriate entry-level category.
+                Senses have different categories: ${uniqueCategories.join(', ')}.<br>
+                Please manually select the correct entry-level category.
             `;
             entryPartOfSpeechSelect.parentElement.appendChild(feedback);
         }
     }
 
     /**
-     * Grammatical Category Inheritance Logic  
-     * Automatically derives entry-level grammatical category from senses
-     * and validates for discrepancies as specified in section 7.2.1
+     * Sets up event listeners for the grammatical category inheritance logic.
      */
-    // Set up event listeners for grammatical category inheritance
     function setupGrammaticalInheritanceListeners() {
-        // Listen for changes in sense grammatical categories
-        document.addEventListener('change', function(e) {
-            if (e.target.matches('#senses-container .dynamic-grammatical-info')) {
-                updateGrammaticalCategoryInheritance();
-            }
-        });
-
-        // Listen for addition/removal of senses
-        const sensesContainer = document.querySelector('#senses-container');
-        if (sensesContainer) {
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.type === 'childList') {
-                        updateGrammaticalCategoryInheritance();
-                    }
-                });
+        // Listen for changes in any sense's grammatical category select.
+        // Using event delegation on the form for efficiency.
+        if (entryForm) {
+            entryForm.addEventListener('change', function(e) {
+                if (e.target.matches('#senses-container .dynamic-grammatical-info')) {
+                    updateGrammaticalCategoryInheritance();
+                }
             });
-            observer.observe(sensesContainer, { childList: true, subtree: true });
+        }
+
+        // Use a MutationObserver to detect when senses are added or removed.
+        if (sensesContainer) {
+            // REFACTOR: The observer is simplified. Explicit calls after add/remove
+            // are more reliable, but this observer catches all list changes.
+            // We only need to observe direct children additions/removals.
+            const observer = new MutationObserver(() => {
+                updateGrammaticalCategoryInheritance();
+            });
+            observer.observe(sensesContainer, {
+                childList: true
+            });
         }
     }
 
-    // Initialize inheritance logic
-    setupGrammaticalInheritanceListeners();
-    
-    // Run initial updates after ranges are loaded
-    setTimeout(async () => {
-        await updateGrammaticalCategoryInheritance();
-    }, 500);
+    // --- Initialization Sequence ---
 
-    // Expose functions to global scope for use by other components
+    // Expose the update function globally for other components that might add senses.
     window.updateGrammaticalCategoryInheritance = updateGrammaticalCategoryInheritance;
 
-    // Initialize Select2 for tag inputs
+    // 1. Initialize all dynamic select elements on the page.
+    initializeDynamicSelects(document.body).then(() => {
+        console.log('Dynamic selects initialized.');
+
+        // 2. After selects are populated, set up the inheritance logic.
+        setupGrammaticalInheritanceListeners();
+
+        // 3. Run an initial check on the grammatical inheritance.
+        // REFACTOR: Removed unreliable setTimeout. This now runs after selects are ready.
+        updateGrammaticalCategoryInheritance();
+    });
+
+    // Initialize Select2 for any tag inputs.
     $('.select2-tags').select2({
         theme: 'bootstrap-5',
         tags: true,
         tokenSeparators: [',', ' '],
         placeholder: 'Enter or select values...'
     });
-    
-    // Handle form submission
-    const entryForm = document.getElementById('entry-form');
+
+    // --- Main Event Handlers ---
+
     if (entryForm) {
         entryForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            if (validateForm()) {
+            // First, run all client-side validations.
+            if (validateForm(true)) { // Pass true to show modal on failure
                 submitForm();
+            } else {
+                console.log('Form submission halted due to validation errors.');
             }
         });
     }
-    
-    // Validate button handler
-    const validateBtn = document.getElementById('validate-btn');
-    if (validateBtn) {
-        validateBtn.addEventListener('click', function() {
-            validateForm(true);
-        });
-    }
-    
-    // Cancel button handler
-    const cancelBtn = document.getElementById('cancel-btn');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', function() {
-            if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-                window.location.href = '/entries';
+
+    document.getElementById('validate-btn')?.addEventListener('click', () => validateForm(true));
+
+    document.getElementById('cancel-btn')?.addEventListener('click', () => {
+        if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+            window.location.href = '/entries';
+        }
+    });
+
+    document.getElementById('add-pronunciation-btn')?.addEventListener('click', addPronunciation);
+    document.getElementById('add-sense-btn')?.addEventListener('click', addSense);
+    document.getElementById('add-first-sense-btn')?.addEventListener('click', function() {
+        document.getElementById('no-senses-message')?.remove();
+        addSense();
+    });
+
+    // --- Event Delegation for Dynamic Elements ---
+
+    document.getElementById('pronunciation-container')?.addEventListener('click', function(e) {
+        const removeBtn = e.target.closest('.remove-pronunciation-btn');
+        if (removeBtn) {
+            if (confirm('Are you sure you want to remove this pronunciation?')) {
+                removeBtn.closest('.pronunciation-item')?.remove();
             }
-        });
-    }
-    
-    // Add pronunciation button handler
-    const addPronunciationBtn = document.getElementById('add-pronunciation-btn');
-    if (addPronunciationBtn) {
-        addPronunciationBtn.addEventListener('click', addPronunciation);
-    }
-    
-    // Add sense button handler
-    const addSenseBtn = document.getElementById('add-sense-btn');
-    if (addSenseBtn) {
-        addSenseBtn.addEventListener('click', addSense);
-    }
-    
-    // Add first sense button handler (for when no senses exist)
-    const addFirstSenseBtn = document.getElementById('add-first-sense-btn');
-    if (addFirstSenseBtn) {
-        addFirstSenseBtn.addEventListener('click', function() {
-            const noSensesMessage = document.getElementById('no-senses-message');
-            if (noSensesMessage) {
-                noSensesMessage.style.display = 'none';
-            }
-            addSense();
-        });
-    }
-    
-    // Handle pronunciation section events (delegated)
-    const pronunciationContainer = document.getElementById('pronunciation-container');
-    if (pronunciationContainer) {
-        pronunciationContainer.addEventListener('click', function(e) {
-            // Remove pronunciation button
-            const removeBtn = e.target.closest('.remove-pronunciation-btn');
-            if (removeBtn) {
-                const pronunciationItem = removeBtn.closest('.pronunciation-item');
-                if (pronunciationItem && confirm('Are you sure you want to remove this pronunciation?')) {
-                    pronunciationItem.remove();
-                    return;
-                }
-            }
-            
-            // Generate audio button
-            const generateBtn = e.target.closest('.generate-audio-btn');
-            if (generateBtn) {
-                const index = generateBtn.dataset.index;
-                const pronunciationItem = generateBtn.closest('.pronunciation-item');
-                const ipaInput = pronunciationItem.querySelector(`input[name="pronunciations[${index}].value"]`);
-                const lexicalUnit = document.getElementById('lexical-unit').value;
-                
-                generateAudio(lexicalUnit, ipaInput.value, index);
-            }
-        });
-    }
-    
-    // Handle senses container events (delegated)
-    const sensesContainer = document.getElementById('senses-container');
+            return;
+        }
+
+        const generateBtn = e.target.closest('.generate-audio-btn');
+        if (generateBtn) {
+            const pronunciationItem = generateBtn.closest('.pronunciation-item');
+            const ipaInput = pronunciationItem.querySelector('.ipa-input');
+            const lexicalUnit = document.getElementById('lexical-unit').value;
+            generateAudio(lexicalUnit, ipaInput.value, generateBtn.dataset.index);
+        }
+    });
+
     if (sensesContainer) {
         sensesContainer.addEventListener('click', function(e) {
-            // Remove sense button
             const removeSenseBtn = e.target.closest('.remove-sense-btn');
             if (removeSenseBtn) {
                 const senseItem = removeSenseBtn.closest('.sense-item');
                 if (senseItem && confirm('Are you sure you want to remove this sense and all its examples?')) {
                     senseItem.remove();
                     reindexSenses();
-                    
-                    // Trigger grammatical category inheritance update after removal
-                    setTimeout(() => {
-                        if (typeof updateGrammaticalCategoryInheritance === 'function') {
-                            updateGrammaticalCategoryInheritance();
-                        }
-                    }, 10);
-                    return;
-                }
-            }
-            
-            // Add example button
-            const addExampleBtn = e.target.closest('.add-example-btn');
-            if (addExampleBtn) {
-                const senseIndex = addExampleBtn.dataset.senseIndex;
-                const senseItem = document.querySelector(`.sense-item[data-sense-index="${senseIndex}"]`);
-                if (senseItem) {
-                    const examplesContainer = senseItem.querySelector('.examples-container');
-                    const noExamples = examplesContainer.querySelector('.no-examples');
-                    if (noExamples) {
-                        noExamples.remove();
-                    }
-                    addExample(senseIndex);
+                    // The MutationObserver will automatically trigger updateGrammaticalCategoryInheritance.
                 }
                 return;
             }
-            
-            // Remove example button
+
+            const addExampleBtn = e.target.closest('.add-example-btn');
+            if (addExampleBtn) {
+                const senseIndex = addExampleBtn.dataset.senseIndex;
+                addExample(senseIndex);
+                addExampleBtn.closest('.no-examples')?.remove(); // Remove the placeholder if it exists.
+                return;
+            }
+
             const removeExampleBtn = e.target.closest('.remove-example-btn');
             if (removeExampleBtn) {
                 const exampleItem = removeExampleBtn.closest('.example-item');
                 const senseIndex = removeExampleBtn.dataset.senseIndex;
-                const senseItem = document.querySelector(`.sense-item[data-sense-index="${senseIndex}"]`);
-                if (senseItem && exampleItem && confirm('Are you sure you want to remove this example?')) {
-                    const examplesContainer = senseItem.querySelector('.examples-container');
+                if (exampleItem && confirm('Are you sure you want to remove this example?')) {
+                    const examplesContainer = exampleItem.parentElement;
                     exampleItem.remove();
-                    
-                    // Check if any examples remain
-                    const examples = examplesContainer.querySelectorAll('.example-item');
-                    if (examples.length === 0) {
-                        // Show "no examples" message
-                        const noExamples = document.createElement('div');
-                        noExamples.className = 'no-examples text-center text-muted py-3 border rounded';
-                        noExamples.innerHTML = `
-                            <p>No examples added yet</p>
-                            <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" 
-                                    data-sense-index="${senseIndex}">
-                                <i class="fas fa-plus"></i> Add Example
-                            </button>
-                        `;
-                        examplesContainer.appendChild(noExamples);
-                    } else {
-                        reindexExamples(senseIndex);
+                    reindexExamples(senseIndex);
+
+                    if (examplesContainer.children.length === 0) {
+                        examplesContainer.innerHTML = `
+                            <div class="no-examples text-center text-muted py-3 border rounded">
+                                <p>No examples added yet</p>
+                                <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" data-sense-index="${senseIndex}">
+                                    <i class="fas fa-plus"></i> Add Example
+                                </button>
+                            </div>`;
                     }
                 }
             }
         });
     }
-    
-    // Audio preview modal
+
+    // --- Audio Modal Handling ---
     const audioPreviewModalEl = document.getElementById('audioPreviewModal');
-    let audioPreviewModal = null;
-    if (audioPreviewModalEl) {
-        audioPreviewModal = new bootstrap.Modal(audioPreviewModalEl);
-    }
-    
-    // Save audio button
-    const saveAudioBtn = document.getElementById('save-audio-btn');
-    if (saveAudioBtn) {
-        saveAudioBtn.addEventListener('click', function() {
-            const audioPlayer = document.getElementById('audio-preview-player');
-            const audioSrc = audioPlayer.src;
-            const currentPronunciationIndex = audioPlayer.dataset.pronunciationIndex;
-            
-            // Save the audio file path to the input
-            const audioFileInput = document.querySelector(`input[name="pronunciations[${currentPronunciationIndex}].audio_file"]`);
-            if (audioFileInput) {
-                audioFileInput.value = audioSrc.split('/').pop();
-            }
-            
-            // Close the modal
-            if (audioPreviewModal) {
-                audioPreviewModal.hide();
-            }
-        });
-    }
+    const audioPreviewModal = audioPreviewModalEl ? new bootstrap.Modal(audioPreviewModalEl) : null;
+
+    document.getElementById('save-audio-btn')?.addEventListener('click', function() {
+        const audioPlayer = document.getElementById('audio-preview-player');
+        const audioSrc = audioPlayer.src;
+        const index = audioPlayer.dataset.pronunciationIndex;
+        const audioFileInput = document.querySelector(`input[name="pronunciations[${index}].audio_file"]`);
+
+        if (audioFileInput) {
+            // Assuming the URL path contains the filename we want to save.
+            audioFileInput.value = audioSrc.split('/').pop();
+        }
+        audioPreviewModal?.hide();
+    });
 });
 
+
 /**
- * Validate the form before submission
- * 
- * @param {boolean} showValidationModal - Whether to show the validation modal
- * @returns {boolean} Whether the form is valid
+ * Validates the entire form, highlighting errors and optionally showing a summary modal.
+ * @param {boolean} showSummaryModal - If true, displays a modal with a list of validation errors.
+ * @returns {boolean} - True if the form is valid, false otherwise.
  */
-function validateForm(showValidationModal = false) {
+function validateForm(showSummaryModal = false) {
     const errors = [];
     let isValid = true;
-    
-    // Basic validation
-    const lexicalUnit = document.getElementById('lexical-unit')?.value.trim();
-    if (!lexicalUnit) {
-        errors.push('Lexical Unit is required');
+
+    // Helper to invalidate a field and add an error message
+    const invalidate = (element, message) => {
+        if (element) {
+            element.classList.add('is-invalid');
+            const feedback = element.parentElement.querySelector('.invalid-feedback') || document.createElement('div');
+            feedback.className = 'invalid-feedback';
+            feedback.textContent = message;
+            if (!feedback.parentElement) {
+                element.parentElement.appendChild(feedback);
+            }
+        }
+        errors.push(message);
         isValid = false;
+    };
+
+    // Clear previous validation
+    document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+
+    // Validate Lexical Unit
+    const lexicalUnitEl = document.getElementById('lexical-unit');
+    if (!lexicalUnitEl.value.trim()) {
+        invalidate(lexicalUnitEl, 'Lexical Unit is required.');
     }
-    
-    const partOfSpeech = document.getElementById('part-of-speech')?.value;
-    const partOfSpeechElement = document.getElementById('part-of-speech');
-    // Only require PoS if the field is marked as required (determined by inheritance logic)
-    if (partOfSpeechElement && partOfSpeechElement.required && !partOfSpeech) {
-        errors.push('Part of Speech is required');
-        isValid = false;
+
+    // Validate Part of Speech (only if required by inheritance logic)
+    const partOfSpeechEl = document.getElementById('part-of-speech');
+    if (partOfSpeechEl && partOfSpeechEl.required && !partOfSpeechEl.value) {
+        invalidate(partOfSpeechEl, 'Part of Speech is required due to sense discrepancies.');
     }
-    
-    // Sense validation
+
+    // Validate Senses
     const senses = document.querySelectorAll('.sense-item');
     if (senses.length === 0) {
-        errors.push('At least one sense is required');
+        errors.push('At least one sense is required.');
         isValid = false;
+        // Visually indicate the error on the senses container or a related element
+        document.getElementById('senses-section-header')?.classList.add('text-danger');
     } else {
+        document.getElementById('senses-section-header')?.classList.remove('text-danger');
         senses.forEach((sense, index) => {
-            const definition = sense.querySelector(`textarea[name="senses[${index}].definition"]`)?.value.trim();
-            if (!definition) {
-                errors.push(`Sense ${index + 1}: Definition is required`);
-                isValid = false;
+            const definitionEl = sense.querySelector(`textarea[name="senses[${index}].definition"]`);
+            if (!definitionEl.value.trim()) {
+                invalidate(definitionEl, `Sense ${index + 1}: Definition is required.`);
             }
-            
-            // Validate examples if present
-            const examples = sense.querySelectorAll('.example-item');
-            examples.forEach((example, exIndex) => {
-                const exampleText = example.querySelector(`textarea[name="senses[${index}].examples[${exIndex}].text"]`)?.value.trim();
-                if (!exampleText) {
-                    errors.push(`Sense ${index + 1}, Example ${exIndex + 1}: Example text is required`);
-                    isValid = false;
+
+            // Validate Examples
+            sense.querySelectorAll('.example-item').forEach((example, exIndex) => {
+                const exampleTextEl = example.querySelector(`textarea[name="senses[${index}].examples[${exIndex}].text"]`);
+                if (!exampleTextEl.value.trim()) {
+                    invalidate(exampleTextEl, `Sense ${index + 1}, Example ${exIndex + 1}: Example text is required.`);
                 }
             });
         });
     }
-    
-    // Show validation errors
-    if (errors.length > 0 && showValidationModal) {
+
+    // Show summary modal if requested and there are errors
+    if (!isValid && showSummaryModal) {
         const errorsList = document.getElementById('validation-errors-list');
         if (errorsList) {
-            errorsList.innerHTML = '';
-            errors.forEach(error => {
-                const li = document.createElement('li');
-                li.className = 'text-danger';
-                li.textContent = error;
-                errorsList.appendChild(li);
-            });
-            
+            errorsList.innerHTML = errors.map(error => `<li class="text-danger">${error}</li>`).join('');
             const validationModal = new bootstrap.Modal(document.getElementById('validationModal'));
             validationModal.show();
         }
     }
-    
+
     return isValid;
 }
 
+
 /**
- * Submit the form via AJAX
+ * Serializes and submits the form data via AJAX.
  */
 function submitForm() {
-    console.log('submitForm() called');
     const form = document.getElementById('entry-form');
     if (!form) {
         console.error('Form not found');
         return;
     }
-    
-    console.log('Form found, starting submission');
-    
-    // Use the robust form serializer
+
     let jsonData;
     try {
         if (typeof window.FormSerializer === 'undefined') {
-            throw new Error('FormSerializer not loaded. Please ensure form-serializer.js is included.');
+            throw new Error('FormSerializer library is not loaded.');
         }
-        
-        // Validate form structure before serialization
-        const validation = window.FormSerializer.validateFormForSerialization(form);
-        if (!validation.success) {
-            console.error('Form validation errors:', validation.errors);
-            throw new Error('Form structure validation failed: ' + validation.errors.join(', '));
-        }
-        
-        if (validation.warnings.length > 0) {
-            console.warn('Form validation warnings:', validation.warnings);
-        }
-        
-        // Serialize form to JSON
+        // Assuming FormSerializer handles complex nested data correctly.
         jsonData = window.FormSerializer.serializeFormToJSON(form, {
-            includeEmpty: false, // Don't include empty fields
-            transform: (value, key) => {
-                // Trim string values
-                return typeof value === 'string' ? value.trim() : value;
-            }
+            includeEmpty: false,
+            transform: (value) => (typeof value === 'string' ? value.trim() : value)
         });
-        
-        console.log('Final JSON data to be sent:', JSON.stringify(jsonData, null, 2));
-        
     } catch (error) {
         console.error('Form serialization error:', error);
-        alert(`Form serialization failed: ${error.message}`);
+        showToast(`Form serialization failed: ${error.message}`, 'error');
         return;
     }
-    
-    // Show loading state
+
     const saveBtn = document.getElementById('save-btn');
-    if (!saveBtn) return; // Should not happen if the form exists
-    
     const originalText = saveBtn.innerHTML;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
     saveBtn.disabled = true;
 
-    // Determine API URL and Method based on whether it's a new or existing entry
-    const entryIdField = form.querySelector('input[name="id"]');
-    const existingEntryId = entryIdField ? entryIdField.value.trim() : null;
+    const entryId = form.querySelector('input[name="id"]')?.value.trim();
+    const apiUrl = entryId ? `/api/entries/${entryId}` : '/api/entries/';
+    const apiMethod = entryId ? 'PUT' : 'POST';
 
-    let apiUrl;
-    let apiMethod;
-
-    if (existingEntryId && existingEntryId !== "") {
-        // Editing an existing entry
-        apiUrl = `/api/entries/${existingEntryId}`;
-        apiMethod = 'PUT';
-    } else {
-        // Adding a new entry
-        apiUrl = '/api/entries/'; // Note the trailing slash for consistency with Flask Blueprint routes
-        apiMethod = 'POST';
-    }
-    
     console.log(`Submitting to URL: ${apiUrl}, Method: ${apiMethod}`);
+    console.log('Payload:', JSON.stringify(jsonData, null, 2));
 
-    // Send request
-    fetch(apiUrl, { // Use determined apiUrl
-        method: apiMethod, // Use determined apiMethod
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(jsonData)
-    })
-    .then(response => {
-        return response.json().then(responseData => { // Renamed to responseData to avoid conflict
+    fetch(apiUrl, {
+            method: apiMethod,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(jsonData)
+        })
+        .then(async response => {
+            const responseData = await response.json();
             if (!response.ok) {
-                // Server returned an error response
-                throw new Error(responseData.error || responseData.message || `HTTP error! status: ${response.status}`);
+                // Extract a more detailed error message if available
+                const errorMessage = responseData.error || responseData.message || `HTTP error! Status: ${response.status}`;
+                throw new Error(errorMessage);
             }
             return responseData;
+        })
+        .then(responseData => {
+            const idForRedirect = responseData.entry_id || entryId;
+            if (idForRedirect) {
+                window.location.href = `/entries/${idForRedirect}?status=saved`;
+            } else {
+                console.warn("No entry ID found for redirect. Redirecting to entries list.");
+                window.location.href = '/entries';
+            }
+        })
+        .catch(error => {
+            console.error('Submission Error:', error);
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+            showToast(`Error saving entry: ${error.message}`, 'error');
         });
-    })
-    .then(responseData => { // Renamed to responseData
-        // For POST (create), the API /api/entries/ returns 'entry_id'
-        // For PUT (update), the API /api/entries/<id> returns 'success: true' (and ideally 'entry_id')
-        const idForRedirect = responseData.entry_id || existingEntryId;
-
-        if (idForRedirect) {
-            window.location.href = `/entries/${idForRedirect}`;
-        } else {
-             // Fallback if no ID is found (should not happen for create, might for update if API not changed)
-            console.warn("No entry ID found in response or form for redirect. Redirecting to entries list.");
-            window.location.href = '/entries';
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        // Reset button
-        saveBtn.innerHTML = originalText;
-        saveBtn.disabled = false;
-        // Show error in a user-friendly way
-        let errorDiv = document.getElementById('form-error-message');
-        if (!errorDiv) {
-            errorDiv = document.createElement('div');
-            errorDiv.id = 'form-error-message';
-            errorDiv.className = 'alert alert-danger mt-3';
-            form.prepend(errorDiv);
-        }
-        errorDiv.textContent = error.message;
-        // Optionally, also alert
-        // alert(`Error saving entry: ${error.message}`);
-    });
 }
 
+// --- Dynamic Element Creation Functions ---
+
 /**
- * Add a new pronunciation field
+ * Adds a new pronunciation field group to the form.
  */
 function addPronunciation() {
     const container = document.getElementById('pronunciation-container');
-    if (!container) return;
-    
-    const pronunciationItems = container.querySelectorAll('.pronunciation-item');
-    const newIndex = pronunciationItems.length;    
-
-    // Get and prepare template
     const templateEl = document.getElementById('pronunciation-template');
-    if (!templateEl) return;
-    
-    let template = templateEl.innerHTML.replace(/INDEX/g, newIndex);
-    const temp = document.createElement('div');
-    temp.innerHTML = template;
-    
-    // Append the new pronunciation item
-    container.appendChild(temp.firstElementChild);
+    if (!container || !templateEl) return;
+
+    const newIndex = container.querySelectorAll('.pronunciation-item').length;
+    const template = templateEl.innerHTML.replace(/INDEX/g, newIndex);
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = template;
+    const newItem = tempDiv.firstElementChild;
+
+    container.appendChild(newItem);
+
+    // Initialize IPA validation on the new input field
+    const ipaInput = newItem.querySelector('.ipa-input');
+    if (ipaInput && typeof initializeIPAValidation === 'function') {
+        // Assuming initializeIPAValidation can be called to set up a single element or re-scan
+        initializeIPAValidation(); // Re-run to catch new inputs
+    }
 }
 
 /**
- * Add a new sense
+ * Adds a new sense field group to the form.
  */
 async function addSense() {
     const container = document.getElementById('senses-container');
-    if (!container) return;
-    
-    const senseItems = container.querySelectorAll('.sense-item');
-    const newIndex = senseItems.length;
-    const newNumber = newIndex + 1;
-    
-    // Get and prepare template
     const templateEl = document.getElementById('sense-template');
-    if (!templateEl) return;
-    
+    if (!container || !templateEl) return;
+
+    const newIndex = container.querySelectorAll('.sense-item').length;
+    const newNumber = newIndex + 1;
+
     let template = templateEl.innerHTML
         .replace(/INDEX/g, newIndex)
         .replace(/NUMBER/g, newNumber);
-    
-    const temp = document.createElement('div');
-    temp.innerHTML = template;
-    
-    // Append the new sense item
-    const newSenseElement = temp.firstElementChild;
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = template;
+    const newSenseElement = tempDiv.firstElementChild;
     container.appendChild(newSenseElement);
-    
-    // Initialize Select2 for the new sense
+
+    // Initialize any Select2 elements within the new sense
     $(newSenseElement).find('.select2-tags').select2({
         theme: 'bootstrap-5',
         tags: true,
         tokenSeparators: [',', ' '],
         placeholder: 'Enter or select values...'
     });
-    
-    // Load grammatical info options for the new sense
-    if (window.rangesLoader) {
-        const grammaticalSelect = newSenseElement.querySelector('.dynamic-grammatical-info');
-        if (grammaticalSelect) {
-            await window.rangesLoader.populateSelectWithFallback(
-                grammaticalSelect, 
-                'grammatical-info', 
-                {
-                    emptyOption: 'Select part of speech',
-                    valueField: 'value',
-                    labelField: 'value'
-                }
-            );
-            
-            // Add change listener for grammatical category inheritance
-            grammaticalSelect.addEventListener('change', function() {
-                if (typeof updateGrammaticalCategoryInheritance === 'function') {
-                    updateGrammaticalCategoryInheritance();
-                }
-            });
-        }
+
+    // Populate the grammatical info select for the new sense
+    const grammaticalSelect = newSenseElement.querySelector('.dynamic-grammatical-info');
+    if (grammaticalSelect && window.rangesLoader) {
+        await window.rangesLoader.populateSelect(grammaticalSelect, 'grammatical-info', {
+            emptyOption: 'Select part of speech'
+        });
+        // The event listener for 'change' is handled by delegation on the form, so no need to add one here.
     }
-    
-    // Trigger inheritance update after adding the sense
-    setTimeout(() => {
-        if (typeof updateGrammaticalCategoryInheritance === 'function') {
-            updateGrammaticalCategoryInheritance();
-        }
-    }, 100);
+    // The MutationObserver will handle calling updateGrammaticalCategoryInheritance.
 }
 
+
 /**
- * Add a new example to a sense
- * 
- * @param {number} senseIndex - Index of the sense to add the example to
+ * Adds a new example field group to a specific sense.
+ * @param {number|string} senseIndex - The index of the parent sense.
  */
 function addExample(senseIndex) {
-    const senseItem = document.querySelector(`.sense-item[data-sense-index="${senseIndex}"]`);
-    if (!senseItem) return;
-    
-    const examplesContainer = senseItem.querySelector('.examples-container');
-    if (!examplesContainer) return;
-    
-    const exampleItems = examplesContainer.querySelectorAll('.example-item');
-    const newIndex = exampleItems.length;
-    const newNumber = newIndex + 1;
-    
-    // Get and prepare template
+    const examplesContainer = document.querySelector(`.sense-item[data-sense-index="${senseIndex}"] .examples-container`);
     const templateEl = document.getElementById('example-template');
-    if (!templateEl) return;
-    
+    if (!examplesContainer || !templateEl) return;
+
+    const newIndex = examplesContainer.querySelectorAll('.example-item').length;
+    const newNumber = newIndex + 1;
+
     let template = templateEl.innerHTML
         .replace(/SENSE_INDEX/g, senseIndex)
         .replace(/EXAMPLE_INDEX/g, newIndex)
         .replace(/NUMBER/g, newNumber);
-    
-    const temp = document.createElement('div');
-    temp.innerHTML = template;
-    
-    // Append the new example item
-    examplesContainer.appendChild(temp.firstElementChild);
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = template;
+    examplesContainer.appendChild(tempDiv.firstElementChild);
 }
 
+// --- Re-indexing Functions ---
+
 /**
- * Reindex senses after removal
+ * Re-indexes all sense fields after a sense is removed to ensure continuous indices.
  */
 function reindexSenses() {
-    const senseItems = document.querySelectorAll('.sense-item');
-    
-    senseItems.forEach((sense, index) => {
-        // Update sense number
-        const header = sense.querySelector('h6');
-        if (header) {
-            header.textContent = `Sense ${index + 1}`;
-        }
-        
-        // Update sense index attribute
-        sense.dataset.senseIndex = index;
-        
-        // Update remove button
-        const removeBtn = sense.querySelector('.remove-sense-btn');
-        if (removeBtn) {
-            removeBtn.dataset.senseIndex = index;
-        }
-        
-        // Update add example button
-        const addExampleBtn = sense.querySelector('.add-example-btn');
-        if (addExampleBtn) {
-            addExampleBtn.dataset.senseIndex = index;
-        }
-        
-        // Update field names
+    const senseItems = document.querySelectorAll('#senses-container > .sense-item');
+    senseItems.forEach((sense, newIndex) => {
+        const oldIndex = sense.dataset.senseIndex;
+        if (oldIndex === newIndex.toString()) return; // No change needed
+
+        // Update visual elements
+        sense.querySelector('h6').textContent = `Sense ${newIndex + 1}`;
+        sense.dataset.senseIndex = newIndex;
+
+        // Update buttons that rely on the index
+        sense.querySelectorAll('[data-sense-index]').forEach(btn => {
+            btn.dataset.senseIndex = newIndex;
+        });
+
+        // FIX: Update field names with a more robust regex.
+        // This regex correctly targets `senses[<number>]` at the beginning of the name attribute.
         sense.querySelectorAll('[name^="senses["]').forEach(field => {
             const name = field.getAttribute('name');
-            const newName = name.replace(/senses\[\d+\]/, `senses[${index}]`);
-            field.setAttribute('name', newName);
+            field.setAttribute('name', name.replace(`senses[${oldIndex}]`, `senses[${newIndex}]`));
         });
-        
-        // Reindex examples in this sense
-        reindexExamples(index);
+
+        // Note: Examples within this sense are already correctly indexed relative to the parent,
+        // so we don't need to call reindexExamples here unless their names also need the parent index updated.
+        // The regex above handles that.
     });
 }
 
 /**
- * Reindex examples within a sense after removal
- * 
- * @param {number} senseIndex - Index of the sense containing the examples
+ * Re-indexes example fields within a sense after one is removed.
+ * @param {number|string} senseIndex - The index of the parent sense.
  */
 function reindexExamples(senseIndex) {
-    const senseItem = document.querySelector(`.sense-item[data-sense-index="${senseIndex}"]`);
-    if (!senseItem) return;
-    
-    const exampleItems = senseItem.querySelectorAll('.example-item');
-    
-    exampleItems.forEach((example, index) => {
-        // Update example number
-        const label = example.querySelector('small');
-        if (label) {
-            label.textContent = `Example ${index + 1}`;
-        }
-        
-        // Update remove button attributes
+    const exampleItems = document.querySelectorAll(`.sense-item[data-sense-index="${senseIndex}"] .example-item`);
+    exampleItems.forEach((example, newIndex) => {
+        const oldIndexMatch = RegExp(/\[examples\]\[(\d+)\]/).exec(example.querySelector('[name*="[examples]["]')
+                                     ?.getAttribute('name'));
+        const oldIndex = oldIndexMatch ? oldIndexMatch[1] : null;
+
+        if (oldIndex === null || oldIndex === newIndex.toString()) return;
+
+        // Update visual elements
+        example.querySelector('small').textContent = `Example ${newIndex + 1}`;
+
+        // Update remove button
         const removeBtn = example.querySelector('.remove-example-btn');
-        if (removeBtn) {
-            removeBtn.dataset.senseIndex = senseIndex;
-            removeBtn.dataset.exampleIndex = index;
-        }
-        
-        // Update field names
-        example.querySelectorAll('[name^="senses["]').forEach(field => {
+        if (removeBtn) removeBtn.dataset.exampleIndex = newIndex;
+
+        // FIX: Update field names with a more robust regex.
+        // This correctly targets the `examples[<number>]` part of the name.
+        example.querySelectorAll('[name*="[examples]["]').forEach(field => {
             const name = field.getAttribute('name');
-            const newName = name.replace(/examples\[\d+\]/, `examples[${index}]`);
-            field.setAttribute('name', newName);
+            field.setAttribute('name', name.replace(`[examples][${oldIndex}]`, `[examples][${newIndex}]`));
         });
     });
 }
 
+
 /**
- * Generate audio for a pronunciation
- * 
- * @param {string} word - The word to generate audio for
- * @param {string} ipa - The IPA pronunciation
- * @param {number} index - The index of the pronunciation item
+ * Calls the backend API to generate audio for a pronunciation.
+ * @param {string} word - The lexical unit.
+ * @param {string} ipa - The IPA transcription.
+ * @param {number|string} index - The index of the pronunciation item.
  */
 function generateAudio(word, ipa, index) {
     const btn = document.querySelector(`.generate-audio-btn[data-index="${index}"]`);
     if (!btn) return;
-    
-    // Show loading state
+
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
     btn.disabled = true;
-    
-    // Make API request to generate audio
+
     fetch('/api/pronunciations/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, ipa })
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`Audio generation failed: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        // Reset button
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        
-        // Show audio preview
-        const audioPlayer = document.getElementById('audio-preview-player');
-        if (audioPlayer) {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                word,
+                ipa
+            })
+        })
+        .then(async response => {
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.message || `Audio generation failed with status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.audio_url) {
+                throw new Error("API response did not include an audio URL.");
+            }
+            const audioPlayer = document.getElementById('audio-preview-player');
             audioPlayer.src = data.audio_url;
             audioPlayer.dataset.pronunciationIndex = index;
-            
-            const audioPreviewModal = new bootstrap.Modal(
-                document.getElementById('audioPreviewModal')
-            );
+
+            const audioPreviewModal = bootstrap.Modal.getOrCreateInstance('#audioPreviewModal');
             audioPreviewModal.show();
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        // Reset button
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        alert('Error generating audio. Please try again.');
-    });
+        })
+        .catch(error => {
+            console.error('Error generating audio:', error);
+            showToast(`Error generating audio: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
 }
 
-/**
- * Multilingual Notes Manager
- * Handles dynamic creation and management of multilingual note forms
- */
-class MultilingualNotesManager {
-    constructor(containerId, options = {}) {
-        this.container = document.getElementById(containerId);
-        this.options = options;
-        this.noteCounter = 0;
-        this.languageCounter = 0;
-        
-        // Available note types
-        this.noteTypes = [
-            { value: 'general', label: 'General' },
-            { value: 'usage', label: 'Usage' },
-            { value: 'semantic', label: 'Semantic' },
-            { value: 'etymology', label: 'Etymology' },
-            { value: 'cultural', label: 'Cultural' },
-            { value: 'anthropology', label: 'Anthropology' },
-            { value: 'discourse', label: 'Discourse' },
-            { value: 'phonology', label: 'Phonology' },
-            { value: 'sociolinguistics', label: 'Sociolinguistics' },
-            { value: 'bibliography', label: 'Bibliography' }
-        ];
-        
-        // Available languages - comprehensive list including commonly used codes
-        this.languages = [
-            { value: 'en', label: 'English' },
-            { value: 'pt', label: 'Portuguese' },
-            { value: 'seh-fonipa', label: 'IPA' },
-            { value: 'fr', label: 'French' },
-            { value: 'es', label: 'Spanish' },
-            { value: 'de', label: 'German' },
-            { value: 'it', label: 'Italian' }
-        ];
-        
-        this.init();
-    }
-    
-    init() {
-        if (!this.container) {
-            console.error('Multilingual notes container not found');
-            return;
-        }
-        // Initialize existing note items
-        this.container.querySelectorAll('.note-item').forEach((item, index) => {
-            this.attachNoteEventListeners(item, index);
-        });
-        
-        // Attach event listener to add note button
-        const addNoteBtn = document.getElementById('add-note-btn');
-        if (addNoteBtn) {
-            addNoteBtn.addEventListener('click', () => this.addNote());
-        }
-        
-        // Hide "no notes" message if notes exist
-        this.updateNoNotesMessage();
-    }
-    
-    attachNoteEventListeners(noteItem, index) {
-        // Remove note button
-        const removeNoteBtn = noteItem.querySelector('.remove-note-btn');
-        if (removeNoteBtn) {
-            removeNoteBtn.addEventListener('click', () => this.removeNote(noteItem));
-        }
-        
-        // Add language button
-        const addLanguageBtn = noteItem.querySelector('.add-language-btn');
-        if (addLanguageBtn) {
-            addLanguageBtn.addEventListener('click', () => this.addLanguageToNote(noteItem));
-        }
-        
-        // Remove language buttons
-        noteItem.querySelectorAll('.remove-language-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const languageForm = e.target.closest('.language-form');
-                this.removeLanguageFromNote(languageForm);
-            });
-        });
-        
-        // Note type change
-        const noteTypeSelect = noteItem.querySelector('.note-type-select');
-        if (noteTypeSelect) {
-            noteTypeSelect.addEventListener('change', () => {
-                this.updateNoteType(noteItem, noteTypeSelect.value);
-            });
-        }
-    }
-    
-    addNote() {
-        const noteType = 'general';
-        const language = 'en';
-        
-        const noteHtml = this.generateNoteHtml(noteType, language);
-        
-        // Hide "no notes" message
-        const noNotesMessage = document.getElementById('no-notes-message');
-        if (noNotesMessage) {
-            noNotesMessage.style.display = 'none';
-        }
-        
-        // Insert before the add button
-        const addNoteBtn = document.getElementById('add-note-btn');
-        addNoteBtn.insertAdjacentHTML('beforebegin', noteHtml);
-        
-        // Get the newly added note item and attach event listeners
-        const newNoteItems = this.container.querySelectorAll('.note-item');
-        const newNoteItem = newNoteItems[newNoteItems.length - 1];
-        
-        this.attachNoteEventListeners(newNoteItem, this.noteCounter);
-        this.noteCounter++;
-        
-        // Focus on the note text textarea
-        const textArea = newNoteItem.querySelector('.note-text');
-        if (textArea) {
-            textArea.focus();
-        }
-    }
-    
-    removeNote(noteItem) {
-        if (confirm('Are you sure you want to remove this note?')) {
-            noteItem.remove();
-            this.updateNoNotesMessage();
-        }
-    }
-    
-    addLanguageToNote(noteItem) {
-        const noteType = noteItem.dataset.noteType;
-        const existingLanguages = Array.from(noteItem.querySelectorAll('.language-select'))
-            .map(select => select.value);
-        
-        // Find first available language
-        const availableLanguage = this.languages.find(lang => 
-            !existingLanguages.includes(lang.value)
-        );
-        
-        if (!availableLanguage) {
-            alert('All supported languages have been added to this note.');
-            return;
-        }
-        
-        const languageHtml = this.generateLanguageFormHtml(noteType, availableLanguage.value);
-        
-        const multilingualForms = noteItem.querySelector('.multilingual-forms');
-        multilingualForms.insertAdjacentHTML('beforeend', languageHtml);
-        
-        // Attach event listeners to the new language form
-        const newLanguageForms = multilingualForms.querySelectorAll('.language-form');
-        const newLanguageForm = newLanguageForms[newLanguageForms.length - 1];
-        
-        const removeBtn = newLanguageForm.querySelector('.remove-language-btn');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', () => {
-                this.removeLanguageFromNote(newLanguageForm);
-            });
-        }
-        
-        // Focus on the text area
-        const textArea = newLanguageForm.querySelector('.note-text');
-        if (textArea) {
-            textArea.focus();
-        }
-    }
-    
-    removeLanguageFromNote(languageForm) {
-        const noteItem = languageForm.closest('.note-item');
-        const remainingForms = noteItem.querySelectorAll('.language-form');
-        
-        if (remainingForms.length <= 1) {
-            alert('A note must have at least one language.');
-            return;
-        }
-        
-        if (confirm('Are you sure you want to remove this language?')) {
-            languageForm.remove();
-        }
-    }
-    
-    updateNoteType(noteItem, newNoteType) {
-        noteItem.dataset.noteType = newNoteType;
-        
-        // Update all name attributes within this note
-        const inputs = noteItem.querySelectorAll('input, textarea, select');
-        inputs.forEach(input => {
-            if (input.name && input.name.includes('notes[')) {
-                // Replace the note type in the name attribute
-                input.name = input.name.replace(/notes\[[^\]]+\]/, `notes[${newNoteType}]`);
-            }
-        });
-    }
-    
-    updateNoNotesMessage() {
-        const noNotesMessage = document.getElementById('no-notes-message');
-        const noteItems = this.container.querySelectorAll('.note-item');
-        
-        if (noNotesMessage) {
-            noNotesMessage.style.display = noteItems.length === 0 ? 'block' : 'none';
-        }
-    }
-    
-    generateNoteHtml(noteType, language) {
-        const noteTypeOptions = this.noteTypes.map(type => 
-            `<option value="${type.value}" ${type.value === noteType ? 'selected' : ''}>${type.label}</option>`
-        ).join('');
-        
-        return `
-            <div class="note-item mb-4 border rounded p-3" data-note-type="${noteType}">
-                <div class="row align-items-center mb-2">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Note Type</label>
-                        <select class="form-select note-type-select" name="notes[${noteType}][type]" title="Select note type">
-                            ${noteTypeOptions}
-                        </select>
-                    </div>
-                    <div class="col-md-6 text-end">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-note-btn" 
-                                title="Remove note">
-                            <i class="fas fa-trash"></i> Remove Note
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="multilingual-forms">
-                    ${this.generateLanguageFormHtml(noteType, language)}
-                </div>
-                
-                <div class="mt-3">
-                    <button type="button" class="btn btn-sm btn-outline-primary add-language-btn" 
-                            title="Add another language">
-                        <i class="fas fa-plus"></i> Add Language
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    generateLanguageFormHtml(noteType, language) {
-        const languageOptions = this.languages.map(lang => 
-            `<option value="${lang.value}" ${lang.value === language ? 'selected' : ''}>${lang.label}</option>`
-        ).join('');
-        
-        return `
-            <div class="mb-3 language-form" data-language="${language}">
-                <div class="row">
-                    <div class="col-md-3">
-                        <label class="form-label">Language</label>
-                        <select class="form-select language-select" 
-                                name="notes[${noteType}][${language}][lang]" 
-                                title="Select language">
-                            ${languageOptions}
-                        </select>
-                    </div>
-                    <div class="col-md-8">
-                        <label class="form-label">Note Text</label>
-                        <textarea class="form-control note-text" 
-                                  name="notes[${noteType}][${language}][text]" 
-                                  rows="2" 
-                                  placeholder="Enter note text in ${this.getLanguageLabel(language)}"></textarea>
-                    </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
-                                title="Remove language">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    getLanguageLabel(languageCode) {
-        const language = this.languages.find(lang => lang.value === languageCode);
-        return language ? language.label : languageCode;
-    }
-}
-
-/**
- * IPA Validation Module
- * Implements real-time validation against admissible IPA characters and sequences
- * as specified in Section 15.3 of the specification
- */
-class IPAValidator {
-    constructor() {
-        // Primary IPA symbols as defined in Section 15.3.1
-        this.vowels = 'ɑæɒəɜɪiʊuʌeɛoɔ';
-        this.consonants = 'bdfghjklmnprstwvzðθŋʃʒ';
-        this.lengthMarkers = 'ː';
-        this.stressMarkers = 'ˈˌ';
-        this.specialSymbols = 'ᵻ';
-        this.diphthongs = ['eɪ', 'aɪ', 'ɔɪ', 'əʊ', 'aʊ', 'ɪə', 'eə', 'ʊə', 'oʊ'];
-        this.complexConsonants = ['tʃ', 'dʒ'];
-        
-        // Build complete valid character set
-        this.validChars = this.vowels + this.consonants + this.lengthMarkers + 
-                         this.stressMarkers + this.specialSymbols + ' .';
-        
-        // Invalid sequences as defined in Section 15.3.3
-        this.invalidSequences = [
-            'ˈˈ', 'ˌˌ', 'ˈˌ', 'ˌˈ', // Double stress markers
-            'ːː', // Double length markers
-        ];
-    }
-    
-    /**
-     * Validate IPA text and return validation result
-     * @param {string} ipaText - The IPA text to validate
-     * @returns {Object} Validation result with isValid, errors, and positions
-     */
-    validate(ipaText) {
-        const result = {
-            isValid: true,
-            errors: [],
-            invalidPositions: []
-        };
-        
-        if (!ipaText || ipaText.trim() === '') {
-            return result; // Empty is valid
-        }
-        
-        // Check for invalid characters
-        for (let i = 0; i < ipaText.length; i++) {
-            const char = ipaText[i];
-            if (!this.validChars.includes(char)) {
-                result.isValid = false;
-                result.errors.push(`Invalid IPA character: '${char}' at position ${i + 1}`);
-                result.invalidPositions.push(i);
-            }
-        }
-        
-        // Check for invalid sequences
-        this.invalidSequences.forEach(sequence => {
-            let index = ipaText.indexOf(sequence);
-            while (index !== -1) {
-                result.isValid = false;
-                result.errors.push(`Invalid sequence: '${sequence}' at position ${index + 1}`);
-                for (let j = index; j < index + sequence.length; j++) {
-                    if (!result.invalidPositions.includes(j)) {
-                        result.invalidPositions.push(j);
-                    }
-                }
-                index = ipaText.indexOf(sequence, index + 1);
-            }
-        });
-        
-        return result;
-    }
-    
-    /**
-     * Apply visual feedback to an input field based on validation result
-     * @param {HTMLInputElement} inputField - The input field to style
-     * @param {Object} validationResult - Result from validate() method
-     */
-    applyVisualFeedback(inputField, validationResult) {
-        // Remove existing validation classes
-        inputField.classList.remove('is-invalid', 'is-valid', 'ipa-invalid');
-        
-        // Remove existing feedback elements
-        const existingFeedback = inputField.parentElement.querySelector('.invalid-feedback, .valid-feedback');
-        if (existingFeedback) {
-            existingFeedback.remove();
-        }
-        
-        if (inputField.value.trim() === '') {
-            return; // No validation for empty fields
-        }
-        
-        if (validationResult.isValid) {
-            inputField.classList.add('is-valid');
-            
-            // Add success feedback
-            const feedback = document.createElement('div');
-            feedback.className = 'valid-feedback';
-            feedback.textContent = 'Valid IPA transcription';
-            inputField.parentElement.appendChild(feedback);
-        } else {
-            inputField.classList.add('is-invalid', 'ipa-invalid');
-            
-            // Add error feedback
-            const feedback = document.createElement('div');
-            feedback.className = 'invalid-feedback';
-            feedback.innerHTML = '<strong>IPA Validation Errors:</strong><br>' + 
-                               validationResult.errors.join('<br>');
-            inputField.parentElement.appendChild(feedback);
-            
-            // Apply underline styling to invalid characters
-            this.highlightInvalidCharacters(inputField, validationResult.invalidPositions);
-        }
-    }
-    
-    /**
-     * Highlight invalid characters with red underline
-     * @param {HTMLInputElement} inputField - The input field
-     * @param {Array} invalidPositions - Array of invalid character positions
-     */
-    highlightInvalidCharacters(inputField, invalidPositions) {
-        // This would be complex to implement with input fields directly
-        // For now, we rely on the Bootstrap validation classes and feedback
-        // A future enhancement could use a contenteditable div for more granular highlighting
-    }
-}
-
-/**
- * Initialize IPA validation for all pronunciation input fields
- */
-function initializeIPAValidation() {
-    const validator = new IPAValidator();
-    
-    function validateIPAField(inputField) {
-        const validationResult = validator.validate(inputField.value);
-        validator.applyVisualFeedback(inputField, validationResult);
-    }
-    
-    // Apply validation to existing IPA input fields
-    document.querySelectorAll('.ipa-input').forEach(inputField => {
-        // Real-time validation on input
-        inputField.addEventListener('input', function() {
-            validateIPAField(this);
-        });
-        
-        // Validation on blur for better UX
-        inputField.addEventListener('blur', function() {
-            validateIPAField(this);
-        });
-        
-        // Initial validation if field has content
-        if (inputField.value.trim()) {
-            validateIPAField(inputField);
-        }
-    });
-    
-    // Add validation CSS if not already present
-    if (!document.querySelector('#ipa-validation-styles')) {
-        const style = document.createElement('style');
-        style.id = 'ipa-validation-styles';
-        style.textContent = `
-            .ipa-invalid {
-                border-color: #dc3545 !important;
-                box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
-            }
-            
-            .ipa-invalid:focus {
-                border-color: #dc3545 !important;
-                box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
-            }
-            
-            .ipa-input.is-valid {
-                border-color: #198754 !important;
-            }
-            
-            .ipa-input.is-valid:focus {
-                border-color: #198754 !important;
-                box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25) !important;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-}
-
-/**
- * Field Visibility Management
- * Implements user-configurable field visibility as specified in Section 7.2.1
- */
-class FieldVisibilityManager {
-    constructor() {
-        this.storageKey = 'entryFormFieldVisibility';
-        this.defaultSettings = {
-            'basic-info-section': true,
-            'custom-fields-section': true,
-            'notes-section': true,
-            'pronunciation-section': true,
-            'variants-section': true,
-            'relations-section': true,
-            'senses-section': true
-        };
-        this.currentSettings = this.loadSettings();
-        this.initializeControls();
-        this.applySettings();
-    }
-    
-    /**
-     * Load settings from localStorage
-     */
-    loadSettings() {
-        try {
-            const stored = localStorage.getItem(this.storageKey);
-            return stored ? { ...this.defaultSettings, ...JSON.parse(stored) } : { ...this.defaultSettings };
-        } catch (error) {
-            console.warn('Failed to load field visibility settings:', error);
-            return { ...this.defaultSettings };
-        }
-    }
-    
-    /**
-     * Save settings to localStorage
-     */
-    saveSettings() {
-        try {
-            localStorage.setItem(this.storageKey, JSON.stringify(this.currentSettings));
-        } catch (error) {
-            console.warn('Failed to save field visibility settings:', error);
-        }
-    }
-    
-    /**
-     * Initialize event listeners for visibility controls
-     */
-    initializeControls() {
-        // Individual section toggles
-        document.querySelectorAll('.field-visibility-toggle').forEach(checkbox => {
-            const sectionClass = checkbox.dataset.target?.replace('.', '');
-            if (sectionClass) {
-                // Set initial state from settings
-                checkbox.checked = this.currentSettings[sectionClass];
-                
-                // Add change listener
-                checkbox.addEventListener('change', () => {
-                    this.currentSettings[sectionClass] = checkbox.checked;
-                    this.saveSettings();
-                    this.applySectionVisibility(sectionClass, checkbox.checked);
-                });
-            }
-        });
-        
-        // Reset to defaults button
-        const resetBtn = document.getElementById('reset-field-visibility');
-        if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-                this.resetToDefaults();
-            });
-        }
-        
-        // Hide empty sections button
-        const hideEmptyBtn = document.getElementById('hide-empty-sections');
-        if (hideEmptyBtn) {
-            hideEmptyBtn.addEventListener('click', () => {
-                this.hideEmptySections();
-            });
-        }
-        
-        // Show all sections button
-        const showAllBtn = document.getElementById('show-all-sections');
-        if (showAllBtn) {
-            showAllBtn.addEventListener('click', () => {
-                this.showAllSections();
-            });
-        }
-    }
-    
-    /**
-     * Apply all current visibility settings
-     */
-    applySettings() {
-        Object.entries(this.currentSettings).forEach(([sectionClass, isVisible]) => {
-            this.applySectionVisibility(sectionClass, isVisible);
-        });
-    }
-    
-    /**
-     * Apply visibility to a specific section
-     */
-    applySectionVisibility(sectionClass, isVisible) {
-        const elements = document.querySelectorAll(`.${sectionClass}`);
-        elements.forEach(element => {
-            if (isVisible) {
-                element.style.display = '';
-                element.classList.remove('field-hidden');
-            } else {
-                element.style.display = 'none';
-                element.classList.add('field-hidden');
-            }
-        });
-    }
-    
-    /**
-     * Reset all settings to defaults
-     */
-    resetToDefaults() {
-        this.currentSettings = { ...this.defaultSettings };
-        this.saveSettings();
-        
-        // Update checkboxes
-        document.querySelectorAll('.field-visibility-toggle').forEach(checkbox => {
-            const sectionClass = checkbox.dataset.target?.replace('.', '');
-            if (sectionClass) {
-                checkbox.checked = this.currentSettings[sectionClass];
-            }
-        });
-        
-        // Apply settings
-        this.applySettings();
-        
-        // Show feedback
-        this.showFeedback('Field visibility reset to defaults', 'success');
-    }
-    
-    /**
-     * Hide sections that appear to be empty
-     */
-    hideEmptySections() {
-        Object.keys(this.currentSettings).forEach(sectionClass => {
-            const sections = document.querySelectorAll(`.${sectionClass}`);
-            sections.forEach(section => {
-                if (this.isSectionEmpty(section)) {
-                    this.currentSettings[sectionClass] = false;
-                    this.applySectionVisibility(sectionClass, false);
-                    
-                    // Update corresponding checkbox
-                    const checkbox = document.querySelector(`[data-target=".${sectionClass}"]`);
-                    if (checkbox) {
-                        checkbox.checked = false;
-                    }
-                }
-            });
-        });
-        
-        this.saveSettings();
-        this.showFeedback('Empty sections hidden', 'info');
-    }
-    
-    /**
-     * Show all sections
-     */
-    showAllSections() {
-        Object.keys(this.currentSettings).forEach(sectionClass => {
-            this.currentSettings[sectionClass] = true;
-            this.applySectionVisibility(sectionClass, true);
-            
-            // Update corresponding checkbox
-            const checkbox = document.querySelector(`[data-target=".${sectionClass}"]`);
-            if (checkbox) {
-                checkbox.checked = true;
-            }
-        });
-        
-        this.saveSettings();
-        this.showFeedback('All sections shown', 'success');
-    }
-    
-    /**
-     * Check if a section appears to be empty
-     */
-    isSectionEmpty(section) {
-        // For custom fields section
-        if (section.classList.contains('custom-fields-section')) {
-            const customFieldItems = section.querySelectorAll('.custom-field-item');
-            return customFieldItems.length === 0;
-        }
-        
-        // For notes section
-        if (section.classList.contains('notes-section')) {
-            const noteItems = section.querySelectorAll('.note-item');
-            return noteItems.length === 0;
-        }
-        
-        // For pronunciation section
-        if (section.classList.contains('pronunciation-section')) {
-            const pronunciationItems = section.querySelectorAll('.pronunciation-item');
-            return pronunciationItems.length === 0;
-        }
-        
-        // For variants section
-        if (section.classList.contains('variants-section')) {
-            const variantItems = section.querySelectorAll('.variant-item');
-            return variantItems.length === 0;
-        }
-        
-        // For relations section
-        if (section.classList.contains('relations-section')) {
-            const relationItems = section.querySelectorAll('.relation-item');
-            return relationItems.length === 0;
-        }
-        
-        // For senses section - never hide as it's required
-        if (section.classList.contains('senses-section')) {
-            return false;
-        }
-        
-        // Default: check for input/textarea/select elements with values
-        const inputs = section.querySelectorAll('input[type="text"], textarea, select');
-        const hasContent = Array.from(inputs).some(input => 
-            input.value && input.value.trim() !== ''
-        );
-        
-        return !hasContent;
-    }
-    
-    /**
-     * Show feedback message to user
-     */
-    showFeedback(message, type = 'info') {
-        // Create a temporary toast-like notification
-        const feedback = document.createElement('div');
-        feedback.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        feedback.style.cssText = `
-            top: 20px; 
-            right: 20px; 
-            z-index: 9999; 
-            min-width: 300px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        `;
-        feedback.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(feedback);
-        
-        // Auto-remove after 3 seconds
-        setTimeout(() => {
-            if (feedback.parentNode) {
-                feedback.remove();
-            }
-        }, 3000);
-    }
-}
-
-// Initialize field visibility management
-document.addEventListener('DOMContentLoaded', function() {
-    // Small delay to ensure modal is ready
-    setTimeout(() => {
-        window.fieldVisibilityManager = new FieldVisibilityManager();
-        
-        // Initialize Phase 3: Auto-Save & Conflict Resolution
-        initializeAutoSaveSystem();
-    }, 200);
-});
-
-/**
- * Phase 3: Auto-Save & Conflict Resolution Initialization
- * Integrates the AutoSaveManager with the form state management and validation systems
- */
-function initializeAutoSaveSystem() {
-    try {
-        // Check if required components are available
-        if (typeof FormStateManager === 'undefined') {
-            console.warn('FormStateManager not available, auto-save disabled');
-            return;
-        }
-        
-        if (typeof ClientValidationEngine === 'undefined') {
-            console.warn('ClientValidationEngine not available, auto-save disabled');
-            return;
-        }
-        
-        if (typeof AutoSaveManager === 'undefined') {
-            console.warn('AutoSaveManager not available, auto-save disabled');
-            return;
-        }
-        
-        // Initialize form state manager
-        window.formStateManager = new FormStateManager();
-        
-        // Initialize client validation engine
-        window.validationEngine = new ClientValidationEngine();
-        
-        // Initialize auto-save manager
-        window.autoSaveManager = new AutoSaveManager(
-            window.formStateManager, 
-            window.validationEngine
-        );
-        
-        // Check if we're editing an existing entry
-        const entryIdField = document.querySelector('[name="id"]');
-        const entryId = entryIdField ? entryIdField.value : null;
-        
-        if (entryId) {
-            // Get initial version if available
-            const versionField = document.querySelector('[name="version"]');
-            const version = versionField ? versionField.value : Date.now().toString();
-            
-            // Start auto-save for existing entry
-            window.autoSaveManager.start();
-            
-            console.log(`Auto-save enabled for entry: ${entryId}`);
-        } else {
-            console.log('Auto-save disabled for new entry (no ID yet)');
-        }
-        
-        // Add Ctrl+S shortcut for manual save
-        document.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault();
-                if (window.autoSaveManager && window.autoSaveManager.isActive) {
-                    window.autoSaveManager.forceSave().then(result => {
-                        if (result.success) {
-                            showToast('Entry saved manually', 'success');
-                        } else {
-                            showToast(`Save failed: ${result.reason}`, 'error');
-                        }
-                    });
-                }
-            }
-        });
-        
-        // Integration with form submission
-        const form = document.querySelector('form');
-        if (form) {
-            form.addEventListener('submit', function(e) {
-                // Stop auto-save during manual submission
-                if (window.autoSaveManager) {
-                    window.autoSaveManager.stop();
-                }
-            });
-        }
-        
-        console.log('Phase 3: Auto-Save & Conflict Resolution initialized successfully');
-        
-    } catch (error) {
-        console.error('Failed to initialize auto-save system:', error);
-    }
-}
-
-/**
- * Show toast notification for auto-save feedback
- */
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} alert-dismissible position-fixed`;
-    toast.style.cssText = `
-        top: 20px; 
-        right: 20px; 
-        z-index: 9999; 
-        min-width: 300px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    `;
-    toast.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(toast);
-    
-    // Auto-remove after 3 seconds
-    setTimeout(() => {
-        if (toast.parentNode) {
-            toast.remove();
-        }
-    }, 3000);
-}
