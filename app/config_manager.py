@@ -73,3 +73,7 @@ class ConfigManager:
 
     def set_target_language(self, code: str, name: str) -> None:
         self.update_settings({'target_language': {'code': code, 'name': name}})
+
+    def get_project_languages(self) -> list:
+        return [self.get_setting('source_language'), self.get_setting('target_language')]
+        
