@@ -17,8 +17,9 @@ def test_entry_serialization_issue():
     app = create_app()
     
     with app.app_context():
-        dict_service = injector.get(DictionaryService)
-        
+        # Use the app's injector, which should be properly configured
+        dict_service = app.injector.get(DictionaryService)
+
         # Get the problematic entry
         try:
             entry = dict_service.get_entry("Protestantism_b97495fb-d52f-4755-94bf-a7a762339605")
@@ -26,22 +27,22 @@ def test_entry_serialization_issue():
             print(f"Entry type: {type(entry)}")
             print(f"Lexical unit: {entry.lexical_unit} (type: {type(entry.lexical_unit)})")
             print(f"Grammatical info: {entry.grammatical_info} (type: {type(entry.grammatical_info)})")
-            
+
             # Check for any dict values that shouldn't be dicts
             entry_dict = entry.to_dict()
             print(f"\nEntry dict keys: {list(entry_dict.keys())}")
-            
+
             for key, value in entry_dict.items():
                 if isinstance(value, dict) and key not in ['lexical_unit', 'notes', 'pronunciations', 'custom_fields']:
                     print(f"⚠️ WARNING: {key} is unexpectedly a dict: {value}")
-                    
+
             # Try to validate the entry
             try:
                 is_valid = entry.validate()
                 print(f"✅ Entry validation: {is_valid}")
             except Exception as e:
                 print(f"❌ Entry validation failed: {e}")
-                
+
             # Try to update the entry (this should trigger the error)
             try:
                 dict_service.update_entry(entry)
@@ -50,7 +51,7 @@ def test_entry_serialization_issue():
                 print(f"❌ Entry update failed: {e}")
                 import traceback
                 traceback.print_exc()
-                
+
         except Exception as e:
             print(f"❌ Failed to retrieve entry: {e}")
             import traceback
