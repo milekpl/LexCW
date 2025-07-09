@@ -74,17 +74,17 @@ class TestMultilingualFieldEditing:
         assert 'pt' in general_note
         assert 'pl' in general_note
         # Type ignores to handle current type structure until we update the models
-        assert general_note['en'] == "This is an English note"  # type: ignore
-        assert general_note['pt'] == "Esta é uma nota em português"  # type: ignore
-        assert general_note['pl'] == "Ichi ndi chida chakupanda mu Chisena"  # type: ignore
+        assert general_note['en']['text'] == "This is an English note"
+        assert general_note['pt']['text'] == "Esta é uma nota em português"
+        assert general_note['pl']['text'] == "Ichi ndi chida chakupanda mu Chisena"
         
         # Usage note should contain two languages
         usage_note = entry.notes['usage']
         assert isinstance(usage_note, dict)
         assert 'en' in usage_note
         assert 'pt' in usage_note
-        assert usage_note['en'] == "Used in formal contexts"  # type: ignore
-        assert usage_note['pt'] == "Usado em contextos formais"  # type: ignore
+        assert usage_note['en']['text'] == "Used in formal contexts"
+        assert usage_note['pt']['text'] == "Usado em contextos formais"
 
     def test_multilingual_note_serialization_to_dict(self):
         """Test that multilingual notes are correctly serialized to dictionary format."""
@@ -92,17 +92,16 @@ class TestMultilingualFieldEditing:
             lexical_unit={"pl": "mukwa"},
             notes={
                 "general": {
-                    "en": "This is an English note",
-                    "pt": "Esta é uma nota em português",
-                    "pl": "Ichi ndi chida chakupanda mu Chisena"
+                    "en": {"text": "This is an English note"},
+                    "pt": {"text": "Esta é uma nota em português"},
+                    "pl": {"text": "Ichi ndi chida chakupanda mu Chisena"}
                 },
                 "usage": {
-                    "en": "Used in formal contexts",
-                    "pt": "Usado em contextos formais"
+                    "en": {"text": "Used in formal contexts"},
+                    "pt": {"text": "Usado em contextos formais"}
                 }
-            }
-        ,
-            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
+            },
+            senses=[{"id": "sense1", "definitions": {"en": {"text": "test definition"}}}])
         
         entry_dict = entry.to_dict()
         
@@ -113,14 +112,14 @@ class TestMultilingualFieldEditing:
         
         general_note = entry_dict['notes']['general']
         assert isinstance(general_note, dict)
-        assert general_note['en'] == "This is an English note"
-        assert general_note['pt'] == "Esta é uma nota em português"
-        assert general_note['pl'] == "Ichi ndi chida chakupanda mu Chisena"
+        assert general_note['en']['text'] == "This is an English note"
+        assert general_note['pt']['text'] == "Esta é uma nota em português"
+        assert general_note['pl']['text'] == "Ichi ndi chida chakupanda mu Chisena"
         
         usage_note = entry_dict['notes']['usage']
         assert isinstance(usage_note, dict)
-        assert usage_note['en'] == "Used in formal contexts"
-        assert usage_note['pt'] == "Usado em contextos formais"
+        assert usage_note['en']['text'] == "Used in formal contexts"
+        assert usage_note['pt']['text'] == "Usado em contextos formais"
 
     def test_multilingual_sense_note_parsing(self):
         """Test that multilingual notes on senses are correctly parsed."""
@@ -168,8 +167,8 @@ class TestMultilingualFieldEditing:
         assert isinstance(semantic_note, dict)
         assert 'en' in semantic_note
         assert 'pt' in semantic_note
-        assert semantic_note['en'] == "Refers specifically to large trees"  # type: ignore
-        assert semantic_note['pt'] == "Refere-se especificamente a árvores grandes"  # type: ignore
+        assert semantic_note['en']['text'] == "Refers specifically to large trees"
+        assert semantic_note['pt']['text'] == "Refere-se especificamente a árvores grandes"
 
     def test_multilingual_note_form_rendering_in_ui(self):
         """Test that multilingual note form fields are properly rendered in the UI."""
@@ -179,12 +178,11 @@ class TestMultilingualFieldEditing:
             lexical_unit={"pl": "mukwa"},
             notes={
                 "general": {
-                    "en": "This is an English note",
-                    "pt": "Esta é uma nota em português"
+                    "en": {"text": "This is an English note"},
+                    "pt": {"text": "Esta é uma nota em português"}
                 }
-            }
-        ,
-            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
+            },
+            senses=[{"id": "sense1", "definitions": {"en": {"text": "test definition"}}}])
         
         # For now, we'll just validate that the entry has the correct structure
         # The UI integration will be tested separately
@@ -193,12 +191,11 @@ class TestMultilingualFieldEditing:
         assert isinstance(entry.notes['general'], dict)
         assert 'en' in entry.notes['general']
         assert 'pt' in entry.notes['general']
-        
         # Verify that the notes can be serialized properly for use in templates
         entry_dict = entry.to_dict()
         assert 'notes' in entry_dict
-        assert entry_dict['notes']['general']['en'] == "This is an English note"
-        assert entry_dict['notes']['general']['pt'] == "Esta é uma nota em português"
+        assert entry_dict['notes']['general']['en']['text'] == "This is an English note"
+        assert entry_dict['notes']['general']['pt']['text'] == "Esta é uma nota em português"
 
     def test_multilingual_note_form_submission_processing(self):
         """Test that form submission correctly processes multilingual note data."""
@@ -217,16 +214,15 @@ class TestMultilingualFieldEditing:
         
         expected_notes = {
             'general': {
-                'en': 'Updated English note',
-                'pt': 'Nota atualizada em português',
-                'pl': 'Chida chakupanduka mu Chisena'
+                'en': {'text': 'Updated English note'},
+                'pt': {'text': 'Nota atualizada em português'},
+                'pl': {'text': 'Chida chakupanduka mu Chisena'}
             },
             'usage': {
-                'en': 'Usage note in English',
-                'pt': 'Nota de uso em português'
+                'en': {'text': 'Usage note in English'},
+                'pt': {'text': 'Nota de uso em português'}
             }
         }
-        
         assert processed_notes == expected_notes
 
     def test_multilingual_custom_field_support(self):
@@ -285,8 +281,8 @@ class TestMultilingualFieldEditing:
         assert isinstance(source_field, dict)
         assert 'en' in source_field
         assert 'pt' in source_field
-        assert source_field['en'] == "Wilson (1995)"  # type: ignore
-        assert source_field['pt'] == "Wilson (1995)"  # type: ignore
+        assert source_field['en']['text'] == "Wilson (1995)"
+        assert source_field['pt']['text'] == "Wilson (1995)"
         
         # Cultural note field
         cultural_note = entry.custom_fields['cultural_note']
@@ -294,16 +290,16 @@ class TestMultilingualFieldEditing:
         assert 'en' in cultural_note
         assert 'pt' in cultural_note
         assert 'pl' in cultural_note
-        assert cultural_note['en'] == "Sacred tree in traditional ceremonies"  # type: ignore
-        assert cultural_note['pt'] == "Árvore sagrada em cerimônias tradicionais"  # type: ignore
-        assert cultural_note['pl'] == "Chikwa chakudedza pamicaso yakale"  # type: ignore
+        assert cultural_note['en']['text'] == "Sacred tree in traditional ceremonies"
+        assert cultural_note['pt']['text'] == "Árvore sagrada em cerimônias tradicionais"
+        assert cultural_note['pl']['text'] == "Chikwa chakudedza pamicaso yakale"
 
-    def _process_multilingual_note_form_data(self, form_data: Dict[str, str]) -> Dict[str, Dict[str, str]]:
+    def _process_multilingual_note_form_data(self, form_data: Dict[str, str]) -> Dict[str, Dict[str, dict]]:
         """
         Helper method to process multilingual note form data.
         This simulates the form processing logic that would be implemented in the actual application.
         """
-        notes: Dict[str, Dict[str, str]] = {}
+        notes: Dict[str, Dict[str, dict]] = {}
         
         for key, value in form_data.items():
             if key.startswith('notes[') and value.strip():
@@ -322,7 +318,7 @@ class TestMultilingualFieldEditing:
                         if note_type not in notes:
                             notes[note_type] = {}
                         
-                        notes[note_type][language] = value.strip()
+                        notes[note_type][language] = {"text": value.strip()}
         
         return notes
 
@@ -340,8 +336,8 @@ class TestMultilingualFieldEditing:
                 "lexical_unit": {"en": "foreign word"},
                 "senses": [{
                     "id": f"sense-{uuid.uuid4()}",
-                    "definition": {
-                        "fr": "Ceci est une définition française."
+                    "definitions": {
+                        "fr": {"text": "Ceci est une définition française."}
                     }
                 }]
             }
@@ -357,18 +353,17 @@ class TestMultilingualFieldEditing:
 
                 # THEN
                 # The name attribute is constructed dynamically based on the language key.
-                # Debug: Print all select elements with names containing 'senses'
-                print("\nDEBUG: All select elements with names containing 'senses':")
+                # Debug: Print all select elements and their names
+                print("\nDEBUG: All select elements:")
                 for select in soup.find_all('select'):
-                    if select.get('name') and 'senses' in select.get('name'):
-                        print(f"  - {select.get('name')}")
+                    print(f"  - {select.get('name')}")
                 
 
                 # Find any select for a definition in 'fr', regardless of sense index
                 lang_select = None
                 for select in soup.find_all('select'):
                     name = select.get('name', '')
-                    if name.endswith('[definition][fr][lang]'):
+                    if name and name.endswith('.definition.fr.lang'):
                         lang_select = select
                         break
                 assert lang_select, "Language select for 'fr' definition not found."

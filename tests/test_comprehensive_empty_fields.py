@@ -31,22 +31,22 @@ def test_empty_to_filled_scenario():
     existing_senses = [
         {
             'id': 'sense-1',
-            'definition': '',         # Empty string
+            'definitions': {},         # Empty dict for multitext
             'grammatical_info': None, # None value  
             'examples': [],          # Empty list
             'glosses': {},           # Empty dict
             'notes': {}              # Empty dict
         }
     ]
-    
+
     # 2. Form data with NEW content filled by user
     form_senses = [
         {
             'id': 'sense-1',
-            'definition': 'User typed this new definition',  # NEW CONTENT
+            'definitions': {'en': {'text': 'User typed this new definition'}},  # NEW CONTENT
             'grammatical_info': 'noun',                      # NEW CONTENT
             'examples': [{'text': 'New example', 'translation': 'New translation'}],  # NEW CONTENT
-            'glosses': {'en': 'house', 'pt': 'casa'},        # NEW CONTENT
+            'glosses': {'en': {'text': 'house'}, 'pt': {'text': 'casa'}},        # NEW CONTENT
             'notes': {'general': {'en': 'User note'}}        # NEW CONTENT
         }
     ]
@@ -59,8 +59,8 @@ def test_empty_to_filled_scenario():
     merged_sense = merged_senses[0]
     
     # All new data should be preserved
-    assert merged_sense['definition'] == 'User typed this new definition', \
-        f"❌ NEW definition lost! Got: '{merged_sense.get('definition')}'"
+    assert merged_sense['definitions']['en']['text'] == 'User typed this new definition', \
+        f"❌ NEW definition lost! Got: '{merged_sense.get('definitions')}'"
     
     assert merged_sense['grammatical_info'] == 'noun', \
         f"❌ NEW grammatical_info lost! Got: '{merged_sense.get('grammatical_info')}'"
@@ -68,7 +68,7 @@ def test_empty_to_filled_scenario():
     assert merged_sense['examples'] == [{'text': 'New example', 'translation': 'New translation'}], \
         f"❌ NEW examples lost! Got: {merged_sense.get('examples')}"
     
-    assert merged_sense['glosses'] == {'en': 'house', 'pt': 'casa'}, \
+    assert merged_sense['glosses'] == {'en': {'text': 'house'}, 'pt': {'text': 'casa'}}, \
         f"❌ NEW glosses lost! Got: {merged_sense.get('glosses')}"
     
     assert merged_sense['notes'] == {'general': {'en': 'User note'}}, \
@@ -86,16 +86,16 @@ def test_whitespace_only_to_content():
     existing_senses = [
         {
             'id': 'sense-1',
-            'definition': '   \n\t  ',    # Whitespace-only
+            'definitions': {'en': {'text': '   \n\t  '}},    # Whitespace-only multitext
             'grammatical_info': ' ',       # Space-only
         }
     ]
-    
+
     # Form with real content
     form_senses = [
         {
             'id': 'sense-1',
-            'definition': 'Real definition content',
+            'definitions': {'en': {'text': 'Real definition content'}},
             'grammatical_info': 'verb',
         }
     ]
@@ -104,7 +104,7 @@ def test_whitespace_only_to_content():
     merged_sense = merged_senses[0]
     
     # Should use new content (form data) over whitespace-only existing data
-    assert merged_sense['definition'] == 'Real definition content'
+    assert merged_sense['definitions']['en']['text'] == 'Real definition content'
     assert merged_sense['grammatical_info'] == 'verb'
     
     print("✅ SUCCESS: Whitespace-only data correctly replaced with real content")
@@ -119,20 +119,20 @@ def test_none_vs_empty_string_vs_missing():
     test_cases = [
         # Case 1: None values
         {
-            'existing': {'id': 'sense-1', 'definition': None, 'grammatical_info': None},
-            'form': {'id': 'sense-1', 'definition': 'New def', 'grammatical_info': 'noun'},
+            'existing': {'id': 'sense-1', 'definitions': None, 'grammatical_info': None},
+            'form': {'id': 'sense-1', 'definitions': {'en': {'text': 'New def'}}, 'grammatical_info': 'noun'},
             'case_name': 'None values'
         },
-        # Case 2: Empty strings
+        # Case 2: Empty dict
         {
-            'existing': {'id': 'sense-1', 'definition': '', 'grammatical_info': ''},
-            'form': {'id': 'sense-1', 'definition': 'New def', 'grammatical_info': 'noun'},
-            'case_name': 'Empty strings'
+            'existing': {'id': 'sense-1', 'definitions': {}, 'grammatical_info': ''},
+            'form': {'id': 'sense-1', 'definitions': {'en': {'text': 'New def'}}, 'grammatical_info': 'noun'},
+            'case_name': 'Empty dict'
         },
         # Case 3: Missing fields entirely
         {
             'existing': {'id': 'sense-1'},  # Fields don't exist
-            'form': {'id': 'sense-1', 'definition': 'New def', 'grammatical_info': 'noun'},
+            'form': {'id': 'sense-1', 'definitions': {'en': {'text': 'New def'}}, 'grammatical_info': 'noun'},
             'case_name': 'Missing fields'
         }
     ]
@@ -144,8 +144,8 @@ def test_none_vs_empty_string_vs_missing():
         merged_sense = merged_senses[0]
         
         # Should always use new content from form
-        assert merged_sense['definition'] == 'New def', \
-            f"Failed for {case['case_name']}: definition = {merged_sense.get('definition')}"
+        assert merged_sense['definitions']['en']['text'] == 'New def', \
+            f"Failed for {case['case_name']}: definitions = {merged_sense.get('definitions')}"
         assert merged_sense['grammatical_info'] == 'noun', \
             f"Failed for {case['case_name']}: grammatical_info = {merged_sense.get('grammatical_info')}"
         
@@ -161,17 +161,17 @@ def test_preserve_existing_when_form_empty():
     existing_senses = [
         {
             'id': 'sense-1',
-            'definition': 'Important existing definition',
+            'definitions': {'en': {'text': 'Important existing definition'}},
             'grammatical_info': 'adjective',
             'examples': [{'text': 'Old example', 'translation': 'Old trans'}]
         }
     ]
-    
+
     # Form with missing/empty fields (user didn't change these)
     form_senses = [
         {
             'id': 'sense-1',
-            # definition missing - should preserve existing
+            # definitions missing - should preserve existing
             # grammatical_info missing - should preserve existing
             # examples missing - should preserve existing
             'notes': {'general': {'en': 'New note'}}  # Only this is new
@@ -182,7 +182,7 @@ def test_preserve_existing_when_form_empty():
     merged_sense = merged_senses[0]
     
     # Should preserve existing data for missing fields
-    assert merged_sense['definition'] == 'Important existing definition'
+    assert merged_sense['definitions']['en']['text'] == 'Important existing definition'
     assert merged_sense['grammatical_info'] == 'adjective'
     assert merged_sense['examples'] == [{'text': 'Old example', 'translation': 'Old trans'}]
     
@@ -201,16 +201,16 @@ def test_edge_case_form_explicitly_empty():
     existing_senses = [
         {
             'id': 'sense-1',
-            'definition': 'Existing definition',
+            'definitions': {'en': {'text': 'Existing definition'}},
             'grammatical_info': 'noun'
         }
     ]
-    
+
     # Form explicitly sends empty values (user cleared the fields)
     form_senses = [
         {
             'id': 'sense-1',
-            'definition': '',  # User explicitly cleared this
+            'definitions': {},  # User explicitly cleared this (empty dict)
             'grammatical_info': '',  # User explicitly cleared this
             'notes': {'general': {'en': 'But added a note'}}  # User added this
         }
@@ -220,7 +220,7 @@ def test_edge_case_form_explicitly_empty():
     merged_sense = merged_senses[0]
     
     # Empty form fields should preserve existing data (no data loss)
-    assert merged_sense['definition'] == 'Existing definition'
+    assert merged_sense['definitions']['en']['text'] == 'Existing definition'
     assert merged_sense['grammatical_info'] == 'noun'
     
     # New data should be added

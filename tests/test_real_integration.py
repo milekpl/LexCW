@@ -98,62 +98,57 @@ class TestRealIntegration:
                 os.unlink(temp_lift_path)
     
     def test_real_entry_creation_and_retrieval(self, dict_service):
-        """Test creating and retrieving entries with real database operations."""
-        # Create a real entry
+        """Test creating and retrieving entries with real database operations (multitext fields as dicts)."""
         entry = Entry(
             id_="real_test_entry",
             lexical_unit={"en": "integration", "pl": "integracja"},
             senses=[{
                 "id": "real_sense_1",
-                "gloss": "The process of combining parts into a whole",
-                "definition": "A comprehensive test of system components working together"
+                "definitions": {"en": {"text": "A comprehensive test of system components working together"}},
+                "glosses": {"en": {"text": "The process of combining parts into a whole"}}
             }]
         )
-        
-        # Validate the entry
+
         assert entry.validate()
-        
-        # Create the entry in the database
         created_id = dict_service.create_entry(entry)
         assert created_id == "real_test_entry"
-        
-        # Retrieve the entry
+
         retrieved_entry = dict_service.get_entry("real_test_entry")
         assert retrieved_entry is not None
         assert retrieved_entry.id == "real_test_entry"
         assert retrieved_entry.lexical_unit["en"] == "integration"
         assert len(retrieved_entry.senses) == 1
-        assert retrieved_entry.senses[0].gloss == "The process of combining parts into a whole"
+        assert retrieved_entry.senses[0].definitions["en"]["text"] == "A comprehensive test of system components working together"
+        assert retrieved_entry.senses[0].glosses["en"]["text"] == "The process of combining parts into a whole"
     
     def test_real_search_functionality(self, dict_service):
-        """Test search functionality with real database."""
-        # Create multiple test entries
+        """Test search functionality with real database (multitext fields as dicts)."""
         entries = [
             Entry(
                 id_="search_test_1",
                 lexical_unit={"en": "apple", "pl": "jabłko"},
                 senses=[{
                     "id": "apple_sense_1",
-                    "gloss": "A round fruit",
-                    "definition": "A red or green fruit that grows on trees"
+                    "definitions": {"en": {"text": "A red or green fruit that grows on trees"}},
+                    "glosses": {"en": {"text": "A round fruit"}}
                 }]
             ),
             Entry(
-                id_="search_test_2", 
+                id_="search_test_2",
                 lexical_unit={"en": "application", "pl": "aplikacja"},
                 senses=[{
                     "id": "app_sense_1",
-                    "gloss": "A computer program",
-                    "definition": "Software designed for end users"
+                    "definitions": {"en": {"text": "Software designed for end users"}},
+                    "glosses": {"en": {"text": "A computer program"}}
                 }]
             ),
             Entry(
                 id_="search_test_3",
                 lexical_unit={"en": "appreciate", "pl": "doceniać"},
                 senses=[{
-                    "id": "appreciate_sense_1", 
-                    "gloss": "To value or recognize",
-                    "definition": "To understand the worth or importance of something"
+                    "id": "appreciate_sense_1",
+                    "definitions": {"en": {"text": "To understand the worth or importance of something"}},
+                    "glosses": {"en": {"text": "To value or recognize"}}
                 }]
             )
         ]
@@ -194,22 +189,18 @@ class TestRealIntegration:
             lexical_unit={"en": "original"},
             senses=[{
                 "id": "original_sense",
-                "gloss": "Original gloss"
+                "glosses": {"en": {"text": "Original gloss"}}
             }]
         )
-        
         dict_service.create_entry(entry)
-        
         # Update entry
         entry.lexical_unit["en"] = "updated"
-        entry.senses[0].gloss = "Updated gloss"
-        
+        entry.senses[0].glosses = {"en": {"text": "Updated gloss"}}
         dict_service.update_entry(entry)
-        
         # Verify update
         updated_entry = dict_service.get_entry("update_test_entry")
         assert updated_entry.lexical_unit["en"] == "updated"
-        assert updated_entry.senses[0].gloss == "Updated gloss"
+        assert updated_entry.senses[0].glosses["en"]["text"] == "Updated gloss"
         
         # Delete entry
         success = dict_service.delete_entry("update_test_entry")
@@ -231,7 +222,7 @@ class TestRealIntegration:
                 lexical_unit={"en": f"word_{i}"},
                 senses=[{
                     "id": f"sense_{i}",
-                    "gloss": f"Definition {i}"
+                    "glosses": {"en": {"text": f"Definition {i}"}}
                 }]
             )
             dict_service.create_entry(entry)
@@ -309,16 +300,13 @@ class TestRealIntegration:
         entry = Entry(
             id_="duplicate_test",
             lexical_unit={"en": "duplicate"},
-            senses=[{"id": "dup_sense", "gloss": "First"}]
+            senses=[{"id": "dup_sense", "glosses": {"en": {"text": "First"}}}]
         )
-        
         # First creation should succeed
         dict_service.create_entry(entry)
-        
         # Second creation should fail
         with pytest.raises(ValidationError):
             dict_service.create_entry(entry)
-        
         # Test retrieving non-existent entry
         with pytest.raises(NotFoundError):
             dict_service.get_entry("non_existent_entry")
@@ -327,9 +315,8 @@ class TestRealIntegration:
         non_existent = Entry(
             id_="non_existent",
             lexical_unit={"en": "test"},
-            senses=[{"id": "test", "gloss": "test"}]
+            senses=[{"id": "test", "glosses": {"en": {"text": "test"}}}]
         )
-        
         with pytest.raises(NotFoundError):
             dict_service.update_entry(non_existent)
     
@@ -342,27 +329,23 @@ class TestRealIntegration:
             senses=[
                 {
                     "id": "bank_sense_1",
-                    "gloss": "Financial institution",
-                    "definition": "A place where money is kept and financial services are provided"
+                    "glosses": {"en": {"text": "Financial institution"}},
+                    "definitions": {"en": {"text": "A place where money is kept and financial services are provided"}}
                 },
                 {
                     "id": "bank_sense_2", 
-                    "gloss": "Side of a river",
-                    "definition": "The land alongside a river or lake"
+                    "glosses": {"en": {"text": "Side of a river"}},
+                    "definitions": {"en": {"text": "The land alongside a river or lake"}}
                 }
             ]
         )
-        
         dict_service.create_entry(entry)
-        
         # Retrieve and verify
         retrieved = dict_service.get_entry("multi_sense_test")
         assert len(retrieved.senses) == 2
-        
         # Test sense access
-        financial_sense = next((s for s in retrieved.senses if "Financial" in s.gloss), None)
-        river_sense = next((s for s in retrieved.senses if "river" in s.gloss), None)
-        
+        financial_sense = next((s for s in retrieved.senses if "Financial" in s.glosses["en"]["text"]), None)
+        river_sense = next((s for s in retrieved.senses if "river" in s.glosses["en"]["text"]), None)
         assert financial_sense is not None
         assert river_sense is not None
         assert financial_sense.id == "bank_sense_1"
@@ -373,60 +356,61 @@ class TestRealModelInteractions:
     """Test real model interactions without database dependencies."""
     
     def test_sense_property_setters(self):
-        """Test that property setters work correctly."""
+        """Test that property setters work correctly for multilingual dicts."""
         sense = Sense(id_="test_sense")
-        
-        # Test string assignment
-        sense.gloss = "Test gloss"
-        assert sense.glosses["en"] == "Test gloss"
-        assert sense.gloss == "Test gloss"
-        
-        sense.definition = "Test definition"
-        assert sense.definitions["en"] == "Test definition"
-        assert sense.definition == "Test definition"
-        
-        # Test dict assignment
-        sense.gloss = {"pl": "Polski tekst", "en": "English text"}
-        assert sense.glosses["pl"] == "Polski tekst"
-        assert sense.glosses["en"] == "English text"
-        assert sense.gloss == "English text"  # Should return English first
+
+        # Test string assignment (should create nested dict)
+        sense.glosses = {"en": {"text": "Test gloss"}}
+        assert sense.glosses["en"]["text"] == "Test gloss"
+
+        sense.definitions = {"en": {"text": "Test definition"}}
+        assert sense.definitions["en"]["text"] == "Test definition"
+
+        # Test dict assignment (multiple languages)
+        sense.glosses = {"pl": {"text": "Polski tekst"}, "en": {"text": "English text"}}
+        assert sense.glosses["pl"]["text"] == "Polski tekst"
+        assert sense.glosses["en"]["text"] == "English text"
+
+        # Test that the structure is always {lang: {text: ...}}
+        for lang, val in sense.glosses.items():
+            assert isinstance(val, dict) and "text" in val
     
     def test_entry_sense_integration(self):
-        """Test entry and sense object integration."""
+        """Test entry and sense object integration with multilingual dicts."""
         entry = Entry(
             id_="integration_test",
             lexical_unit={"en": "test", "pl": "test"},
             senses=[
                 {
                     "id": "sense_1",
-                    "gloss": "First sense",
-                    "definition": "First definition"
+                    "glosses": {"en": {"text": "First sense"}},
+                    "definitions": {"en": {"text": "First definition"}}
                 },
                 {
                     "id": "sense_2",
-                    "gloss": {"en": "Second sense", "pl": "Drugi sens"},
-                    "definition": {"en": "Second definition", "pl": "Druga definicja"}
+                    "glosses": {"en": {"text": "Second sense"}, "pl": {"text": "Drugi sens"}},
+                    "definitions": {"en": {"text": "Second definition"}, "pl": {"text": "Druga definicja"}}
                 }
             ]
         )
-        
+
         # Verify senses are properly converted to objects
         assert len(entry.senses) == 2
         assert all(isinstance(sense, Sense) for sense in entry.senses)
-        
+
         # Test first sense
         sense1 = entry.senses[0]
         assert sense1.id == "sense_1"
-        assert sense1.gloss == "First sense"
-        assert sense1.definition == "First definition"
-        
+        assert sense1.glosses["en"]["text"] == "First sense"
+        assert sense1.definitions["en"]["text"] == "First definition"
+
         # Test second sense with multiple languages
         sense2 = entry.senses[1]
         assert sense2.id == "sense_2"
-        assert sense2.gloss == "Second sense"  # Should return English
-        assert sense2.get_gloss("pl") == "Drugi sens"
-        assert sense2.definition == "Second definition"
-        assert sense2.get_definition("pl") == "Druga definicja"
+        assert sense2.glosses["en"]["text"] == "Second sense"
+        assert sense2.glosses["pl"]["text"] == "Drugi sens"
+        assert sense2.definitions["en"]["text"] == "Second definition"
+        assert sense2.definitions["pl"]["text"] == "Druga definicja"
     
     def test_entry_validation_comprehensive(self):
         """Test comprehensive entry validation."""
@@ -455,4 +439,4 @@ class TestRealModelInteractions:
         )
         with pytest.raises(ValidationError) as exc_info:
             invalid_entry2.validate()
-        assert "missing an ID" in str(exc_info.value)
+        assert "Sense ID is required and must be non-empty" in str(exc_info.value)

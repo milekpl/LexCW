@@ -273,20 +273,21 @@ class TestValidationAPI:
     """Test validation API endpoints."""
     
     def test_validation_check_valid_entry(self, client):
-        """Test validation check with valid entry."""
+        """Test validation check with valid entry using nested dicts for multitext fields."""
         entry_data = {
             'id': 'test',
             'lexical_unit': {'en': 'test'},
             'senses': [{
                 'id': 'sense1',
-                'glosses': {'en': 'test gloss'}  # Use glosses instead of gloss
+                'definitions': {'en': {'text': 'test definition'}},
+                'glosses': {'en': {'text': 'test gloss'}}
             }]
         }
-        
+
         response = client.post('/api/validation/check',
                              data=json.dumps(entry_data),
                              content_type='application/json')
-        
+
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data['valid'] is True
