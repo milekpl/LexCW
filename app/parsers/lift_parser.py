@@ -237,6 +237,15 @@ class LIFTParser:
             ValidationError: If validation is enabled and an entry fails validation.
         """
         try:
+            # Clean up the XML string to handle potential whitespace issues
+            xml_string = xml_string.strip()
+            
+            # Handle case where we have multiple entry elements without a root
+            # This is common in test mocks and some database responses
+            if xml_string.startswith('<entry') and not xml_string.startswith('<entry>'):
+                # Multiple entries without a root - wrap them
+                xml_string = f"<lift>{xml_string}</lift>"
+            
             root = ET.fromstring(xml_string)
             
             entries = []

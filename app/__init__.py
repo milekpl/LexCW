@@ -14,47 +14,13 @@ from injector import Injector, singleton
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
 from app.config_manager import ConfigManager
+from app.services.cache_service import CacheService
 
 
 # Create a global injector
 injector = Injector()
 
-# Create a singleton instance of BaseXConnector directly
-basex_connector = BaseXConnector(
-    host=os.getenv('BASEX_HOST', 'localhost'),
-    port=int(os.getenv('BASEX_PORT', '1984')),
-    username=os.getenv('BASEX_USERNAME', 'admin'),
-    password=os.getenv('BASEX_PASSWORD', 'admin'),
-    database=os.getenv('BASEX_DATABASE', 'dictionary')
-)
-
-# Only connect during non-test environments
-if not (os.getenv('TESTING') == 'true' or 'pytest' in sys.modules):
-    # Make sure the connection is established
-    try:
-        basex_connector.connect()
-        logging.getLogger(__name__).info("Successfully connected to BaseX server")
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to connect to BaseX server on startup: {e}")
-
-# Create a DictionaryService instance using the BaseXConnector
-dictionary_service = DictionaryService(db_connector=basex_connector)
-
-# Initialize ConfigManager early
-# Note: Flask app's instance_path is not available yet.
-# We'll use a temporary path or handle it inside ConfigManager if needed,
-# or re-initialize/update it once the app object is created.
-# For now, let's assume ConfigManager can handle a None path initially or uses a default.
-# A better approach is to initialize it inside create_app.
-
-def configure_dependencies(binder):
-    """Configure dependencies for the application."""
-    # Bind the pre-created instances as singletons
-    binder.bind(BaseXConnector, to=basex_connector, scope=singleton)
-    binder.bind(DictionaryService, to=dictionary_service, scope=singleton)
-    # ConfigManager will be bound after app creation
-
-injector.binder.install(configure_dependencies)
+# The injector will be configured inside create_app, once the app is initialized.
 
 
 def create_app(config_name=None):
@@ -96,19 +62,8 @@ def create_app(config_name=None):
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    # Add rotating file handler for application logs
-    from logging.handlers import RotatingFileHandler
-    # Ensure logs directory exists under instance path
-    log_dir = os.path.join(app.instance_path, 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    file_handler = RotatingFileHandler(
-        os.path.join(log_dir, 'app.log'), maxBytes=10240, backupCount=10
-    )
-    file_handler.setFormatter(
-        logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    )
-    file_handler.setLevel(logging.INFO)
-    app.logger.addHandler(file_handler)
+    # File-based logging is disabled to prevent file locking issues
+    # with the Werkzeug reloader on Windows. Logging will go to the console.
     
     # Create instance directories
     os.makedirs(os.path.join(app.instance_path, 'audio'), exist_ok=True)
@@ -217,26 +172,51 @@ def create_app(config_name=None):
         """Health check endpoint."""
         return {'status': 'ok'}
     
-    # Add dict_service to app for testing compatibility
-    app.dict_service = dictionary_service
-    app.dict_service_with_db = dictionary_service  # Alias for test compatibility
-    
-    # Attach the global injector to the app for dependency injection
-    app.injector = injector
+    # Configure dependency injection
+    def configure_dependencies(binder):
+        """Configure dependencies for the application."""
+        # Create a singleton instance of BaseXConnector
+        basex_connector = BaseXConnector(
+            host=app.config.get('BASEX_HOST', 'localhost'),
+            port=app.config.get('BASEX_PORT', 1984),
+            username=app.config.get('BASEX_USERNAME', 'admin'),
+            password=app.config.get('BASEX_PASSWORD', 'admin'),
+            database=app.config.get('BASEX_DATABASE', 'dictionary')
+        )
+        
+        # Only connect during non-test environments
+        if not app.testing:
+            try:
+                basex_connector.connect()
+                app.logger.info("Successfully connected to BaseX server")
+            except Exception as e:
+                app.logger.error(f"Failed to connect to BaseX server on startup: {e}")
 
-    # Initialize ConfigManager with app's instance_path
-    config_manager = ConfigManager(app.instance_path)
-    app.config_manager = config_manager
-    app.config['PROJECT_SETTINGS'] = config_manager.get_all_settings()
+        # Create and bind DictionaryService
+        dictionary_service = DictionaryService(db_connector=basex_connector)
+        
+        # Initialize and bind ConfigManager
+        config_manager = ConfigManager(app.instance_path)
+        app.config['PROJECT_SETTINGS'] = config_manager.get_all_settings()
 
-    # Bind ConfigManager to the injector
-    def configure_app_specific_dependencies(binder):
+        # Bind all services
+        binder.bind(BaseXConnector, to=basex_connector, scope=singleton)
+        binder.bind(DictionaryService, to=dictionary_service, scope=singleton)
         binder.bind(ConfigManager, to=config_manager, scope=singleton)
+        
+        # Initialize and bind CacheService
+        from app.services.cache_service import CacheService
+        cache_service = CacheService()
+        binder.bind(CacheService, to=cache_service, scope=singleton)
 
-    app.injector.binder.install(configure_app_specific_dependencies)
+    # Create and attach injector
+    injector = Injector()
+    injector.binder.install(configure_dependencies)
+    app.injector = injector
     
-    # Initialize cache service
-    from app.services.cache_service import CacheService
-    app.cache_service = CacheService()
+    # Add services to app context for easier access in views and tests
+    app.dict_service = injector.get(DictionaryService)
+    app.config_manager = injector.get(ConfigManager)
+    app.cache_service = injector.get(CacheService)
     
     return app

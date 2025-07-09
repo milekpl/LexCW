@@ -5,6 +5,8 @@ Tests based on LIFT 0.13 specification requirements for multilingual content.
 
 from __future__ import annotations
 
+import uuid
+from bs4 import BeautifulSoup
 from typing import Dict, Any
 from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser
@@ -323,3 +325,61 @@ class TestMultilingualFieldEditing:
                         notes[note_type][language] = value.strip()
         
         return notes
+
+    def test_form_shows_non_project_language(self, client, app):
+        """
+        GIVEN a dictionary entry with a definition in a language not in the project's languages.
+        WHEN the edit form for that entry is requested.
+        THEN the response HTML should contain the non-project language in the language dropdown, and it should be selected.
+        """
+        with app.app_context():
+            dictionary_service = app.dict_service
+            entry_id = f"test-entry-{uuid.uuid4()}"
+            entry_data = {
+                "id": entry_id,
+                "lexical_unit": {"en": "foreign word"},
+                "senses": [{
+                    "id": f"sense-{uuid.uuid4()}",
+                    "definition": {
+                        "fr": "Ceci est une définition française."
+                    }
+                }]
+            }
+            entry = Entry.from_dict(entry_data)
+            dictionary_service.create_entry(entry)
+
+            try:
+                # WHEN
+                response = client.get(f"/entries/{entry_id}/edit")
+                assert response.status_code == 200
+                html = response.data.decode('utf-8')
+                soup = BeautifulSoup(html, 'html.parser')
+
+                # THEN
+                # The name attribute is constructed dynamically based on the language key.
+                # Debug: Print all select elements with names containing 'senses'
+                print("\nDEBUG: All select elements with names containing 'senses':")
+                for select in soup.find_all('select'):
+                    if select.get('name') and 'senses' in select.get('name'):
+                        print(f"  - {select.get('name')}")
+                
+
+                # Find any select for a definition in 'fr', regardless of sense index
+                lang_select = None
+                for select in soup.find_all('select'):
+                    name = select.get('name', '')
+                    if name.endswith('[definition][fr][lang]'):
+                        lang_select = select
+                        break
+                assert lang_select, "Language select for 'fr' definition not found."
+
+                selected_option = lang_select.find('option', selected=True)
+                assert selected_option, "No selected option found for definition language."
+                assert selected_option['value'] == 'fr', f"Expected 'fr' to be selected, but got '{selected_option['value']}'."
+
+                fr_option = lang_select.find('option', {'value': 'fr'})
+                assert fr_option, "Option with value 'fr' not found in dropdown."
+
+            finally:
+                # Cleanup
+                dictionary_service.delete_entry(entry_id)

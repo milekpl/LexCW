@@ -116,10 +116,13 @@ class TestInvalidEntryEditability:
             </entry>
             '''
             
-            with patch.object(dict_service.db_connector, 'execute_query') as mock_query:
-                # First call returns count, second returns entries
-                mock_query.side_effect = ["2", search_result_xml]
-                
+            def execute_query_side_effect(query):
+                if "count(" in query:
+                    return "2"
+                else:
+                    return search_result_xml
+
+            with patch.object(dict_service.db_connector, 'execute_query', side_effect=execute_query_side_effect):
                 entries, total = dict_service.search_entries("entry")
                 
                 # Both entries should be returned, including the invalid one
