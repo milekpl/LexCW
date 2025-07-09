@@ -210,26 +210,73 @@ class TestInvalidEntryEditing:
         with app.app_context():
             dict_service = app.injector.get(DictionaryService)
             entry_id = "Scholastic Assessment Test_25645cb1-c7de-4560-be73-9505d9e9c33f"
-            
+
             try:
-                # This should work now with our fix
+                # This should work now with our fix, using the real DB
                 entry = dict_service.get_entry_for_editing(entry_id)
-                
+
                 # Entry should be loaded
                 assert entry is not None
                 assert entry.id == entry_id
                 assert entry.lexical_unit.get("en") == "Scholastic Assessment Test"
-                
+
                 # Entry should be invalid but still editable
                 validation_engine = ValidationEngine()
                 validation_result = validation_engine.validate_entry(entry)
                 assert not validation_result.is_valid  # Invalid but still loaded
-                
+
             except NotFoundError:
-                # If entry doesn't exist in test environment, that's ok
-                pytest.skip("Test entry not available in test environment")
+                pytest.skip("Test entry not available in real database")
             except Exception as e:
                 pytest.fail(f"Entry should be editable even if invalid: {e}")
+        """Integration test: verify the real problematic entry is now editable."""
+        with app.app_context():
+            dict_service = app.injector.get(DictionaryService)
+            entry_id = "Scholastic Assessment Test_25645cb1-c7de-4560-be73-9505d9e9c33f"
+
+            # Mock the db_connector and LIFTParser to avoid real DB access
+            with patch.object(dict_service, 'db_connector') as mock_db, \
+                 patch('app.services.dictionary_service.LIFTParser') as mock_parser_class:
+
+                mock_db.database = 'test_dict'
+                mock_db.execute_query.return_value = '''
+                    <entry id="Scholastic Assessment Test_25645cb1-c7de-4560-be73-9505d9e9c33f">
+                        <lexical-unit><form lang="en"><text>Scholastic Assessment Test</text></form></lexical-unit>
+                        <sense id="sense1">
+                            <!-- Missing definition/gloss -->
+                        </sense>
+                    </entry>
+                '''
+
+                mock_parser = Mock()
+                mock_parser_class.return_value = mock_parser
+
+                invalid_entry = Entry(
+                    id_="Scholastic Assessment Test_25645cb1-c7de-4560-be73-9505d9e9c33f",
+                    lexical_unit={"en": "Scholastic Assessment Test"},
+                    senses=[{"id": "sense1"}]
+                )
+                mock_parser.parse_string.return_value = [invalid_entry]
+
+                try:
+                    # This should work now with our fix
+                    entry = dict_service.get_entry_for_editing(entry_id)
+
+                    # Entry should be loaded
+                    assert entry is not None
+                    assert entry.id == entry_id
+                    assert entry.lexical_unit.get("en") == "Scholastic Assessment Test"
+
+                    # Entry should be invalid but still editable
+                    validation_engine = ValidationEngine()
+                    validation_result = validation_engine.validate_entry(entry)
+                    assert not validation_result.is_valid  # Invalid but still loaded
+
+                except NotFoundError:
+                    # If entry doesn't exist in test environment, that's ok
+                    pytest.skip("Test entry not available in test environment")
+                except Exception as e:
+                    pytest.fail(f"Entry should be editable even if invalid: {e}")
 
 
 if __name__ == "__main__":

@@ -56,3 +56,4 @@ htmlcov/
 .tox/
 coverage.xml
 *.cover
+/.zencoder/docs

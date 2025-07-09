@@ -90,23 +90,27 @@ class BaseXConnector:
     def execute_query(self, query: str) -> str:
         """
         Execute an XQuery and return the result.
-        
+        Logs the full query string for debugging.
         Args:
             query: XQuery string to execute.
-            
         Returns:
             Query result as string.
         """
         if not self._session:
             self.connect()
-        
+
+        # Log the full query string for debugging
+        self.logger.info("Executing BaseX query:\n%s", query)
+        print("[BaseXConnector] Executing query:\n" + query)
+
         try:
             result = self._session.query(query).execute()
             self.logger.debug(f"Query executed successfully: {query[:100]}...")
             return result
         except Exception as e:
-            error_msg = f"Query execution failed: {e}"
+            error_msg = f"Query execution failed: {e}\nQuery was:\n{query}"
             self.logger.error(error_msg)
+            print("[BaseXConnector] Query execution failed:\n" + error_msg)
             raise DatabaseError(error_msg)
     
     def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:

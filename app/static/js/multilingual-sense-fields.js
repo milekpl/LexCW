@@ -107,14 +107,14 @@ class MultilingualSenseFieldsManager {
                     <div class="col-md-3">
                         <label class="form-label">Language</label>
                         <select class="form-select language-select" 
-                                name="senses[${senseIndex}].definition[${newLang.code}].lang">
+                                name="senses[${senseIndex}][definition][${newLang.code}][lang]">
                             ${this.generateLanguageOptions(languageOptions, newLang.code)}
                         </select>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label">Definition Text</label>
                         <textarea class="form-control definition-text" 
-                                  name="senses[${senseIndex}].definition[${newLang.code}].text"
+                                  name="senses[${senseIndex}][definition][${newLang.code}][text]"
                                   rows="2" 
                                   placeholder="Enter definition in ${newLang.code}"></textarea>
                     </div>
@@ -132,14 +132,14 @@ class MultilingualSenseFieldsManager {
                     <div class="col-md-3">
                         <label class="form-label">Language</label>
                         <select class="form-select language-select" 
-                                name="senses[${senseIndex}].gloss[${newLang.code}].lang">
+                                name="senses[${senseIndex}][gloss][${newLang.code}][lang]">
                             ${this.generateLanguageOptions(languageOptions, newLang.code)}
                         </select>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label">Gloss Text</label>
                         <input type="text" class="form-control gloss-text" 
-                               name="senses[${senseIndex}].gloss[${newLang.code}].text"
+                               name="senses[${senseIndex}][gloss][${newLang.code}][text]"
                                value=""
                                placeholder="Enter gloss in ${newLang.code}">
                     </div>
@@ -249,9 +249,26 @@ class MultilingualSenseFieldsManager {
      * @returns {string} HTML options string
      */
     generateLanguageOptions(languages, selectedCode) {
-        return languages.map(lang => 
+        // Get all project language codes from any existing language select
+        const projectLanguageCodes = Array.from(document.querySelectorAll('select.language-select option'))
+            .map(option => option.value)
+            .filter((value, index, self) => self.indexOf(value) === index); // Get unique values
+        
+        // Check if the selected code is not in project languages
+        const isOriginalLanguage = selectedCode && !projectLanguageCodes.includes(selectedCode);
+        
+        // Start with the original language option if needed
+        let options = '';
+        if (isOriginalLanguage) {
+            options += `<option value="${selectedCode}" selected>${selectedCode} (original)</option>`;
+        }
+        
+        // Add all available language options
+        options += languages.map(lang => 
             `<option value="${lang.code}" ${lang.code === selectedCode ? 'selected' : ''}>${lang.label}</option>`
         ).join('');
+        
+        return options;
     }
 
     /**

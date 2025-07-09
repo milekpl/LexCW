@@ -275,6 +275,7 @@ def edit_entry(entry_id):
     Args:
         entry_id: ID of the entry to edit.
     """
+    print(f"EDIT_ENTRY CALLED FOR {entry_id}")
     try:
         dict_service = current_app.injector.get(DictionaryService)
         if request.method == "POST":
