@@ -29,7 +29,7 @@ from flask.testing import FlaskClient
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="class")  # Changed to class scope to match search_service fixture
+@pytest.fixture(scope="function")
 def basex_available() -> bool:
     """Check if BaseX server is available."""
     try:
@@ -388,10 +388,10 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     test_injector = Injector()
     
     def configure_test_dependencies(binder):
-        binder.bind(DictionaryService, to=dict_service_with_db, scope=singleton)
+        binder.bind(DictionaryService, to=dict_service_with_db)
         # Create a test BaseXConnector if needed
         if hasattr(dict_service_with_db, 'db_connector'):
-            binder.bind(BaseXConnector, to=dict_service_with_db.db_connector, scope=singleton)
+            binder.bind(BaseXConnector, to=dict_service_with_db.db_connector)
     
     test_injector.binder.install(configure_test_dependencies)
     

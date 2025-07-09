@@ -187,22 +187,23 @@ class Entry(BaseModel):
         # Handle morphological type with auto-classification if not provided
         self.morph_type: Optional[str] = self._get_or_classify_morph_type(kwargs.get('morph_type'))
         
-        # Handle notes - ensure it's a dictionary
+        # Handle notes - ensure it's a dictionary and preserve nested dicts
         notes_raw = kwargs.get('notes', {})
         if isinstance(notes_raw, dict):
-            self.notes: Dict[str, Union[str, Dict[str, str]]] = notes_raw
+            self.notes = notes_raw
         elif isinstance(notes_raw, list):
-            # Handle case where notes might be passed as a list
-            self.notes: Dict[str, Union[str, Dict[str, str]]] = {}
+            self.notes = {}
         else:
-            self.notes: Dict[str, Union[str, Dict[str, str]]] = {}
-            
-        # Handle custom_fields - ensure it's a dictionary
+            self.notes = {}
+
+        # Handle custom_fields - ensure it's a dictionary and flatten nested dicts
         custom_fields_raw = kwargs.get('custom_fields', {})
         if isinstance(custom_fields_raw, dict):
-            self.custom_fields: Dict[str, Any] = custom_fields_raw
+            self.custom_fields: Dict[str, Any] = {
+                k: v['text'] if isinstance(v, dict) and 'text' in v and len(v) == 1 else v
+                for k, v in custom_fields_raw.items()
+            }
         elif isinstance(custom_fields_raw, list):
-            # Convert list to dict if needed (shouldn't happen but defensive)
             self.custom_fields: Dict[str, Any] = {}
         else:
             self.custom_fields: Dict[str, Any] = {}

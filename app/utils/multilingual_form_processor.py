@@ -200,20 +200,22 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
     
     merged_senses = []
     
+    multitext_fields = {'definition', 'definitions', 'glosses', 'notes'}
     for form_sense in form_senses:
         sense_id = form_sense.get('id')
-        
+
         # Start with form data
         merged_sense = form_sense.copy()
-        
+
         # If we have an existing sense with the same ID, preserve important fields
         if sense_id and sense_id in existing_by_id:
             existing_sense = existing_by_id[sense_id]
-            
+
             # Preserve ALL important sense fields that might be missing from form data
             # This prevents critical data loss when saving entries
             critical_fields = [
                 'definition',           # CRITICAL: Definitions must never be lost
+                'definitions',          # Plural variant for some test cases
                 'grammatical_info',     # CRITICAL: Part-of-speech information
                 'pronunciation',        # Pronunciation data
                 'semantic_domain',      # Semantic domain classification
@@ -226,16 +228,34 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
                 'etymologies',          # Etymology information
                 'relations'             # Lexical relations
             ]
-            
+
             for field in critical_fields:
-                # Preserve field if it's missing, empty, or whitespace-only in form data
-                if (field not in form_sense or 
-                    not form_sense.get(field) or 
-                    (isinstance(form_sense.get(field), str) and form_sense.get(field, '').strip() == '')):
-                    # Only preserve if existing sense has meaningful data for this field
-                    if existing_sense.get(field):
+                form_value = form_sense.get(field)
+                # For multitext fields, treat missing, empty, or empty dict as 'preserve existing'
+                if field in multitext_fields:
+                    preserve = False
+                    if field not in form_sense:
+                        preserve = True
+                    elif form_value is None:
+                        preserve = True
+                    elif isinstance(form_value, dict) and not form_value:
+                        preserve = True
+                    elif isinstance(form_value, str) and form_value.strip() == '':
+                        preserve = True
+                    if preserve and existing_sense.get(field) is not None:
                         merged_sense[field] = existing_sense[field]
-        
+                else:
+                    # For other fields, preserve if missing, empty, or whitespace-only string
+                    preserve = False
+                    if field not in form_sense:
+                        preserve = True
+                    elif not form_value:
+                        preserve = True
+                    elif isinstance(form_value, str) and form_value.strip() == '':
+                        preserve = True
+                    if preserve and existing_sense.get(field) is not None:
+                        merged_sense[field] = existing_sense[field]
+
         merged_senses.append(merged_sense)
     
     return merged_senses

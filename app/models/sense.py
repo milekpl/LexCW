@@ -31,29 +31,56 @@ class Sense(BaseModel):
             **kwargs: Additional attributes to set on the sense.
         """
         # Initialize attributes first before calling super().__init__
-        self.glosses = kwargs.pop('glosses', {})
-        self.definitions = kwargs.pop('definitions', {})
+        self.glosses: dict[str, dict[str, str]] = kwargs.pop('glosses', {})
+        self.definitions: dict[str, dict[str, str]] = kwargs.pop('definitions', {})
         self.grammatical_info = kwargs.pop('grammatical_info', None)
         self.examples = kwargs.pop('examples', [])
         self.relations = kwargs.pop('relations', [])
         self.notes = kwargs.pop('notes', {})
         self.custom_fields = kwargs.pop('custom_fields', {})
-        
+
         # Handle legacy property setters
         if 'gloss' in kwargs:
             gloss_value = kwargs.pop('gloss')
             if isinstance(gloss_value, dict):
-                self.glosses.update(gloss_value)
+                for lang, val in gloss_value.items():
+                    if isinstance(val, dict):
+                        self.glosses[lang] = val
+                    else:
+                        self.glosses[lang] = {"text": val}
             elif isinstance(gloss_value, str):
-                self.glosses['en'] = gloss_value
-        
+                self.glosses['en'] = {"text": gloss_value}
+
         if 'definition' in kwargs:
             def_value = kwargs.pop('definition')
             if isinstance(def_value, dict):
-                self.definitions.update(def_value)
+                for lang, val in def_value.items():
+                    if isinstance(val, dict):
+                        self.definitions[lang] = val
+                    else:
+                        self.definitions[lang] = {"text": val}
             elif isinstance(def_value, str):
-                self.definitions['en'] = def_value
-        
+                self.definitions['en'] = {"text": def_value}
+
+        # Enforce that multilingual fields are always dicts (not strings)
+        if not isinstance(self.glosses, dict):
+            self.glosses = {}
+        else:
+            # Ensure all values are dicts with 'text' key
+            for lang, val in list(self.glosses.items()):
+                if not isinstance(val, dict):
+                    self.glosses[lang] = {"text": val}
+        if not isinstance(self.definitions, dict):
+            self.definitions = {}
+        else:
+            for lang, val in list(self.definitions.items()):
+                if not isinstance(val, dict):
+                    self.definitions[lang] = {"text": val}
+        if not isinstance(self.notes, dict):
+            self.notes = {}
+        if not isinstance(self.custom_fields, dict):
+            self.custom_fields = {}
+
         # Now call super() with remaining kwargs
         super().__init__(id_, **kwargs)
     
@@ -144,66 +171,49 @@ class Sense(BaseModel):
     def add_definition(self, language: str, text: str) -> None:
         """
         Add a definition to the sense.
-        
         Args:
             language: Language code (e.g., 'en', 'pl').
             text: Definition text.
         """
-        self.definitions[language] = text
+        self.definitions[language] = {"text": text}
     
     @property
-    def definition(self) -> str:
+    def definition(self) -> dict[str, dict[str, str]]:
         """
-        Get the definition text for display.
-        
+        Get the full multilingual definition dict for display or serialization.
         Returns:
-            The definition text in the primary language or first available.
+            The full definitions dict (lang -> {text: ...}).
         """
-        if 'en' in self.definitions:
-            return self.definitions['en']
-        elif self.definitions:
-            return next(iter(self.definitions.values()))
-        return ""
-    
+        return self.definitions
+
     @definition.setter
-    def definition(self, value: Any) -> None:
+    def definition(self, value: dict[str, dict[str, str]]) -> None:
         """
-        Set the definition. Can be a string (sets 'en') or dict.
-        
+        Set the full multilingual definitions dict.
         Args:
-            value: String or dict of definitions by language.
+            value: Dict of definitions by language.
         """
         if isinstance(value, dict):
-            self.definitions.update(value)
-        elif isinstance(value, str):
-            self.definitions['en'] = value
+            self.definitions = value
     
     @property
-    def gloss(self) -> str:
+    def gloss(self) -> dict[str, dict[str, str]]:
         """
-        Get the gloss text for display.
-        
+        Get the full multilingual gloss dict for display or serialization.
         Returns:
-            The gloss text in the primary language or first available.
+            The full glosses dict (lang -> {text: ...}).
         """
-        if 'en' in self.glosses:
-            return self.glosses['en']
-        elif self.glosses:
-            return next(iter(self.glosses.values()))
-        return ""
-    
+        return self.glosses
+
     @gloss.setter
-    def gloss(self, value: Any) -> None:
+    def gloss(self, value: dict[str, dict[str, str]]) -> None:
         """
-        Set the gloss. Can be a string (sets 'en') or dict.
-        
+        Set the full multilingual glosses dict.
         Args:
-            value: String or dict of glosses by language.
+            value: Dict of glosses by language.
         """
         if isinstance(value, dict):
-            self.glosses.update(value)
-        elif isinstance(value, str):
-            self.glosses['en'] = value
+            self.glosses = value
     
     def get_definition(self, lang: Optional[str] = None) -> str:
         """
@@ -216,7 +226,12 @@ class Sense(BaseModel):
             The definition text in the specified language, or empty string if not found.
         """
         if lang:
-            return self.definitions.get(lang, "")
+            val = self.definitions.get(lang)
+            if isinstance(val, dict):
+                return val.get("text", "")
+            elif isinstance(val, str):
+                return val
+            return ""
         return self.definition
     
     def get_gloss(self, lang: Optional[str] = None) -> str:
@@ -230,7 +245,12 @@ class Sense(BaseModel):
             The gloss text in the specified language, or empty string if not found.
         """
         if lang:
-            return self.glosses.get(lang, "")
+            val = self.glosses.get(lang)
+            if isinstance(val, dict):
+                return val.get("text", "")
+            elif isinstance(val, str):
+                return val
+            return ""
         return self.gloss
     
     def get_available_definition_languages(self) -> List[str]:

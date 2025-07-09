@@ -1,6 +1,8 @@
 import os
 import json
+import logging
 from typing import Dict, Any
+from flask import current_app
 
 class ConfigManager:
     def __init__(self, app_instance_path: str):

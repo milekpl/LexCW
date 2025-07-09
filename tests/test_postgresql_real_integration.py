@@ -18,6 +18,7 @@ from app.utils.exceptions import DatabaseError, DatabaseConnectionError
 
 
 class TestPostgreSQLRealIntegration:
+    import psycopg2.extras
     """Real PostgreSQL integration tests with actual database connections."""
     
     @pytest.fixture(scope="class")
@@ -79,7 +80,7 @@ class TestPostgreSQLRealIntegration:
         cursor.execute("""
             CREATE TABLE entries (
                 id TEXT PRIMARY KEY,
-                headword TEXT NOT NULL,
+                lexical_unit TEXT NOT NULL,  -- multitext as JSON string
                 pronunciation TEXT,
                 grammatical_info TEXT,
                 date_created TEXT,
@@ -92,7 +93,8 @@ class TestPostgreSQLRealIntegration:
             CREATE TABLE senses (
                 id TEXT PRIMARY KEY,
                 entry_id TEXT NOT NULL,
-                definition TEXT,
+                glosses TEXT,  -- multitext as JSON string
+                definition TEXT,  -- multitext as JSON string
                 grammatical_info TEXT,
                 custom_fields TEXT,
                 sort_order INTEGER,
@@ -116,24 +118,44 @@ class TestPostgreSQLRealIntegration:
         now = datetime.now().isoformat()
         
         cursor.execute("""
-            INSERT INTO entries (id, headword, pronunciation, grammatical_info, date_created, date_modified) 
+            INSERT INTO entries (id, lexical_unit, pronunciation, grammatical_info, date_created, date_modified) 
             VALUES (?, ?, ?, ?, ?, ?)
-        """, ('entry1', 'test', '/tɛst/', '{"type": "noun", "number": "singular"}', now, now))
-        
+        """, (
+            'entry1',
+            json.dumps({"en": "test", "pl": "test"}),
+            '/tɛst/',
+            '{"type": "noun", "number": "singular"}',
+            now, now
+        ))
         cursor.execute("""
-            INSERT INTO entries (id, headword, pronunciation, grammatical_info, date_created, date_modified) 
+            INSERT INTO entries (id, lexical_unit, pronunciation, grammatical_info, date_created, date_modified) 
             VALUES (?, ?, ?, ?, ?, ?)
-        """, ('entry2', 'example', '/ɪɡˈzæm.pəl/', '{"type": "noun", "number": "singular"}', now, now))
+        """, (
+            'entry2',
+            json.dumps({"en": "example", "pl": "przykład"}),
+            '/ɪɡˈzæm.pəl/',
+            '{"type": "noun", "number": "singular"}',
+            now, now
+        ))
         
         cursor.execute("""
-            INSERT INTO senses (id, entry_id, definition, grammatical_info, sort_order) 
-            VALUES (?, ?, ?, ?, ?)
-        """, ('sense1', 'entry1', 'A trial or examination', '{"type": "noun"}', 0))
-        
+            INSERT INTO senses (id, entry_id, glosses, definition, grammatical_info, sort_order) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            'sense1', 'entry1',
+            json.dumps({"en": "test gloss", "pl": "testowy glos"}),
+            json.dumps({"en": "A trial or examination", "pl": "próba lub egzamin"}),
+            '{"type": "noun"}', 0
+        ))
         cursor.execute("""
-            INSERT INTO senses (id, entry_id, definition, grammatical_info, sort_order) 
-            VALUES (?, ?, ?, ?, ?)
-        """, ('sense2', 'entry2', 'A specimen or instance', '{"type": "noun"}', 0))
+            INSERT INTO senses (id, entry_id, glosses, definition, grammatical_info, sort_order) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            'sense2', 'entry2',
+            json.dumps({"en": "example gloss", "pl": "przykładowy glos"}),
+            json.dumps({"en": "A specimen or instance", "pl": "przykład lub egzemplarz"}),
+            '{"type": "noun"}', 0
+        ))
         
         cursor.execute("""
             INSERT INTO examples (id, sense_id, text, translation, sort_order) 
@@ -171,7 +193,7 @@ class TestPostgreSQLRealIntegration:
             CREATE TABLE test_entries (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 entry_id TEXT UNIQUE NOT NULL,
-                headword TEXT NOT NULL,
+                lexical_unit JSONB NOT NULL,
                 pronunciation TEXT,
                 grammatical_info JSONB,
                 date_created TIMESTAMP,
@@ -189,7 +211,8 @@ class TestPostgreSQLRealIntegration:
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 sense_id TEXT UNIQUE NOT NULL,
                 entry_id TEXT NOT NULL,
-                definition TEXT,
+                glosses JSONB,
+                definition JSONB,
                 grammatical_info JSONB,
                 custom_fields JSONB,
                 sort_order INTEGER DEFAULT 0,
@@ -214,8 +237,8 @@ class TestPostgreSQLRealIntegration:
         """)
         
         # Create indexes
-        postgres_connector.execute_query("CREATE INDEX IF NOT EXISTS idx_test_entries_headword ON test_entries(headword)")
         postgres_connector.execute_query("CREATE INDEX IF NOT EXISTS idx_test_entries_entry_id ON test_entries(entry_id)")
+        postgres_connector.execute_query("CREATE INDEX IF NOT EXISTS idx_test_entries_lexical_unit_gin ON test_entries USING gin (lexical_unit)")
         postgres_connector.execute_query("CREATE INDEX IF NOT EXISTS idx_test_senses_entry_id ON test_senses(entry_id)")
         postgres_connector.execute_query("CREATE INDEX IF NOT EXISTS idx_test_examples_sense_id ON test_examples(sense_id)")
         
@@ -246,24 +269,26 @@ class TestPostgreSQLRealIntegration:
         entries = sqlite_cursor.fetchall()
         
         for entry in entries:
-            # Transform data for PostgreSQL
             grammatical_info = json.loads(entry['grammatical_info']) if entry['grammatical_info'] else None
             custom_fields = json.loads(entry['custom_fields']) if entry['custom_fields'] else None
-            
-            postgres_connector.execute_query("""
+            lexical_unit = json.loads(entry['lexical_unit']) if entry['lexical_unit'] else None
+            postgres_connector.execute_query(
+                """
                 INSERT INTO test_entries 
-                (entry_id, headword, pronunciation, grammatical_info, date_created, date_modified, custom_fields)
-                VALUES (%(entry_id)s, %(headword)s, %(pronunciation)s, %(grammatical_info)s, 
+                (entry_id, lexical_unit, pronunciation, grammatical_info, date_created, date_modified, custom_fields)
+                VALUES (%(entry_id)s, %(lexical_unit)s, %(pronunciation)s, %(grammatical_info)s, 
                         %(date_created)s, %(date_modified)s, %(custom_fields)s)
-            """, {
-                'entry_id': entry['id'],
-                'headword': entry['headword'],
-                'pronunciation': entry['pronunciation'],
-                'grammatical_info': json.dumps(grammatical_info) if grammatical_info else None,
-                'date_created': entry['date_created'],
-                'date_modified': entry['date_modified'],
-                'custom_fields': json.dumps(custom_fields) if custom_fields else None
-            })
+                """,
+                {
+                    'entry_id': entry['id'],
+                    'lexical_unit': self.psycopg2.extras.Json(lexical_unit) if lexical_unit else None,
+                    'pronunciation': entry['pronunciation'],
+                    'grammatical_info': self.psycopg2.extras.Json(grammatical_info) if grammatical_info else None,
+                    'date_created': entry['date_created'],
+                    'date_modified': entry['date_modified'],
+                    'custom_fields': self.psycopg2.extras.Json(custom_fields) if custom_fields else None
+                }
+            )
         
         # Migrate senses
         sqlite_cursor.execute("SELECT * FROM senses")
@@ -272,20 +297,25 @@ class TestPostgreSQLRealIntegration:
         for sense in senses:
             grammatical_info = json.loads(sense['grammatical_info']) if sense['grammatical_info'] else None
             custom_fields = json.loads(sense['custom_fields']) if sense['custom_fields'] else None
-            
-            postgres_connector.execute_query("""
+            glosses = json.loads(sense['glosses']) if sense['glosses'] else None
+            definition = json.loads(sense['definition']) if sense['definition'] else None
+            postgres_connector.execute_query(
+                """
                 INSERT INTO test_senses 
-                (sense_id, entry_id, definition, grammatical_info, custom_fields, sort_order)
-                VALUES (%(sense_id)s, %(entry_id)s, %(definition)s, %(grammatical_info)s, 
+                (sense_id, entry_id, glosses, definition, grammatical_info, custom_fields, sort_order)
+                VALUES (%(sense_id)s, %(entry_id)s, %(glosses)s, %(definition)s, %(grammatical_info)s, 
                         %(custom_fields)s, %(sort_order)s)
-            """, {
-                'sense_id': sense['id'],
-                'entry_id': sense['entry_id'],
-                'definition': sense['definition'],
-                'grammatical_info': json.dumps(grammatical_info) if grammatical_info else None,
-                'custom_fields': json.dumps(custom_fields) if custom_fields else None,
-                'sort_order': sense['sort_order']
-            })
+                """,
+                {
+                    'sense_id': sense['id'],
+                    'entry_id': sense['entry_id'],
+                    'glosses': self.psycopg2.extras.Json(glosses) if glosses else None,
+                    'definition': self.psycopg2.extras.Json(definition) if definition else None,
+                    'grammatical_info': self.psycopg2.extras.Json(grammatical_info) if grammatical_info else None,
+                    'custom_fields': self.psycopg2.extras.Json(custom_fields) if custom_fields else None,
+                    'sort_order': sense['sort_order']
+                }
+            )
         
         # Migrate examples
         sqlite_cursor.execute("SELECT * FROM examples")
@@ -308,6 +338,7 @@ class TestPostgreSQLRealIntegration:
                 'sort_order': example['sort_order']
             })
         
+        sqlite_cursor.close()
         sqlite_conn.close()
         
         # Verify migration
@@ -321,13 +352,12 @@ class TestPostgreSQLRealIntegration:
         
         # Test complex query with JOINs
         complex_query = """
-            SELECT e.headword, e.pronunciation, s.definition, ex.text, ex.translation
+            SELECT e.lexical_unit->>'en' AS headword, e.pronunciation, s.definition->>'en' AS definition, ex.text, ex.translation
             FROM test_entries e
             JOIN test_senses s ON e.entry_id = s.entry_id
             JOIN test_examples ex ON s.sense_id = ex.sense_id
-            WHERE e.headword = %(headword)s
+            WHERE e.lexical_unit->>'en' = %(headword)s
         """
-        
         results = postgres_connector.fetch_all(complex_query, {'headword': 'test'})
         assert len(results) == 1
         assert results[0]['headword'] == 'test'

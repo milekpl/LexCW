@@ -28,13 +28,13 @@ function serializeFormToJSON(input, options = {}) {
         transform: null,
         ...options
     };
-    
+
     let formData;
-    
+
     // Handle different input types
     if (typeof HTMLFormElement !== 'undefined' && input instanceof HTMLFormElement) {
         formData = new FormData(input);
-        
+
         // If we don't want disabled fields, we need to filter them out manually
         if (!config.includeDisabled) {
             const disabledFields = input.querySelectorAll('[disabled]');
@@ -52,23 +52,45 @@ function serializeFormToJSON(input, options = {}) {
     } else {
         throw new Error('Input must be an HTMLFormElement, FormData object, or FormData-like object');
     }
-    
+
     const result = {};
-    
+    let fieldCount = 0;
+    let lastField = null;
     // Process each form field
     formData.forEach((value, key) => {
+        fieldCount++;
+        lastField = key;
+        if (fieldCount % 100 === 0) {
+            console.debug(`[FormSerializer] Processed ${fieldCount} fields, last: ${key}`);
+        }
         // Skip empty values if configured to do so
         if (!config.includeEmpty && value === '') {
             return;
         }
-        
+
         // Apply transform function if provided
         const processedValue = config.transform ? config.transform(value, key) : value;
-        
-        // Parse the field path and set the value
-        setNestedValue(result, key, processedValue);
+
+        try {
+            // Defensive: try parsing the field path first to catch errors
+            parseFieldPath(key);
+            // Parse the field path and set the value
+            setNestedValue(result, key, processedValue, 0, key);
+        } catch (e) {
+            console.error(`[FormSerializer] Error setting value for field '${key}':`, e);
+            // Log the problematic field name and value for diagnosis
+            if (window && window.FormSerializerProblemFields) {
+                window.FormSerializerProblemFields.push({ key, value, error: e.message });
+            } else if (window) {
+                window.FormSerializerProblemFields = [{ key, value, error: e.message }];
+            }
+            // Do not throw, just skip this field so the form can be saved
+        }
     });
-    
+    if (window && window.FormSerializerProblemFields && window.FormSerializerProblemFields.length > 0) {
+        console.warn(`[FormSerializer] Skipped ${window.FormSerializerProblemFields.length} problematic fields. See window.FormSerializerProblemFields for details.`);
+    }
+    console.debug(`[FormSerializer] Finished processing ${fieldCount} fields. Last field: ${lastField}`);
     return result;
 }
 
@@ -78,7 +100,13 @@ function serializeFormToJSON(input, options = {}) {
  * @param {string} path - Field path (e.g., 'users[0].name', 'address.city')
  * @param {*} value - Value to set
  */
-function setNestedValue(obj, path, value) {
+function setNestedValue(obj, path, value, depth = 0, fieldName = null) {
+    const MAX_DEPTH = 30;
+    const MAX_ARRAY_SIZE = 10000;
+    if (depth > MAX_DEPTH) {
+        console.error(`[FormSerializer] Max depth exceeded at field '${fieldName || path}'`);
+        throw new Error(`Max object depth exceeded at field '${fieldName || path}'`);
+    }
     const keys = parseFieldPath(path);
     let current = obj;
     for (let i = 0; i < keys.length; i++) {
@@ -97,6 +125,10 @@ function setNestedValue(obj, path, value) {
                     current = arr;
                 }
                 const index = parseInt(key);
+                if (index > MAX_ARRAY_SIZE) {
+                    console.error(`[FormSerializer] Array index too large (${index}) at field '${fieldName || path}'`);
+                    throw new Error(`Array index too large (${index}) at field '${fieldName || path}'`);
+                }
                 while (current.length <= index) {
                     current.push(undefined);
                 }
@@ -118,11 +150,19 @@ function setNestedValue(obj, path, value) {
                 current = arr;
             }
             const index = parseInt(key);
+            if (index > MAX_ARRAY_SIZE) {
+                console.error(`[FormSerializer] Array index too large (${index}) at field '${fieldName || path}'`);
+                throw new Error(`Array index too large (${index}) at field '${fieldName || path}'`);
+            }
             while (current.length <= index) {
                 current.push({});
             }
             if (typeof current[index] !== 'object' || current[index] === null) {
                 current[index] = {};
+            }
+            // Defensive: log progress for large arrays
+            if (index % 1000 === 0 && index > 0) {
+                console.debug(`[FormSerializer] Large array index: ${index} at field '${fieldName || path}'`);
             }
             current = current[index];
         } else {
@@ -133,6 +173,10 @@ function setNestedValue(obj, path, value) {
                 current[key] = nextIsArrayIndex ? [] : {};
             }
             current = current[key];
+        }
+        // Defensive: log deep recursion
+        if (depth + i > 0 && (depth + i) % 10 === 0) {
+            console.debug(`[FormSerializer] Deep recursion at field '${fieldName || path}', depth: ${depth + i}`);
         }
     }
 }
@@ -145,28 +189,37 @@ function setNestedValue(obj, path, value) {
 function parseFieldPath(path) {
     const keys = [];
     let currentPath = path;
-    
+    let parseStep = 0;
     // Keep parsing until we've consumed the entire path
     while (currentPath.length > 0) {
+        parseStep++;
+        if (parseStep > 50) {
+            console.error(`[FormSerializer] parseFieldPath: Too many parse steps for path '${path}'`);
+            throw new Error(`parseFieldPath: Too many parse steps for path '${path}'`);
+        }
         // Check for array notation first: name[index]
-        const arrayMatch = currentPath.match(/^([^.[]+)\[(\d+)\]/);
+        const arrayMatch = currentPath.match(/^([^.[]+)\[(.+?)\]/);
         if (arrayMatch) {
             const [fullMatch, arrayName, index] = arrayMatch;
+            if (!/^\d+$/.test(index)) {
+                // Not a numeric index, this is a malformed field name
+                throw new Error(`Invalid array index '[${index}]' in field path '${path}' (only numeric indices allowed)`);
+            }
             keys.push({ key: arrayName, isArrayIndex: false });
             keys.push({ key: index, isArrayIndex: true });
             currentPath = currentPath.substring(fullMatch.length);
-            
+
             // Check if there's more after the bracket (like ].property)
             if (currentPath.startsWith('.')) {
                 currentPath = currentPath.substring(1); // Remove leading dot
             }
             continue;
         }
-        
+
         // Check for simple property with dots: property.subproperty
         const dotIndex = currentPath.indexOf('.');
         const bracketIndex = currentPath.indexOf('[');
-        
+
         if (dotIndex === -1 && bracketIndex === -1) {
             // No more dots or brackets - take the rest
             keys.push({ key: currentPath, isArrayIndex: false });
@@ -185,7 +238,9 @@ function parseFieldPath(path) {
             }
         }
     }
-    
+    if (keys.length > 20) {
+        console.debug(`[FormSerializer] parseFieldPath: Long key path (${keys.length} segments) for '${path}'`);
+    }
     return keys;
 }
 

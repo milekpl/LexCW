@@ -18,6 +18,20 @@ from app.utils.exceptions import ValidationError
 
 
 class LIFTParser:
+    @staticmethod
+    def _normalize_multilingual_dict(d: dict) -> dict:
+        """
+        Ensure all values in a multilingual dict are {"text": ...} dicts, but do not double-wrap.
+        """
+        for k, v in list(d.items()):
+            if isinstance(v, dict) and set(v.keys()) == {"text"} and isinstance(v["text"], str):
+                # Already normalized
+                continue
+            elif isinstance(v, dict):
+                d[k] = LIFTParser._normalize_multilingual_dict(v)
+            else:
+                d[k] = {"text": v}
+        return d
     """
     Parser for LIFT format dictionary files.
     
@@ -438,24 +452,23 @@ class LIFTParser:
         notes = {}
         for note_elem in self._find_elements(entry_elem, './/lift:note', './/note'):
             note_type = note_elem.get('type', 'general')
-            
             # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
             form_elements = self._find_elements(note_elem, './/lift:form', './/form')
-            
             if form_elements:
                 # New structured format with potentially multiple languages
                 if note_type not in notes:
                     notes[note_type] = {}
-                    
                 for form_elem in form_elements:
                     lang = form_elem.get('lang', '')
                     text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                    
                     if text_elem is not None and text_elem.text:
-                        notes[note_type][lang] = text_elem.text
+                        # Always wrap as dict
+                        notes[note_type][lang] = {"text": text_elem.text}
             elif note_elem.text:
                 # Legacy format: <note>text</note>
-                notes[note_type] = note_elem.text
+                notes[note_type] = {"und": {"text": note_elem.text}}
+        # Final normalization to ensure all values are nested dicts
+        notes = self._normalize_multilingual_dict(notes)
         
         # Parse custom fields
         custom_fields = {}
@@ -470,21 +483,19 @@ class LIFTParser:
                     for form_elem in form_elements:
                         lang = form_elem.get('lang', '')
                         text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                        
                         if text_elem is not None and text_elem.text:
                             if field_type not in custom_fields:
                                 custom_fields[field_type] = {}
-                            
                             if isinstance(custom_fields[field_type], dict):
-                                custom_fields[field_type][lang] = text_elem.text
+                                custom_fields[field_type][lang] = {"text": text_elem.text}
                             else:
                                 # Convert single value to multilingual
                                 old_value = custom_fields[field_type]
-                                custom_fields[field_type] = {'': old_value, lang: text_elem.text}
+                                custom_fields[field_type] = {'': old_value, lang: {"text": text_elem.text}}
                 else:
                     # Legacy format - single value
                     if field_elem.text:
-                        custom_fields[field_type] = field_elem.text
+                        custom_fields[field_type] = {"und": {"text": field_elem.text}}
           # Parse senses
         senses = []
         for sense_elem in self._find_elements(entry_elem, './/lift:sense'):
@@ -536,7 +547,7 @@ class LIFTParser:
             lang = gloss_elem.get('lang')
             text_elem = self._find_element(gloss_elem, './/lift:text')
             if lang and text_elem is not None and text_elem.text:
-                glosses[lang] = text_elem.text
+                glosses[lang] = {"text": text_elem.text}
         
         # Parse definitions
         definitions = {}
@@ -545,7 +556,7 @@ class LIFTParser:
                 lang = form_elem.get('lang')
                 text_elem = self._find_element(form_elem, './/lift:text')
                 if lang and text_elem is not None and text_elem.text:
-                    definitions[lang] = text_elem.text
+                    definitions[lang] = {"text": text_elem.text}
         
         # Parse examples
         examples = []
@@ -576,24 +587,36 @@ class LIFTParser:
         notes = {}
         for note_elem in self._find_elements(sense_elem, './/lift:note', './/note'):
             note_type = note_elem.get('type', 'general')
-            
             # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
             form_elements = self._find_elements(note_elem, './/lift:form', './/form')
-            
             if form_elements:
                 # New structured format with potentially multiple languages
                 if note_type not in notes:
                     notes[note_type] = {}
-                    
                 for form_elem in form_elements:
                     lang = form_elem.get('lang', '')
                     text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                    
                     if text_elem is not None and text_elem.text:
-                        notes[note_type][lang] = text_elem.text
+                        notes[note_type][lang] = {"text": text_elem.text}
             elif note_elem.text:
                 # Legacy format: <note>text</note>
-                notes[note_type] = note_elem.text
+                notes[note_type] = {"und": {"text": note_elem.text}}
+
+        # Normalize all note values to nested dicts (force for every lang)
+        # Final normalization: ensure all note values are nested dicts
+        for note_type in list(notes.keys()):
+            if isinstance(notes[note_type], str):
+                notes[note_type] = {"und": {"text": notes[note_type]}}
+            elif isinstance(notes[note_type], dict):
+                notes[note_type] = self._normalize_multilingual_dict(notes[note_type])
+
+        # Normalize all note values to nested dicts (force for every lang)
+        # Final normalization: ensure all note values are nested dicts
+        for note_type in list(notes.keys()):
+            if isinstance(notes[note_type], str):
+                notes[note_type] = {"und": {"text": notes[note_type]}}
+            elif isinstance(notes[note_type], dict):
+                notes[note_type] = self._normalize_multilingual_dict(notes[note_type])
         
         # Create and return Sense object
         return Sense(
@@ -851,26 +874,30 @@ class LIFTParser:
             if isinstance(sense_item, dict):
                 sense = Sense.from_dict(sense_item)
             else:
-                # Already a Sense object
                 sense = sense_item
             sense_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}sense')
             if sense.id:
                 sense_elem.set('id', sense.id)
-              # Add glosses
-            for lang, text in sense.glosses.items():
+            # Add glosses (multitext)
+            for lang, val in sense.glosses.items():
                 gloss_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}gloss')
                 gloss_elem.set('lang', lang)
                 text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = text
-            
-            # Add definitions
+                if isinstance(val, dict):
+                    text_elem.text = val.get('text', '')
+                else:
+                    text_elem.text = str(val)
+            # Add definitions (multitext)
             if sense.definitions:
                 def_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}definition')
-                for lang, text in sense.definitions.items():
+                for lang, val in sense.definitions.items():
                     form = ET.SubElement(def_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
                     form.set('lang', lang)
                     text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
+                    if isinstance(val, dict):
+                        text_elem.text = val.get('text', '')
+                    else:
+                        text_elem.text = str(val)
             
             # Add examples
             for example_item in sense.examples:

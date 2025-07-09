@@ -451,33 +451,17 @@ async function submitForm() {
         // Update progress
         progressBar.style.width = '10%';
         progressBar.textContent = 'Preparing data...';
-        
+
         // Check if we have the safe serialization method
-        if (typeof window.FormSerializer === 'undefined') {
-            throw new Error('FormSerializer library is not loaded.');
+        if (typeof window.FormSerializer === 'undefined' || typeof window.FormSerializer.serializeFormToJSONSafe !== 'function') {
+            throw new Error('FormSerializer library is not loaded or does not support safe serialization.');
         }
-        
-        // Use a promise-based approach for serialization
-        const serializePromise = new Promise((resolve, reject) => {
-            try {
-                // First try the standard serialization
-                const jsonData = window.FormSerializer.serializeFormToJSON(form, {
-                    includeEmpty: false,
-                    transform: (value) => (typeof value === 'string' ? value.trim() : value)
-                });
-                resolve(jsonData);
-            } catch (error) {
-                reject(error);
-            }
+
+        // Use the safe, async serialization method (web worker fallback)
+        const jsonData = await window.FormSerializer.serializeFormToJSONSafe(form, {
+            includeEmpty: false,
+            transform: (value) => (typeof value === 'string' ? value.trim() : value)
         });
-        
-        // Set a timeout for serialization
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Form serialization timed out. The form may be too complex.')), 10000);
-        });
-        
-        // Race the serialization against the timeout
-        const jsonData = await Promise.race([serializePromise, timeoutPromise]);
         
         // Update progress
         progressBar.style.width = '30%';

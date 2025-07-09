@@ -95,7 +95,13 @@ class TestAPIIntegration:
         assert data['id'] == 'api_single_test'
         assert data['lexical_unit']['en'] == 'single_test'
         assert len(data['senses']) == 1
-        assert data['senses'][0]['gloss'] == 'Single test gloss'
+        # Accept both string and nested dict for gloss for backward compatibility
+        gloss_val = data['senses'][0]['gloss']
+        if isinstance(gloss_val, dict):
+            assert 'en' in gloss_val
+            assert gloss_val['en']['text'] == 'Single test gloss'
+        else:
+            assert gloss_val == 'Single test gloss'
         
     def test_api_entries_create(self, client):
         """Test POST /api/entries - create new entry."""
@@ -244,8 +250,19 @@ class TestAPIIntegration:
         entry_data = data['entries'][0]
         assert 'senses' in entry_data
         assert len(entry_data['senses']) == 1
-        assert entry_data['senses'][0]['gloss'] == 'Searchable gloss'
-        assert entry_data['senses'][0]['definition'] == 'Searchable definition'
+        # Accept both string and nested dict for gloss and definition for backward compatibility
+        gloss_val = entry_data['senses'][0]['gloss']
+        if isinstance(gloss_val, dict):
+            assert 'en' in gloss_val
+            assert gloss_val['en']['text'] == 'Searchable gloss'
+        else:
+            assert gloss_val == 'Searchable gloss'
+        def_val = entry_data['senses'][0]['definition']
+        if isinstance(def_val, dict):
+            assert 'en' in def_val
+            assert def_val['en']['text'] == 'Searchable definition'
+        else:
+            assert def_val == 'Searchable definition'
         
     def test_api_export_lift(self, client):
         """Test GET /api/export/lift - export LIFT format."""
@@ -309,18 +326,10 @@ class TestAPIIntegration:
 class TestExporterIntegration:
     """Integration tests for export functionality with real data."""
     
-    @pytest.fixture(scope="class")
-    def app(self):
-        """Create Flask app for testing."""
-        app = create_app(config_name='testing')
-        app.config['TESTING'] = True
-        return app
-        
-    @pytest.fixture(scope="class")
-    def dict_service(self, app):
-        """Get dictionary service instance."""
-        with app.app_context():
-            return app.dict_service_with_db
+    @pytest.fixture()
+    def dict_service(self, dict_service_with_db):
+        """Get dictionary service instance (direct from fixture)."""
+        return dict_service_with_db
     
     def test_kindle_exporter_integration(self, dict_service):
         """Test Kindle export with real data."""
@@ -488,8 +497,19 @@ class TestEnhancedParserIntegration:
             sense = entry.senses[0]
             
             assert sense.id == "enhanced_sense_1"
-            assert sense.gloss == "Enhanced test gloss"
-            assert sense.definition == "Enhanced test definition"
+            # Accept both string and nested dict for gloss and definition for backward compatibility
+            gloss_val = sense.gloss
+            if isinstance(gloss_val, dict):
+                assert 'en' in gloss_val
+                assert gloss_val['en']['text'] == 'Enhanced test gloss'
+            else:
+                assert gloss_val == 'Enhanced test gloss'
+            def_val = sense.definition
+            if isinstance(def_val, dict):
+                assert 'en' in def_val
+                assert def_val['en']['text'] == 'Enhanced test definition'
+            else:
+                assert def_val == 'Enhanced test definition'
             assert sense.grammatical_info == "Noun"
             
             # Check examples
