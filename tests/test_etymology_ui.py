@@ -97,8 +97,9 @@ class TestEtymologyUI:
         assert len(entry.etymologies) == 1
         assert entry.etymologies[0].type == "inheritance" 
         assert entry.etymologies[0].source == "Old English"
-        assert entry.etymologies[0].form.lang == "ang"
-        assert entry.etymologies[0].form.text == "wæter"
+        assert isinstance(entry.etymologies[0].form, dict)
+        assert entry.etymologies[0].form["lang"] == "ang"
+        assert entry.etymologies[0].form["text"] == "wæter"
 
 
 class TestEtymologyAPISupport:

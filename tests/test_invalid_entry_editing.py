@@ -207,6 +207,9 @@ class TestInvalidEntryEditing:
 
     def test_real_scholastic_assessment_entry_editable(self, app):
         """Integration test: verify the real problematic entry is now editable."""
+        import os
+        if os.environ.get("RUN_REAL_DB_TESTS") != "1":
+            pytest.skip("Skipping real DB test unless RUN_REAL_DB_TESTS=1 is set.")
         with app.app_context():
             dict_service = app.injector.get(DictionaryService)
             entry_id = "Scholastic Assessment Test_25645cb1-c7de-4560-be73-9505d9e9c33f"

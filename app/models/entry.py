@@ -13,49 +13,24 @@ if TYPE_CHECKING:
     from app.models.sense import Sense
 
 
-class Form(BaseModel):
-    """
-    Represents a form in a LIFT entry.
-    """
 
-    def __init__(self, lang: str, text: str, **kwargs: Any):
-        super().__init__(**kwargs)
-        self.lang = lang
-        self.text = text
-
-
-class Gloss(BaseModel):
-    """
-    Represents a gloss in a LIFT entry.
-    """
-
-    def __init__(self, lang: str, text: str, **kwargs: Any):
-        super().__init__(**kwargs)
-        self.lang = lang
-        self.text = text
 
 class Etymology(BaseModel):
     """
     Represents an etymology in a LIFT entry.
     """
 
-    def __init__(self, type: str, source: str, form: Union[Form, Dict[str, str]], gloss: Union[Gloss, Dict[str, str]], **kwargs: Any):
+    def __init__(self, type: str, source: str, form: Dict[str, str], gloss: Dict[str, str], **kwargs: Any):
         super().__init__(**kwargs)
-        self.type = type
-        self.source = source
-        self.form = Form(**form) if isinstance(form, dict) else form
-        self.gloss = Gloss(**gloss) if isinstance(gloss, dict) else gloss
+        self.type: str = type
+        self.source: str = source
+        self.form: Dict[str, str] = form
+        self.gloss: Dict[str, str] = gloss
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert etymology to dictionary with nested objects."""
         result = super().to_dict()
-        
-        # Convert nested objects
-        if hasattr(self.form, 'to_dict'):
-            result['form'] = self.form.to_dict()
-        if hasattr(self.gloss, 'to_dict'):
-            result['gloss'] = self.gloss.to_dict()
-            
+        result['form'] = self.form
+        result['gloss'] = self.gloss
         return result
 
 
@@ -77,9 +52,9 @@ class Variant(BaseModel):
     Represents a variant form of a lexical unit.
     """
 
-    def __init__(self, form: Union[Form, Dict[str, str]], **kwargs: Any):
+    def __init__(self, form: Dict[str, str], **kwargs: Any):
         super().__init__(**kwargs)
-        self.form = Form(**form) if isinstance(form, dict) else form
+        self.form: Dict[str, str] = form
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert variant to dictionary with nested objects."""

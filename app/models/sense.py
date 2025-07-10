@@ -86,47 +86,55 @@ class Sense(BaseModel):
     
     def validate(self) -> bool:
         """
-        Validate the sense using the centralized validation system.
-        
+        Validate the sense using the centralized validation system and enforce that at least one gloss or definition is non-empty.
         Returns:
             True if the sense is valid.
-            
         Raises:
             ValidationError: If the sense is invalid.
         """
         from app.services.validation_engine import ValidationEngine
-        
-        # Convert sense to entry-like structure for validation
+
+        # Check for at least one non-empty gloss or definition
+        has_nonempty_gloss = any(
+            isinstance(val, dict) and val.get("text", "").strip()
+            for val in self.glosses.values()
+        )
+        has_nonempty_definition = any(
+            isinstance(val, dict) and val.get("text", "").strip()
+            for val in self.definitions.values()
+        )
+        if not (has_nonempty_gloss or has_nonempty_definition):
+            raise ValidationError(
+                "Sense must have at least one non-empty gloss or definition."
+            )
+
+        # Use centralized validation system as before
         sense_data = {
-            'id': 'temp_entry_id',  # Temporary entry ID for validation context
-            'lexical_unit': {'en': 'temp'},  # Temporary lexical unit
-            'senses': [self.to_dict()]  # Validate this sense as part of an entry
+            'id': 'temp_entry_id',
+            'lexical_unit': {'en': 'temp'},
+            'senses': [self.to_dict()]
         }
-        
-        # Use centralized validation system
         engine = ValidationEngine()
         result = engine.validate_entry(sense_data)
-        
+
         # Collect all relevant errors (sense-specific and any that could apply to this sense)
         sense_errors = []
         for error in result.errors:
-            # Include errors that are related to sense validation
-            if ('sense' in error.rule_id.lower() or 
-                'senses[0]' in error.message or 
+            if (
+                'sense' in error.rule_id.lower() or
+                'senses[0]' in error.message or
                 'Sense at index 0' in error.message or
-                error.rule_id.startswith('R2.')):  # All R2.x rules are sense-related
+                error.rule_id.startswith('R2.')
+            ):
                 sense_errors.append(error.message)
-        
-        # Also check if this sense specifically has validation issues
+
         sense_dict = self.to_dict()
-        
-        # Direct validation of sense ID
         if not sense_dict.get('id') or (isinstance(sense_dict['id'], str) and not sense_dict['id'].strip()):
             sense_errors.append("Sense ID is required and must be non-empty")
-        
+
         if sense_errors:
             raise ValidationError("Sense validation failed", sense_errors)
-        
+
         return True
     
     def add_example(self, example: Dict[str, Any]) -> None:

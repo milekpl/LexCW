@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Entry: {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% endblock %}
+{% block title %}Entry: {% if entry.lexical_unit is mapping %}{% for lang, val in entry.lexical_unit.items() %}{{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -8,7 +8,11 @@
         <h2>
             <i class="fas fa-book"></i> 
             <span class="text-primary">
-                {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}
+                {% if entry.lexical_unit is mapping %}
+                    {% for lang, val in entry.lexical_unit.items() %}
+                        {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                {% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}
             </span>
             {% if entry.get_language_list() and entry.get_language_list()|length > 0 %}
                 <small class="text-muted">[{{ entry.get_language_list()|join(', ') }}]</small>
@@ -43,12 +47,20 @@
                         <div class="sense-item mb-4">
                             <div class="d-flex gap-2 align-items-center mb-2">
                                 <h4 class="badge bg-primary rounded-pill">{{ loop.index }}</h4>
-                                <h5 class="mb-0">{{ sense.definition }}</h5>
+                                <h5 class="mb-0">
+                                    {% if sense.definitions %}
+                                        {% for lang, val in sense.definitions.items() %}
+                                            {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                </h5>
                             </div>
-                            
-                            {% if sense.gloss %}
+                            {% if sense.glosses %}
                                 <div class="ms-4 mb-2">
-                                    <span class="text-muted">Gloss:</span> {{ sense.gloss }}
+                                    <span class="text-muted">Gloss:</span>
+                                    {% for lang, val in sense.glosses.items() %}
+                                        {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
                                 </div>
                             {% endif %}
                             
@@ -61,9 +73,16 @@
                                 </div>
                             {% endif %}
                             
-                            {% if sense.note %}
+                            {% if sense.notes %}
                                 <div class="ms-4 mb-2 note-box">
-                                    <span class="text-muted">Note:</span> {{ sense.note }}
+                                    <span class="text-muted">Notes:</span>
+                                    {% for note_type, note_dict in sense.notes.items() %}
+                                        <div><strong>{{ note_type }}</strong>:
+                                            {% for lang, val in note_dict.items() %}
+                                                {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endfor %}
                                 </div>
                             {% endif %}
                             
@@ -73,9 +92,19 @@
                                     <div class="examples-list ps-3 border-start border-3">
                                         {% for example in sense.examples %}
                                             <div class="example-item mb-3">
-                                                <div class="example-text fw-bold">{{ example.text }}</div>
-                                                {% if example.translation %}
-                                                    <div class="example-translation text-muted">{{ example.translation }}</div>
+                                                <div class="example-text fw-bold">
+                                                    {% if example.form %}
+                                                        {% for lang, val in example.form.items() %}
+                                                            {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                                        {% endfor %}
+                                                    {% endif %}
+                                                </div>
+                                                {% if example.translations %}
+                                                    <div class="example-translation text-muted">
+                                                        {% for lang, val in example.translations.items() %}
+                                                            {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                                        {% endfor %}
+                                                    </div>
                                                 {% endif %}
                                                 {% if example.reference %}
                                                     <div class="example-reference small">
@@ -110,24 +139,11 @@
             <div class="card-body">
                 {% if entry.pronunciations %}
                     <ul class="list-group list-group-flush">
-                    {% for pron in entry.pronunciations %}
+                    {% for lang, val in entry.pronunciations.items() %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                {% if pron.type == 'ipa' %}
-                                    <span class="pronunciation-ipa">/{{ pron.value }}/</span>
-                                {% else %}
-                                    <span class="pronunciation-other">{{ pron.value }}</span>
-                                {% endif %}
-                                {% if pron.is_default %}
-                                    <span class="badge bg-primary ms-2">Default</span>
-                                {% endif %}
+                                <span class="pronunciation-ipa">{{ val }}</span> <small>[{{ lang }}]</small>
                             </div>
-                            {% if pron.audio_file %}
-                                <button type="button" class="btn btn-sm btn-outline-primary play-audio-btn" 
-                                        data-audio-file="{{ pron.audio_file }}">
-                                    <i class="fas fa-play"></i> Play
-                                </button>
-                            {% endif %}
                         </li>
                     {% endfor %}
                     </ul>
@@ -144,17 +160,39 @@
                 <h5><i class="fas fa-info-circle"></i> Additional Information</h5>
             </div>
             <div class="card-body">
-                {% if entry.etymology %}
+                {% if entry.etymologies %}
                     <div class="mb-3">
                         <h6>Etymology</h6>
-                        <p>{{ entry.etymology }}</p>
+                        {% for ety in entry.etymologies %}
+                            <div>
+                                {% if ety.form %}
+                                    <strong>Form:</strong>
+                                    {% for lang, val in ety.form.items() %}
+                                        {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                {% if ety.gloss %}
+                                    <br><strong>Gloss:</strong>
+                                    {% for lang, val in ety.gloss.items() %}
+                                        {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                {% if ety.type %} <br><strong>Type:</strong> {{ ety.type }}{% endif %}
+                                {% if ety.source %} <br><strong>Source:</strong> {{ ety.source }}{% endif %}
+                            </div>
+                        {% endfor %}
                     </div>
                 {% endif %}
-                
-                {% if entry.note %}
+                {% if entry.notes %}
                     <div class="mb-3">
                         <h6>Notes</h6>
-                        <p>{{ entry.note }}</p>
+                        {% for note_type, note_dict in entry.notes.items() %}
+                            <div><strong>{{ note_type }}</strong>:
+                                {% for lang, val in note_dict.items() %}
+                                    {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
                     </div>
                 {% endif %}
                 

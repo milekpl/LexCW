@@ -56,7 +56,7 @@ def test_protestantism_save_process():
         print(f"💾 Updated entry - Examples: {len(updated_entry.senses[0].examples)} examples")
         
         # 5. Verify the data is correct
-        assert updated_entry.senses[0].definition == 'A form of Christianity that originated with the Reformation.'
+        assert updated_entry.senses[0].definition['en']['text'] == 'A form of Christianity that originated with the Reformation.'
         assert updated_entry.senses[0].grammatical_info == 'noun'
         assert len(updated_entry.senses[0].examples) == 1
         assert updated_entry.senses[0].examples[0]['text'] == 'Protestantism spread rapidly across Northern Europe.'
