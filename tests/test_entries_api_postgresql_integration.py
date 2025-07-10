@@ -54,7 +54,7 @@ def test_entries_api_uses_basex_not_postgresql(client: FlaskClient) -> None:
         data = json.loads(response.data.decode('utf-8'))
         assert 'entries' in data
         assert data['total_count'] == 1
-        assert data['entries'][0]['lexical_unit'] == 'test'
+        assert data['entries'][0]['lexical_unit'] == {'en': 'test'}
         
         # Verify BaseX service was called, not PostgreSQL
         mock_service.list_entries.assert_called_once()

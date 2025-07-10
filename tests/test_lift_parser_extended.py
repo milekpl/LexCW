@@ -11,14 +11,14 @@ COMPLEX_LIFT_ENTRY_2 = '''
 <entry id="test_id_002">
     <lexical-unit>
         <form lang="en"><text>run</text></form>
-        <form lang="es"><text>correr</text></form>
+        <form lang="pl"><text>biegac</text></form>
     </lexical-unit>
     <sense id="sense_1">
         <grammatical-info value="verb" />
         <definition><form lang="en"><text>to move swiftly on foot</text></form></definition>
         <example>
             <form lang="en"><text>He can run very fast.</text></form>
-            <translation><form lang="es"><text>Él puede correr muy rápido.</text></form></translation>
+            <translation><form lang="pl"><text>On może biegać bardzo szybko.</text></form></translation>
         </example>
     </sense>
     <sense id="sense_2">
@@ -60,11 +60,11 @@ def test_parse_entry_with_multiple_senses(lift_parser: LIFTParser):
     sense1 = entry.senses[0]
     assert sense1.id == "sense_1"
     assert sense1.grammatical_info == "verb"
-    assert sense1.definitions.get("en") == "to move swiftly on foot"
+    assert sense1.definitions.get("en", {}).get("text") == "to move swiftly on foot"
     assert len(sense1.examples) == 1
     example1 = sense1.examples[0]
     assert example1.get("form", {}).get("en") == "He can run very fast."
-    assert example1.get("translations", {}).get("es") == "Él puede correr muy rápido."
+    assert example1.get("translations", {}).get("pl") == "On może biegać bardzo szybko."
 
     # Check second sense
     sense2 = entry.senses[1]

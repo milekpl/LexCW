@@ -48,8 +48,8 @@ def test_parse_entry_with_complex_structures(lift_parser: LIFTParser):
     etymology = entry.etymologies[0]
     assert etymology.type == "proto-language"
     assert etymology.source == "Proto-Indo-European"
-    assert etymology.form.text == "*testos"
-    assert etymology.gloss.text == "original meaning"
+    assert etymology.form["en"] == "*testos"
+    assert etymology.gloss["en"] == "original meaning"
 
     # Check for relations
     assert hasattr(entry, 'relations'), "Entry model should have 'relations' attribute"
@@ -62,4 +62,4 @@ def test_parse_entry_with_complex_structures(lift_parser: LIFTParser):
     assert hasattr(entry, 'variants'), "Entry model should have 'variants' attribute"
     assert len(entry.variants) == 1
     variant = entry.variants[0]
-    assert variant.form.text == "test variant"
+    assert variant.form["en"] == "test variant"

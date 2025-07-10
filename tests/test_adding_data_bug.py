@@ -82,12 +82,10 @@ class TestAddingDataToEmptyFields:
             print(f"💾 Final entry grammatical_info: {final_entry.senses[0].grammatical_info}")
             
             # 5. CRITICAL ASSERTIONS: New data should be saved
-            expected_definition = {'en': 'NEW definition added by user'}  # Expected format in Entry model
-            
-            # If user enters just text, it should be converted to {'en': text} format
-            assert final_entry.senses[0].definitions == expected_definition or \
-                   final_entry.senses[0].definition == 'NEW definition added by user', \
-                   f"NEW definition was not saved! Got definitions: {final_entry.senses[0].definitions}, definition: {final_entry.senses[0].definition}"
+            expected_definition = {'en': {'text': 'NEW definition added by user'}}  # Expected format in Entry model
+            # Should always be nested dict format
+            assert final_entry.senses[0].definitions == expected_definition, \
+                f"NEW definition was not saved! Got definitions: {final_entry.senses[0].definitions}"
             
             assert final_entry.senses[0].grammatical_info == 'noun', \
                 f"NEW grammatical_info was not saved! Got: {final_entry.senses[0].grammatical_info}"
@@ -137,9 +135,9 @@ class TestAddingDataToEmptyFields:
             print(f"💾 Final definitions: {final_entry.senses[0].definitions}")
             print(f"💾 Final definition property: {final_entry.senses[0].definition}")
             
-            # String should be preserved, either as-is or converted to dict
-            assert final_entry.senses[0].definition == 'Simple string definition', \
-                f"String definition not preserved! Got: {final_entry.senses[0].definition}"
+            # String should be normalized to nested dict format
+            assert final_entry.senses[0].definitions == {'en': {'text': 'Simple string definition'}}, \
+                f"Definition not normalized correctly! Got: {final_entry.senses[0].definitions}"
 
 
 if __name__ == '__main__':

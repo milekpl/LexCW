@@ -161,8 +161,8 @@ class TestAdvancedCRUD:
         
         # Instead of checking a specific format which might vary, just check if the sense data is valid
         assert sense1.id == "sense1"
-        assert sense1.glosses.get("pl") == "złożony"
-        assert sense1.definitions.get("en") == "Having many interconnected parts"
+        assert sense1.glosses.get("pl", {}).get("text") == "złożony"
+        assert sense1.definitions.get("en", {}).get("text") == "Having many interconnected parts"
         
         # Try to check for grammatical info - this is what we're testing
         grammatical_info = sense1.grammatical_info

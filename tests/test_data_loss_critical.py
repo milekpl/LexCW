@@ -101,11 +101,11 @@ class TestDataLossOnSave:
         # CRITICAL ASSERTIONS: NO DATA SHOULD BE LOST
         
         # Definition should be preserved (check underlying definitions dict)
-        assert saved_entry.senses[0].definitions == {'en': 'A member of a Protestant church'}, \
+        assert saved_entry.senses[0].definitions == {'en': {'text': 'A member of a Protestant church'}}, \
             f"CRITICAL DATA LOSS: Definition was cleared! Got: {saved_entry.senses[0].definitions}"
         
-        # Alternative check: the property should also work
-        assert saved_entry.senses[0].definition == 'A member of a Protestant church', \
+        # Alternative check: the property should also work (returns the dict)
+        assert saved_entry.senses[0].definition == {'en': {'text': 'A member of a Protestant church'}}, \
             f"CRITICAL DATA LOSS: Definition property not working! Got: {saved_entry.senses[0].definition}"
         
         # Grammatical info should be preserved  
@@ -187,13 +187,13 @@ class TestDataLossOnSave:
         saved_entry = Entry(**merged_data)
         
         # ALL complex data should be preserved
-        assert saved_entry.senses[0].definitions == {'en': 'To move rapidly on foot', 'fr': 'Se déplacer rapidement à pied'}
+        assert saved_entry.senses[0].definitions == {'en': {'text': 'To move rapidly on foot'}, 'fr': {'text': 'Se déplacer rapidement à pied'}}
         assert saved_entry.senses[0].grammatical_info == 'verb'
         assert saved_entry.senses[0].semantic_domain == 'motion'
         assert saved_entry.senses[0].subsense_type == 'primary'
         assert len(saved_entry.senses[0].examples) == 2
         
-        assert saved_entry.senses[1].definitions == {'en': 'A period of running', 'fr': 'Une période de course'}
+        assert saved_entry.senses[1].definitions == {'en': {'text': 'A period of running'}, 'fr': {'text': 'Une période de course'}}
         assert saved_entry.senses[1].grammatical_info == 'noun'
         assert saved_entry.senses[1].semantic_domain == 'activity'
         assert saved_entry.senses[1].subsense_type == 'derived'

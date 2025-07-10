@@ -28,7 +28,7 @@ class TestLIFTTraitsAndLanguageCodes:
 
     @pytest.fixture
     def sample_lift_with_traits(self) -> str:
-        """Sample LIFT XML with variant traits."""
+        """Sample LIFT XML with variant traits and at least one sense per entry."""
         return """<?xml version="1.0" encoding="UTF-8" ?>
         <lift producer="SIL.FLEx 9.1.25.877" version="0.13">
         <entry id="test1">
@@ -45,6 +45,9 @@ class TestLIFTTraitsAndLanguageCodes:
             <note>
                 <form lang="pl"><text>Test note with language</text></form>
             </note>
+            <sense id="s1">
+                <definition><form lang="en"><text>dummy</text></form></definition>
+            </sense>
         </entry>
         <entry id="test2">
             <lexical-unit>
@@ -57,6 +60,9 @@ class TestLIFTTraitsAndLanguageCodes:
             <pronunciation>
                 <form lang="seh-fonipa"><text>test2</text></form>
             </pronunciation>
+            <sense id="s2">
+                <definition><form lang="pl"><text>dummy2</text></form></definition>
+            </sense>
         </entry>
         </lift>
         """
@@ -142,7 +148,7 @@ class TestLIFTTraitsAndLanguageCodes:
         # In the new structure, the note should be a dict mapping languages to text
         assert isinstance(entries[0].notes['general'], dict)
         assert 'pl' in entries[0].notes['general']
-        assert entries[0].notes['general']['pl'] == 'Test note with language'
+        assert entries[0].notes['general']['pl']['text'] == 'Test note with language'
 
     def test_fixed_pronunciation_language(self, sample_lift_with_traits: str) -> None:
         """Test that pronunciations always use seh-fonipa language code."""

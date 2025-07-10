@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from typing import Dict, List, Any, Optional
 from xml.dom import minidom
 
-from app.models.entry import Entry, Etymology, Relation, Variant, Form, Gloss
+from app.models.entry import Entry, Etymology, Relation, Variant
 from app.models.sense import Sense
 from app.models.example import Example
 from app.utils.exceptions import ValidationError
@@ -355,20 +355,20 @@ class LIFTParser:
             form_elem = self._find_element(etymology_elem, './/lift:form')
             gloss_elem = self._find_element(etymology_elem, './/lift:gloss')
 
-            form = None
+            form: dict[str, str] = {}
             if form_elem is not None:
                 lang = form_elem.get('lang')
                 text_elem = self._find_element(form_elem, './/lift:text')
                 if text_elem is not None and text_elem.text:
-                    form = Form(lang=lang or '', text=text_elem.text)
+                    form = {lang or '': text_elem.text}
 
-            gloss = None
+            gloss: dict[str, str] = {}
             if gloss_elem is not None:
                 lang = gloss_elem.get('lang')
                 text_elem = self._find_element(gloss_elem, './/lift:text')
                 if text_elem is not None and text_elem.text:
-                    gloss = Gloss(lang=lang or '', text=text_elem.text)
-            
+                    gloss = {lang or '': text_elem.text}
+
             if form and gloss:
                 etymologies.append(Etymology(
                     type=etymology_type,
@@ -423,7 +423,7 @@ class LIFTParser:
                 lang = form_elem.get('lang')
                 text_elem = self._find_element(form_elem, './/lift:text')
                 if text_elem is not None and text_elem.text:
-                    form = Form(lang=lang or '', text=text_elem.text)
+                    form = {lang or '': text_elem.text}
                     variants.append(Variant(form=form))
         
         # Parse grammatical info

@@ -12,19 +12,18 @@
 
 ## 2. Backend/Export/Import/Parser
 - [ ] entry.py
-- [ ] sqlite_exporter.py
-- [ ] kindle_exporter.py
-- [ ] lift_parser.py (partially done)
-- [ ] data_migration.py (not found)
+- [x] sqlite_exporter.py (done)
+- [x] kindle_exporter.py (done)
+- [x] lift_parser.py (done, fully compliant with nested dict multitext fields)
 
 ## 3. Templates
 - [x] entry_form.html (done)
-- [ ] entry_view.html
-- [ ] test_search.html
+- [x] entry_view.html (done, fully refactored for nested dict multitext fields)
+- [x] test_search.html (done, fully refactored for nested dict multitext fields)
 
 ## 4. Service/Query Logic
-- [ ] query_builder_service.py
-- [ ] dictionary_service.py
+- [x] query_builder_service.py (done, fully compliant with nested dict multitext fields)
+- [x] dictionary_service.py (done, fully compliant with nested dict multitext fields)
 
 ---
 - Mark [x] when a file is fully refactored for nested dict multitext fields.

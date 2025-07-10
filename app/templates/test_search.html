@@ -84,11 +84,16 @@
         <div class="entries">
             {% for entry in entries %}
             <div class="entry">
-                <h3>{{ entry.lexical_unit }}</h3>
+                <h3>
+                    {% if entry.lexical_unit is mapping %}
+                        {% for lang, val in entry.lexical_unit.items() %}
+                            {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    {% else %}{{ entry.lexical_unit }}{% endif %}
+                </h3>
                 <div class="entry-details">
                     <small>ID: {{ entry.id }}</small>
                 </div>
-                
                 {% if entry.senses %}
                 <div class="senses mt-2">
                     {% for sense in entry.senses %}
@@ -96,29 +101,35 @@
                         <h4>Sense {{ loop.index }}</h4>
                         {% if sense.glosses %}
                         <div class="glosses">
-                            {% for gloss in sense.glosses %}
-                            <div class="gloss">{{ gloss.text }} ({{ gloss.lang }})</div>
+                            {% for lang, val in sense.glosses.items() %}
+                                <div class="gloss">{{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small></div>
                             {% endfor %}
                         </div>
                         {% endif %}
-                        
                         {% if sense.definitions %}
                         <div class="definitions">
-                            {% for definition in sense.definitions %}
-                            <div class="definition">{{ definition.text }} ({{ definition.lang }})</div>
+                            {% for lang, val in sense.definitions.items() %}
+                                <div class="definition">{{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small></div>
                             {% endfor %}
                         </div>
                         {% endif %}
-                        
                         {% if sense.examples %}
                         <div class="examples mt-1">
                             {% for example in sense.examples %}
-                            <div class="example">
-                                {{ example.text }}
-                                {% if example.translation %}
-                                <br><em>{{ example.translation }}</em>
-                                {% endif %}
-                            </div>
+                                <div class="example">
+                                    {% if example.form %}
+                                        {% for lang, val in example.form.items() %}
+                                            {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% if example.translations %}
+                                        <br><em>
+                                            {% for lang, val in example.translations.items() %}
+                                                {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </em>
+                                    {% endif %}
+                                </div>
                             {% endfor %}
                         </div>
                         {% endif %}

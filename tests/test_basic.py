@@ -32,7 +32,8 @@ class TestEntry:
         assert len(entry.senses) == 1
         # Test with actual Sense object, not dictionary
         assert entry.senses[0].id == "sense_1"
-        assert entry.senses[0].gloss == "A test entry"  # Test the property
+        # Gloss is now a dict: {"en": {"text": ...}}
+        assert entry.senses[0].glosses["en"]["text"] == "A test entry"
     
     def test_entry_validation(self):
         """Test entry validation."""

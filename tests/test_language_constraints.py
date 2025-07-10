@@ -31,7 +31,7 @@ def test_language_constraints():
             }
         }
         
-        test_submission("Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data, "allowed language")
+    _test_submission("Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data, "allowed language")
     
     # Test with disallowed language (Portuguese)
     print("\n=== Testing with disallowed language (Portuguese) ===")
@@ -43,9 +43,9 @@ def test_language_constraints():
         }
     }
     
-    test_submission("Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data_pt, "disallowed language (Portuguese)")
+    _test_submission("Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data_pt, "disallowed language (Portuguese)")
 
-def test_submission(entry_id, data, description):
+def _test_submission(entry_id, data, description):
     """Test a specific data submission."""
     url = f"http://127.0.0.1:5000/entries/{entry_id}/edit"
     

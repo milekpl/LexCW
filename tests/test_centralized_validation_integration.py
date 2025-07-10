@@ -66,15 +66,18 @@ class TestCentralizedValidationIntegration:
 
     def test_sense_validation_integration(self):
         """Test that Sense model validation integrates with centralized system."""
-        # Test valid sense
+        # Test valid sense (has gloss)
         valid_sense = Sense(id="test_sense", gloss="test definition")
         assert valid_sense.validate()
-        
-        # Test sense with empty gloss (should fail)
+
+        # Test sense with empty gloss but valid definition (should pass)
+        valid_sense2 = Sense(id="test_sense2", gloss="", definitions={"en": {"text": "valid definition"}})
+        assert valid_sense2.validate()
+
+        # Test sense with both gloss and definition empty (should fail)
         with pytest.raises(ValidationError) as exc_info:
-            invalid_sense = Sense(id="test_sense", gloss="")
+            invalid_sense = Sense(id="test_sense3", gloss="", definitions={})
             invalid_sense.validate()
-        
         assert "gloss" in str(exc_info.value).lower() or "definition" in str(exc_info.value).lower()
 
     def test_language_code_validation_integration(self):
