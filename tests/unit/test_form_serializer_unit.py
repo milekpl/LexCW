@@ -34,7 +34,7 @@ class TestFormSerializerUnit:
     def test_form_serializer_javascript_exists(self) -> None:
         """Test that the form serializer JavaScript file exists."""
         serializer_path = os.path.join(
-            os.path.dirname(__file__), '..', 'app', 'static', 'js', 'form-serializer.js'
+            os.path.dirname(__file__), '..', '..','app', 'static', 'js', 'form-serializer.js'
         )
         assert os.path.exists(serializer_path), "Form serializer JavaScript file must exist"
         

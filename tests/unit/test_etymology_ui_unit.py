@@ -4,7 +4,6 @@ Unit tests for etymology UI functionality.
 Tests etymology object creation and manipulation using mocks.
 """
 
-import pytest
 from app.models.entry import Entry, Etymology
 
 
@@ -71,19 +70,57 @@ class TestEtymologyUI:
         assert len(entry.etymologies) == 0
 
     def test_add_etymology_method(self):
-        """Test adding etymology to existing entry."""
+        """
+        Test adding an etymology to an existing entry, ensuring correct
+        object creation and attribute assignment.
+        """
+        # 1. Setup: Create an entry without etymologies
         entry = Entry(lexical_unit={"en": "water"})
+        assert entry.etymologies == []
+
+        # 2. Action: Add a new etymology
         entry.add_etymology(
             etymology_type="inheritance",
-            source="Old English", 
+            source="Old English",
             form_lang="ang",
             form_text="wæter",
             gloss_lang="en",
             gloss_text="water"
         )
+
+        # 3. Verification: Check the newly added etymology
         assert len(entry.etymologies) == 1
-        assert entry.etymologies[0].type == "inheritance" 
-        assert entry.etymologies[0].source == "Old English"
-        assert isinstance(entry.etymologies[0].form, dict)
-        assert entry.etymologies[0].form["lang"] == "ang"
-        assert entry.etymologies[0].form["text"] == "wæter"
+        new_etymology = entry.etymologies[0]
+
+        # Verify the etymology object is of the correct type
+        assert isinstance(new_etymology, Etymology)
+
+        # Verify all attributes are correctly assigned
+        assert new_etymology.type == "inheritance"
+        assert new_etymology.source == "Old English"
+
+        # Verify the 'form' dictionary is correctly created
+        assert isinstance(new_etymology.form, dict)
+        assert new_etymology.form["lang"] == "ang"
+        assert new_etymology.form["text"] == "wæter"
+
+        # Verify the 'gloss' dictionary is correctly created
+        assert isinstance(new_etymology.gloss, dict)
+        assert new_etymology.gloss["lang"] == "en"
+        assert new_etymology.gloss["text"] == "water"
+
+        # 4. Action: Add a second etymology to test list extension
+        entry.add_etymology(
+            etymology_type="borrowing",
+            source="Old Norse",
+            form_lang="non",
+            form_text="vatn",
+            gloss_lang="en",
+            gloss_text="water"
+        )
+
+        # 5. Verification: Check the list of etymologies now has two items
+        assert len(entry.etymologies) == 2
+        second_etymology = entry.etymologies[1]
+        assert second_etymology.type == "borrowing"
+        assert second_etymology.source == "Old Norse"
