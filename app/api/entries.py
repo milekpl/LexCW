@@ -65,7 +65,7 @@ def list_entries() -> Any:
         type: string
         required: false
         description: Field to sort by
-        enum: [lexical_unit, id, date_modified]
+        enum: [lexical_unit, id, date_modified, citation_form, part_of_speech, gloss, definition]
         default: lexical_unit
       - name: sort_order
         in: query
