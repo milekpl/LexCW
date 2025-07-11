@@ -11,6 +11,7 @@ from flasgger import swag_from
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
 from app.models.entry import Entry
+import datetime
 from app.utils.exceptions import NotFoundError, ValidationError
 
 # Create blueprint
@@ -65,7 +66,7 @@ def list_entries() -> Any:
         type: string
         required: false
         description: Field to sort by
-        enum: [lexical_unit, id, date_modified, citation_form, part_of_speech, gloss, definition]
+        enum: [lexical_unit, id, date_created, date_modified, citation_form, part_of_speech, gloss, definition]
         default: lexical_unit
       - name: sort_order
         in: query
@@ -121,6 +122,9 @@ def list_entries() -> Any:
                   date_modified:
                     type: string
                     description: Last modification date
+                  date_created:
+                    type: string
+                    description: Creation date
             total_count:
               type: integer
               description: Total number of entries
@@ -283,6 +287,9 @@ def get_entry(entry_id: str) -> Any:
             date_modified:
               type: string
               description: Last modification date
+            date_created:
+              type: string
+              description: Creation date
       404:
         description: Entry not found
         schema:
@@ -472,6 +479,9 @@ def create_entry() -> Any:
             return jsonify({'error': 'No data provided'}), 400
         
         # Create entry object
+        now = datetime.datetime.utcnow().isoformat()
+        data['date_created'] = now
+        data['date_modified'] = now
         entry = Entry.from_dict(data)
         
         # Get dictionary service
@@ -631,6 +641,11 @@ def update_entry(entry_id: str) -> Any:
             return jsonify({'error': 'Entry ID in path does not match ID in data'}), 400
         
         # Create entry object
+        # Preserve date_created, update date_modified
+        existing_entry = get_dictionary_service().get_entry(entry_id)
+        if existing_entry and existing_entry.date_created:
+            data['date_created'] = existing_entry.date_created
+        data['date_modified'] = datetime.datetime.utcnow().isoformat()
         entry = Entry.from_dict(data)
         
         # Get dictionary service

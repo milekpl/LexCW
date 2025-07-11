@@ -94,6 +94,8 @@ class Entry(BaseModel):
             id_: Unique identifier for the entry.
             **kwargs: Additional attributes to set on the entry.
         """
+        self.date_created: Optional[str] = kwargs.pop('date_created', None)
+        self.date_modified: Optional[str] = kwargs.pop('date_modified', None)
 
         # Extract complex structures before calling super to avoid double processing
         senses_data = kwargs.pop('senses', [])
@@ -500,6 +502,12 @@ class Entry(BaseModel):
             Dictionary representation of the entry with computed properties.
         """
         result = super().to_dict()
+
+        # Add date fields
+        if self.date_created:
+            result['date_created'] = self.date_created
+        if self.date_modified:
+            result['date_modified'] = self.date_modified
 
         # Note: headword is a computed property and should not be included in dict
 
