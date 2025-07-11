@@ -531,14 +531,59 @@ class DictionaryService:
             )
             form_path = self._query_builder.get_element_path("form", has_ns)
             text_path = self._query_builder.get_element_path("text", has_ns)
+            citation_path = self._query_builder.get_element_path("citation", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
+            gloss_path = self._query_builder.get_element_path("gloss", has_ns)
+            definition_path = self._query_builder.get_element_path("definition", has_ns)
+
             # Build sort expression with namespace-aware paths
             if sort_by == "lexical_unit":
-                sort_expr = f"($entry/{lexical_unit_path}/{form_path}/{text_path})[1]"  # Use first form text for sorting
-            else:
+                sort_expr = f"lower-case(($entry/{lexical_unit_path}/{form_path}/{text_path})[1])"
+            elif sort_by == "id":
                 sort_expr = "$entry/@id"
+            elif sort_by == "date_modified":
+                sort_expr = "$entry/@dateModified"
+            elif sort_by == "citation_form":
+                # Sort by the first citation form's text, ensuring it exists.
+                # Using lower-case for case-insensitive sorting.
+                sort_expr = f"lower-case(($entry/{citation_path}/{form_path}/{text_path})[1])"
+            elif sort_by == "part_of_speech":
+                # Sort by grammatical-info @value. Prefers entry-level, then first sense.
+                # Using lower-case for case-insensitive sorting.
+                sort_expr = f"""
+                    let $pos_val := ($entry/{grammatical_info_path}/@value,
+                                     ($entry/{sense_path}/{grammatical_info_path}/@value)[1]
+                                    )[1]
+                    return lower-case(string($pos_val))
+                """
+            elif sort_by == "gloss":
+                # Sort by the first gloss text in the first sense. Prefers 'en' language.
+                # Using lower-case for case-insensitive sorting.
+                sort_expr = f"""
+                    let $gloss_text := ($entry/{sense_path}[1]/{gloss_path}[@lang='en']/{text_path},
+                                       ($entry/{sense_path}[1]/{gloss_path}/{text_path})[1]
+                                      )[1]
+                    return lower-case(string($gloss_text))
+                """
+            elif sort_by == "definition":
+                # Sort by the first definition form text in the first sense. Prefers 'en' language.
+                # Using lower-case for case-insensitive sorting.
+                sort_expr = f"""
+                    let $def_text := ($entry/{sense_path}[1]/{definition_path}/{form_path}[@lang='en']/{text_path},
+                                     ($entry/{sense_path}[1]/{definition_path}/{form_path}/{text_path})[1]
+                                    )[1]
+                    return lower-case(string($def_text))
+                """
+            else: # Default to lexical_unit if sort_by is unrecognized
+                sort_expr = f"lower-case(($entry/{lexical_unit_path}/{form_path}/{text_path})[1])"
+
             # Add sort order
             if sort_order.lower() == "desc":
                 sort_expr += " descending"
+            # Ensure empty strings are sorted last for ascending, first for descending
+            # This makes columns with missing data more predictable.
+            sort_expr += " empty least" if sort_order.lower() == "asc" else " empty greatest"
             # Build filter expression with namespace-aware paths
             filter_expr = ""
             if filter_text:
