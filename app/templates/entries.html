@@ -35,7 +35,15 @@
                             <i class="fas fa-calendar"></i> Date
                         </button>
                     </div>
-                    <button type="button" class="btn btn-outline-secondary" id="refresh-entries-btn" title="Refresh entries" aria-label="Refresh entries">
+                    <div class="dropdown ms-2">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="columnVisibilityDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-eye"></i> Columns
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="columnVisibilityDropdown" id="column-visibility-menu">
+                            <!-- Column visibility options will be populated by JS -->
+                        </ul>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary ms-2" id="refresh-entries-btn" title="Refresh entries" aria-label="Refresh entries">
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
@@ -45,15 +53,8 @@
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover table-striped mb-0" id="entries-table">
-                <thead class="table-light">
-                    <tr>
-                        <th>Headword</th>
-                        <th>Part of Speech</th>
-                        <th>Senses</th>
-                        <th>Examples</th>
-                        <th>Last Modified</th>
-                        <th width="120">Actions</th>
-                    </tr>
+                <thead class="table-light" id="entries-table-head">
+                    <!-- Table headers will be loaded dynamically here -->
                 </thead>
                 <tbody id="entries-list">
                     <!-- Entries will be loaded dynamically here -->
