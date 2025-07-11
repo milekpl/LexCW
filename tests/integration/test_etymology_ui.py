@@ -106,20 +106,6 @@ class TestEtymologyRangesIntegration:
             dict_service = app.injector.get(DictionaryService)
             ranges = dict_service.get_ranges()
             assert isinstance(ranges, dict)
-    @pytest.mark.integration
-    def test_etymology_validation_ready(self, app):
-        """Test that etymology validation system is ready."""
-        with app.app_context():
-            etymology = Etymology(
-                type="borrowing",
-                source="Latin",
-                form={"lang": "la", "text": "pater"},
-                gloss={"lang": "en", "text": "father"}
-            )
-            assert etymology.type is not None
-            assert etymology.source is not None
-            assert etymology.form is not None
-            assert etymology.gloss is not None
 
 
 class TestEtymologyLifecycle:

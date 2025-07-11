@@ -454,8 +454,8 @@ class Entry(BaseModel):
             gloss_lang: Language code for the gloss.
             gloss_text: Text of the gloss/meaning.
         """
-        form = Form(lang=form_lang, text=form_text)
-        gloss = Gloss(lang=gloss_lang, text=gloss_text)
+        form = {"lang": form_lang, "text": form_text}
+        gloss = {"lang": gloss_lang, "text": gloss_text}
         etymology = Etymology(type=etymology_type, source=source, form=form, gloss=gloss)
         self.etymologies.append(etymology)
 
