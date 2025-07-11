@@ -20,6 +20,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.parsers.lift_parser import LIFTParser
 from app.services.dictionary_service import DictionaryService
 
+# Mark all tests in this module to skip ET mocking since they need real XML parsing
+pytestmark = pytest.mark.skip_et_mock
+
 
 class TestLIFTTraitsAndLanguageCodes:
     """

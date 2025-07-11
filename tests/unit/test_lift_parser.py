@@ -5,6 +5,9 @@ import pytest
 from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser
 
+# Mark all tests in this module to skip ET mocking since they need real XML parsing
+pytestmark = pytest.mark.skip_et_mock
+
 # Sample LIFT XML entry with complex relations, etymologies, and variants
 COMPLEX_LIFT_ENTRY = """
 <entry id="test_id_123">
