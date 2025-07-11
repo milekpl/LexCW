@@ -293,3 +293,31 @@ class Sense(BaseModel):
         result['gloss'] = self.gloss
         
         return result
+
+    def to_display_dict(self) -> Dict[str, Any]:
+        """
+        Convert the sense to a dictionary for display, simplifying multilingual fields.
+        """
+        result = super().to_dict()
+
+        # Simplify definition
+        definition_text = ''
+        if self.definitions:
+            if 'en' in self.definitions and self.definitions['en'].get('text'):
+                definition_text = self.definitions['en']['text']
+            elif self.definitions:
+                first_lang = next(iter(self.definitions))
+                definition_text = self.definitions[first_lang].get('text', '')
+        result['definition'] = definition_text
+
+        # Simplify gloss
+        gloss_text = ''
+        if self.glosses:
+            if 'en' in self.glosses and self.glosses['en'].get('text'):
+                gloss_text = self.glosses['en']['text']
+            elif self.glosses:
+                first_lang = next(iter(self.glosses))
+                gloss_text = self.glosses[first_lang].get('text', '')
+        result['gloss'] = gloss_text
+
+        return result

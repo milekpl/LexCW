@@ -538,6 +538,17 @@ class Entry(BaseModel):
 
         return result
 
+    def to_display_dict(self) -> Dict[str, Any]:
+        """
+        Convert the entry to a dictionary for display, simplifying multilingual fields.
+
+        Returns:
+            Dictionary representation of the entry for display.
+        """
+        result = self.to_dict()
+        result['senses'] = [sense.to_display_dict() for sense in self.senses]
+        return result
+
     def get_component_relations(self, dict_service=None) -> List[Dict[str, Any]]:
         """
         Extract component information from _component-lexeme relations with complex-form-type traits.
