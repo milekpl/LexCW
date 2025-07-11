@@ -2,6 +2,9 @@ from __future__ import annotations
 import pytest
 from app.parsers.lift_parser import LIFTParser
 
+# Mark all tests in this module to skip ET mocking since they need real XML parsing
+pytestmark = pytest.mark.skip_et_mock
+
 def test_parse_entry_with_single_sense():
     """
     Ensure that parsing a LIFT entry with only one <sense> element results in exactly one sense in the parsed Entry object.

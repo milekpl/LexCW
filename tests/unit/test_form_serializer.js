@@ -9,7 +9,15 @@
  */
 
 const path = require('path');
-const FormSerializer = require('../app/static/js/form-serializer.js');
+
+// Mock browser globals for Node.js testing
+global.window = {
+    FormSerializerProblemFields: []
+};
+global.console = console;
+global.performance = require('perf_hooks').performance;
+
+const FormSerializer = require('../../app/static/js/form-serializer.js');
 const { serializeFormToJSON, setNestedValue, parseFieldPath, validateFormForSerialization } = FormSerializer;
 
 // Simple test framework

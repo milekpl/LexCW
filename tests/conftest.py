@@ -262,25 +262,54 @@ def populated_dict_service(dict_service_with_db: DictionaryService, sample_entry
 
 # Mock external dependencies for unit tests
 @pytest.fixture(autouse=True)
-def mock_external_dependencies():
+def mock_external_dependencies(request):
     """Automatically mock external dependencies for all unit tests."""
-    with patch('app.database.basex_connector.BaseXSession') as mock_session, \
-         patch('app.services.cache_service.redis.Redis') as mock_redis, \
-         patch('app.parsers.lift_parser.ET') as mock_et:
-        
-        # Configure BaseX session mock
-        mock_session.return_value.execute.return_value = "<entry>test</entry>"
-        mock_session.return_value.close.return_value = None
-        
-        # Configure Redis mock
-        mock_redis.return_value.get.return_value = None
-        mock_redis.return_value.set.return_value = True
-        mock_redis.return_value.delete.return_value = True
-        
-        # Configure XML parsing mock
-        mock_et.parse.return_value.getroot.return_value = Mock()
-        
-        yield
+    # Check if the test is marked to skip ET mocking (for LIFT parser tests)
+    skip_et_mock = request.node.get_closest_marker("skip_et_mock") is not None
+    
+    patches = [
+        patch('app.database.basex_connector.BaseXSession'),
+        patch('app.services.cache_service.redis.Redis'),
+    ]
+    
+    # Only mock ET if not explicitly skipped
+    if not skip_et_mock:
+        patches.append(patch('app.parsers.lift_parser.ET'))
+    
+    if skip_et_mock:
+        # Don't mock ET for LIFT parser tests
+        with patches[0] as mock_session, \
+             patches[1] as mock_redis:
+            
+            # Configure BaseX session mock
+            mock_session.return_value.execute.return_value = "<entry>test</entry>"
+            mock_session.return_value.close.return_value = None
+            
+            # Configure Redis mock
+            mock_redis.return_value.get.return_value = None
+            mock_redis.return_value.set.return_value = True
+            mock_redis.return_value.delete.return_value = True
+            
+            yield
+    else:
+        # Mock all dependencies including ET
+        with patches[0] as mock_session, \
+             patches[1] as mock_redis, \
+             patches[2] as mock_et:
+            
+            # Configure BaseX session mock
+            mock_session.return_value.execute.return_value = "<entry>test</entry>"
+            mock_session.return_value.close.return_value = None
+            
+            # Configure Redis mock
+            mock_redis.return_value.get.return_value = None
+            mock_redis.return_value.set.return_value = True
+            mock_redis.return_value.delete.return_value = True
+            
+            # Configure XML parsing mock
+            mock_et.parse.return_value.getroot.return_value = Mock()
+            
+            yield
 
 
 def ensure_test_database(connector: BaseXConnector, db_name: str):
@@ -439,14 +468,24 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "integration: mark test as integration test (requires real database)"
     )
+    config.addinivalue_line(
+        "markers", "skip_et_mock: skip ET module mocking for tests that need real XML parsing"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
     """Automatically mark tests based on location."""
     for item in items:
-        # If test is in main tests directory (not integration), mark it as unit test
-        if "tests/test_" in str(item.fspath) and "integration" not in str(item.fspath):
+        # Mark tests as unit tests if they're in:
+        # 1. Main tests directory (not integration subdirectory) - legacy location
+        # 2. tests/unit/ subdirectory - new preferred location
+        if (("tests/test_" in str(item.fspath) and "integration" not in str(item.fspath)) or 
+            "tests/unit/" in str(item.fspath)):
             item.add_marker(pytest.mark.unit)
+        
+        # Mark tests as integration tests if they're in tests/integration/
+        if "tests/integration/" in str(item.fspath):
+            item.add_marker(pytest.mark.integration)
         
         # Only skip integration tests if explicitly running unit tests only
         if "integration" in item.keywords:

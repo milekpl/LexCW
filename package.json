@@ -1,0 +1,33 @@
+{
+  "name": "dictionary-app",
+  "version": "1.0.0",
+  "description": "Dictionary application with comprehensive form serialization",
+  "main": "app/static/js/form-serializer.js",
+  "scripts": {
+    "test": "npm run test:js && npm run test:python",
+    "test:js": "node tests/unit/test_form_serializer.js",
+    "test:js:watch": "nodemon tests/unit/test_form_serializer.js",
+    "test:python": "python -m pytest tests/unit/ -v",
+    "test:python:integration": "python -m pytest tests/integration/ -v",
+    "test:all": "npm run test:js && npm run test:python && npm run test:python:integration",
+    "lint:js": "eslint app/static/js/ --ext .js",
+    "format:js": "prettier --write app/static/js/**/*.js tests/unit/**/*.js"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "prettier": "^2.0.0",
+    "nodemon": "^2.0.0"
+  },
+  "keywords": [
+    "dictionary",
+    "form-serialization",
+    "javascript",
+    "python",
+    "flask"
+  ],
+  "author": "Dictionary App Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

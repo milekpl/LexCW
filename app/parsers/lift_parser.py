@@ -290,6 +290,9 @@ class LIFTParser:
             
             return entries
         
+        except ValidationError:
+            # Re-raise ValidationError as-is (already logged in inner try-except)
+            raise
         except ET.ParseError as e:
             self.logger.error(f"XML parsing error: {e}")
             raise

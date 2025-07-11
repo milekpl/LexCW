@@ -6,6 +6,9 @@ from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser
 from app.utils.exceptions import ValidationError
 
+# Mark all tests in this module to skip ET mocking since they need real XML parsing
+pytestmark = pytest.mark.skip_et_mock
+
 # LIFT entry with multiple senses and nested data
 COMPLEX_LIFT_ENTRY_2 = '''
 <entry id="test_id_002">

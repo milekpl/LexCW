@@ -16,6 +16,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser
 
+# Mark all tests in this module to skip ET mocking since they need real XML parsing
+pytestmark = pytest.mark.skip_et_mock
+
 
 class TestEntryDisplay(unittest.TestCase):
     """Test the display of entries with language-specific content."""
