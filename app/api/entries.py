@@ -205,7 +205,7 @@ def list_entries() -> Any:
         )
         # Prepare response
         response = {
-            'entries': [entry.to_dict() for entry in entries],
+            'entries': [entry.to_display_dict() for entry in entries],
             'total_count': total_count,  # Use total_count for consistency with other APIs
             'total': total_count,        # Keep total for backward compatibility
             'limit': limit,
