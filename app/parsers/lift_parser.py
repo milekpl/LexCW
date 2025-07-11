@@ -733,6 +733,12 @@ class LIFTParser:
         entry_elem = ET.SubElement(parent, '{' + self.NSMAP['lift'] + '}entry')
         entry_elem.set('id', entry.id)
         
+        # Add dateCreated and dateModified if present
+        if entry.date_created:
+            entry_elem.set('dateCreated', entry.date_created)
+        if entry.date_modified:
+            entry_elem.set('dateModified', entry.date_modified)
+
         # Add homograph number if present (using 'order' attribute per LIFT specification)
         if entry.homograph_number is not None:
             entry_elem.set('order', str(entry.homograph_number))
