@@ -536,8 +536,6 @@ class LIFTParser:
             homograph_number=homograph_number
         )
 
-        # Debug print for date fields
-        print(f"[LIFTParser] Parsed entry id={entry_id} date_created={entry.date_created} date_modified={entry.date_modified}")
 
         return entry
         
