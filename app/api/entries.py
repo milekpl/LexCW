@@ -207,6 +207,8 @@ def list_entries() -> Any:
             sort_order=sort_order,
             filter_text=filter_text
         )
+
+        # Removed debug print for entry dates
         # Prepare response
         response = {
             'entries': [entry.to_display_dict() for entry in entries],
@@ -730,31 +732,42 @@ def get_related_entries(entry_id: str) -> Any:
         return jsonify({'error': str(e)}), 500
 
 
+
+# Move clear-cache endpoint above dynamic routes
 @entries_bp.route('/clear-cache', methods=['POST'])
-def clear_entries_cache():
+@swag_from({
+    'tags': ['Entries'],
+    'summary': 'Clear the cache for the /entries endpoint',
+    'description': 'Clears the cache used by the /entries endpoint. Useful for debugging or after data updates.',
+    'responses': {
+        200: {
+            'description': 'Cache cleared successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'status': {'type': 'string', 'example': 'success'},
+                    'message': {'type': 'string', 'example': 'Entries cache cleared.'}
+                }
+            }
+        }
+    }
+})
+def clear_entries_cache() -> Any:
     """
-    Clear the entries cache.
+    Clear the cache for the /entries endpoint.
     """
     try:
         cache = CacheService()
         if cache.is_available():
-            # Clear all entries cache entries (different parameters create different keys)
-            cache.clear_pattern('entries:*') 
+            cache.clear_pattern('entries:*')
             logger.info("Entries cache cleared")
-            return jsonify({
-                'success': True,
-                'message': 'Entries cache cleared successfully'
-            })
+            return jsonify({'status': 'success', 'message': 'Entries cache cleared.'}), 200
         else:
-            # Cache service not available, but this is not an error in test environments
             logger.info("Cache service not available, skipping cache clear")
-            return jsonify({
-                'success': True,
-                'message': 'Cache service not available, no cache to clear'
-            })
-            
+            return jsonify({'status': 'success', 'message': 'Cache service not available, no cache to clear'}), 200
     except Exception as e:
         logger.error(f"Error clearing entries cache: {e}")
+        return jsonify({'status': 'error', 'message': f'Error clearing cache: {e}'}), 500
         return jsonify({
             'success': False,
             'error': str(e)

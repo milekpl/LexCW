@@ -8,9 +8,9 @@ from app.parsers.lift_parser import LIFTParser
 # Mark all tests in this module to skip ET mocking since they need real XML parsing
 pytestmark = pytest.mark.skip_et_mock
 
-# Sample LIFT XML entry with complex relations, etymologies, and variants
+# Sample LIFT XML entry with complex relations, etymologies, variants, and date attributes
 COMPLEX_LIFT_ENTRY = """
-<entry id="test_id_123">
+<entry id="test_id_123" dateCreated="2020-01-01T12:00:00Z" dateModified="2021-02-02T13:30:00Z">
     <lexical-unit>
         <form lang="en"><text>test entry</text></form>
     </lexical-unit>
@@ -46,6 +46,12 @@ def test_parse_entry_with_complex_structures(lift_parser: LIFTParser):
 
     # Assert
     assert entry is not None
+
+    # Check dateCreated and dateModified
+    assert hasattr(entry, "date_created"), "Entry should have 'date_created' attribute"
+    assert hasattr(entry, "date_modified"), "Entry should have 'date_modified' attribute"
+    assert entry.date_created == "2020-01-01T12:00:00Z", f"Expected date_created to be '2020-01-01T12:00:00Z', got {entry.date_created}"
+    assert entry.date_modified == "2021-02-02T13:30:00Z", f"Expected date_modified to be '2021-02-02T13:30:00Z', got {entry.date_modified}"
 
     # Check for etymology
     assert hasattr(entry, "etymologies"), (

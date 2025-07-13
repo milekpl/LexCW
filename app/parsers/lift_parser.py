@@ -515,9 +515,13 @@ class LIFTParser:
                 morph_type = trait_value
                 break  # Only need the first morph-type trait
         
+        date_created = entry_elem.get('dateCreated')
+        date_modified = entry_elem.get('dateModified')
         # Create and return Entry object
         entry = Entry(
             id_=entry_id,
+            date_created=date_created,
+            date_modified=date_modified,
             lexical_unit=lexical_unit,
             citations=citations,
             pronunciations=pronunciations,
@@ -531,7 +535,10 @@ class LIFTParser:
             senses=senses,
             homograph_number=homograph_number
         )
-        
+
+        # Debug print for date fields
+        print(f"[LIFTParser] Parsed entry id={entry_id} date_created={entry.date_created} date_modified={entry.date_modified}")
+
         return entry
         
     def _parse_sense(self, sense_elem: ET.Element, sense_id: Optional[str] = None) -> Sense:

@@ -27,14 +27,9 @@
             </div>
             <div class="col-md-6">
                 <div class="d-flex justify-content-end">
-                    <div class="btn-group me-2">
-                        <button type="button" class="btn btn-outline-secondary" id="btn-sort-lexeme">
-                            <i class="fas fa-sort-alpha-down"></i> Lexeme
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" id="btn-sort-date">
-                            <i class="fas fa-calendar"></i> Date
-                        </button>
-                    </div>
+                    <button type="button" class="btn btn-outline-secondary" id="btn-sort-lexeme">
+                        <i class="fas fa-sort-alpha-down"></i> Lexeme
+                    </button>
                     <div class="dropdown ms-2">
                         <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="columnVisibilityDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-eye"></i> Columns
@@ -90,7 +85,7 @@
 <template id="entry-template">
     <tr data-entry-id="">
         <td>
-            <a href="#" class="entry-link fw-bold"></a>
+            <a href="#" class="entry-link fw-bold" aria-label="View entry details"></a>
             <small class="text-muted d-block citation-form"></small>
         </td>
         <td>
@@ -98,17 +93,22 @@
         </td>
         <td class="sense-count"></td>
         <td class="example-count"></td>
-        <td class="date-modified"></td>
+        <td class="date-modified">
+            <span class="last-modified" data-date=""></span>
+        </td>
         <td>
             <div class="btn-group btn-group-sm">
-                <a href="#" class="btn btn-outline-primary edit-btn" title="Edit">
-                    <i class="fas fa-edit"></i>
+                <a href="#" class="btn btn-outline-primary edit-btn" title="Edit" aria-label="Edit entry">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span class="visually-hidden">Edit</span>
                 </a>
-                <a href="#" class="btn btn-outline-info view-btn" title="View">
-                    <i class="fas fa-eye"></i>
+                <a href="#" class="btn btn-outline-info view-btn" title="View" aria-label="View entry">
+                    <i class="fas fa-eye" aria-hidden="true"></i>
+                    <span class="visually-hidden">View</span>
                 </a>
-                <button type="button" class="btn btn-outline-danger delete-btn" title="Delete">
-                    <i class="fas fa-trash"></i>
+                <button type="button" class="btn btn-outline-danger delete-btn" title="Delete" aria-label="Delete entry">
+                    <i class="fas fa-trash" aria-hidden="true"></i>
+                    <span class="visually-hidden">Delete</span>
                 </button>
             </div>
         </td>
@@ -116,20 +116,20 @@
 </template>
 
 <!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" aria-hidden="false"></button>
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete the entry <strong id="delete-entry-name"></strong>?</p>
                 <p class="text-danger">This action cannot be undone!</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirm-delete">Delete</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-hidden="false">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete" aria-hidden="false">Delete</button>
             </div>
         </div>
     </div>
