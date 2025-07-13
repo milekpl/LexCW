@@ -74,10 +74,14 @@ def list_entries():
         dict_service = current_app.injector.get(DictionaryService)
         entries = dict_service.list_entries(limit=limit, offset=offset)
         total = dict_service.count_entries()
-        
+
+        # Debug print for date fields before serialization
+        for entry in entries:
+            print(f"[API] Entry id={getattr(entry, 'id', None)} date_created={getattr(entry, 'date_created', None)} date_modified={getattr(entry, 'date_modified', None)}")
+
         # Convert entries to dictionaries for JSON response
         entry_dicts = [entry.to_dict() for entry in entries]
-        
+
         return jsonify({
             'entries': entry_dicts,
             'total': total,

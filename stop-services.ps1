@@ -17,6 +17,28 @@ try {
     Write-Host "Error stopping Redis container: $($_.Exception.Message)" -ForegroundColor Red
 }
 
+###########################################################
+# Stop Flask/Python processes (to prevent stale servers)   #
+###########################################################
+Write-Host "Stopping Flask/Python processes..." -ForegroundColor Cyan
+try {
+    # Kill all python.exe processes running Flask (Windows only)
+    $flaskProcesses = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -match "flask" -or $_.CommandLine -match "run.py" -or $_.CommandLine -match "app.py"
+    }
+    if ($flaskProcesses) {
+        foreach ($process in $flaskProcesses) {
+            Write-Host "Stopping Flask/Python process (PID: $($process.Id))..." -ForegroundColor White
+            Stop-Process -Id $process.Id -Force
+        }
+        Write-Host "✓ Flask/Python processes stopped" -ForegroundColor Green
+    } else {
+        Write-Host "No Flask/Python processes found" -ForegroundColor Gray
+    }
+} catch {
+    Write-Host "Error stopping Flask/Python processes: $($_.Exception.Message)" -ForegroundColor Red
+}
+
 # Stop BaseX Server processes
 Write-Host "Stopping BaseX Server..." -ForegroundColor Cyan
 try {

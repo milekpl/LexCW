@@ -146,7 +146,7 @@ class QueryBuilderService:
             
             # Validate sort options
             sort_by = query_data.get('sort_by')
-            if sort_by and sort_by not in ['lexical_unit', 'pos', 'created_at', 'updated_at']:
+            if sort_by and sort_by not in ['lexical_unit', 'pos', 'date_created', 'date_modified']:
                 validation_errors.append(f"Invalid sort field: {sort_by}")
             
             sort_order = query_data.get('sort_order', 'asc')

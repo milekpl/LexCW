@@ -86,26 +86,28 @@ class Entry(BaseModel):
         homograph_number: Optional integer identifying the homograph number when entries share the same lexical unit.
     """
 
-    def __init__(self, id_: Optional[str] = None, **kwargs: Any):
+    def __init__(self, id_: Optional[str] = None, date_created: Optional[str] = None, date_modified: Optional[str] = None, **kwargs: Any):
         """
         Initialize an entry.
 
         Args:
             id_: Unique identifier for the entry.
+            date_created: ISO8601 string for creation date.
+            date_modified: ISO8601 string for last modification date.
             **kwargs: Additional attributes to set on the entry.
         """
-        self.date_created: Optional[str] = kwargs.pop('date_created', None)
-        self.date_modified: Optional[str] = kwargs.pop('date_modified', None)
+        self.date_created: Optional[str] = date_created
+        self.date_modified: Optional[str] = date_modified
 
         # Extract complex structures before calling super to avoid double processing
         senses_data = kwargs.pop('senses', [])
         etymologies_data = kwargs.pop('etymologies', [])
         relations_data = kwargs.pop('relations', [])
         variants_data = kwargs.pop('variants', [])
-        
+
         # Handle variant_relations if provided (convert to relations)
         variant_relations_data = kwargs.pop('variant_relations', [])
-        
+
         super().__init__(id_, **kwargs)
         
         # Handle lexical_unit - ensure it's a dictionary
@@ -503,11 +505,9 @@ class Entry(BaseModel):
         """
         result = super().to_dict()
 
-        # Add date fields
-        if self.date_created:
-            result['date_created'] = self.date_created
-        if self.date_modified:
-            result['date_modified'] = self.date_modified
+        # Always include date fields, even if None
+        result['date_created'] = self.date_created if hasattr(self, 'date_created') else None
+        result['date_modified'] = self.date_modified if hasattr(self, 'date_modified') else None
 
         # Note: headword is a computed property and should not be included in dict
 

@@ -269,6 +269,9 @@ function loadEntries(page = 1, sortBy = 'lexical_unit', sortOrder = 'asc') {
             console.error('Error:', error);
             entriesList.innerHTML = `
                 <tr>
+                        if (!entry.date_modified) {
+                            console.warn('Entry missing date_modified:', entry);
+                        }
                     <td colspan="${colCount}" class="text-center py-4 text-danger">
                         <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
                         <p>Error loading entries. Please try again.</p>
@@ -325,7 +328,13 @@ function renderTableBody(entries) {
 
     const template = document.getElementById('entry-template');
 
+    if (entries.length > 0) {
+        console.log('First entry object:', entries[0]);
+    }
     entries.forEach(entry => {
+        // Debug: log date_modified for each entry
+        console.log(`[DEBUG] entry.id=${entry.id} date_modified=`, entry.date_modified);
+
         const clone = document.importNode(template.content, true);
         const tr = clone.querySelector('tr');
         tr.dataset.entryId = entry.id;
@@ -493,12 +502,31 @@ function deleteEntry(entryId) {
         });
 }
 
-function formatDate(dateString) {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    // More robust date formatting, less verbose than original
-    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
-           ' ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit'});
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    let date = new Date(dateStr);
+    
+    // Check date is valid
+    if (isNaN(date.getTime())) {
+        console.warn('Invalid date format received:', dateStr);
+        return 'Invalid';
+    }
+    
+    // Use toLocaleDateString and toLocaleTimeString for better internationalization
+    // Override if necessary for application-specific timezone
+    return (
+        date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+        }) + 
+        ' ' +
+        date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })
+    );
 }
 
 function refreshEntries() {
