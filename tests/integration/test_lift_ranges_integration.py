@@ -206,7 +206,7 @@ def test_all_lift_ranges_available_via_api(client: FlaskClient) -> None:
             assert 'data' in range_data or 'ranges' in range_data
     else:
         # Test specific range endpoints for core types
-        test_ranges = ['grammatical-info', 'variant-types', 'relation-types']
+        test_ranges = ['grammatical-info', 'lexical-relation']
         for range_type in test_ranges:
             # Test specific range endpoint
             response = client.get(f'/api/ranges/{range_type}')
