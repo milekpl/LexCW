@@ -161,8 +161,7 @@ class TestSearchIntegrationComprehensive:
         
         # Should find entries starting with 'app'
         if total > 0:
-            matching_entries = [entry for entry in results 
-            ensure_test_database(temp_connector, test_db_name)
+            matching_entries = [entry for entry in results if "app" in str(entry.lexical_unit).lower()]
             assert len(matching_entries) >= 0, "Should find entries with 'app' prefix"
     
     @pytest.mark.integration

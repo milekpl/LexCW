@@ -41,16 +41,4 @@ def test_dictionary_service_with_real_basex(dict_service_with_db: DictionaryServ
     with pytest.raises(Exception):
         dict_service_with_db.get_entry("coverage_test")
     print("DictionaryService with real BaseX: OK")
-        entry = Entry(
-            id="coverage_test",
-            lexical_unit={"en": "test", "pl": "test"},
-            senses=[
-                Sense(
-                    id="sense_1",
-                    gloss="test gloss",
-                    definition="test definition"
-                )
-            ]
-        )
-        
 
