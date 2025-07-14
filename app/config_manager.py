@@ -53,6 +53,13 @@ class ConfigManager:
         """Updates and saves settings."""
         self.settings.update(new_settings)
         self._save_settings(self.settings)
+        self.reload_settings()
+
+    def reload_settings(self) -> None:
+        """Reloads the settings from the file and updates the app config."""
+        self.settings = self._load_settings()
+        if current_app:
+            current_app.config['PROJECT_SETTINGS'] = self.settings
 
     def get_all_settings(self) -> Dict[str, Any]:
         """Returns all current settings."""

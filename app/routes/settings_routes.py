@@ -77,8 +77,6 @@ def manage_settings():
         try:
             new_settings = form.to_dict()
             config_manager.update_settings(new_settings)
-            # Update Flask app config as well
-            current_app.config['PROJECT_SETTINGS'] = new_settings
             flash('Settings updated successfully!', 'success')
             logger.info(f"Project settings updated: {new_settings}")
             return redirect(url_for('settings.manage_settings'))

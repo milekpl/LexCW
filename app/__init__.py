@@ -85,8 +85,9 @@ def create_app(config_name=None):
     from app.views import main_bp
     app.register_blueprint(main_bp)
     
-    from app.routes.corpus_routes import corpus_bp
-    app.register_blueprint(corpus_bp)
+    if not app.testing:
+        from app.routes.corpus_routes import corpus_bp
+        app.register_blueprint(corpus_bp)
     
     # Register additional API routes
     from app.routes.api_routes import api_bp as additional_api_bp
