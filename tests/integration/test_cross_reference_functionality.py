@@ -218,8 +218,7 @@ def test_ranges_api_provides_all_necessary_types(client: FlaskClient) -> None:
     # Should have all the key ranges needed for UI
     expected_ranges = [
         'grammatical-info',
-        'relation-types',
-        'variant-types'
+        'lexical-relation'
     ]
     
     for expected_range in expected_ranges:
