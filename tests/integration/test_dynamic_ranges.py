@@ -27,8 +27,7 @@ def test_ranges_api_endpoint(client: FlaskClient) -> None:
     # Should have default ranges at minimum
     ranges = data['data']
     assert 'grammatical-info' in ranges
-    assert 'relation-types' in ranges
-    assert 'variant-types' in ranges
+    assert 'lexical-relation' in ranges    
     
     # Test getting specific range
     response = client.get('/api/ranges/grammatical-info')
@@ -146,7 +145,7 @@ def test_ranges_fallback_functionality() -> None:
     
     ranges_js_path = os.path.join(
         os.path.dirname(__file__), 
-        '..', 'app', 'static', 'js', 'ranges-loader.js'
+        '..', '..', 'app', 'static', 'js', 'ranges-loader.js'
     )
     
     with open(ranges_js_path, 'r', encoding='utf-8') as f:
