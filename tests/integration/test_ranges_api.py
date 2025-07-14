@@ -155,44 +155,11 @@ class TestRangesAPI:
             assert field in value
 
     @pytest.mark.integration
-    def test_variant_types_range_structure(self) -> None:
-        """Test variant-types range has expected structure for UI."""
+    def test_lexical_relation_range_structure(self) -> None:
+        """Test lexical-relation range has expected structure for UI."""
         expected_structure = {
-            "variant-types": {
-                "id": "variant-types", 
-                "values": [
-                    {
-                        "id": "dialectal",
-                        "value": "dialectal",
-                        "abbrev": "dial",
-                        "description": {"en": "Dialectal variant"},
-                        "children": []
-                    },
-                    {
-                        "id": "spelling",
-                        "value": "spelling",
-                        "abbrev": "sp", 
-                        "description": {"en": "Spelling variant"},
-                        "children": []
-                    }
-                ]
-            }
-        }
-        
-        # Verify structure
-        assert "variant-types" in expected_structure
-        variant_range = expected_structure["variant-types"]
-        assert "values" in variant_range
-        
-        # Should have multiple variant types
-        assert len(variant_range["values"]) >= 2
-
-    @pytest.mark.integration
-    def test_relation_types_range_structure(self) -> None:
-        """Test relation-types range has expected structure for UI."""
-        expected_structure = {
-            "relation-types": {
-                "id": "relation-types",
+            "lexical-relation": {
+                "id": "lexical-relation",
                 "values": [
                     {
                         "id": "synonym",
@@ -213,8 +180,8 @@ class TestRangesAPI:
         }
         
         # Verify structure for relations
-        assert "relation-types" in expected_structure
-        relation_range = expected_structure["relation-types"]
+        assert "lexical-relation" in expected_structure
+        relation_range = expected_structure["lexical-relation"]
         assert "values" in relation_range
 
 
@@ -236,10 +203,6 @@ class TestRangesAPIEndpoints:
                     "id": "grammatical-info",
                     "values": []
                 },
-                "variant-types": {
-                    "id": "variant-types", 
-                    "values": []
-                }
             }
         }
         
@@ -255,8 +218,7 @@ class TestRangesAPIEndpoints:
         # Structure for getting specific ranges
         expected_endpoints = [
             "/api/ranges/grammatical-info",
-            "/api/ranges/variant-types", 
-            "/api/ranges/relation-types"
+            "/api/ranges/lexical-relation"
         ]
         
         expected_response = {

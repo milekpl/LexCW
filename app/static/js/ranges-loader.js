@@ -27,8 +27,8 @@ class RangesLoader {
                     { value: 'Interjection', text: 'Interjection' }
                 ]
             },
-            'relation-types': {
-                id: 'relation-types',
+            'lexical-relation': {
+                id: 'lexical-relation',
                 values: [
                     { value: 'synonym', text: 'synonym' },
                     { value: 'antonym', text: 'antonym' },
@@ -36,16 +36,6 @@ class RangesLoader {
                     { value: 'hyponym', text: 'hyponym' },
                     { value: 'meronym', text: 'meronym' },
                     { value: 'holonym', text: 'holonym' }
-                ]
-            },
-            'variant-types': {
-                id: 'variant-types',
-                values: [
-                    { value: 'dialectal', text: 'dialectal' },
-                    { value: 'spelling', text: 'spelling variant' },
-                    { value: 'phonetic', text: 'phonetic variant' },
-                    { value: 'formal', text: 'formal' },
-                    { value: 'informal', text: 'informal' }
                 ]
             }
         };

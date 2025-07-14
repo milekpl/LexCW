@@ -46,9 +46,9 @@ def test_ranges_api_endpoint(client: FlaskClient) -> None:
 
 
 @pytest.mark.integration
-def test_relation_types_range(client: FlaskClient) -> None:
-    """Test relation types range specifically."""
-    response = client.get('/api/ranges/relation-types')
+def test_lexical_relation_range(client: FlaskClient) -> None:
+    """Test lexical relation range specifically."""
+    response = client.get('/api/ranges/lexical-relation')
     assert response.status_code == 200
     data = response.get_json()
     assert data['success'] is True
@@ -61,26 +61,6 @@ def test_relation_types_range(client: FlaskClient) -> None:
     # In real environment with actual LIFT ranges, we have Polish IDs (synonim, antonim)
     assert 'synonym' in relation_ids or 'synonim' in relation_ids
     assert 'antonym' in relation_ids or 'antonim' in relation_ids
-
-
-@pytest.mark.integration
-def test_variant_types_range(client: FlaskClient) -> None:
-    """Test variant types range specifically."""
-    response = client.get('/api/ranges/variant-types')
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data['success'] is True
-    
-    variant_types = data['data']['values']
-    variant_ids = [vt['id'] for vt in variant_types]
-    
-    # Should have basic variant types (check for actual values from LIFT ranges)
-    assert 'dialectal' in variant_ids
-    # Check for orthographic (actual value) instead of spelling (expected value)
-    assert 'orthographic' in variant_ids or 'spelling' in variant_ids
-    
-    # Verify we have at least some variant types
-    assert len(variant_ids) >= 2, f"Should have at least 2 variant types, got: {variant_ids}"
 
 
 @pytest.mark.integration
@@ -153,8 +133,7 @@ def test_ranges_fallback_functionality() -> None:
     
     # Should have fallback values for key ranges
     assert "'grammatical-info':" in content
-    assert "'relation-types':" in content
-    assert "'variant-types':" in content
+    assert "'lexical-relation':" in content
     
     # Should have key grammatical categories
     assert 'Noun' in content
