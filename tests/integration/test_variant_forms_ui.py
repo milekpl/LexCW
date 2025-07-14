@@ -160,8 +160,8 @@ class TestVariantFormsAPISupport:
         # This should not raise an exception when processed by Entry model
         entry = Entry(**entry_data)
         assert len(entry.variants) == 1
-        assert entry.variants[0].form.lang == "en-GB"
-        assert entry.variants[0].form.text == "analyse"
+        assert entry.variants[0].form["lang"] == "en-GB"
+        assert entry.variants[0].form["text"] == "analyse"
 
     @pytest.mark.integration
     def test_api_entry_update_with_variants(self) -> None:
@@ -199,8 +199,8 @@ class TestVariantFormsAPISupport:
             senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         assert len(updated_entry.variants) == 2
-        assert updated_entry.variants[0].form.text == "organise"
-        assert updated_entry.variants[1].form.lang == "en-CA"
+        assert updated_entry.variants[0].form["text"] == "organise"
+        assert updated_entry.variants[1].form["lang"] == "en-CA"
 
 
 

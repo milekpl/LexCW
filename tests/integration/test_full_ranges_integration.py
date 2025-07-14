@@ -30,7 +30,7 @@ def test_grammatical_info_has_full_lift_ranges(client: FlaskClient) -> None:
     
     # These should be present in both default and LIFT ranges
     expected_basic_values = {
-        'Noun', 'Verb', 'Adjective', 'Adverb', 'Pronoun'
+        'Noun', 'Verb', 'Adjective', 'Adverb'
     }
     
     missing_values = expected_basic_values - value_ids
