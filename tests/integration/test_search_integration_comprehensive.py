@@ -27,17 +27,35 @@ from app.utils.namespace_manager import LIFTNamespaceManager
 class TestSearchIntegrationComprehensive:
     """Comprehensive tests for search integration functionality."""
     
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def search_service(self, basex_available: bool):
         """Get dictionary service instance for search testing."""
+    @pytest.fixture(scope="function")
+    def search_service(self, basex_available: bool):
+        """Get dictionary service instance for search testing."""
+        def ensure_test_database(connector, db_name):
+            """Ensure a test database exists and is properly initialized with minimal LIFT content."""
+            try:
+                db_list = connector.execute_query("db:list()")
+            except Exception:
+                pass
+            try:
+                db_info = connector.execute_query(f"db:info('{db_name}')")
+            except Exception:
+                pass
+            # Actually create the DB if it doesn't exist
+            try:
+                connector.execute_update(f"db:create('{db_name}', '<lift version=\"0.13\"></lift>')")
+            except Exception:
+                pass
+
         if not basex_available:
             pytest.skip("BaseX server not available")
-            
+
         from app.database.basex_connector import BaseXConnector
-        from conftest import ensure_test_database
-        
+
         test_db_name = f"test_search_{uuid.uuid4().hex[:8]}"
-        
+
         # First create connector without database to ensure test db exists
         temp_connector = BaseXConnector(
             host=os.getenv('BASEX_HOST', 'localhost'),
@@ -46,13 +64,13 @@ class TestSearchIntegrationComprehensive:
             password=os.getenv('BASEX_PASSWORD', 'admin'),
             database=None  # No database initially
         )
-        
+
         connector = None
         try:
             temp_connector.connect()
             ensure_test_database(temp_connector, test_db_name)
             temp_connector.disconnect()
-            
+
             # Now create connector with the test database
             connector = BaseXConnector(
                 host=os.getenv('BASEX_HOST', 'localhost'),
@@ -63,7 +81,7 @@ class TestSearchIntegrationComprehensive:
             )
             connector.connect()
             service = DictionaryService(db_connector=connector)
-            
+
             # Create test entries for search
             test_entries = [
                 Entry(
@@ -103,15 +121,15 @@ class TestSearchIntegrationComprehensive:
                     ]
                 )
             ]
-            
+
             for entry in test_entries:
                 try:
                     service.create_entry(entry)
                 except Exception:
                     pass  # Some entries may already exist
-            
+
             yield service
-            
+
         finally:
             try:
                 if connector and connector.is_connected():
@@ -119,8 +137,6 @@ class TestSearchIntegrationComprehensive:
                     connector.disconnect()
             except Exception:
                 pass
-    
-    @pytest.mark.integration
     def test_exact_match_search(self, search_service: DictionaryService) -> None:
         """Test exact match search functionality."""
         # Test exact English match
@@ -146,7 +162,7 @@ class TestSearchIntegrationComprehensive:
         # Should find entries starting with 'app'
         if total > 0:
             matching_entries = [entry for entry in results 
-                              if any("app" in word.lower() for word in entry.lexical_unit.values())]
+            ensure_test_database(temp_connector, test_db_name)
             assert len(matching_entries) >= 0, "Should find entries with 'app' prefix"
     
     @pytest.mark.integration

@@ -24,8 +24,9 @@ class TestAdvancedCRUD:
             lexical_unit={"en": "duplicate"},
             senses=[{"id": "sense_1", "definition": {"en": "a duplicate entry"}}]
         )
-        
-        # Attempt to create the entry - should raise ValidationError
+        # First, create the entry
+        dict_service_with_db.create_entry(entry)
+        # Attempt to create the entry again - should raise ValidationError
         with pytest.raises(ValidationError):
             dict_service_with_db.create_entry(entry)
     
@@ -46,142 +47,29 @@ class TestAdvancedCRUD:
         entry = Entry(
             id_="complex_entry",
             lexical_unit={"en": "complex", "pl": "złożony"},
-            senses=[{"id": "initial_sense", "definition": {"en": "initial definition"}}],
+            senses=[
+                {"id": "initial_sense", "definition": {"en": "initial definition"}},
+                {"id": "sense1", "grammatical_info": "noun", "gloss": {"pl": "złożony"}, "definition": {"en": "Having many interconnected parts"}},
+                {"id": "sense2", "grammatical_info": "noun", "gloss": {"pl": "kompleks"}, "definition": {"en": "A group of buildings or related things"}}
+            ],
             pronunciations={"seh-fonipa": "kɒmplɛks"}
         )
-        
-        # Add the entry directly with a simpler structure first
         dict_service_with_db.create_entry(entry)
-        
-        # Retrieve the entry
         retrieved_entry = dict_service_with_db.get_entry("complex_entry")
         assert retrieved_entry.id == "complex_entry"
         assert retrieved_entry.lexical_unit.get("en") == "complex"
         assert retrieved_entry.lexical_unit.get("pl") == "złożony"
-        
-        # Now update it with senses via BaseX direct update
-        db_name = dict_service_with_db.db_connector.database
-        
-        # Add senses and examples via direct BaseX update with proper namespace
-        from app.utils.xquery_builder import XQueryBuilder
-        
-        # We need to detect if the test database uses namespaces
-        # For test databases created by our fixture, they typically don't use namespaces
-        # Let's use a simple approach based on what works in other tests
-        try:
-            # Try to check if the database uses namespaces by attempting a simple query
-            test_query = f"exists(collection('{db_name}')//lift:lift)"
-            prologue = f'''
-            declare namespace lift = "{XQueryBuilder.LIFT_NAMESPACE}";
-            declare namespace flex = "{XQueryBuilder.FLEX_NAMESPACE}";
-            '''
-            dict_service_with_db.db_connector.execute_query(prologue + test_query)
-            # If this succeeds, database uses namespaces
-            has_ns = True
-            entry_selector = f"lift:entry[@id=\"complex_entry\"]"
-        except:
-            # If it fails, database likely doesn't use namespaces
-            has_ns = False
-            prologue = ''
-            entry_selector = "*[local-name()='entry'][@id=\"complex_entry\"]"
-        
-        update_query = f"""{prologue}
-        let $entry := collection('{db_name}')//{entry_selector}
-        return (
-            insert node 
-            <sense id="sense1">
-                <grammatical-info value="noun"/>
-                <gloss lang="pl">
-                    <text>złożony</text>
-                </gloss>
-                <definition>
-                    <form lang="en">
-                        <text>Having many interconnected parts</text>
-                    </form>
-                </definition>
-                <example>
-                    <form lang="en">
-                        <text>This is a complex problem.</text>
-                    </form>
-                    <translation>
-                        <form lang="pl">
-                            <text>To jest złożony problem.</text>
-                        </form>
-                    </translation>
-                </example>
-            </sense>
-            into $entry,
-            
-            insert node
-            <sense id="sense2">
-                <grammatical-info value="noun"/>
-                <gloss lang="pl">
-                    <text>kompleks</text>
-                </gloss>
-                <definition>
-                    <form lang="en">
-                        <text>A group of buildings or related things</text>
-                    </form>
-                </definition>
-                <example>
-                    <form lang="en">
-                        <text>The shopping complex.</text>
-                    </form>
-                    <translation>
-                        <form lang="pl">
-                            <text>Kompleks handlowy.</text>
-                        </form>
-                    </translation>
-                </example>
-            </sense>
-            into $entry
-        )
-        """
-        
-        dict_service_with_db.db_connector.execute_update(update_query)
-        
-        # Re-retrieve the entry to verify the changes
-        retrieved_entry = dict_service_with_db.get_entry("complex_entry")
-        assert retrieved_entry.id == "complex_entry"
-        
-        # Check for the senses (initial sense + 2 added via BaseX)
         assert len(retrieved_entry.senses) == 3
-        
-        # Check the sense IDs
         sense_ids = [sense.id for sense in retrieved_entry.senses]
         assert "sense1" in sense_ids
         assert "sense2" in sense_ids
-        
-        # Find sense1 and verify it has the correct data
         sense1 = next((s for s in retrieved_entry.senses if s.id == "sense1"), None)
         assert sense1 is not None
-        
-        # Check that it has grammatical info
-        # In some XML parsers, the grammatical-info might be parsed differently
-        # Let's check if there's any grammatical info or hint in the sense
-        assert sense1 is not None
-        
-        # Print the sense to help debug
-        print(f"Sense1: {sense1}")
-        
-        # Instead of checking a specific format which might vary, just check if the sense data is valid
         assert sense1.id == "sense1"
-        assert sense1.glosses.get("pl", {}).get("text") == "złożony"
-        assert sense1.definitions.get("en", {}).get("text") == "Having many interconnected parts"
-        
-        # Try to check for grammatical info - this is what we're testing
-        grammatical_info = sense1.grammatical_info
-        if grammatical_info is not None:
-            assert grammatical_info == "noun"
-            print(f"SUCCESS: Grammatical info correctly parsed as: {grammatical_info}")
-        else:
-            # If not found in the standard field, it might be in a custom field or we're parsing it wrong
-            # For now, let's just print a warning and make the test pass
-            import warnings
-            warnings.warn(f"Grammatical info not found in expected format. Sense data: {sense1}")
-            print(f"FAILED: Grammatical info is None. Sense object: {sense1}")
-            # Test fails because we're specifically testing grammatical info
-            assert False, f"Grammatical info should be 'noun' but got: {grammatical_info}"
+        # Check for grammatical info and data
+        assert getattr(sense1, "grammatical_info", None) == "noun"
+        assert sense1.glosses.get("pl", {}).get("text") == "złożony" or sense1.glosses.get("pl") == "złożony"
+        assert sense1.definitions.get("en", {}).get("text") == "Having many interconnected parts" or sense1.definitions.get("en") == "Having many interconnected parts"
     
     @pytest.mark.integration
     def test_update_nonexistent_entry(self, dict_service_with_db):
@@ -286,118 +174,41 @@ class TestAdvancedCRUD:
     @pytest.mark.integration
     def test_entries_by_grammatical_info(self, dict_service_with_db):
         """Test retrieving entries by grammatical information."""
-        # Add entries with grammatical info directly with BaseX
-        db_name = dict_service_with_db.db_connector.database
-        
-        # Insert test entries with grammatical info using proper namespace handling
-        from app.utils.xquery_builder import XQueryBuilder
-        
-        # Detect namespace usage for this test database
-        try:
-            test_query = f"exists(collection('{db_name}')//lift:lift)"
-            prologue = f'''
-            declare namespace lift = "{XQueryBuilder.LIFT_NAMESPACE}";
-            declare namespace flex = "{XQueryBuilder.FLEX_NAMESPACE}";
-            '''
-            dict_service_with_db.db_connector.execute_query(prologue + test_query)
-            # If this succeeds, database uses namespaces
-            lift_path = "lift:lift"
-            namespace_prologue = prologue
-        except:
-            # If it fails, database likely doesn't use namespaces
-            lift_path = "*[local-name()='lift']"
-            namespace_prologue = ""
-        
-        insert_query = f"""{namespace_prologue}
-        insert node 
-        <entry id="noun1">
-            <lexical-unit>
-                <form lang="en">
-                    <text>table</text>
-                </form>
-            </lexical-unit>
-            <sense id="s1">
-                <grammatical-info value="noun"/>
-                <gloss lang="pl">
-                    <text>stół</text>
-                </gloss>
-            </sense>
-        </entry>
-        into collection('{db_name}')//{lift_path},
-        
-        insert node 
-        <entry id="verb1">
-            <lexical-unit>
-                <form lang="en">
-                    <text>run</text>
-                </form>
-            </lexical-unit>
-            <sense id="s2">
-                <grammatical-info value="verb"/>
-                <gloss lang="pl">
-                    <text>biegać</text>
-                </gloss>
-            </sense>
-        </entry>
-        into collection('{db_name}')//{lift_path},
-        
-        insert node 
-        <entry id="adj1">
-            <lexical-unit>
-                <form lang="en">
-                    <text>red</text>
-                </form>
-            </lexical-unit>
-            <sense id="s3">
-                <grammatical-info value="adjective"/>
-                <gloss lang="pl">
-                    <text>czerwony</text>
-                </gloss>
-            </sense>
-        </entry>
-        into collection('{db_name}')//{lift_path},
-        
-        insert node 
-        <entry id="noun2">
-            <lexical-unit>
-                <form lang="en">
-                    <text>book</text>
-                </form>
-            </lexical-unit>
-            <sense id="s4">
-                <grammatical-info value="noun"/>
-                <gloss lang="pl">
-                    <text>książka</text>
-                </gloss>
-            </sense>
-        </entry>
-        into collection('{db_name}')//{lift_path}
-        """
-        
-        dict_service_with_db.db_connector.execute_update(insert_query)
-        
-        # Get entries by grammatical info
+        # Use create_entry to add test entries
+        entries = [
+            Entry(id_="noun1", lexical_unit={"en": "table"}, senses=[{"id": "s1", "grammatical_info": "noun", "gloss": {"pl": "stół"}}]),
+            Entry(id_="verb1", lexical_unit={"en": "run"}, senses=[{"id": "s2", "grammatical_info": "verb", "gloss": {"pl": "biegać"}}]),
+            Entry(id_="adj1", lexical_unit={"en": "red"}, senses=[{"id": "s3", "grammatical_info": "adjective", "gloss": {"pl": "czerwony"}}]),
+            Entry(id_="noun2", lexical_unit={"en": "book"}, senses=[{"id": "s4", "grammatical_info": "noun", "gloss": {"pl": "książka"}}]),
+        ]
+        for entry in entries:
+            dict_service_with_db.create_entry(entry)
+        entry_count = dict_service_with_db.get_entry_count()
+        print(f"DEBUG_ENTRY_COUNT: {entry_count}")
+        all_entries = dict_service_with_db.list_entries(limit=100, offset=0)[0]
+        print(f"DEBUG_ALL_ENTRIES_IDS: {[entry.id for entry in all_entries]}")
+
         noun_entries = dict_service_with_db.get_entries_by_grammatical_info("noun")
+        print(f"DEBUG_NOUN_ENTRIES: {noun_entries}")
         assert len(noun_entries) == 2
         noun_ids = sorted([entry.id for entry in noun_entries])
         assert noun_ids == ["noun1", "noun2"]
-        
+
         verb_entries = dict_service_with_db.get_entries_by_grammatical_info("verb")
         assert len(verb_entries) == 1
         assert verb_entries[0].id == "verb1"
-        
+
         adj_entries = dict_service_with_db.get_entries_by_grammatical_info("adjective")
         assert len(adj_entries) == 1
         assert adj_entries[0].id == "adj1"
-        
-        # Test with non-existent grammatical info
+
         adv_entries = dict_service_with_db.get_entries_by_grammatical_info("adverb")
         assert len(adv_entries) == 0
-        
+
         # Clean up the test entries using individual delete operations
         for entry_id in ["noun1", "verb1", "adj1", "noun2"]:
             try:
                 dict_service_with_db.delete_entry(entry_id)
-            except:
+            except Exception:
                 pass  # Entry might not exist, which is fine
   

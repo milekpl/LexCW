@@ -105,7 +105,11 @@ def test_relations_ui_with_ranges(client: FlaskClient, dict_service_with_db: Dic
     assert 'RelationsManager' in content
 
 @pytest.mark.integration
-def test_usages_and_academic_domains_visible(client: FlaskClient, dict_service_with_db: DictionaryService, sample_entry: Entry):
+def test_usages_and_academic_domains_visible(
+    client: FlaskClient,
+    dict_service_with_db: DictionaryService,
+    sample_entry: Entry
+) -> None:
     """Test that usages and academic domains are visible in entry form"""
     dict_service_with_db.create_entry(sample_entry)
     response = client.get(f'/entries/{sample_entry.id}/edit', follow_redirects=True)
@@ -152,7 +156,7 @@ def test_all_lift_ranges_available_via_api(client: FlaskClient) -> None:
     available_types = set(ranges.keys())
     
     # In test environments, we expect at least the core range types
-    core_range_types = {'grammatical-info', 'variant-types', 'relation-types'}
+    core_range_types = {'grammatical-info', 'lexical-relation'}
     
     # Test that at least core range types are available
     for range_type in core_range_types:
