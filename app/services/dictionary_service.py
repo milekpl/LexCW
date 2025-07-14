@@ -1325,7 +1325,7 @@ class DictionaryService:
             if db_connected:
                 try:
                     # Try to get database size information
-                    size_info = self.db_connector.execute_query("xquery db:info()")
+                    size_info = self.db_connector.execute_query("db:info()")
                     if size_info:
                         # In a real implementation, we would parse size info to calculate storage percentage
                         # For now, provide a realistic value

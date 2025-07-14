@@ -1,0 +1,344 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.5, pytest-8.4.1, pluggy-1.5.0 -- C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Dokumenty\slownik-wielki\flask-app
+configfile: pytest.ini
+plugins: anyio-4.3.0, dash-2.17.1, cov-4.1.0, mock-3.11.1
+collecting ... collected 8 items
+
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_create_entry_duplicate_id [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+[BaseXConnector] Executing query:
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_720b5606')//lift:lift)
+[BaseXConnector] Executing query:
+exists(collection('test_720b5606')//lift)
+Executing query for entry: test_entry_1
+Query: 
+        for $entry in collection('test_720b5606')//entry[@id="test_entry_1"]
+        return $entry
+        
+[BaseXConnector] Executing query:
+
+        for $entry in collection('test_720b5606')//entry[@id="test_entry_1"]
+        return $entry
+        
+Entry XML: <MagicMock name='BaseXSession().query().execute().__getitem__()' id='2151810955888'>...
+FAILED
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_create_entry_with_invalid_data [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+PASSED
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_create_entry_with_complex_structure [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+[BaseXConnector] Executing query:
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_adc21c1e')//lift:lift)
+[BaseXConnector] Executing query:
+exists(collection('test_adc21c1e')//lift)
+Executing query for entry: complex_entry
+Query: 
+        for $entry in collection('test_adc21c1e')//entry[@id="complex_entry"]
+        return $entry
+        
+[BaseXConnector] Executing query:
+
+        for $entry in collection('test_adc21c1e')//entry[@id="complex_entry"]
+        return $entry
+        
+Entry XML: <MagicMock name='BaseXSession().query().execute().__getitem__()' id='2151813624032'>...
+FAILED
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_update_nonexistent_entry [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+[BaseXConnector] Executing query:
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_c80debfd')//lift:lift)
+[BaseXConnector] Executing query:
+exists(collection('test_c80debfd')//lift)
+Executing query for entry: nonexistent_entry
+Query: 
+        for $entry in collection('test_c80debfd')//entry[@id="nonexistent_entry"]
+        return $entry
+        
+[BaseXConnector] Executing query:
+
+        for $entry in collection('test_c80debfd')//entry[@id="nonexistent_entry"]
+        return $entry
+        
+Entry XML: <MagicMock name='BaseXSession().query().execute().__getitem__()' id='2151815961520'>...
+FAILED
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_delete_nonexistent_entry [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+[BaseXConnector] Executing query:
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_8c5ddcf4')//lift:lift)
+[BaseXConnector] Executing query:
+exists(collection('test_8c5ddcf4')//lift)
+Executing query for entry: nonexistent_entry
+Query: 
+        for $entry in collection('test_8c5ddcf4')//entry[@id="nonexistent_entry"]
+        return $entry
+        
+[BaseXConnector] Executing query:
+
+        for $entry in collection('test_8c5ddcf4')//entry[@id="nonexistent_entry"]
+        return $entry
+        
+Entry XML: <MagicMock name='BaseXSession().query().execute().__getitem__()' id='2151814440688'>...
+FAILED
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_create_or_update_entry [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+[BaseXConnector] Executing query:
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_8d6f9692')//lift:lift)
+[BaseXConnector] Executing query:
+exists(collection('test_8d6f9692')//lift)
+Executing query for entry: new_entry
+Query: 
+        for $entry in collection('test_8d6f9692')//entry[@id="new_entry"]
+        return $entry
+        
+[BaseXConnector] Executing query:
+
+        for $entry in collection('test_8d6f9692')//entry[@id="new_entry"]
+        return $entry
+        
+Entry XML: <MagicMock name='BaseXSession().query().execute().__getitem__()' id='2151814232448'>...
+FAILED
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_related_entries [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+[BaseXConnector] Executing query:
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_df197658')//lift:lift)
+[BaseXConnector] Executing query:
+exists(collection('test_df197658')//lift)
+Executing query for entry: word1
+Query: 
+        for $entry in collection('test_df197658')//entry[@id="word1"]
+        return $entry
+        
+[BaseXConnector] Executing query:
+
+        for $entry in collection('test_df197658')//entry[@id="word1"]
+        return $entry
+        
+Entry XML: <MagicMock name='BaseXSession().query().execute().__getitem__()' id='2151810790032'>...
+FAILED
+tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_entries_by_grammatical_info [BaseXConnector] Executing query:
+count(//entry)
+[BaseXConnector] Executing query:
+count(//range)
+[BaseXConnector] Executing query:
+
+            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            declare namespace flex = "http://fieldworks.sil.org/schemas/flex/0.1";
+            exists(collection('test_b4240d55')//lift:lift)
+DEBUG_INSERT_RESULT: None
+[BaseXConnector] Executing query:
+count(collection('test_b4240d55')//*[local-name()='entry'])
+DEBUG_ENTRY_COUNT: <MagicMock name='BaseXSession().query().execute()' id='2151814965264'>
+[BaseXConnector] Executing query:
+for $e in collection('test_b4240d55')//*[local-name()='entry'] return $e
+DEBUG_ALL_ENTRIES written to debug_entries.xml
+[BaseXConnector] Executing query:
+declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_b4240d55')//lift:lift)
+[BaseXConnector] Executing query:
+exists(collection('test_b4240d55')//lift)
+[BaseXConnector] Executing query:
+
+        for $entry in collection('test_b4240d55')//entry
+        where $entry/sense/grammatical-info[@value="noun"]
+        
+        return $entry
+DEBUG_NOUN_ENTRIES: [Entry(id=<MagicMock name='ET.fromstring().get()' id='2151813075104'>)]
+FAILED
+
+================================== FAILURES ===================================
+_______________ TestAdvancedCRUD.test_create_entry_duplicate_id _______________
+app\services\dictionary_service.py:283: in get_entry
+    entries = self.lift_parser.parse_string(entry_xml)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\parsers\lift_parser.py:281: in parse_string
+    entry.validate()
+app\models\entry.py:269: in validate
+    raise ValidationError("Entry validation failed", error_messages)
+E   app.utils.exceptions.ValidationError: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+app\services\dictionary_service.py:322: in create_entry
+    if self.get_entry(entry.id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\dictionary_service.py:297: in get_entry
+    raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+tests\integration\test_advanced_crud.py:28: in test_create_entry_duplicate_id
+    dict_service_with_db.create_entry(entry)
+app\services\dictionary_service.py:344: in create_entry
+    raise DatabaseError(f"Failed to create entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to create entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+------------------------------ Captured log call ------------------------------
+WARNING  app.parsers.lift_parser:lift_parser.py:284 Skipping invalid entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:296 Error retrieving entry test_entry_1: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:343 Error creating entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+__________ TestAdvancedCRUD.test_create_entry_with_complex_structure __________
+app\services\dictionary_service.py:283: in get_entry
+    entries = self.lift_parser.parse_string(entry_xml)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\parsers\lift_parser.py:281: in parse_string
+    entry.validate()
+app\models\entry.py:269: in validate
+    raise ValidationError("Entry validation failed", error_messages)
+E   app.utils.exceptions.ValidationError: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+app\services\dictionary_service.py:322: in create_entry
+    if self.get_entry(entry.id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\dictionary_service.py:297: in get_entry
+    raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+tests\integration\test_advanced_crud.py:54: in test_create_entry_with_complex_structure
+    dict_service_with_db.create_entry(entry)
+app\services\dictionary_service.py:344: in create_entry
+    raise DatabaseError(f"Failed to create entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to create entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+------------------------------ Captured log call ------------------------------
+WARNING  app.parsers.lift_parser:lift_parser.py:284 Skipping invalid entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:296 Error retrieving entry complex_entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:343 Error creating entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+_______________ TestAdvancedCRUD.test_update_nonexistent_entry ________________
+app\services\dictionary_service.py:283: in get_entry
+    entries = self.lift_parser.parse_string(entry_xml)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\parsers\lift_parser.py:281: in parse_string
+    entry.validate()
+app\models\entry.py:269: in validate
+    raise ValidationError("Entry validation failed", error_messages)
+E   app.utils.exceptions.ValidationError: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+app\services\dictionary_service.py:367: in update_entry
+    self.get_entry(entry.id)
+app\services\dictionary_service.py:297: in get_entry
+    raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+tests\integration\test_advanced_crud.py:189: in test_update_nonexistent_entry
+    dict_service_with_db.update_entry(entry)
+app\services\dictionary_service.py:383: in update_entry
+    raise DatabaseError(f"Failed to update entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to update entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+------------------------------ Captured log call ------------------------------
+WARNING  app.parsers.lift_parser:lift_parser.py:284 Skipping invalid entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:296 Error retrieving entry nonexistent_entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:382 Error updating entry nonexistent_entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+_______________ TestAdvancedCRUD.test_delete_nonexistent_entry ________________
+app\services\dictionary_service.py:283: in get_entry
+    entries = self.lift_parser.parse_string(entry_xml)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\parsers\lift_parser.py:281: in parse_string
+    entry.validate()
+app\models\entry.py:269: in validate
+    raise ValidationError("Entry validation failed", error_messages)
+E   app.utils.exceptions.ValidationError: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+app\services\dictionary_service.py:405: in delete_entry
+    self.get_entry(entry_id)
+app\services\dictionary_service.py:297: in get_entry
+    raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+tests\integration\test_advanced_crud.py:196: in test_delete_nonexistent_entry
+    dict_service_with_db.delete_entry("nonexistent_entry")
+app\services\dictionary_service.py:421: in delete_entry
+    raise DatabaseError(f"Failed to delete entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to delete entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+------------------------------ Captured log call ------------------------------
+WARNING  app.parsers.lift_parser:lift_parser.py:284 Skipping invalid entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:296 Error retrieving entry nonexistent_entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:420 Error deleting entry nonexistent_entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+________________ TestAdvancedCRUD.test_create_or_update_entry _________________
+app\services\dictionary_service.py:283: in get_entry
+    entries = self.lift_parser.parse_string(entry_xml)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\parsers\lift_parser.py:281: in parse_string
+    entry.validate()
+app\models\entry.py:269: in validate
+    raise ValidationError("Entry validation failed", error_messages)
+E   app.utils.exceptions.ValidationError: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+tests\integration\test_advanced_crud.py:209: in test_create_or_update_entry
+    entry_id = dict_service_with_db.create_or_update_entry(new_entry)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\dictionary_service.py:1213: in create_or_update_entry
+    self.get_entry(entry.id)
+app\services\dictionary_service.py:297: in get_entry
+    raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+------------------------------ Captured log call ------------------------------
+WARNING  app.parsers.lift_parser:lift_parser.py:284 Skipping invalid entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:296 Error retrieving entry new_entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+____________________ TestAdvancedCRUD.test_related_entries ____________________
+app\services\dictionary_service.py:283: in get_entry
+    entries = self.lift_parser.parse_string(entry_xml)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\parsers\lift_parser.py:281: in parse_string
+    entry.validate()
+app\models\entry.py:269: in validate
+    raise ValidationError("Entry validation failed", error_messages)
+E   app.utils.exceptions.ValidationError: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+app\services\dictionary_service.py:322: in create_entry
+    if self.get_entry(entry.id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\dictionary_service.py:297: in get_entry
+    raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+
+The above exception was the direct cause of the following exception:
+tests\integration\test_advanced_crud.py:249: in test_related_entries
+    dict_service_with_db.create_entry(entry1)
+app\services\dictionary_service.py:344: in create_entry
+    raise DatabaseError(f"Failed to create entry: {str(e)}") from e
+E   app.utils.exceptions.DatabaseError: Failed to create entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+------------------------------ Captured log call ------------------------------
+WARNING  app.parsers.lift_parser:lift_parser.py:284 Skipping invalid entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:296 Error retrieving entry word1: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+ERROR    app.services.dictionary_service:dictionary_service.py:343 Error creating entry: Failed to retrieve entry: Entry validation failed: Entry ID is required and must be non-empty, Lexical unit is required and must contain at least one language entry, At least one sense is required per entry
+______________ TestAdvancedCRUD.test_entries_by_grammatical_info ______________
+tests\integration\test_advanced_crud.py:392: in test_entries_by_grammatical_info
+    assert len(noun_entries) == 2
+E   AssertionError: assert 1 == 2
+E    +  where 1 = len([Entry(id=<MagicMock name='ET.fromstring().get()' id='2151813075104'>)])
+=========================== short test summary info ===========================
+FAILED tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_create_entry_duplicate_id
+FAILED tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_create_entry_with_complex_structure
+FAILED tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_update_nonexistent_entry
+FAILED tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_delete_nonexistent_entry
+FAILED tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_create_or_update_entry
+FAILED tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_related_entries
+FAILED tests/integration/test_advanced_crud.py::TestAdvancedCRUD::test_entries_by_grammatical_info
+========================= 7 failed, 1 passed in 1.08s =========================

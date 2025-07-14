@@ -1,151 +1,38 @@
-"""
-PyTest fixtures for unit testing - uses mocking instead of real database connections.
-"""
-
-from __future__ import annotations
-
-import os
-import sys
 import pytest
+import uuid
 import tempfile
-import logging
-from unittest.mock import Mock, MagicMock, patch
+import os
 from typing import Generator
-
-# Add parent directory to Python path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from app.services.dictionary_service import DictionaryService
-from app.database.basex_connector import BaseXConnector
 from app.models.entry import Entry
 from app.models.sense import Sense
 from app.models.example import Example
-from app.models.pronunciation import Pronunciation
-from flask import Flask
-from flask.testing import FlaskClient
+from app.database.basex_connector import BaseXConnector
+from app.services.dictionary_service import DictionaryService
+import logging
+
+@pytest.fixture
+def dict_service_with_db() -> Generator[DictionaryService, None, None]:
+    """Yield a DictionaryService using a unique, empty BaseX test database per test, and clean up after."""
+    # Generate a unique test database name
+    test_db_name = f"test_{uuid.uuid4().hex[:8]}"
+    connector = BaseXConnector(database=test_db_name)
+    # Ensure the test database is created and initialized
+    ensure_test_database(connector, test_db_name)
+    service = DictionaryService(db_connector=connector)
+    try:
+        yield service
+    finally:
+        # Drop the test database after the test
+        # TODO: There is a bug with fixture teardown: running these tests leaves hundreds of empty databases in BaseX.
+        # We are not sure whether the connector would drop the correct database in all cases. Investigate and fix DB cleanup.
+        try:
+            connector.execute_update(f"db:drop('{test_db_name}')")
+            logger.info(f"Dropped test database: {test_db_name}")
+        except Exception as e:
+            logger.warning(f"Failed to drop test database {test_db_name}: {e}")
 
 logger = logging.getLogger(__name__)
 
-
-@pytest.fixture
-def mock_basex_connector() -> Mock:
-    """Create a mock BaseX connector for unit tests."""
-    connector = Mock(spec=BaseXConnector)
-    
-    # Configure basic mock behavior
-    connector.connect.return_value = True
-    connector.disconnect.return_value = True
-    connector.execute_query.return_value = "<entry id='test'>Test Entry</entry>"
-    connector.execute_update.return_value = True
-    connector.create_database.return_value = True
-    connector.drop_database.return_value = True
-    
-    return connector
-
-
-@pytest.fixture
-def mock_dict_service(mock_basex_connector: Mock) -> Mock:
-    """Create a mock dictionary service for unit tests."""
-    service = Mock(spec=DictionaryService)
-    
-    # Configure mock behavior for common operations
-    service.get_entry.return_value = None
-    service.create_entry.return_value = True
-    service.update_entry.return_value = True
-    service.delete_entry.return_value = True
-    service.list_entries.return_value = ([], 0)
-    service.search_entries.return_value = ([], 0)
-    service.count_entries.return_value = 150
-    service.count_senses_and_examples.return_value = (300, 450)
-    service.get_recent_activity.return_value = []
-    service.get_system_status.return_value = {
-        'db_connected': True,
-        'last_backup': '2025-06-27 00:15',
-        'storage_percent': 25
-    }
-    service.get_ranges.return_value = {
-        'grammatical-info': {
-            'Noun': {'label': 'Noun', 'abbrev': 'n'},
-            'Verb': {'label': 'Verb', 'abbrev': 'v'}
-        }
-    }
-    
-    return service
-
-
-@pytest.fixture
-def app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
-    """Create a Flask app for unit testing with mocked dependencies."""
-    from flask import Flask
-    import os
-    
-    template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app', 'templates')
-    app = Flask(__name__, template_folder=template_dir)
-    app.config.update({
-        'TESTING': True,
-        'WTF_CSRF_ENABLED': False,
-        'SECRET_KEY': 'test-secret-key-for-sessions'
-    })
-    
-    # Register blueprints
-    from app.api import api_bp
-    from app.api.validation import validation_bp
-    from app.routes.corpus_routes import corpus_bp
-    from app.views import main_bp
-    from app.api.worksets import worksets_bp
-    from app.api.query_builder import query_builder_bp
-    from app.api.ranges import ranges_bp
-    from app.views import workbench_bp
-    
-    app.register_blueprint(api_bp)
-    app.register_blueprint(validation_bp)
-    app.register_blueprint(corpus_bp)
-    app.register_blueprint(main_bp)
-    app.register_blueprint(worksets_bp)
-    app.register_blueprint(query_builder_bp)
-    app.register_blueprint(ranges_bp)
-    app.register_blueprint(workbench_bp)
-    
-    # Mock dependency injection
-    from unittest.mock import Mock
-    mock_injector = Mock()
-    app.injector = mock_injector
-    
-    # Attach mocked services
-    app.dict_service = mock_dict_service
-    app.dict_service_with_db = mock_dict_service
-    
-    # Mock cache service
-    mock_cache = Mock()
-    mock_cache.get.return_value = None
-    mock_cache.set.return_value = True
-    mock_cache.delete.return_value = True
-    app.cache_service = mock_cache
-    
-    with app.app_context():
-        yield app
-
-
-@pytest.fixture
-def client(app: Flask) -> FlaskClient:
-    """Test client for unit testing with mocked dependencies."""
-    return app.test_client()
-
-
-# Legacy fixtures for backward compatibility
-@pytest.fixture
-def db_connector() -> Mock:
-    """Mock BaseX connector for testing (legacy)."""
-    connector = Mock(spec=BaseXConnector)
-    connector.connect.return_value = True
-    connector.execute_query.return_value = "<entry id='test'>Test Entry</entry>"
-    return connector
-
-
-@pytest.fixture
-def dict_service_with_db(mock_dict_service: Mock) -> Mock:
-    """Legacy alias for mock_dict_service."""
-    return mock_dict_service
 
 
 @pytest.fixture
@@ -260,59 +147,21 @@ def populated_dict_service(dict_service_with_db: DictionaryService, sample_entry
     return dict_service_with_db
 
 
-# Mock external dependencies for unit tests
-@pytest.fixture(autouse=True)
-def mock_external_dependencies(request):
-    """Automatically mock external dependencies for all unit tests."""
-    # Check if the test is marked to skip ET mocking (for LIFT parser tests)
-    skip_et_mock = request.node.get_closest_marker("skip_et_mock") is not None
-    
-    patches = [
-        patch('app.database.basex_connector.BaseXSession'),
-        patch('app.services.cache_service.redis.Redis'),
-    ]
-    
-    # Only mock ET if not explicitly skipped
-    if not skip_et_mock:
-        patches.append(patch('app.parsers.lift_parser.ET'))
-    
-    if skip_et_mock:
-        # Don't mock ET for LIFT parser tests
-        with patches[0] as mock_session, \
-             patches[1] as mock_redis:
-            
-            # Configure BaseX session mock
-            mock_session.return_value.execute.return_value = "<entry>test</entry>"
-            mock_session.return_value.close.return_value = None
-            
-            # Configure Redis mock
-            mock_redis.return_value.get.return_value = None
-            mock_redis.return_value.set.return_value = True
-            mock_redis.return_value.delete.return_value = True
-            
-            yield
-    else:
-        # Mock all dependencies including ET
-        with patches[0] as mock_session, \
-             patches[1] as mock_redis, \
-             patches[2] as mock_et:
-            
-            # Configure BaseX session mock
-            mock_session.return_value.execute.return_value = "<entry>test</entry>"
-            mock_session.return_value.close.return_value = None
-            
-            # Configure Redis mock
-            mock_redis.return_value.get.return_value = None
-            mock_redis.return_value.set.return_value = True
-            mock_redis.return_value.delete.return_value = True
-            
-            # Configure XML parsing mock
-            mock_et.parse.return_value.getroot.return_value = Mock()
-            
-            yield
 
 
 def ensure_test_database(connector: BaseXConnector, db_name: str):
+    # Debug: Print the test DB name being used
+    print(f"[DEBUG] ensure_test_database called for db_name: {db_name}")
+    try:
+        db_list = connector.execute_query("db:list()")
+        print(f"[DEBUG] db:list() after creation: {db_list}")
+    except Exception as e:
+        print(f"[DEBUG] db:list() failed: {e}")
+    try:
+        db_info = connector.execute_query(f"db:info('{db_name}')")
+        print(f"[DEBUG] db:info('{db_name}'): {db_info}")
+    except Exception as e:
+        print(f"[DEBUG] db:info('{db_name}') failed: {e}")
     """
     Ensure a test database exists and is properly initialized with minimal LIFT content.
     

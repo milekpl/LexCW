@@ -18,44 +18,6 @@ api_bp = Blueprint('additional_api', __name__, url_prefix='/api')
 logger = logging.getLogger(__name__)
 
 
-@api_bp.route('/search')
-def search_entries():
-    """Search for entries with query parameters."""
-    try:
-        query = request.args.get('q', '').strip()
-        if not query:
-            return jsonify({'error': 'Query parameter "q" is required'}), 400
-        
-        limit = request.args.get('limit', 10, type=int)
-        offset = request.args.get('offset', 0, type=int)
-        
-        # Validate limit and offset
-        if limit <= 0 or limit > 1000:
-            limit = 10
-        if offset < 0:
-            offset = 0
-        
-        dict_service = current_app.injector.get(DictionaryService)
-        entries, total = dict_service.search_entries(
-            query=query,
-            limit=limit,
-            offset=offset
-        )
-        
-        # Convert entries to dictionaries for JSON response
-        entry_dicts = [entry.to_dict() for entry in entries]
-        
-        return jsonify({
-            'entries': entry_dicts,
-            'total': total,
-            'query': query,
-            'limit': limit,
-            'offset': offset
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in search endpoint: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
 
 
 @api_bp.route('/entries')

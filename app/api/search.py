@@ -158,25 +158,31 @@ def search_entries():
         # Get query parameters
         query = request.args.get('q', '')
         fields_str = request.args.get('fields', 'lexical_unit,glosses,definitions,note,citation_form,example')
-        limit = request.args.get('limit', 100, type=int)
-        offset = request.args.get('offset', 0, type=int)
-        
+        limit_raw = request.args.get('limit', 100)
+        offset_raw = request.args.get('offset', 0)
+        try:
+            limit = int(limit_raw)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Limit must be an integer'}), 400
+        try:
+            offset = int(offset_raw)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Offset must be an integer'}), 400
+
         # Validate input parameters
         if not query.strip():
             return jsonify({'error': 'Query parameter is required and cannot be empty'}), 400
-        
         if limit < 0:
             return jsonify({'error': 'Limit must be non-negative'}), 400
-            
         if offset < 0:
             return jsonify({'error': 'Offset must be non-negative'}), 400
-        
+
         # Parse fields
         fields = [field.strip() for field in fields_str.split(',') if field.strip()]
-        
+
         # Get dictionary service
         dict_service = get_dictionary_service()
-        
+
         # Search entries
         entries, total_count = dict_service.search_entries(
             query=query,
@@ -184,7 +190,7 @@ def search_entries():
             limit=limit,
             offset=offset
         )
-        
+
         # Prepare response
         response = {
             'query': query,
@@ -193,9 +199,9 @@ def search_entries():
             'total': total_count,
             'limit': limit,
             'offset': offset,
-        }        
+        }
         return jsonify(response)
-        
+
     except Exception as e:
         logger.error("Error searching entries: %s", str(e))
         return jsonify({'error': str(e)}), 500
