@@ -62,20 +62,20 @@ class WorksetQuery:
 @dataclass
 class Workset:
     """Workset containing filtered collection of entries."""
-    
-    def __init__(self, id: str, name: str, query: WorksetQuery, 
-                 total_entries: int = 0, 
-                 entries: Optional[List[Dict[str, Any]]] = None,
-                 created_at: Optional[datetime] = None,
-                 updated_at: Optional[datetime] = None):
-        self.id = id
-        self.name = name
-        self.query = query
-        self.total_entries = total_entries
-        self.entries = entries or []
-        self.created_at = created_at or datetime.now()
-        self.updated_at = updated_at or datetime.now()
-    
+    name: str
+    query: WorksetQuery
+    id: Optional[int] = None
+    total_entries: int = 0
+    entries: Optional[List[Dict[str, Any]]] = field(default_factory=list)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = datetime.now()
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'id': self.id,
@@ -86,12 +86,11 @@ class Workset:
             'updated_at': self.updated_at.isoformat(),
             'entries': self.entries
         }
-    
+
     @classmethod
     def create(cls, name: str, query: WorksetQuery) -> Workset:
-        """Create a new workset with generated ID."""
+        """Create a new workset."""
         return cls(
-            id=str(uuid.uuid4()),
             name=name,
             query=query
         )

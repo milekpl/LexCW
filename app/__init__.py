@@ -11,11 +11,14 @@ from flask import Flask
 from typing import Any, Callable, Dict, Optional
 from flasgger import Swagger
 from injector import Injector, singleton
+import psycopg2
+from psycopg2 import pool
 
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
 from app.config_manager import ConfigManager
 from app.services.cache_service import CacheService
+from app.database.workset_db import create_workset_tables
 
 
 # Create a global injector
@@ -93,7 +96,7 @@ def create_app(config_name=None):
     from app.routes.api_routes import api_bp as additional_api_bp
     app.register_blueprint(additional_api_bp)
     
-    from app.routes.worksets_routes import worksets_bp
+    from app.api.worksets import worksets_bp
     app.register_blueprint(worksets_bp)
     
     from app.api.query_builder import query_builder_bp
@@ -117,6 +120,21 @@ def create_app(config_name=None):
     # Register settings blueprint
     from app.routes.settings_routes import settings_bp
     app.register_blueprint(settings_bp)
+
+    # Create PostgreSQL connection pool and create tables
+    try:
+        pg_pool = psycopg2.pool.SimpleConnectionPool(
+            1, 20,
+            user=app.config.get("PG_USER"),
+            password=app.config.get("PG_PASSWORD"),
+            host=app.config.get("PG_HOST"),
+            port=app.config.get("PG_PORT"),
+            database=app.config.get("PG_DATABASE")
+        )
+        app.pg_pool = pg_pool
+        create_workset_tables(pg_pool)
+    except (Exception, psycopg2.DatabaseError) as error:
+        app.logger.error(f"Error while connecting to PostgreSQL: {error}")
     
     # Initialize Swagger documentation
     swagger_config = {
