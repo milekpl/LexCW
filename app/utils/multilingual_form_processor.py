@@ -244,6 +244,15 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
                         preserve = True
                     if preserve and existing_sense.get(field) is not None:
                         merged_sense[field] = existing_sense[field]
+                    # Always ensure nested format for definitions
+                    if field in ('definition', 'definitions') and field in merged_sense:
+                        val = merged_sense[field]
+                        if isinstance(val, dict):
+                            for lang, v in list(val.items()):
+                                if not isinstance(v, dict):
+                                    merged_sense[field][lang] = {'text': v}
+                        elif isinstance(val, str):
+                            merged_sense[field] = {'en': {'text': val}}
                 else:
                     # For other fields, preserve if missing, empty, or whitespace-only string
                     preserve = False
