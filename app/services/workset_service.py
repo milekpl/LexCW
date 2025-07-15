@@ -10,7 +10,9 @@ from __future__ import annotations
 from typing import Dict, Any, List, Optional
 import logging
 import time
+import json
 from datetime import datetime
+from flask import current_app
 
 from app.models.workset import Workset, WorksetQuery, BulkOperation, WorksetProgress
 from app.api.entries import get_dictionary_service
@@ -20,152 +22,190 @@ logger = logging.getLogger(__name__)
 
 class WorksetService:
     """Service for managing worksets and bulk operations."""
-    
+
     def __init__(self):
-        self._worksets: Dict[str, Workset] = {}
         self._progress_tracker: Dict[str, WorksetProgress] = {}
-    
+
     def create_workset(self, name: str, query: WorksetQuery) -> Workset:
         """Create a new workset from query criteria."""
         try:
-            workset = Workset.create(name, query)
-            
-            # Execute query to get matching entries
             dictionary_service = get_dictionary_service()
             entries, total_count = self._execute_query(query, dictionary_service)
-            
-            workset.entries = entries
+
+            workset = Workset.create(name, query)
             workset.total_entries = total_count
             
-            # Store workset
-            self._worksets[workset.id] = workset
-            
+            with current_app.pg_pool.getconn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO worksets (name, query, total_entries) VALUES (%s, %s, %s) RETURNING id, created_at, updated_at",
+                        (workset.name, json.dumps(workset.query.to_dict()), workset.total_entries)
+                    )
+                    workset.id, workset.created_at, workset.updated_at = cur.fetchone()
+
+                    entry_ids = [entry['id'] for entry in entries]
+                    for entry_id in entry_ids:
+                        cur.execute(
+                            "INSERT INTO workset_entries (workset_id, entry_id) VALUES (%s, %s)",
+                            (workset.id, entry_id)
+                        )
+                    conn.commit()
+
             logger.info(f"Created workset '{name}' with {total_count} entries")
             return workset
-            
+
         except Exception as e:
             logger.error(f"Failed to create workset '{name}': {e}")
             raise
-    
-    def get_workset(self, workset_id: str, limit: int = 50, offset: int = 0) -> Optional[Workset]:
+
+    def get_workset(self, workset_id: int, limit: int = 50, offset: int = 0) -> Optional[Workset]:
         """Retrieve workset with pagination."""
-        if workset_id not in self._worksets:
+        try:
+            with current_app.pg_pool.getconn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id, name, query, total_entries, created_at, updated_at FROM worksets WHERE id = %s", (workset_id,))
+                    workset_data = cur.fetchone()
+                    if not workset_data:
+                        return None
+
+                    workset = Workset(
+                        id=workset_data[0],
+                        name=workset_data[1],
+                        query=WorksetQuery.from_dict(workset_data[2]),
+                        total_entries=workset_data[3],
+                        created_at=workset_data[4],
+                        updated_at=workset_data[5]
+                    )
+
+                    cur.execute(
+                        "SELECT entry_id FROM workset_entries WHERE workset_id = %s LIMIT %s OFFSET %s",
+                        (workset_id, limit, offset)
+                    )
+                    entry_ids = [row[0] for row in cur.fetchall()]
+
+                    dictionary_service = get_dictionary_service()
+                    entries = [dictionary_service.get_entry(entry_id).to_dict() for entry_id in entry_ids]
+                    workset.entries = entries
+
+                    return workset
+        except Exception as e:
+            logger.error(f"Failed to get workset {workset_id}: {e}")
             return None
-        
-        workset = self._worksets[workset_id]
-        
-        # Apply pagination to entries
-        start_idx = offset
-        end_idx = offset + limit
-        
-        # Create a copy with paginated entries
-        paginated_workset = Workset(
-            id=workset.id,
-            name=workset.name,
-            query=workset.query,
-            total_entries=workset.total_entries,
-            entries=workset.entries[start_idx:end_idx],
-            created_at=workset.created_at,
-            updated_at=workset.updated_at
-        )
-        
-        return paginated_workset
-    
+
     def list_worksets(self) -> List[Workset]:
         """List all available worksets."""
-        return list(self._worksets.values())
-    
-    def update_workset_query(self, workset_id: str, query: WorksetQuery) -> Optional[int]:
+        try:
+            with current_app.pg_pool.getconn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id, name, query, total_entries, created_at, updated_at FROM worksets")
+                    worksets_data = cur.fetchall()
+                    worksets = []
+                    for row in worksets_data:
+                        worksets.append(Workset(
+                            id=row[0],
+                            name=row[1],
+                            query=WorksetQuery.from_dict(row[2]),
+                            total_entries=row[3],
+                            created_at=row[4],
+                            updated_at=row[5]
+                        ))
+                    return worksets
+        except Exception as e:
+            logger.error(f"Failed to list worksets: {e}")
+            return []
+
+    def update_workset_query(self, workset_id: int, query: WorksetQuery) -> Optional[int]:
         """Update workset query criteria and refresh entries."""
         try:
-            workset = self._worksets.get(workset_id)
-            if not workset:
-                return None
-            
-            # Update query
-            workset.query = query
-            workset.updated_at = datetime.now()
-            
-            # Re-execute query
             dictionary_service = get_dictionary_service()
             entries, total_count = self._execute_query(query, dictionary_service)
-            
-            workset.entries = entries
-            workset.total_entries = total_count
-            
+
+            with current_app.pg_pool.getconn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE worksets SET query = %s, total_entries = %s, updated_at = %s WHERE id = %s",
+                        (json.dumps(query.to_dict()), total_count, datetime.now(), workset_id)
+                    )
+                    cur.execute("DELETE FROM workset_entries WHERE workset_id = %s", (workset_id,))
+
+                    entry_ids = [entry['id'] for entry in entries]
+                    for entry_id in entry_ids:
+                        cur.execute(
+                            "INSERT INTO workset_entries (workset_id, entry_id) VALUES (%s, %s)",
+                            (workset_id, entry_id)
+                        )
+                    conn.commit()
+
             logger.info(f"Updated workset {workset_id} query, now has {total_count} entries")
             return total_count
-            
+
         except Exception as e:
             logger.error(f"Failed to update workset {workset_id}: {e}")
             return None
-    
-    def delete_workset(self, workset_id: str) -> bool:
+
+    def delete_workset(self, workset_id: int) -> bool:
         """Delete a workset."""
         try:
-            if workset_id in self._worksets:
-                del self._worksets[workset_id]
-                # Clean up progress tracking
-                if workset_id in self._progress_tracker:
-                    del self._progress_tracker[workset_id]
-                logger.info(f"Deleted workset {workset_id}")
-                return True
+            with current_app.pg_pool.getconn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM worksets WHERE id = %s", (workset_id,))
+                    conn.commit()
+                    if cur.rowcount > 0:
+                         if workset_id in self._progress_tracker:
+                            del self._progress_tracker[workset_id]
+                         logger.info(f"Deleted workset {workset_id}")
+                         return True
             return False
-            
+
         except Exception as e:
             logger.error(f"Failed to delete workset {workset_id}: {e}")
             return False
     
-    def bulk_update_workset(self, workset_id: str, operation_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def bulk_update_workset(self, workset_id: int, operation_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Apply bulk operations to workset entries."""
         try:
-            workset = self._worksets.get(workset_id)
+            workset = self.get_workset(workset_id, limit=10000) # Get all entries
             if not workset:
                 return None
-            
+
             operation = BulkOperation.from_dict(operation_data)
-            
-            # Initialize progress tracking
+
             progress = WorksetProgress(
                 status='running',
                 total_items=workset.total_entries
             )
             self._progress_tracker[workset_id] = progress
-            
-            # Simulate bulk operation (in real implementation, this would be async)
-            updated_count = self._perform_bulk_operation(workset, operation)
-            
-            # Update progress
+
+            updated_count = self._perform_bulk_operation(workset, operation, progress)
+
             progress.status = 'completed'
             progress.progress = 100.0
             progress.completed_items = updated_count
-            
+
             task_id = f"bulk_{workset_id}_{int(time.time())}"
-            
+
             logger.info(f"Bulk operation on workset {workset_id} updated {updated_count} entries")
-            
+
             return {
                 'task_id': task_id,
                 'updated_count': updated_count
             }
-            
+
         except Exception as e:
             logger.error(f"Failed bulk update on workset {workset_id}: {e}")
-            # Mark as failed
             if workset_id in self._progress_tracker:
                 self._progress_tracker[workset_id].status = 'failed'
                 self._progress_tracker[workset_id].error_message = str(e)
             return None
-    
-    def get_workset_progress(self, workset_id: str) -> Optional[Dict[str, Any]]:
+
+    def get_workset_progress(self, workset_id: int) -> Optional[Dict[str, Any]]:
         """Get progress of bulk operations on workset."""
         try:
             progress = self._progress_tracker.get(workset_id)
             if progress:
                 return progress.to_dict()
-            
-            # If no active operation, return default status
-            workset = self._worksets.get(workset_id)
+
+            workset = self.get_workset(workset_id)
             if workset:
                 return {
                     'status': 'completed',
@@ -173,9 +213,9 @@ class WorksetService:
                     'total_items': workset.total_entries,
                     'completed_items': workset.total_entries
                 }
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get progress for workset {workset_id}: {e}")
             return None
@@ -220,70 +260,70 @@ class WorksetService:
     def _execute_query(self, query: WorksetQuery, dictionary_service) -> tuple[List[Dict[str, Any]], int]:
         """Execute workset query against dictionary service."""
         try:
-            # Convert workset query to dictionary service format
-            filter_text = None
-            pos_filter = None
-            sort_by = query.sort_by or 'lexical_unit'
-            sort_order = query.sort_order
-            
-            # Extract common filters
-            for filter_obj in query.filters:
-                if filter_obj.field == 'lexical_unit' and filter_obj.operator == 'starts_with':
-                    filter_text = filter_obj.value
-                elif filter_obj.field == 'pos' and filter_obj.operator == 'equals':
-                    pos_filter = filter_obj.value
-            
-            # Execute query with large limit to get all matching entries
-            entries, total_count = dictionary_service.list_entries(
+            # This is a simplified conversion. A more robust implementation would
+            # map all query filters to the search_entries parameters.
+            search_term = ""
+            fields = []
+            for f in query.filters:
+                if f.field == 'lexical_unit':
+                    search_term = f.value
+                    fields.append('lexical_unit')
+
+            entries, total_count = dictionary_service.search_entries(
+                query=search_term,
+                fields=fields,
                 limit=10000,  # Large limit for workset
                 offset=0,
-                filter_text=filter_text,
-                sort_by=sort_by,
-                sort_order=sort_order
+                sort_by=query.sort_by,
+                sort_order=query.sort_order
             )
-            
-            # Convert entries to dict format
-            entry_dicts = [entry.to_dict() if hasattr(entry, 'to_dict') else entry for entry in entries]
-            
-            # Apply additional filtering if needed
-            if pos_filter:
-                entry_dicts = [e for e in entry_dicts if e.get('pos') == pos_filter]
-                total_count = len(entry_dicts)
-            
+
+            entry_dicts = [entry.to_dict() for entry in entries]
             return entry_dicts, total_count
-            
+
         except Exception as e:
             logger.error(f"Failed to execute workset query: {e}")
             return [], 0
-    
-    def _perform_bulk_operation(self, workset: Workset, operation: BulkOperation) -> int:
+
+    def _perform_bulk_operation(self, workset: Workset, operation: BulkOperation, progress: WorksetProgress) -> int:
         """Perform bulk operation on workset entries."""
         try:
             updated_count = 0
-            
-            # Simulate bulk operation
-            if operation.operation == 'update_field':
-                for entry in workset.entries:
-                    if operation.field in entry or operation.field == 'semantic_domain':
-                        entry[operation.field] = operation.value
-                        updated_count += 1
-            
-            elif operation.operation == 'delete_field':
-                for entry in workset.entries:
-                    if operation.field in entry:
-                        del entry[operation.field]
-                        updated_count += 1
-            
-            elif operation.operation == 'add_field':
-                for entry in workset.entries:
-                    entry[operation.field] = operation.value
+            dictionary_service = get_dictionary_service()
+
+            for i, entry_dict in enumerate(workset.entries):
+                entry = dictionary_service.get_entry(entry_dict['id'])
+                if operation.operation == 'update_field':
+                    # This is a simplified update. A more robust implementation
+                    # would handle different field types and nested structures.
+                    setattr(entry, operation.field, operation.value)
+                    dictionary_service.update_entry(entry)
                     updated_count += 1
-            
-            # Update workset timestamp
+                elif operation.operation == 'delete_field':
+                    # This is a simplified delete. A more robust implementation
+                    # would handle different field types and nested structures.
+                    if hasattr(entry, operation.field):
+                        setattr(entry, operation.field, None)
+                        dictionary_service.update_entry(entry)
+                        updated_count += 1
+                elif operation.operation == 'add_field':
+                    # This is a simplified add. A more robust implementation
+                    # would handle different field types and nested structures.
+                    setattr(entry, operation.field, operation.value)
+                    dictionary_service.update_entry(entry)
+                    updated_count += 1
+
+                progress.completed_items = i + 1
+                progress.progress = (progress.completed_items / progress.total_items) * 100
+
             workset.updated_at = datetime.now()
-            
+            with current_app.pg_pool.getconn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE worksets SET updated_at = %s WHERE id = %s", (workset.updated_at, workset.id))
+                    conn.commit()
+
             return updated_count
-            
+
         except Exception as e:
             logger.error(f"Failed to perform bulk operation: {e}")
             return 0
