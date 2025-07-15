@@ -1099,3 +1099,25 @@ def bulk_operations():
 def debug_ranges():
     """Debug page for testing ranges loading."""
     return render_template("ranges_test.html")
+
+
+@main_bp.route("/tools")
+def tools():
+    """Render the main tools page."""
+    return render_template("tools.html")
+
+
+@main_bp.route("/tools/clear-cache")
+def clear_cache():
+    """Clear the application cache."""
+    try:
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear()
+            flash("Cache cleared successfully.", "success")
+        else:
+            flash("Cache service is not available.", "warning")
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}", exc_info=True)
+        flash(f"Error clearing cache: {str(e)}", "danger")
+    return redirect(url_for("main.tools"))

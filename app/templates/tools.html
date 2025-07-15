@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Tools - Lexicographic Curation Workbench{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Tools</h1>
+    <p>A collection of tools to help manage the dictionary.</p>
+    <div class="list-group">
+        <a href="{{ url_for('main.clear_cache') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-sync-alt me-2"></i>Clear Cache
+        </a>
+    </div>
+</div>
+{% endblock %}
