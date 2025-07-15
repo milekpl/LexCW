@@ -14,6 +14,7 @@ import pytest
 import os
 import json
 from typing import Dict, Any
+from unittest.mock import patch
 from app import create_app
 from config import TestingConfig
 
@@ -24,7 +25,8 @@ class TestFormSerializerUnit:
     @pytest.fixture
     def app(self):
         """Create test app."""
-        return create_app(TestingConfig)
+        with patch('app.database.corpus_migrator.CorpusMigrator', create=True):
+            return create_app(TestingConfig)
     
     @pytest.fixture
     def client(self, app):
