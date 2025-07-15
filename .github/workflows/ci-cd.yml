@@ -11,6 +11,31 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     strategy:
       matrix:
         python-version: [3.9, 3.10, 3.11, 3.12]
@@ -100,11 +125,19 @@ jobs:
 
     - name: Set up test environment
       run: |
-        export BASEX_HOST=localhost
-        export BASEX_PORT=1984
-        export BASEX_USERNAME=admin
-        export BASEX_PASSWORD=admin
-        export FLASK_ENV=testing
+        echo "BASEX_HOST=localhost" >> $GITHUB_ENV
+        echo "BASEX_PORT=1984" >> $GITHUB_ENV
+        echo "BASEX_USERNAME=admin" >> $GITHUB_ENV
+        echo "BASEX_PASSWORD=admin" >> $GITHUB_ENV
+        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
+        echo "REDIS_PORT=6379" >> $GITHUB_ENV
+        echo "POSTGRES_HOST=localhost" >> $GITHUB_ENV
+        echo "POSTGRES_PORT=5432" >> $GITHUB_ENV
+        echo "POSTGRES_USER=test_user" >> $GITHUB_ENV
+        echo "POSTGRES_PASSWORD=test_password" >> $GITHUB_ENV
+        echo "POSTGRES_DB=test_db" >> $GITHUB_ENV
+        echo "FLASK_ENV=testing" >> $GITHUB_ENV
+        echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> $GITHUB_ENV
 
     - name: Run linting
       run: |
@@ -126,32 +159,14 @@ jobs:
         safety check || echo "Dependency vulnerabilities found (non-blocking)"
 
     - name: Run unit tests
-      env:
-        BASEX_HOST: localhost
-        BASEX_PORT: 1984
-        BASEX_USERNAME: admin
-        BASEX_PASSWORD: admin
-        FLASK_ENV: testing
       run: |
         pytest tests/test_basic.py tests/test_dashboard.py -v --tb=short
 
     - name: Run integration tests
-      env:
-        BASEX_HOST: localhost
-        BASEX_PORT: 1984
-        BASEX_USERNAME: admin
-        BASEX_PASSWORD: admin
-        FLASK_ENV: testing
       run: |
         pytest tests/test_real_integration.py -v --tb=short
 
     - name: Run test coverage
-      env:
-        BASEX_HOST: localhost
-        BASEX_PORT: 1984
-        BASEX_USERNAME: admin
-        BASEX_PASSWORD: admin
-        FLASK_ENV: testing
       run: |
         pytest --cov=app --cov-report=xml --cov-report=html --cov-report=term tests/
 
@@ -164,12 +179,6 @@ jobs:
         fail_ci_if_error: false
 
     - name: Run performance benchmarks
-      env:
-        BASEX_HOST: localhost
-        BASEX_PORT: 1984
-        BASEX_USERNAME: admin
-        BASEX_PASSWORD: admin
-        FLASK_ENV: testing
       run: |
         pytest tests/test_performance_benchmarks.py::TestPerformanceRegression::test_baseline_operations -v || echo "Performance tests failed (non-blocking)"
 
