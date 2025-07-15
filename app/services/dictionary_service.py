@@ -606,8 +606,8 @@ class DictionaryService:
             # Log the constructed query for debugging
             self.logger.debug(f"Constructed query for list_entries: {query}")
             result = self.db_connector.execute_query(query)
-            # Only treat None as failure; allow empty strings for parsing
-            if result is None:
+            # Only treat None or empty result as failure; allow non-empty strings for parsing
+            if not result:
                 return [], total_count
             # Use a non-validating parser for listing
             nonvalidating_parser = LIFTParser(validate=False)

@@ -278,6 +278,8 @@ def edit_entry(entry_id):
     print(f"EDIT_ENTRY CALLED FOR {entry_id}")
     try:
         dict_service = current_app.injector.get(DictionaryService)
+        print(f"Flask app database name: {dict_service.db_connector.database}")
+        print(f"Environment TEST_DB_NAME: {os.environ.get('TEST_DB_NAME')}")
         if request.method == "POST":
             # Handle both JSON and form data
             data = None
