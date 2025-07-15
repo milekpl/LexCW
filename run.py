@@ -19,4 +19,5 @@ if os.getenv('TESTING') == 'true':
 
 if __name__ == '__main__':
     is_testing = os.getenv('TESTING') == 'true'
-    app.run(host='0.0.0.0', port=5000, debug=not is_testing)
+    port = int(os.getenv('FLASK_RUN_PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=not is_testing)
