@@ -7,7 +7,7 @@ Implements query-based worksets for bulk lexicographic operations.
 
 from __future__ import annotations
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
 import logging
 from typing import Dict, Any, List
@@ -17,7 +17,7 @@ from app.models.workset import Workset, WorksetQuery
 
 logger = logging.getLogger(__name__)
 
-worksets_bp = Blueprint('worksets', __name__)
+worksets_bp = Blueprint('worksets_api', __name__)
 
 
 @worksets_bp.route('/api/worksets', methods=['GET'])
@@ -138,13 +138,13 @@ def create_workset() -> tuple[Dict[str, Any], int]:
         return {'error': 'Failed to create workset'}, 500
 
 
-@worksets_bp.route('/api/worksets/<workset_id>', methods=['GET'])
+@worksets_bp.route('/api/worksets/<int:workset_id>', methods=['GET'])
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Get workset with pagination',
     'description': 'Retrieve workset entries with pagination support',
     'parameters': [
-        {'name': 'workset_id', 'in': 'path', 'type': 'string', 'required': True},
+        {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True},
         {'name': 'limit', 'in': 'query', 'type': 'integer', 'default': 50},
         {'name': 'offset', 'in': 'query', 'type': 'integer', 'default': 0}
     ],
@@ -154,7 +154,7 @@ def create_workset() -> tuple[Dict[str, Any], int]:
             'schema': {
                 'type': 'object',
                 'properties': {
-                    'id': {'type': 'string'},
+                    'id': {'type': 'integer'},
                     'name': {'type': 'string'},
                     'total_entries': {'type': 'integer'},
                     'entries': {'type': 'array', 'items': {'type': 'object'}}
@@ -165,32 +165,32 @@ def create_workset() -> tuple[Dict[str, Any], int]:
         500: {'description': 'Internal server error'}
     }
 })
-def get_workset(workset_id: str) -> tuple[Dict[str, Any], int]:
+def get_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Get workset with pagination."""
     try:
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
-        
+
         workset_service = WorksetService()
         workset = workset_service.get_workset(workset_id, limit=limit, offset=offset)
-        
+
         if not workset:
             return {'error': 'Workset not found'}, 404
-        
+
         return workset.to_dict(), 200
-        
+
     except Exception as e:
         logger.error(f"Error retrieving workset {workset_id}: {e}")
         return {'error': 'Failed to retrieve workset'}, 500
 
 
-@worksets_bp.route('/api/worksets/<workset_id>/query', methods=['PUT'])
+@worksets_bp.route('/api/worksets/<int:workset_id>/query', methods=['PUT'])
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Update workset query',
     'description': 'Update the query criteria for an existing workset',
     'parameters': [
-        {'name': 'workset_id', 'in': 'path', 'type': 'string', 'required': True},
+        {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True},
         {
             'name': 'query_data',
             'in': 'body',
@@ -220,38 +220,38 @@ def get_workset(workset_id: str) -> tuple[Dict[str, Any], int]:
         500: {'description': 'Internal server error'}
     }
 })
-def update_workset_query(workset_id: str) -> tuple[Dict[str, Any], int]:
+def update_workset_query(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Update workset query criteria."""
     try:
         data = request.get_json()
         if not data:
             return {'error': 'No JSON data provided'}, 400
-        
+
         workset_service = WorksetService()
         updated_count = workset_service.update_workset_query(
             workset_id, WorksetQuery.from_dict(data)
         )
-        
+
         if updated_count is None:
             return {'error': 'Workset not found'}, 404
-        
+
         return {
             'success': True,
             'updated_entries': updated_count
         }, 200
-        
+
     except Exception as e:
         logger.error(f"Error updating workset {workset_id}: {e}")
         return {'error': 'Failed to update workset query'}, 500
 
 
-@worksets_bp.route('/api/worksets/<workset_id>', methods=['DELETE'])
+@worksets_bp.route('/api/worksets/<int:workset_id>', methods=['DELETE'])
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Delete workset',
     'description': 'Remove a workset (does not delete the entries)',
     'parameters': [
-        {'name': 'workset_id', 'in': 'path', 'type': 'string', 'required': True}
+        {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True}
     ],
     'responses': {
         200: {
@@ -267,29 +267,29 @@ def update_workset_query(workset_id: str) -> tuple[Dict[str, Any], int]:
         500: {'description': 'Internal server error'}
     }
 })
-def delete_workset(workset_id: str) -> tuple[Dict[str, Any], int]:
+def delete_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Delete a workset."""
     try:
         workset_service = WorksetService()
         success = workset_service.delete_workset(workset_id)
-        
+
         if not success:
             return {'error': 'Workset not found'}, 404
-        
+
         return {'success': True}, 200
-        
+
     except Exception as e:
         logger.error(f"Error deleting workset {workset_id}: {e}")
         return {'error': 'Failed to delete workset'}, 500
 
 
-@worksets_bp.route('/api/worksets/<workset_id>/bulk-update', methods=['POST'])
+@worksets_bp.route('/api/worksets/<int:workset_id>/bulk-update', methods=['POST'])
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Bulk update workset entries',
     'description': 'Apply bulk operations to all entries in a workset',
     'parameters': [
-        {'name': 'workset_id', 'in': 'path', 'type': 'string', 'required': True},
+        {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True},
         {
             'name': 'bulk_operation',
             'in': 'body',
@@ -322,41 +322,40 @@ def delete_workset(workset_id: str) -> tuple[Dict[str, Any], int]:
         500: {'description': 'Internal server error'}
     }
 })
-def bulk_update_workset(workset_id: str) -> tuple[Dict[str, Any], int]:
+def bulk_update_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Apply bulk updates to workset entries."""
     try:
         data = request.get_json()
         if not data:
             return {'error': 'No JSON data provided'}, 400
-        
-        # Validate required fields
+
         if 'operation' not in data or 'field' not in data:
             return {'error': 'Missing required fields: operation, field'}, 400
-        
+
         workset_service = WorksetService()
         result = workset_service.bulk_update_workset(workset_id, data)
-        
+
         if not result:
             return {'error': 'Workset not found'}, 404
-        
+
         return {
             'success': True,
             'task_id': result.get('task_id'),
             'updated_count': result.get('updated_count', 0)
         }, 200
-        
+
     except Exception as e:
         logger.error(f"Error bulk updating workset {workset_id}: {e}")
         return {'error': 'Failed to perform bulk update'}, 500
 
 
-@worksets_bp.route('/api/worksets/<workset_id>/progress', methods=['GET'])
+@worksets_bp.route('/api/worksets/<int:workset_id>/progress', methods=['GET'])
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Get bulk operation progress',
     'description': 'Track progress of long-running bulk operations',
     'parameters': [
-        {'name': 'workset_id', 'in': 'path', 'type': 'string', 'required': True}
+        {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True}
     ],
     'responses': {
         200: {
@@ -375,17 +374,17 @@ def bulk_update_workset(workset_id: str) -> tuple[Dict[str, Any], int]:
         500: {'description': 'Internal server error'}
     }
 })
-def get_workset_progress(workset_id: str) -> tuple[Dict[str, Any], int]:
+def get_workset_progress(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Get progress of bulk operations on workset."""
     try:
         workset_service = WorksetService()
         progress = workset_service.get_workset_progress(workset_id)
-        
+
         if not progress:
             return {'error': 'Workset not found'}, 404
-        
+
         return progress, 200
-        
+
     except Exception as e:
         logger.error(f"Error getting workset progress {workset_id}: {e}")
         return {'error': 'Failed to get progress'}, 500
