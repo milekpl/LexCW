@@ -74,10 +74,9 @@ class TestRealWebFormSubmission:
             print(f"Final entry definition property: {final_entry.senses[0].definition}")
             
             # 5. CRITICAL TEST: Definition should be preserved
-            assert final_entry.senses[0].definitions == {'en': 'Original definition that should be preserved'}, \
+            assert final_entry.senses[0].definitions == {'en': {'text': 'Original definition that should be preserved'}}, \
                 f"Definition was lost! Got: {final_entry.senses[0].definitions}"
-            
-            assert final_entry.senses[0].definition == 'Original definition that should be preserved', \
+            assert final_entry.senses[0].definition == {'en': {'text': 'Original definition that should be preserved'}}, \
                 f"Definition property failed! Got: {final_entry.senses[0].definition}"
             
             print("✅ SUCCESS: Definition preserved in web form simulation!")
@@ -128,11 +127,10 @@ class TestRealWebFormSubmission:
             print(f"Final entry definition property: {final_entry.senses[0].definition}")
             
             # 5. CRITICAL TEST: New definition should be saved
-            assert final_entry.senses[0].definitions == {'en': 'New definition added by user'}, \
+            assert final_entry.senses[0].definitions == {'en': {'text': 'New definition added by user'}}, \
                 f"New definition was not saved! Got: {final_entry.senses[0].definitions}"
-            
-            assert final_entry.senses[0].definition == 'New definition added by user', \
-                f"New definition property failed! Got: {final_entry.senses[0].definition}"
+            assert final_entry.senses[0].definition == {'en': {'text': 'New definition added by user'}}, \
+                f"Definition property failed! Got: {final_entry.senses[0].definition}"
             
             print("✅ SUCCESS: New definition saved through web form simulation!")
 

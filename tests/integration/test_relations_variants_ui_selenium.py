@@ -30,7 +30,8 @@ def chrome_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
-    
+    options.add_argument("--disable-gcm")  # Disable GCM for headless stability
+
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(10)
     yield driver

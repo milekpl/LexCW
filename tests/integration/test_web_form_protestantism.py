@@ -78,7 +78,7 @@ def test_protestantism_form_submission():
             print(f"  Examples: {merged_sense.get('examples', 'MISSING')}")
             
             # CRITICAL ASSERTIONS
-            expected_definition = 'A form of Christianity that originated with the Reformation.'
+            expected_definition = {'en': {'text': 'A form of Christianity that originated with the Reformation.'}}
             expected_grammatical_info = 'noun'
             
             assert merged_sense.get('definition') == expected_definition, \

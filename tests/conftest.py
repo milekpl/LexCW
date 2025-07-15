@@ -26,14 +26,20 @@ def dict_service_with_db() -> Generator[DictionaryService, None, None]:
     try:
         yield service
     finally:
-        # Drop the test database after the test
-        # TODO: There is a bug with fixture teardown: running these tests leaves hundreds of empty databases in BaseX.
-        # We are not sure whether the connector would drop the correct database in all cases. Investigate and fix DB cleanup.
+        # Robustly drop the test database after the test
         try:
+            # Ensure connector is connected
+            if not getattr(connector, 'session', None):
+                connector.connect()
             connector.execute_update(f"db:drop('{test_db_name}')")
             logger.info(f"Dropped test database: {test_db_name}")
         except Exception as e:
             logger.warning(f"Failed to drop test database {test_db_name}: {e}")
+        finally:
+            try:
+                connector.disconnect()
+            except Exception:
+                pass
 
 logger = logging.getLogger(__name__)
 
