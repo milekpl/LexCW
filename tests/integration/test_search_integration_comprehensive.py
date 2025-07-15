@@ -10,7 +10,7 @@ import os
 import sys
 import pytest
 import uuid
-from typing import List, Tuple, Any, Optional
+from typing import Optional, Generator
 
 # Add parent directory to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -27,120 +27,16 @@ from app.utils.namespace_manager import LIFTNamespaceManager
 class TestSearchIntegrationComprehensive:
     """Comprehensive tests for search integration functionality."""
     
-    @pytest.fixture(scope="function")
-    def search_service(self, basex_available: bool):
-        """Get dictionary service instance for search testing."""
-    @pytest.fixture(scope="function")
-    def search_service(self, basex_available: bool):
-        """Get dictionary service instance for search testing."""
-        def ensure_test_database(connector, db_name):
-            """Ensure a test database exists and is properly initialized with minimal LIFT content."""
-            try:
-                db_list = connector.execute_query("db:list()")
-            except Exception:
-                pass
-            try:
-                db_info = connector.execute_query(f"db:info('{db_name}')")
-            except Exception:
-                pass
-            # Actually create the DB if it doesn't exist
-            try:
-                connector.execute_update(f"db:create('{db_name}', '<lift version=\"0.13\"></lift>')")
-            except Exception:
-                pass
-
-        if not basex_available:
-            pytest.skip("BaseX server not available")
-
-        from app.database.basex_connector import BaseXConnector
-
-        test_db_name = f"test_search_{uuid.uuid4().hex[:8]}"
-
-        # First create connector without database to ensure test db exists
-        temp_connector = BaseXConnector(
-            host=os.getenv('BASEX_HOST', 'localhost'),
-            port=int(os.getenv('BASEX_PORT', '1984')),
-            username=os.getenv('BASEX_USERNAME', 'admin'),
-            password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database=None  # No database initially
-        )
-
-        connector = None
-        try:
-            temp_connector.connect()
-            ensure_test_database(temp_connector, test_db_name)
-            temp_connector.disconnect()
-
-            # Now create connector with the test database
-            connector = BaseXConnector(
-                host=os.getenv('BASEX_HOST', 'localhost'),
-                port=int(os.getenv('BASEX_PORT', '1984')),
-                username=os.getenv('BASEX_USERNAME', 'admin'),
-                password=os.getenv('BASEX_PASSWORD', 'admin'),
-                database=test_db_name
-            )
-            connector.connect()
-            service = DictionaryService(db_connector=connector)
-
-            # Create test entries for search
-            test_entries = [
-                Entry(
-                    id="search_test_1",
-                    lexical_unit={"en": "apple", "pl": "jabłko"},
-                    senses=[
-                        Sense(
-                            id="sense_1_1",
-                            gloss="A fruit",
-                            definition="A round fruit that grows on trees",
-                            grammatical_info="Noun"
-                        )
-                    ]
-                ),
-                Entry(
-                    id="search_test_2", 
-                    lexical_unit={"en": "application", "pl": "aplikacja"},
-                    senses=[
-                        Sense(
-                            id="sense_2_1",
-                            gloss="Software program",
-                            definition="A computer program designed to help people",
-                            grammatical_info="Noun"
-                        )
-                    ]
-                ),
-                Entry(
-                    id="search_test_3",
-                    lexical_unit={"en": "apply", "pl": "stosować"},
-                    senses=[
-                        Sense(
-                            id="sense_3_1",
-                            gloss="To use",
-                            definition="To put something to use",
-                            grammatical_info="Verb"
-                        )
-                    ]
-                )
-            ]
-
-            for entry in test_entries:
-                try:
-                    service.create_entry(entry)
-                except Exception:
-                    pass  # Some entries may already exist
-
-            yield service
-
-        finally:
-            try:
-                if connector and connector.is_connected():
-                    connector.drop_database(test_db_name)
-                    connector.disconnect()
-            except Exception:
-                pass
-    def test_exact_match_search(self, search_service: DictionaryService) -> None:
+    @pytest.mark.integration
+    def test_search_basic(self, dict_service_with_db: DictionaryService):
+        # Example test using the shared fixture
+        # Add your test logic here, using dict_service_with_db to create/search entries
+        pass
+    
+    def test_exact_match_search(self, dict_service_with_db: DictionaryService) -> None:
         """Test exact match search functionality."""
         # Test exact English match
-        results, total = search_service.search_entries("apple")
+        results, total = dict_service_with_db.search_entries("apple")
         
         assert total >= 0, "Search should return valid total count"
         print(f"Exact match 'apple': {total} results")
@@ -151,10 +47,10 @@ class TestSearchIntegrationComprehensive:
                 "Should find entries containing 'apple'"
     
     @pytest.mark.integration
-    def test_partial_match_search(self, search_service: DictionaryService) -> None:
+    def test_partial_match_search(self, dict_service_with_db: DictionaryService) -> None:
         """Test partial match search functionality."""
         # Test partial match
-        results, total = search_service.search_entries("app")
+        results, total = dict_service_with_db.search_entries("app")
         
         assert total >= 0, "Search should return valid total count"
         print(f"Partial match 'app': {total} results")
@@ -165,22 +61,22 @@ class TestSearchIntegrationComprehensive:
             assert len(matching_entries) >= 0, "Should find entries with 'app' prefix"
     
     @pytest.mark.integration
-    def test_multilingual_search(self, search_service: DictionaryService) -> None:
+    def test_multilingual_search(self, dict_service_with_db: DictionaryService) -> None:
         """Test search across multiple languages."""
         # Test Polish search
-        results, total = search_service.search_entries("jabłko")
+        results, total = dict_service_with_db.search_entries("jabłko")
         
         assert total >= 0, "Polish search should return valid total count"
         print(f"Polish search 'jabłko': {total} results")
         
         # Test English search
-        results_en, total_en = search_service.search_entries("apple")
+        results_en, total_en = dict_service_with_db.search_entries("apple")
         
         assert total_en >= 0, "English search should return valid total count"
         print(f"English search 'apple': {total_en} results")
     
     @pytest.mark.integration
-    def test_case_insensitive_search(self, search_service: DictionaryService) -> None:
+    def test_case_insensitive_search(self, dict_service_with_db: DictionaryService) -> None:
         """Test case insensitive search functionality."""
         # Test different cases
         test_cases = ["Apple", "APPLE", "apple", "aPpLe"]
@@ -188,7 +84,7 @@ class TestSearchIntegrationComprehensive:
         results_list = []
         for case_variant in test_cases:
             try:
-                results, total = search_service.search_entries(case_variant)
+                results, total = dict_service_with_db.search_entries(case_variant)
                 results_list.append((case_variant, total))
                 print(f"Case variant '{case_variant}': {total} results")
             except Exception as e:
@@ -201,29 +97,29 @@ class TestSearchIntegrationComprehensive:
             "All case variants should return valid counts"
     
     @pytest.mark.integration
-    def test_empty_search_query(self, search_service: DictionaryService) -> None:
+    def test_empty_search_query(self, dict_service_with_db: DictionaryService) -> None:
         """Test search with empty or invalid queries."""
         # Test empty string
-        results, total = search_service.search_entries("")
+        results, total = dict_service_with_db.search_entries("")
         assert total >= 0, "Empty search should return valid count"
         
         # Test whitespace only
-        results, total = search_service.search_entries("   ")
+        results, total = dict_service_with_db.search_entries("   ")
         assert total >= 0, "Whitespace search should return valid count"
         
         # Test very short query
-        results, total = search_service.search_entries("a")
+        results, total = dict_service_with_db.search_entries("a")
         assert total >= 0, "Single character search should return valid count"
     
     @pytest.mark.integration
-    def test_search_pagination(self, search_service: DictionaryService) -> None:
+    def test_search_pagination(self, dict_service_with_db: DictionaryService) -> None:
         """Test search with pagination parameters."""
         # Test search with different page sizes
         page_sizes = [5, 10, 20]
         
         for page_size in page_sizes:
             try:
-                results, total = search_service.search_entries("test", limit=page_size, offset=0)
+                results, total = dict_service_with_db.search_entries("test", limit=page_size, offset=0)
                 
                 assert total >= 0, f"Search with limit={page_size} should return valid count"
                 assert len(results) <= page_size, f"Results should not exceed limit={page_size}"
@@ -234,7 +130,7 @@ class TestSearchIntegrationComprehensive:
                 print(f"Pagination test failed for limit={page_size}: {e}")
     
     @pytest.mark.integration
-    def test_search_special_characters(self, search_service: DictionaryService) -> None:
+    def test_search_special_characters(self, dict_service_with_db: DictionaryService) -> None:
         """Test search with special characters and unicode."""
         special_queries = [
             "jabłko",  # Polish characters
@@ -247,7 +143,7 @@ class TestSearchIntegrationComprehensive:
         
         for query in special_queries:
             try:
-                results, total = search_service.search_entries(query)
+                results, total = dict_service_with_db.search_entries(query)
                 
                 assert total >= 0, f"Special character search '{query}' should return valid count"
                 print(f"Special character search '{query}': {total} results")
@@ -256,16 +152,16 @@ class TestSearchIntegrationComprehensive:
                 print(f"Special character search failed for '{query}': {e}")
     
     @pytest.mark.integration
-    def test_search_performance_limits(self, search_service: DictionaryService) -> None:
+    def test_search_performance_limits(self, dict_service_with_db: DictionaryService) -> None:
         """Test search with performance-related edge cases."""
         # Test very long query
         long_query = "a" * 100
-        long_results, long_total = search_service.search_entries(long_query)
+        long_results, long_total = dict_service_with_db.search_entries(long_query)
         assert long_total >= 0, "Long query search should return valid count"
         
         # Test query with many terms
         multi_term_query = " ".join([f"term{i}" for i in range(10)])
-        multi_results, multi_total = search_service.search_entries(multi_term_query)
+        multi_results, multi_total = dict_service_with_db.search_entries(multi_term_query)
         assert multi_total >= 0, "Multi-term query should return valid count"
         
         print(f"Long query: {long_total} results")

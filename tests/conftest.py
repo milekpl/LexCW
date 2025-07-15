@@ -9,12 +9,16 @@ from app.models.example import Example
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
 import logging
+import subprocess
+import socket
+import time
 
 @pytest.fixture
 def dict_service_with_db() -> Generator[DictionaryService, None, None]:
     """Yield a DictionaryService using a unique, empty BaseX test database per test, and clean up after."""
     # Generate a unique test database name
     test_db_name = f"test_{uuid.uuid4().hex[:8]}"
+    os.environ["TEST_DB_NAME"] = test_db_name
     connector = BaseXConnector(database=test_db_name)
     # Ensure the test database is created and initialized
     ensure_test_database(connector, test_db_name)
@@ -22,16 +26,74 @@ def dict_service_with_db() -> Generator[DictionaryService, None, None]:
     try:
         yield service
     finally:
-        # Drop the test database after the test
-        # TODO: There is a bug with fixture teardown: running these tests leaves hundreds of empty databases in BaseX.
-        # We are not sure whether the connector would drop the correct database in all cases. Investigate and fix DB cleanup.
+        # Robustly drop the test database after the test
         try:
+            # Ensure connector is connected
+            if not getattr(connector, 'session', None):
+                connector.connect()
             connector.execute_update(f"db:drop('{test_db_name}')")
             logger.info(f"Dropped test database: {test_db_name}")
         except Exception as e:
             logger.warning(f"Failed to drop test database {test_db_name}: {e}")
+        finally:
+            try:
+                connector.disconnect()
+            except Exception:
+                pass
 
 logger = logging.getLogger(__name__)
+
+
+# --- Flask live server fixture for Selenium integration tests ---
+@pytest.fixture(scope="function")
+def flask_test_server():
+    """Start the Flask app in a subprocess on a free port, yield the base URL, and stop after test."""
+    # Find a free port
+    sock = socket.socket()
+    sock.bind(("localhost", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    env = os.environ.copy()
+    env["FLASK_CONFIG"] = "testing"
+    env["TESTING"] = "true"
+    # Pass the test DB name to the Flask app if set by the test fixture
+    if "TEST_DB_NAME" in os.environ:
+        env["TEST_DB_NAME"] = os.environ["TEST_DB_NAME"]
+
+    # Start the Flask app using run.py
+    proc = subprocess.Popen([
+        "python", "run.py"
+    ], env={**env, "FLASK_RUN_PORT": str(port)}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    # Wait for the server to be ready
+    base_url = f"http://localhost:{port}"
+
+    for _ in range(30):
+        try:
+            import urllib.request
+            with urllib.request.urlopen(base_url) as resp:
+                if resp.status == 200 or resp.status == 404:
+                    break
+        except Exception:
+            time.sleep(0.3)
+    else:
+        proc.terminate()
+        try:
+            out, err = proc.communicate(timeout=5)
+        except Exception:
+            out, err = b'', b''
+        print("\n[flask_test_server] Flask server failed to start.\nSTDOUT:\n", out.decode(errors='replace'))
+        print("\nSTDERR:\n", err.decode(errors='replace'))
+        raise RuntimeError(f"Flask test server did not start on {base_url}")
+
+    yield base_url
+
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
 
 
 

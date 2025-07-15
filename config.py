@@ -50,7 +50,7 @@ class TestingConfig(Config):
     
     DEBUG = False
     TESTING = True
-    BASEX_DATABASE = 'dictionary_test'
+    BASEX_DATABASE = os.environ.get('TEST_DB_NAME') or 'dictionary_test'
     
     # Use in-memory database for testing
     WTF_CSRF_ENABLED = False

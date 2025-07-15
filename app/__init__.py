@@ -8,6 +8,7 @@ import os
 import sys
 import logging
 from flask import Flask
+from typing import Any, Callable, Dict, Optional
 from flasgger import Swagger
 from injector import Injector, singleton
 
@@ -34,7 +35,7 @@ def create_app(config_name=None):
     Returns:
         Flask application instance
     """
-    app = Flask(__name__, instance_relative_config=True)
+    app = Flask(__name__, instance_relative_config=True)  # type: Flask
     
     # Ensure the instance folder exists
     try:
@@ -177,12 +178,15 @@ def create_app(config_name=None):
     def configure_dependencies(binder):
         """Configure dependencies for the application."""
         # Create a singleton instance of BaseXConnector
+        # Use TEST_DB_NAME from environment if present (for integration tests)
+        test_db_name = os.environ.get('TEST_DB_NAME')
+        basex_database = test_db_name if test_db_name else app.config.get('BASEX_DATABASE', 'dictionary')
         basex_connector = BaseXConnector(
             host=app.config.get('BASEX_HOST', 'localhost'),
             port=app.config.get('BASEX_PORT', 1984),
             username=app.config.get('BASEX_USERNAME', 'admin'),
             password=app.config.get('BASEX_PASSWORD', 'admin'),
-            database=app.config.get('BASEX_DATABASE', 'dictionary')
+            database=basex_database
         )
         
         # Only connect during non-test environments

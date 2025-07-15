@@ -12,6 +12,7 @@ pytest-mock==3.11.1
 # Utilities
 python-dotenv==1.0.0
 requests==2.31.0
+redis==5.0.1
 # Development
 black==23.7.0
 flake8==6.1.0

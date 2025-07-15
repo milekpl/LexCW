@@ -278,6 +278,8 @@ def edit_entry(entry_id):
     print(f"EDIT_ENTRY CALLED FOR {entry_id}")
     try:
         dict_service = current_app.injector.get(DictionaryService)
+        print(f"Flask app database name: {dict_service.db_connector.database}")
+        print(f"Environment TEST_DB_NAME: {os.environ.get('TEST_DB_NAME')}")
         if request.method == "POST":
             # Handle both JSON and form data
             data = None
@@ -1097,3 +1099,25 @@ def bulk_operations():
 def debug_ranges():
     """Debug page for testing ranges loading."""
     return render_template("ranges_test.html")
+
+
+@main_bp.route("/tools")
+def tools():
+    """Render the main tools page."""
+    return render_template("tools.html")
+
+
+@main_bp.route("/tools/clear-cache")
+def clear_cache():
+    """Clear the application cache."""
+    try:
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear()
+            flash("Cache cleared successfully.", "success")
+        else:
+            flash("Cache service is not available.", "warning")
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}", exc_info=True)
+        flash(f"Error clearing cache: {str(e)}", "danger")
+    return redirect(url_for("main.tools"))
