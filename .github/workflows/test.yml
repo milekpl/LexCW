@@ -89,6 +89,18 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest-cov
+
+    - name: Wait for PostgreSQL to be ready
+      run: |
+        echo "Waiting for PostgreSQL to be healthy..."
+        for i in {1..30}; do
+          if pg_isready -h localhost -p 5432 -U postgres; then
+            echo "✅ PostgreSQL is ready"
+            break
+          fi
+          echo "⏳ Waiting for PostgreSQL... ($i/30)"
+          sleep 2
+        done
         
     - name: Set environment variables for tests
       run: |
