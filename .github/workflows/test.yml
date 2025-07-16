@@ -9,8 +9,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
-    # Remove Docker service for BaseX, use manual installation instead
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: slownik_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
     - uses: actions/checkout@v4
