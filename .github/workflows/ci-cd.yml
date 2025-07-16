@@ -8,6 +8,23 @@ on:
     branches: [ main ]
 
 jobs:
+  test-basex-manual:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'  # Manual trigger only
+    steps:
+    # ...existing code...
+    - name: Manual BaseX setup test
+      run: |
+        echo "🧪 Testing manual BaseX installation..."
+        sudo apt-get update
+        sudo apt-get install -y curl wget unzip openjdk-11-jdk
+        cd /tmp
+        wget https://files.basex.org/releases/12.0/BaseX120.zip
+        unzip BaseX120.zip
+        sudo mv basex /opt/
+        sudo chmod +x /opt/basex/bin/*
+        /opt/basex/bin/basex -c "INFO"
+        echo "✅ BaseX installation test completed"
   test:
     runs-on: ubuntu-latest
 
@@ -47,8 +64,8 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - uses: actions/checkout@v4
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4

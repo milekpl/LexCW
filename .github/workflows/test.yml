@@ -10,21 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
-    services:
-      basex:
-        image: basex/basex:latest
-        ports:
-          - 1984:1984
-          - 8984:8984
-        env:
-          BASEX_DBPATH: /srv/basex/data
-          BASEX_WEBPATH: /srv/basex/webapp
-          BASEX_PASSWORD: admin
-        options: >-
-          --health-cmd "nc -z localhost 1984"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # Remove Docker service for BaseX, use manual installation instead
 
     steps:
     - uses: actions/checkout@v4
@@ -42,15 +28,58 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
         
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl wget unzip openjdk-11-jdk netstat-nat
+
+    - name: Download and install BaseX
+      run: |
+        cd /tmp
+        wget https://files.basex.org/releases/12.0/BaseX120.zip
+        unzip BaseX120.zip
+        sudo mv basex /opt/
+        sudo chmod +x /opt/basex/bin/*
+        sudo mkdir -p /opt/basex/data
+        sudo chmod 777 /opt/basex/data
+
+    - name: Start BaseX server
+      run: |
+        /opt/basex/bin/basexhttp -S -p1984 -h8984 &
+        BASEX_PID=$!
+        echo "BASEX_PID=$BASEX_PID" >> $GITHUB_ENV
+        echo "Waiting for BaseX to start..."
+        sleep 15
+        for i in {1..30}; do
+          if curl -f http://localhost:8984/rest 2>/dev/null; then
+            echo "✅ BaseX HTTP interface is ready"
+            break
+          fi
+          if netstat -tlnp 2>/dev/null | grep -q ":1984"; then
+            echo "✅ BaseX database port is listening"
+            break
+          fi
+          echo "⏳ Waiting for BaseX... ($i/30)"
+          sleep 5
+        done
+
+    - name: Test BaseX connectivity
+      run: |
+        echo "Testing BaseX REST interface..."
+        curl -X GET "http://admin:admin@localhost:8984/rest" || echo "REST GET failed"
+        echo "Creating test database..."
+        curl -X PUT "http://admin:admin@localhost:8984/rest/test_ci" \
+             -H "Content-Type: application/xml" \
+             -d "<root><test>CI Test</test></root>" || echo "Database creation failed"
+        netstat -tlnp | grep 1984 || echo "❌ BaseX database port not listening"
+        netstat -tlnp | grep 8984 || echo "❌ BaseX HTTP port not listening"
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest-cov
-        
-    - name: Wait for BaseX
-      run: |
-        timeout 30 bash -c 'until nc -z localhost 1984; do sleep 1; done'
         
     - name: Set environment variables for tests
       run: |
