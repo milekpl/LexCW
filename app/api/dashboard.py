@@ -84,16 +84,12 @@ def get_dashboard_stats():
         if cache.is_available():
             cached_data = cache.get(cache_key)
             if cached_data:
-                try:
-                    cached_stats = json.loads(cached_data)
-                    logger.info("Returning cached dashboard stats from API")
-                    return jsonify({
-                        'success': True,
-                        'data': cached_stats,
-                        'cached': True
-                    })
-                except (json.JSONDecodeError, KeyError) as e:
-                    logger.warning(f"Invalid cached dashboard API data: {e}")
+                logger.info("Returning cached dashboard stats from API")
+                return jsonify({
+                    'success': True,
+                    'data': cached_data,
+                    'cached': True
+                })
         
         # Get fresh data from database
         dict_service = current_app.injector.get(DictionaryService)
@@ -124,7 +120,7 @@ def get_dashboard_stats():
         
         # Cache the data for 5 minutes (300 seconds) - shorter than view cache
         if cache.is_available():
-            cache.set(cache_key, json.dumps(stats_data, default=str), ttl=300)
+            cache.set(cache_key, stats_data, ttl=300)
             logger.info("Cached dashboard stats via API for 5 minutes")
         
         return jsonify({
@@ -142,6 +138,33 @@ def get_dashboard_stats():
 
 
 @dashboard_bp.route('/clear-cache', methods=['POST'])
+@swag_from({
+    'tags': ['Dashboard'],
+    'summary': 'Clear dashboard cache',
+    'description': 'Clear the dashboard statistics cache to force fresh data retrieval on next request.',
+    'responses': {
+        200: {
+            'description': 'Cache cleared successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': True},
+                    'message': {'type': 'string', 'example': 'Dashboard cache cleared successfully'}
+                }
+            }
+        },
+        500: {
+            'description': 'Error clearing cache',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': False},
+                    'error': {'type': 'string', 'example': 'Cache service error'}
+                }
+            }
+        }
+    }
+})
 def clear_dashboard_cache():
     """
     Clear the dashboard statistics cache.

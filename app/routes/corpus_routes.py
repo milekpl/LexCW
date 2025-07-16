@@ -10,6 +10,7 @@ from typing import Dict, Any
 
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
+from flasgger import swag_from
 
 from ..database.corpus_migrator import CorpusMigrator, MigrationStats
 from ..database.postgresql_connector import PostgreSQLConfig
@@ -404,3 +405,59 @@ def convert_tmx_to_csv():
     except Exception as e:
         current_app.logger.error(f"TMX to CSV conversion failed: {e}")
         return jsonify({'error': f'Conversion failed: {str(e)}'}), 500
+
+
+@corpus_bp.route('/clear-cache', methods=['POST'])
+@swag_from({
+    'tags': ['Corpus'],
+    'summary': 'Clear corpus cache',
+    'description': 'Clear the corpus statistics cache to force fresh data retrieval on next request.',
+    'responses': {
+        200: {
+            'description': 'Cache cleared successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': True},
+                    'message': {'type': 'string', 'example': 'Cache cleared successfully'}
+                }
+            }
+        },
+        500: {
+            'description': 'Error clearing cache',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean', 'example': False},
+                    'error': {'type': 'string', 'example': 'Cache service not available'}
+                }
+            }
+        }
+    }
+})
+def clear_corpus_cache():
+    """
+    Clear the corpus statistics cache.
+    """
+    try:
+        from app.services.cache_service import CacheService
+        cache = CacheService()
+        if cache.is_available():
+            cache.delete('corpus_stats')
+            current_app.logger.info("Corpus stats cache cleared")
+            return jsonify({
+                'success': True,
+                'message': 'Cache cleared successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Cache service not available'
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error clearing corpus cache: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
