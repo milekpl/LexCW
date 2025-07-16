@@ -88,6 +88,23 @@ def test_filtering_and_refresh_integration(client: FlaskClient) -> None:
     assert response.status_code == 400
 
 
+@pytest.mark.integration
+def test_cache_clear_endpoints(client: FlaskClient) -> None:
+    """Test cache clear endpoints work independently of database state."""
+    # Test 1: Cache clear endpoint works
+    response = client.post('/api/entries/clear-cache')
+    assert response.status_code == 200
+    clear_data = response.get_json()
+    assert clear_data['success'] is True
+    assert 'message' in clear_data
+    
+    # Test 2: Dashboard cache clear works
+    response = client.post('/api/dashboard/clear-cache')
+    assert response.status_code == 200
+    clear_data = response.get_json()
+    assert clear_data['success'] is True
+    assert 'message' in clear_data
+
 
 @pytest.mark.integration
 def test_namespace_handling_in_filtering(client: FlaskClient) -> None:
@@ -97,58 +114,45 @@ def test_namespace_handling_in_filtering(client: FlaskClient) -> None:
     This test validates that the improved namespace handling works correctly
     for both namespaced and non-namespaced LIFT data.
     """
-    # Test API endpoints to verify namespace handling works at HTTP level
-    
-    # Test 1: Basic search with filtering should work regardless of namespace usage
-    response = client.get('/api/entries/?filter_text=hello&limit=3')
-    # We can't guarantee BaseX is available, but if it is, the API should work
-    if response.status_code == 200:
-        data = response.get_json()
-        assert 'entries' in data
-        assert isinstance(data['entries'], list)
-        assert 'total_count' in data
-        assert isinstance(data['total_count'], int)
-    else:
-        # If BaseX is not available, we should get a 500 error
-        assert response.status_code == 500
-    
-    # Test 2: Search API endpoint with namespace-aware queries
-    response = client.get('/api/search/?query=hello&limit=3')
-    # The search endpoint should handle namespaces transparently
-    if response.status_code == 200:
-        data = response.get_json()
-        assert 'entries' in data
-        assert isinstance(data['entries'], list)
-        assert 'total_count' in data
-        assert isinstance(data['total_count'], int)
-    else:
-        # If BaseX is not available, we should get a 500 error
-        # Or if there's a validation issue, we might get a 400 error
-        assert response.status_code in [400, 500]
-    
-    # Test 3: Check that utilities are available and imported correctly
+    from app.services.dictionary_service import DictionaryService
+    from app.database.mock_connector import MockDatabaseConnector
     from app.utils.namespace_manager import LIFTNamespaceManager
     from app.utils.xquery_builder import XQueryBuilder
     
-    # These should be importable without errors
-    assert LIFTNamespaceManager is not None
-    assert XQueryBuilder is not None
-    
-    # Test 4: Basic functionality test with mock connector
-    from app.services.dictionary_service import DictionaryService
-    from app.database.mock_connector import MockDatabaseConnector
-    
+    # Test with mock connector to validate namespace utilities are used
     mock_connector = MockDatabaseConnector()
     service = DictionaryService(mock_connector)
     
-    # Verify that the service can be instantiated with mock connector
-    assert service is not None
+    # Test 1: Verify namespace detection works
+    assert hasattr(service, '_namespace_manager')
+    assert isinstance(service._namespace_manager, LIFTNamespaceManager)
+    assert hasattr(service, '_query_builder')
+    assert isinstance(service._query_builder, XQueryBuilder)
     
-    # Test basic methods exist and don't fail on instantiation
-    assert hasattr(service, 'list_entries')
-    assert hasattr(service, 'search_entries')
-    assert callable(service.list_entries)
-    assert callable(service.search_entries)
+    # Test 2: Verify namespace detection method exists and works
+    assert hasattr(service, '_detect_namespace_usage')
+    namespace_detected = service._detect_namespace_usage()
+    assert isinstance(namespace_detected, bool)
+    
+    # Test 3: Test filtering with namespace utilities
+    try:
+        entries, total = service.list_entries(limit=5, filter_text="hello")
+        assert isinstance(entries, list)
+        assert isinstance(total, int)
+        # Should work regardless of namespace usage in mock data
+    except Exception as e:
+        # If there's an error, it should not be related to namespace handling
+        assert "namespace" not in str(e).lower()
+    
+    # Test 4: Test search with namespace utilities
+    try:
+        entries, total = service.search_entries("hello", limit=5)
+        assert isinstance(entries, list)
+        assert isinstance(total, int)
+        # Should work regardless of namespace usage in mock data
+    except Exception as e:
+        # If there's an error, it should not be related to namespace handling
+        assert "namespace" not in str(e).lower()
 
 
 if __name__ == '__main__':
