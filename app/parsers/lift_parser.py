@@ -44,6 +44,14 @@ class LIFTParser:
         'lift': 'http://fieldworks.sil.org/schemas/lift/0.13',
         'flex': 'http://fieldworks.sil.org/schemas/flex/0.1'
     }
+
+    @property
+    def lift_namespace(self):
+        return self.NSMAP['lift']
+
+    @property
+    def lift_namespace(self):
+        return self.NSMAP['lift']
     
     # XPath constants
     XPATH_FORM = './/lift:form'
@@ -355,22 +363,21 @@ class LIFTParser:
             etymology_type = etymology_elem.get('type', '')
             etymology_source = etymology_elem.get('source', '')
             
-            form_elem = self._find_element(etymology_elem, './/lift:form')
-            gloss_elem = self._find_element(etymology_elem, './/lift:gloss')
-
-            form: dict[str, str] = {}
-            if form_elem is not None:
+            # Parse form (multilingual)
+            form: dict[str, dict[str, str]] = {}
+            for form_elem in self._find_elements(etymology_elem, './/lift:form'):
                 lang = form_elem.get('lang')
                 text_elem = self._find_element(form_elem, './/lift:text')
-                if text_elem is not None and text_elem.text:
-                    form = {lang or '': text_elem.text}
+                if lang and text_elem is not None and text_elem.text:
+                    form[lang] = {"text": text_elem.text}
 
-            gloss: dict[str, str] = {}
-            if gloss_elem is not None:
+            # Parse gloss (multilingual)
+            gloss: dict[str, dict[str, str]] = {}
+            for gloss_elem in self._find_elements(etymology_elem, './/lift:gloss'):
                 lang = gloss_elem.get('lang')
                 text_elem = self._find_element(gloss_elem, './/lift:text')
-                if text_elem is not None and text_elem.text:
-                    gloss = {lang or '': text_elem.text}
+                if lang and text_elem is not None and text_elem.text:
+                    gloss[lang] = {"text": text_elem.text}
 
             if form and gloss:
                 etymologies.append(Etymology(
@@ -761,20 +768,27 @@ class LIFTParser:
         for etymology in entry.etymologies:
             etymology_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}etymology')
             etymology_elem.set('type', etymology.type)
+
+            # Create and append form element
+            form_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}form')
+            for lang, text_data in etymology.form.items():
+                text = text_data.get('text', '') if isinstance(text_data, dict) else str(text_data)
+                form_lang_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + '}text')
+                form_lang_elem.text = text
+                form_lang_elem.set('lang', lang)
+            
+            # Create and append gloss element
+            gloss_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}gloss')
+            for lang, text_data in etymology.gloss.items():
+                # Use text for gloss text
+                text = text_data.get('text', '') if isinstance(text_data, dict) else str(text_data)
+                gloss_lang_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + '}text')
+                gloss_lang_elem.text = text
+                gloss_lang_elem.set('lang', lang)
+
+
             etymology_elem.set('source', etymology.source)
             
-            if etymology.form:
-                form_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}form')
-                form_elem.set('lang', etymology.form.lang)
-                text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = etymology.form.text
-            
-            if etymology.gloss:
-                gloss_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}gloss')
-                gloss_elem.set('lang', etymology.gloss.lang)
-                text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = etymology.gloss.text
-
         # Add citations
         for citation in entry.citations:
             citation_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}citation')
