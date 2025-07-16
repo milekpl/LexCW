@@ -12,28 +12,24 @@ from app.utils.exceptions import ValidationError
 if TYPE_CHECKING:
     from app.models.sense import Sense
 
-
-
-
 class Etymology(BaseModel):
     """
     Represents an etymology in a LIFT entry.
     """
-
-    def __init__(self, type: str, source: str, form: Dict[str, str], gloss: Dict[str, str], **kwargs: Any):
+    def __init__(self, type: str, source: str, form: Dict[str, Dict[str, str]], gloss: Dict[str, Dict[str, str]], **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.type: str = type
         self.source: str = source
-        self.form: Dict[str, str] = form
-        self.gloss: Dict[str, str] = gloss
+        self.form: Dict[str, Dict[str, str]] = form
+        self.gloss: Dict[str, Dict[str, str]] = gloss
 
     def to_dict(self) -> Dict[str, Any]:
         result = super().to_dict()
         result['form'] = self.form
         result['gloss'] = self.gloss
         return result
-
-
+    
+    
 class Relation(BaseModel):
     """
     Represents a relation to another entry with optional traits.
@@ -86,7 +82,7 @@ class Entry(BaseModel):
         homograph_number: Optional integer identifying the homograph number when entries share the same lexical unit.
     """
 
-    def __init__(self, id_: Optional[str] = None, date_created: Optional[str] = None, date_modified: Optional[str] = None, **kwargs: Any):
+    def __init__(self, id_: Optional[str] = None, date_created: Optional[str] = None, date_modified: Optional[str] = None, **kwargs: Any) -> None:
         """
         Initialize an entry.
 
@@ -94,72 +90,33 @@ class Entry(BaseModel):
             id_: Unique identifier for the entry.
             date_created: ISO8601 string for creation date.
             date_modified: ISO8601 string for last modification date.
-            **kwargs: Additional attributes to set on the entry.
         """
         self.date_created: Optional[str] = date_created
         self.date_modified: Optional[str] = date_modified
 
         # Extract complex structures before calling super to avoid double processing
-        senses_data = kwargs.pop('senses', [])
-        etymologies_data = kwargs.pop('etymologies', [])
-        relations_data = kwargs.pop('relations', [])
-        variants_data = kwargs.pop('variants', [])
-
-        # Handle variant_relations if provided (convert to relations)
-        variant_relations_data = kwargs.pop('variant_relations', [])
+        senses_data: List[Dict[str, Any]] = kwargs.pop('senses', [])
+        etymologies_data: List[Dict[str, Any]] = kwargs.pop('etymologies', [])
+        relations_data: List[Dict[str, Any]] = kwargs.pop('relations', [])
+        variants_data: List[Dict[str, Any]] = kwargs.pop('variants', [])
 
         super().__init__(id_, **kwargs)
         
         # Handle lexical_unit - ensure it's a dictionary
-        lexical_unit_raw = kwargs.get('lexical_unit', {})
-        if isinstance(lexical_unit_raw, dict):
-            self.lexical_unit: Dict[str, str] = lexical_unit_raw
-        elif isinstance(lexical_unit_raw, str):
-            # Convert string to dict for backward compatibility
-            self.lexical_unit: Dict[str, str] = {'en': lexical_unit_raw} if lexical_unit_raw.strip() else {}
-        elif isinstance(lexical_unit_raw, list):
-            # Handle case where lexical_unit is passed as a list (form processing error)
-            # Take the first non-empty item or use default
-            if lexical_unit_raw and isinstance(lexical_unit_raw[0], str):
-                self.lexical_unit: Dict[str, str] = {'en': lexical_unit_raw[0]} if lexical_unit_raw[0].strip() else {}
-            else:
-                self.lexical_unit: Dict[str, str] = {}
-        else:
-            self.lexical_unit: Dict[str, str] = {}
+        self.lexical_unit: Dict[str, str] = kwargs.get('lexical_unit', {})
             
         # Handle citations - ensure it's a list of dictionaries
-        citations_raw = kwargs.get('citations', [])
-        if isinstance(citations_raw, list):
-            self.citations: List[Dict[str, Any]] = []
-            for citation in citations_raw:
-                if isinstance(citation, dict):
-                    self.citations.append(citation)
-                elif isinstance(citation, str):
-                    # Convert string to dict format for default language
-                    self.citations.append({'en': citation})
-        else:
-            self.citations: List[Dict[str, Any]] = []
+        citations_raw: List[Union[Dict[str, Any], str]] = kwargs.get('citations', [])
+        self.citations: List[Dict[str, Any]] = []
+        for citation in citations_raw:
+            if isinstance(citation, dict):
+                self.citations.append(citation)
+            elif isinstance(citation, str):
+                # Convert string to dict format for default language
+                self.citations.append({'en': citation})
         
         # Handle pronunciations - ensure it's a dictionary
-        pronunciations_raw = kwargs.get('pronunciations', {})
-        if isinstance(pronunciations_raw, dict):
-            self.pronunciations: Dict[str, str] = pronunciations_raw
-        elif isinstance(pronunciations_raw, list):
-            # Handle case where pronunciations might be passed as a list
-            # Convert list to dict format expected by the LIFT parser
-            self.pronunciations: Dict[str, str] = {}
-            for item in pronunciations_raw:
-                if isinstance(item, dict):
-                    # If list contains dict items with .value, .type' pattern
-                    if '.value' in item and '.type' in item:
-                        self.pronunciations[item['.type']] = item['.value']
-                    elif 'value' in item and 'type' in item:
-                        self.pronunciations[item['type']] = item['value']
-                elif isinstance(item, str):
-                    # If list contains string items, use default type
-                    self.pronunciations['seh-fonipa'] = item
-        else:
-            self.pronunciations: Dict[str, str] = {}
+        self.pronunciations: Dict[str, str] = kwargs.get('pronunciations', {})
             
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
         
@@ -167,82 +124,39 @@ class Entry(BaseModel):
         self.morph_type: Optional[str] = self._get_or_classify_morph_type(kwargs.get('morph_type'))
         
         # Handle notes - ensure it's a dictionary and preserve nested dicts
-        notes_raw = kwargs.get('notes', {})
-        if isinstance(notes_raw, dict):
-            self.notes = notes_raw
-        elif isinstance(notes_raw, list):
-            self.notes = {}
-        else:
-            self.notes = {}
+        self.notes: Dict[str, Any] = kwargs.get('notes', {})
 
         # Handle custom_fields - ensure it's a dictionary and flatten nested dicts
-        custom_fields_raw = kwargs.get('custom_fields', {})
-        if isinstance(custom_fields_raw, dict):
-            self.custom_fields: Dict[str, Any] = {
-                k: v['text'] if isinstance(v, dict) and 'text' in v and len(v) == 1 else v
-                for k, v in custom_fields_raw.items()
-            }
-        elif isinstance(custom_fields_raw, list):
-            self.custom_fields: Dict[str, Any] = {}
-        else:
-            self.custom_fields: Dict[str, Any] = {}
+        custom_fields_raw: Dict[str, Any] = kwargs.get('custom_fields', {})
+        self.custom_fields: Dict[str, Any] = {
+            k: v['text'] if isinstance(v, dict) and 'text' in v and len(v) == 1 else v
+            for k, v in custom_fields_raw.items()
+        }
         self.homograph_number: Optional[int] = kwargs.get('homograph_number')
 
         # Handle senses
         from app.models.sense import Sense
         self.senses: List[Sense] = []
         for sense_data in senses_data:
-            if isinstance(sense_data, dict):
-                # Check if ID was explicitly provided
-                if 'id' not in sense_data:
-                    # Don't auto-generate ID, let validation catch this
-                    sense_obj = Sense(**sense_data)
-                    sense_obj._has_explicit_id = False
-                else:
-                    sense_obj = Sense(**sense_data)
-                    sense_obj._has_explicit_id = True
-                self.senses.append(sense_obj)
-            elif isinstance(sense_data, Sense):
-                sense_data._has_explicit_id = True  # Assume Sense objects have explicit IDs
-                self.senses.append(sense_data)
+            sense_obj = Sense(**sense_data)
+            self.senses.append(sense_obj)
 
         # Handle etymologies
         self.etymologies: List[Etymology] = []
         for etymology_data in etymologies_data:
-            if isinstance(etymology_data, dict):
-                self.etymologies.append(Etymology(**etymology_data))
-            elif isinstance(etymology_data, Etymology):
-                self.etymologies.append(etymology_data)
+            self.etymologies.append(Etymology(**etymology_data))
 
         # Handle relations (including converted variant_relations)
         self.relations: List[Relation] = []
         
         # First add regular relations
         for relation_data in relations_data:
-            if isinstance(relation_data, dict):
-                self.relations.append(Relation(**relation_data))
-            elif isinstance(relation_data, Relation):
-                self.relations.append(relation_data)
+            self.relations.append(Relation(**relation_data))
         
-        # Convert variant_relations to regular relations with variant-type traits
-        for variant_relation_data in variant_relations_data:
-            if isinstance(variant_relation_data, dict):
-                # Convert variant_relation to a relation with variant-type trait
-                relation_dict = {
-                    'type': variant_relation_data.get('type', '_component-lexeme'),
-                    'ref': variant_relation_data['ref'],
-                    'traits': {'variant-type': variant_relation_data.get('variant_type', 'Unspecified Variant')},
-                    'order': variant_relation_data.get('order', len(self.relations))
-                }
-                self.relations.append(Relation(**relation_dict))
-
         # Handle variants
         self.variants: List[Variant] = []
         for variant_data in variants_data:
-            if isinstance(variant_data, dict):
-                self.variants.append(Variant(**variant_data))
-            elif isinstance(variant_data, Variant):
-                self.variants.append(variant_data)
+            self.variants.append(Variant(**variant_data))
 
         # Apply part-of-speech inheritance logic
         self._apply_pos_inheritance()
@@ -315,7 +229,7 @@ class Entry(BaseModel):
         for pattern in double_stress_patterns:
             if pattern in ipa_text:
                 errors.append("Double stress markers not allowed")
-                break
+            break
         
         # R4.2.2: Check for double length markers
         if 'ːː' in ipa_text:
@@ -458,8 +372,8 @@ class Entry(BaseModel):
             gloss_lang: Language code for the gloss.
             gloss_text: Text of the gloss/meaning.
         """
-        form = {"lang": form_lang, "text": form_text}
-        gloss = {"lang": gloss_lang, "text": gloss_text}
+        form = {form_lang: {"text": form_text}}
+        gloss = {gloss_lang: {"text": gloss_text}}
         etymology = Etymology(type=etymology_type, source=source, form=form, gloss=gloss)
         self.etymologies.append(etymology)
 
@@ -473,7 +387,7 @@ class Entry(BaseModel):
         """
         self.pronunciations[writing_system] = form
 
-    def get_sense_by_id(self, sense_id: str) -> Optional[Any]:
+    def get_sense_by_id(self, sense_id: str) -> Optional[Sense]:
         """
         Get a sense by ID.
 
@@ -484,15 +398,8 @@ class Entry(BaseModel):
             Sense with the given ID, or None if not found.
         """
         for sense in self.senses:
-            # Handle both Sense objects and dictionaries
-            if hasattr(sense, 'id'):
-                # Sense object
-                if sense.id == sense_id:
-                    return sense
-            elif isinstance(sense, dict):
-                # Dictionary
-                if sense.get('id') == sense_id:
-                    return sense
+            if hasattr(sense, 'id') and sense.id == sense_id:
+                return sense
 
         return None
 
@@ -513,16 +420,15 @@ class Entry(BaseModel):
 
         # Convert nested objects to dictionaries
         for attr_name in ['senses', 'relations', 'etymologies', 'variants']:
-            if attr_name in result and result[attr_name]:
-                converted_items = []
-                for item in result[attr_name]:
-                    if hasattr(item, 'to_dict'):
-                        # It's a model object with to_dict method
-                        converted_items.append(item.to_dict())
-                    else:
-                        # It's already a dict
-                        converted_items.append(item)
-                result[attr_name] = converted_items
+            converted_items = []
+            for item in result[attr_name]:
+                if hasattr(item, 'to_dict'):
+                    # It's a model object with to_dict method
+                    converted_items.append(item.to_dict())
+                else:
+                    # It's already a dict
+                    converted_items.append(item)
+            result[attr_name] = converted_items
 
         # Add variant relations derived from relations with variant-type traits
         result['variant_relations'] = self.get_variant_relations()
@@ -557,7 +463,7 @@ class Entry(BaseModel):
         result['senses'] = [sense.to_display_dict() for sense in self.senses]
         return result
 
-    def get_component_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+    def get_component_relations(self, dict_service: Optional["DictionaryService"] = None) -> List[Dict[str, Any]]:
         """
         Extract component information from _component-lexeme relations with complex-form-type traits.
         These represent relationships where this entry is a subentry/complex form of a main entry.
@@ -575,7 +481,7 @@ class Entry(BaseModel):
             - ref_lexical_unit: Human-readable text from main entry (if found)
             - ref_display_text: Display text from main entry (if found)
         """
-        component_relations = []
+        component_relations: List[Dict[str, Any]] = []
         
         for relation in self.relations:
             try:
@@ -585,7 +491,7 @@ class Entry(BaseModel):
                     isinstance(relation.traits, dict) and 'complex-form-type' in relation.traits and
                     hasattr(relation, 'ref') and relation.ref):
                     
-                    component_info = {
+                    component_info: Dict[str, Any] = {
                         'ref': str(relation.ref),  # Ensure string
                         'complex_form_type': str(relation.traits['complex-form-type']),  # Ensure string
                         'is_primary': relation.traits.get('is-primary') == 'true',
@@ -647,7 +553,7 @@ class Entry(BaseModel):
         """
         return self.get_component_relations()
 
-    def get_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+    def get_variant_relations(self, dict_service: Optional["DictionaryService"] = None) -> List[Dict[str, Any]]:
         """
         Extract variant information from relations with variant-type traits.
         
@@ -664,7 +570,7 @@ class Entry(BaseModel):
             - ref_lexical_unit: Human-readable text from target entry (if found)
             - ref_display_text: Display text from target entry (if found)
         """
-        variant_relations = []
+        variant_relations: List[Dict[str, Any]] = []
         
         for relation in self.relations:
             try:
@@ -674,7 +580,7 @@ class Entry(BaseModel):
                     hasattr(relation, 'ref') and relation.ref and
                     hasattr(relation, 'type') and relation.type):
                     
-                    variant_info = {
+                    variant_info: Dict[str, Any] = {
                         'ref': str(relation.ref),  # Ensure string
                         'variant_type': str(relation.traits['variant-type']),  # Ensure string
                         'type': str(relation.type),  # Ensure string
@@ -715,7 +621,7 @@ class Entry(BaseModel):
         
         return variant_relations
 
-    def find_sense_by_id(self, sense_id: str) -> Optional[Dict[str, Any]]:
+    def find_sense_by_id(self, sense_id: str) -> Optional[Sense]:
         """
         Find a sense by ID, including in related entries.
 
@@ -725,14 +631,13 @@ class Entry(BaseModel):
         Returns:
             Sense with the given ID, or None if not found.
         """
-        # First, try to find the sense in the current entry
-        sense = self.get_sense_by_id(sense_id)
-        if sense:
-            return sense
+        for sense in self.senses:
+            if hasattr(sense, 'id') and sense.id == sense_id:
+                return sense
 
         return None
 
-    def get_reverse_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+    def get_reverse_variant_relations(self, dict_service: Optional["DictionaryService"] = None) -> List[Dict[str, Any]]:
         """
         Find entries that are variants of this entry (reverse lookup).
         
@@ -752,7 +657,7 @@ class Entry(BaseModel):
             # If no service provided, we can't search - return empty list
             return []
             
-        reverse_relations = []
+        reverse_relations: List[Dict[str, Any]] = []
         
         try:
             # Search all entries to find those with variant relations pointing to this entry
@@ -796,16 +701,16 @@ class Entry(BaseModel):
         except Exception as e:
             # If search fails, just return empty list - don't break the page
             pass
-            
+        
         # Sort by lexical unit for consistent display
         try:
             reverse_relations.sort(key=lambda x: (x.get('order', 999), x.get('ref_lexical_unit', x['ref'])))
         except (TypeError, KeyError):
             pass
-            
+        
         return reverse_relations
 
-    def get_complete_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+    def get_complete_variant_relations(self, dict_service: Optional["DictionaryService"] = None) -> List[Dict[str, Any]]:
         """
         Get complete variant relations including both directions:
         - Outgoing: entries this entry is a variant of
@@ -837,144 +742,5 @@ class Entry(BaseModel):
             ))
         except (TypeError, KeyError):
             pass
-            
+        
         return all_relations
-
-    def _apply_pos_inheritance(self) -> None:
-        """
-        Apply part-of-speech inheritance logic.
-        
-        If the entry doesn't have an explicit grammatical_info (part of speech),
-        inherit it from the senses if all senses have the same POS.
-        """
-        # Helper function to extract POS value from various formats
-        def extract_pos_value(grammatical_info):
-            if not grammatical_info:
-                return ""
-            if isinstance(grammatical_info, str):
-                return grammatical_info.strip()
-            elif isinstance(grammatical_info, dict):
-                # Handle dict format (e.g., from form data with dots)
-                pos_val = grammatical_info.get('part_of_speech', '')
-                return pos_val.strip() if isinstance(pos_val, str) else ""
-            else:
-                return ""
-        
-        # Only apply inheritance if entry has no explicit POS or empty POS
-        # Be more aggressive about detecting empty POS values
-        entry_pos_value = extract_pos_value(self.grammatical_info)
-        entry_has_pos = (
-            entry_pos_value and 
-            entry_pos_value not in ['', 'null', 'None', 'undefined']
-        )
-        
-        if entry_has_pos:
-            return  # Entry has explicit POS, don't override
-        
-        if not self.senses:
-            return  # No senses to inherit from
-        
-        # Collect all unique POS values from senses
-        sense_pos_values = set()
-        for sense in self.senses:
-            if hasattr(sense, 'grammatical_info') and sense.grammatical_info:
-                pos_value = sense.grammatical_info.strip()
-                if pos_value and pos_value not in ['', 'null', 'None', 'undefined']:
-                    sense_pos_values.add(pos_value)
-        
-        # Only inherit if all senses have the same POS
-        if len(sense_pos_values) == 1:
-            inherited_pos = next(iter(sense_pos_values))
-            self.grammatical_info = inherited_pos
-            # Log this for debugging
-            print(f"[DEBUG] Entry {self.id} inherited POS '{inherited_pos}' from senses")
-
-    def _validate_pos_consistency(self, errors: List[str]) -> None:
-        """
-        Validate part-of-speech consistency between entry and senses.
-        
-        Args:
-            errors: List to append validation errors to.
-        """
-        if not self.senses:
-            return  # No senses to validate against
-        
-        # Helper function to extract POS value from various formats
-        def extract_pos_value(grammatical_info):
-            if not grammatical_info:
-                return ""
-            if isinstance(grammatical_info, str):
-                return grammatical_info.strip()
-            elif isinstance(grammatical_info, dict):
-                # Handle dict format (e.g., from form data with dots)
-                pos_val = grammatical_info.get('part_of_speech', '')
-                return pos_val.strip() if isinstance(pos_val, str) else ""
-            else:
-                return ""
-        
-        # Get entry POS (string format)
-        entry_pos = extract_pos_value(self.grammatical_info)
-        
-        # Collect all unique POS values from senses
-        sense_pos_values = set()
-        for sense in self.senses:
-            if hasattr(sense, 'grammatical_info') and sense.grammatical_info:
-                pos_value = sense.grammatical_info.strip()
-                if pos_value:
-                    sense_pos_values.add(pos_value)
-        
-        # If entry has no POS but senses do, check if senses are consistent
-        if not entry_pos and sense_pos_values:
-            if len(sense_pos_values) > 1:
-                errors.append(f"Senses have inconsistent part-of-speech values: {', '.join(sorted(sense_pos_values))}. Please set the entry part-of-speech manually.")
-        
-        # If entry has POS and senses have POS, check for consistency
-        elif entry_pos and sense_pos_values:
-            if entry_pos not in sense_pos_values:
-                errors.append(f"Entry part-of-speech '{entry_pos}' does not match any sense part-of-speech values: {', '.join(sorted(sense_pos_values))}")
-            elif len(sense_pos_values) > 1:
-                # Entry POS matches at least one sense, but senses are inconsistent
-                errors.append(f"Senses have inconsistent part-of-speech values: {', '.join(sorted(sense_pos_values))}. Entry POS '{entry_pos}' matches some but not all senses.")
-
-    def _get_or_classify_morph_type(self, existing_morph_type: Optional[str]) -> Optional[str]:
-        """
-        Get existing morph type or auto-classify based on lexical unit.
-        
-        Args:
-            existing_morph_type: Existing morph type from LIFT data
-            
-        Returns:
-            Morph type (existing if provided, otherwise auto-classified)
-        """
-        # If already set from LIFT data, preserve it
-        if existing_morph_type and existing_morph_type.strip():
-            return existing_morph_type.strip()
-        
-        # Auto-classify based on lexical unit
-        if not self.lexical_unit:
-            return 'stem'  # Default
-            
-        # Get the primary headword (usually English)
-        headword = ''
-        if 'en' in self.lexical_unit:
-            headword = self.lexical_unit['en']
-        elif self.lexical_unit:
-            # Use first available language
-            headword = next(iter(self.lexical_unit.values()))
-            
-        if not headword or not headword.strip():
-            return 'stem'  # Default
-            
-        headword = headword.strip()
-        
-        # Classification logic (same as JavaScript)
-        if ' ' in headword:
-            return 'phrase'
-        elif headword.endswith('-') and not headword.startswith('-'):
-            return 'prefix'
-        elif headword.startswith('-') and not headword.endswith('-'):
-            return 'suffix'
-        elif headword.startswith('-') and headword.endswith('-'):
-            return 'infix'
-        else:
-            return 'stem'  # Default for regular words
