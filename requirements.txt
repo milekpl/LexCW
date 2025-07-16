@@ -12,7 +12,7 @@ pytest-mock==3.11.1
 # Utilities
 python-dotenv==1.0.0
 requests==2.31.0
-redis==5.0.1
+redis==5.0.4
 # Development
 black==23.7.0
 flake8==6.1.0
@@ -24,7 +24,6 @@ injector==0.21.0
 spacy>=3.6.0
 # Performance monitoring
 psutil>=5.9.0
-redis==5.0.4
 jsonpath-ng==1.6.1
 Flask-WTF==1.2.1
 selenium==4.23.1
