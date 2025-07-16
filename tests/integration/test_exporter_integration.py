@@ -549,3 +549,17 @@ class TestExporterIntegration:
                 connector.close()
             except Exception:
                 pass
+            # Drop the test database to ensure proper teardown
+            from app.database.basex_connector import BaseXConnector as AdminBaseXConnector
+            admin_connector = AdminBaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin')
+            )
+            try:
+                admin_connector.connect()
+                admin_connector.execute_command(f"DROP DB {db_name}")
+                admin_connector.disconnect()
+            except Exception:
+                pass
