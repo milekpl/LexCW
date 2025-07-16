@@ -42,15 +42,15 @@ class CacheService:
     def _connect(self) -> None:
         """Establish Redis connection."""
         try:
-            # Redis 8.0 compatible configuration with faster timeouts
+            # Redis 8.0 compatible configuration with more reasonable timeouts
             self.redis_client = redis.Redis(
                 host=os.getenv('REDIS_HOST', 'localhost'),
                 port=int(os.getenv('REDIS_PORT', 6379)),
                 db=int(os.getenv('REDIS_DB', 0)),
                 password=os.getenv('REDIS_PASSWORD'),
                 decode_responses=False,  # We'll handle JSON encoding manually
-                socket_connect_timeout=1,  # Reduced timeout for faster fallback
-                socket_timeout=1,
+                socket_connect_timeout=5,  # Increased timeout for better reliability
+                socket_timeout=5,
                 # Remove deprecated retry_on_timeout parameter for Redis 8.0 compatibility
                 retry_on_error=[redis.ConnectionError, redis.TimeoutError]
             )
@@ -199,6 +199,23 @@ class CacheService:
         except Exception as e:
             self.logger.error(f"Cache exists error for key '{key}': {e}")
             return False
+    
+    def clear(self) -> int:
+        """
+        Clear all cached data.
+        
+        Returns:
+            Number of keys deleted
+        """
+        if not self.redis_client:
+            return 0
+        
+        try:
+            # Use pattern '*' to clear all keys
+            return self.clear_pattern('*')
+        except Exception as e:
+            self.logger.error(f"Cache clear error: {e}")
+            return 0
     
     def get_stats(self) -> dict[str, Any]:
         """
