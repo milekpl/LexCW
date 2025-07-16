@@ -88,6 +88,11 @@ jobs:
         echo "BASEX_USERNAME=admin" >> $GITHUB_ENV
         echo "BASEX_PASSWORD=admin" >> $GITHUB_ENV
         echo "FLASK_ENV=testing" >> $GITHUB_ENV
+        echo "POSTGRES_HOST=localhost" >> $GITHUB_ENV
+        echo "POSTGRES_PORT=5432" >> $GITHUB_ENV
+        echo "POSTGRES_DB=slownik_ci" >> $GITHUB_ENV
+        echo "POSTGRES_USER=postgres" >> $GITHUB_ENV
+        echo "POSTGRES_PASSWORD=postgres" >> $GITHUB_ENV
         
     - name: Run unit tests
       run: |
