@@ -24,6 +24,11 @@ class Etymology(BaseModel):
         super().__init__(**kwargs)
         self.type: str = type
         self.source: str = source
+        # Enforce nested dict format: {lang: text, ...}
+        if not (isinstance(form, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in form.items())):
+            raise ValueError("Etymology 'form' must be a nested dict {lang: text, ...}")
+        if not (isinstance(gloss, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in gloss.items())):
+            raise ValueError("Etymology 'gloss' must be a nested dict {lang: text, ...}")
         self.form: Dict[str, str] = form
         self.gloss: Dict[str, str] = gloss
 
@@ -206,10 +211,19 @@ class Entry(BaseModel):
                 sense_data._has_explicit_id = True  # Assume Sense objects have explicit IDs
                 self.senses.append(sense_data)
 
-        # Handle etymologies
+        # Handle etymologies (enforce nested dict format)
         self.etymologies: List[Etymology] = []
         for etymology_data in etymologies_data:
             if isinstance(etymology_data, dict):
+                form = etymology_data.get("form", {})
+                gloss = etymology_data.get("gloss", {})
+                if not (isinstance(form, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in form.items())):
+                    raise ValueError("Etymology 'form' must be a nested dict {lang: text, ...}")
+                if not (isinstance(gloss, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in gloss.items())):
+                    raise ValueError("Etymology 'gloss' must be a nested dict {lang: text, ...}")
+                etymology_data = dict(etymology_data)
+                etymology_data["form"] = form
+                etymology_data["gloss"] = gloss
                 self.etymologies.append(Etymology(**etymology_data))
             elif isinstance(etymology_data, Etymology):
                 self.etymologies.append(etymology_data)
@@ -445,21 +459,20 @@ class Entry(BaseModel):
         """
         self.relations.append(Relation(type=relation_type, ref=target_id))
 
-    def add_etymology(self, etymology_type: str, source: str, form_lang: str, 
-                      form_text: str, gloss_lang: str, gloss_text: str) -> None:
+    def add_etymology(self, etymology_type: str, source: str, form: Dict[str, str], gloss: Dict[str, str]) -> None:
         """
         Add an etymology to the entry.
 
         Args:
             etymology_type: Type of etymology (e.g., 'borrowing', 'inheritance').
             source: Source language or etymological description.
-            form_lang: Language code for the etymological form.
-            form_text: Text of the etymological form.
-            gloss_lang: Language code for the gloss.
-            gloss_text: Text of the gloss/meaning.
+            form: Nested dict {lang: text, ...} for the etymological form.
+            gloss: Nested dict {lang: text, ...} for the gloss/meaning.
         """
-        form = {"lang": form_lang, "text": form_text}
-        gloss = {"lang": gloss_lang, "text": gloss_text}
+        if not (isinstance(form, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in form.items())):
+            raise ValueError("Etymology 'form' must be a nested dict {lang: text, ...}")
+        if not (isinstance(gloss, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in gloss.items())):
+            raise ValueError("Etymology 'gloss' must be a nested dict {lang: text, ...}")
         etymology = Etymology(type=etymology_type, source=source, form=form, gloss=gloss)
         self.etymologies.append(etymology)
 

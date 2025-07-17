@@ -373,6 +373,11 @@ class LIFTParser:
                     gloss = {lang or '': text_elem.text}
 
             if form and gloss:
+                # Ensure form and gloss are always {lang: text, ...}
+                if not (isinstance(form, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in form.items())):
+                    raise ValueError("Etymology 'form' must be a nested dict {lang: text, ...}")
+                if not (isinstance(gloss, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in gloss.items())):
+                    raise ValueError("Etymology 'gloss' must be a nested dict {lang: text, ...}")
                 etymologies.append(Etymology(
                     type=etymology_type,
                     source=etymology_source,
@@ -762,18 +767,19 @@ class LIFTParser:
             etymology_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}etymology')
             etymology_elem.set('type', etymology.type)
             etymology_elem.set('source', etymology.source)
-            
+            # Output all languages in form and gloss as nested dicts
             if etymology.form:
-                form_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}form')
-                form_elem.set('lang', etymology.form.lang)
-                text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = etymology.form.text
-            
+                for lang, text in etymology.form.items():
+                    form_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}form')
+                    form_elem.set('lang', lang)
+                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
             if etymology.gloss:
-                gloss_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}gloss')
-                gloss_elem.set('lang', etymology.gloss.lang)
-                text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = etymology.gloss.text
+                for lang, text in etymology.gloss.items():
+                    gloss_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}gloss')
+                    gloss_elem.set('lang', lang)
+                    text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
 
         # Add citations
         for citation in entry.citations:
@@ -793,20 +799,17 @@ class LIFTParser:
         # Add variant forms
         for variant in entry.variants:
             variant_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}variant')
-            
-            # Handle both Variant objects and raw dictionaries
-            if hasattr(variant, 'form') and hasattr(variant.form, 'lang') and hasattr(variant.form, 'text'):
-                # Variant object with Form
-                variant_elem.set('type', getattr(variant, 'type', 'unspecified'))
-                form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                form.set('lang', variant.form.lang)
-                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = variant.form.text
-            elif isinstance(variant, dict):
-                # Raw dictionary format
-                variant_type = variant.get('type', 'unspecified')
+            # Output all languages in variant.form as nested dicts
+            variant_type = getattr(variant, 'type', None)
+            if variant_type:
                 variant_elem.set('type', variant_type)
-                
+            if hasattr(variant, 'form') and isinstance(variant.form, dict):
+                for lang, text in variant.form.items():
+                    form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                    form.set('lang', lang)
+                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
+            elif isinstance(variant, dict):
                 for lang, text in variant.items():
                     if lang != 'type':
                         form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
