@@ -11,9 +11,9 @@ class TestEtymologyUI:
     """Test etymology object creation and manipulation."""
 
     def test_etymology_object_creation(self):
-        """Test creating etymology objects with form and gloss as dicts."""
-        form = {"lang": "la", "text": "pater"}
-        gloss = {"lang": "en", "text": "father"}
+        """Test creating etymology objects with form and gloss as nested dicts."""
+        form = {"la": "pater"}
+        gloss = {"en": "father"}
         etymology = Etymology(
             type="borrowing",
             source="Latin",
@@ -22,10 +22,8 @@ class TestEtymologyUI:
         )
         assert etymology.type == "borrowing"
         assert etymology.source == "Latin"
-        assert etymology.form["lang"] == "la"
-        assert etymology.form["text"] == "pater"
-        assert etymology.gloss["lang"] == "en"
-        assert etymology.gloss["text"] == "father"
+        assert etymology.form["la"] == "pater"
+        assert etymology.gloss["en"] == "father"
 
     def test_entry_model_supports_etymologies_list(self):
         """Test that Entry model properly handles etymologies list."""
@@ -33,8 +31,8 @@ class TestEtymologyUI:
             {
                 "type": "inheritance", 
                 "source": "Proto-Indo-European",
-                "form": {"lang": "ine-pro", "text": "*ph₂tḗr"},
-                "gloss": {"lang": "en", "text": "father"}
+                "form": {"ine-pro": "*ph₂tḗr"},
+                "gloss": {"en": "father"}
             }
         ]
         entry = Entry(
@@ -52,16 +50,14 @@ class TestEtymologyUI:
         etymology = Etymology(
             type="compound",
             source="Germanic",
-            form={"lang": "gem-pro", "text": "*faðēr"},
-            gloss={"lang": "en", "text": "protector"}
+            form={"gem-pro": "*faðēr"},
+            gloss={"en": "protector"}
         )
         etymology_dict = etymology.to_dict()
         assert etymology_dict["type"] == "compound"
         assert etymology_dict["source"] == "Germanic"
-        assert etymology_dict["form"]["lang"] == "gem-pro"
-        assert etymology_dict["form"]["text"] == "*faðēr"
-        assert etymology_dict["gloss"]["lang"] == "en"
-        assert etymology_dict["gloss"]["text"] == "protector"
+        assert etymology_dict["form"]["gem-pro"] == "*faðēr"
+        assert etymology_dict["gloss"]["en"] == "protector"
 
     def test_empty_etymologies_handling(self):
         """Test that entries handle empty etymologies properly."""
@@ -82,10 +78,8 @@ class TestEtymologyUI:
         entry.add_etymology(
             etymology_type="inheritance",
             source="Old English",
-            form_lang="ang",
-            form_text="wæter",
-            gloss_lang="en",
-            gloss_text="water"
+            form={"ang": "wæter"},
+            gloss={"en": "water"}
         )
 
         # 3. Verification: Check the newly added etymology
@@ -101,22 +95,18 @@ class TestEtymologyUI:
 
         # Verify the 'form' dictionary is correctly created
         assert isinstance(new_etymology.form, dict)
-        assert new_etymology.form["lang"] == "ang"
-        assert new_etymology.form["text"] == "wæter"
+        assert new_etymology.form["ang"] == "wæter"
 
         # Verify the 'gloss' dictionary is correctly created
         assert isinstance(new_etymology.gloss, dict)
-        assert new_etymology.gloss["lang"] == "en"
-        assert new_etymology.gloss["text"] == "water"
+        assert new_etymology.gloss["en"] == "water"
 
         # 4. Action: Add a second etymology to test list extension
         entry.add_etymology(
             etymology_type="borrowing",
             source="Old Norse",
-            form_lang="non",
-            form_text="vatn",
-            gloss_lang="en",
-            gloss_text="water"
+            form={"non": "vatn"},
+            gloss={"en": "water"}
         )
 
         # 5. Verification: Check the list of etymologies now has two items

@@ -16,8 +16,8 @@ class TestEtymologyModel:
         etymology = Etymology(
             type="borrowing",
             source="Latin",
-            form={"lang": "la", "text": "pater"},
-            gloss={"lang": "en", "text": "father"}
+            form={"la": "pater"},
+            gloss={"en": "father"}
         )
         assert etymology.type == "borrowing"
         assert etymology.source == "Latin"
