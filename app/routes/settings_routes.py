@@ -76,7 +76,7 @@ def manage_settings():
     if form.validate_on_submit():
         try:
             new_settings = form.to_dict()
-            config_manager.update_settings(new_settings)
+            config_manager.update_current_settings(new_settings)
             flash('Settings updated successfully!', 'success')
             logger.info(f"Project settings updated: {new_settings}")
             return redirect(url_for('settings.manage_settings'))
@@ -87,7 +87,11 @@ def manage_settings():
         form.populate_from_config(config_manager)
 
     # For displaying current settings, especially if form validation fails
-    current_settings = config_manager.get_all_settings()
+    current_settings = {
+        'project_name': config_manager.get_project_name(),
+        'source_language': config_manager.get_source_language(),
+        'target_language': config_manager.get_target_language()
+    }
 
     return render_template('settings.html',
                            form=form,

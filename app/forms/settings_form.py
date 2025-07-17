@@ -47,14 +47,13 @@ class SettingsForm(FlaskForm):
 
     def populate_from_config(self, config_manager):
         """Populates the form fields from the ConfigManager."""
-        settings = config_manager.get_all_settings()
-        self.project_name.data = settings.get('project_name')
+        self.project_name.data = config_manager.get_project_name()
 
-        source_lang = settings.get('source_language', {})
+        source_lang = config_manager.get_source_language()
         self.source_language_code.data = source_lang.get('code')
         self.source_language_name.data = source_lang.get('name')
 
-        target_lang = settings.get('target_language', {})
+        target_lang = config_manager.get_target_language()
         self.target_language_code.data = target_lang.get('code')
         self.target_language_name.data = target_lang.get('name')
 
