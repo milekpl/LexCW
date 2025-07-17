@@ -250,6 +250,21 @@ class LIFTParser:
         Raises:
             ValidationError: If validation is enabled and an entry fails validation.
         """
+        return self.parse_lift_content(xml_string)
+    
+    def parse_lift_content(self, xml_string: str) -> List[Entry]:
+        """
+        Parse a LIFT XML string into a list of Entry objects.
+        
+        Args:
+            xml_string: LIFT XML string.
+            
+        Returns:
+            List of Entry objects.
+            
+        Raises:
+            ValidationError: If validation is enabled and an entry fails validation.
+        """
         try:
             # Clean up the XML string to handle potential whitespace issues
             xml_string = xml_string.strip()
@@ -829,6 +844,12 @@ class LIFTParser:
                 gram_info.set('value', value)
             else:
                 gram_info.set('value', str(entry.grammatical_info))
+        
+        # Add morph-type trait if present (preserve LIFT data)
+        if hasattr(entry, 'morph_type') and entry.morph_type:
+            trait_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}trait')
+            trait_elem.set('name', 'morph-type')
+            trait_elem.set('value', entry.morph_type)
         
         # Add relations
         for relation in entry.relations:

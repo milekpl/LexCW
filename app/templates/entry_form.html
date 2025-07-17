@@ -68,7 +68,7 @@
 </div>
 
 <form id="entry-form" method="post"
-      action="{{ url_for('api.entries') if not entry.id else url_for('main.edit_entry', entry_id=entry.id) }}">      {% if entry.id %}
+      action="{{ url_for('entries.create_entry') if not entry.id else url_for('main.edit_entry', entry_id=entry.id) }}">      {% if entry.id %}
         <input type="hidden" name="id" value="{{ entry.id }}">
     {% endif %}
     <div class="row">
