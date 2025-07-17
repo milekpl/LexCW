@@ -8,7 +8,9 @@ import os
 class Config:
     """Base configuration class."""
     
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard-to-guess-string'    # BaseX configuration
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard-to-guess-string'
+    
+    # BaseX configuration
     BASEX_HOST = os.environ.get('BASEX_HOST') or 'localhost'
     BASEX_PORT = int(os.environ.get('BASEX_PORT') or 1984)
     BASEX_USERNAME = os.environ.get('BASEX_USERNAME') or 'admin'
@@ -18,6 +20,16 @@ class Config:
     # Force BaseX connection (disable mock database)
     DEVELOPMENT_MODE = os.environ.get('DEVELOPMENT_MODE', 'false').lower() == 'true'
     USE_MOCK_DATABASE = os.environ.get('USE_MOCK_DATABASE', 'false').lower() == 'true'
+    
+    # PostgreSQL configuration
+    PG_HOST = os.environ.get('POSTGRES_HOST') or 'localhost'
+    PG_PORT = int(os.environ.get('POSTGRES_PORT') or 5432)
+    PG_USER = os.environ.get('POSTGRES_USER') or 'dict_user'
+    PG_PASSWORD = os.environ.get('POSTGRES_PASSWORD') or 'dict_pass'
+    PG_DATABASE = os.environ.get('POSTGRES_DB') or 'dictionary_analytics'
+    
+    # SQLAlchemy configuration
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Pronunciation configuration
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
@@ -43,6 +55,15 @@ class DevelopmentConfig(Config):
     
     DEBUG = True
     TESTING = False
+    
+    # SQLAlchemy configuration
+    SQLALCHEMY_DATABASE_URI = (
+        f"postgresql://{os.environ.get('POSTGRES_USER') or 'dict_user'}:"
+        f"{os.environ.get('POSTGRES_PASSWORD') or 'dict_pass'}@"
+        f"{os.environ.get('POSTGRES_HOST') or 'localhost'}:"
+        f"{int(os.environ.get('POSTGRES_PORT') or 5432)}/"
+        f"{os.environ.get('POSTGRES_DB') or 'dictionary_analytics'}"
+    )
 
 
 class TestingConfig(Config):
@@ -52,7 +73,17 @@ class TestingConfig(Config):
     TESTING = True
     BASEX_DATABASE = os.environ.get('TEST_DB_NAME') or 'dictionary_test'
     
-    # Use in-memory database for testing
+    # PostgreSQL test configuration
+    PG_HOST = os.environ.get('POSTGRES_TEST_HOST') or 'localhost'
+    PG_PORT = int(os.environ.get('POSTGRES_TEST_PORT') or 5433)
+    PG_USER = os.environ.get('POSTGRES_TEST_USER') or 'dict_user'
+    PG_PASSWORD = os.environ.get('POSTGRES_TEST_PASSWORD') or 'dict_pass'
+    PG_DATABASE = os.environ.get('POSTGRES_TEST_DB') or 'dictionary_test'
+    
+    # SQLAlchemy test configuration - use in-memory SQLite for testing
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    
+    # Disable CSRF for testing
     WTF_CSRF_ENABLED = False
 
 
@@ -61,6 +92,15 @@ class ProductionConfig(Config):
     
     DEBUG = False
     TESTING = False
+    
+    # SQLAlchemy configuration
+    SQLALCHEMY_DATABASE_URI = (
+        f"postgresql://{os.environ.get('POSTGRES_USER') or 'dict_user'}:"
+        f"{os.environ.get('POSTGRES_PASSWORD') or 'dict_pass'}@"
+        f"{os.environ.get('POSTGRES_HOST') or 'localhost'}:"
+        f"{int(os.environ.get('POSTGRES_PORT') or 5432)}/"
+        f"{os.environ.get('POSTGRES_DB') or 'dictionary_analytics'}"
+    )
     
     # Use more secure settings in production
     @classmethod

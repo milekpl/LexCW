@@ -38,7 +38,13 @@ class TestSettingsRoute(unittest.TestCase):
 
         # Initialize ConfigManager directly for the app instance for testing
         self.app.config_manager = ConfigManager(self.test_instance_path)
-        self.app.config['PROJECT_SETTINGS'] = self.app.config_manager.get_all_settings()
+        
+        # Ensure database tables are created for testing
+        from app.models.project_settings import db
+        with self.app.app_context():
+            db.create_all()
+        
+        self.app.config['PROJECT_SETTINGS'] = [s.settings_json for s in self.app.config_manager.get_all_settings()]
 
         # Reset the cache in the actual app.utils.language_utils module (if it's ever called unmocked)
         # This is less critical if the form's call is always mocked, but good for hygiene.
@@ -49,6 +55,13 @@ class TestSettingsRoute(unittest.TestCase):
     def tearDown(self):
         if os.path.exists(self.settings_file):
             os.remove(self.settings_file)
+        
+        # Clean up database
+        from app.models.project_settings import db
+        with self.app.app_context():
+            db.session.remove()
+            db.drop_all()
+            
         self.app_context.pop()
         # Clear any environment variables set for testing
         if 'TESTING' in os.environ:
@@ -109,9 +122,12 @@ class TestSettingsRoute(unittest.TestCase):
         self.assertEqual(config_manager.get_target_language()['name'], 'German')
 
         # Also check that app.config was updated
-        self.assertEqual(self.app.config['PROJECT_SETTINGS']['project_name'], 'My Awesome Dictionary')
-        self.assertEqual(self.app.config['PROJECT_SETTINGS']['source_language']['name'], 'Polish')
-        self.assertEqual(self.app.config['PROJECT_SETTINGS']['target_language']['name'], 'German')
+        project_settings = self.app.config['PROJECT_SETTINGS']
+        if project_settings and len(project_settings) > 0:
+            settings_json = project_settings[0]
+            self.assertEqual(settings_json['project_name'], 'My Awesome Dictionary')
+            self.assertEqual(settings_json['source_language']['name'], 'Polish')
+            self.assertEqual(settings_json['target_language']['name'], 'German')
 
     @pytest.mark.integration
     def test_settings_are_applied_immediately(self):

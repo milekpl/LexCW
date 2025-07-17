@@ -71,6 +71,3 @@ def _test_submission(entry_id, data, description):
         
     except Exception as e:
         print(f"❌ ERROR testing {description}: {e}")
-
-if __name__ == "__main__":
-    test_language_constraints()

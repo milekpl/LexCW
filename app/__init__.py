@@ -39,26 +39,33 @@ def create_app(config_name=None):
         Flask application instance
     """
     app = Flask(__name__, instance_relative_config=True)  # type: Flask
-    
     # Ensure the instance folder exists
     try:
         os.makedirs(app.instance_path)
     except OSError:
         pass
-    
+
     # Load configuration
     if config_name is None:
         config_name = os.getenv('FLASK_CONFIG', 'development')
-    
+
     if config_name == 'testing':
         app.config.from_object('config.TestingConfig')
     elif config_name == 'production':
         app.config.from_object('config.ProductionConfig')
     else:
         app.config.from_object('config.DevelopmentConfig')
-    
+
     # Load instance config if it exists
     app.config.from_pyfile('config.py', silent=True)
+
+    # Ensure SQLAlchemy is registered with the Flask app after config is loaded
+    from app.models.project_settings import db
+    db.init_app(app)
+    
+    # Create database tables if they don't exist
+    with app.app_context():
+        db.create_all()
     
     # Configure logging
     logging.basicConfig(
