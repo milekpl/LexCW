@@ -155,36 +155,37 @@ class TestMorphTypeInheritance:
         """Test Flask app handles morph-type correctly"""
         app = create_app('testing')
         
-        with app.test_client() as client:
-            # Mock the dictionary service
-            with patch('app.views.current_app') as mock_current_app:
-                mock_dict_service = Mock(spec=DictionaryService)
-                mock_dict_service.get_lift_ranges.return_value = {
-                    'morph-type': {
-                        'id': 'morph-type',
-                        'name': 'Morphological Type',
-                        'items': [
-                            {'id': 'stem', 'name': 'stem'},
-                            {'id': 'phrase', 'name': 'phrase'},
-                            {'id': 'prefix', 'name': 'prefix'},
-                            {'id': 'suffix', 'name': 'suffix'},
-                            {'id': 'infix', 'name': 'infix'}
-                        ]
+        with app.app_context():
+            with app.test_client() as client:
+                # Mock the dictionary service
+                with patch('flask.current_app') as mock_current_app:
+                    mock_dict_service = Mock(spec=DictionaryService)
+                    mock_dict_service.get_lift_ranges.return_value = {
+                        'morph-type': {
+                            'id': 'morph-type',
+                            'name': 'Morphological Type',
+                            'items': [
+                                {'id': 'stem', 'name': 'stem'},
+                                {'id': 'phrase', 'name': 'phrase'},
+                                {'id': 'prefix', 'name': 'prefix'},
+                                {'id': 'suffix', 'name': 'suffix'},
+                                {'id': 'infix', 'name': 'infix'}
+                            ]
+                        }
                     }
-                }
-                mock_current_app.injector.get.return_value = mock_dict_service
-                
-                # Test that existing entry preserves morph-type
-                mock_entry = Entry()
-                mock_entry.id = 'test-entry-1'
-                mock_entry.lexical_unit = {'en': 'test-word'}
-                mock_entry.morph_type = 'phrase'  # From LIFT
-                
-                mock_dict_service.get_entry_for_editing.return_value = mock_entry
-                
-                # Should preserve the morph-type from LIFT
-                assert mock_entry.morph_type == 'phrase', \
-                    f"Should preserve LIFT morph-type. Expected 'phrase', got '{mock_entry.morph_type}'"
+                    mock_current_app.injector.get.return_value = mock_dict_service
+                    
+                    # Test that existing entry preserves morph-type
+                    mock_entry = Entry()
+                    mock_entry.id = 'test-entry-1'
+                    mock_entry.lexical_unit = {'en': 'test-word'}
+                    mock_entry.morph_type = 'phrase'  # From LIFT
+                    
+                    mock_dict_service.get_entry_for_editing.return_value = mock_entry
+                    
+                    # Should preserve the morph-type from LIFT
+                    assert mock_entry.morph_type == 'phrase', \
+                        f"Should preserve LIFT morph-type. Expected 'phrase', got '{mock_entry.morph_type}'"
 
 
 if __name__ == "__main__":

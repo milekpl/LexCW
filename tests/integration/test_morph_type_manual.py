@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app import create_app
-from app.models import Entry
+from app.models.entry import Entry
 from config import DevelopmentConfig
 
 @pytest.mark.integration
@@ -20,8 +20,17 @@ def test_morph_type_behavior():
     app = create_app('development')
     
     with app.app_context():
-        # Find an existing entry to test with
-        entries = Entry.query.limit(5).all()
+        # Get service from dependency injection
+        from app.services.dictionary_service import DictionaryService
+        service = app.injector.get(DictionaryService)
+        
+        # Find some existing entries to test with
+        try:
+            search_results = service.search_entries(query="", limit=5)
+            entries = [result.entry for result in search_results.entries] if search_results.entries else []
+        except Exception as e:
+            print(f"Error searching for entries: {e}")
+            entries = []
         
         print("Testing morph-type behavior:")
         print("=" * 50)

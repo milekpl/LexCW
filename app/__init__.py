@@ -220,7 +220,11 @@ def create_app(config_name=None):
         
         # Initialize and bind ConfigManager
         config_manager = ConfigManager(app.instance_path)
-        app.config['PROJECT_SETTINGS'] = config_manager.get_all_settings()
+        try:
+            app.config['PROJECT_SETTINGS'] = [s.settings_json for s in config_manager.get_all_settings()]
+        except Exception:
+            # If database not initialized yet, set to empty list
+            app.config['PROJECT_SETTINGS'] = []
 
         # Bind all services
         binder.bind(BaseXConnector, to=basex_connector, scope=singleton)

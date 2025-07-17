@@ -1,69 +1,45 @@
-import os
-import json
-import logging
-from typing import Dict, Any
+
+from typing import Any, Dict, Optional
+from app.models.project_settings import ProjectSettings, db
 from flask import current_app
 
 class ConfigManager:
     def __init__(self, app_instance_path: str):
-        self.instance_path = app_instance_path
-        self.settings_file = os.path.join(self.instance_path, 'project_settings.json')
-        self.settings = self._load_settings()
+        self.app_instance_path = app_instance_path
 
-    def _load_settings(self) -> Dict[str, Any]:
-        """Loads settings from the JSON file."""
-        default_settings = {
-            'project_name': 'Default Project',
-            'source_language': {'code': 'en', 'name': 'English'},
-            'target_language': {'code': 'es', 'name': 'Spanish'}
-        }
-        if not os.path.exists(self.instance_path):
-            os.makedirs(self.instance_path)
+    def get_settings(self, project_name: str) -> Optional[ProjectSettings]:
+        return ProjectSettings.query.filter_by(project_name=project_name).first()
 
-        if os.path.exists(self.settings_file):
-            try:
-                with open(self.settings_file, 'r') as f:
-                    settings = json.load(f)
-                    # Ensure all default keys are present
-                    for key, value in default_settings.items():
-                        if key not in settings:
-                            settings[key] = value
-                    return settings
-            except json.JSONDecodeError:
-                # If file is corrupted, load defaults and save them
-                self._save_settings(default_settings)
-                return default_settings
-        else:
-            self._save_settings(default_settings)
-            return default_settings
+    def create_settings(self, project_name: str, basex_db_name: str, settings_json: Dict[str, Any]) -> ProjectSettings:
+        settings = ProjectSettings(
+            project_name=project_name,
+            basex_db_name=basex_db_name,
+            settings_json=settings_json
+        )
+        db.session.add(settings)
+        db.session.commit()
+        return settings
 
-    def _save_settings(self, settings: Dict[str, Any]) -> None:
-        """Saves settings to the JSON file."""
-        if not os.path.exists(self.instance_path):
-            os.makedirs(self.instance_path)
-        with open(self.settings_file, 'w') as f:
-            json.dump(settings, f, indent=4)
-        self.settings = settings
+    def update_settings(self, project_name: str, new_values: Dict[str, Any]) -> Optional[ProjectSettings]:
+        settings = self.get_settings(project_name)
+        if not settings:
+            return None
+        for key, value in new_values.items():
+            setattr(settings, key, value)
+        db.session.commit()
+        return settings
 
-    def get_setting(self, key: str, default: Any = None) -> Any:
-        """Gets a specific setting by key."""
-        return self.settings.get(key, default)
+    def delete_settings(self, project_name: str) -> bool:
+        settings = self.get_settings(project_name)
+        if not settings:
+            return False
+        db.session.delete(settings)
+        db.session.commit()
+        return True
 
-    def update_settings(self, new_settings: Dict[str, Any]) -> None:
-        """Updates and saves settings."""
-        self.settings.update(new_settings)
-        self._save_settings(self.settings)
-        self.reload_settings()
-
-    def reload_settings(self) -> None:
-        """Reloads the settings from the file and updates the app config."""
-        self.settings = self._load_settings()
-        if current_app:
-            current_app.config['PROJECT_SETTINGS'] = self.settings
-
-    def get_all_settings(self) -> Dict[str, Any]:
-        """Returns all current settings."""
-        return self.settings.copy()
+    def get_all_settings(self) -> list[ProjectSettings]:
+        """Returns all project settings from database."""
+        return ProjectSettings.query.all()
 
     def get_project_name(self) -> str:
         return self.get_setting('project_name', 'Default Project')
