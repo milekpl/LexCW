@@ -16,6 +16,17 @@ def test_pos_inheritance_ui():
     # Setup Chrome driver
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')  # Run in background
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-gcm")  # Disable GCM for headless stability
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-notifications")  # Disable notifications
+    options.add_argument("--disable-default-apps")   # Disable default apps
+    options.add_argument("--disable-component-update")  # Disable component updates
+
     driver = webdriver.Chrome(options=options)
     
     try:
