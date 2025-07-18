@@ -17,6 +17,12 @@ from app.models.example import Example
 from app.utils.exceptions import ValidationError
 
 
+"""
+    Parser for LIFT format dictionary files.
+    
+    This class handles the parsing of LIFT XML files into model objects
+    and the generation of LIFT XML from model objects.
+"""
 class LIFTParser:
     @staticmethod
     def _normalize_multilingual_dict(d: dict) -> dict:
@@ -32,12 +38,7 @@ class LIFTParser:
             else:
                 d[k] = {"text": v}
         return d
-    """
-    Parser for LIFT format dictionary files.
     
-    This class handles the parsing of LIFT XML files into model objects
-    and the generation of LIFT XML from model objects.
-    """
     
     # LIFT XML namespace
     NSMAP = {

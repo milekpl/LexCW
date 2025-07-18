@@ -341,7 +341,7 @@ def ensure_test_database(connector: BaseXConnector, db_name: str):
             <description>Informal or colloquial language</description>
         </range-element>
     </range>
-    <range id="etymology-type">
+    <range id="etymology">
         <range-element id="borrowed" label="Borrowed">
             <description>A word borrowed from another language.</description>
         </range-element>

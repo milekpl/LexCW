@@ -385,12 +385,12 @@
     "end_line": 393
   },
   {
-    "endpoint": "ranges.get_etymology_types_range",
-    "url": "/api/ranges/etymology-types",
+    "endpoint": "ranges.get_etymology_range",
+    "url": "/api/ranges/etymology",
     "methods": [
       "GET"
     ],
-    "function_name": "get_etymology_types_range",
+    "function_name": "get_etymology_range",
     "source_file": "app/api/ranges.py",
     "start_line": 396,
     "end_line": 450

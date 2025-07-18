@@ -1293,30 +1293,38 @@ class DictionaryService:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             # Try to get the ranges document from the database
-            # First try to get ranges.xml document if it exists
+            # First try to get the document by its original filename
+            original_ranges_filename = "sample-lift-file.lift-ranges" # Assuming this is the name it's imported with
             ranges_xml = self.db_connector.execute_query(
-                f"collection('{db_name}')//lift-ranges"
+                f"doc('{db_name}/{original_ranges_filename}')"
             )
+            if ranges_xml:
+                self.logger.debug(f"Found ranges document by original filename: {original_ranges_filename}")
 
             if not ranges_xml:
-                # Try alternative path - if ranges were added as a separate document
+                # Try alternative path - if ranges were added as a separate document named 'ranges.xml'
                 ranges_xml = self.db_connector.execute_query(
                     f"doc('{db_name}/ranges.xml')"
                 )
+                if ranges_xml:
+                    self.logger.debug("Found ranges document by 'ranges.xml' filename.")
 
             if not ranges_xml:
-                # Try to get any ranges from the main LIFT document
+                # Try to get any ranges from the main LIFT document (if embedded)
                 ranges_xml = self.db_connector.execute_query(
-                    f"collection('{db_name}')//ranges"
+                    f"collection('{db_name}')//lift-ranges"
                 )
+                if ranges_xml:
+                    self.logger.debug("Found ranges document within the main LIFT collection.")
 
             if not ranges_xml:
                 self.logger.warning(
-                    "LIFT ranges not found in database, using defaults."
+                    "LIFT ranges not found in database. Returning empty ranges."
                 )
-                self.ranges = self._get_default_ranges()
-                return self.ranges
+                self.ranges = {}
+                return {}
 
+            self.logger.debug(f"Raw ranges XML from BaseX: {ranges_xml[:500]}...") # Log first 500 chars
             parsed_ranges = self.ranges_parser.parse_string(ranges_xml)
 
             # Ensure both singular and plural keys for all relevant types
@@ -1329,10 +1337,6 @@ class DictionaryService:
                     parsed_ranges["variant-types"] = parsed_ranges[key]
                 if key == "variant-types" and "variant-type" not in parsed_ranges:
                     parsed_ranges["variant-type"] = parsed_ranges[key]
-                if key == "etymology-type" and "etymology-types" not in parsed_ranges:
-                    parsed_ranges["etymology-types"] = parsed_ranges[key]
-                if key == "etymology-types" and "etymology-type" not in parsed_ranges:
-                    parsed_ranges["etymology-type"] = parsed_ranges[key]
 
             self.ranges = parsed_ranges
             return self.ranges
@@ -1451,270 +1455,6 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Error counting filtered entries: %s", str(e))
             return 0
-
-    def _get_default_ranges(self) -> Dict[str, Any]:
-        """
-        Provides default LIFT ranges for fallback when database is unavailable.
-        Attempts to load from sample LIFT ranges file first, then falls back to minimal hardcoded ranges.
-        """
-        # Try to load from sample LIFT ranges file first
-        import os
-
-        sample_ranges_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "sample-lift-file",
-            "sample-lift-file.lift-ranges",
-        )
-
-        if os.path.exists(sample_ranges_path):
-            try:
-                self.logger.info(
-                    f"Loading default ranges from sample file: {sample_ranges_path}"
-                )
-                return self.ranges_parser.parse_file(sample_ranges_path)
-            except Exception as e:
-                self.logger.warning(
-                    f"Failed to load sample ranges file {sample_ranges_path}: {e}"
-                )
-
-        # Fall back to minimal hardcoded ranges if sample file is not available
-        self.logger.info("Using minimal hardcoded fallback ranges")
-        default_ranges: Dict[str, Dict[str, Any]] = {
-            "variant-type": {
-                "id": "variant-type",
-                "values": [
-                    {
-                        "id": "dialectal",
-                        "value": "dialectal",
-                        "abbrev": "dial",
-                        "description": {"en": "Dialectal variant"},
-                    },
-                    {
-                        "id": "spelling",
-                        "value": "spelling",
-                        "abbrev": "sp",
-                        "description": {"en": "Spelling variant"},
-                    },
-                    {
-                        "id": "morphological",
-                        "value": "morphological",
-                        "abbrev": "morph",
-                        "description": {"en": "Morphological variant"},
-                    },
-                    {
-                        "id": "phonetic",
-                        "value": "phonetic",
-                        "abbrev": "phon",
-                        "description": {"en": "Phonetic variant"},
-                    },
-                    {
-                        "id": "archaic",
-                        "value": "archaic",
-                        "abbrev": "arch",
-                        "description": {"en": "Archaic variant"},
-                    },
-                    {
-                        "id": "colloquial",
-                        "value": "colloquial",
-                        "abbrev": "colloq",
-                        "description": {"en": "Colloquial variant"},
-                    },
-                ],
-            },
-            "grammatical-info": {
-                "id": "grammatical-info",
-                "values": [
-                    {
-                        "id": "Noun",
-                        "value": "Noun",
-                        "abbrev": "n",
-                        "description": {
-                            "en": "A noun is a broad classification of parts of speech which include substantives and nominals."
-                        },
-                    },
-                    {
-                        "id": "Verb",
-                        "value": "Verb",
-                        "abbrev": "v",
-                        "description": {
-                            "en": "A verb is a word that in syntax conveys an action, an occurrence, or a state of being."
-                        },
-                    },
-                    {
-                        "id": "Adjective",
-                        "value": "Adjective",
-                        "abbrev": "adj",
-                        "description": {
-                            "en": "An adjective is a word that modifies a noun or noun phrase or describes a noun's referent."
-                        },
-                    },
-                    {
-                        "id": "Adverb",
-                        "value": "Adverb",
-                        "abbrev": "adv",
-                        "description": {
-                            "en": "An adverb modifies verbs, adjectives, or other adverbs."
-                        },
-                    },
-                    {
-                        "id": "Preposition",
-                        "value": "Preposition",
-                        "abbrev": "prep",
-                        "description": {
-                            "en": "A preposition is a word used to link nouns, pronouns, or phrases to other words within a sentence."
-                        },
-                    },
-                    {
-                        "id": "Pronoun",
-                        "value": "Pronoun",
-                        "abbrev": "pr",
-                        "description": {
-                            "en": "A pronoun is a word that substitutes for a noun or noun phrase."
-                        },
-                    },
-                ],
-            },
-            "relation-type": {
-                "id": "relation-type",
-                "values": [
-                    {
-                        "id": "synonym",
-                        "value": "synonym",
-                        "abbrev": "syn",
-                        "description": {
-                            "en": "Synonym - word with the same or similar meaning"
-                        },
-                    },
-                    {
-                        "id": "antonym",
-                        "value": "antonym",
-                        "abbrev": "ant",
-                        "description": {"en": "Antonym - word with opposite meaning"},
-                    },
-                    {
-                        "id": "hypernym",
-                        "value": "hypernym",
-                        "abbrev": "hyper",
-                        "description": {"en": "Hypernym - more general term"},
-                    },
-                    {
-                        "id": "hyponym",
-                        "value": "hyponym",
-                        "abbrev": "hypo",
-                        "description": {"en": "Hyponym - more specific term"},
-                    },
-                    {
-                        "id": "meronym",
-                        "value": "meronym",
-                        "abbrev": "mero",
-                        "description": {"en": "Meronym - part-whole relationship"},
-                    },
-                ],
-            },
-            "semantic-domain": {
-                "id": "semantic-domain",
-                "values": [
-                    {
-                        "id": "1",
-                        "value": "Universe, creation",
-                        "abbrev": "1",
-                        "description": {
-                            "en": "Words related to the universe and creation"
-                        },
-                    },
-                    {
-                        "id": "1.1",
-                        "value": "Sky",
-                        "abbrev": "1.1",
-                        "description": {"en": "Words related to the sky"},
-                    },
-                    {
-                        "id": "1.2",
-                        "value": "World",
-                        "abbrev": "1.2",
-                        "description": {"en": "Words related to the world"},
-                    },
-                    {
-                        "id": "2",
-                        "value": "Person",
-                        "abbrev": "2",
-                        "description": {"en": "Words related to people"},
-                    },
-                    {
-                        "id": "2.1",
-                        "value": "Body",
-                        "abbrev": "2.1",
-                        "description": {"en": "Words related to the human body"},
-                    },
-                ],
-            },
-            "etymology-type": {
-                "id": "etymology-type",
-                "values": [
-                    {
-                        "id": "inheritance",
-                        "value": "inheritance",
-                        "abbrev": "inh",
-                        "description": {
-                            "en": "Word inherited from an earlier stage of the language"
-                        },
-                    },
-                    {
-                        "id": "borrowing",
-                        "value": "borrowing",
-                        "abbrev": "bor",
-                        "description": {"en": "Word borrowed from another language"},
-                    },
-                    {
-                        "id": "compound",
-                        "value": "compound",
-                        "abbrev": "comp",
-                        "description": {
-                            "en": "Word formed by combining existing words"
-                        },
-                    },
-                    {
-                        "id": "derivation",
-                        "value": "derivation",
-                        "abbrev": "der",
-                        "description": {
-                            "en": "Word formed by adding affixes to a root"
-                        },
-                    },
-                    {
-                        "id": "calque",
-                        "value": "calque",
-                        "abbrev": "calq",
-                        "description": {
-                            "en": "Word formed by literal translation from another language"
-                        },
-                    },
-                    {
-                        "id": "semantic",
-                        "value": "semantic",
-                        "abbrev": "sem",
-                        "description": {"en": "Word formed by semantic change"},
-                    },
-                    {
-                        "id": "onomatopoeia",
-                        "value": "onomatopoeia",
-                        "abbrev": "onom",
-                        "description": {"en": "Word formed to imitate a sound"},
-                    },
-                ],
-            },
-        }
-
-        # Add duplicate keys with hyphenated plurals to support tests looking for both formats
-        default_ranges["variant-types"] = default_ranges["variant-type"]
-        default_ranges["relation-types"] = default_ranges["relation-type"]
-        default_ranges["etymology-types"] = default_ranges["etymology-type"]
-        default_ranges["semantic-domains"] = default_ranges[
-            "semantic-domain"
-        ]  # Fixed: was semantic-domain-list
-
-        return default_ranges
-
     def get_language_codes(self) -> List[str]:
         """
         Get all language codes used in the LIFT file.

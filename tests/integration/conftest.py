@@ -266,10 +266,6 @@ def client(app: Flask) -> FlaskClient:
     return app.test_client()
 
 
-import threading
-import time
-from urllib.parse import urlparse
-
 @pytest.fixture(scope="function")
 def playwright_page(app: Flask) -> Generator[Page, None, None]:
     """Provides a Playwright Page object for browser automation testing."""

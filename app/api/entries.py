@@ -768,7 +768,3 @@ def clear_entries_cache() -> Any:
     except Exception as e:
         logger.error(f"Error clearing entries cache: {e}")
         return jsonify({'status': 'error', 'message': f'Error clearing cache: {e}'}), 500
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500

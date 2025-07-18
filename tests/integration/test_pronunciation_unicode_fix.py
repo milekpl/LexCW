@@ -168,10 +168,10 @@ class TestPronunciationUnicodeDisplay:
                             if 'type' in rel:
                                 relation_types.add(rel['type'])
         assert 'synonim' in relation_types
-        # Simulate /api/ranges/etymology-types: (none in this sample, but check structure)
+        # Simulate /api/ranges/etymology: (none in this sample, but check structure)
         etymology_types = set()
         for entry in entries:
-            if hasattr(entry, 'etymologies'):
+            if hasattr(entry, 'etymology'):
                 for ety in entry.etymologies:
                     if 'type' in ety:
                         etymology_types.add(ety['type'])
