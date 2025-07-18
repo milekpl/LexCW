@@ -17,14 +17,21 @@ def test_delete_entry(playwright_page: Page, live_server):  # type: ignore
     playwright_page.click("text=Add New Entry")
     expect(playwright_page).to_have_url(f"{live_server.url}/entries/add")
 
+
     # Fill in basic entry details
     playwright_page.fill("#lexical-unit", "TestEntryForDeletion")
     playwright_page.click("#add-sense-btn") # Add a sense to make it valid
     playwright_page.fill("textarea[name*='definition']", "A test definition for deletion.")
     playwright_page.click("button[type='submit']:has-text('Save Entry')")
 
-    # Verify successful save and redirection to the entry view page
-    expect(playwright_page).to_have_url(f"{live_server.url}/entries/TestEntryForDeletion?status=saved")
+    # After saving, extract the entry ID from the redirect URL
+    # The URL should be /entries/<entry_id>?status=saved
+    import re
+    expect(playwright_page).not_to_have_url(f"{live_server.url}/entries/add")
+    current_url = playwright_page.url
+    match = re.search(r"/entries/([\w\-]+)\?status=saved", current_url)
+    assert match, f"Could not extract entry ID from URL: {current_url}"
+    entry_id = match.group(1)
     expect(playwright_page.locator("text=Entry saved successfully.")).to_be_visible()
 
     # 3. Navigate back to the entries list
@@ -32,8 +39,8 @@ def test_delete_entry(playwright_page: Page, live_server):  # type: ignore
     expect(playwright_page).to_have_url(f"{live_server.url}/entries")
 
     # 4. Locate the delete button for the newly created entry
-    # We need to find the row for "TestEntryForDeletion" and then its delete button
-    entry_row = playwright_page.locator("tr", has=playwright_page.locator("text=TestEntryForDeletion"))
+    # We need to find the row for the new entry and then its delete button
+    entry_row = playwright_page.locator("tr", has=playwright_page.locator(f"text={entry_id}"))
     delete_button = entry_row.locator("button.delete-btn")
     expect(delete_button).to_be_visible()
 
@@ -49,7 +56,7 @@ def test_delete_entry(playwright_page: Page, live_server):  # type: ignore
     expect(playwright_page.locator("text=Entry deleted successfully.")).to_be_visible()
 
     # 8. Verify that the entry is no longer present in the list
-    expect(playwright_page.locator("text=TestEntryForDeletion")).not_to_be_visible()
+    expect(playwright_page.locator(f"text={entry_id}")).not_to_be_visible()
 
     # Optional: Add a backend check if possible, but for UI integration, this is often sufficient.
     # For example, make an API call to verify it's gone from the database.

@@ -67,8 +67,8 @@
     </div>
 </div>
 
-<form id="entry-form" method="post"
-      action="{{ url_for('entries.create_entry') if not entry.id else url_for('main.edit_entry', entry_id=entry.id) }}">      {% if entry.id %}
+<form id="entry-form" method="post">
+    {% if entry.id %}
         <input type="hidden" name="id" value="{{ entry.id }}">
     {% endif %}
     <div class="row">
@@ -1161,7 +1161,7 @@
                                                     <div class="col-md-3">
                                                         <label class="form-label">Language</label>
                                                         <select class="form-select language-select" 
-                                                                name="senses[0][definition][{{ default_lang_code }}][lang]">
+                                                                name="senses[0].definition.{{ default_lang_code }}.lang">
                                                             {% set project_lang_codes = project_languages|map(attribute=0)|list %}
                                                             {% if default_lang_code not in project_lang_codes %}
                                                                 <option value="{{ default_lang_code }}" selected>{{ default_lang_code }} (original)</option>
@@ -1174,7 +1174,7 @@
                                                     <div class="col-md-8">
                                                         <label class="form-label">Definition Text</label>
                                                         <textarea class="form-control definition-text" 
-                                                                  name="senses[0][definition][{{ default_lang_code }}][text]"
+                                                                  name="senses[0].definition.{{ default_lang_code }}.text"
                                                                   rows="2" 
                                                                   required
                                                                   placeholder="Enter definition in {{ default_lang_code }}"></textarea>
@@ -1203,7 +1203,7 @@
                                                     <div class="col-md-3">
                                                         <label class="form-label">Language</label>
                                                         <select class="form-select language-select" 
-                                                                name="senses[0].gloss[{{ default_lang_code }}].lang">
+                                                                name="senses[0].gloss.{{ default_lang_code }}.lang">
                                                             {% for code, label in project_languages %}
                                                                 <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                                             {% endfor %}
@@ -1212,7 +1212,7 @@
                                                     <div class="col-md-8">
                                                         <label class="form-label">Gloss Text</label>
                                                         <input type="text" class="form-control gloss-text" 
-                                                               name="senses[0].gloss[{{ default_lang_code }}].text"
+                                                               name="senses[0].gloss.{{ default_lang_code }}.text"
                                                                value=""
                                                                placeholder="Enter gloss in {{ default_lang_code }}">
                                                     </div>
@@ -1372,7 +1372,7 @@
                             <div class="col-md-3">
                                 <label class="form-label">Language</label>
                                 <select class="form-select language-select" 
-                                        name="senses[INDEX][definition][{{ default_lang_code }}][lang]">
+                                        name="senses[INDEX].definition.{{ default_lang_code }}.lang">
                                     {% set project_lang_codes = project_languages|map(attribute=0)|list %}
                                     {% if default_lang_code not in project_lang_codes %}
                                         <option value="{{ default_lang_code }}" selected>{{ default_lang_code }} (original)</option>
@@ -1385,7 +1385,7 @@
                             <div class="col-md-8">
                                 <label class="form-label">Definition Text</label>
                                 <textarea class="form-control definition-text" 
-                                          name="senses[INDEX][definition][{{ default_lang_code }}][text]"
+                                          name="senses[INDEX].definition.{{ default_lang_code }}.text"
                                           rows="2" 
                                           required
                                           placeholder="Enter definition in {{ default_lang_code }}"></textarea>
@@ -1414,7 +1414,7 @@
                             <div class="col-md-3">
                                 <label class="form-label">Language</label>
                                 <select class="form-select language-select" 
-                                        name="senses[INDEX].gloss[{{ default_lang_code }}].lang">
+                                        name="senses[INDEX].gloss.{{ default_lang_code }}.lang">
                                     {% for code, label in project_languages %}
                                         <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                     {% endfor %}
@@ -1423,7 +1423,7 @@
                             <div class="col-md-8">
                                 <label class="form-label">Gloss Text</label>
                                 <input type="text" class="form-control gloss-text" 
-                                       name="senses[INDEX].gloss[{{ default_lang_code }}].text"
+                                       name="senses[INDEX].gloss.{{ default_lang_code }}.text"
                                        value=""
                                        placeholder="Enter gloss in {{ default_lang_code }}">
                             </div>

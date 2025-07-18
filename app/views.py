@@ -502,8 +502,9 @@ def add_entry():
                 flash("Entry created successfully!", "success")
                 return redirect(url_for("main.view_entry", entry_id=entry_id))
 
-        # Create an empty entry for the form
-        entry = Entry()
+        # Create an empty entry for the form (without ID for new entries)
+        entry = Entry(id_="")  # Use empty string to prevent UUID generation
+        entry.id = ""  # Explicitly set to empty string
 
         # Get LIFT ranges for dropdowns
         ranges = dict_service.get_lift_ranges()
