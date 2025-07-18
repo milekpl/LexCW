@@ -1329,6 +1329,10 @@ class DictionaryService:
                     parsed_ranges["variant-types"] = parsed_ranges[key]
                 if key == "variant-types" and "variant-type" not in parsed_ranges:
                     parsed_ranges["variant-type"] = parsed_ranges[key]
+                if key == "etymology-type" and "etymology-types" not in parsed_ranges:
+                    parsed_ranges["etymology-types"] = parsed_ranges[key]
+                if key == "etymology-types" and "etymology-type" not in parsed_ranges:
+                    parsed_ranges["etymology-type"] = parsed_ranges[key]
 
             self.ranges = parsed_ranges
             return self.ranges

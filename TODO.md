@@ -16,6 +16,21 @@
 
 8. Remaining Issues in Validation (failures):
 
-- Note Structure Validation: Missing validation rule implementation
-- IPA Character Validation: Missing validation rule  implementation
+- Note Structure Validation: Missing validation rule implementation (failing unit test)
+- IPA Character Validation: Missing validation rule  implementation (failing unit test)
 - POS Consistency Rules: Missing validation rule implementation
+
+9. Etymology ranges bugs on opening the entry form:
+
+```
+GET http://localhost:5000/api/ranges/etymology-types 500 (INTERNAL SERVER ERROR)
+loadRanges @ etymology-forms.js:47
+await in loadRanges
+init @ etymology-forms.js:30
+EtymologyFormsManager @ etymology-forms.js:21
+(anonymous) @ edit:902Understand this error
+etymology-forms.js:55 Failed to load etymology types from range 'etymology-types', using defaults
+```
+
+10. We lost the date time field on the entries list "Last Modified" (again!!!). That's a clear regression. We should have an integration test on this. The git history must have something related to the solution. Why did this break? Weirdly, it displays fine for newly created entries. Perhaps uses some other field now? 
+

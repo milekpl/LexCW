@@ -40,7 +40,7 @@ class TestSystemStatus(unittest.TestCase):
 
         # Verify the connector was called correctly
         self.assertTrue(self.connector.is_connected.called)
-        self.connector.execute_query.assert_called_with("db:info()")
+        self.connector.execute_query.assert_called_with('db:info("test_db")')
 
     def test_system_status_disconnected(self):
         """Test system status when disconnected."""
