@@ -296,12 +296,13 @@ class DictionaryService:
             self.logger.error("Error retrieving entry %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
 
-    def create_entry(self, entry: Entry) -> str:
+    def create_entry(self, entry: Entry, draft: bool = False) -> str:
         """
         Create a new entry.
 
         Args:
             entry: Entry object to create.
+            draft: If True, use draft validation mode (allows saving incomplete entries).
 
         Returns:
             ID of the created entry.
@@ -311,7 +312,8 @@ class DictionaryService:
             DatabaseError: If there is an error creating the entry.
         """
         try:
-            if not entry.validate():
+            validation_mode = "draft" if draft else "save"
+            if not entry.validate(validation_mode):
                 raise ValidationError("Entry validation failed")
 
             db_name = self.db_connector.database
@@ -343,12 +345,13 @@ class DictionaryService:
             self.logger.error("Error creating entry: %s", str(e))
             raise DatabaseError(f"Failed to create entry: {str(e)}") from e
 
-    def update_entry(self, entry: Entry) -> None:
+    def update_entry(self, entry: Entry, draft: bool = False) -> None:
         """
         Update an existing entry.
 
         Args:
             entry: Entry object to update.
+            draft: If True, use draft validation mode (allows saving incomplete entries).
 
         Raises:
             NotFoundError: If the entry does not exist.
@@ -356,7 +359,8 @@ class DictionaryService:
             DatabaseError: If there is an error updating the entry.
         """
         try:
-            if not entry.validate():
+            validation_mode = "draft" if draft else "save"
+            if not entry.validate(validation_mode):
                 raise ValidationError("Entry validation failed")
 
             db_name = self.db_connector.database
@@ -382,6 +386,33 @@ class DictionaryService:
             self.logger.error("Error updating entry %s: %s", entry.id, str(e))
             raise DatabaseError(f"Failed to update entry: {str(e)}") from e
 
+    def entry_exists(self, entry_id: str) -> bool:
+        """
+        Check if an entry exists in the database.
+
+        Args:
+            entry_id: ID of the entry to check.
+
+        Returns:
+            True if the entry exists, False otherwise.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            has_ns = self._detect_namespace_usage()
+            query = self._query_builder.build_entry_exists_query(
+                entry_id, db_name, has_ns
+            )
+
+            result = self.db_connector.execute_query(query)
+            return result.lower() == "true"
+
+        except Exception as e:
+            self.logger.error("Error checking if entry exists %s: %s", entry_id, str(e))
+            raise DatabaseError(f"Failed to check if entry exists: {str(e)}") from e
+
     def delete_entry(self, entry_id: str) -> bool:
         """
         Delete an entry by ID.
@@ -401,8 +432,9 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Check if entry exists first - this will raise NotFoundError if not found
-            self.get_entry(entry_id)
+            # Check if entry exists first
+            if not self.entry_exists(entry_id):
+                raise NotFoundError(f"Entry with ID '{entry_id}' not found")
 
             # Use namespace-aware query
             has_ns = self._detect_namespace_usage()

@@ -96,10 +96,9 @@ class ValidationEngine:
             rules_file: Path to validation rules JSON file
         """
         self.rules_file = rules_file or "validation_rules.json"
-        # Only load rules if not already cached or if a different file is requested
-        if (ValidationEngine._rules_file_loaded != self.rules_file) or not ValidationEngine._rules_cache:
-            self._load_rules()
-            ValidationEngine._rules_file_loaded = self.rules_file
+        # Always reload rules to ensure validation_mode changes are picked up
+        self._load_rules()
+        ValidationEngine._rules_file_loaded = self.rules_file
         self.rules: Dict[str, Dict[str, Any]] = ValidationEngine._rules_cache
         self.custom_functions: Dict[str, Any] = ValidationEngine._custom_functions_cache
     
@@ -123,6 +122,13 @@ class ValidationEngine:
                             validation['compiled_pattern'] = re.compile(pattern)
                         except re.error as e:
                             raise ValueError(f"Invalid regex '{pattern}' in rule {rule_id}: {e}")
+                    
+                    not_pattern = validation.get('not_pattern')
+                    if not_pattern:
+                        try:
+                            validation['compiled_not_pattern'] = re.compile(not_pattern)
+                        except re.error as e:
+                            raise ValueError(f"Invalid regex '{not_pattern}' in rule {rule_id}: {e}")
                 ValidationEngine._rules_cache = rules
                 ValidationEngine._custom_functions_cache = custom_functions
         except FileNotFoundError:
@@ -130,12 +136,13 @@ class ValidationEngine:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in validation rules file: {e}")
     
-    def validate_json(self, data: Dict[str, Any]) -> ValidationResult:
+    def validate_json(self, data: Dict[str, Any], validation_mode: str = "save") -> ValidationResult:
         """
         Validate JSON data against all applicable rules.
         
         Args:
             data: Dictionary representing entry data from form
+            validation_mode: Validation mode - "save", "delete", "draft", or "all"
             
         Returns:
             ValidationResult containing all validation issues
@@ -147,6 +154,15 @@ class ValidationEngine:
         for rule_id, rule_config in self.rules.items():
             # Skip server-side only rules if this is client-side validation
             if not rule_config.get('client_side', True):
+                continue
+                
+            # Check validation mode restrictions
+            rule_mode = rule_config.get('validation_mode', 'all')
+            if rule_mode == 'save_only' and validation_mode in ['delete', 'draft']:
+                continue
+            elif rule_mode == 'delete_only' and validation_mode != 'delete':
+                continue
+            elif rule_mode == 'draft_only' and validation_mode not in ['draft', 'all']:
                 continue
                 
             validation_errors = self._apply_rule(rule_id, rule_config, data)
@@ -222,7 +238,7 @@ class ValidationEngine:
         
         return errors
     
-    def validate_entry(self, entry_data: Union[Dict[str, Any], Any]) -> ValidationResult:
+    def validate_entry(self, entry_data: Union[Dict[str, Any], Any], validation_mode: str = "save") -> ValidationResult:
         """
         Validate an entry object or dictionary against all validation rules.
         
@@ -230,6 +246,7 @@ class ValidationEngine:
         
         Args:
             entry_data: Entry object or dictionary to validate
+            validation_mode: Validation mode - "save", "delete", "draft", or "all"
             
         Returns:
             ValidationResult containing all validation issues
@@ -248,7 +265,7 @@ class ValidationEngine:
             except (TypeError, ValueError):
                 raise ValueError(f"Cannot convert entry data to dictionary: {type(entry_data)}")
             
-        return self.validate_json(data)
+        return self.validate_json(data, validation_mode)
     
     def _convert_object_to_dict(self, obj: Any) -> Dict[str, Any]:
         """Convert an entry object to a dictionary for validation."""
@@ -313,6 +330,11 @@ class ValidationEngine:
             # Use precompiled regex
             pattern = validation.get('compiled_pattern')
             if pattern and not pattern.match(value):
+                return False
+                
+            # Check not_pattern (validation fails if pattern is found)
+            not_pattern = validation.get('compiled_not_pattern')
+            if not_pattern and not_pattern.search(value):
                 return False
                         
         elif val_type == 'array':

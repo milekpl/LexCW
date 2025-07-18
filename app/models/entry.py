@@ -261,9 +261,12 @@ class Entry(BaseModel):
         # Apply part-of-speech inheritance logic
         self._apply_pos_inheritance()
 
-    def validate(self) -> bool:
+    def validate(self, validation_mode: str = "save") -> bool:
         """
         Validate the entry using the centralized validation system.
+
+        Args:
+            validation_mode: Validation mode - "save", "delete", "draft", or "all"
 
         Returns:
             True if the entry is valid.
@@ -275,7 +278,7 @@ class Entry(BaseModel):
         
         # Use centralized validation system
         engine = ValidationEngine()
-        result = engine.validate_entry(self)
+        result = engine.validate_entry(self, validation_mode)
         
         if not result.is_valid:
             # Convert ValidationError objects to strings for legacy compatibility

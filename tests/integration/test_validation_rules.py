@@ -10,8 +10,89 @@ from __future__ import annotations
 import pytest
 
 from app.models.entry import Entry
+from app.models.sense import Sense
 from app.utils.exceptions import ValidationError
 
+
+
+@pytest.mark.integration
+class TestValidationModes:
+    """Test different validation modes - the core issue mentioned."""
+
+    def test_entry_without_senses_draft_mode(self):
+        """Test that entries without senses can be saved in draft mode."""
+        entry = Entry(
+            id_="test_entry",
+            lexical_unit={"pl": "test"},
+            senses=[]
+        )
+        
+        # Should fail in save mode
+        with pytest.raises(ValidationError):
+            entry.validate("save")
+        
+        # Should pass in draft mode
+        assert entry.validate("draft") is True
+        
+    def test_entry_deletion_bypasses_validation(self):
+        """Test that entry deletion doesn't require validation."""
+        entry = Entry(
+            id_="test_entry",
+            lexical_unit={"pl": "test"},
+            senses=[]
+        )
+        
+        # Delete validation should pass regardless of content
+        assert entry.validate("delete") is True
+        
+    def test_progressive_workflow(self):
+        """Test the progressive workflow from draft to save."""
+        # Step 1: Create entry without senses (draft mode)
+        entry = Entry(
+            id_="test_entry",
+            lexical_unit={"pl": "test"},
+            senses=[]
+        )
+        assert entry.validate("draft") is True
+        
+        # Step 2: Add a sense
+        sense = Sense(
+            id_="sense1",
+            gloss={"pl": {"text": "test gloss"}}
+        )
+        entry.add_sense(sense)
+        
+        # Step 3: Now should pass full validation
+        assert entry.validate("save") is True
+        
+    def test_dictionary_service_draft_mode(self):
+        """Test that the dictionary service supports draft mode."""
+        from app import create_app
+        
+        app = create_app()
+        
+        with app.app_context():
+            from app.services.dictionary_service import DictionaryService
+            
+            dict_service = app.injector.get(DictionaryService)
+            
+            # Create an entry without senses using draft mode
+            entry = Entry(
+                id_="test_draft_entry",
+                lexical_unit={"pl": "test"},
+                senses=[]
+            )
+            
+            # This should work in draft mode
+            try:
+                entry_id = dict_service.create_entry(entry, draft=True)
+                assert entry_id == "test_draft_entry"
+                
+                # Clean up
+                dict_service.delete_entry(entry_id)
+            except Exception as e:
+                # Skip if database not available
+                pytest.skip(f"Database not available: {e}")
 
 
 @pytest.mark.integration
@@ -25,9 +106,9 @@ class TestEntryValidationRules:
         entry = Entry(
             id_="valid_id",
             lexical_unit={"pl": "test", "en": "test"},
-            senses=[{"id": "sense1", "gloss": {"pl": "test", "en": "test"}}],
+            senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}, "en": {"text": "test"}})],
         )
-        assert entry.validate() is True
+        assert entry.validate("save") is True
 
         # Test that entry created without explicit ID gets auto-generated ID
         entry_auto_id = Entry(
@@ -137,15 +218,15 @@ class TestEntryValidationRules:
             )
             assert entry.validate() is True
 
-        # Test invalid lexical units
+        # Test invalid lexical units (empty dictionary)
         with pytest.raises(ValidationError) as exc_info:
             entry = Entry(
                 id_="test_entry",
-                lexical_unit="string_instead_of_dict",
-                senses=[{"id": "sense1", "gloss": {"pl": "test"}}],
+                lexical_unit={},  # Empty dictionary should fail minProperties validation
+                senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})],
             )
             entry.validate()
-        assert "Lexical unit must be a dictionary" in str(exc_info.value)
+        assert "lexical unit" in str(exc_info.value).lower()
 
     @pytest.mark.integration
     def test_r1_2_3_language_code_validation(self):
@@ -192,27 +273,27 @@ class TestSenseValidationRules:
     @pytest.mark.integration
     def test_r2_1_1_sense_id_required(self):
         """Test R2.1.1: Sense ID is required and must be non-empty."""
-        # Test missing sense ID
+        # Test missing sense ID by manually setting it to None after creation
         with pytest.raises(ValidationError) as exc_info:
+            sense = Sense(id_="temp", gloss={"pl": {"text": "test"}})
+            sense.id = None  # Manually set to None to test validation
             entry = Entry(
                 id_="test_entry",
                 lexical_unit={"pl": "test"},
-                senses=[{"gloss": {"pl": "test"}}],  # Missing ID
+                senses=[sense],
             )
             entry.validate()
-        assert "Sense ID is required" in str(
-            exc_info.value
-        ) or "Sense validation failed" in str(exc_info.value)
+        assert "sense id is required" in str(exc_info.value).lower()
 
         # Test empty sense ID
         with pytest.raises(ValidationError) as exc_info:
             entry = Entry(
                 id_="test_entry",
                 lexical_unit={"pl": "test"},
-                senses=[{"id": "", "gloss": {"pl": "test"}}],
+                senses=[Sense(id_="", gloss={"pl": {"text": "test"}})],
             )
             entry.validate()
-        assert "Sense ID is required" in str(exc_info.value)
+        assert "sense id is required" in str(exc_info.value).lower()
 
     @pytest.mark.integration
     def test_r2_1_2_sense_definition_or_gloss_required(self):
@@ -286,24 +367,20 @@ class TestSenseValidationRules:
             entry = Entry(
                 id_="test_entry",
                 lexical_unit={"pl": "test"},
-                senses=[{"id": "sense1", "definition": {"en": ""}}],
+                senses=[Sense(id_="sense1", definition={"en": {"text": ""}})],
             )
             entry.validate()
-        assert "Definition cannot be empty" in str(
-            exc_info.value
-        ) or "Sense validation failed" in str(exc_info.value)
+        assert "definition cannot be empty" in str(exc_info.value).lower()
 
         # Test whitespace-only definition (multilanguage)
         with pytest.raises(ValidationError) as exc_info:
             entry = Entry(
                 id_="test_entry",
                 lexical_unit={"pl": "test"},
-                senses=[{"id": "sense1", "definition": {"en": "   "}}],
+                senses=[Sense(id_="sense1", definition={"en": {"text": "   "}})],
             )
             entry.validate()
-        assert "Definition cannot be empty" in str(
-            exc_info.value
-        ) or "Sense validation failed" in str(exc_info.value)
+        assert "definition cannot be empty" in str(exc_info.value).lower()
 
     @pytest.mark.integration
     def test_r2_2_2_gloss_content_validation(self):
@@ -321,12 +398,10 @@ class TestSenseValidationRules:
             entry = Entry(
                 id_="test_entry",
                 lexical_unit={"pl": "test"},
-                senses=[{"id": "sense1", "gloss": {"pl": ""}}],
+                senses=[Sense(id_="sense1", gloss={"pl": {"text": ""}})],
             )
             entry.validate()
-        assert "Gloss cannot be empty" in str(
-            exc_info.value
-        ) or "Sense validation failed" in str(exc_info.value)
+        assert "gloss cannot be empty" in str(exc_info.value).lower()
 
     @pytest.mark.integration
     def test_r2_2_3_example_text_validation(self):

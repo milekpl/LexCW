@@ -11,6 +11,9 @@ import tempfile
 import uuid
 import logging
 from typing import Generator
+import threading
+import time
+from urllib.parse import urlparse
 
 # Add parent directory to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -24,6 +27,7 @@ from app.models.example import Example
 from app.models.pronunciation import Pronunciation
 from flask import Flask
 from flask.testing import FlaskClient
+from playwright.sync_api import Page, Browser, sync_playwright
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +59,7 @@ def test_db_name() -> str:
     return f"test_{uuid.uuid4().hex[:8]}"
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def sample_lift_files() -> dict[str, str]:
     """Get paths to sample LIFT files."""
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -175,7 +179,7 @@ def dict_service_with_db(basex_test_connector: BaseXConnector) -> DictionaryServ
     return DictionaryService(db_connector=basex_test_connector)
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]:
     """Create and configure a Flask app for integration testing with real database."""
     from flask import Flask
@@ -260,6 +264,51 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
 def client(app: Flask) -> FlaskClient:
     """Test client for integration testing."""
     return app.test_client()
+
+
+import threading
+import time
+from urllib.parse import urlparse
+
+@pytest.fixture(scope="function")
+def playwright_page(app: Flask) -> Generator[Page, None, None]:
+    """Provides a Playwright Page object for browser automation testing."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        yield page
+        browser.close()
+
+@pytest.fixture(scope="function")
+def live_server(app: Flask):
+    """Starts the Flask app in a separate thread for Playwright tests."""
+    port = 5000  # Default Flask port, adjust if needed
+    url = f"http://localhost:{port}"
+    
+    # Function to run the Flask app
+    def run_app():
+        app.run(port=port, debug=False, use_reloader=False)
+
+    # Start the Flask app in a new thread
+    server_thread = threading.Thread(target=run_app)
+    server_thread.daemon = True  # Daemonize thread so it terminates when the main program exits
+    server_thread.start()
+
+    # Wait for the server to start
+    # You might need a more robust check here, e.g., trying to connect to the URL
+    time.sleep(2)  # Give the server some time to boot up
+
+    class LiveServer:
+        def __init__(self, url):
+            self.url = url
+            self.app = app
+    
+    yield LiveServer(url)
+
+    # No explicit shutdown needed for daemon thread, but can add if necessary
+    # For example, if app.run() had a shutdown mechanism.
+    # In this setup, the thread will exit when the main process exits.
+
 
 
 @pytest.fixture
