@@ -10,7 +10,7 @@ class EtymologyFormsManager {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
         this.etymologies = options.etymologies || [];
-        this.rangeId = options.rangeId || 'etymology-types'; // Default to using 'etymology-types' range
+        this.rangeId = options.rangeId || 'etymology'; // Default to using 'etymology' range
         this.ranges = null;
         this.options = {
             allowAdd: options.allowAdd !== false,

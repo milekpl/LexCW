@@ -7,7 +7,7 @@ to support dynamic dropdown population in the UI.
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, Response
+from flask import Blueprint, jsonify, Response, current_app
 from typing import Union, Tuple
 
 from app.services.dictionary_service import DictionaryService
@@ -77,8 +77,7 @@ def get_all_ranges() -> Union[Response, Tuple[Response, int]]:
     # Remove hardcoded test ranges - use dynamic ranges from service layer
     try:
         # Get dictionary service using dependency injection
-        from app import injector
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_ranges()
         return jsonify({
             'success': True,
@@ -111,7 +110,6 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         in: path
         required: true
         type: string
-        description: ID of the range to retrieve
         example: grammatical-info
     responses:
       200:
@@ -169,16 +167,14 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
     """
     try:
         # Get dictionary service using dependency injection
-        from app import injector
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_ranges()
 
         # Define specific mappings for known problematic range names
         range_mappings = {
             'relation-type': 'lexical-relation',
             'relation-types': 'lexical-relation', 
-            'etymology-types': 'etymology',
-            'etymology-type': 'etymology',
+            'etymology': 'etymology',
             'variant-types-from-traits': 'variant-types',
             'semantic-domains': 'semantic-domain-ddp4',
             'semantic-domain': 'semantic-domain-ddp4',
@@ -272,8 +268,7 @@ def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
     """
     try:
         # Get dictionary service using dependency injection
-        from app import injector
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_ranges()
         
         # Check if variant-types exists in LIFT ranges
@@ -393,23 +388,23 @@ def get_semantic_domains_range() -> Union[Response, Tuple[Response, int]]:
     return get_specific_range('semantic-domains')
 
 
-@ranges_bp.route('/etymology-types', methods=['GET'])
-def get_etymology_types_range() -> Union[Response, Tuple[Response, int]]:
+@ranges_bp.route('/etymology', methods=['GET'])
+def get_etymology_range() -> Union[Response, Tuple[Response, int]]:
     """
-    Get etymology types range.
+    Get etymology range.
     
-    Convenience endpoint for accessing etymology type categories for word origins.
+    Convenience endpoint for accessing etymology categories for word origins.
     
     Returns:
-        JSON response with etymology types range.
+        JSON response with etymology range.
     ---
     tags:
       - ranges
-    summary: Get etymology types range
-    description: Convenience endpoint for etymology type categories (inheritance, borrowing, etc.)
+    summary: Get etymology range
+    description: Convenience endpoint for etymology categories (inheritance, borrowing, etc.)
     responses:
       200:
-        description: Successfully retrieved etymology types range
+        description: Successfully retrieved etymology range
         schema:
           type: object
           properties:
@@ -421,7 +416,7 @@ def get_etymology_types_range() -> Union[Response, Tuple[Response, int]]:
               properties:
                 id:
                   type: string
-                  example: "etymology-types"
+                  example: "etymology"
                 values:
                   type: array
                   items:
@@ -429,10 +424,10 @@ def get_etymology_types_range() -> Union[Response, Tuple[Response, int]]:
                     properties:
                       id:
                         type: string
-                        example: "borrowing"
+                        example: "borrowed"
                       value:
                         type: string
-                        example: "borrowing"
+                        example: "borrowed"
                       abbrev:
                         type: string
                         example: "bor"
@@ -441,13 +436,13 @@ def get_etymology_types_range() -> Union[Response, Tuple[Response, int]]:
                         properties:
                           en:
                             type: string
-                            example: "Word borrowed from another language"
+                            example: "The word is borrowed from another language"
       404:
-        description: Etymology types range not found
+        description: Etymology range not found
       500:
         description: Error retrieving range
     """
-    return get_specific_range('etymology-types')
+    return get_specific_range('etymology')
 
 
 @ranges_bp.route('/variant-types-from-traits', methods=['GET'])
@@ -508,8 +503,7 @@ def get_variant_types_from_traits() -> Union[Response, Tuple[Response, int]]:
     """
     try:
         # Get dictionary service using dependency injection
-        from app import injector
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         variant_types = dict_service.get_variant_types_from_traits()
         
         return jsonify({
@@ -569,8 +563,7 @@ def get_language_codes() -> Union[Response, Tuple[Response, int]]:
     """
     try:
         # Get dictionary service using dependency injection
-        from app import injector
-        dict_service = injector.get(DictionaryService)
+        dict_service = current_app.injector.get(DictionaryService)
         language_codes = dict_service.get_language_codes()
         
         return jsonify({

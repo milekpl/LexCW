@@ -110,8 +110,6 @@ def get_range_by_type(range_type: str):
                 'grammatical-info': ['grammatical-info'],
                 'relation-type': ['lexical-relation'],
                 'relation-types': ['lexical-relation'],
-                'etymology-types': ['etymology'],
-                'etymology-type': ['etymology'],
                 'variant-types': ['variant-types', 'variants'],
                 'variant-types-from-traits': ['variant-types', 'variants'],
                 'semantic-domains': ['semantic-domain-ddp4'],

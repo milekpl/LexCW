@@ -5,14 +5,11 @@ This module initializes the Flask application and registers all blueprints.
 """
 
 import os
-import sys
 import logging
 from flask import Flask
-from typing import Any, Callable, Dict, Optional
 from flasgger import Swagger
 from injector import Injector, singleton
 import psycopg2
-from psycopg2 import pool
 
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
@@ -49,12 +46,17 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.getenv('FLASK_CONFIG', 'development')
 
+    # Load configuration
     if config_name == 'testing':
         app.config.from_object('config.TestingConfig')
     elif config_name == 'production':
         app.config.from_object('config.ProductionConfig')
     else:
         app.config.from_object('config.DevelopmentConfig')
+
+    # Force debug mode for detailed error reporting during development/testing
+    app.debug = True
+    app.config['DEBUG'] = True
 
     # Load instance config if it exists
     app.config.from_pyfile('config.py', silent=True)

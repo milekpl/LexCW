@@ -11,34 +11,6 @@ class RangesLoader {
         this.cache = new Map();
         this.baseUrl = '/api/ranges';
         this.debug = true;
-        
-        // Fallback data for key ranges when API is unavailable
-        this.fallbackData = {
-            'grammatical-info': {
-                id: 'grammatical-info',
-                values: [
-                    { value: 'Noun', text: 'Noun' },
-                    { value: 'Verb', text: 'Verb' },
-                    { value: 'Adjective', text: 'Adjective' },
-                    { value: 'Adverb', text: 'Adverb' },
-                    { value: 'Pronoun', text: 'Pronoun' },
-                    { value: 'Preposition', text: 'Preposition' },
-                    { value: 'Conjunction', text: 'Conjunction' },
-                    { value: 'Interjection', text: 'Interjection' }
-                ]
-            },
-            'lexical-relation': {
-                id: 'lexical-relation',
-                values: [
-                    { value: 'synonym', text: 'synonym' },
-                    { value: 'antonym', text: 'antonym' },
-                    { value: 'hypernym', text: 'hypernym' },
-                    { value: 'hyponym', text: 'hyponym' },
-                    { value: 'meronym', text: 'meronym' },
-                    { value: 'holonym', text: 'holonym' }
-                ]
-            }
-        };
     }
     
     log(message, ...args) {
@@ -289,60 +261,6 @@ class RangesLoader {
         return result;
     }
     
-    /**
-     * Get fallback values for a specific range type
-     */
-    getFallbackValues(rangeId) {
-        // Use the fallback data from constructor, but convert to the expected format
-        if (this.fallbackData[rangeId] && this.fallbackData[rangeId].values) {
-            return this.fallbackData[rangeId].values.map(item => ({
-                id: item.value,
-                value: item.value,
-                abbrev: item.text !== item.value ? item.text : null
-            }));
-        }
-        return [];
-    }
-
-    /**
-     * Populate select with fallback values if ranges API fails
-     */
-    async populateSelectWithFallback(selectElement, rangeId, options = {}) {
-        this.log(`PopulateSelectWithFallback called for: ${rangeId}`);
-        const success = await this.populateSelect(selectElement, rangeId, options);
-        this.log(`PopulateSelect result: ${success}`);
-        
-        if (!success) {
-            this.log(`Using fallback values for range ${rangeId}`);
-            const fallbackValues = this.getFallbackValues(rangeId);
-            
-            // Clear and populate with fallback
-            selectElement.innerHTML = '';
-            
-            if (options.emptyOption) {
-                const emptyOpt = document.createElement('option');
-                emptyOpt.value = '';
-                emptyOpt.textContent = options.emptyOption;
-                selectElement.appendChild(emptyOpt);
-            }
-            
-            fallbackValues.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.value;
-                option.textContent = options.includeAbbrev && item.abbrev ? 
-                    `${item.value} (${item.abbrev})` : item.value;
-                
-                if (options.selectedValue && option.value === options.selectedValue) {
-                    option.selected = true;
-                }
-                
-                selectElement.appendChild(option);
-            });
-        }
-        
-        return true;
-    }
-
     /**
      * Populate all selects marked with data-range-id attributes
      */

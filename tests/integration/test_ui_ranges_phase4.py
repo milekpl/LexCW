@@ -172,7 +172,6 @@ class TestUIRangesDynamicIntegration:
         etymology_indicators = [
             'etymology',
             'data-range-type="etymology"',
-            'etymology-type',
             'etymology-form'
         ]
         

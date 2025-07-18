@@ -218,7 +218,7 @@ class TestDictionaryService:
         
         # Check that fallback ranges contain core categories from the sample LIFT ranges file
         # These are categories we know exist in the sample-lift-file.lift-ranges
-        expected_core_categories = ['grammatical-info', 'etymology-type', 'usage-type']
+        expected_core_categories = ['grammatical-info', 'etymology', 'usage-type']
         found_categories = 0
         for category in expected_core_categories:
             if category in ranges:

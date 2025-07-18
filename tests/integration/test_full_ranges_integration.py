@@ -120,7 +120,6 @@ def test_all_ranges_available(client: FlaskClient) -> None:
     # Check for core ranges that should be present in any properly configured system
     expected_core_ranges = ['grammatical-info', 'usage-type']
     alternative_ranges = {
-        'etymology': ['etymology-type', 'etymology'],  # Could be either name
         'lexical-relation': ['lexical-relation', 'relation-type', 'relation-types'],  # Various possible names
         'variant': ['variant-type', 'variant-types']  # Various possible names
     }

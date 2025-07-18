@@ -718,7 +718,7 @@ class Entry(BaseModel):
                             pass
                         
                     variant_relations.append(variant_info)
-            except (AttributeError, TypeError, KeyError) as e:
+            except (AttributeError, TypeError, KeyError):
                 # Skip relations that can't be processed
                 continue
         
@@ -809,7 +809,7 @@ class Entry(BaseModel):
                     except (AttributeError, TypeError, KeyError):
                         continue
                         
-        except Exception as e:
+        except Exception:
             # If search fails, just return empty list - don't break the page
             pass
             
