@@ -82,7 +82,7 @@ This document outlines the implementation tasks for the Dynamic Range Management
         *   **Requirements**: `3.1.4`, `3.1.5`
 
     3.4. [ ] **Write End-to-End UI Tests**
-        *   Use a framework like Selenium to write tests that verify:
+        *   Use a framework like Playwright to write tests that verify:
         *   All specified dropdowns are populated with data from the APIs.
         *   Hierarchical data is displayed correctly.
         *   The pronunciation language is correctly restricted.
