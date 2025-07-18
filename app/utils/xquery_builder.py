@@ -254,6 +254,28 @@ class XQueryBuilder:
         """
 
     @staticmethod
+    def build_entry_exists_query(
+        entry_id: str, db_name: str, has_namespace: bool = True
+    ) -> str:
+        """
+        Build query to check if an entry exists.
+
+        Args:
+            entry_id: ID of the entry to check
+            db_name: Name of the database
+            has_namespace: Whether XML uses namespaces
+
+        Returns:
+            Complete XQuery string
+        """
+        prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+
+        return f"""{prologue}
+        exists(collection('{db_name}')//{entry_path}[@id="{entry_id}"])
+        """
+
+    @staticmethod
     def build_statistics_query(db_name: str, has_namespace: bool = True) -> str:
         """
         Build query to get database statistics.

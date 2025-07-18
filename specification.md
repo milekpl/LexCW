@@ -144,7 +144,7 @@ The following UI components MUST use dynamic ranges and follow the above require
 **Test-Driven Specification**: Each workset view must be validated through comprehensive UI and API tests.
 
 - **Dynamic Query Builder**: TDD-validated interface for creating complex entry filters using dynamic ranges
-- **Workset Management**: Save, load, and share filtered entry collections
+- **Workset Management**: Save, load, and share filtered entry collections. This includes saving the UI configuration of the workset, such as column visibility, sorting order, and other UI settings.
 - **Bulk Operations**: Apply changes to hundreds or thousands of entries simultaneously
 - **Progress Tracking**: Real-time feedback for long-running operations
 

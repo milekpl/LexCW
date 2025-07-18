@@ -28,6 +28,8 @@ psutil>=5.9.0
 jsonpath-ng==1.6.1
 Flask-WTF==1.2.1
 selenium==4.23.1
+playwright==1.45.0
+pytest-playwright==0.5.0
 beautifulsoup4==4.12.3
 # PostgreSQL database
 psycopg2-binary>=2.9.9
