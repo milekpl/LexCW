@@ -16,9 +16,10 @@ This document outlines the implementation tasks for the Dynamic Range Management
         *   The cache should be invalidated and refreshed automatically when the `LIFT RANGES` file is modified.
         *   **Requirements**: `3.1.3`, `6.3`
 
-    1.3. [x] **Implement Fallback to Default Ranges**
-        *   Create a fallback mechanism that provides a set of default, hard-coded ranges if the `LIFT RANGES` file is unavailable or parsing fails.
-        *   This ensures the UI remains functional for development and testing even without a complete LIFT file.
+    1.3. [ ] **Implement Fallback to Default Ranges**
+        *   Create a fallback mechanism that provides a set of default, hard-coded ranges if the `LIFT RANGES` file is unavailable in the database or parsing fails.
+        *   They should come from a standard SIL Fieldworks LIFT file; all empty dictionaries should get these ranges by default loaded from this file as a template.
+        *   This ensures the UI remains functional for development and testing even without an empty dictionary (without any entries).
         *   **Requirements**: `3.1.3`
 
     1.4. [x] **Create API Endpoints for LIFT Ranges**
