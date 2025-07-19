@@ -25,7 +25,7 @@ def get_all_ranges() -> Union[Response, Tuple[Response, int]]:
         JSON response with all ranges data.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get all LIFT ranges
     description: Retrieve all LIFT ranges for dynamic UI dropdown population
     responses:
@@ -102,7 +102,7 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         JSON response with specific range data.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get specific LIFT range
     description: Retrieve a specific LIFT range by its ID
     parameters:
@@ -231,7 +231,7 @@ def get_grammatical_info_range() -> Union[Response, Tuple[Response, int]]:
         JSON response with grammatical info range.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get grammatical information range
     description: Convenience endpoint for grammatical categories
     responses:
@@ -257,7 +257,7 @@ def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
         JSON response with variant types range.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get variant types range
     description: Convenience endpoint for variant type categories
     responses:
@@ -349,7 +349,7 @@ def get_relation_types_range() -> Union[Response, Tuple[Response, int]]:
         JSON response with relation types range.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get relation types range
     description: Convenience endpoint for relation type categories
     responses:
@@ -374,7 +374,7 @@ def get_semantic_domains_range() -> Union[Response, Tuple[Response, int]]:
         JSON response with semantic domains range.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get semantic domains range
     description: Convenience endpoint for semantic domain categories
     responses:
@@ -399,7 +399,7 @@ def get_etymology_range() -> Union[Response, Tuple[Response, int]]:
         JSON response with etymology range.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get etymology range
     description: Convenience endpoint for etymology categories (inheritance, borrowing, etc.)
     responses:
@@ -457,7 +457,7 @@ def get_variant_types_from_traits() -> Union[Response, Tuple[Response, int]]:
         JSON response with variant types from traits.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get variant types from traits
     description: Retrieve variant types from traits in LIFT data
     responses:
@@ -532,7 +532,7 @@ def get_language_codes() -> Union[Response, Tuple[Response, int]]:
         JSON response with language codes from the LIFT file.
     ---
     tags:
-      - ranges
+      - Ranges
     summary: Get language codes
     description: Retrieve language codes used in the LIFT file
     responses:

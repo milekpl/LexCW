@@ -22,7 +22,7 @@ def get_dashboard_stats():
     Get dashboard statistics with caching for performance
     ---
     tags:
-      - dashboard
+      - Dashboard
     responses:
       200:
         description: Dashboard statistics

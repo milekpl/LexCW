@@ -35,7 +35,7 @@ def list_entries() -> Any:
     List dictionary entries with pagination, filtering, and sorting
     ---
     tags:
-      - entries
+      - Entries
     parameters:
       - name: limit
         in: query
@@ -241,7 +241,7 @@ def get_entry(entry_id: str) -> Any:
     Get a dictionary entry by ID
     ---
     tags:
-      - entries
+      - Entries
     parameters:
       - name: entry_id
         in: path
@@ -336,7 +336,7 @@ def create_entry() -> Any:
     Create a new dictionary entry
     ---
     tags:
-      - entries
+      - Entries
     parameters:
       - name: body
         in: body
@@ -507,7 +507,7 @@ def update_entry(entry_id: str) -> Any:
     Update a dictionary entry
     ---
     tags:
-      - entries
+      - Entries
     parameters:
       - name: entry_id
         in: path
@@ -677,6 +677,9 @@ def delete_entry(entry_id: str) -> Any:
     
     Returns:
         JSON response with success status.
+    ---
+    tags:
+      - Entries
     """
     try:
         # Get dictionary service
@@ -707,6 +710,9 @@ def get_related_entries(entry_id: str) -> Any:
     
     Returns:
         JSON response with list of related entries.
+    ---
+    tags:
+      - Entries
     """
     try:
         # Get query parameters
@@ -768,3 +774,84 @@ def clear_entries_cache() -> Any:
     except Exception as e:
         logger.error(f"Error clearing entries cache: {e}")
         return jsonify({'status': 'error', 'message': f'Error clearing cache: {e}'}), 500
+
+
+@entries_bp.route('/search', methods=['GET'])
+def search_entries() -> Any:
+    """
+    Search for entries based on a query.
+    ---
+    tags:
+      - Entries
+    parameters:
+      - name: q
+        in: query
+        type: string
+        required: true
+        description: Search query
+        example: "test"
+      - name: search_field
+        in: query
+        type: string
+        required: false
+        description: Field to search in
+        enum: [lexical_unit, gloss, definition]
+        default: lexical_unit
+    responses:
+      200:
+        description: Search results
+        schema:
+          type: object
+          properties:
+            entries:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  lexical_unit:
+                    type: object
+                  senses:
+                    type: array
+            count:
+              type: integer
+      400:
+        description: Bad request (missing query)
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+      500:
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+    """
+    try:
+        # Get query parameters
+        query = request.args.get('q')
+        search_field = request.args.get('search_field', 'lexical_unit')
+        
+        if not query:
+            return jsonify({'error': 'Search query (q) is required'}), 400
+        
+        # Get dictionary service
+        dict_service = get_dictionary_service()
+        
+        # Search entries
+        entries = dict_service.search_entries(query, search_field)
+        
+        # Prepare response
+        response = {
+            'entries': [entry.to_dict() for entry in entries],
+            'count': len(entries),
+        }        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error("Error searching entries for query '%s': %s", query, str(e))
+        return jsonify({'error': str(e)}), 500
