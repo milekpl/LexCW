@@ -202,7 +202,12 @@ class ValidationEngine:
 
 @validation_api.route('/field', methods=['POST'])
 def validate_field():
-    """Real-time field validation endpoint"""
+    """
+    Real-time field validation endpoint
+    ---
+    tags:
+        - VALIDATION
+    """
     try:
         data = request.get_json()
         
@@ -225,7 +230,12 @@ def validate_field():
 
 @validation_api.route('/section', methods=['POST'])
 def validate_section():
-    """Real-time section validation endpoint"""
+    """
+    Real-time section validation endpoint
+    ---
+    tags:
+        - VALIDATION
+    """
     try:
         data = request.get_json()
         
@@ -248,7 +258,12 @@ def validate_section():
 
 @validation_api.route('/form', methods=['POST'])
 def validate_form():
-    """Complete form validation endpoint"""
+    """
+    Complete form validation endpoint
+    ---
+    tags:
+        - VALIDATION
+    """
     try:
         data = request.get_json()
         
@@ -267,7 +282,12 @@ def validate_form():
 # Health check endpoint
 @validation_api.route('/health', methods=['GET'])
 def health_check():
-    """Health check for validation API"""
+    """
+    Health check for validation API
+    ---
+    tags:
+        - VALIDATION
+    """
     return jsonify({
         'status': 'healthy',
         'timestamp': time.time(),
