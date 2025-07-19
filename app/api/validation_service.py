@@ -19,7 +19,7 @@ validation_service_bp = Blueprint('validation_service', __name__)
 
 @validation_service_bp.route('/api/validation/entry', methods=['POST'])
 @swag_from({
-    'tags': ['Validation'],
+    'tags': 'Validation',
     'summary': 'Validate entry data using centralized validation engine',
     'description': 'Validates JSON entry data against all applicable validation rules',
     'parameters': [

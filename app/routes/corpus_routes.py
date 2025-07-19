@@ -183,7 +183,7 @@ def get_corpus_stats_ui():
     Get corpus statistics and connection status for UI display with caching.
     ---
     tags:
-      - corpus
+      - Corpus
     responses:
       200:
         description: Corpus statistics and connection status

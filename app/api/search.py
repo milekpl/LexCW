@@ -51,7 +51,7 @@ def search_entries():
     Search for dictionary entries using XQuery-based search
     ---
     tags:
-      - search
+      - Search
     parameters:
       - name: q
         in: query
