@@ -14,6 +14,8 @@ def validate_entry(entry_id: str):
     """
     Validate a single dictionary entry.
     ---
+    tags:
+      - Validation
     parameters:
       - name: entry_id
         in: path
@@ -53,6 +55,8 @@ def validate_dictionary():
     """
     Validate the entire dictionary.
     ---
+    tags:
+      - Validation
     responses:
       200:
         description: Validation result.
@@ -93,6 +97,8 @@ def check_entry_data():
     """
     Validate entry data provided in the request.
     ---
+    tags:
+      - Validation
     parameters:
       - name: entry_data
         in: body
@@ -155,6 +161,8 @@ def validate_batch():
     """
     Validate multiple entries in batch.
     ---
+    tags:
+      - Validation
     parameters:
       - name: entries_data
         in: body
@@ -223,6 +231,8 @@ def get_validation_schema():
     """
     Get the JSON schema for entry validation.
     ---
+    tags:
+      - Validation
     responses:
       200:
         description: Entry validation schema.
@@ -260,6 +270,8 @@ def get_validation_rules():
     """
     Get the validation rules for entries.
     ---
+    tags:
+      - Validation
     responses:
       200:
         description: Entry validation rules.
@@ -288,6 +300,9 @@ def get_validation_rules():
 def validation_check():
     """
     Checks a single dictionary entry for validation issues.
+    ---
+    tags:
+      - Validation
     """
     data = request.get_json()
     if not data or 'entry' not in data:
@@ -306,6 +321,9 @@ def validation_check():
 def validation_batch():
     """
     Validates a batch of dictionary entries.
+    ---
+    tags:
+      - Validation
     """
     data = request.get_json()
     if not data or 'entries' not in data:
@@ -322,6 +340,9 @@ def validation_batch():
 def validation_schema():
     """
     Returns the validation schema for dictionary entries.
+    ---
+    tags:
+      - Validation
     """
     try:
         dictionary_service = current_app.injector.get(DictionaryService)
@@ -334,6 +355,9 @@ def validation_schema():
 def validation_rules():
     """
     Returns the validation rules for dictionary entries.
+    ---
+    tags:
+      - Validation
     """
     try:
         dictionary_service = current_app.injector.get(DictionaryService)
