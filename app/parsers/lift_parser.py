@@ -478,6 +478,8 @@ class LIFTParser:
             note_type = note_elem.get('type', 'general')
             # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
             form_elements = self._find_elements(note_elem, './/lift:form', './/form')
+
+            note_has_content = False
             if form_elements:
                 # New structured format with potentially multiple languages
                 if note_type not in notes:
@@ -485,12 +487,19 @@ class LIFTParser:
                 for form_elem in form_elements:
                     lang = form_elem.get('lang', '')
                     text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                    if text_elem is not None and text_elem.text:
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
                         # Always wrap as dict
                         notes[note_type][lang] = {"text": text_elem.text}
-            elif note_elem.text:
+                        note_has_content = True
+            elif note_elem.text and note_elem.text.strip():
                 # Legacy format: <note>text</note>
                 notes[note_type] = {"und": {"text": note_elem.text}}
+                note_has_content = True
+
+            # If a note element exists but has no content, remove it
+            if not note_has_content and note_type in notes:
+                del notes[note_type]
+
         # Final normalization to ensure all values are nested dicts
         notes = self._normalize_multilingual_dict(notes)
         
@@ -618,6 +627,8 @@ class LIFTParser:
             note_type = note_elem.get('type', 'general')
             # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
             form_elements = self._find_elements(note_elem, './/lift:form', './/form')
+
+            note_has_content = False
             if form_elements:
                 # New structured format with potentially multiple languages
                 if note_type not in notes:
@@ -625,21 +636,18 @@ class LIFTParser:
                 for form_elem in form_elements:
                     lang = form_elem.get('lang', '')
                     text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                    if text_elem is not None and text_elem.text:
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
                         notes[note_type][lang] = {"text": text_elem.text}
-            elif note_elem.text:
+                        note_has_content = True
+            elif note_elem.text and note_elem.text.strip():
                 # Legacy format: <note>text</note>
                 notes[note_type] = {"und": {"text": note_elem.text}}
+                note_has_content = True
 
-        # Normalize all note values to nested dicts (force for every lang)
-        # Final normalization: ensure all note values are nested dicts
-        for note_type in list(notes.keys()):
-            if isinstance(notes[note_type], str):
-                notes[note_type] = {"und": {"text": notes[note_type]}}
-            elif isinstance(notes[note_type], dict):
-                notes[note_type] = self._normalize_multilingual_dict(notes[note_type])
+            # If a note element exists but has no content, remove it
+            if not note_has_content and note_type in notes:
+                del notes[note_type]
 
-        # Normalize all note values to nested dicts (force for every lang)
         # Final normalization: ensure all note values are nested dicts
         for note_type in list(notes.keys()):
             if isinstance(notes[note_type], str):

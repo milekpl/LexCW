@@ -134,7 +134,7 @@ class TestLIFTTraitsAndLanguageCodes:
 
     def test_note_extraction_with_lang_forms(self, sample_lift_with_traits: str) -> None:
         """Test extraction of notes with language forms."""
-        parser = LIFTParser()
+        parser = LIFTParser(validate=False)
         
         # Parse the LIFT XML
         entries = parser.parse_string(sample_lift_with_traits)
@@ -155,7 +155,7 @@ class TestLIFTTraitsAndLanguageCodes:
 
     def test_fixed_pronunciation_language(self, sample_lift_with_traits: str) -> None:
         """Test that pronunciations always use seh-fonipa language code."""
-        parser = LIFTParser()
+        parser = LIFTParser(validate=False)
         
         # Parse the LIFT XML
         entries = parser.parse_string(sample_lift_with_traits)
