@@ -17,13 +17,13 @@ from app.models.example import Example
 from app.utils.exceptions import ValidationError
 
 
-"""
+class LIFTParser:
+    """
     Parser for LIFT format dictionary files.
     
     This class handles the parsing of LIFT XML files into model objects
     and the generation of LIFT XML from model objects.
-"""
-class LIFTParser:
+    """
     @staticmethod
     def _normalize_multilingual_dict(d: dict) -> dict:
         """
@@ -1064,6 +1064,7 @@ class LIFTParser:
         return element_data
         
 
+    def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
         """
         Extract all unique variant types from <trait> elements in variant forms.
         
@@ -1072,7 +1073,7 @@ class LIFTParser:
         using the standard ranges.
         
         Args:
-            xml_string: LIFT XML string
+            lift_xml_string: LIFT XML string
             
         Returns:
             List of variant type objects in the format expected by the range API
@@ -1117,6 +1118,8 @@ class LIFTParser:
             self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
             return []
             
+
+
 
     def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
         """
@@ -1172,6 +1175,7 @@ class LIFTParser:
             self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
             return []
             
+
     def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
         """
         Extract all unique language codes used in the LIFT file.
