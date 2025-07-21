@@ -1079,7 +1079,7 @@ class LIFTParser:
         """
         self.logger.info("Extracting variant types from traits in LIFT file")
         try:
-            root = ET.fromstring(xml_string)
+            root = ET.fromstring(lift_xml_string)
             # Find all variant elements and extract their types
             variant_types: set[str] = set()
             
@@ -1118,7 +1118,7 @@ class LIFTParser:
             return []
             
 
-    def extract_variant_types_from_traits(self, xml_string: str) -> List[Dict[str, Any]]:
+    def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
         """
         Extract all unique variant types from <trait> elements in variant forms.
         
@@ -1127,14 +1127,14 @@ class LIFTParser:
         using the standard ranges.
         
         Args:
-            xml_string: LIFT XML string
+            lift_xml_string: LIFT XML string
             
         Returns:
             List of variant type objects in the format expected by the range API
         """
         self.logger.info("Extracting variant types from traits in LIFT file")
         try:
-            root = ET.fromstring(xml_string)
+            root = ET.fromstring(lift_xml_string)
             # Find all variant elements and extract their types
             variant_types: set[str] = set()
             
@@ -1590,7 +1590,7 @@ class LIFTRangesParser:
         
         return element_data
 
-    def extract_variant_types_from_traits(self, xml_string: str) -> List[Dict[str, Any]]:
+    def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
         """
         Extract all unique variant types from <trait> elements in variant forms.
         
@@ -1599,14 +1599,14 @@ class LIFTRangesParser:
         using the standard ranges.
         
         Args:
-            xml_string: LIFT XML string
+            lift_xml_string: LIFT XML string
             
         Returns:
             List of variant type objects in the format expected by the range API
         """
         self.logger.info("Extracting variant types from traits in LIFT file")
         try:
-            root = ET.fromstring(xml_string)
+            root = ET.fromstring(lift_xml_string)
             # Find all variant elements and extract their types
             variant_types: set[str] = set()
             
