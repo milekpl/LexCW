@@ -15,23 +15,10 @@ import os
 import json
 from typing import Dict, Any
 from unittest.mock import patch
-from app import create_app
-from config import TestingConfig
 
 
 class TestFormSerializerUnit:
     """Fast unit tests for form serializer integration."""
-    
-    @pytest.fixture
-    def app(self):
-        """Create test app."""
-        with patch('app.database.corpus_migrator.CorpusMigrator', create=True):
-            return create_app(TestingConfig)
-    
-    @pytest.fixture
-    def client(self, app):
-        """Create test client."""
-        return app.test_client()
     
     @pytest.mark.unit
     def test_form_serializer_javascript_exists(self) -> None:

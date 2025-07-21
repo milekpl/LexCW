@@ -13,9 +13,6 @@ import logging
 from unittest.mock import Mock, MagicMock, patch
 from typing import Generator
 
-# Add parent directory to Python path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
 from app.services.dictionary_service import DictionaryService
 from app.database.basex_connector import BaseXConnector
 from app.models.entry import Entry
