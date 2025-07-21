@@ -1119,6 +1119,63 @@ class LIFTParser:
             return []
             
 
+
+
+    def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
+        """
+        Extract all unique variant types from <trait> elements in variant forms.
+        
+        This extracts the 'type' traits from all variant elements in the LIFT file,
+        which represent the actual variant types used in the document rather than
+        using the standard ranges.
+        
+        Args:
+            lift_xml_string: LIFT XML string
+            
+        Returns:
+            List of variant type objects in the format expected by the range API
+        """
+        self.logger.info("Extracting variant types from traits in LIFT file")
+        try:
+            root = ET.fromstring(lift_xml_string)
+            # Find all variant elements and extract their types
+            variant_types: set[str] = set()
+            
+            # Use both namespaced and non-namespaced XPath for compatibility
+            variant_elems = self._find_elements(root, './/lift:variant', './/variant')
+            
+            for variant_elem in variant_elems:
+                # Extract the type attribute directly from variant element
+                variant_type = variant_elem.get('type')
+                if variant_type and variant_type.strip():
+                    variant_types.add(variant_type.strip())
+                
+                # Also look for trait elements that might indicate variant types
+                for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
+                    trait_name = trait_elem.get('name')
+                    trait_value = trait_elem.get('value')
+                    if trait_name == 'type' and trait_value and trait_value.strip():
+                        variant_types.add(trait_value.strip())
+            
+            # Format the results as expected by the ranges API
+            result: List[Dict[str, Any]] = []
+            for variant_type in sorted(variant_types):
+                # Create a standardized structure for each variant type
+                result.append({
+                    'id': variant_type,
+                    'value': variant_type,
+                    'abbrev': variant_type[:3].lower(),  # Simple abbreviation
+                    'description': {'en': f'{variant_type} variant'}
+                })
+                
+            self.logger.info(f"Extracted {len(result)} variant types from LIFT file")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
+            return []
+            
+
     def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
         """
         Extract all unique language codes used in the LIFT file.
