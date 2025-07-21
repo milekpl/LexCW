@@ -94,16 +94,26 @@ def basex_test_connector(basex_available: bool, test_db_name: str, sample_lift_f
     
     try:
         # Connect without opening a database
+        logger.info("Attempting to connect to BaseX without a database.")
         connector.connect()
+        logger.info("Successfully connected to BaseX without a database.")
         
         # Create the test database
-        connector.create_database(test_db_name)
-        logger.info(f"Created test database: {test_db_name}")
+        logger.info(f"Attempting to create test database: {test_db_name}")
+        try:
+            connector.create_database(test_db_name)
+            logger.info(f"Successfully created test database: {test_db_name}")
+        except Exception as e:
+            logger.error(f"Failed to create test database: {test_db_name}. Error: {e}")
+            raise
         
         # Now set the database name and reconnect
         connector.database = test_db_name
+        logger.info(f"Disconnecting before reconnecting to database: {test_db_name}")
         connector.disconnect()
+        logger.info(f"Attempting to reconnect to database: {test_db_name}")
         connector.connect()  # Reconnect with the database
+        logger.info(f"Successfully reconnected to database: {test_db_name}")
         
         # Load sample LIFT file
         try:
