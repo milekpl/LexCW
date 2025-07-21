@@ -212,18 +212,7 @@ def populated_dict_service(dict_service_with_db: DictionaryService, sample_entry
 
 
 def ensure_test_database(connector: BaseXConnector, db_name: str):
-    # Debug: Print the test DB name being used
-    print(f"[DEBUG] ensure_test_database called for db_name: {db_name}")
-    try:
-        db_list = connector.execute_query("db:list()")
-        print(f"[DEBUG] db:list() after creation: {db_list}")
-    except Exception as e:
-        print(f"[DEBUG] db:list() failed: {e}")
-    try:
-        db_info = connector.execute_query(f"db:info('{db_name}')")
-        print(f"[DEBUG] db:info('{db_name}'): {db_info}")
-    except Exception as e:
-        print(f"[DEBUG] db:info('{db_name}') failed: {e}")
+    logger.info(f"Ensuring test database '{db_name}' exists.")
     """
     Ensure a test database exists and is properly initialized with minimal LIFT content.
     

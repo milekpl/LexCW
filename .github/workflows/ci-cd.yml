@@ -109,10 +109,15 @@ jobs:
         
         # Wait for BaseX to start
         echo "Waiting for BaseX to start..."
-        sleep 15
+        sleep 20
         
         # Check if BaseX is running
         for i in {1..30}; do
+          # Use basexclient to check the connection
+          if /opt/basex/bin/basexclient -Uadmin -Padmin -c"INFO" > /dev/null 2>&1; then
+            echo "✅ BaseX server is ready for commands."
+            break
+          fi
           if curl -f http://localhost:8984/rest 2>/dev/null; then
             echo "✅ BaseX HTTP interface is ready"
             break
@@ -242,6 +247,7 @@ jobs:
 
   test-additional:
     runs-on: ubuntu-latest
+    needs: test
     services:
       postgres:
         image: postgres:15
@@ -291,8 +297,12 @@ jobs:
         BASEX_PID=$!
         echo "BASEX_PID=$BASEX_PID" >> $GITHUB_ENV
         echo "Waiting for BaseX to start..."
-        sleep 15
+        sleep 20
         for i in {1..30}; do
+          if /opt/basex/bin/basexclient -Uadmin -Padmin -c"INFO" > /dev/null 2>&1; then
+            echo "✅ BaseX server is ready for commands."
+            break
+          fi
           if curl -f http://localhost:8984/rest 2>/dev/null; then
             echo "✅ BaseX HTTP interface is ready"
             break
