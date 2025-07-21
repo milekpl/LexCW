@@ -379,25 +379,28 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Automatically mark tests based on location."""
+    """Marks tests based on their location: `unit` or `integration`."""
     for item in items:
-        # Mark tests as unit tests if they're in:
-        # 1. Main tests directory (not integration subdirectory) - legacy location
-        # 2. tests/unit/ subdirectory - new preferred location
-        if (("tests/test_" in str(item.fspath) and "integration" not in str(item.fspath)) or 
-            "tests/unit/" in str(item.fspath)):
+        path = str(item.fspath)
+        if "tests/unit/" in path:
             item.add_marker(pytest.mark.unit)
-        
-        # Mark tests as integration tests if they're in tests/integration/
-        if "tests/integration/" in str(item.fspath):
+        elif "tests/integration/" in path:
             item.add_marker(pytest.mark.integration)
-        
-        # Only skip integration tests if explicitly running unit tests only
-        if "integration" in item.keywords:
-            # Check if user explicitly wants to exclude integration tests
-            marker_expr = config.getoption("-m", default="")
-            if marker_expr == "not integration" or marker_expr == "unit":
-                item.add_marker(pytest.mark.skip(reason="integration tests excluded by marker expression"))
+
+    # Deselect tests not in unit or integration folders
+    selected_items = []
+    deselected_items = []
+
+    for item in items:
+        path = str(item.fspath)
+        if "tests/unit/" in path or "tests/integration/" in path:
+            selected_items.append(item)
+        else:
+            deselected_items.append(item)
+
+    items[:] = selected_items
+    if deselected_items:
+        config.hook.pytest_deselected(items=deselected_items)
 
 
 def pytest_addoption(parser):
