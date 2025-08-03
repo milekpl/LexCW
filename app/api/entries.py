@@ -35,7 +35,7 @@ def list_entries() -> Any:
     List dictionary entries with pagination, filtering, and sorting
     ---
     tags:
-      - ENTRIES
+      - Entries
     parameters:
       - name: limit
         in: query
@@ -241,7 +241,7 @@ def get_entry(entry_id: str) -> Any:
     Get a dictionary entry by ID
     ---
     tags:
-      - ENTRIES
+      - Entries
     parameters:
       - name: entry_id
         in: path
@@ -336,7 +336,7 @@ def create_entry() -> Any:
     Create a new dictionary entry
     ---
     tags:
-      - ENTRIES
+      - Entries
     parameters:
       - name: body
         in: body
@@ -507,7 +507,7 @@ def update_entry(entry_id: str) -> Any:
     Update a dictionary entry
     ---
     tags:
-      - ENTRIES
+      - Entries
     parameters:
       - name: entry_id
         in: path
@@ -679,7 +679,7 @@ def delete_entry(entry_id: str) -> Any:
         JSON response with success status.
     ---
     tags:
-      - ENTRIES
+      - Entries
     """
     try:
         # Get dictionary service
@@ -712,7 +712,7 @@ def get_related_entries(entry_id: str) -> Any:
         JSON response with list of related entries.
     ---
     tags:
-      - ENTRIES
+      - Entries
     """
     try:
         # Get query parameters
@@ -742,7 +742,7 @@ def get_related_entries(entry_id: str) -> Any:
 # Move clear-cache endpoint above dynamic routes
 @entries_bp.route('/clear-cache', methods=['POST'])
 @swag_from({
-    'tags': ['ENTRIES'],
+    'tags': ['Entries'],
     'summary': 'Clear the cache for the /entries endpoint',
     'description': 'Clears the cache used by the /entries endpoint. Useful for debugging or after data updates.',
     'responses': {
@@ -782,7 +782,7 @@ def search_entries() -> Any:
     Search for entries based on a query.
     ---
     tags:
-      - ENTRIES
+      - Entries
     parameters:
       - name: q
         in: query

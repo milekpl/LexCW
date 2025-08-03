@@ -191,7 +191,7 @@ def edit_entry(entry_id):
     Edit an existing dictionary entry
     ---
     tags:
-      - entries
+      - Entries
     parameters:
       - name: entry_id
         in: path
@@ -389,7 +389,7 @@ def add_entry():
     Add a new dictionary entry
     ---
     tags:
-      - entries
+      - Entries
     parameters:
       - name: body
         in: body
