@@ -381,7 +381,7 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(config, items):
     """Marks tests based on their location: `unit` or `integration`."""
     for item in items:
-        path = str(item.fspath)
+        path = str(item.fspath).replace('\\', '/')  # Normalize path separators
         if "tests/unit/" in path:
             item.add_marker(pytest.mark.unit)
         elif "tests/integration/" in path:
@@ -392,7 +392,7 @@ def pytest_collection_modifyitems(config, items):
     deselected_items = []
 
     for item in items:
-        path = str(item.fspath)
+        path = str(item.fspath).replace('\\', '/')  # Normalize path separators
         if "tests/unit/" in path or "tests/integration/" in path:
             selected_items.append(item)
         else:

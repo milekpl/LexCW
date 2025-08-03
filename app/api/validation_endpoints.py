@@ -206,7 +206,7 @@ def validate_field():
     Real-time field validation endpoint
     ---
     tags:
-        - VALIDATION
+        - Validation
     """
     try:
         data = request.get_json()
@@ -234,7 +234,7 @@ def validate_section():
     Real-time section validation endpoint
     ---
     tags:
-        - VALIDATION
+        - Validation
     """
     try:
         data = request.get_json()
@@ -262,7 +262,7 @@ def validate_form():
     Complete form validation endpoint
     ---
     tags:
-        - VALIDATION
+        - Validation
     """
     try:
         data = request.get_json()
@@ -286,7 +286,7 @@ def health_check():
     Health check for validation API
     ---
     tags:
-        - VALIDATION
+        - Validation
     """
     return jsonify({
         'status': 'healthy',

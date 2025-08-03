@@ -1,5 +1,6 @@
 # Existing entries
-/.history
+.history
+.history\**
 /.vscode
 
 # Python
@@ -57,3 +58,5 @@ htmlcov/
 coverage.xml
 *.cover
 /.zencoder/docs
+/.history/*/*.*
+.history/app/views_20250623215605.py
