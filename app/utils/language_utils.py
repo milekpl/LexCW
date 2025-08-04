@@ -19,10 +19,10 @@ def get_project_languages() -> List[Tuple[str, str]]:
         return all_available_languages_dict.items() if all_available_languages_dict else [('en', 'English'), ('es', 'Spanish')]
 
     config_manager = current_app.config_manager
-    settings = config_manager.get_all_settings()
-
-    source_lang_config = settings.get('source_language', {'code': 'en', 'name': 'English'})
-    target_lang_config = settings.get('target_language', {'code': 'es', 'name': 'Spanish'})
+    
+    # Use the correct methods that return dictionaries, not the list method
+    source_lang_config = config_manager.get_source_language()
+    target_lang_config = config_manager.get_target_language()
 
     source_code = source_lang_config.get('code')
     # Use the name from config settings, not from the general languages.yaml, for current vernacular

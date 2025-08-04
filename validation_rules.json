@@ -30,7 +30,7 @@
       "error_message": "Lexical unit is required and must contain at least one language entry",
       "client_side": true
     },
-    "R1.2.3": {
+    "R1.2.2": {
       "name": "lexical_unit_content_validation",
       "description": "Lexical unit content must be non-empty strings",
       "category": "entry_level",
@@ -68,9 +68,9 @@
       "condition": "if_present",
       "validation": {
         "type": "string",
-        "pattern": "^[a-zA-Z0-9_-]+$"
+        "pattern": "^[a-zA-Z0-9_\\- ]+$"
       },
-      "error_message": "Invalid entry ID format. Use only letters, numbers, underscores, and hyphens",
+      "error_message": "Invalid entry ID format. Use only letters, numbers, underscores, hyphens, and spaces",
       "client_side": true
     },
     "R1.2.3": {

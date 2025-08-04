@@ -120,6 +120,12 @@ def app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     mock_cache.delete.return_value = True
     app.cache_service = mock_cache
     
+    # Mock config manager
+    mock_config_manager = Mock()
+    mock_config_manager.get_source_language.return_value = {'code': 'en', 'name': 'English'}
+    mock_config_manager.get_target_language.return_value = {'code': 'es', 'name': 'Spanish'}
+    setattr(app, 'config_manager', mock_config_manager)
+    
     with app.app_context():
         yield app
 

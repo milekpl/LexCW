@@ -105,20 +105,34 @@ class TestValidationEngine:
             "senses": []
         }
         
-        # Test validation
+        # Test validation - entries without senses should now be valid (with warning)
         assert engine.validate_json(valid_entry).is_valid
-        assert not engine.validate_json(missing_senses).is_valid
-        assert not engine.validate_json(empty_senses).is_valid
+        
+        # Missing senses should now fail validation in save mode (critical error)
+        result_missing = engine.validate_json(missing_senses)
+        assert not result_missing.is_valid  # Should fail validation in save mode
+        assert len(result_missing.errors) > 0  # Should have critical errors
+        
+        result_empty = engine.validate_json(empty_senses)
+        assert not result_empty.is_valid  # Should fail validation in save mode
+        assert len(result_empty.errors) > 0  # Should have critical errors
+        
+        # But should be valid in draft mode
+        result_missing_draft = engine.validate_json(missing_senses, "draft")
+        assert result_missing_draft.is_valid  # Should be valid in draft mode
+        
+        result_empty_draft = engine.validate_json(empty_senses, "draft")
+        assert result_empty_draft.is_valid  # Should be valid in draft mode
 
     def test_r1_2_1_entry_id_format_json(self):
         """Test R1.2.1: Entry ID must match valid format pattern (JSON)."""
         engine = ValidationEngine()
         
-        # Valid IDs
-        valid_ids = ["entry1", "entry_test", "entry-test", "TEST123"]
+        # Valid IDs (now including spaces)
+        valid_ids = ["entry1", "entry_test", "entry-test", "TEST123", "entry 1", "my entry"]
         
-        # Invalid IDs  
-        invalid_ids = ["entry 1", "entry@test", "entry.test", "entry/test", "entry#test"]
+        # Invalid IDs (special characters not allowed)
+        invalid_ids = ["entry@test", "entry.test", "entry/test", "entry#test", "entry(1)", "entry%"]
         
         for valid_id in valid_ids:
             entry = {

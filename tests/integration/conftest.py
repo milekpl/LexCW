@@ -167,6 +167,81 @@ def basex_test_connector(basex_available: bool, test_db_name: str, sample_lift_f
         except Exception as e:
             logger.warning(f"Could not verify data loading: {e}")
         
+        # Add some test entries without dates for sorting tests
+        try:
+            # Create individual test entries as XML documents
+            # Use the same approach as conftest - write to files and add them
+            import tempfile
+            
+            test_entry_1_content = '''<entry id="no_date_entry_1">
+                <lexical-unit>
+                    <form lang="en">
+                        <text>no date entry one</text>
+                    </form>
+                </lexical-unit>
+                <sense>
+                    <definition>
+                        <form lang="en">
+                            <text>Entry without date modification for testing sorting</text>
+                        </form>
+                    </definition>
+                </sense>
+            </entry>'''
+            
+            test_entry_2_content = '''<entry id="no_date_entry_2" dateCreated="2023-01-01T10:00:00Z">
+                <lexical-unit>
+                    <form lang="en">
+                        <text>no date entry two</text>
+                    </form>
+                </lexical-unit>
+                <sense>
+                    <definition>
+                        <form lang="en">
+                            <text>Another entry without dateModified for testing</text>
+                        </form>
+                    </definition>
+                </sense>
+            </entry>'''
+            
+            test_entry_3_content = '''<entry id="no_date_entry_3">
+                <lexical-unit>
+                    <form lang="en">
+                        <text>zzz last alphabetically</text>
+                    </form>
+                </lexical-unit>
+                <sense>
+                    <definition>
+                        <form lang="en">
+                            <text>Entry that should be last alphabetically but has no date</text>
+                        </form>
+                    </definition>
+                </sense>
+            </entry>'''
+            
+            # Create temporary files and use ADD command (same as the LIFT file approach)
+            for i, entry_content in enumerate([test_entry_1_content, test_entry_2_content, test_entry_3_content], 1):
+                try:
+                    # Skip ADD command for now and use db:add directly with the content
+                    # The ADD command seems to have issues with the file path format
+                    print(f"DEBUG: Adding test entry {i} with content length {len(entry_content)}")
+                    connector.execute_update(f"db:add('{test_db_name}', '{entry_content}', 'test_entry_{i}.xml')")
+                    logger.info(f"Added test entry {i} using db:add")
+                    print(f"DEBUG: Successfully added test entry {i}")
+                except Exception as e:
+                    logger.error(f"Failed to add test entry {i}: {e}")
+                    print(f"DEBUG: Failed to add test entry {i}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Verify test entries were added
+            test_count = connector.execute_query(f"count(collection('{test_db_name}')//entry[starts-with(@id, 'no_date_entry')])")
+            logger.info(f"Verified {test_count} test entries added to database")
+            
+        except Exception as e:
+            logger.warning(f"Could not add test entries without dates: {e}")
+            # Log more details for debugging
+            logger.warning(f"Exception details: {type(e).__name__}: {str(e)}")
+        
         yield connector
         
     except Exception as e:
@@ -196,12 +271,23 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     import os
     
     template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'app', 'templates')
-    app = Flask(__name__, template_folder=template_dir)
+    static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'app', 'static')
+    app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
     app.config.update({
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
-        'SECRET_KEY': 'test-secret-key-for-sessions'
+        'SECRET_KEY': 'test-secret-key-for-sessions',
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+        'SQLALCHEMY_TRACK_MODIFICATIONS': False
     })
+    
+    # Initialize SQLAlchemy with the app
+    from app.models.project_settings import db
+    db.init_app(app)
+    
+    # Create database tables in test context
+    with app.app_context():
+        db.create_all()
     
     # Register the main API blueprint
     from app.api import api_bp
@@ -264,6 +350,13 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     # Initialize cache service for tests (matching production app initialization)
     from app.services.cache_service import CacheService
     app.cache_service = CacheService()  # type: ignore
+    
+    # Initialize ConfigManager for tests
+    from app.config_manager import ConfigManager
+    import tempfile
+    with tempfile.TemporaryDirectory() as temp_instance_path:
+        config_manager = ConfigManager(temp_instance_path)
+        app.config_manager = config_manager  # type: ignore
     
     # Create application context
     with app.app_context():
