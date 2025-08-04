@@ -503,7 +503,7 @@ function deleteEntry(entryId) {
 }
 
 function formatDate(dateStr) {
-    if (!dateStr) return '—';
+    if (!dateStr) return ''; // Return empty string for null/undefined dates so they sort last
     let date = new Date(dateStr);
     
     // Check date is valid

@@ -537,7 +537,8 @@ class DictionaryService:
             )
 
             # Sanitize filter_text to prevent injection issues
-            filter_text = filter_text.replace("'", "'")
+            if filter_text:
+                filter_text = filter_text.replace("'", "'")
 
             # Get total count (this may be filtered count if filter is applied)
             total_count = (
@@ -613,9 +614,17 @@ class DictionaryService:
             # Add sort order
             if sort_order.lower() == "desc":
                 sort_expr += " descending"
-            # Ensure empty strings are sorted last for ascending, first for descending
-            # This makes columns with missing data more predictable.
-            sort_expr += " empty least" if sort_order.lower() == "asc" else " empty greatest"
+            
+            # Handle empty value placement based on sort field type
+            # For date fields, empty values should always go last (bottom)
+            # For text fields, empty values go last for ascending, first for descending
+            if sort_by in ["date_modified", "date_created"]:
+                # Date fields: empty dates always go last
+                sort_expr += " empty greatest"
+            else:
+                # Text fields: empty strings are sorted last for ascending, first for descending
+                # This makes columns with missing data more predictable.
+                sort_expr += " empty least" if sort_order.lower() == "asc" else " empty greatest"
             # Build filter expression with namespace-aware paths
             filter_expr = ""
             if filter_text:

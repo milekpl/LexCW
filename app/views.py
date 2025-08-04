@@ -22,6 +22,7 @@ from app.services.cache_service import CacheService
 from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
+from app.utils.language_utils import get_project_languages
 
 # Create blueprints
 main_bp = Blueprint("main", __name__)
@@ -336,31 +337,7 @@ def edit_entry(entry_id):
             component_relations_data = entry.get_component_relations(dict_service)
 
         # Get project languages for multilingual fields
-        project_settings = current_app.config.get('PROJECT_SETTINGS', {})
-        languages = []
-        
-        # Add source language
-        if 'source_language' in project_settings and project_settings['source_language']:
-            source_lang = project_settings['source_language']
-            languages.append((source_lang.get('code', 'en'), source_lang.get('name', 'English')))
-            
-        # Add target language if different from source
-        if 'target_language' in project_settings and project_settings['target_language']:
-            target_lang = project_settings['target_language']
-            target_code = target_lang.get('code')
-            if target_code and not any(code == target_code for code, _ in languages):
-                languages.append((target_code, target_lang.get('name', target_code)))
-                
-        # Add additional languages
-        if 'additional_languages' in project_settings and project_settings['additional_languages']:
-            for lang in project_settings['additional_languages']:
-                code = lang.get('code')
-                if code and not any(existing_code == code for existing_code, _ in languages):
-                    languages.append((code, lang.get('name', code)))
-                    
-        # If no languages found, add English as default
-        if not languages:
-            languages = [('en', 'English')]
+        languages = get_project_languages()
             
         return render_template(
             "entry_form.html",
@@ -510,31 +487,7 @@ def add_entry():
         ranges = dict_service.get_lift_ranges()
 
         # Get project languages for multilingual fields
-        project_settings = current_app.config.get('PROJECT_SETTINGS', {})
-        languages = []
-        
-        # Add source language
-        if 'source_language' in project_settings and project_settings['source_language']:
-            source_lang = project_settings['source_language']
-            languages.append((source_lang.get('code', 'en'), source_lang.get('name', 'English')))
-            
-        # Add target language if different from source
-        if 'target_language' in project_settings and project_settings['target_language']:
-            target_lang = project_settings['target_language']
-            target_code = target_lang.get('code')
-            if target_code and not any(code == target_code for code, _ in languages):
-                languages.append((target_code, target_lang.get('name', target_code)))
-                
-        # Add additional languages
-        if 'additional_languages' in project_settings and project_settings['additional_languages']:
-            for lang in project_settings['additional_languages']:
-                code = lang.get('code')
-                if code and not any(existing_code == code for existing_code, _ in languages):
-                    languages.append((code, lang.get('name', code)))
-                    
-        # If no languages found, add English as default
-        if not languages:
-            languages = [('en', 'English')]
+        languages = get_project_languages()
             
         return render_template("entry_form.html", entry=entry, ranges=ranges, project_languages=languages)
 

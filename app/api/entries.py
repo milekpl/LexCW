@@ -210,14 +210,25 @@ def list_entries() -> Any:
 
         # Removed debug print for entry dates
         # Prepare response
-        response = {
-            'entries': [entry.to_display_dict() for entry in entries],
-            'total_count': total_count,  # Use total_count for consistency with other APIs
-            'total': total_count,        # Keep total for backward compatibility
-            'limit': limit,
-            'offset': offset,
-        }
-        
+        try:
+            response_entries = []
+            for i, entry in enumerate(entries):
+                try:
+                    response_entries.append(entry.to_display_dict())
+                except AttributeError as e:
+                    logger.error(f"Entry at index {i} has wrong type: {type(entry)}. Error: {e}")
+                    raise e
+            response = {
+                'entries': response_entries,
+                'total_count': total_count,  # Use total_count for consistency with other APIs
+                'total': total_count,        # Keep total for backward compatibility
+                'limit': limit,
+                'offset': offset,
+            }
+        except Exception as e:
+            logger.error(f"Error preparing response: {e}")
+            raise e
+            
         # Add page/per_page if they were provided in the request
         if page is not None and per_page is not None:
             response['page'] = page
@@ -490,7 +501,14 @@ def create_entry() -> Any:
         dict_service = get_dictionary_service()
         
         # Create entry
-        entry_id = dict_service.create_entry(entry)        
+        entry_id = dict_service.create_entry(entry)
+        
+        # Clear entries cache after successful creation
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear_pattern('entries:*')
+            logger.info(f"Cleared entries cache after creating entry {entry_id}")
+        
         # Return response
         return jsonify({'success': True, 'entry_id': entry_id}), 201
         
@@ -654,7 +672,14 @@ def update_entry(entry_id: str) -> Any:
         dict_service = get_dictionary_service()
         
         # Update entry
-        dict_service.update_entry(entry)        
+        dict_service.update_entry(entry)
+        
+        # Clear entries cache after successful update
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear_pattern('entries:*')
+            logger.info(f"Cleared entries cache after updating entry {entry_id}")
+        
         # Return response
         return jsonify({'success': True})
         
@@ -686,7 +711,14 @@ def delete_entry(entry_id: str) -> Any:
         dict_service = get_dictionary_service()
         
         # Delete entry
-        dict_service.delete_entry(entry_id)        
+        dict_service.delete_entry(entry_id)
+        
+        # Clear entries cache after successful deletion
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear_pattern('entries:*')
+            logger.info(f"Cleared entries cache after deleting entry {entry_id}")
+        
         # Return response
         return jsonify({'success': True})
         
@@ -843,12 +875,12 @@ def search_entries() -> Any:
         dict_service = get_dictionary_service()
         
         # Search entries
-        entries = dict_service.search_entries(query, search_field)
+        entries, total_count = dict_service.search_entries(query, [search_field])
         
         # Prepare response
         response = {
             'entries': [entry.to_dict() for entry in entries],
-            'count': len(entries),
+            'count': total_count,
         }        
         return jsonify(response)
         
