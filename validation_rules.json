@@ -116,15 +116,13 @@
     },
     "R2.2.1": {
       "name": "definition_content_validation",
-      "description": "Sense definitions must be non-empty strings when provided",
+      "description": "Sense definitions must be non-empty strings when provided (source language definitions can be empty)",
       "category": "sense_level",
       "priority": "critical",
-      "path": "$.senses[*].definition.*.text",
-      "condition": "if_present",
+      "path": "$.senses[*]",
+      "condition": "custom",
       "validation": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "\\S+"
+        "custom_function": "validate_definition_content_source_lang_exception"
       },
       "error_message": "Sense definition cannot be empty or contain only whitespace",
       "client_side": true

@@ -245,25 +245,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Handle move sense up button
-            const moveSenseUpBtn = e.target.closest('.move-sense-up-btn');
+            const moveSenseUpBtn = e.target.closest('.move-sense-up');
             if (moveSenseUpBtn) {
                 const senseItem = moveSenseUpBtn.closest('.sense-item');
                 const prevSenseItem = senseItem.previousElementSibling;
                 if (prevSenseItem && prevSenseItem.classList.contains('sense-item')) {
                     sensesContainer.insertBefore(senseItem, prevSenseItem);
                     reindexSenses();
+                    showToast('Sense moved up successfully', 'success');
                 }
                 return;
             }
             
             // Handle move sense down button
-            const moveSenseDownBtn = e.target.closest('.move-sense-down-btn');
+            const moveSenseDownBtn = e.target.closest('.move-sense-down');
             if (moveSenseDownBtn) {
                 const senseItem = moveSenseDownBtn.closest('.sense-item');
                 const nextSenseItem = senseItem.nextElementSibling;
                 if (nextSenseItem && nextSenseItem.classList.contains('sense-item')) {
                     sensesContainer.insertBefore(nextSenseItem, senseItem);
                     reindexSenses();
+                    showToast('Sense moved down successfully', 'success');
                 }
                 return;
             }
@@ -643,6 +645,13 @@ function reindexSenses() {
         sense.querySelectorAll('h6').forEach(header => {
             if (header.textContent.includes('Sense')) {
                 header.textContent = `Sense ${newIndex + 1}`;
+            }
+        });
+        
+        // Also update span elements that contain "Sense" text
+        sense.querySelectorAll('span').forEach(span => {
+            if (span.textContent.includes('Sense')) {
+                span.textContent = `Sense ${newIndex + 1}`;
             }
         });
         

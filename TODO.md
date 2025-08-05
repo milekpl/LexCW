@@ -2,7 +2,7 @@
 
 1. Reordering functionality: Make sure that buttons on the entry_form.html actually reorder senses within an entry. The approach should be general enough for any other multi-item lists (we might want to reorder pronunciations, notes, examples etc.). In the dictionary, the order is not arbitrary.
 
-5. The language selector in entry forms should show only the source and target languages SELECTED BY THE USER in the project settings, not all possible languages (which would be a very lengthy list). If an entry contains a language that is not in the project's configured languages, there should be a validation warning. Additionally, project settings should allow for MULTIPLE target languages, not just one.
+2. The source language should not require a definition if there is none. Currently, it does, which makes NO sense for me (validation does not require this!). Also, if there is an empty definition, I should be able to remove it, especially if it is an empty definition / gloss for the source language.
 
 8. Remaining Issues in Validation (failures):
 

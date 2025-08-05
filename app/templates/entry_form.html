@@ -1353,11 +1353,20 @@
     <div class="sense-item card mb-4" data-sense-index="INDEX">
         <div class="card-header bg-light">
             <div class="d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Sense NUMBER</h6>
-                <button type="button" class="btn btn-sm btn-outline-danger remove-sense-btn" 
-                        data-index="INDEX">
-                    <i class="fas fa-trash"></i> Remove
-                </button>
+                <div class="d-flex align-items-center">
+                    <div class="drag-handle me-2" title="Drag to reorder" style="cursor: grab;">
+                        <i class="fas fa-grip-vertical text-muted"></i>
+                    </div>
+                    <h6 class="mb-0">Sense NUMBER</h6>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-sm btn-secondary move-sense-up" title="Move Up">↑</button>
+                    <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-sense-btn" 
+                            data-index="INDEX">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
             </div>
         </div>
         <div class="card-body">
@@ -1584,6 +1593,8 @@
 <script src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
 <!-- Multilingual fields management -->
 <script src="{{ url_for('static', filename='js/multilingual-sense-fields.js') }}"></script>
+<!-- Reordering manager for multi-item lists -->
+<script src="{{ url_for('static', filename='js/reordering-manager.js') }}"></script>
 <!-- Entry form functionality (must be last) -->
 <script src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
 
