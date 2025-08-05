@@ -1,5 +1,5 @@
 /**
- * Dictionary Writing System - Dashboard JavaScript
+ * Lexicographic Curation Workbench - Dashboard JavaScript
  * 
  * This file contains the functionality for the dashboard/home page.
  */

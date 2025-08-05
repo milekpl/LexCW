@@ -1,5 +1,5 @@
 /**
- * Dictionary Writing System - Common JavaScript
+ * Lexicographic Curation Workbench - Common JavaScript
  * 
  * This file contains common functionality used across multiple pages.
  */

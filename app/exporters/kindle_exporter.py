@@ -1,5 +1,5 @@
 """
-Kindle exporter for the Dictionary Writing System.
+Kindle exporter for the Lexicographic Curation Workbench.
 
 This module provides functionality for exporting dictionary entries to Kindle format.
 """
@@ -38,7 +38,7 @@ class KindleExporter(BaseExporter):
     
     def export(self, output_path: str, entries: Optional[List[Entry]] = None, 
                title: str = "Dictionary", source_lang: str = "en", target_lang: str = "pl",
-               author: str = "Dictionary Writing System", kindlegen_path: Optional[str] = None,
+               author: str = "Lexicographic Curation Workbench", kindlegen_path: Optional[str] = None,
                inflections: Optional[Dict[str, Any]] = None) -> str:
         """
         Export entries to Kindle dictionary format.
@@ -127,7 +127,7 @@ class KindleExporter(BaseExporter):
             <dc:Rights>Copyright (c) {datetime.now().year}</dc:Rights>
             <dc:Type>dictionary</dc:Type>
             <dc:Subject BASICCode="REF008000">Dictionaries</dc:Subject>
-            <dc:Publisher>Dictionary Writing System</dc:Publisher>
+            <dc:Publisher>Lexicographic Curation Workbench</dc:Publisher>
             <dc:Date>{timestamp}</dc:Date>
             <x-metadata>
                 <DictionaryInLanguage>{source_lang}</DictionaryInLanguage>

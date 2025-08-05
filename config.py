@@ -1,5 +1,5 @@
 """
-Configuration settings for the Dictionary Writing System.
+Configuration settings for the Lexicographic Curation Workbench.
 """
 
 import os

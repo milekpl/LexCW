@@ -1,4 +1,4 @@
-# Validation Rules for Dictionary Writing System
+# Validation Rules for Lexicographic Curation Workbench
 
 ## Overview
 

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "description": "Centralized validation rules for Dictionary Writing System",
+  "description": "Centralized validation rules for Lexicographic Curation Workbench",
   "rules": {
     "R1.1.1": {
       "name": "entry_id_required",

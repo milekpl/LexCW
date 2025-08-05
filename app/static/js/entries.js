@@ -1,5 +1,5 @@
 /**
- * Dictionary Writing System - Entries List JavaScript
+ * Lexicographic Curation Workbench - Entries List JavaScript
  * 
  * This file contains the functionality for the entries list page.
  */

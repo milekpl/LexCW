@@ -5,7 +5,7 @@
 
 ## Overview
 
-Phase 3 of the Dictionary Writing System refactoring has been successfully completed. This phase focused on implementing automatic saving functionality with version conflict detection and resolution, building upon the robust form serialization system from Phase 2.
+Phase 3 of the Lexicographic Curation Workbench refactoring has been successfully completed. This phase focused on implementing automatic saving functionality with version conflict detection and resolution, building upon the robust form serialization system from Phase 2.
 
 ## Key Accomplishments
 

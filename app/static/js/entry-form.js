@@ -1,5 +1,5 @@
 /**
- * Dictionary Writing System - Entry Form JavaScript
+ * Lexicographic Curation Workbench - Entry Form JavaScript
  *
  * This file contains the functionality for the entry edit/add form.
  *

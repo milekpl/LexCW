@@ -1,5 +1,5 @@
 /**
- * Dictionary Writing System - Entry View JavaScript
+ * Lexicographic Curation Workbench - Entry View JavaScript
  * 
  * This file contains the functionality for the entry view page.
  */

@@ -51,20 +51,23 @@
 
                 <fieldset class="mb-4">
                     <legend class="h6">
-                        Target Language
+                        Target Languages
                         <i class="fas fa-info-circle text-muted ms-1"
                            data-bs-toggle="tooltip"
                            data-bs-placement="top"
-                           title="This is the language used for definitions, translations, and glosses, often a national or international language."></i>
+                           title="These are the languages used for definitions, translations, and glosses. Search from 150+ world languages including indigenous, regional, and sign languages."></i>
                     </legend>
-                    <div class="row">
-                        <div class="col-md-6">
-                            {{ render_field(form.target_language_code, class="form-select") }}
+                    
+                    <!-- Render the searchable multi-select field -->
+                    {{ form.available_target_languages() }}
+                    
+                    {% if form.available_target_languages.errors %}
+                        <div class="text-danger">
+                            {% for error in form.available_target_languages.errors %}
+                                <small>{{ error }}</small>
+                            {% endfor %}
                         </div>
-                        <div class="col-md-6">
-                            {{ render_field(form.target_language_name, class="form-control", placeholder="e.g., Portuguese, English") }}
-                        </div>
-                    </div>
+                    {% endif %}
                 </fieldset>
 
                 <div class="mt-4">
@@ -87,8 +90,16 @@
                 <dt class="col-sm-4">Source Language (Vernacular):</dt>
                 <dd class="col-sm-8">{{ current_settings.source_language.name }} ({{ current_settings.source_language.code }})</dd>
 
-                <dt class="col-sm-4">Target Language:</dt>
-                <dd class="col-sm-8">{{ current_settings.target_language.name }} ({{ current_settings.target_language.code }})</dd>
+                <dt class="col-sm-4">Target Languages:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.target_languages %}
+                        {% for lang in current_settings.target_languages %}
+                            {{ lang.name }} ({{ lang.code }}){% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        None configured
+                    {% endif %}
+                </dd>
             </dl>
         </div>
     </div>
@@ -98,47 +109,210 @@
 
 {% block extra_css %}
 {{ super() }} {# Include CSS from base.html if any #}
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+<!-- Font Awesome for icons in the searchable interface -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-    /* Ensure select2 dropdowns appear correctly in modal or otherwise */
-    .select2-container--bootstrap-5 .select2-dropdown {
-        z-index: 1060; /* Higher than Bootstrap modal z-index (1050-1055) */
+    /* Enhanced styling for comprehensive language interface */
+    .searchable-language-selector {
+        max-width: 100%;
     }
-    .select2-container--bootstrap-5 .select2-selection {
-        min-height: calc(1.5em + .75rem + 2px); /* Match BS input height */
-        padding: .375rem .75rem;
-        font-size: 1rem;
-        font-weight: 400;
-        line-height: 1.5;
+    
+    .language-search-container {
+        position: relative;
+    }
+    
+    .language-search-results {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 0.375rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-height: 400px;
+        overflow-y: auto;
+        z-index: 1050;
+    }
+    
+    .language-search-result {
+        padding: 8px 12px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    
+    .language-search-result:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .language-search-result:last-child {
+        border-bottom: none;
+    }
+    
+    .selected-language-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        background: linear-gradient(135deg, #e7f3ff 0%, #f0f8ff 100%);
+        border: 1px solid #bee5eb;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s ease;
+    }
+    
+    .selected-language-item:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    .selected-language-item .language-name {
+        font-weight: 600;
+        color: #0056b3;
+    }
+    
+    .selected-language-item .language-code {
+        color: #6c757d;
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-left: 8px;
+    }
+    
+    .selected-language-item .language-details {
+        flex: 1;
+        margin-left: 12px;
+    }
+    
+    .selected-language-item .language-details small {
+        color: #495057;
+        font-style: italic;
+    }
+    
+    .selected-language-item .remove-language {
+        margin-left: 8px;
+        min-width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .selected-language-item .remove-language:hover {
+        transform: scale(1.1);
+    }
+    
+    /* Enhanced form styling */
+    .form-select, .form-control {
+        border-radius: 0.5rem;
+        border: 2px solid #e9ecef;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .form-select:focus, .form-control:focus {
+        border-color: #0056b3;
+        box-shadow: 0 0 0 0.2rem rgba(0, 86, 179, 0.15);
+    }
+    
+    /* Responsive design for language interface */
+    @media (max-width: 768px) {
+        .selected-language-item {
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+        
+        .selected-language-item .language-details {
+            margin-left: 0;
+            margin-top: 8px;
+            width: 100%;
+        }
+        
+        .selected-language-item .remove-language {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            margin: 0;
+        }
+    }
+    
+    /* Accessibility improvements */
+    .language-search-input:focus,
+    .remove-language:focus {
+        outline: 2px solid #0056b3;
+        outline-offset: 2px;
+    }
+    
+    /* Loading and empty states */
+    .text-muted {
+        color: #6c757d !important;
+    }
+    
+    .language-search-container .input-group-text {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-left: none;
     }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 {{ super() }} {# Include JS from base.html if any #}
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         // Initialize Bootstrap tooltips
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
 
-        // Initialize Select2 for language dropdowns
-        $(document).ready(function() {
-            $('#source_language_code').select2({
-                theme: "bootstrap-5",
-                placeholder: "Select source language",
-                width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
-            });
-            $('#target_language_code').select2({
-                theme: "bootstrap-5",
-                placeholder: "Select target language",
-                width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
-            });
+        // Enhanced functionality for comprehensive language interface
+        console.log('Settings page with comprehensive language support loaded');
+        
+        // Scroll to target languages section if there are validation errors
+        const targetLanguagesFieldset = document.querySelector('fieldset:has(legend:contains("Target Languages"))');
+        if (targetLanguagesFieldset && document.querySelector('.text-danger')) {
+            targetLanguagesFieldset.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // Add keyboard shortcuts for accessibility
+        document.addEventListener('keydown', function(e) {
+            // Alt + S to focus search
+            if (e.altKey && e.key === 's') {
+                e.preventDefault();
+                const searchInput = document.querySelector('.language-search-input');
+                if (searchInput) {
+                    searchInput.focus();
+                }
+            }
+            
+            // Escape to close search results
+            if (e.key === 'Escape') {
+                const resultsContainer = document.querySelector('.language-search-results');
+                if (resultsContainer && resultsContainer.style.display !== 'none') {
+                    resultsContainer.style.display = 'none';
+                }
+            }
         });
+        
+        // Add form submission enhancement
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Show loading state
+                const submitButton = form.querySelector('input[type="submit"], button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.value = 'Updating...';
+                    
+                    // Re-enable after a timeout in case of errors
+                    setTimeout(() => {
+                        submitButton.disabled = false;
+                        submitButton.value = 'Update Settings';
+                    }, 10000);
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

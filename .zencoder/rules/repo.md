@@ -1,7 +1,7 @@
-# Dictionary Writing System Information
+# Lexicographic Curation Workbench Information
 
 ## Summary
-A Flask-based Dictionary Writing System designed to interact with a BaseX XML database for managing large-scale lexicographic data in the LIFT format. The system provides a responsive web interface for dictionary management with advanced search capabilities, import/export functionality, and comprehensive API endpoints.
+A Flask-based Lexicographic Curation Workbench designed to interact with a BaseX XML database for managing large-scale lexicographic data in the LIFT format. The system provides a responsive web interface for dictionary management with advanced search capabilities, import/export functionality, and comprehensive API endpoints.
 
 ## Structure
 - **app/**: Core application code with MVC architecture

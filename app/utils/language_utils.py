@@ -10,81 +10,38 @@ def get_project_languages() -> List[Tuple[str, str]]:
     Return a list of admissible language tuples (code, name) for the current project.
     The source language will have a special display name with a "Vernacular" tooltip.
     This list is suitable for dropdowns where such distinction is important (e.g., entry form notes).
+    Only returns languages configured in project settings.
     """
-    all_available_languages_dict = dict(load_available_languages()) # For easy name lookup
-
     if not current_app:
         # Fallback for contexts where app is not available
-        # Return the raw list from YAML loader, or a hardcoded minimal if that fails too.
-        return all_available_languages_dict.items() if all_available_languages_dict else [('en', 'English'), ('es', 'Spanish')]
+        return [('en', 'English')]
 
     config_manager = current_app.config_manager
     
-    # Use the correct methods that return dictionaries, not the list method
+    # Use the correct methods that return dictionaries
     source_lang_config = config_manager.get_source_language()
-    target_lang_config = config_manager.get_target_language()
+    target_langs_config = config_manager.get_target_languages()
 
     source_code = source_lang_config.get('code')
-    # Use the name from config settings, not from the general languages.yaml, for current vernacular
-    source_name_from_config = source_lang_config.get('name', all_available_languages_dict.get(source_code, 'Source Language'))
+    source_name = source_lang_config.get('name', 'Source Language')
 
     # Create the special display name for the source language (vernacular)
     source_lang_display_name = Markup(
-        f'{source_name_from_config} '
+        f'{source_name} '
         f'<i class="fas fa-info-circle text-muted ms-1" '
         f'data-bs-toggle="tooltip" data-bs-placement="top" '
         f'title="Vernacular (primary project language)"></i>'
     )
 
-    # Prepare the final list of choices
-    # Start with all available languages, then customize the source language display
-
-    # Use a dictionary to ensure unique codes and allow easy update of the source language display
-    # Initialize with all available languages (plain names)
-    final_choices_dict = {code: name for code, name in all_available_languages_dict.items()}
-
-    # If the configured source language is in our available list, update its display name
-    if source_code and source_code in final_choices_dict:
-        final_choices_dict[source_code] = source_lang_display_name
-    elif source_code: # If source_code from settings is not in languages.yaml, add it with tooltip
-        final_choices_dict[source_code] = source_lang_display_name
-
-    # Ensure target language from settings is also present, using its configured name
-    # (though it should already be in all_available_languages_dict if it's from languages.yaml)
-    target_code = target_lang_config.get('code')
-    if target_code and target_code not in final_choices_dict: # If target_code from settings is not in languages.yaml
-        target_name_from_config = target_lang_config.get('name', 'Target Language')
-        final_choices_dict[target_code] = target_name_from_config
-    elif target_code and target_code in final_choices_dict and target_code != source_code:
-        # If it is in the list, ensure we use the name from settings if it's different
-        # and it's not the source language (which already has its special display name)
-        target_name_from_config = target_lang_config.get('name', all_available_languages_dict.get(target_code))
-        if target_name_from_config != final_choices_dict[target_code]:
-             final_choices_dict[target_code] = target_name_from_config
-
-
-    # Convert dictionary to list of tuples for SelectField choices
-    # We might want a specific order, e.g., source, then target, then alphabetical.
-    # For now, dictionary order (Python 3.7+) or sorted by code might be acceptable.
-
-    # Let's create an ordered list: source, target, then the rest alphabetically by name
-    ordered_choices = []
-
-    # Add source language first
-    if source_code and source_code in final_choices_dict:
-        ordered_choices.append((source_code, final_choices_dict[source_code]))
-
-    # Add target language second (if different from source)
-    if target_code and target_code != source_code and target_code in final_choices_dict:
-        ordered_choices.append((target_code, final_choices_dict[target_code]))
-
-    # Add remaining languages, sorted by name
-    # Exclude source and target if already added to avoid duplicates with potentially different display names
-    remaining_langs = sorted(
-        [(code, name) for code, name in final_choices_dict.items() if code not in [source_code, target_code]],
-        key=lambda item: str(item[1]) # Sort by name (str() in case of Markup)
-    )
-    ordered_choices.extend(remaining_langs)
+    # Create the list of language choices - start with source language
+    ordered_choices = [(source_code, source_lang_display_name)]
+    
+    # Add all target languages
+    for target_lang in target_langs_config:
+        target_code = target_lang.get('code')
+        target_name = target_lang.get('name', 'Target Language')
+        if target_code and target_code != source_code:  # Skip duplicates
+            ordered_choices.append((target_code, target_name))
 
     return ordered_choices
 

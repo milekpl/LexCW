@@ -1,5 +1,5 @@
 """
-Export API endpoints for the Dictionary Writing System.
+Export API endpoints for the Lexicographic Curation Workbench.
 
 This module provides API endpoints for exporting dictionary data in various formats.
 """
@@ -127,7 +127,7 @@ def export_kindle():
         title = data.get('title', 'Dictionary')
         source_lang = data.get('source_lang', 'en')
         target_lang = data.get('target_lang', 'pl')
-        author = data.get('author', 'Dictionary Writing System')
+        author = data.get('author', 'Lexicographic Curation Workbench')
         
         # Get kindlegen path from config if available
         kindlegen_path = current_app.config.get('KINDLEGEN_PATH')

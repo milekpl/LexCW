@@ -2,7 +2,7 @@
 """
 Unit tests for ensuring invalid entries are always editable.
 
-This test suite verifies that the Dictionary Writing System allows
+This test suite verifies that the Lexicographic Curation Workbench allows
 lexicographers to edit invalid entries, showing validation errors
 as guidance rather than blocking access.
 """

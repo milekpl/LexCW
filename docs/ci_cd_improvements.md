@@ -1,7 +1,7 @@
 # CI/CD Pipeline Improvements
 
 ## Overview
-This document summarizes the improvements made to the GitHub Actions CI/CD pipeline for the Dictionary Writing System (LCW) project to achieve reliable testing and deployment.
+This document summarizes the improvements made to the GitHub Actions CI/CD pipeline for the Lexicographic Curation Workbench (LCW) project to achieve reliable testing and deployment.
 
 ## Key Improvements
 

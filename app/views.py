@@ -1,5 +1,5 @@
 """
-Views for the Dictionary Writing System's frontend.
+Views for the Lexicographic Curation Workbench's frontend.
 """
 
 import logging
@@ -488,8 +488,13 @@ def add_entry():
 
         # Get project languages for multilingual fields
         languages = get_project_languages()
+        configured_languages_codes = [lang[0] for lang in languages]
             
-        return render_template("entry_form.html", entry=entry, ranges=ranges, project_languages=languages)
+        return render_template("entry_form.html", 
+                              entry=entry, 
+                              ranges=ranges, 
+                              project_languages=languages,
+                              configured_languages_codes=configured_languages_codes)
 
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
@@ -654,7 +659,7 @@ def export_kindle():
         title = request.args.get("title", "Dictionary")
         source_lang = request.args.get("source_lang", "en")
         target_lang = request.args.get("target_lang", "pl")
-        author = request.args.get("author", "Dictionary Writing System")
+        author = request.args.get("author", "Lexicographic Curation Workbench")
 
         # Get kindlegen path from config if available
         kindlegen_path = current_app.config.get("KINDLEGEN_PATH")

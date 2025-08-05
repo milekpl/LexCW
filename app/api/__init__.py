@@ -1,5 +1,5 @@
 """
-API package for the dictionary writing system.
+API package for the Lexicographic Curation Workbench.
 """
 
 from flask import Blueprint

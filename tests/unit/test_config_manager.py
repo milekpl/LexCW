@@ -24,13 +24,11 @@ class TestConfigManager(unittest.TestCase):
     def test_get_all_settings(self) -> None:
         self.config_manager.create_settings(
             project_name='Project1',
-            basex_db_name='db1',
-            settings_json={'foo': 1}
+            basex_db_name='db1'
         )
         self.config_manager.create_settings(
             project_name='Project2',
-            basex_db_name='db2',
-            settings_json={'foo': 2}
+            basex_db_name='db2'
         )
         all_settings = self.config_manager.get_all_settings()
         self.assertEqual(len(all_settings), 2)
