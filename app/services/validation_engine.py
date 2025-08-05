@@ -409,6 +409,8 @@ class ValidationEngine:
             errors.extend(self._validate_pronunciation_language_codes(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_date_fields':
             errors.extend(self._validate_date_fields(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_definition_content_source_lang_exception':
+            errors.extend(self._validate_definition_content_source_lang_exception(rule_id, rule_config, data, matches))
         
         return errors
     
@@ -697,6 +699,47 @@ class ValidationEngine:
             category=ValidationCategory(rule_config['category']),
             value=value
         )
+    
+    def _validate_definition_content_source_lang_exception(self, rule_id: str, rule_config: Dict[str, Any], 
+                                                          data: Dict[str, Any], matches: Any) -> List[ValidationError]:
+        """R2.2.1: Validate definition content with source language exceptions.
+        
+        Definition/gloss text must be non-empty, except for source language definitions
+        which can be empty since the headword itself is in that language.
+        """
+        errors: List[ValidationError] = []
+        
+        # Get target language code from entry
+        target_lang = data.get('lexical-unit', {}).get('lang', '')
+        
+        for match in matches:
+            sense_data = match.value
+            if not isinstance(sense_data, dict):
+                continue
+                
+            definition = sense_data.get('definition', {})
+            if not isinstance(definition, dict):
+                continue
+                
+            # Check each definition/gloss language
+            for lang_code, text in definition.items():
+                # Skip empty check for source language (target language)
+                if lang_code == target_lang:
+                    continue
+                    
+                # For non-source languages, text must be non-empty
+                if not text or not str(text).strip():
+                    errors.append(ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config['name'],
+                        message=rule_config['error_message'],
+                        path=f"{match.full_path}.definition.{lang_code}",
+                        priority=ValidationPriority(rule_config['priority']),
+                        category=ValidationCategory(rule_config['category']),
+                        value=text
+                    ))
+        
+        return errors
 
 
 class SchematronValidator:
