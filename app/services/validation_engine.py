@@ -1,5 +1,5 @@
 """
-Centralized validation engine for the Dictionary Writing System.
+Centralized validation engine for the Lexicographic Curation Workbench.
 
 This module implements the core validation engine that replaces scattered 
 validation logic with a declarative, rule-based system using Schematron 

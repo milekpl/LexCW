@@ -90,7 +90,7 @@ def manage_settings():
     current_settings = {
         'project_name': config_manager.get_project_name(),
         'source_language': config_manager.get_source_language(),
-        'target_language': config_manager.get_target_language()
+        'target_languages': config_manager.get_target_languages()
     }
 
     return render_template('settings.html',

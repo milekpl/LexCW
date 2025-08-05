@@ -314,6 +314,15 @@
                                                             <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                                         {% endfor %}
                                                     </select>
+                                                    
+                                                    {% if default_lang_code not in configured_languages_codes %}
+                                                    <div class="validation-warnings mt-1">
+                                                        <small class="text-warning">
+                                                            <i class="fas fa-exclamation-triangle"></i> 
+                                                            Warning: Language '{{ default_lang_code }}' is not configured for this project.
+                                                        </small>
+                                                    </div>
+                                                    {% endif %}
                                                 </div>
                                                 <div class="col-md-8">
                                                     <label class="form-label">Note Text</label>
@@ -918,7 +927,7 @@
                                                                     {% endfor %}
                                                                 </select>
                                                             </div>
-                                                            <div class="col-md-8">
+                                                            <div class="col-md-9">
                                                                 <label class="form-label">Definition Text</label>
                                                                 <textarea class="form-control definition-text" 
                                                                           name="senses[{{ loop.index0 }}].definition.{{ lang }}.text" 
@@ -1121,7 +1130,7 @@
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    {% endfor %}
+                                                {% endfor %}
                                                 {% else %}
                                                     <div class="no-examples text-center text-muted py-3 border rounded">
                                                         <p>No examples added yet</p>

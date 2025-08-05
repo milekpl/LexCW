@@ -166,4 +166,4 @@ The demo script (`demo_centralized_validation.py`) successfully demonstrates:
 - **API endpoints** documented and functional
 - **TDD compliance** maintained throughout
 
-The centralized validation system is now ready to replace the scattered validation logic and provides a solid foundation for maintaining data quality in the dictionary writing system.
+The centralized validation system is now ready to replace the scattered validation logic and provides a solid foundation for maintaining data quality in the Lexicographic Curation Workbench.

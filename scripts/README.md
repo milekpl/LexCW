@@ -1,6 +1,6 @@
-# Dictionary Writing System Scripts
+# Lexicographic Curation Workbench Scripts
 
-This directory contains utility scripts for the Dictionary Writing System.
+This directory contains utility scripts for the Lexicographic Curation Workbench.
 
 ## Available Scripts
 

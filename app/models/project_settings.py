@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Table
 from sqlalchemy.orm import relationship
@@ -18,12 +18,13 @@ class ProjectSettings(db.Model):
     __tablename__ = 'project_settings'
     __allow_unmapped__ = True
 
-    id: int = Column(Integer, primary_key=True)
-    project_name: str = Column(String(255), unique=True, nullable=False)
-    basex_db_name: str = Column(String(255), nullable=False)
-    settings_json: dict = Column(JSON, nullable=False)
-    created_at: datetime = Column(DateTime, default=datetime.utcnow)
-    updated_at: datetime = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    project_name = Column(String(255), unique=True, nullable=False)
+    basex_db_name = Column(String(255), nullable=False)
+    source_language = Column(JSON, nullable=False)
+    target_languages = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # TODO: Implement User model and relationships
     owner_id: Optional[int] = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
@@ -32,6 +33,14 @@ class ProjectSettings(db.Model):
 
     def __repr__(self) -> str:
         return f'<ProjectSettings id={self.id} name={self.project_name}>'
+
+    @property
+    def settings_json(self):
+        return {
+            'project_name': self.project_name,
+            'source_language': self.source_language,
+            'target_languages': self.target_languages
+        }
 
 # TODO: Define User model for project ownership and membership
 class User(db.Model):

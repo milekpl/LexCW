@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from app.services.validation_engine import ValidationEngine, ValidationResult
 
@@ -314,4 +314,24 @@ def _error_to_dict(error) -> Dict[str, Any]:
         'priority': error.priority.value,
         'category': error.category.value,
         'value': str(error.value) if error.value is not None else None
+    }
+
+
+def validate_language(language_code: str, project_settings: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate if a language is configured for the project."""
+    configured_languages: List[str] = [project_settings['source_language']['code']] + \
+                                   [lang['code'] for lang in project_settings['target_languages']]
+    
+    if language_code not in configured_languages:
+        return {
+            'is_valid': False,
+            'errors': [],
+            'warnings': [f"Language '{language_code}' is not configured for this project"],
+            'info': []
+        }
+    return {
+        'is_valid': True,
+        'errors': [],
+        'warnings': [],
+        'info': []
     }

@@ -1,5 +1,5 @@
 """
-Exporters for the Dictionary Writing System.
+Exporters for the Lexicographic Curation Workbench.
 
 This package provides exporters for various formats:
 - Kindle (.opf, .html, .mobi)

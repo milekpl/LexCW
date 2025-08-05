@@ -1,5 +1,5 @@
 /**
- * Dictionary Writing System - Search JavaScript
+ * Lexicographic Curation Workbench - Search JavaScript
  * 
  * This file contains the functionality for the search page.
  */

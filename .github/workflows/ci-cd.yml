@@ -1,4 +1,4 @@
-# GitHub Actions CI/CD Pipeline for Dictionary Writing System
+# GitHub Actions CI/CD Pipeline for Lexicographic Curation Workbench
 name: CI/CD Pipeline
 
 on:

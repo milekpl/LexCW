@@ -1,0 +1,55 @@
+<!-- 
+Template snippet for the language selector in entry_form.html
+Replace existing language selector dropdowns with this code
+
+Replace:
+<select class="form-select language-select" ...>
+    <!-- language options -->
+</select>
+
+With:
+-->
+
+<select class="form-select language-select" name="{{ name_attribute }}">
+    {% for lang_code, lang_name in project_languages %}
+    <option value="{{ lang_code }}" {% if selected_lang == lang_code %}selected{% endif %}>{{ lang_name }}</option>
+    {% endfor %}
+</select>
+
+{% if language_code not in configured_languages_codes %}
+<div class="validation-warnings mt-1">
+    <small class="text-warning">
+        <i class="fas fa-exclamation-triangle"></i> 
+        Warning: Language '{{ language_code }}' is not configured for this project.
+    </small>
+</div>
+{% endif %}
+
+<!--
+Instructions for updating entry_form.html:
+
+1. Update the template context in app/views.py:
+   - In the function that renders entry_form.html, ensure that:
+     a) project_languages is passed from get_project_languages()
+     b) Add a list of configured_languages_codes:
+     
+     ```python
+     languages = get_project_languages()
+     configured_languages_codes = [lang[0] for lang in languages]
+     
+     return render_template("entry_form.html", 
+                          entry=entry, 
+                          ranges=ranges, 
+                          project_languages=languages,
+                          configured_languages_codes=configured_languages_codes)
+     ```
+     
+2. For each language-select dropdown in entry_form.html:
+   - Replace the existing options with the code above
+   - Ensure each dropdown has the correct name_attribute
+   - Set selected_lang to the appropriate value for each dropdown
+   
+3. Update the validation logic in app/api/validation_service.py:
+   - Add a validation rule to check that language codes in entries are in the 
+     configured languages list
+-->

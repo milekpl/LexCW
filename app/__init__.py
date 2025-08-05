@@ -1,5 +1,5 @@
 """
-Dictionary Writing System - Main application module.
+Lexicographic Curation Workbench - Main application module.
 
 This module initializes the Flask application and registers all blueprints.
 """
@@ -161,7 +161,7 @@ def create_app(config_name=None):
         "swagger_ui": True,
         "specs_route": "/apidocs/",
         "title": "Dictionary API Documentation",
-        "description": "API documentation for the Dictionary Writing System",
+        "description": "API documentation for the Lexicographic Curation Workbench",
         "version": "1.0.0",
         "termsOfService": "",
         "contact": {
@@ -190,7 +190,7 @@ def create_app(config_name=None):
     def index():
         """Index route."""
         return {
-            'app': 'Dictionary Writing System',
+            'app': 'Lexicographic Curation Workbench',
             'status': 'running',
             'api_version': '1.0'
         }
@@ -205,8 +205,8 @@ def create_app(config_name=None):
     def configure_dependencies(binder):
         """Configure dependencies for the application."""
         # Create a singleton instance of BaseXConnector
-        # Use TEST_DB_NAME from environment if present (for integration tests)
-        test_db_name = os.environ.get('TEST_DB_NAME')
+        # Use TEST_DB_NAME from environment ONLY during testing
+        test_db_name = os.environ.get('TEST_DB_NAME') if app.testing else None
         basex_database = test_db_name if test_db_name else app.config.get('BASEX_DATABASE', 'dictionary')
         basex_connector = BaseXConnector(
             host=app.config.get('BASEX_HOST', 'localhost'),

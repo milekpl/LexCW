@@ -1,5 +1,5 @@
 """
-Base exporter for the Dictionary Writing System.
+Base exporter for the Lexicographic Curation Workbench.
 """
 
 import logging

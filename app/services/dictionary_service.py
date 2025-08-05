@@ -1142,7 +1142,7 @@ class DictionaryService:
         title: str = "Dictionary",
         source_lang: str = "en",
         target_lang: str = "pl",
-        author: str = "Dictionary Writing System",
+        author: str = "Lexicographic Curation Workbench",
         kindlegen_path: Optional[str] = None,
     ) -> str:
         """

@@ -26,7 +26,7 @@ class TestAppConsistency:
             response = client.get('/')
             assert response.status_code == 200
             assert b'Lexicographic Curation Workbench' in response.data
-            assert b'Dictionary Writing System' not in response.data
+            assert b'Lexicographic Curation Workbench' not in response.data
             
     @pytest.mark.integration
     def test_corpus_management_single_route(self, app: Flask):

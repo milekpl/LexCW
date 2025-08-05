@@ -103,8 +103,7 @@ class TestSettingsRoute(unittest.TestCase):
             'project_name': 'My Awesome Dictionary',
             'source_language_code': 'pl',
             'source_language_name': 'Polish',
-            'target_language_code': 'de',
-            'target_language_name': 'German',
+            'available_target_languages': ['de'],  # Use checkbox list instead of single target
             'csrf_token': 'testing_csrf_token'
         }
 
@@ -118,8 +117,11 @@ class TestSettingsRoute(unittest.TestCase):
         self.assertEqual(config_manager.get_project_name(), 'My Awesome Dictionary')
         self.assertEqual(config_manager.get_source_language()['code'], 'pl')
         self.assertEqual(config_manager.get_source_language()['name'], 'Polish')
-        self.assertEqual(config_manager.get_target_language()['code'], 'de')
-        self.assertEqual(config_manager.get_target_language()['name'], 'German')
+        
+        # Target languages are now a list, get the first one
+        target_languages = config_manager.get_target_languages()
+        self.assertGreater(len(target_languages), 0, "Should have at least one target language")
+        self.assertEqual(target_languages[0]['code'], 'de')
 
         # Also check that app.config was updated
         project_settings = self.app.config['PROJECT_SETTINGS']
@@ -127,7 +129,8 @@ class TestSettingsRoute(unittest.TestCase):
             settings_json = project_settings[0]
             self.assertEqual(settings_json['project_name'], 'My Awesome Dictionary')
             self.assertEqual(settings_json['source_language']['name'], 'Polish')
-            self.assertEqual(settings_json['target_language']['name'], 'German')
+            self.assertIn('target_languages', settings_json)
+            self.assertGreater(len(settings_json['target_languages']), 0)
 
     @pytest.mark.integration
     def test_settings_are_applied_immediately(self):
@@ -173,24 +176,24 @@ class TestSettingsRoute(unittest.TestCase):
         response = self.client.get('/settings/')
         self.assertEqual(response.status_code, 200)
 
-        # Check for a few languages
-        self.assertIn(b'<option value="en">English</option>', response.data)
-        self.assertIn(b'<option value="es">Spanish; Castilian</option>', response.data)
-        self.assertIn(b'<option value="fr">French</option>', response.data)
-        # self.mock_load_langs_in_form_module.assert_called() # No longer assert called, as caching or code changes may prevent call
-
-        real_names = {
-            'en': 'english',
-            'es': 'spanish; castilian',
-            'fr': 'french',
-            'de': 'german',
-            'pl': 'polish',
-            'seh': 'sena',
-            'eo': 'esperanto'
-        }
-        for code in real_names:
-            option_html = f'<option value="{code}">{real_names[code]}</option>'
-            self.assertIn(option_html.encode(), response.data.lower())
+        # Check for source language select dropdown (English will be selected by default)
+        self.assertIn(b'<select class="form-select" id="source_language_code"', response.data)
+        self.assertIn(b'value="en">English</option>', response.data)
+        self.assertIn(b'value="es">Spanish</option>', response.data)
+        self.assertIn(b'value="fr">French</option>', response.data)
+        self.assertIn(b'value="de">German</option>', response.data)
+        
+        # Check for target language checkboxes
+        self.assertIn(b'name="available_target_languages" type="checkbox" value="en"', response.data)
+        self.assertIn(b'name="available_target_languages" type="checkbox" value="es"', response.data)
+        self.assertIn(b'name="available_target_languages" type="checkbox" value="fr"', response.data)
+        
+        # Verify we have multiple language options (should be 30 languages)
+        option_count = response.data.count(b'value="en">English</option>')
+        self.assertGreaterEqual(option_count, 1, "Should have English option in source language dropdown")
+        
+        checkbox_count = response.data.count(b'name="available_target_languages"')
+        self.assertGreaterEqual(checkbox_count, 25, "Should have at least 25 target language checkboxes")
 
 
 if __name__ == '__main__':

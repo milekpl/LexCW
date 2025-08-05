@@ -1,5 +1,5 @@
 """
-SQLite exporter for the Dictionary Writing System.
+SQLite exporter for the Lexicographic Curation Workbench.
 
 This module provides functionality for exporting dictionary entries to SQLite format
 for use with Flutter mobile applications.

@@ -1,5 +1,5 @@
 """
-Unit tests for the Dictionary Writing System.
+Unit tests for the Lexicographic Curation Workbench.
 
 This module contains basic unit tests to verify the structure and functionality
 of the dictionary application.
