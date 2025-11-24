@@ -275,9 +275,23 @@ class Entry(BaseModel):
             ValidationError: If the entry is invalid.
         """
         from app.services.validation_engine import ValidationEngine
+        from flask import current_app, has_app_context
+        
+        # Get project config if available
+        project_config = {}
+        if has_app_context() and hasattr(current_app, 'config_manager'):
+            try:
+                config_manager = current_app.config_manager
+                project_config = {
+                    'source_language': config_manager.get_source_language(),
+                    'target_languages': config_manager.get_target_languages()
+                }
+            except Exception:
+                # If config retrieval fails, continue without project config
+                pass
         
         # Use centralized validation system
-        engine = ValidationEngine()
+        engine = ValidationEngine(project_config=project_config)
         result = engine.validate_entry(self, validation_mode)
         
         if not result.is_valid:

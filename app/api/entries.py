@@ -652,6 +652,12 @@ def update_entry(entry_id: str) -> Any:
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
+        # Log the senses being received
+        logger.info(f"[SENSE UPDATE] Received update for entry {entry_id}")
+        logger.info(f"[SENSE UPDATE] Number of senses in request: {len(data.get('senses', []))}")
+        for i, sense in enumerate(data.get('senses', [])):
+            logger.info(f"[SENSE UPDATE]   Sense {i}: id={sense.get('id')}")
+        
         # Add the entry ID from the path if not present in data
         if 'id' not in data:
             data['id'] = entry_id
@@ -663,16 +669,23 @@ def update_entry(entry_id: str) -> Any:
         # Create entry object
         # Preserve date_created, update date_modified
         existing_entry = get_dictionary_service().get_entry(entry_id)
+        logger.info(f"[SENSE UPDATE] Existing entry has {len(existing_entry.senses) if existing_entry and existing_entry.senses else 0} senses")
+        
         if existing_entry and existing_entry.date_created:
             data['date_created'] = existing_entry.date_created
         data['date_modified'] = datetime.datetime.utcnow().isoformat()
         entry = Entry.from_dict(data)
         
+        logger.info(f"[SENSE UPDATE] New entry object has {len(entry.senses) if entry.senses else 0} senses")
+        
         # Get dictionary service
         dict_service = get_dictionary_service()
         
+        # Check if skip_validation parameter is set
+        skip_validation = data.pop('skip_validation', False) or request.args.get('skip_validation', 'false').lower() == 'true'
+        
         # Update entry
-        dict_service.update_entry(entry)
+        dict_service.update_entry(entry, skip_validation=skip_validation)
         
         # Clear entries cache after successful update
         cache = CacheService()
