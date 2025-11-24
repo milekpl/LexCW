@@ -53,4 +53,8 @@ def check_jinja(filepath):
             print(f"Line {line}: {{% {tag} %}}")
 
 if __name__ == "__main__":
-    check_jinja('app/templates/entry_form.html')
+    if len(sys.argv) > 1:
+        filepath = sys.argv[1]
+    else:
+        filepath = 'app/templates/entry_form.html'
+    check_jinja(filepath)

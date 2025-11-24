@@ -88,14 +88,16 @@ class ValidationEngine:
     _custom_functions_cache: dict[str, Any] = {}
     _rules_file_loaded: Optional[str] = None
 
-    def __init__(self, rules_file: Optional[str] = None):
+    def __init__(self, rules_file: Optional[str] = None, project_config: Optional[Dict[str, Any]] = None):
         """
         Initialize the validation engine.
         
         Args:
             rules_file: Path to validation rules JSON file
+            project_config: Optional project configuration with source/target languages
         """
         self.rules_file = rules_file or "validation_rules.json"
+        self.project_config = project_config or {}
         # Always reload rules to ensure validation_mode changes are picked up
         self._load_rules()
         ValidationEngine._rules_file_loaded = self.rules_file
@@ -411,6 +413,12 @@ class ValidationEngine:
             errors.extend(self._validate_date_fields(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_definition_content_source_lang_exception':
             errors.extend(self._validate_definition_content_source_lang_exception(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_multilingual_note_structure':
+            errors.extend(self._validate_multilingual_note_structure(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_pos_consistency':
+            errors.extend(self._validate_pos_consistency(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_conflicting_pos':
+            errors.extend(self._validate_conflicting_pos(rule_id, rule_config, data, matches))
         
         return errors
     
@@ -430,12 +438,29 @@ class ValidationEngine:
         if is_variant_entry:
             return errors
         
+        # Get source language for checking
+        source_lang = ''
+        if self.project_config and 'source_language' in self.project_config:
+            source_lang_config = self.project_config['source_language']
+            source_lang = source_lang_config.get('code', '') if isinstance(source_lang_config, dict) else ''
+        else:
+            source_lang = data.get('lexical-unit', {}).get('lang', '')
+        
         senses = data.get('senses', [])
         for i, sense in enumerate(senses):
             # Handle both string and multilingual dictionary formats
             definition = sense.get('definition', '')
             if isinstance(definition, dict):
-                has_definition = any(bool(str(v).strip()) for v in definition.values() if v)
+                # Check if there's any non-empty definition for non-source languages
+                # Source language definitions can be empty
+                has_definition = any(
+                    bool(str(v).strip()) 
+                    for k, v in definition.items() 
+                    if k != source_lang
+                )
+                # If no non-source language definition, check if source language has content
+                if not has_definition and source_lang in definition:
+                    has_definition = bool(str(definition[source_lang]).strip())
             else:
                 has_definition = bool(str(definition).strip()) if definition else False
                 
@@ -706,11 +731,19 @@ class ValidationEngine:
         
         Definition/gloss text must be non-empty, except for source language definitions
         which can be empty since the headword itself is in that language.
+        
+        Only allows completely empty definitions (all languages empty AND all are source language)
+        since the user might be removing the definition field. If non-source language keys exist
+        with empty values, that's an error.
         """
         errors: List[ValidationError] = []
         
-        # Get target language code from entry
-        target_lang = data.get('lexical-unit', {}).get('lang', '')
+        # Get source language from project config or entry
+        if self.project_config and 'source_language' in self.project_config:
+            source_lang_config = self.project_config['source_language']
+            target_lang = source_lang_config.get('code', '') if isinstance(source_lang_config, dict) else ''
+        else:
+            target_lang = data.get('lexical-unit', {}).get('lang', '')
         
         for match in matches:
             sense_data = match.value
@@ -720,15 +753,20 @@ class ValidationEngine:
             definition = sense_data.get('definition', {})
             if not isinstance(definition, dict):
                 continue
-                
+            
             # Check each definition/gloss language
             for lang_code, text in definition.items():
                 # Skip empty check for source language (target language)
                 if lang_code == target_lang:
                     continue
                     
-                # For non-source languages, text must be non-empty
-                if not text or not str(text).strip():
+                # For non-source languages, text must be non-empty IF the key exists
+                # Extract actual text value if it's a dict with 'text' key
+                actual_text = text
+                if isinstance(text, dict) and 'text' in text:
+                    actual_text = text['text']
+                
+                if actual_text is not None and not str(actual_text).strip():
                     errors.append(ValidationError(
                         rule_id=rule_id,
                         rule_name=rule_config['name'],
@@ -736,8 +774,121 @@ class ValidationEngine:
                         path=f"{match.full_path}.definition.{lang_code}",
                         priority=ValidationPriority(rule_config['priority']),
                         category=ValidationCategory(rule_config['category']),
-                        value=text
+                        value=actual_text
                     ))
+        
+        return errors
+    
+    def _validate_multilingual_note_structure(self, rule_id: str, rule_config: Dict[str, Any], 
+                                             data: Dict[str, Any], matches: Any) -> List[ValidationError]:
+        """R3.1.3: Validate multilingual note structure.
+        
+        Checks that multilingual notes use valid language codes from project settings.
+        """
+        errors: List[ValidationError] = []
+        
+        notes = data.get('notes', {})
+        if not notes or not isinstance(notes, dict):
+            return errors
+        
+        # Get valid language codes from project config
+        valid_langs = set()
+        if self.project_config:
+            source_lang = self.project_config.get('source_language', {})
+            if isinstance(source_lang, dict) and 'code' in source_lang:
+                valid_langs.add(source_lang['code'])
+            target_langs = self.project_config.get('target_languages', [])
+            for lang in target_langs:
+                if isinstance(lang, dict) and 'code' in lang:
+                    valid_langs.add(lang['code'])
+        
+        # If no project config, accept any RFC 4646 format
+        rfc4646_pattern = re.compile(r'^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2}|[0-9]{3})?(-[a-zA-Z0-9]{5,8}|[0-9][a-zA-Z0-9]{3})*(-[a-zA-Z0-9]{1,8})*$')
+        
+        for note_type, note_content in notes.items():
+            if isinstance(note_content, dict):
+                # Multilingual note
+                for lang_code in note_content.keys():
+                    if valid_langs and lang_code not in valid_langs:
+                        errors.append(ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config['name'],
+                            message=f"Language code '{lang_code}' not configured for this project",
+                            path=f"$.notes.{note_type}.{lang_code}",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=lang_code
+                        ))
+                    elif not valid_langs and not rfc4646_pattern.match(lang_code):
+                        errors.append(ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config['name'],
+                            message=f"Invalid language code format: '{lang_code}'",
+                            path=f"$.notes.{note_type}.{lang_code}",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=lang_code
+                        ))
+        
+        return errors
+    
+    def _validate_pos_consistency(self, rule_id: str, rule_config: Dict[str, Any], 
+                                  data: Dict[str, Any], matches: Any) -> List[ValidationError]:
+        """R6.1.1: Validate part-of-speech consistency between entry and senses.
+        
+        If entry has POS, ALL senses with POS must match it (strict consistency).
+        """
+        errors: List[ValidationError] = []
+        
+        entry_pos = data.get('grammatical_info', '')
+        if not entry_pos:
+            return errors
+        
+        senses = data.get('senses', [])
+        for i, sense in enumerate(senses):
+            sense_pos = sense.get('grammatical_info', '')
+            if sense_pos and sense_pos != entry_pos:
+                errors.append(ValidationError(
+                    rule_id=rule_id,
+                    rule_name=rule_config['name'],
+                    message=f"Sense POS '{sense_pos}' differs from entry POS '{entry_pos}'",
+                    path=f"$.senses[{i}].grammatical_info",
+                    priority=ValidationPriority(rule_config['priority']),
+                    category=ValidationCategory(rule_config['category']),
+                    value=sense_pos
+                ))
+        
+        return errors
+    
+    def _validate_conflicting_pos(self, rule_id: str, rule_config: Dict[str, Any], 
+                                  data: Dict[str, Any], matches: Any) -> List[ValidationError]:
+        """R6.1.2: Validate that conflicting sense POS values require manual entry POS."""
+        errors: List[ValidationError] = []
+        
+        senses = data.get('senses', [])
+        if len(senses) < 2:
+            return errors
+        
+        # Collect all sense POS values
+        sense_pos_values = set()
+        for sense in senses:
+            pos = sense.get('grammatical_info', '')
+            if pos:
+                sense_pos_values.add(pos)
+        
+        # If senses have conflicting POS, entry must have POS set
+        if len(sense_pos_values) > 1:
+            entry_pos = data.get('grammatical_info', '')
+            if not entry_pos:
+                errors.append(ValidationError(
+                    rule_id=rule_id,
+                    rule_name=rule_config['name'],
+                    message=rule_config['error_message'],
+                    path="$.grammatical_info",
+                    priority=ValidationPriority(rule_config['priority']),
+                    category=ValidationCategory(rule_config['category']),
+                    value=None
+                ))
         
         return errors
 

@@ -185,6 +185,19 @@
       "error_message": "Note content cannot be empty for specified type",
       "client_side": true
     },
+    "R3.1.3": {
+      "name": "multilingual_note_structure",
+      "description": "Multilingual notes must follow proper language code structure",
+      "category": "note_validation",
+      "priority": "warning",
+      "path": "$.notes",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_multilingual_note_structure"
+      },
+      "error_message": "Multilingual note has invalid language code structure",
+      "client_side": true
+    },
     "R4.1.1": {
       "name": "pronunciation_language_restriction",
       "description": "Pronunciation language restricted to seh-fonipa only",
@@ -268,6 +281,32 @@
       "error_message": "Illustration file not found: {value}",
       "client_side": false,
       "server_side": true
+    },
+    "R6.1.1": {
+      "name": "entry_sense_pos_consistency",
+      "description": "If entry has POS and senses have POS, they must be consistent",
+      "category": "hierarchical_validation",
+      "priority": "warning",
+      "path": "$",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_pos_consistency"
+      },
+      "error_message": "Part-of-speech inconsistency between entry and senses",
+      "client_side": true
+    },
+    "R6.1.2": {
+      "name": "conflicting_sense_pos_manual_entry",
+      "description": "If senses have conflicting POS values, entry POS must be set manually",
+      "category": "hierarchical_validation",
+      "priority": "critical",
+      "path": "$",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_conflicting_pos"
+      },
+      "error_message": "Conflicting sense POS values require manual entry-level POS",
+      "client_side": true
     },
     "R8.2.1": {
       "name": "rfc4646_language_format",
@@ -379,6 +418,22 @@
     "validate_subsense_depth": {
       "description": "Validates subsense nesting depth limits",
       "implementation": "javascript"
+    },
+    "validate_multilingual_note_structure": {
+      "description": "Validates multilingual note language codes against project settings",
+      "implementation": "python"
+    },
+    "validate_pos_consistency": {
+      "description": "Validates part-of-speech consistency between entry and senses",
+      "implementation": "python"
+    },
+    "validate_conflicting_pos": {
+      "description": "Validates that conflicting sense POS requires manual entry POS",
+      "implementation": "python"
+    },
+    "validate_definition_content_source_lang_exception": {
+      "description": "Validates definition content with exception for source language",
+      "implementation": "python"
     }
   }
 }

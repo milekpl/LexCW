@@ -187,11 +187,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (entryForm) {
         entryForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            // First, run all client-side validations.
-            if (validateForm(true)) { // Pass true to show modal on failure
+            
+            // Check if user wants to skip validation
+            const skipValidationCheckbox = document.getElementById('skip-validation-checkbox');
+            const shouldSkipValidation = skipValidationCheckbox && skipValidationCheckbox.checked;
+            
+            if (shouldSkipValidation) {
+                // Skip client-side validation and submit directly
+                console.log('Skipping validation as requested by user');
                 submitForm();
             } else {
-                console.log('Form submission halted due to validation errors.');
+                // Run client-side validations
+                if (validateForm(true)) { // Pass true to show modal on failure
+                    submitForm();
+                } else {
+                    console.log('Form submission halted due to validation errors.');
+                }
             }
         });
     }
@@ -237,7 +248,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (removeSenseBtn) {
                 const senseItem = removeSenseBtn.closest('.sense-item');
                 if (senseItem && confirm('Are you sure you want to remove this sense and all its examples?')) {
+                    const senseId = senseItem.querySelector('[name*=".id"]')?.value || 'unknown';
+                    console.log('[SENSE DELETION] Removing sense:', senseId);
+                    console.log('[SENSE DELETION] Sense count before removal:', document.querySelectorAll('.sense-item').length);
+                    
                     senseItem.remove();
+                    
+                    console.log('[SENSE DELETION] Sense count after removal:', document.querySelectorAll('.sense-item').length);
+                    console.log('[SENSE DELETION] Remaining sense IDs:', 
+                        Array.from(document.querySelectorAll('[name*="senses["][name*=".id"]'))
+                            .map(input => input.value));
+                    
                     reindexSenses();
                     // The MutationObserver will automatically trigger updateGrammaticalCategoryInheritance.
                 }
@@ -465,6 +486,21 @@ async function submitForm() {
             transform: (value) => (typeof value === 'string' ? value.trim() : value)
         });
         
+        // Log sense count for debugging
+        console.log('[FORM SUBMIT] Serialized senses:', jsonData.senses?.length || 0);
+        if (jsonData.senses) {
+            jsonData.senses.forEach((sense, i) => {
+                console.log(`[FORM SUBMIT] Sense ${i}:`, sense.id);
+            });
+        }
+        console.log('[FORM SUBMIT] FULL JSON PAYLOAD:', JSON.stringify(jsonData, null, 2));
+        
+        // Check if skip validation is enabled
+        const skipValidationCheckbox = document.getElementById('skip-validation-checkbox');
+        if (skipValidationCheckbox && skipValidationCheckbox.checked) {
+            jsonData.skip_validation = true;
+        }
+        
         // Update progress
         progressBar.style.width = '30%';
         progressBar.textContent = 'Data prepared, sending...';
@@ -576,7 +612,8 @@ async function addSense() {
     const templateEl = document.getElementById('sense-template');
     if (!container || !templateEl) return;
 
-    const newIndex = container.querySelectorAll('.sense-item').length;
+    // Count only real senses, excluding the default template
+    const newIndex = container.querySelectorAll('.sense-item:not(#default-sense-template):not(.default-sense-template)').length;
     const newNumber = newIndex + 1;
 
     let template = templateEl.innerHTML

@@ -45,7 +45,8 @@ class DictionaryService:
         """
         self.db_connector = db_connector
         self.logger = logging.getLogger(__name__)
-        self.lift_parser = LIFTParser()
+        # Don't validate when loading entries - only validate on save
+        self.lift_parser = LIFTParser(validate=False)
         self.ranges_parser = LIFTRangesParser()
         self.ranges: Dict[str, Any] = {}  # Cache for ranges data
 
@@ -296,13 +297,14 @@ class DictionaryService:
             self.logger.error("Error retrieving entry %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
 
-    def create_entry(self, entry: Entry, draft: bool = False) -> str:
+    def create_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False) -> str:
         """
         Create a new entry.
 
         Args:
             entry: Entry object to create.
             draft: If True, use draft validation mode (allows saving incomplete entries).
+            skip_validation: If True, skip validation entirely (for manual saves of partial work).
 
         Returns:
             ID of the created entry.
@@ -312,9 +314,10 @@ class DictionaryService:
             DatabaseError: If there is an error creating the entry.
         """
         try:
-            validation_mode = "draft" if draft else "save"
-            if not entry.validate(validation_mode):
-                raise ValidationError("Entry validation failed")
+            if not skip_validation:
+                validation_mode = "draft" if draft else "save"
+                if not entry.validate(validation_mode):
+                    raise ValidationError("Entry validation failed")
 
             db_name = self.db_connector.database
             if not db_name:
@@ -345,13 +348,14 @@ class DictionaryService:
             self.logger.error("Error creating entry: %s", str(e))
             raise DatabaseError(f"Failed to create entry: {str(e)}") from e
 
-    def update_entry(self, entry: Entry, draft: bool = False) -> None:
+    def update_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False) -> None:
         """
         Update an existing entry.
 
         Args:
             entry: Entry object to update.
             draft: If True, use draft validation mode (allows saving incomplete entries).
+            skip_validation: If True, skip validation entirely (allows saving partial work).
 
         Raises:
             NotFoundError: If the entry does not exist.
@@ -359,9 +363,10 @@ class DictionaryService:
             DatabaseError: If there is an error updating the entry.
         """
         try:
-            validation_mode = "draft" if draft else "save"
-            if not entry.validate(validation_mode):
-                raise ValidationError("Entry validation failed")
+            if not skip_validation:
+                validation_mode = "draft" if draft else "save"
+                if not entry.validate(validation_mode):
+                    raise ValidationError("Entry validation failed")
 
             db_name = self.db_connector.database
             if not db_name:
@@ -1353,8 +1358,8 @@ class DictionaryService:
             self.logger.error(
                 "Error retrieving ranges from database: %s", str(e), exc_info=True
             )
-            self.logger.info("Falling back to default ranges.")
-            self.ranges = self._get_default_ranges()
+            self.logger.info("Falling back to empty ranges.")
+            self.ranges = {}
             return self.ranges
 
     def get_system_status(self) -> Dict[str, Any]:
