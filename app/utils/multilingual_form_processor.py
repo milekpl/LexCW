@@ -310,7 +310,16 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     logger.debug(f"[SENSES DEBUG] Processing form data for senses, keys: {[k for k in form_data.keys() if k.startswith('senses[')]}")
     
     for key, value in form_data.items():
-        if key.startswith('senses[') and value.strip():
+        # Check if it's a sense-related key and has a non-empty value
+        if key.startswith('senses['):
+            # Skip empty values - handle both strings and lists
+            if isinstance(value, str) and not value.strip():
+                continue
+            elif isinstance(value, list) and not value:
+                continue
+            elif not value:  # None or other falsy non-list/non-string
+                continue
+                
             logger.debug(f"[SENSES DEBUG] Processing: {key} = {value}")
             # Parse both bracket notation: senses[0][definition] -> (0, 'definition')
             # And dot notation: senses[0].definition -> (0, 'definition')
@@ -353,9 +362,25 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                         logger.debug(f"[SENSES DEBUG] Setting simple field: senses[{sense_index}][{field_name}] = {value}")
                         # Convert to flattened format for multilingual fields
                         if field_name in ('definition', 'gloss'):
-                            senses_data[sense_index][field_name] = {'en': {'text': value.strip()}}
+                            if isinstance(value, str):
+                                senses_data[sense_index][field_name] = {'en': {'text': value.strip()}}
+                            else:
+                                senses_data[sense_index][field_name] = value
+                        # Handle list fields (usage_type, domain_type) - multiple selections from form
+                        elif field_name in ('usage_type', 'domain_type'):
+                            # If value is a list (multiple selections), use as-is after stripping each element
+                            # If value is a string, split by semicolon (LIFT format)
+                            if isinstance(value, list):
+                                senses_data[sense_index][field_name] = [v.strip() if isinstance(v, str) else v for v in value if v]
+                            elif isinstance(value, str) and value.strip():
+                                senses_data[sense_index][field_name] = [v.strip() for v in value.split(';') if v.strip()]
+                            else:
+                                senses_data[sense_index][field_name] = []
                         else:
-                            senses_data[sense_index][field_name] = value.strip()
+                            if isinstance(value, str):
+                                senses_data[sense_index][field_name] = value.strip()
+                            else:
+                                senses_data[sense_index][field_name] = value
                     
                     elif len(parts) == 3:
                         # Could be multilingual field: senses[0][definition][en]

@@ -373,10 +373,30 @@ def client(app: Flask) -> FlaskClient:
 def playwright_page(app: Flask) -> Generator[Page, None, None]:
     """Provides a Playwright Page object for browser automation testing."""
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
-        yield page
-        browser.close()
+        # Launch browser in headless mode to prevent hanging on hidden windows
+        browser = p.chromium.launch(headless=True)
+        context = None
+        page = None
+        try:
+            context = browser.new_context()
+            page = context.new_page()
+            yield page
+        finally:
+            # Always clean up browser resources, even on test failure
+            if page:
+                try:
+                    page.close()
+                except Exception as e:
+                    logger.warning(f"Failed to close page: {e}")
+            if context:
+                try:
+                    context.close()
+                except Exception as e:
+                    logger.warning(f"Failed to close context: {e}")
+            try:
+                browser.close()
+            except Exception as e:
+                logger.warning(f"Failed to close browser: {e}")
 
 @pytest.fixture(scope="function")
 def live_server(app: Flask):

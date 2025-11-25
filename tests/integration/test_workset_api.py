@@ -100,7 +100,7 @@ class TestWorksetAPI:
         # RED: Test for bulk operations
         bulk_update = {
             "operation": "update_field",
-            "field": "semantic_domain",
+            "field": "sense.semantic_domain",  # Note: semantic_domain is sense-level
             "value": "1.1 Universe, creation",
             "apply_to": "all"  # or "filtered" with additional criteria
         }

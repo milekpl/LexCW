@@ -124,28 +124,6 @@
                         </select>
                     </div>
 
-                    <!-- LIFT Ranges: Semantic Domain -->
-                    <div class="mb-3">
-                        <label for="semantic-domain-list" class="form-label">Semantic Domain</label>
-                        <select class="form-select dynamic-lift-range" id="semantic-domain-ddp4" name="semantic_domain" 
-                                data-range-id="semantic-domain-ddp4" 
-                                data-hierarchical="true" 
-                                data-searchable="true">
-                            <option value="">Select semantic domain</option>
-                        </select>
-                    </div>
-
-                    <!-- LIFT Ranges: Usage Type -->
-                    <div class="mb-3">
-                        <label for="usage-type" class="form-label">Usage Type</label>
-                        <select class="form-select dynamic-lift-range" id="usage-type" name="usage_type" 
-                                data-range-id="usage-type"
-                                data-hierarchical="true"
-                                data-searchable="true">
-                            <option value="">Select usage type</option>
-                        </select>
-                    </div>
-
                     <!-- LIFT Ranges: Status -->
                     <div class="mb-3">
                         <label for="status" class="form-label">Status</label>
@@ -1069,23 +1047,51 @@
                                             <div class="form-text">A short equivalent in another language.</div>
                                         </div>
                                         
-                                        <div class="mb-3">
-                                            <label for="part-of-speech" class="form-label">Part of Speech</label>
-                                            <select class="form-select dynamic-grammatical-info" name="senses[{{ loop.index0 }}].grammatical_info"
-                                                    data-selected="{{ sense.grammatical_info }}"
-                                                    data-range-id="grammatical-info">
-                                                <option value="">Select part of speech</option>
-                                            </select>
-                                            <div class="form-text">Grammatical category for this sense.</div>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label class="form-label">Sense Note</label>
-                                            <textarea class="form-control" name="senses[{{ loop.index0 }}].note" 
-                                                      rows="2">{{ sense.note }}</textarea>
-                                        </div>
-                                        
-                                        <div class="examples-section mt-4">
+                        <div class="mb-3">
+                            <label for="part-of-speech" class="form-label">Part of Speech</label>
+                            <select class="form-select dynamic-grammatical-info" name="senses[{{ loop.index0 }}].grammatical_info"
+                                    data-selected="{{ sense.grammatical_info }}"
+                                    data-range-id="grammatical-info">
+                                <option value="">Select part of speech</option>
+                            </select>
+                            <div class="form-text">Grammatical category for this sense.</div>
+                        </div>
+                        
+                        <!-- LIFT Ranges: Semantic Domain (sense-level) -->
+                        <div class="mb-3">
+                            <label class="form-label">Semantic Domain</label>
+                            <select class="form-select dynamic-lift-range" 
+                                    name="senses[{{ loop.index0 }}].domain_type" 
+                                    data-range-id="semantic-domain-ddp4" 
+                                    data-hierarchical="true" 
+                                    data-searchable="true"
+                                    data-selected="{{ sense.domain_type|join(';') if sense.domain_type else '' }}"
+                                    multiple>
+                                <option value="">Select semantic domain(s)</option>
+                            </select>
+                            <div class="form-text">Semantic categorization for this sense (can select multiple).</div>
+                        </div>
+                        
+                        <!-- LIFT Ranges: Usage Type (sense-level) -->
+                        <div class="mb-3">
+                            <label class="form-label">Usage Type</label>
+                            <select class="form-select dynamic-lift-range" 
+                                    name="senses[{{ loop.index0 }}].usage_type" 
+                                    data-range-id="usage-type"
+                                    data-hierarchical="true"
+                                    data-searchable="true"
+                                    data-selected="{{ sense.usage_type|join(';') if sense.usage_type else '' }}"
+                                    multiple>
+                                <option value="">Select usage type(s)</option>
+                            </select>
+                            <div class="form-text">Usage classification for this sense (can select multiple).</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Sense Note</label>
+                            <textarea class="form-control" name="senses[{{ loop.index0 }}].note" 
+                                      rows="2">{{ sense.note }}</textarea>
+                        </div>                                        <div class="examples-section mt-4">
                                             <div class="d-flex justify-content-between align-items-center mb-3">
                                                 <h6><i class="fas fa-quote-left"></i> Examples</h6>
                                                 <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" 
@@ -1247,6 +1253,34 @@
                                             <option value="">Select part of speech</option>
                                         </select>
                                         <div class="form-text">Grammatical category for this sense.</div>
+                                    </div>
+                                    
+                                    <!-- LIFT Ranges: Semantic Domain (sense-level) -->
+                                    <div class="mb-3">
+                                        <label class="form-label">Semantic Domain</label>
+                                        <select class="form-select dynamic-lift-range" 
+                                                name="senses[0].domain_type" 
+                                                data-range-id="semantic-domain-ddp4" 
+                                                data-hierarchical="true" 
+                                                data-searchable="true"
+                                                multiple>
+                                            <option value="">Select semantic domain(s)</option>
+                                        </select>
+                                        <div class="form-text">Semantic categorization for this sense (can select multiple).</div>
+                                    </div>
+                                    
+                                    <!-- LIFT Ranges: Usage Type (sense-level) -->
+                                    <div class="mb-3">
+                                        <label class="form-label">Usage Type</label>
+                                        <select class="form-select dynamic-lift-range" 
+                                                name="senses[0].usage_type" 
+                                                data-range-id="usage-type"
+                                                data-hierarchical="true"
+                                                data-searchable="true"
+                                                multiple>
+                                            <option value="">Select usage type(s)</option>
+                                        </select>
+                                        <div class="form-text">Usage classification for this sense (can select multiple).</div>
                                     </div>
                                     
                                     <div class="mb-3">
@@ -1476,6 +1510,34 @@
                         data-searchable="true">
                     <option value="">Select part of speech</option>
                 </select>
+            </div>
+            
+            <!-- LIFT Ranges: Semantic Domain (sense-level) -->
+            <div class="mb-3">
+                <label class="form-label">Semantic Domain</label>
+                <select class="form-select dynamic-lift-range" 
+                        name="senses[INDEX].domain_type" 
+                        data-range-id="semantic-domain-ddp4" 
+                        data-hierarchical="true" 
+                        data-searchable="true"
+                        multiple>
+                    <option value="">Select semantic domain(s)</option>
+                </select>
+                <div class="form-text">Semantic categorization for this sense (can select multiple).</div>
+            </div>
+            
+            <!-- LIFT Ranges: Usage Type (sense-level) -->
+            <div class="mb-3">
+                <label class="form-label">Usage Type</label>
+                <select class="form-select dynamic-lift-range" 
+                        name="senses[INDEX].usage_type" 
+                        data-range-id="usage-type"
+                        data-hierarchical="true"
+                        data-searchable="true"
+                        multiple>
+                    <option value="">Select usage type(s)</option>
+                </select>
+                <div class="form-text">Usage classification for this sense (can select multiple).</div>
             </div>
             
             <div class="mb-3">

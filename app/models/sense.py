@@ -45,8 +45,24 @@ class Sense(BaseModel):
         
         # LIFT-aligned fields: usage_type and domain_type (semantic/academic domains)
         # These are stored as lists to support multiple values
-        self.usage_type: list[str] = kwargs.pop('usage_type', [])
-        self.domain_type: list[str] = kwargs.pop('domain_type', [])
+        # IMPORTANT: Coerce to list to prevent string-as-iterable bug
+        usage_type_value = kwargs.pop('usage_type', [])
+        if isinstance(usage_type_value, str):
+            # If it's a string, wrap it in a list (don't iterate over characters!)
+            self.usage_type: list[str] = [usage_type_value] if usage_type_value else []
+        elif isinstance(usage_type_value, list):
+            self.usage_type: list[str] = usage_type_value
+        else:
+            self.usage_type: list[str] = []
+        
+        domain_type_value = kwargs.pop('domain_type', [])
+        if isinstance(domain_type_value, str):
+            # If it's a string, wrap it in a list (don't iterate over characters!)
+            self.domain_type: list[str] = [domain_type_value] if domain_type_value else []
+        elif isinstance(domain_type_value, list):
+            self.domain_type: list[str] = domain_type_value
+        else:
+            self.domain_type: list[str] = []
 
         # Support 'gloss' and 'definition' as aliases but REQUIRE flattened format
         if 'gloss' in kwargs:

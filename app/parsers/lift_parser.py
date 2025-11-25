@@ -991,6 +991,19 @@ class LIFTParser:
                 gram_info = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
                 gram_info.set('value', sense.grammatical_info)
             
+            # Add sense-level traits (usage-type, domain-type)
+            if sense.usage_type:
+                for usage_value in sense.usage_type:
+                    trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
+                    trait_elem.set('name', 'usage-type')
+                    trait_elem.set('value', usage_value)
+            
+            if sense.domain_type:
+                for domain_value in sense.domain_type:
+                    trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
+                    trait_elem.set('name', 'domain-type')
+                    trait_elem.set('value', domain_value)
+            
             # Add relations
             for relation in sense.relations:
                 relation_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}relation')

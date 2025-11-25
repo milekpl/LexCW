@@ -105,13 +105,11 @@ class TestUIRangesDynamicIntegration:
         
         content = response.data.decode('utf-8')
         
-        # Should have special handling for semantic domains
+        # Should have special handling for semantic domains at sense level
         semantic_domain_indicators = [
             'semantic-domain',
-            'data-range-type="semantic-domain-ddp4"',
-            'hierarchical-selector',
-            'tree-view',
-            'semantic-domain-picker'
+            'data-range-id="semantic-domain-ddp4"',  # Check for the range ID
+            'senses[0].domain_type',  # Sense-level field name
         ]
         
         has_semantic_domain_support = any(indicator in content for indicator in semantic_domain_indicators)
