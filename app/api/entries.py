@@ -657,6 +657,27 @@ def update_entry(entry_id: str) -> Any:
         logger.info(f"[SENSE UPDATE] Number of senses in request: {len(data.get('senses', []))}")
         for i, sense in enumerate(data.get('senses', [])):
             logger.info(f"[SENSE UPDATE]   Sense {i}: id={sense.get('id')}")
+            logger.info(f"[SENSE UPDATE]   Sense {i} definition: {sense.get('definition')}")
+        
+        # CRITICAL FIX: Clean up definition/gloss objects that have 'lang' but no 'text'
+        # This happens when user removes content from textarea but the language select remains
+        # Also fix mismatched language keys (when user changes language in dropdown)
+        for sense in data.get('senses', []):
+            for field in ['definition', 'gloss']:
+                if field in sense and isinstance(sense[field], dict):
+                    # First pass: collect entries with actual language from 'lang' field
+                    new_field_data = {}
+                    for lang_key, content in sense[field].items():
+                        if isinstance(content, dict):
+                            # Get the actual language from 'lang' field (if different from key)
+                            actual_lang = content.pop('lang', lang_key)
+                            # If no 'text' field or it's empty, skip this entry
+                            if 'text' in content and content.get('text', '').strip():
+                                new_field_data[actual_lang] = content
+                            else:
+                                logger.info(f"[SENSE UPDATE] Removed empty {field} for language '{lang_key}' from sense")
+                    # Replace with cleaned data
+                    sense[field] = new_field_data
         
         # Add the entry ID from the path if not present in data
         if 'id' not in data:
@@ -667,24 +688,32 @@ def update_entry(entry_id: str) -> Any:
             return jsonify({'error': 'Entry ID in path does not match ID in data'}), 400
         
         # Create entry object
+        # Check if skip_validation parameter is set (extract BEFORE creating Entry)
+        skip_validation = data.pop('skip_validation', False) or request.args.get('skip_validation', 'false').lower() == 'true'
+        
         # Preserve date_created, update date_modified
         existing_entry = get_dictionary_service().get_entry(entry_id)
         logger.info(f"[SENSE UPDATE] Existing entry has {len(existing_entry.senses) if existing_entry and existing_entry.senses else 0} senses")
+        if existing_entry and existing_entry.senses:
+            for i, sense in enumerate(existing_entry.senses):
+                logger.info(f"[SENSE UPDATE] Existing sense {i}: id={sense.id}")
+                logger.info(f"[SENSE UPDATE] Existing sense {i} definition: {sense.definition}")
         
         if existing_entry and existing_entry.date_created:
             data['date_created'] = existing_entry.date_created
         data['date_modified'] = datetime.datetime.utcnow().isoformat()
+        
+        logger.info(f"[SENSE UPDATE] Data before Entry.from_dict: {data.get('senses')}")
         entry = Entry.from_dict(data)
+        logger.info(f"[SENSE UPDATE] Entry after from_dict - senses: {[{'id': s.id, 'definitions': s.definitions} for s in entry.senses]}")
         
         logger.info(f"[SENSE UPDATE] New entry object has {len(entry.senses) if entry.senses else 0} senses")
         
         # Get dictionary service
         dict_service = get_dictionary_service()
         
-        # Check if skip_validation parameter is set
-        skip_validation = data.pop('skip_validation', False) or request.args.get('skip_validation', 'false').lower() == 'true'
-        
         # Update entry
+        logger.info(f"[SENSE UPDATE] Calling dict_service.update_entry with skip_validation={skip_validation}")
         dict_service.update_entry(entry, skip_validation=skip_validation)
         
         # Clear entries cache after successful update
@@ -699,7 +728,13 @@ def update_entry(entry_id: str) -> Any:
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except ValidationError as e:
-        return jsonify({'error': str(e)}), 400
+        # Return structured validation errors for client to display
+        error_detail = {
+            'error': 'Validation failed',
+            'message': str(e),
+            'validation_errors': e.args[1] if len(e.args) > 1 else []
+        }
+        return jsonify(error_detail), 400
     except Exception as e:
         logger.error("Error updating entry %s: %s", entry_id, str(e))
         return jsonify({'error': str(e)}), 500

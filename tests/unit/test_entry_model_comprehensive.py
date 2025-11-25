@@ -41,8 +41,8 @@ class TestEntryModelComprehensive:
         """Test entry creation with all possible data."""
         sense = Sense(
             id="test_sense",
-            gloss="Test gloss",
-            definition="Test definition"
+            gloss={"en": {"text": "Test gloss"}},
+            definition={"en": {"text": "Test definition"}}
         )
         
         entry = Entry(
@@ -88,8 +88,8 @@ class TestEntryModelComprehensive:
             "senses": [
                 {
                     "id": "sense_1",
-                    "gloss": "Test gloss",
-                    "definition": "Test definition"
+                    "gloss": {"en": {"text": "Test gloss"}},
+                    "definition": {"en": {"text": "Test definition"}}
                 }
             ],
             "pronunciations": {"en": "test_pronunciation"},
@@ -132,8 +132,8 @@ class TestEntryModelComprehensive:
         """Test converting full entry to dictionary."""
         sense = Sense(
             id="sense_1",
-            gloss="Test gloss",
-            definition="Test definition"
+            gloss={"en": {"text": "Test gloss"}},
+            definition={"en": {"text": "Test definition"}}
         )
         
         entry = Entry(
@@ -190,7 +190,7 @@ class TestEntryModelComprehensive:
         entry = Entry(
             id_="test_entry",
             lexical_unit={"en": "test"},
-            senses=[{"gloss": "test"}]  # Missing ID will be auto-generated
+            senses=[{"gloss": {"en": {"text": "test"}}}]  # Missing ID will be auto-generated
         )
         
         # Validation should pass because Sense auto-generates IDs
@@ -230,7 +230,7 @@ class TestEntryModelComprehensive:
             "senses": [
                 {
                     "id": "sense_1",
-                    "gloss": "Test gloss"
+                    "gloss": {"en": {"text": "Test gloss"}}
                 }
             ]
         }
@@ -284,8 +284,8 @@ class TestEntryModelComprehensive:
         # Test adding a sense as a dictionary
         sense_data = {
             "id": "new_sense",
-            "gloss": "New gloss",
-            "definition": "New definition"
+            "gloss": {"en": {"text": "New gloss"}},
+            "definition": {"en": {"text": "New definition"}}
         }
         
         # Check if add_sense method exists

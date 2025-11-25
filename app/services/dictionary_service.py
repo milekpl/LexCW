@@ -363,10 +363,14 @@ class DictionaryService:
             DatabaseError: If there is an error updating the entry.
         """
         try:
+            self.logger.info(f"[UPDATE_ENTRY] Received skip_validation={skip_validation}, draft={draft}")
             if not skip_validation:
+                self.logger.info(f"[UPDATE_ENTRY] Running validation in mode: {'draft' if draft else 'save'}")
                 validation_mode = "draft" if draft else "save"
                 if not entry.validate(validation_mode):
                     raise ValidationError("Entry validation failed")
+            else:
+                self.logger.info(f"[UPDATE_ENTRY] Skipping validation as requested")
 
             db_name = self.db_connector.database
             if not db_name:

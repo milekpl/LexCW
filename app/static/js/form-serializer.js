@@ -35,39 +35,6 @@ function serializeFormToJSON(input, options = {}) {
 
     // Handle different input types
     if (typeof HTMLFormElement !== 'undefined' && input instanceof HTMLFormElement) {
-        // CRITICAL FIX: Remove orphaned sense fields before creating FormData
-        // When senses are deleted, some multilingual form fields may remain in DOM
-        // We need to find the actual sense items and remove any sense fields NOT in them
-        
-        const sensesContainer = input.querySelector('#senses-container');
-        if (sensesContainer) {
-            // Get all actual sense items (excluding templates)
-            const actualSenseItems = sensesContainer.querySelectorAll('.sense-item:not(#default-sense-template):not(.default-sense-template)');
-            const validIndices = new Set();
-            actualSenseItems.forEach((item) => {
-                const index = item.getAttribute('data-sense-index');
-                if (index !== null) {
-                    validIndices.add(index);
-                }
-            });
-            
-            // Find all fields with names like "senses[N]..."
-            const allSenseFields = input.querySelectorAll('[name^="senses["]');
-            allSenseFields.forEach((field) => {
-                const match = field.name.match(/^senses\[(\d+)\]/);
-                if (match) {
-                    const fieldIndex = match[1];
-                    // If this field's index is NOT in our valid set, disable it
-                    if (!validIndices.has(fieldIndex)) {
-                        console.log('[FormSerializer] Disabling orphaned field:', field.name);
-                        field.disabled = true;
-                    }
-                }
-            });
-            
-            console.log('[FormSerializer] Valid sense indices:', Array.from(validIndices));
-        }
-        
         formData = new FormData(input);
 
         // If we don't want disabled fields, we need to filter them out manually

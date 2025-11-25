@@ -25,9 +25,9 @@ class TestGrammaticalCategoryClearing:
             'senses': [
                 {
                     'id': 'sense1',
-                    'definition': {'en': 'A member of a Protestant church'},
+                    'definition': {'en': {'text': 'A member of a Protestant church'}},
                     'grammatical_info': 'noun',  # Sense HAS grammatical_info
-                    'glosses': [{'lang': 'en', 'text': 'Protestant person'}]
+                    'gloss': {'en': {'text': 'Protestant person'}}
                 }
             ]
         }
@@ -53,12 +53,12 @@ class TestGrammaticalCategoryClearing:
             'senses': [
                 {
                     'id': 'sense1',
-                    'definition': {'en': 'As a noun'},
+                    'definition': {'en': {'text': 'As a noun'}},
                     'grammatical_info': 'noun'
                 },
                 {
                     'id': 'sense2', 
-                    'definition': {'en': 'As a verb'},
+                    'definition': {'en': {'text': 'As a verb'}},
                     'grammatical_info': 'verb'
                 }
             ]
@@ -83,12 +83,12 @@ class TestGrammaticalCategoryClearing:
             'senses': [
                 {
                     'id': 'sense1',
-                    'definition': {'en': 'First meaning'},
+                    'definition': {'en': {'text': 'First meaning'}},
                     'grammatical_info': 'noun'
                 },
                 {
                     'id': 'sense2',
-                    'definition': {'en': 'Second meaning'},
+                    'definition': {'en': {'text': 'Second meaning'}},
                     'grammatical_info': 'noun'
                 }
             ]

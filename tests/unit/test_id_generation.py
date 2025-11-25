@@ -16,8 +16,8 @@ def test_id_generation():
     
     # Test Sense ID generation
     sense_data = {
-        'definition': 'Test definition',
-        'gloss': 'Test gloss'
+        'definition': {'en': {'text': 'Test definition'}},
+        'gloss': {'en': {'text': 'Test gloss'}}
     }
     
     sense = Sense(**sense_data)

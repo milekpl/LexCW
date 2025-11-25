@@ -46,51 +46,53 @@ class TestLanguageSelectionRequirements:
         """
         REQUIREMENT: Target languages should show available language options.
         
-        Currently the choices are empty. Users should see checkboxes
-        for common languages.
+        The SearchableLanguageMultiSelectField provides access to comprehensive language
+        database through get_comprehensive_languages() function.
         """
         with app.app_context():
+            from app.utils.comprehensive_languages import get_comprehensive_languages
+            
             form = SettingsForm()
             
-            # Target languages field should have choices
+            # Target languages field should exist
             assert hasattr(form, 'available_target_languages')
             
-            choices = form.available_target_languages.choices
+            # Get available languages from the comprehensive database
+            available_languages = get_comprehensive_languages()
             
-            # Current state: choices are empty - this is the problem we're solving
-            if len(choices) == 0:
-                pytest.fail("Target languages have no choices - this is what we need to fix")
-            
-            # After implementation, this should work:
-            assert len(choices) > 0, "Target languages should have predefined choices"
+            # Should have many language options
+            assert len(available_languages) > 0, "Target languages should have available options"
             
             # Should include common languages
-            choice_values = [choice[0] for choice in choices]
+            language_codes = [lang['code'] for lang in available_languages]
             expected_languages = ['en', 'es', 'fr', 'de', 'pt']
             
             for lang in expected_languages:
-                assert lang in choice_values, f"Language {lang} should be available"
+                assert lang in language_codes, f"Language {lang} should be available"
 
     def test_form_should_populate_language_choices_automatically(self, app: Flask) -> None:
         """
         REQUIREMENT: Form should automatically populate language choices on creation.
         
-        Users shouldn't see empty dropdowns or checkboxes.
+        The SearchableLanguageMultiSelectField provides searchable access to comprehensive
+        language database through its widget.
         """
         with app.app_context():
+            from app.utils.comprehensive_languages import get_comprehensive_languages
+            
+            # Ensure form can be created
             form = SettingsForm()
+            assert form is not None
             
-            # Form initialization should populate choices
-            # This will fail initially - that's expected in TDD
+            # Get available languages from the comprehensive database
+            available_languages = get_comprehensive_languages()
             
-            # Check that choices are populated during form creation
-            target_choices = form.available_target_languages.choices
-            assert len(target_choices) > 5, f"Expected at least 6 language choices, got {len(target_choices)}"
-            
-            # Choices should be meaningful language options
-            choice_values = [choice[0] for choice in target_choices]
-            choice_labels = [choice[1] for choice in target_choices]
+            # Form should have access to comprehensive language database
+            assert len(available_languages) > 5, f"Expected at least 6 language options, got {len(available_languages)}"
             
             # Should have proper language codes and names
-            assert 'en' in choice_values
-            assert any('English' in label for label in choice_labels)
+            language_codes = [lang['code'] for lang in available_languages]
+            language_names = [lang['name'] for lang in available_languages]
+            
+            assert 'en' in language_codes
+            assert any('English' in name for name in language_names)

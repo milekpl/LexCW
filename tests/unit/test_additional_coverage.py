@@ -228,14 +228,14 @@ class TestModelComprehensive:
             senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
         # Add valid sense
-        sense = Sense(id="sense2", gloss="test gloss")
+        sense = Sense(id="sense2", gloss={"en": {"text": "test gloss"}})
         entry.add_sense(sense)
         
         assert len(entry.senses) == 2
         assert entry.senses[1].id == "sense2"
         
         # Test adding invalid sense (should raise ValidationError)
-        invalid_sense = Sense(id="", gloss="")  # Invalid empty ID
+        invalid_sense = Sense(id="", gloss={"en": {"text": ""}})  # Invalid empty ID
         with pytest.raises(ValidationError, match="Sense must have an ID"):
             entry.add_sense(invalid_sense)
     
@@ -253,7 +253,7 @@ class TestModelComprehensive:
     
     def test_sense_add_example_method(self):
         """Test Sense add_example method."""
-        sense = Sense(id="test_sense", gloss="test")
+        sense = Sense(id="test_sense", gloss={"en": {"text": "test"}})
         
         example = Example(source="Test example text")
         sense.add_example(example)
@@ -264,7 +264,7 @@ class TestModelComprehensive:
     def test_sense_custom_fields_handling(self):
         """Test Sense custom fields handling."""
         custom_data = {"field1": "value1", "field2": "value2"}
-        sense = Sense(id="test", gloss="test", custom_fields=custom_data)
+        sense = Sense(id="test", gloss={"en": {"text": "test"}}, custom_fields=custom_data)
         
         assert sense.custom_fields == custom_data
         
