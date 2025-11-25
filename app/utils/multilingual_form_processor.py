@@ -195,6 +195,9 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
     Returns:
         Merged sense data preserving missing/empty fields
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Create a mapping of existing senses by ID for quick lookup
     existing_by_id = {sense.get('id'): sense for sense in existing_senses if sense.get('id')}
     
@@ -236,23 +239,36 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
                     preserve = False
                     if field not in form_sense:
                         preserve = True
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': NOT in form_sense, preserving")
                     elif form_value is None:
                         preserve = True
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': is None, preserving")
                     elif isinstance(form_value, dict) and not form_value:
                         preserve = True
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': empty dict, preserving")
                     elif isinstance(form_value, str) and form_value.strip() == '':
                         preserve = True
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': empty string, preserving")
+                    else:
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': using form value: {form_value}")
+                    
                     if preserve and existing_sense.get(field) is not None:
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': PRESERVING from existing: {existing_sense.get(field)}")
                         merged_sense[field] = existing_sense[field]
-                    # Always ensure nested format for definitions
-                    if field in ('definition', 'definitions') and field in merged_sense:
+                    # Always ensure nested format for definitions and glosses
+                    if field in ('definition', 'definitions', 'gloss', 'glosses') and field in merged_sense:
                         val = merged_sense[field]
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': normalizing format, current value: {val}")
                         if isinstance(val, dict):
+                            # Ensure all values are in flattened format {lang: {text: value}}
                             for lang, v in list(val.items()):
-                                if not isinstance(v, dict):
-                                    merged_sense[field][lang] = {'text': v}
+                                if not isinstance(v, dict) or 'text' not in v:
+                                    # Convert to flattened format
+                                    merged_sense[field][lang] = {'text': str(v) if not isinstance(v, dict) else str(v.get('text', ''))}
                         elif isinstance(val, str):
+                            # Convert string to flattened format
                             merged_sense[field] = {'en': {'text': val}}
+                        logger.debug(f"[MERGE] Sense {sense_id} field '{field}': after normalization: {merged_sense[field]}")
                 else:
                     # For other fields, preserve if missing, empty, or whitespace-only string
                     preserve = False
@@ -335,7 +351,11 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                         # Simple field: senses[0][definition] or senses[0].definition
                         field_name = parts[1]
                         logger.debug(f"[SENSES DEBUG] Setting simple field: senses[{sense_index}][{field_name}] = {value}")
-                        senses_data[sense_index][field_name] = value.strip()
+                        # Convert to flattened format for multilingual fields
+                        if field_name in ('definition', 'gloss'):
+                            senses_data[sense_index][field_name] = {'en': {'text': value.strip()}}
+                        else:
+                            senses_data[sense_index][field_name] = value.strip()
                     
                     elif len(parts) == 3:
                         # Could be multilingual field: senses[0][definition][en]
@@ -356,7 +376,8 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 senses_data[sense_index][field_name] = {}
                             
                             logger.debug(f"[SENSES DEBUG] Setting multilingual field: senses[{sense_index}][{field_name}][{third_part}] = {value}")
-                            senses_data[sense_index][field_name][third_part] = value.strip()
+                            # Use flattened format: {lang: {text: value}}
+                            senses_data[sense_index][field_name][third_part] = {'text': value.strip()}
                     
                     elif len(parts) == 4 and parts[1] == 'examples':
                         # Example field: senses[0][examples][0][text]

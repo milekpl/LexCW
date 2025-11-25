@@ -193,16 +193,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const shouldSkipValidation = skipValidationCheckbox && skipValidationCheckbox.checked;
             
             if (shouldSkipValidation) {
-                // Skip client-side validation and submit directly
+                // Skip validation and submit directly
                 console.log('Skipping validation as requested by user');
                 submitForm();
             } else {
-                // Run client-side validations
-                if (validateForm(true)) { // Pass true to show modal on failure
-                    submitForm();
-                } else {
-                    console.log('Form submission halted due to validation errors.');
-                }
+                // Submit form - validation will happen server-side
+                console.log('Submitting form - server will validate');
+                submitForm();
             }
         });
     }
@@ -389,6 +386,7 @@ function validateForm(showSummaryModal = false) {
         document.getElementById('senses-section-header')?.classList.add('text-danger');
     } else {
         document.getElementById('senses-section-header')?.classList.remove('text-danger');
+        
         senses.forEach((sense, index) => {
             // Check for multilingual definition fields
             const definitionForms = sense.querySelectorAll('.definition-forms .language-form');
@@ -396,8 +394,12 @@ function validateForm(showSummaryModal = false) {
             
             if (definitionForms.length > 0) {
                 // Check each language form for a valid definition
+                // IMPORTANT: Source language definitions are COMPLETELY OPTIONAL!
+                // We just need ANY language with content
                 definitionForms.forEach(form => {
                     const textareaEl = form.querySelector('.definition-text');
+                    
+                    // Check if ANY language has content (source or target)
                     if (textareaEl && textareaEl.value.trim()) {
                         hasValidDefinition = true;
                     }
@@ -539,9 +541,16 @@ async function submitForm() {
         const responseData = await response.json();
         
         if (!response.ok) {
-            // Extract a more detailed error message if available
-            const errorMessage = responseData.error || responseData.message || `HTTP error! Status: ${response.status}`;
-            throw new Error(errorMessage);
+            // Handle validation errors from server
+            if (responseData.validation_errors && Array.isArray(responseData.validation_errors)) {
+                // Display structured validation errors
+                const errorList = responseData.validation_errors.map(err => `• ${err}`).join('\n');
+                throw new Error(`Validation failed:\n${errorList}`);
+            } else {
+                // Extract a more detailed error message if available
+                const errorMessage = responseData.error || responseData.message || `HTTP error! Status: ${response.status}`;
+                throw new Error(errorMessage);
+            }
         }
         
         // Update progress
@@ -567,8 +576,11 @@ async function submitForm() {
         progressBar.className = 'progress-bar bg-danger';
         progressBar.textContent = 'Error!';
         
-        // Show detailed error message
-        showToast(`Error saving entry: ${error.message}`, 'error');
+        // Show detailed error message (preserve newlines in toast)
+        const errorDiv = document.createElement('div');
+        errorDiv.style.whiteSpace = 'pre-wrap';
+        errorDiv.textContent = error.message;
+        showToast(errorDiv.innerHTML || `Error saving entry: ${error.message}`, 'error');
         
         // Remove progress bar after delay
         setTimeout(() => {

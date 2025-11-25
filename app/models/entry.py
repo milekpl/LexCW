@@ -263,7 +263,7 @@ class Entry(BaseModel):
 
     def validate(self, validation_mode: str = "save") -> bool:
         """
-        Validate the entry using the centralized validation system.
+        Validate the entry using the declarative validation system.
 
         Args:
             validation_mode: Validation mode - "save", "delete", "draft", or "all"
@@ -274,8 +274,9 @@ class Entry(BaseModel):
         Raises:
             ValidationError: If the entry is invalid.
         """
-        from app.services.validation_engine import ValidationEngine
+        from app.services.declarative_validation_engine import DeclarativeValidationEngine
         from flask import current_app, has_app_context
+        import os
         
         # Get project config if available
         project_config = {}
@@ -290,13 +291,18 @@ class Entry(BaseModel):
                 # If config retrieval fails, continue without project config
                 pass
         
-        # Use centralized validation system
-        engine = ValidationEngine(project_config=project_config)
-        result = engine.validate_entry(self, validation_mode)
+        # Use declarative validation system
+        # Find the validation rules file
+        rules_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'validation_rules_v2.json')
+        engine = DeclarativeValidationEngine(rules_file=rules_file, project_config=project_config)
+        
+        # Convert entry to dict for validation
+        entry_data = self.to_dict()
+        result = engine.validate_entry(entry_data, validation_mode)
         
         if not result.is_valid:
             # Convert ValidationError objects to strings for legacy compatibility
-            error_messages = [error.message for error in result.errors]
+            error_messages = [f"{error.message} ({error.path})" for error in result.errors]
             raise ValidationError("Entry validation failed", error_messages)
         
         return True

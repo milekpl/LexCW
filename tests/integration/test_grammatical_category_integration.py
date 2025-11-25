@@ -30,12 +30,12 @@ class TestGrammaticalCategoryIntegration:
             'senses': [
                 {
                     'id': 'Protestant_2_s1',
-                    'definition': {'en': 'A member of a Protestant church'},
+                    'definition': {'en': {'text': 'A member of a Protestant church'}},
                     'grammatical_info': 'noun',  # Sense HAS POS - this was being cleared
-                    'glosses': [
-                        {'lang': 'en', 'text': 'Protestant person'},
-                        {'lang': 'fr', 'text': 'personne protestante'}
-                    ]
+                    'gloss': {
+                        'en': {'text': 'Protestant person'},
+                        'fr': {'text': 'personne protestante'}
+                    }
                 }
             ],
             'pronunciations': {'ipa': '/ˈprɑtəstənt/'},
@@ -59,12 +59,12 @@ class TestGrammaticalCategoryIntegration:
             'senses': [
                 {
                     'id': 'Protestant_2_s1',
-                    'definition': {'en': 'A member of a Protestant church'},
+                    'definition': {'en': {'text': 'A member of a Protestant church'}},
                     # MISSING: grammatical_info - this is the bug scenario
-                    'glosses': [
-                        {'lang': 'en', 'text': 'Protestant person'},
-                        {'lang': 'fr', 'text': 'personne protestante'}
-                    ]
+                    'gloss': {
+                        'en': {'text': 'Protestant person'},
+                        'fr': {'text': 'personne protestante'}
+                    }
                 }
             ],
             'pronunciations': {'ipa': '/ˈprɑtəstənt/'},
@@ -103,12 +103,12 @@ class TestGrammaticalCategoryIntegration:
             'senses': [
                 {
                     'id': 'run_s1',
-                    'definition': {'en': 'To move quickly on foot'},
+                    'definition': {'en': {'text': 'To move quickly on foot'}},
                     'grammatical_info': 'verb',  # Should be preserved
                 },
                 {
                     'id': 'run_s2', 
-                    'definition': {'en': 'A period of running'},
+                    'definition': {'en': {'text': 'A period of running'}},
                     'grammatical_info': 'noun',  # Should be preserved
                 }
             ]
@@ -122,12 +122,12 @@ class TestGrammaticalCategoryIntegration:
             'senses': [
                 {
                     'id': 'run_s1',
-                    'definition': {'en': 'To move quickly on foot'},
+                    'definition': {'en': {'text': 'To move quickly on foot'}},
                     # Missing grammatical_info
                 },
                 {
                     'id': 'run_s2',
-                    'definition': {'en': 'A period of running'}, 
+                    'definition': {'en': {'text': 'A period of running'}}, 
                     'grammatical_info': '',  # Empty string
                 }
             ]

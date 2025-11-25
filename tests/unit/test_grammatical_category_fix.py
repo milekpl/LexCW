@@ -25,9 +25,9 @@ class TestGrammaticalCategoryClearingFix:
             'senses': [
                 {
                     'id': 'Protestant_2_s1',
-                    'definition': {'en': 'A member of a Protestant church'},
+                    'definition': {'en': {'text': 'A member of a Protestant church'}},
                     'grammatical_info': 'noun',  # This should be preserved
-                    'glosses': [{'lang': 'en', 'text': 'Protestant person'}]
+                    'gloss': {'en': {'text': 'Protestant person'}}
                 }
             ]
         }
@@ -40,9 +40,9 @@ class TestGrammaticalCategoryClearingFix:
             'senses': [
                 {
                     'id': 'Protestant_2_s1',
-                    'definition': {'en': 'A member of a Protestant church'},
+                    'definition': {'en': {'text': 'A member of a Protestant church'}},
                     # Missing grammatical_info key - should preserve original
-                    'glosses': [{'lang': 'en', 'text': 'Protestant person'}]
+                    'gloss': {'en': {'text': 'Protestant person'}}
                 }
             ]
         }
@@ -68,7 +68,7 @@ class TestGrammaticalCategoryClearingFix:
             'senses': [
                 {
                     'id': 'test_s1',
-                    'definition': {'en': 'test'},
+                    'definition': {'en': {'text': 'test'}},
                     'grammatical_info': 'verb',  # Should be preserved
                 }
             ]
@@ -82,7 +82,7 @@ class TestGrammaticalCategoryClearingFix:
             'senses': [
                 {
                     'id': 'test_s1',
-                    'definition': {'en': 'test'},
+                    'definition': {'en': {'text': 'test'}},
                     'grammatical_info': '',  # Empty - should preserve original
                 }
             ]
@@ -109,7 +109,7 @@ class TestGrammaticalCategoryClearingFix:
             'senses': [
                 {
                     'id': 'test_s1',
-                    'definition': {'en': 'test'},
+                    'definition': {'en': {'text': 'test'}},
                     'grammatical_info': 'noun',  # Original value
                 }
             ]
@@ -123,7 +123,7 @@ class TestGrammaticalCategoryClearingFix:
             'senses': [
                 {
                     'id': 'test_s1',
-                    'definition': {'en': 'test'},
+                    'definition': {'en': {'text': 'test'}},
                     'grammatical_info': 'verb',  # Changed value
                 }
             ]

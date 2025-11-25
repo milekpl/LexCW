@@ -27,12 +27,12 @@ class TestDataLossOnSave:
             'senses': [
                 {
                     'id': 'Protestant_2_s1',
-                    'definition': {'en': 'A member of a Protestant church'},  # CRITICAL: This should NOT be cleared
+                    'definition': {'en': {'text': 'A member of a Protestant church'}},  # CRITICAL: This should NOT be cleared
                     'grammatical_info': 'noun',  # CRITICAL: This should NOT be cleared
-                    'glosses': [
-                        {'lang': 'en', 'text': 'Protestant person'},
-                        {'lang': 'fr', 'text': 'personne protestante'}
-                    ],
+                    'gloss': {
+                        'en': {'text': 'Protestant person'},
+                        'fr': {'text': 'personne protestante'}
+                    },
                     'examples': [
                         {
                             'id': 'ex1',
@@ -76,10 +76,10 @@ class TestDataLossOnSave:
                     # CRITICAL ISSUE: What if the form data is missing these fields?
                     # 'definition': Missing - this could cause data loss!
                     # 'grammatical_info': Missing - this could cause data loss!
-                    'glosses': [
-                        {'lang': 'en', 'text': 'Protestant person'},
-                        {'lang': 'fr', 'text': 'personne protestante'}
-                    ]
+                    'gloss': {
+                        'en': {'text': 'Protestant person'},
+                        'fr': {'text': 'personne protestante'}
+                    }
                 }
             ],
             'pronunciations': {'ipa': '/ˈprɑtəstənt/', 'audio': 'protestant.mp3'},
@@ -138,7 +138,10 @@ class TestDataLossOnSave:
             'senses': [
                 {
                     'id': 'run_s1',
-                    'definition': {'en': 'To move rapidly on foot', 'fr': 'Se déplacer rapidement à pied'},
+                    'definition': {
+                        'en': {'text': 'To move rapidly on foot'},
+                        'fr': {'text': 'Se déplacer rapidement à pied'}
+                    },
                     'grammatical_info': 'verb',
                     'semantic_domain': 'motion',
                     'subsense_type': 'primary',
@@ -149,7 +152,10 @@ class TestDataLossOnSave:
                 },
                 {
                     'id': 'run_s2',
-                    'definition': {'en': 'A period of running', 'fr': 'Une période de course'},
+                    'definition': {
+                        'en': {'text': 'A period of running'},
+                        'fr': {'text': 'Une période de course'}
+                    },
                     'grammatical_info': 'noun',
                     'semantic_domain': 'activity',
                     'subsense_type': 'derived'

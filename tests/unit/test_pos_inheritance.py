@@ -21,7 +21,7 @@ class TestPOSInheritance:
         # Create an entry with one sense
         sense_data = {
             'id': 'sense1',
-            'definition': 'Test definition',
+            'definition': {'en': {'text': 'Test definition'}},
             'grammatical_info': 'Adjective'
         }
         
@@ -40,12 +40,12 @@ class TestPOSInheritance:
         sense_data = [
             {
                 'id': 'sense1',
-                'definition': 'First definition',
+                'definition': {'en': {'text': 'First definition'}},
                 'grammatical_info': 'Noun'
             },
             {
                 'id': 'sense2',
-                'definition': 'Second definition',
+                'definition': {'en': {'text': 'Second definition'}},
                 'grammatical_info': 'Noun'
             }
         ]
@@ -65,12 +65,12 @@ class TestPOSInheritance:
         sense_data = [
             {
                 'id': 'sense1',
-                'definition': 'First definition',
+                'definition': {'en': {'text': 'First definition'}},
                 'grammatical_info': 'Noun'
             },
             {
                 'id': 'sense2',
-                'definition': 'Second definition',
+                'definition': {'en': {'text': 'Second definition'}},
                 'grammatical_info': 'Verb'
             }
         ]
@@ -96,7 +96,7 @@ class TestPOSInheritance:
         sense_data = [
             {
                 'id': 'sense1',
-                'definition': 'Test definition',
+                'definition': {'en': {'text': 'Test definition'}},
                 'grammatical_info': 'Adjective'
             }
         ]
@@ -128,7 +128,7 @@ class TestPOSInheritance:
         sense_data = [
             {
                 'id': 'sense1',
-                'definition': 'Test definition'
+                'definition': {'en': {'text': 'Test definition'}}
                 # No grammatical_info
             }
         ]
@@ -148,12 +148,12 @@ class TestPOSInheritance:
         sense_data = [
             {
                 'id': 'sense1',
-                'definition': 'First definition',
+                'definition': {'en': {'text': 'First definition'}},
                 'grammatical_info': 'Noun'
             },
             {
                 'id': 'sense2',
-                'definition': 'Second definition'
+                'definition': {'en': {'text': 'Second definition'}}
                 # No grammatical_info
             }
         ]
@@ -173,7 +173,7 @@ class TestPOSInheritance:
         sense_data = [
             {
                 'id': 'sense1',
-                'definition': 'Test definition',
+                'definition': {'en': {'text': 'Test definition'}},
                 'grammatical_info': 'Adjective'
             }
         ]
@@ -196,7 +196,7 @@ class TestPOSInheritance:
         sense_data = [
             {
                 'id': 'sense1',
-                'definition': 'Test definition',
+                'definition': {'en': {'text': 'Test definition'}},
                 'grammatical_info': 'Adjective'
             }
         ]

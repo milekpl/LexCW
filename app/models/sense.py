@@ -26,11 +26,15 @@ class Sense(BaseModel):
         """
         Initialize a sense.
         
+        BREAKING CHANGE: Only flattened format {lang: {text: value}} is supported.
+        Nested array format [{lang: X, text: Y}] is NOT supported.
+        String values are NOT auto-converted.
+        
         Args:
             id_: Unique identifier for the sense.
             **kwargs: Additional attributes to set on the sense.
         """
-        # Initialize attributes first before calling super().__init__
+        # Initialize attributes - FLATTENED FORMAT ONLY
         self.glosses: dict[str, dict[str, str]] = kwargs.pop('glosses', {})
         self.definitions: dict[str, dict[str, str]] = kwargs.pop('definitions', {})
         self.grammatical_info = kwargs.pop('grammatical_info', None)
@@ -38,44 +42,30 @@ class Sense(BaseModel):
         self.relations = kwargs.pop('relations', [])
         self.notes = kwargs.pop('notes', {})
         self.custom_fields = kwargs.pop('custom_fields', {})
+        
+        # LIFT-aligned fields: usage_type and domain_type (semantic/academic domains)
+        # These are stored as lists to support multiple values
+        self.usage_type: list[str] = kwargs.pop('usage_type', [])
+        self.domain_type: list[str] = kwargs.pop('domain_type', [])
 
-        # Handle legacy property setters
+        # Support 'gloss' and 'definition' as aliases but REQUIRE flattened format
         if 'gloss' in kwargs:
             gloss_value = kwargs.pop('gloss')
-            if isinstance(gloss_value, dict):
-                for lang, val in gloss_value.items():
-                    if isinstance(val, dict):
-                        self.glosses[lang] = val
-                    else:
-                        self.glosses[lang] = {"text": val}
-            elif isinstance(gloss_value, str):
-                self.glosses['en'] = {"text": gloss_value}
+            if not isinstance(gloss_value, dict):
+                raise ValueError(f"Sense 'gloss' must be a dict in flattened format {{lang: {{text: value}}}}, got {type(gloss_value)}")
+            self.glosses = gloss_value
 
         if 'definition' in kwargs:
             def_value = kwargs.pop('definition')
-            if isinstance(def_value, dict):
-                for lang, val in def_value.items():
-                    if isinstance(val, dict):
-                        self.definitions[lang] = val
-                    else:
-                        self.definitions[lang] = {"text": val}
-            elif isinstance(def_value, str):
-                self.definitions['en'] = {"text": def_value}
+            if not isinstance(def_value, dict):
+                raise ValueError(f"Sense 'definition' must be a dict in flattened format {{lang: {{text: value}}}}, got {type(def_value)}")
+            self.definitions = def_value
 
-        # Enforce that multilingual fields are always dicts (not strings)
+        # Validate format - all values must be dicts with 'text' key
         if not isinstance(self.glosses, dict):
             self.glosses = {}
-        else:
-            # Ensure all values are dicts with 'text' key
-            for lang, val in list(self.glosses.items()):
-                if not isinstance(val, dict):
-                    self.glosses[lang] = {"text": val}
         if not isinstance(self.definitions, dict):
             self.definitions = {}
-        else:
-            for lang, val in list(self.definitions.items()):
-                if not isinstance(val, dict):
-                    self.definitions[lang] = {"text": val}
         if not isinstance(self.notes, dict):
             self.notes = {}
         if not isinstance(self.custom_fields, dict):
@@ -178,12 +168,21 @@ class Sense(BaseModel):
     
     def add_definition(self, language: str, text: str) -> None:
         """
-        Add a definition to the sense.
+        Add a definition to the sense in flattened format.
         Args:
             language: Language code (e.g., 'en', 'pl').
             text: Definition text.
         """
         self.definitions[language] = {"text": text}
+    
+    def add_gloss(self, language: str, text: str) -> None:
+        """
+        Add a gloss to the sense in flattened format.
+        Args:
+            language: Language code (e.g., 'en', 'pl').
+            text: Gloss text.
+        """
+        self.glosses[language] = {"text": text}
     
     @property
     def definition(self) -> dict[str, dict[str, str]]:

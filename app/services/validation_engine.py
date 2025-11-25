@@ -438,35 +438,31 @@ class ValidationEngine:
         if is_variant_entry:
             return errors
         
-        # Get source language for checking
-        source_lang = ''
-        if self.project_config and 'source_language' in self.project_config:
-            source_lang_config = self.project_config['source_language']
-            source_lang = source_lang_config.get('code', '') if isinstance(source_lang_config, dict) else ''
-        else:
-            source_lang = data.get('lexical-unit', {}).get('lang', '')
-        
         senses = data.get('senses', [])
         for i, sense in enumerate(senses):
             # Handle both string and multilingual dictionary formats
             definition = sense.get('definition', '')
             if isinstance(definition, dict):
-                # Check if there's any non-empty definition for non-source languages
-                # Source language definitions can be empty
+                # IMPORTANT: Source language definitions are COMPLETELY OPTIONAL!
+                # Check if there's ANY language with content (source or target)
                 has_definition = any(
-                    bool(str(v).strip()) 
+                    bool(str(v).strip()) if isinstance(v, str) else bool(v.get('text', '').strip() if isinstance(v, dict) else str(v).strip())
                     for k, v in definition.items() 
-                    if k != source_lang
+                    if k != 'lang' and v
                 )
-                # If no non-source language definition, check if source language has content
-                if not has_definition and source_lang in definition:
-                    has_definition = bool(str(definition[source_lang]).strip())
             else:
+                # String format - validate normally
                 has_definition = bool(str(definition).strip()) if definition else False
                 
             gloss = sense.get('gloss', '')
             if isinstance(gloss, dict):
-                has_gloss = any(bool(str(v).strip()) for v in gloss.values() if v)
+                # IMPORTANT: Source language glosses are COMPLETELY OPTIONAL!
+                # Check if there's ANY language with content (source or target)
+                has_gloss = any(
+                    bool(str(v).strip()) if isinstance(v, str) else bool(v.get('text', '').strip() if isinstance(v, dict) else str(v).strip())
+                    for k, v in gloss.items() 
+                    if k != 'lang' and v
+                )
             else:
                 has_gloss = bool(str(gloss).strip()) if gloss else False
                 

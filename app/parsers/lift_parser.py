@@ -621,6 +621,17 @@ class LIFTParser:
         if gram_info_elem is not None:
             grammatical_info = gram_info_elem.get('value')
         
+        # Parse sense-level traits (usage-type, domain-type)
+        usage_type = []
+        domain_type = []
+        for trait_elem in self._find_elements(sense_elem, './/lift:trait', './/trait'):
+            trait_name = trait_elem.get('name')
+            trait_value = trait_elem.get('value')
+            if trait_name == 'usage-type' and trait_value:
+                usage_type.append(trait_value)
+            elif trait_name == 'domain-type' and trait_value:
+                domain_type.append(trait_value)
+        
         # Parse notes
         notes = {}
         for note_elem in self._find_elements(sense_elem, './/lift:note', './/note'):
@@ -657,10 +668,14 @@ class LIFTParser:
         
         # Create and return Sense object
         return Sense(
-            id_=sense_id,            glosses=glosses,            definitions=definitions,
+            id_=sense_id,
+            glosses=glosses,
+            definitions=definitions,
             examples=examples,
             relations=relations,
             grammatical_info=grammatical_info,
+            usage_type=usage_type,
+            domain_type=domain_type,
             notes=notes
         )
         

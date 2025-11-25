@@ -28,7 +28,7 @@ class TestEntry:
             lexical_unit={"en": "test"},
             senses=[{
                 "id": "sense_1",
-                "gloss": "A test entry"  # Simple string, should be stored in 'en'
+                "gloss": {"en": {"text": "A test entry"}}  # Flattened format required
             }]
         )        
         assert entry.id == "test_entry_1"
@@ -36,7 +36,7 @@ class TestEntry:
         assert len(entry.senses) == 1
         # Test with actual Sense object, not dictionary
         assert entry.senses[0].id == "sense_1"
-        # Gloss is now a dict: {"en": {"text": ...}}
+        # Gloss is a dict: {"en": {"text": ...}}
         assert entry.senses[0].glosses["en"]["text"] == "A test entry"
     
     @pytest.mark.unit
@@ -48,7 +48,7 @@ class TestEntry:
             lexical_unit={"en": "test"},
             senses=[{
                 "id": "sense_1",
-                "gloss": "A test entry"
+                "gloss": {"en": {"text": "A test entry"}}
             }]
         )
         
@@ -59,7 +59,7 @@ class TestEntry:
             id_="test_entry_2",
             senses=[{
                 "id": "sense_1",
-                "gloss": "A test entry"
+                "gloss": {"en": {"text": "A test entry"}}
             }]
         )
         
@@ -72,7 +72,7 @@ class TestEntry:
             lexical_unit={"en": "test"},
             senses=[{
                 "id": "",  # Empty ID should fail validation
-                "gloss": "A test entry"
+                "gloss": {"en": {"text": "A test entry"}}
             }]
         )
         
@@ -84,11 +84,11 @@ class TestEntry:
         """Test adding a sense to an entry."""
         entry = Entry(id_="test_entry_1",
             lexical_unit={"en": "test"},
-            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
+            senses=[{"id": "sense1", "definition": {"en": {"text": "test definition"}}}])
         
         sense = {
             "id": "sense_1",
-            "gloss": {"form": {"text": "A test entry"}}
+            "gloss": {"en": {"text": "A test entry"}}
         }
         
         entry.add_sense(sense)
@@ -101,9 +101,8 @@ class TestEntry:
     def test_entry_add_pronunciation(self):
         """Test adding pronunciation to an entry."""
         entry = Entry(id_="test_entry_1",
-            lexical_unit={"en": "test"}
-        ,
-            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
+            lexical_unit={"en": "test"},
+            senses=[{"id": "sense1", "definition": {"en": {"text": "test definition"}}}])
         
         entry.add_pronunciation("seh-fonipa", "test")
         
