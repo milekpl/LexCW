@@ -12,12 +12,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from app import create_app
 from app.models.entry import Entry
 from config import DevelopmentConfig
-
 @pytest.mark.integration
 def test_morph_type_behavior():
     """Test that morph-type respects existing LIFT data"""
     
-    app = create_app('development')
+    app = create_app('testing')
     
     with app.app_context():
         # Get service from dependency injection

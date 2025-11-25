@@ -10,7 +10,8 @@ import pytest
 def test_entry_edit_pos_inheritance():
     """Test POS inheritance in entry edit form."""
     
-    app = create_app()
+    # Create app configured for testing so DB uses in-memory SQLite
+    app = create_app('testing')
     
     with app.app_context():
         # Test the specific entry
@@ -32,7 +33,8 @@ def test_entry_edit_pos_inheritance():
                 elif 'data-selected=""' in html or 'data-selected=' not in html:
                     print("❌ Entry POS is not passed to template correctly")
                 else:
-                    print(f"⚠️  Entry POS in template: {[line.strip() for line in html.split('\n') if 'data-selected=' in line]}")
+                    lines_with_data_selected = [line.strip() for line in html.split('\n') if 'data-selected=' in line]
+                    print(f"⚠️  Entry POS in template: {lines_with_data_selected}")
                 
                 # Check if sense POS data is present
                 if 'data-selected="Noun"' in html and 'senses[0].grammatical_info' in html:

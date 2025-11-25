@@ -104,9 +104,39 @@ class DeclarativeValidationEngine:
         path = rule_config.get('path', '$')
         targets = self._extract_values(path, data)
         
-        # If no targets found and condition is not "required", skip
         condition = rule_config.get('condition', {})
-        if not targets and condition.get('type') != 'required':
+        cond_type = condition.get('type', 'required')
+        
+        # Special handling for required conditions
+        if cond_type == 'required':
+            # For required fields, we need to check if they exist and have valid content
+            # If no targets found OR targets are empty, that's a validation failure
+            if not targets:
+                # Field is missing entirely
+                errors.append(ValidationError(
+                    rule_id=rule_id,
+                    rule_name=rule_config.get('name', rule_id),
+                    message=rule_config.get('error_message', 'Validation failed'),
+                    path=path,
+                    severity='error' if rule_config.get('priority') == 'critical' else 'warning'
+                ))
+                return errors
+            
+            # Check if any target is empty
+            validation = rule_config.get('validation', {})
+            for target_path, target_value in targets:
+                if not self._validate_value(target_value, validation, data):
+                    errors.append(ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config.get('name', rule_id),
+                        message=rule_config.get('error_message', 'Validation failed'),
+                        path=target_path,
+                        severity='error' if rule_config.get('priority') == 'critical' else 'warning'
+                    ))
+            return errors
+        
+        # For non-required conditions, skip if no targets found
+        if not targets:
             return errors
         
         # Check condition

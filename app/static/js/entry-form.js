@@ -653,6 +653,23 @@ async function addSense() {
         });
         // The event listener for 'change' is handled by delegation on the form, so no need to add one here.
     }
+    
+    // Populate semantic domain select for the new sense (sense-level)
+    const semanticDomainSelect = newSenseElement.querySelector('select[name*=".domain_type"]');
+    if (semanticDomainSelect && window.rangesLoader) {
+        await window.rangesLoader.populateSelect(semanticDomainSelect, 'semantic-domain-ddp4', {
+            emptyOption: 'Select semantic domain(s)'
+        });
+    }
+    
+    // Populate usage type select for the new sense (sense-level)
+    const usageTypeSelect = newSenseElement.querySelector('select[name*=".usage_type"]');
+    if (usageTypeSelect && window.rangesLoader) {
+        await window.rangesLoader.populateSelect(usageTypeSelect, 'usage-type', {
+            emptyOption: 'Select usage type(s)'
+        });
+    }
+    
     // The MutationObserver will handle calling updateGrammaticalCategoryInheritance.
 }
 

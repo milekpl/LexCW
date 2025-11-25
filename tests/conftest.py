@@ -8,6 +8,9 @@ from typing import Generator
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Set testing config by default so create_app() uses in-memory SQLite and test DB
+os.environ.setdefault('FLASK_CONFIG', 'testing')
+
 from app.models.entry import Entry
 from app.models.sense import Sense
 from app.models.example import Example

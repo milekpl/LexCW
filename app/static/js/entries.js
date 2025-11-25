@@ -269,9 +269,6 @@ function loadEntries(page = 1, sortBy = 'lexical_unit', sortOrder = 'asc') {
             console.error('Error:', error);
             entriesList.innerHTML = `
                 <tr>
-                        if (!entry.date_modified) {
-                            console.warn('Entry missing date_modified:', entry);
-                        }
                     <td colspan="${colCount}" class="text-center py-4 text-danger">
                         <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
                         <p>Error loading entries. Please try again.</p>

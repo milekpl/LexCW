@@ -15,8 +15,8 @@ def test_lift_parser_extracts_entry_dates_from_sample_file():
     if not os.path.exists(sample_file):
         pytest.skip(f"Sample LIFT file not found: {sample_file}")
 
-    parser = LIFTParser()
-    # Try to parse entries, skipping those that fail validation
+    parser = LIFTParser(validate=False)
+    # Try to parse entries without validation for speed
     entries = []
     try:
         entries = parser.parse_file(sample_file)

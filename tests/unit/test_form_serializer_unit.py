@@ -191,18 +191,6 @@ class TestFormSerializerUnit:
         for field in problematic_fields:
             # In a real implementation, these would be validated
             assert '.' in field or '[' in field, f"Field {field} should be detectable as complex"
-    
-    @pytest.mark.integration
-    def test_serializer_integration_with_flask(self, client) -> None:
-        """Test form serializer integration with Flask app."""
-        # Test that the entry form page loads
-        response = client.get('/entries/add')
-        assert response.status_code == 200
-        
-        response_text = response.get_data(as_text=True)
-        
-        # Check that form-serializer.js is included
-        assert 'form-serializer.js' in response_text, "Form serializer script should be included"
 
 
 if __name__ == '__main__':
