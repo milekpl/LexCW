@@ -79,13 +79,12 @@
       "category": "entry_level",
       "priority": "warning",
       "path": "$.lexical_unit",
-      "condition": "if_present",
+      "condition": "custom",
       "validation": {
-        "type": "custom",
         "custom_function": "validate_language_code_format"
       },
       "error_message": "Invalid language code format: {value}. Must follow RFC 4646 (e.g., 'en', 'pl', 'seh-fonipa')",
-      "client_side": false
+      "client_side": true
     },
     "R2.1.1": {
       "name": "sense_id_required",

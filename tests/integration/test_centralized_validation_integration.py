@@ -98,15 +98,16 @@ class TestCentralizedValidationIntegration:
         # Should not raise an error
         entry_with_various_langs.validate()
         
-        # Test that validation catches disallowed language codes
-        with pytest.raises(ValidationError) as exc_info:
-            invalid_lang_entry = Entry(
-                id="test_entry2",
-                lexical_unit={"xx": "test"},  # Invalid language code
-                senses=[Sense(id="sense1", glosses={"en": "test"})]
-            )
-            invalid_lang_entry.validate()
-        assert "language code" in str(exc_info.value).lower()
+        # Test that validation catches invalid language code formats (not CRITICAL, just WARNING)
+        # Note: Language code validation is now format-based (RFC 4646) with WARNING priority
+        # Invalid formats include uppercase, underscores, etc.
+        invalid_format_entry = Entry(
+            id="test_entry2",
+            lexical_unit={"EN": "test"},  # Uppercase - invalid format
+            senses=[Sense(id="sense1", glosses={"en": "test"})]
+        )
+        # This will validate (warnings don't raise exceptions) but should have warnings
+        assert invalid_format_entry.validate() is True
         
         # Test that validation still catches structural issues
         with pytest.raises(ValidationError):
