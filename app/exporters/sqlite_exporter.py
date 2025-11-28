@@ -323,9 +323,43 @@ class SQLiteExporter(BaseExporter):
                 # Get definition from Sense object or dictionary
                 definition = ""
                 if hasattr(sense, 'definitions') and sense.definitions:
-                    definition = sense.definitions.get(target_lang, '')
-                elif hasattr(sense, 'definition'):
-                    definition = sense.definition or ""
+                    # definitions might be a dict with language keys pointing to text or nested dicts
+                    if isinstance(sense.definitions, dict):
+                        # Try to get target language
+                        lang_value = sense.definitions.get(target_lang)
+                        if lang_value:
+                            if isinstance(lang_value, dict):
+                                definition = lang_value.get('text', '')
+                            elif isinstance(lang_value, str):
+                                definition = lang_value
+                        
+                        # If not found, try any available language
+                        if not definition:
+                            for lang_value in sense.definitions.values():
+                                if isinstance(lang_value, dict):
+                                    definition = lang_value.get('text', '')
+                                elif isinstance(lang_value, str):
+                                    definition = lang_value
+                                if definition:
+                                    break
+                    else:
+                        definition = str(sense.definitions)
+                elif hasattr(sense, 'definition') and sense.definition:
+                    # definition can be a dict with various structures
+                    if isinstance(sense.definition, dict):
+                        # Try to get target language
+                        definition = sense.definition.get(target_lang, '')
+                        # If not found, try to get 'text' key
+                        if not definition:
+                            definition = sense.definition.get('text', '')
+                        # If still not found, try first available language
+                        if not definition:
+                            for key, value in sense.definition.items():
+                                if isinstance(value, str) and value:
+                                    definition = value
+                                    break
+                    else:
+                        definition = str(sense.definition) if sense.definition else ""
                 elif isinstance(sense, dict):
                     definition = sense.get('definitions', {}).get(target_lang, '')
                 # Get grammatical info
@@ -426,8 +460,13 @@ class SQLiteExporter(BaseExporter):
             
             # Process relations
             for relation in entry.relations:
-                relation_type = relation.get('type', '')
-                target_id = relation.get('ref', '')
+                # Handle both Relation objects and dictionaries
+                if hasattr(relation, 'type'):
+                    relation_type = relation.type
+                    target_id = relation.ref
+                else:
+                    relation_type = relation.get('type', '')
+                    target_id = relation.get('ref', '')
                 
                 if not target_id:
                     continue

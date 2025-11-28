@@ -31,34 +31,35 @@ def client(app: Flask) -> FlaskClient:
 
 
 @pytest.mark.integration
-def test_entries_api_uses_basex_not_postgresql(client: FlaskClient) -> None:
+def test_entries_api_uses_basex_not_postgresql(client: FlaskClient, app: Flask) -> None:
     """Test that /api/entries/ uses BaseX/XML for dictionary data, not PostgreSQL."""
-    with patch('app.api.entries.get_dictionary_service') as mock_get_service, \
-         patch('app.api.entries.CacheService') as mock_cache_class:
-        
-        # Mock cache to not return cached data
-        mock_cache = MagicMock()
-        mock_cache.is_available.return_value = False
-        mock_cache_class.return_value = mock_cache
-        
-        # Mock BaseX dictionary service
-        from app.models.entry import Entry
-        mock_service = MagicMock()
-        mock_entry = Entry(id='test1', lexical_unit='test', pronunciation='/tɛst/',
-            senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
-        mock_service.list_entries.return_value = ([mock_entry], 1)
-        mock_get_service.return_value = mock_service
-        
-        response = client.get('/api/entries/?limit=10&offset=0')
-        assert response.status_code == 200
-        
-        data = json.loads(response.data.decode('utf-8'))
-        assert 'entries' in data
-        assert data['total_count'] == 1
-        assert data['entries'][0]['lexical_unit'] == {'en': 'test'}
-        
-        # Verify BaseX service was called, not PostgreSQL
-        mock_service.list_entries.assert_called_once()
+    with app.test_request_context():
+        with patch('app.api.entries.get_dictionary_service') as mock_get_service, \
+             patch('app.api.entries.CacheService') as mock_cache_class:
+            
+            # Mock cache to not return cached data
+            mock_cache = MagicMock()
+            mock_cache.is_available.return_value = False
+            mock_cache_class.return_value = mock_cache
+            
+            # Mock BaseX dictionary service
+            from app.models.entry import Entry
+            mock_service = MagicMock()
+            mock_entry = Entry(id_='test1', lexical_unit={'en': 'test'},
+                senses=[{"id": "sense1", "definitions": {"en": {"text": "test definition"}}}])
+            mock_service.list_entries.return_value = ([mock_entry], 1)
+            mock_get_service.return_value = mock_service
+            
+            response = client.get('/api/entries/?limit=10&offset=0')
+            assert response.status_code == 200
+            
+            data = json.loads(response.data.decode('utf-8'))
+            assert 'entries' in data
+            assert data['total_count'] == 1
+            assert data['entries'][0]['lexical_unit'] == {'en': 'test'}
+            
+            # Verify BaseX service was called, not PostgreSQL
+            mock_service.list_entries.assert_called_once()
 
 
 @pytest.mark.integration

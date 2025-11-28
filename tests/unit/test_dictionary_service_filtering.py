@@ -52,7 +52,7 @@ class TestDictionaryServiceFilteringSorting:
                     id_="entry1",
                     lexical_unit={"en": "apple"},
                     senses=[
-                        Sense(id="sense_1", definitions={"en": {"text": "a fruit"}})
+                        Sense(id="sense_1", definitions={"en": "a fruit"})
                     ],
                 ),
                 Entry(
@@ -60,7 +60,7 @@ class TestDictionaryServiceFilteringSorting:
                     lexical_unit={"en": "banana"},
                     senses=[
                         Sense(
-                            id="sense_1", definitions={"en": {"text": "another fruit"}}
+                            id="sense_1", definitions={"en": "another fruit"}
                         )
                     ],
                 ),
@@ -85,7 +85,7 @@ class TestDictionaryServiceFilteringSorting:
                     lexical_unit={"en": "banana"},
                     senses=[
                         Sense(
-                            id="sense_1", definitions={"en": {"text": "another fruit"}}
+                            id="sense_1", definitions={"en": "another fruit"}
                         )
                     ],
                 ),
@@ -93,7 +93,7 @@ class TestDictionaryServiceFilteringSorting:
                     id_="entry1",
                     lexical_unit={"en": "apple"},
                     senses=[
-                        Sense(id="sense_1", definitions={"en": {"text": "a fruit"}})
+                        Sense(id="sense_1", definitions={"en": "a fruit"})
                     ],
                 ),
             ]
@@ -116,7 +116,7 @@ class TestDictionaryServiceFilteringSorting:
                     id_="entry1",
                     lexical_unit={"en": "apple"},
                     senses=[
-                        Sense(id="sense_1", definitions={"en": {"text": "a fruit"}})
+                        Sense(id="sense_1", definitions={"en": "a fruit"})
                     ],
                 )
             ]
@@ -144,14 +144,14 @@ class TestDictionaryServiceFilteringSorting:
                     id_="entry3",
                     lexical_unit={"en": "application"},
                     senses=[
-                        Sense(id="sense_1", definitions={"en": {"text": "a program"}})
+                        Sense(id="sense_1", definitions={"en": "a program"})
                     ],
                 ),
                 Entry(
                     id_="entry1",
                     lexical_unit={"en": "apple"},
                     senses=[
-                        Sense(id="sense_1", definitions={"en": {"text": "a fruit"}})
+                        Sense(id="sense_1", definitions={"en": "a fruit"})
                     ],
                 ),
             ]
@@ -178,7 +178,7 @@ class TestDictionaryServiceFilteringSorting:
                     id_="entry1",
                     lexical_unit={"en": "test"},
                     senses=[
-                        Sense(id="sense_1", definitions={"en": {"text": "a test word"}})
+                        Sense(id="sense_1", definitions={"en": "a test word"})
                     ],
                 )
             ]

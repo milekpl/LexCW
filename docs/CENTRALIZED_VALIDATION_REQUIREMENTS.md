@@ -43,10 +43,10 @@ This document consolidates all validation requirements for the Lexicographic Cur
   - **Priority**: Critical (Must Fix Before Save)
 
 #### R1.2: Field Format Validation
-- **R1.2.1**: Entry ID must match pattern `^[a-zA-Z0-9_-]+$`
+- **R1.2.1**: Entry ID must match pattern `^[a-zA-Z0-9_\- ]+$` (allows spaces per LIFT standard)
   - **Current Implementation**: `app/models/entry.py:295` + `_is_valid_id_format` method
   - **Test Coverage**: `tests/test_validation_rules.py:test_r1_2_1_entry_id_format_validation`
-  - **Error Message**: "Invalid entry ID format. Use only letters, numbers, underscores, and hyphens"
+  - **Error Message**: "Invalid entry ID format. Use only letters, numbers, underscores, hyphens, and spaces"
   - **Priority**: Warning (Should Fix)
 
 - **R1.2.2**: Lexical unit must be a dictionary with language codes as keys

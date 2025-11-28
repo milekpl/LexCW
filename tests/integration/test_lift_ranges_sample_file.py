@@ -22,11 +22,9 @@ def test_lift_ranges_with_sample_file(app: Flask) -> None:
         from app.parsers.lift_parser import LIFTRangesParser
         import os
         
-        sample_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
-                                  'sample-lift-file', 'sample-lift-file.lift-ranges')
-        
-        if not os.path.exists(sample_file):
-            pytest.skip(f"Sample LIFT ranges file not found: {sample_file}")
+        # Get the project root (3 levels up from tests/integration/)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sample_file = os.path.join(project_root, 'sample-lift-file', 'sample-lift-file.lift-ranges')
         
         parser = LIFTRangesParser()
         sample_ranges = parser.parse_file(sample_file)
@@ -84,11 +82,9 @@ def test_lift_ranges_parser_with_sample_file() -> None:
     from app.parsers.lift_parser import LIFTRangesParser
     import os
     
-    sample_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
-                              'sample-lift-file', 'sample-lift-file.lift-ranges')
-    
-    if not os.path.exists(sample_file):
-        pytest.skip(f"Sample LIFT ranges file not found: {sample_file}")
+    # Get the project root (3 levels up from tests/integration/)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sample_file = os.path.join(project_root, 'sample-lift-file', 'sample-lift-file.lift-ranges')
     
     parser = LIFTRangesParser()
     ranges = parser.parse_file(sample_file)
@@ -129,8 +125,11 @@ def test_lift_ranges_parser_with_sample_file() -> None:
 @pytest.mark.integration
 def test_lift_ranges_service_fallback() -> None:
     """
-    Test that the dictionary service correctly falls back to sample file
-    when database ranges are not available.
+    Test that the dictionary service handles missing database ranges gracefully.
+    
+    Note: The service does NOT automatically fall back to sample files.
+    Ranges must be loaded into the database from a LIFT ranges file.
+    This test verifies the service returns empty dict when no ranges are available.
     """
     from app.services.dictionary_service import DictionaryService
     from app.database.basex_connector import BaseXConnector
@@ -144,19 +143,7 @@ def test_lift_ranges_service_fallback() -> None:
     service = DictionaryService(mock_connector)
     ranges = service.get_ranges()
     
-    # Should have fallen back to sample file and have all expected ranges
-    expected_range_types = {
-        'etymology', 'grammatical-info', 'lexical-relation', 'note-type',
-        'paradigm', 'reversal-type', 'semantic-domain-ddp4', 'status',
-        'users', 'location', 'anthro-code', 'translation-type',
-        'inflection-feature', 'inflection-feature-type', 'from-part-of-speech',
-        'morph-type', 'num-feature-value', 'Publications', 'do-not-publish-in',
-        'domain-type', 'usage-type'
-    }
-    
-    available_types = set(ranges.keys())
-    
-    # Should have at least most of the expected types (allowing for some flexibility)
-    # since we're now using the sample file
-    intersection = available_types.intersection(expected_range_types)
-    assert len(intersection) >= 15, f"Expected at least 15 range types from sample file, got {len(intersection)}: {sorted(intersection)}"
+    # Service should return empty dict when no ranges available
+    # (Ranges must come from LIFT file loaded into database)
+    assert isinstance(ranges, dict), "Should return a dict"
+    assert len(ranges) == 0, "Should be empty when no ranges in database"

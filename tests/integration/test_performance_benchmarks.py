@@ -26,12 +26,9 @@ from app.services.dictionary_service import DictionaryService
 class TestPerformanceBenchmarks:
     """Performance benchmark tests for core operations."""
     
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def dict_service(self, basex_available):
         """Get dictionary service instance for performance testing."""
-        if not basex_available:
-            pytest.skip("BaseX server not available")
-            
         from app.database.basex_connector import BaseXConnector
         
         # Import the utility function from conftest
@@ -77,7 +74,7 @@ class TestPerformanceBenchmarks:
             except Exception:
                 pass
     
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def sample_entries(self) -> List[Entry]:
         """Create sample entries for performance testing."""
         entries = []
@@ -267,7 +264,7 @@ class TestPerformanceBenchmarks:
             # Quick validation that basic operations work
             dict_service.get_entry_count()
         except Exception as e:
-            pytest.skip(f"BaseX connection issues detected, skipping load test: {e}")
+            raise
         
         # Simulate concurrent-like load with rapid sequential operations
         operations: List[Dict[str, Any]] = []

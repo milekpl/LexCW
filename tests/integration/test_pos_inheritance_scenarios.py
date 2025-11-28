@@ -1,17 +1,12 @@
-#!/usr/bin/env python3
-"""
-Test script to verify POS inheritance logic works correctly in different scenarios.
-"""
-
 from __future__ import annotations
 import os
 import sys
 import pytest
 from typing import Any, Dict, List, Optional
+from flask import Flask
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'app'))
 
-from app import create_app
 from app.services.dictionary_service import DictionaryService
 
 # Import Entry and Sense for hardcoded test entries
@@ -40,12 +35,11 @@ except ImportError:
                 self.grammatical_info = self.senses[0].grammatical_info
 
 @pytest.mark.integration
-def test_pos_inheritance_scenarios() -> None:
+def test_pos_inheritance_scenarios(app: Flask, dict_service_with_db: DictionaryService) -> None:
     """Test different POS inheritance scenarios."""
-    app = create_app()
     
     with app.app_context():
-        dict_service: DictionaryService = app.injector.get(DictionaryService)
+        dict_service = dict_service_with_db
         
         # Test entries with different scenarios
         test_entries: List[str] = [

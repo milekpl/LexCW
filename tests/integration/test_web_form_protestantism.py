@@ -7,18 +7,17 @@ from the browser when editing the Protestantism entry.
 """
 
 import pytest
-from app import create_app
+from flask import Flask
 from app.services.dictionary_service import DictionaryService
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 
 
 @pytest.mark.integration
-def test_protestantism_form_submission():
+def test_protestantism_form_submission(app: Flask, dict_service_with_db: DictionaryService):
     """Test the exact scenario with Protestantism entry form submission."""
     
-    app = create_app()
     with app.app_context():
-        dict_service = app.injector.get(DictionaryService)
+        dict_service = dict_service_with_db
         
         print("🔍 Testing Protestantism entry form submission...")
         

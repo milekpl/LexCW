@@ -47,11 +47,6 @@ class TestEntriesAPI:
         assert 'error' in data
     
     @pytest.mark.integration
-    @pytest.mark.skip(reason="Requires mocking a database error; not possible with real DB only.")
-    def test_entries_get_single_database_error(self, client):
-        pass
-    
-    @pytest.mark.integration
     def test_entries_create_validation_error(self, client):
         """Test creating entry with validation error (real DB)."""
         entry_data = {
@@ -88,20 +83,10 @@ class TestEntriesAPI:
         assert response.status_code == 404
     
     @pytest.mark.integration
-    @pytest.mark.skip(reason="Requires mocking a validation error; not possible with real DB only.")
-    def test_entries_update_validation_error(self, client):
-        pass
-    
-    @pytest.mark.integration
     def test_entries_delete_not_found(self, client):
         """Test deleting entry that doesn't exist (real DB)."""
         response = client.delete('/api/entries/nonexistent')
         assert response.status_code == 404
-    
-    @pytest.mark.integration
-    @pytest.mark.skip(reason="Requires mocking a database error; not possible with real DB only.")
-    def test_entries_delete_database_error(self, client):
-        pass
 
 
 

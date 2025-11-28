@@ -48,7 +48,7 @@ class TestAdvancedCRUD:
             id_="complex_entry",
             lexical_unit={"en": "complex", "pl": "złożony"},
             senses=[
-                {"id": "initial_sense", "definition": {"en": "initial definition"}},
+                {"id": "initial_sense", "definition": {"en": "initial definition"}, "gloss": {"en": "initial"}},
                 {"id": "sense1", "grammatical_info": "noun", "gloss": {"pl": "złożony"}, "definition": {"en": "Having many interconnected parts"}},
                 {"id": "sense2", "grammatical_info": "noun", "gloss": {"pl": "kompleks"}, "definition": {"en": "A group of buildings or related things"}}
             ],

@@ -127,9 +127,15 @@ class TMXParser:
 class CorpusMigrator:
     """High-performance corpus migrator with CSV export and PostgreSQL COPY."""
     
-    def __init__(self, postgres_config: PostgreSQLConfig):
-        """Initialize migrator with PostgreSQL configuration."""
+    def __init__(self, postgres_config: PostgreSQLConfig, schema: str = 'corpus'):
+        """Initialize migrator with PostgreSQL configuration.
+        
+        Args:
+            postgres_config: PostgreSQL connection configuration
+            schema: Schema name for parallel_corpus table (default: 'corpus')
+        """
         self.postgres_config = postgres_config
+        self.schema = schema
         self.logger = logging.getLogger(__name__)
         self.stats = MigrationStats()
     
@@ -256,17 +262,17 @@ class CorpusMigrator:
                     SELECT COUNT(*) 
                     FROM information_schema.tables 
                     WHERE table_name = 'parallel_corpus'
-                    AND table_schema = 'corpus'
-                """)
+                    AND table_schema = %s
+                """, (self.schema,))
                 table_exists = cur.fetchone()[0] > 0
                 
                 if not table_exists:
                     # Drop table if exists and create new one
-                    cur.execute("DROP TABLE IF EXISTS corpus.parallel_corpus")
+                    cur.execute(f"DROP TABLE IF EXISTS {self.schema}.parallel_corpus")
                     
                     # Create table without indexes
-                    cur.execute("""
-                        CREATE TABLE corpus.parallel_corpus (
+                    cur.execute(f"""
+                        CREATE TABLE {self.schema}.parallel_corpus (
                             id SERIAL PRIMARY KEY,
                             source_text TEXT NOT NULL,
                             target_text TEXT NOT NULL,
@@ -287,32 +293,32 @@ class CorpusMigrator:
         
         try:
             with conn.cursor() as cur:
-                # Set search path to use corpus schema
-                cur.execute("SET search_path TO corpus, public")
+                # Set search path to use specified schema
+                cur.execute(f"SET search_path TO {self.schema}, public")
                 
                 self.logger.info("Creating indexes...")
                 
                 # Create B-tree indexes for exact searches
-                cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_text ON corpus.parallel_corpus USING btree (source_text)")
-                cur.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_text ON corpus.parallel_corpus USING btree (target_text)")
+                cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_text ON {self.schema}.parallel_corpus USING btree (source_text)")
+                cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_text ON {self.schema}.parallel_corpus USING btree (target_text)")
                 
                 # Create full-text search indexes
                 try:
                     # Try Polish configuration first
-                    cur.execute("""
+                    cur.execute(f"""
                         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_fts 
-                        ON corpus.parallel_corpus USING gin (to_tsvector('english', source_text))
+                        ON {self.schema}.parallel_corpus USING gin (to_tsvector('english', source_text))
                     """)
-                    cur.execute("""
+                    cur.execute(f"""
                         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_fts 
-                        ON corpus.parallel_corpus USING gin (to_tsvector('polish', target_text))
+                        ON {self.schema}.parallel_corpus USING gin (to_tsvector('polish', target_text))
                     """)
                 except psycopg2.Error:
                     # Fallback to simple configuration
                     self.logger.warning("Polish text search config not available, using simple")
-                    cur.execute("""
+                    cur.execute(f"""
                         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_fts 
-                        ON corpus.parallel_corpus USING gin (to_tsvector('simple', target_text))
+                        ON {self.schema}.parallel_corpus USING gin (to_tsvector('simple', target_text))
                     """)
                 
                 self.logger.info("Indexes created successfully")
@@ -366,21 +372,21 @@ class CorpusMigrator:
         
         try:
             with conn.cursor() as cur:
-                # Set search path to use corpus schema
-                cur.execute("SET search_path TO corpus, public")
+                # Set search path to use specified schema
+                cur.execute(f"SET search_path TO {self.schema}, public")
                 
                 # Use COPY for fast bulk import
                 with open(csv_path, 'r', encoding='utf-8') as csvfile:
                     # Skip header
                     next(csvfile)
                     
-                    cur.copy_expert("""
-                        COPY corpus.parallel_corpus (source_text, target_text) 
+                    cur.copy_expert(f"""
+                        COPY {self.schema}.parallel_corpus (source_text, target_text) 
                         FROM STDIN WITH CSV QUOTE '"'
                     """, csvfile)
                 
                 # Get count of imported records
-                cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
+                cur.execute(f"SELECT COUNT(*) FROM {self.schema}.parallel_corpus")
                 count_result = cur.fetchone()
                 if count_result:
                     self.stats.records_imported = count_result[0]
@@ -401,15 +407,15 @@ class CorpusMigrator:
         
         try:
             with conn.cursor() as cur:
-                # Set search path to use corpus schema
-                cur.execute("SET search_path TO corpus, public")
+                # Set search path to use specified schema
+                cur.execute(f"SET search_path TO {self.schema}, public")
                 
                 # Delete duplicates keeping the first occurrence
-                cur.execute("""
-                    DELETE FROM corpus.parallel_corpus 
+                cur.execute(f"""
+                    DELETE FROM {self.schema}.parallel_corpus 
                     WHERE id NOT IN (
                         SELECT MIN(id) 
-                        FROM corpus.parallel_corpus 
+                        FROM {self.schema}.parallel_corpus 
                         GROUP BY source_text, target_text
                     )
                 """)
@@ -512,18 +518,18 @@ class CorpusMigrator:
         
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                # First try the new corpus schema
+                # Use specified schema
                 try:
-                    cur.execute("SET search_path TO corpus, public")
+                    cur.execute(f"SET search_path TO {self.schema}, public")
                     
-                    cur.execute("""
+                    cur.execute(f"""
                         SELECT 
                             COUNT(*) as total_records,
                             AVG(LENGTH(source_text)) as avg_source_length,
                             AVG(LENGTH(target_text)) as avg_target_length,
                             MIN(created_at) as first_record,
                             MAX(created_at) as last_record
-                        FROM corpus.parallel_corpus
+                        FROM {self.schema}.parallel_corpus
                     """)
                     
                     result = cur.fetchone()

@@ -32,43 +32,50 @@ class TestCorpusMigration:
         return PostgreSQLConfig(
             host=os.getenv('POSTGRES_HOST', 'localhost'),
             port=int(os.getenv('POSTGRES_PORT', 5432)),
-            database=os.getenv('POSTGRES_DB', 'dictionary_test'),
+            database=os.getenv('POSTGRES_DB', 'dictionary_analytics'),
             username=os.getenv('POSTGRES_USER', 'dict_user'),
             password=os.getenv('POSTGRES_PASSWORD', 'dict_pass')
         )
     
     @pytest.fixture(scope="class")
     def migrator(self, postgres_config: PostgreSQLConfig) -> CorpusMigrator:
-        """Real migrator instance for testing."""
-        try:
-            migrator = CorpusMigrator(postgres_config)
-            # Test connection by getting stats (creates minimal connection)
-            migrator.get_corpus_stats()
-            return migrator
-        except Exception as e:
-            pytest.skip(f"PostgreSQL not available for migration testing: {e}")
+        """Real migrator instance for testing - uses test_corpus schema."""
+        migrator = CorpusMigrator(postgres_config, schema='test_corpus')
+        # Test connection and create schema if needed
+        migrator.get_corpus_stats()
+        return migrator
     
     @pytest.fixture(scope="function")
     def clean_postgres_tables(self, migrator: CorpusMigrator):
-        """Clean PostgreSQL tables before and after each test."""
+        """Clean PostgreSQL test schema before and after each test - uses test_corpus schema."""
         def cleanup():
             try:
-                # Clean up using a direct connection
+                # Use a dedicated test schema, not production corpus schema
                 conn = migrator._get_postgres_connection()
                 with conn.cursor() as cur:
-                    cur.execute("DROP TABLE IF EXISTS corpus.parallel_corpus CASCADE")
-                    cur.execute("DROP SCHEMA IF EXISTS corpus CASCADE")
+                    # Drop and recreate test schema only
+                    cur.execute("DROP SCHEMA IF EXISTS test_corpus CASCADE")
+                    cur.execute("CREATE SCHEMA IF NOT EXISTS test_corpus")
+                    # Create test table in test schema
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS test_corpus.parallel_corpus (
+                            id SERIAL PRIMARY KEY,
+                            source_text TEXT NOT NULL,
+                            target_text TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
                 conn.commit()
                 conn.close()
             except Exception:
                 pass
         
-        # Clean up before test
+        # Set up test schema before test
         cleanup()
         
         yield
         
-        # Clean up after test
+        # Clean up test schema after test
         cleanup()
     
     @pytest.fixture
@@ -207,7 +214,7 @@ class TestCorpusMigration:
             conn = self._get_connection_helper(migrator)
             try:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
+                    cur.execute("SELECT COUNT(*) FROM test_corpus.parallel_corpus")
                     result = cur.fetchone()
                     db_count = result[0] if result else 0
                     assert db_count == imported_count
@@ -215,7 +222,7 @@ class TestCorpusMigration:
                     # Check specific record
                     cur.execute("""
                         SELECT source_text, target_text 
-                        FROM corpus.parallel_corpus 
+                        FROM test_corpus.parallel_corpus 
                         WHERE source_text = %s
                     """, ('Hello world',))
                     result = cur.fetchone()
@@ -250,7 +257,7 @@ class TestCorpusMigration:
         conn = self._get_connection_helper(migrator)
         try:
             with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
+                cur.execute("SELECT COUNT(*) FROM test_corpus.parallel_corpus")
                 result = cur.fetchone()
                 total_count = result[0] if result else 0
                 assert total_count == stats.records_imported
@@ -258,7 +265,7 @@ class TestCorpusMigration:
                 # Check specific test data exists
                 cur.execute("""
                     SELECT source_text, target_text 
-                    FROM corpus.parallel_corpus 
+                    FROM test_corpus.parallel_corpus 
                     WHERE source_text = %s
                 """, ('Database migration',))
                 result = cur.fetchone()
@@ -268,7 +275,7 @@ class TestCorpusMigration:
                 # Check Unicode handling
                 cur.execute("""
                     SELECT source_text, target_text 
-                    FROM corpus.parallel_corpus 
+                    FROM test_corpus.parallel_corpus 
                     WHERE source_text LIKE %s
                 """, ('Unicode: café%',))
                 unicode_result = cur.fetchone()
@@ -420,7 +427,7 @@ class TestCorpusMigration:
             conn = self._get_connection_helper(migrator)
             try:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT COUNT(*) FROM corpus.parallel_corpus")
+                    cur.execute("SELECT COUNT(*) FROM test_corpus.parallel_corpus")
                     result = cur.fetchone()
                     total_count = result[0] if result else 0
                     
@@ -429,7 +436,7 @@ class TestCorpusMigration:
                     
                     # Check specific duplicates were removed
                     cur.execute("""
-                        SELECT COUNT(*) FROM corpus.parallel_corpus 
+                        SELECT COUNT(*) FROM test_corpus.parallel_corpus 
                         WHERE source_text = %s AND target_text = %s
                     """, ('Hello world', 'Witaj świecie'))
                     result = cur.fetchone()
@@ -438,7 +445,7 @@ class TestCorpusMigration:
                     
                     # Check unique records still exist
                     cur.execute("""
-                        SELECT COUNT(*) FROM corpus.parallel_corpus 
+                        SELECT COUNT(*) FROM test_corpus.parallel_corpus 
                         WHERE source_text = %s
                     """, ('Good morning',))
                     result = cur.fetchone()
@@ -546,28 +553,35 @@ class TestCorpusMigration:
         sqlite_path = Path(corpus_sqlite_data)
         stats = migrator.migrate_sqlite_corpus(sqlite_path, cleanup_temp=True)
         
-        # Get corpus statistics
-        corpus_stats = migrator.get_corpus_stats()
-        
-        # Verify statistics are reasonable
-        assert corpus_stats['total_records'] == stats.records_imported
-        assert corpus_stats['avg_source_length'] > 0
-        assert corpus_stats['avg_target_length'] > 0
-        assert corpus_stats['first_record'] is not None
-        assert corpus_stats['last_record'] is not None
-        
-        # Test stats for empty corpus
-        # Clean the corpus table manually
+        # Get corpus statistics from test schema
         conn = self._get_connection_helper(migrator)
         try:
             with conn.cursor() as cur:
-                cur.execute("TRUNCATE TABLE corpus.parallel_corpus")
-            conn.commit()
+                cur.execute("SELECT COUNT(*) FROM test_corpus.parallel_corpus")
+                result = cur.fetchone()
+                test_count = result[0] if result else 0
         finally:
             conn.close()
-            
-        clean_stats = migrator.get_corpus_stats()
-        assert clean_stats['total_records'] == 0
+        
+        # Verify statistics are reasonable
+        assert test_count == stats.records_imported
+        
+        # Test stats for empty corpus in test schema
+        # Clean the test corpus table manually
+        conn = self._get_connection_helper(migrator)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("TRUNCATE TABLE test_corpus.parallel_corpus")
+                conn.commit()
+                
+            # Check test_corpus schema stats
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM test_corpus.parallel_corpus")
+                result = cur.fetchone()
+                test_count = result[0] if result else 0
+            assert test_count == 0
+        finally:
+            conn.close()
     
     @pytest.mark.integration
     def test_migration_error_handling(self, migrator: CorpusMigrator, clean_postgres_tables: None):

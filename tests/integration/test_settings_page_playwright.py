@@ -30,8 +30,8 @@ class TestSettingsPageUX:
         # Page should load without errors
         expect(playwright_page).to_have_title(re.compile(r"Settings|Project Settings"))
         
-        # Should have a form
-        settings_form = playwright_page.locator("form")
+        # Should have a settings form (be more specific to avoid navbar search form)
+        settings_form = playwright_page.locator('form[action="/settings/"]')
         expect(settings_form).to_be_visible()
         
         # Should have basic required fields
@@ -63,10 +63,10 @@ class TestSettingsPageUX:
         target_section = page.locator('fieldset:has-text("Target Languages")')
         expect(target_section).to_be_visible()
         
-        # Should have some form of input for target languages
-        # Could be checkboxes, dropdown, input fields, etc.
-        target_inputs = target_section.locator('input, select, button')
-        expect(target_inputs.first).to_be_visible()
+        # Should have searchable language selector with search input
+        # The implementation uses a hidden JSON field for data storage and a visible search interface
+        search_input = target_section.locator('.language-search-input')
+        expect(search_input).to_be_visible()
 
     def test_form_submission_works(self, page: Page) -> None:
         """Test that form can be submitted without errors."""
@@ -77,9 +77,10 @@ class TestSettingsPageUX:
         if project_name.input_value() == "":
             project_name.fill("Test Project")
         
-        source_name = page.locator('input[name="source_language_name"]')
-        if source_name.input_value() == "":
-            source_name.fill("English")
+        # Select source language code (required field)
+        source_code = page.locator('select[name="source_language_code"]')
+        if source_code.input_value() == "":
+            source_code.select_option("en")
         
         # Submit the form
         submit_button = page.locator('input[type="submit"], button[type="submit"]')
@@ -105,7 +106,7 @@ class TestSettingsPageUX:
         expect(project_display).to_be_visible()
 
 
-@pytest.mark.integration 
+@pytest.mark.integration
 class TestSettingsLanguageUXRequirements:
     """
     Test suite that defines the REQUIRED UX improvements for issue #5.
@@ -122,24 +123,25 @@ class TestSettingsLanguageUXRequirements:
         """
         page.goto("http://localhost:5000/settings/")
         
-        # Target languages section should allow multiple selections
+        # Target languages section should allow multiple selections via searchable interface
         target_section = page.locator('fieldset:has-text("Target Languages")')
         
-        # There should be multiple language options available
-        # This could be implemented as:
-        # 1. Checkboxes with predefined languages
-        # 2. Multi-select dropdown
-        # 3. Add/remove interface with language picker
+        # The implementation uses a searchable language selector
+        # Search for a language and verify we can interact with it
+        search_input = target_section.locator('.language-search-input')
+        expect(search_input).to_be_visible()
         
-        # For now, just check that the interface supports multiple languages
-        # The implementation will determine the exact mechanism
+        # Type a search query
+        search_input.fill("Spanish")
+        page.wait_for_timeout(500)  # Wait for search debounce
         
-        # Look for multiple language options or interface elements
-        language_options = target_section.locator('[data-language], .language-option, input[type="checkbox"]')
+        # Search results should appear
+        results_container = target_section.locator('.language-search-results')
+        expect(results_container).to_be_visible()
         
-        # Should have at least 3 common languages available (en, es, fr, de, pt, etc.)
-        language_count = language_options.count()
-        assert language_count > 2, f"Expected more than 2 language options, found {language_count}"
+        # Should have at least one result
+        search_results = results_container.locator('.language-search-result')
+        expect(search_results.first).to_be_visible()
 
     def test_language_options_are_comprehensive(self, page: Page) -> None:
         """
@@ -150,16 +152,29 @@ class TestSettingsLanguageUXRequirements:
         """
         page.goto("http://localhost:5000/settings/")
         
-        # Should have options for major languages
-        # The exact implementation may vary, but these languages should be available:
-        required_languages = ['en', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'ar', 'zh', 'ja']
+        # Should have searchable interface for comprehensive languages
+        search_input = page.locator('.language-search-input')
+        expect(search_input).to_be_visible()
         
-        # Check if page content includes these language codes or names
-        page_content = page.content()
+        # Test searching for a few major languages
+        major_languages = ['English', 'Spanish', 'French', 'German', 'Chinese']
         
-        # At least 5 of these major languages should be available
-        available_count = sum(1 for lang in required_languages if lang in page_content.lower())
-        assert available_count >= 5, f"Only {available_count} major languages found, need at least 5"
+        found_count = 0
+        for lang in major_languages:
+            search_input.fill(lang)
+            page.wait_for_timeout(400)  # Wait for debounce
+            
+            # Check if results appear
+            results = page.locator('.language-search-results .language-search-result')
+            if results.count() > 0:
+                found_count += 1
+            
+            # Clear for next search
+            search_input.fill("")
+            page.wait_for_timeout(100)
+        
+        # Should find at least 4 out of 5 major languages
+        assert found_count >= 4, f"Only found {found_count} major languages, need at least 4"
 
     def test_language_selection_updates_json_storage(self, page: Page) -> None:
         """
@@ -171,11 +186,11 @@ class TestSettingsLanguageUXRequirements:
         page.goto("http://localhost:5000/settings/")
         
         # Hidden JSON field should exist
-        json_field = page.locator('input[name="target_languages_json"]')
+        json_field = page.locator('input[name="available_target_languages"]')
         expect(json_field).to_be_attached()
         
-        # When languages are selected, JSON field should be updated
-        # This test defines the requirement - implementation will make it work
+        # Field should be hidden (type="hidden")
+        expect(json_field).to_have_attribute("type", "hidden")
 
     def test_settings_affect_entry_form_language_options(self, page: Page) -> None:
         """
@@ -192,11 +207,9 @@ class TestSettingsLanguageUXRequirements:
             project_name.fill("UX Test Project")
         
         # Configure source language
-        source_name = page.locator('input[name="source_language_name"]')
-        source_name.fill("English")
-        
-        # Configure specific target languages (implementation will determine how)
-        # For now, just submit with default settings as this test defines requirements
+        source_code = page.locator('select[name="source_language_code"]')
+        if source_code.input_value() == "":
+            source_code.select_option("en")
         
         submit_button = page.locator('input[type="submit"], button[type="submit"]')
         submit_button.click()

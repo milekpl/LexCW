@@ -286,6 +286,52 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
     return merged_senses
 
 
+def process_entry_form_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Process entry-level form data from form submission.
+    
+    Handles form fields like:
+    - lexical_unit.en (multilingual entry text)
+    - academic_domain (entry-level academic domain)
+    
+    Args:
+        form_data: Dictionary containing form field names and values
+        
+    Returns:
+        Dictionary suitable for creating Entry objects
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    entry_data: Dict[str, Any] = {}
+    
+    logger.debug(f"[ENTRY DEBUG] Processing entry form data: {list(form_data.keys())}")
+    
+    # Process multilingual lexical unit fields
+    lexical_unit = process_multilingual_field_form_data(form_data, 'lexical_unit')
+    if lexical_unit:
+        logger.debug(f"[ENTRY DEBUG] Processed lexical_unit: {lexical_unit}")
+        entry_data['lexical_unit'] = lexical_unit
+    elif 'lexical_unit' in form_data and isinstance(form_data['lexical_unit'], str):
+        # Handle backward compatibility: convert string format to multilingual format
+        if form_data['lexical_unit'].strip():
+            entry_data['lexical_unit'] = {'en': form_data['lexical_unit'].strip()}
+    
+    # Process academic_domain field
+    if 'academic_domain' in form_data:
+        academic_domain = form_data['academic_domain']
+        if isinstance(academic_domain, str):
+            academic_domain = academic_domain.strip()
+            # Convert empty string to None, preserve non-empty strings
+            entry_data['academic_domain'] = academic_domain if academic_domain else None
+        else:
+            # Non-string values, keep as-is
+            entry_data['academic_domain'] = academic_domain
+    
+    logger.debug(f"[ENTRY DEBUG] Processed entry_data: {entry_data}")
+    return entry_data
+
+
 def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Process sense data from complex form submission.

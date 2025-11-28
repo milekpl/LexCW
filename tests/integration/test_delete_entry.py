@@ -19,7 +19,8 @@ def test_delete_entry(playwright_page: Page, live_server):  # type: ignore
 
 
     # Fill in basic entry details
-    playwright_page.fill("#lexical-unit", "TestEntryForDeletion")
+    lexical_unit_value = "TestEntryForDeletion"
+    playwright_page.fill("#lexical-unit", lexical_unit_value)
     playwright_page.click("#add-sense-btn") # Add a sense to make it valid
     playwright_page.fill("textarea[name*='definition']", "A test definition for deletion.")
     playwright_page.click("button[type='submit']:has-text('Save Entry')")
@@ -38,9 +39,14 @@ def test_delete_entry(playwright_page: Page, live_server):  # type: ignore
     playwright_page.goto(f"{live_server.url}/entries")
     expect(playwright_page).to_have_url(f"{live_server.url}/entries")
 
+    # Filter entries so the newly created entry is visible
+    playwright_page.fill("#filter-entries", lexical_unit_value)
+    playwright_page.click("#btn-filter")
+
     # 4. Locate the delete button for the newly created entry
     # We need to find the row for the new entry and then its delete button
-    entry_row = playwright_page.locator("tr", has=playwright_page.locator(f"text={entry_id}"))
+    entry_row = playwright_page.locator("#entries-list tr", has=playwright_page.locator(f"text={lexical_unit_value}"))
+    expect(entry_row).to_be_visible()
     delete_button = entry_row.locator("button.delete-btn")
     expect(delete_button).to_be_visible()
 

@@ -74,18 +74,18 @@
       "client_side": true
     },
     "R1.2.3": {
-      "name": "language_code_validation",
-      "description": "Language codes must be from approved project list",
+      "name": "language_code_format_validation",
+      "description": "Language codes must follow RFC 4646 format",
       "category": "entry_level",
-      "priority": "critical",
+      "priority": "warning",
       "path": "$.lexical_unit",
-      "condition": "custom",
+      "condition": "if_present",
       "validation": {
-        "custom_function": "validate_language_codes",
-        "allowed_languages": ["pl", "en", "ipa"]
+        "type": "custom",
+        "custom_function": "validate_language_code_format"
       },
-      "error_message": "Invalid language code: {value}. Must be one of: pl, en, ipa",
-      "client_side": true
+      "error_message": "Invalid language code format: {value}. Must follow RFC 4646 (e.g., 'en', 'pl', 'seh-fonipa')",
+      "client_side": false
     },
     "R2.1.1": {
       "name": "sense_id_required",
@@ -175,12 +175,10 @@
       "description": "Note content must be non-empty when note type is specified",
       "category": "note_validation",
       "priority": "critical",
-      "path": "$.notes.*",
-      "condition": "if_present",
+      "path": "$.notes",
+      "condition": "custom",
       "validation": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "\\S+"
+        "custom_function": "validate_note_content"
       },
       "error_message": "Note content cannot be empty for specified type",
       "client_side": true
@@ -200,7 +198,7 @@
     },
     "R4.1.1": {
       "name": "pronunciation_language_restriction",
-      "description": "Pronunciation language restricted to seh-fonipa only",
+      "description": "Pronunciation language must be seh-fonipa",
       "category": "pronunciation",
       "priority": "critical",
       "path": "$.pronunciations",
@@ -209,7 +207,7 @@
         "custom_function": "validate_pronunciation_language_codes",
         "allowed_languages": ["seh-fonipa"]
       },
-      "error_message": "Pronunciation language must be 'seh-fonipa', found: {value}",
+      "error_message": "Pronunciation language must be 'seh-fonipa', got '{value}'",
       "client_side": true
     },
     "R4.1.2": {
@@ -217,7 +215,7 @@
       "description": "IPA characters must be from approved character set",
       "category": "pronunciation",
       "priority": "critical",
-      "path": "$.pronunciations['ipa']",
+      "path": "$.pronunciations['seh-fonipa']",
       "condition": "if_present",
       "validation": {
         "type": "string",

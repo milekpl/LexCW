@@ -19,11 +19,14 @@ def app():
     # Setup mock database using injector pattern
     mock_connector = MockDatabaseConnector()
     from app import injector
-    injector.binder.bind(DictionaryService, 
-                       lambda: DictionaryService(mock_connector))
+    mock_service = DictionaryService(mock_connector)
+    injector.binder.bind(DictionaryService, to=mock_service)
     
     # Make sure the injector is attached to the Flask app
     app.injector = injector  # type: ignore
+
+    # Override app-level dictionary service so APIs use the mock instance
+    app.dict_service = mock_service
     
     return app
 

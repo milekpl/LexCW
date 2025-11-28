@@ -14,8 +14,8 @@ Tests API endpoints with actual d        # Test API endpoint
             senses=[
                 Sense(
                     id=f"kindle_sense_{uuid.uuid4().hex[:8]}",
-                    gloss="Kindle test gloss",
-                    definition="Kindle test definition"
+                    gloss={"en": "Kindle test gloss"},
+                    definition={"en": "Kindle test definition"}
                 )
             ]
         ) 200base operations using real data.
@@ -52,10 +52,6 @@ class TestAPIIntegration:
         """Test GET /api/entries - list entries."""
         response = client.get('/api/entries/', follow_redirects=True)
         
-        if response.status_code == 500:
-            # Database might not be available, skip test
-            pytest.skip("Database not available for integration test")
-        
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data['entries'], list)
@@ -67,9 +63,6 @@ class TestAPIIntegration:
     def test_api_entries_get_single(self, client: FlaskClient) -> None:
         """Test GET /api/entries/<id> - get single entry."""
         response = client.get('/api/entries/test_entry_1', follow_redirects=True)
-        
-        if response.status_code == 500:
-            pytest.skip("Database not available for integration test")
         
         # May return 200 (found) or 404 (not found), both are valid responses
         assert response.status_code in [200, 404]
@@ -84,8 +77,8 @@ class TestAPIIntegration:
             senses=[
                 Sense(
                     id_="single_sense",
-                    gloss="Single test gloss",
-                    definition="Single test definition"
+                    gloss={"en": "Single test gloss"},
+                    definition={"en": "Single test definition"}
                 )
             ]
         )
@@ -149,8 +142,8 @@ class TestAPIIntegration:
             senses=[
                 Sense(
                     id="update_sense",
-                    gloss="Original gloss",
-                    definition="Original definition"
+                    gloss={"en": "Original gloss"},
+                    definition={"en": "Original definition"}
                 )
             ]
         )
@@ -197,8 +190,8 @@ class TestAPIIntegration:
             senses=[
                 Sense(
                     id="delete_sense",
-                    gloss="Delete test gloss",
-                    definition="Delete test definition"
+                    gloss={"en": "Delete test gloss"},
+                    definition={"en": "Delete test definition"}
                 )
             ]
         )
@@ -230,8 +223,8 @@ class TestAPIIntegration:
             senses=[
                 Sense(
                     id="search_sense_1",
-                    gloss="Searchable gloss",
-                    definition="Searchable definition"
+                    gloss={"en": "Searchable gloss"},
+                    definition={"en": "Searchable definition"}
                 )
             ]
         )
@@ -360,8 +353,8 @@ class TestExporterIntegration:
             senses=[
                 Sense(
                     id=f"kindle_sense_{uuid.uuid4().hex[:8]}",
-                    gloss="Kindle test gloss",
-                    definition="Kindle test definition"
+                    gloss={"en": "Kindle test gloss"},
+                    definition={"en": "Kindle test definition"}
                 )
             ]
         )
@@ -417,8 +410,8 @@ class TestExporterIntegration:
             senses=[
                 Sense(
                     id=f"sqlite_sense_{uuid.uuid4().hex[:8]}",
-                    gloss="SQLite test gloss",
-                    definition="SQLite test definition"
+                    gloss={"en": "SQLite test gloss"},
+                    definition={"en": "SQLite test definition"}
                 )
             ]
         )
@@ -448,8 +441,8 @@ class TestExporterIntegration:
                 conn.close()
                 
             except Exception as e:
-                # Don't fail the test for export issues, just log them
-                pytest.skip(f"SQLite export functionality issue: {e}")
+                # Re-raise to see the actual error
+                raise
             finally:
                 try:
                     if os.path.exists(temp_file.name):
@@ -516,19 +509,17 @@ class TestEnhancedParserIntegration:
             sense = entry.senses[0]
             
             assert sense.id == "enhanced_sense_1"
-            # Accept both string and nested dict for gloss and definition for backward compatibility
+            # LIFT flat format: {lang: text}
             gloss_val = sense.gloss
-            if isinstance(gloss_val, dict):
-                assert 'en' in gloss_val
-                assert gloss_val['en']['text'] == 'Enhanced test gloss'
-            else:
-                assert gloss_val == 'Enhanced test gloss'
+            assert isinstance(gloss_val, dict)
+            assert 'en' in gloss_val
+            assert gloss_val['en'] == 'Enhanced test gloss'
+            
             def_val = sense.definition
-            if isinstance(def_val, dict):
-                assert 'en' in def_val
-                assert def_val['en']['text'] == 'Enhanced test definition'
-            else:
-                assert def_val == 'Enhanced test definition'
+            assert isinstance(def_val, dict)
+            assert 'en' in def_val
+            assert def_val['en'] == 'Enhanced test definition'
+            
             assert sense.grammatical_info == "Noun"
             
             # Check examples

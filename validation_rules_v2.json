@@ -90,7 +90,7 @@
     },
     "R1.2.3": {
       "name": "language_code_validation",
-      "description": "Language codes must be from approved project list",
+      "description": "Lexical unit must contain at least one language",
       "category": "entry_level",
       "priority": "critical",
       "path": "$.lexical_unit",
@@ -99,9 +99,9 @@
       },
       "validation": {
         "type": "object",
-        "keys_in": ["pl", "en", "ipa"]
+        "minProperties": 1
       },
-      "error_message": "Invalid language code in lexical_unit. Must be one of: pl, en, ipa"
+      "error_message": "Lexical unit must contain at least one language"
     },
     "R2.1.1": {
       "name": "sense_id_required",
@@ -212,7 +212,7 @@
     },
     "R3.2.1": {
       "name": "multilingual_note_structure",
-      "description": "Multilingual notes must have valid language codes",
+      "description": "Multilingual notes must be objects with at least one language",
       "category": "notes_level",
       "priority": "critical",
       "path": "$.notes.*",
@@ -222,9 +222,9 @@
       },
       "validation": {
         "type": "object",
-        "keys_in": ["pl", "en", "ipa"]
+        "minProperties": 1
       },
-      "error_message": "Invalid language code in multilingual note"
+      "error_message": "Multilingual note must contain at least one language"
     },
     "R4.1.1": {
       "name": "pronunciation_language_codes",

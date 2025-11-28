@@ -118,9 +118,9 @@ def test_query_builder_workset_functionality(client: FlaskClient) -> None:
 
 @pytest.mark.integration
 def test_ranges_fallback_functionality() -> None:
-    """Test that ranges loader provides fallback values."""
-    # This would be tested in browser/JavaScript, but we can verify
-    # the fallback data structure in our ranges-loader.js
+    """Test that ranges loader provides dynamic loading from API."""
+    # The new implementation loads ranges dynamically from API
+    # instead of using hardcoded fallbacks
     import os
     
     ranges_js_path = os.path.join(
@@ -131,18 +131,16 @@ def test_ranges_fallback_functionality() -> None:
     with open(ranges_js_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Should have fallback values for key ranges
-    assert "'grammatical-info':" in content
-    assert "'lexical-relation':" in content
+    # Should have RangesLoader class
+    assert 'class RangesLoader' in content
+    assert 'loadRange' in content
+    assert '/api/ranges' in content
     
-    # Should have key grammatical categories
-    assert 'Noun' in content
-    assert 'Verb' in content
-    assert 'Adjective' in content
+    # Should have cache mechanism
+    assert 'cache' in content
     
-    # Should have key relation types
-    assert 'synonym' in content
-    assert 'antonym' in content
+    # Should have populateAllRangeSelects method
+    assert 'populateAllRangeSelects' in content
 
 
 if __name__ == '__main__':

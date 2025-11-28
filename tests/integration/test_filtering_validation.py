@@ -30,11 +30,6 @@ def test_filtering_and_refresh_integration(client: FlaskClient) -> None:
     # Test 1: Basic entries endpoint responds correctly
     response = client.get('/api/entries/?limit=5&offset=0')
     
-    # If we get a 500 error due to database issues, skip the database-dependent tests
-    # but still test the cache clear endpoints which don't depend on BaseX
-    if response.status_code == 500:
-        pytest.skip("BaseX database not properly configured for testing")
-    
     assert response.status_code == 200
     data = response.get_json()
     assert 'entries' in data

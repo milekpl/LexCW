@@ -192,6 +192,16 @@ class Entry(BaseModel):
         else:
             self.custom_fields: Dict[str, Any] = {}
         self.homograph_number: Optional[int] = kwargs.get('homograph_number')
+        
+        # Academic Domains - single string field (separate from semantic domains)
+        academic_domain_raw = kwargs.get('academic_domain', None)
+        if isinstance(academic_domain_raw, str):
+            self.academic_domain: Optional[str] = academic_domain_raw if academic_domain_raw.strip() else None
+        elif academic_domain_raw is None:
+            self.academic_domain: Optional[str] = None
+        else:
+            # Handle non-string values by converting to string
+            self.academic_domain: Optional[str] = str(academic_domain_raw) if academic_domain_raw else None
 
         # Handle senses
         from app.models.sense import Sense
@@ -274,9 +284,8 @@ class Entry(BaseModel):
         Raises:
             ValidationError: If the entry is invalid.
         """
-        from app.services.declarative_validation_engine import DeclarativeValidationEngine
+        from app.services.validation_engine import ValidationEngine
         from flask import current_app, has_app_context
-        import os
         
         # Get project config if available
         project_config = {}
@@ -291,10 +300,8 @@ class Entry(BaseModel):
                 # If config retrieval fails, continue without project config
                 pass
         
-        # Use declarative validation system
-        # Find the validation rules file
-        rules_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'validation_rules_v2.json')
-        engine = DeclarativeValidationEngine(rules_file=rules_file, project_config=project_config)
+        # Use validation engine
+        engine = ValidationEngine(project_config=project_config)
         
         # Convert entry to dict for validation
         entry_data = self.to_dict()
