@@ -80,22 +80,23 @@ class TestPerformanceBenchmarks:
         entries = []
         for i in range(100):  # Create 100 test entries
             entry = Entry(
-                id=f"perf_test_{i:03d}",
+                id_=f"perf_test_{i:03d}",
                 lexical_unit={
                     "en": f"performance_word_{i}",
                     "pl": f"słowo_wydajności_{i}"
                 },
+                grammatical_info="Noun",  # Add entry-level POS to avoid validation errors
                 senses=[
                     Sense(
-                        id=f"perf_sense_{i}_1",
-                        gloss=f"Performance test gloss {i}",
-                        definition=f"Performance test definition {i}",
+                        id_=f"perf_sense_{i}_1",
+                        glosses={"en": f"Performance test gloss {i}"},
+                        definitions={"en": {"text": f"Performance test definition {i}"}},
                         grammatical_info="Noun"
                     ),
                     Sense(
-                        id=f"perf_sense_{i}_2", 
-                        gloss=f"Performance test gloss {i} second",
-                        definition=f"Performance test definition {i} second",
+                        id_=f"perf_sense_{i}_2", 
+                        glosses={"en": f"Performance test gloss {i} second"},
+                        definitions={"en": {"text": f"Performance test definition {i} second"}},
                         grammatical_info="Verb"
                     )
                 ]

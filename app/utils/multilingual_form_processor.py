@@ -292,7 +292,6 @@ def process_entry_form_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
     
     Handles form fields like:
     - lexical_unit.en (multilingual entry text)
-    - academic_domain (entry-level academic domain)
     
     Args:
         form_data: Dictionary containing form field names and values
@@ -317,16 +316,7 @@ def process_entry_form_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
         if form_data['lexical_unit'].strip():
             entry_data['lexical_unit'] = {'en': form_data['lexical_unit'].strip()}
     
-    # Process academic_domain field
-    if 'academic_domain' in form_data:
-        academic_domain = form_data['academic_domain']
-        if isinstance(academic_domain, str):
-            academic_domain = academic_domain.strip()
-            # Convert empty string to None, preserve non-empty strings
-            entry_data['academic_domain'] = academic_domain if academic_domain else None
-        else:
-            # Non-string values, keep as-is
-            entry_data['academic_domain'] = academic_domain
+    # NOTE: academic_domain is now ONLY at sense level, not entry level
     
     logger.debug(f"[ENTRY DEBUG] Processed entry_data: {entry_data}")
     return entry_data
@@ -406,10 +396,10 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                         # Simple field: senses[0][definition] or senses[0].definition
                         field_name = parts[1]
                         logger.debug(f"[SENSES DEBUG] Setting simple field: senses[{sense_index}][{field_name}] = {value}")
-                        # Convert to flattened format for multilingual fields
+                        # Convert to LIFT flat format for multilingual fields: {lang: text}
                         if field_name in ('definition', 'gloss'):
                             if isinstance(value, str):
-                                senses_data[sense_index][field_name] = {'en': {'text': value.strip()}}
+                                senses_data[sense_index][field_name] = {'en': value.strip()}
                             else:
                                 senses_data[sense_index][field_name] = value
                         # Handle list fields (usage_type, domain_type) - multiple selections from form
@@ -447,8 +437,8 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 senses_data[sense_index][field_name] = {}
                             
                             logger.debug(f"[SENSES DEBUG] Setting multilingual field: senses[{sense_index}][{field_name}][{third_part}] = {value}")
-                            # Use flattened format: {lang: {text: value}}
-                            senses_data[sense_index][field_name][third_part] = {'text': value.strip()}
+                            # LIFT flat format: {lang: text} (string values, not nested dicts)
+                            senses_data[sense_index][field_name][third_part] = value.strip()
                     
                     elif len(parts) == 4 and parts[1] == 'examples':
                         # Example field: senses[0][examples][0][text]

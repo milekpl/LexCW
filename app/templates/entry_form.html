@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if entry.id %}Edit Entry: {% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% else %}Add New Entry{% endif %}{% endblock %}
+{% block title %}{% if entry.id %}Edit Entry: {{ entry.lexical_unit.values()|join(', ') }}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% else %}Add New Entry{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
@@ -46,7 +46,7 @@
     <div class="col-md-8">
         <h2>
             {% if entry.id %}
-            <i class="fas fa-edit"></i> Edit Entry: <span class="text-primary">{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}</span>
+            <i class="fas fa-edit"></i> Edit Entry: <span class="text-primary">{{ entry.lexical_unit.values()|join(', ') }}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}</span>
             {% else %}
             <i class="fas fa-plus"></i> Add New Entry
             {% endif %}
@@ -82,7 +82,7 @@
                     <div class="mb-3">
                         <label for="lexical-unit" class="form-label">Lexical Unit <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="lexical-unit" name="lexical_unit" 
-                               value="{% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|join(', ') }}{% else %}{{ entry.lexical_unit }}{% endif %}" required>
+                               value="{{ entry.lexical_unit.values()|join(', ') }}" required>
                         <div class="form-text">The headword as it appears in the dictionary.</div>
                     </div>
 
@@ -152,19 +152,6 @@
                             <option value="">Select morphological type</option>
                         </select>
                     </div>
-
-                    <!-- LIFT Ranges: Academic Domain (entry-level) -->
-                    <div class="mb-3">
-                        <label for="academic-domain" class="form-label">Academic Domain</label>
-                        <select class="form-select dynamic-lift-range" id="academic-domain" name="academic_domain"
-                                data-range-id="academic-domain"
-                                data-selected="{% if entry.academic_domain %}{{ entry.academic_domain }}{% endif %}"
-                                data-hierarchical="true"
-                                data-searchable="true">
-                            <option value="">Select academic domain</option>
-                        </select>
-                        <div class="form-text">Academic or disciplinary domain this entry belongs to.</div>
-                    </div>
                 </div>
             </div>
 
@@ -189,35 +176,25 @@
                             </div>
                         </div>
                         
-                        {% if field_content is mapping %}
-                            <!-- Multilingual custom field -->
-                            <div class="multilingual-forms">
-                                {% for lang, text in field_content.items() %}
-                                <div class="mb-3 language-form" data-language="{{ lang }}">
-                                    <div class="row">
-                                        <div class="col-md-3">
-                                            <label class="form-label">Language</label>
-                                            <input type="text" class="form-control bg-white" value="{{ lang }}" readonly>
-                                        </div>
-                                        <div class="col-md-9">
-                                            <label class="form-label">Content</label>
-                                            <textarea class="form-control" 
-                                                      name="custom_fields[{{ field_type }}][{{ lang }}]" 
-                                                      rows="2">{{ text }}</textarea>
-                                        </div>
+                        <!-- Multilingual custom field (always dict format) -->
+                        <div class="multilingual-forms">
+                            {% for lang, text in field_content.items() %}
+                            <div class="mb-3 language-form" data-language="{{ lang }}">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Language</label>
+                                        <input type="text" class="form-control bg-white" value="{{ lang }}" readonly>
+                                    </div>
+                                    <div class="col-md-9">
+                                        <label class="form-label">Content</label>
+                                        <textarea class="form-control" 
+                                                  name="custom_fields[{{ field_type }}][{{ lang }}]" 
+                                                  rows="2">{{ text }}</textarea>
                                     </div>
                                 </div>
-                                {% endfor %}
                             </div>
-                        {% else %}
-                            <!-- Simple custom field -->
-                            <div class="mb-3">
-                                <label class="form-label">Content</label>
-                                <textarea class="form-control" 
-                                          name="custom_fields[{{ field_type }}]" 
-                                          rows="2">{{ field_content }}</textarea>
-                            </div>
-                        {% endif %}
+                            {% endfor %}
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -260,78 +237,38 @@
                                 </div>
                                 
                                 <div class="multilingual-forms">
-                                    {% if note_content is mapping %}
-                                        <!-- Multilingual note -->
-                                        {% for lang, text in note_content.items() %}
-                                        <div class="mb-3 language-form" data-language="{{ lang }}">
-                                            <div class="row">
-                                                <div class="col-md-3">
-                                                    <label class="form-label">Language</label>
-                                                    <select class="form-select language-select" name="notes.{{ note_type }}.{{ lang }}.lang">
-                                                        {% set project_lang_codes = project_languages|map(attribute=0)|list %}
-                                                        {% if lang not in project_lang_codes %}
-                                                            <option value="{{ lang }}" selected>{{ lang }} (original)</option>
-                                                        {% endif %}
-                                                        {% for code, label in project_languages %}
-                                                            <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-8">
-                                                    <label class="form-label">Note Text</label>
-                                                    <textarea class="form-control note-text" 
-                                                              name="notes.{{ note_type }}.{{ lang }}.text" 
-                                                              rows="2" 
-                                                              placeholder="Enter note text in {{ lang }}">{{ text }}</textarea>
-                                                </div>
-                                                <div class="col-md-1 d-flex align-items-end">
-                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
-                                                            title="Remove language">
-                                                        <i class="fas fa-times"></i>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {% endfor %}
-                                    {% else %}
-                                        <!-- Legacy single text note -->
-                                        {# Default to source language if note is a simple string #}
-                                        {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
-                                        <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
-                                            <div class="row">
-                                                <div class="col-md-3">
-                                                    <label class="form-label">Language</label>
-                                                    <select class="form-select language-select" name="notes.{{ note_type }}.{{ default_lang_code }}.lang">
-                                                        {% for code, label in project_languages %}
-                                                            <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                    
-                                                    {% if default_lang_code not in configured_languages_codes %}
-                                                    <div class="validation-warnings mt-1">
-                                                        <small class="text-warning">
-                                                            <i class="fas fa-exclamation-triangle"></i> 
-                                                            Warning: Language '{{ default_lang_code }}' is not configured for this project.
-                                                        </small>
-                                                    </div>
+                                    <!-- Multilingual note (always dict format) -->
+                                    {% for lang, text in note_content.items() %}
+                                    <div class="mb-3 language-form" data-language="{{ lang }}">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Language</label>
+                                                <select class="form-select language-select" name="notes.{{ note_type }}.{{ lang }}.lang">
+                                                    {% set project_lang_codes = project_languages|map(attribute=0)|list %}
+                                                    {% if lang not in project_lang_codes %}
+                                                        <option value="{{ lang }}" selected>{{ lang }} (original)</option>
                                                     {% endif %}
-                                                </div>
-                                                <div class="col-md-8">
-                                                    <label class="form-label">Note Text</label>
-                                                    <textarea class="form-control note-text" 
-                                                              name="notes.{{ note_type }}.{{ default_lang_code }}.text"
-                                                              rows="2" 
-                                                              placeholder="Enter note text in {{ default_lang_code }}">{{ note_content }}</textarea>
-                                                </div>
-                                                <div class="col-md-1 d-flex align-items-end">
-                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
-                                                            title="Remove language">
-                                                        <i class="fas fa-times"></i>
-                                                    </button>
-                                                </div>
+                                                    {% for code, label in project_languages %}
+                                                        <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <label class="form-label">Note Text</label>
+                                                <textarea class="form-control note-text" 
+                                                          name="notes.{{ note_type }}.{{ lang }}.text" 
+                                                          rows="2" 
+                                                          placeholder="Enter note text in {{ lang }}">{{ text }}</textarea>
+                                            </div>
+                                            <div class="col-md-1 d-flex align-items-end">
+                                                <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
+                                                        title="Remove language">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
                                             </div>
                                         </div>
-                                    {% endif %}
+                                    </div>
+                                    {% endfor %}
                                 </div>
                                 
                                 <div class="mt-3">
@@ -900,7 +837,6 @@
                                             <label class="form-label">Definition <span class="text-danger">*</span></label>
                                             <div class="multilingual-forms definition-forms">
                                                 {% set project_lang_codes = project_languages|map(attribute=0)|list %}
-                                                {% if sense.definitions is mapping %}
                                                 {% set data_langs = sense.definitions.keys()|list %}
                                                 {% set all_langs = (project_lang_codes + data_langs)|unique %}
                                                 {% for lang in all_langs %}
@@ -910,8 +846,8 @@
                                                             <div class="col-md-3">
                                                                 <label class="form-label">Language</label>
                                                                 <select class="form-select language-select"
+                                                                        name="senses[{{ loop.index0 }}].definition.{{ lang }}.lang"
                                                                         data-field-name="senses[{{ loop.index0 }}].definition.{{ lang }}">
-                                                                {# Language select without name attribute - language code is already in the field path #}
                                                                     {% if lang not in project_lang_codes %}
                                                                         <option value="{{ lang }}" selected>{{ lang }} (original)</option>
                                                                     {% endif %}
@@ -939,38 +875,6 @@
                                                         </div>
                                                     </div>
                                                 {% endfor %}
-                                                {% else %}
-                                                    {# Default to source language if definition is a simple string #}
-                                                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
-                                                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
-                                                        <div class="row">
-                                                            <div class="col-md-3">
-                                                                <label class="form-label">Language</label>
-                                                                <select class="form-select language-select" 
-                                                                        data-field-name="senses[{{ loop.index0 }}].definition.{{ default_lang_code }}">
-                                                                {# Language select without name attribute - language code is already in the field path #}
-                                                                    {% if default_lang_code not in project_lang_codes %}
-                                                                        <option value="{{ default_lang_code }}" selected>{{ default_lang_code }} (original)</option>
-                                                                    {% endif %}
-                                                                    {% for code, label in project_languages %}
-                                                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
-                                                                    {% endfor %}
-                                                                </select>
-                                                            </div>
-                                                            <div class="col-md-8">
-                                                                <label class="form-label">Definition Text</label>
-                                                                <textarea class="form-control definition-text" 
-                                                                          name="senses[{{ loop.index0 }}].definition.{{ default_lang_code }}.text"
-                                                                          rows="2" 
-                                                                          required
-                                                                          placeholder="Enter definition in {{ default_lang_code }}">{{ sense.definition }}</textarea>
-                                                            </div>
-                                                            <div class="col-md-1">
-                                                                <!-- No remove button for primary language -->
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                {% endif %}
                                             </div>
                                             <div class="mt-2">
                                                 <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn" 
@@ -984,16 +888,14 @@
                                         <div class="mb-3">
                                             <label class="form-label">Gloss</label>
                                             <div class="multilingual-forms gloss-forms">
-                                                {% if sense.gloss is mapping %}
-                                                {% for lang, gloss_val in sense.gloss.items() %}
-                                                {% set text = gloss_val['text'] if gloss_val is mapping and 'text' in gloss_val else gloss_val %}
+                                                {% for lang, gloss_text in sense.gloss.items() %}
                                                 <div class="mb-3 language-form" data-language="{{ lang }}">
                                                     <div class="row">
                                                         <div class="col-md-3">
                                                             <label class="form-label">Language</label>
                                                             <select class="form-select language-select"
+                                                                    name="senses[{{ loop.index0 }}].gloss.{{ lang }}.lang"
                                                                     data-field-name="senses[{{ loop.index0 }}].gloss.{{ lang }}">
-                                                                {# Language select without name attribute #}
                                                                 {% set project_lang_codes = project_languages|map(attribute=0)|list %}
                                                                 {% if lang not in project_lang_codes %}
                                                                     <option value="{{ lang }}" selected>{{ lang }} (original)</option>
@@ -1007,7 +909,7 @@
                                                             <label class="form-label">Gloss Text</label>
                                                             <input type="text" class="form-control gloss-text" 
                                                                    name="senses[{{ loop.index0 }}].gloss.{{ lang }}.text" 
-                                                                   value="{{ text }}"
+                                                                   value="{{ gloss_text }}"
                                                                    placeholder="Enter gloss in {{ lang }}">
                                                         </div>
                                                         <div class="col-md-1 d-flex align-items-end">
@@ -1021,34 +923,6 @@
                                                     </div>
                                                 </div>
                                                     {% endfor %}
-                                                {% else %}
-                                                    {# Default to target language if gloss is a simple string #}
-                                                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
-                                                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
-                                                        <div class="row">
-                                                            <div class="col-md-3">
-                                                                <label class="form-label">Language</label>
-                                                                <select class="form-select language-select" 
-                                                                        data-field-name="senses[{{ loop.index0 }}].gloss.{{ default_lang_code }}">
-                                                                {# Language select without name attribute #}
-                                                                    {% for code, label in project_languages %}
-                                                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
-                                                                    {% endfor %}
-                                                                </select>
-                                                            </div>
-                                                            <div class="col-md-8">
-                                                                <label class="form-label">Gloss Text</label>
-                                                                <input type="text" class="form-control gloss-text" 
-                                                                       name="senses[{{ loop.index0 }}].gloss.{{ default_lang_code }}.text"
-                                                                       value="{{ sense.gloss }}"
-                                                                       placeholder="Enter gloss in {{ default_lang_code }}">
-                                                            </div>
-                                                            <div class="col-md-1">
-                                                                <!-- No remove button for primary language -->
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                {% endif %}
                                             </div>
                                             <div class="mt-2">
                                                 <button type="button" class="btn btn-sm btn-outline-primary add-gloss-language-btn" 
@@ -1199,8 +1073,8 @@
                                                     <div class="col-md-3">
                                                         <label class="form-label">Language</label>
                                                         <select class="form-select language-select" 
+                                                                name="senses[0].definition.{{ default_lang_code }}.lang"
                                                                 data-field-name="senses[0].definition.{{ default_lang_code }}">
-                                                        {# Language select without name attribute #}
                                                             {% set project_lang_codes = project_languages|map(attribute=0)|list %}
                                                             {% if default_lang_code not in project_lang_codes %}
                                                                 <option value="{{ default_lang_code }}" selected>{{ default_lang_code }} (original)</option>
@@ -1242,8 +1116,8 @@
                                                     <div class="col-md-3">
                                                         <label class="form-label">Language</label>
                                                         <select class="form-select language-select" 
+                                                                name="senses[0].gloss.{{ default_lang_code }}.lang"
                                                                 data-field-name="senses[0].gloss.{{ default_lang_code }}">
-                                                        {# Language select without name attribute #}
                                                             {% for code, label in project_languages %}
                                                                 <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                                             {% endfor %}
@@ -1455,8 +1329,8 @@
                             <div class="col-md-3">
                                 <label class="form-label">Language</label>
                                 <select class="form-select language-select" 
+                                        name="senses[INDEX].definition.{{ default_lang_code }}.lang"
                                         data-field-name="senses[INDEX].definition.{{ default_lang_code }}">
-                                {# Language select without name attribute #}
                                     {% set project_lang_codes = project_languages|map(attribute=0)|list %}
                                     {% if default_lang_code not in project_lang_codes %}
                                         <option value="{{ default_lang_code }}" selected>{{ default_lang_code }} (original)</option>
@@ -1498,8 +1372,8 @@
                             <div class="col-md-3">
                                 <label class="form-label">Language</label>
                                 <select class="form-select language-select" 
+                                        name="senses[INDEX].gloss.{{ default_lang_code }}.lang"
                                         data-field-name="senses[INDEX].gloss.{{ default_lang_code }}">
-                                {# Language select without name attribute #}
                                     {% for code, label in project_languages %}
                                         <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                     {% endfor %}

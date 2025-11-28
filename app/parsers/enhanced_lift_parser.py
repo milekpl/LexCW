@@ -181,12 +181,14 @@ class EnhancedLiftParser:
             sense = self._parse_sense(sense_elem)
             senses.append(sense)
         
-        # Parse pronunciations
-        pronunciations = []
+        # Parse pronunciations - build dict {lang: text}
+        pronunciations = {}
         pronunciation_elements = self._find_elements(entry_elem, 'pronunciation')
         for pron_elem in pronunciation_elements:
             pronunciation = self._parse_pronunciation(pron_elem)
-            pronunciations.append(pronunciation)
+            # Merge the forms dict into pronunciations
+            if isinstance(pronunciation, dict) and 'forms' in pronunciation:
+                pronunciations.update(pronunciation['forms'])
         
         # Parse notes
         notes = []

@@ -15,7 +15,7 @@ from app.utils.multilingual_form_processor import merge_form_data_with_entry_dat
 
 # Test data that simulates the real form submission
 form_data = {
-    'lexical_unit': 'Protestantism',
+    'lexical_unit': {'en': 'Protestantism'},
     'grammatical_info.part_of_speech': 'noun',  # This is what causes the issue
     'senses[0].definition': 'A form of Christianity',
     'senses[0].grammatical_info.part_of_speech': 'noun'  # Sense-level grammatical info

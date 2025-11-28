@@ -73,6 +73,13 @@
                                 </div>
                             {% endif %}
                             
+                            {% if sense.academic_domain %}
+                                <div class="ms-4 mb-2">
+                                    <span class="text-muted">Academic domain:</span>
+                                    <span class="badge bg-success text-white me-1">{{ sense.academic_domain }}</span>
+                                </div>
+                            {% endif %}
+                            
                             {% if sense.notes %}
                                 <div class="ms-4 mb-2 note-box">
                                     <span class="text-muted">Notes:</span>

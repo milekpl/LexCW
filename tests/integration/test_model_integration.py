@@ -92,7 +92,7 @@ def test_sense_validation_integration():
     try:
         valid_sense = Sense(
             id_='sense_1',
-            definition='A person'
+            definition={'en': 'A person'}
         )
         result = valid_sense.validate()
         print("✓ Valid sense passed validation")
@@ -105,7 +105,7 @@ def test_sense_validation_integration():
     try:
         invalid_sense = Sense(
             id_='',  # Empty ID should fail validation
-            definition='A person'
+            definition={'en': 'A person'}
         )
         invalid_sense.validate()
         print("✗ Invalid sense (empty ID) passed validation when it should have failed")

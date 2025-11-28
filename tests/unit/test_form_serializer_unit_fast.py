@@ -37,13 +37,13 @@ class TestFormSerializerUnit:
     @pytest.mark.unit
     def test_simple_field_serialization(self) -> None:
         """Test that simple form data structure works."""
-        form_data: Dict[str, str] = {
-            'lexical_unit': 'test',
+        form_data: Dict[str, Any] = {
+            'lexical_unit': {'en': 'test'},
             'grammatical_info': 'noun',
-            'senses[0].definition': 'a test word'
+            'senses[0].definition': {'en': {'text': 'a test word'}}
         }
         
-        assert form_data['lexical_unit'] == 'test'
+        assert form_data['lexical_unit'] == {'en': 'test'}
         assert 'senses[0].definition' in form_data
     
     @pytest.mark.unit
@@ -81,15 +81,15 @@ class TestFormSerializerUnit:
     @pytest.mark.unit
     def test_dictionary_entry_scenario(self) -> None:
         """Test typical dictionary entry data structure."""
-        form_data: Dict[str, str] = {
+        form_data: Dict[str, Any] = {
             'id': 'entry-1',
-            'lexical_unit': 'cat',
+            'lexical_unit': {'en': 'cat'},
             'grammatical_info': 'noun',
-            'senses[0].definition': 'a small carnivorous mammal',
-            'senses[0].examples[0].form': 'The cat sat on the mat'
+            'senses[0].definition': {'en': {'text': 'a small carnivorous mammal'}},
+            'senses[0].examples[0].form': {'en': 'The cat sat on the mat'}
         }
         
-        assert form_data['lexical_unit'] == 'cat'
+        assert form_data['lexical_unit'] == {'en': 'cat'}
         assert 'senses[0].definition' in form_data
         assert 'senses[0].examples[0].form' in form_data
     
@@ -97,12 +97,12 @@ class TestFormSerializerUnit:
     def test_empty_value_handling(self) -> None:
         """Test handling of empty values."""
         form_data: Dict[str, Any] = {
-            'lexical_unit': '',
+            'lexical_unit': {'en': ''},
             'optional_field': None,
             'required_field': 'value'
         }
         
-        assert form_data['lexical_unit'] == ''
+        assert form_data['lexical_unit'] == {'en': ''}
         assert form_data['optional_field'] is None
     
     @pytest.mark.unit
@@ -118,23 +118,23 @@ class TestFormSerializerUnit:
     @pytest.mark.unit
     def test_form_validation_success(self) -> None:
         """Test form validation integration."""
-        form_data: Dict[str, str] = {
-            'lexical_unit': 'valid_word',
-            'senses[0].definition': 'A valid definition'
+        form_data: Dict[str, Any] = {
+            'lexical_unit': {'en': 'valid_word'},
+            'senses[0].definition': {'en': {'text': 'A valid definition'}}
         }
         
         assert len(form_data['lexical_unit']) > 0
-        assert len(form_data['senses[0].definition']) > 0
+        assert 'en' in form_data['senses[0].definition']
     
     @pytest.mark.unit
     def test_form_validation_warnings(self) -> None:
         """Test form validation warning scenarios."""
-        form_data: Dict[str, str] = {
-            'lexical_unit': 'word',
-            'senses[0].definition': 'short'  # potentially warning-worthy
+        form_data: Dict[str, Any] = {
+            'lexical_unit': {'en': 'word'},
+            'senses[0].definition': {'en': {'text': 'short'}}  # potentially warning-worthy
         }
         
-        assert len(form_data['senses[0].definition']) < 10  # short definition
+        assert len(form_data['senses[0].definition']['en']['text']) < 10  # short definition
     
     @pytest.mark.unit
     def test_array_gap_detection(self) -> None:
@@ -154,15 +154,15 @@ class TestFormSerializerUnit:
     @pytest.mark.unit
     def test_unicode_support(self) -> None:
         """Test Unicode character handling."""
-        form_data: Dict[str, str] = {
-            'lexical_unit': 'café',
-            'senses[0].definition': 'słowo polskie',
-            'pronunciation': 'kæˈfeɪ'  # IPA characters
+        form_data: Dict[str, Any] = {
+            'lexical_unit': {'en': 'café'},
+            'senses[0].definition': {'pl': {'text': 'słowo polskie'}},
+            'pronunciation': {'en': 'kæˈfeɪ'}  # IPA characters
         }
         
-        assert 'é' in form_data['lexical_unit']
-        assert 'ł' in form_data['senses[0].definition']
-        assert 'æ' in form_data['pronunciation']
+        assert 'é' in form_data['lexical_unit']['en']
+        assert 'ł' in form_data['senses[0].definition']['pl']['text']
+        assert 'æ' in form_data['pronunciation']['en']
     
     @pytest.mark.performance
     def test_large_form_structure(self) -> None:

@@ -75,7 +75,7 @@ class TestHighImpactCoverage:
             id="full_entry",
             lexical_unit={"en": "test", "pl": "test"},
             senses=[sense],
-            pronunciations=[],
+            pronunciations={},
             etymologies={},
             notes={},
             custom_fields={}

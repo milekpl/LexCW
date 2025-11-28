@@ -20,7 +20,7 @@ def test_grammatical_info_dot_notation_flattening():
     
     # Test data with dot notation
     form_data = {
-        'lexical_unit': 'test',
+        'lexical_unit': {'en': 'test'},
         'grammatical_info.part_of_speech': 'noun',
     }
     
@@ -50,7 +50,7 @@ def test_entry_creation_with_dot_notation_grammatical_info():
     
     # Simulate real form data with dot notation
     form_data = {
-        'lexical_unit': 'Protestantism',
+        'lexical_unit': {'en': 'Protestantism'},
         'grammatical_info.part_of_speech': 'noun',
         'senses[0].definition': 'A form of Christianity',
         'senses[0].grammatical_info.part_of_speech': 'noun'

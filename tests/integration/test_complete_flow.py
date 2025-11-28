@@ -21,7 +21,7 @@ def test_complete_entry_flow(app: Flask):
     
     # Simulate realistic form data (as it would come from the frontend)
     form_data = {
-        'lexical_unit': 'testword',
+        'lexical_unit': {'en': 'testword'},
         'senses[0].definition': 'Test definition',
         'senses[0].gloss': 'Test gloss',
         'morph_type': 'stem'

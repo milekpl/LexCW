@@ -225,7 +225,8 @@ class LIFTParser:
                         entry.validate()
                     entries.append(entry)
                 except ValidationError as e:
-                    self.logger.warning(f"Skipping invalid entry: {e}")
+                    entry_id = entry_elem.get('id', 'unknown')
+                    self.logger.warning(f"Skipping invalid entry {entry_id} during list parsing - ValidationError: {e}")
                     if self.validate:
                         raise
                 except Exception as e:
@@ -450,9 +451,12 @@ class LIFTParser:
                     form = {lang or '': text_elem.text}
                     variants.append(Variant(form=form))
         
-        # Parse grammatical info
+        # Parse grammatical info - only direct child of entry, not from senses
         grammatical_info = None
-        gram_info_elem = entry_elem.find('.//lift:grammatical-info', self.NSMAP)
+        gram_info_elem = entry_elem.find('lift:grammatical-info', self.NSMAP)
+        if gram_info_elem is None:
+            # Try without namespace
+            gram_info_elem = entry_elem.find('grammatical-info')
         if gram_info_elem is not None:
             grammatical_info = gram_info_elem.get('value')
         
@@ -537,9 +541,10 @@ class LIFTParser:
             senses.append(sense)  # Keep as Sense object, don't convert to dict
         
         # Parse entry-level traits (like morph-type, academic-domain)
+        # Use direct children only, not descendant search (.// would include sense-level traits)
         morph_type = None
         academic_domain = None
-        for trait_elem in self._find_elements(entry_elem, './/lift:trait', './/trait'):
+        for trait_elem in self._find_elements(entry_elem, 'lift:trait', 'trait'):
             trait_name = trait_elem.get('name')
             trait_value = trait_elem.get('value')
             if trait_name == 'morph-type' and trait_value:
@@ -624,9 +629,10 @@ class LIFTParser:
         if gram_info_elem is not None:
             grammatical_info = gram_info_elem.get('value')
         
-        # Parse sense-level traits (usage-type, domain-type)
+        # Parse sense-level traits (usage-type, domain-type, academic-domain)
         usage_type = []
         domain_type = []
+        academic_domain = None
         for trait_elem in self._find_elements(sense_elem, './/lift:trait', './/trait'):
             trait_name = trait_elem.get('name')
             trait_value = trait_elem.get('value')
@@ -634,6 +640,8 @@ class LIFTParser:
                 usage_type.append(trait_value)
             elif trait_name == 'domain-type' and trait_value:
                 domain_type.append(trait_value)
+            elif trait_name == 'academic-domain' and trait_value:
+                academic_domain = trait_value
         
         # Parse notes
         notes = {}
@@ -679,6 +687,7 @@ class LIFTParser:
             grammatical_info=grammatical_info,
             usage_type=usage_type,
             domain_type=domain_type,
+            academic_domain=academic_domain,
             notes=notes
         )
         
@@ -878,6 +887,12 @@ class LIFTParser:
             trait_elem.set('name', 'morph-type')
             trait_elem.set('value', entry.morph_type)
         
+        # Add academic-domain trait if present
+        if hasattr(entry, 'academic_domain') and entry.academic_domain:
+            trait_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}trait')
+            trait_elem.set('name', 'academic-domain')
+            trait_elem.set('value', entry.academic_domain)
+        
         # Add relations
         for relation in entry.relations:
             relation_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}relation')
@@ -1006,6 +1021,12 @@ class LIFTParser:
                     trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
                     trait_elem.set('name', 'domain-type')
                     trait_elem.set('value', domain_value)
+            
+            # Add sense-level academic-domain trait if present
+            if hasattr(sense, 'academic_domain') and sense.academic_domain:
+                trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
+                trait_elem.set('name', 'academic-domain')
+                trait_elem.set('value', sense.academic_domain)
             
             # Add relations
             for relation in sense.relations:

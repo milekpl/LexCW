@@ -20,7 +20,7 @@ class TestMultilingualNotesFormProcessing:
     def test_process_multilingual_notes_form_data(self):
         """Test processing multilingual notes data from form submission."""
         form_data = {
-            'lexical_unit': 'mukwa',
+            'lexical_unit': {'en': 'mukwa'},
             'notes[general][en][text]': 'This is an English general note',
             'notes[general][pt][text]': 'Esta é uma nota geral em português',
             'notes[general][pl][text]': 'Ichi ndi chida chachikulu mu Chisena',
