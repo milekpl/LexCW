@@ -107,7 +107,7 @@ class TestMultilingualFieldEditing:
                     "pt": {"text": "Usado em contextos formais"}
                 }
             },
-            senses=[{"id": "sense1", "definitions": {"en": {"text": "test definition"}}}])
+            senses=[{"id": "sense1", " 1": {"en": "test definition"}}])
         
         entry_dict = entry.to_dict()
         
@@ -190,7 +190,7 @@ class TestMultilingualFieldEditing:
                     "pt": {"text": "Esta é uma nota em português"}
                 }
             },
-            senses=[{"id": "sense1", "definitions": {"en": {"text": "test definition"}}}])
+            senses=[{"id": "sense1", " 1": {"en": "test definition"}}])
         
         # For now, we'll just validate that the entry has the correct structure
         # The UI integration will be tested separately

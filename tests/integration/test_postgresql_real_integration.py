@@ -43,7 +43,7 @@ class TestPostgreSQLRealIntegration:
             connector.fetch_all("SELECT 1")
             return connector
         except (DatabaseConnectionError, DatabaseError) as e:
-            pytest.skip(f"PostgreSQL not available for integration testing: {e}")
+            raise
     
     @pytest.fixture(scope="function")
     def clean_test_tables(self, postgres_connector: PostgreSQLConnector):

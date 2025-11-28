@@ -20,13 +20,11 @@ class TestAppConsistency:
     
     @pytest.mark.integration
     def test_consistent_app_title_in_templates(self, app: Flask):
-        """Test that all templates use consistent app title 'Lexicographic Curation Workbench'."""
+        """Verify the landing page renders the standardized 'Lexicographic Curation Workbench' title."""
         with app.test_client() as client:
-            # Test main page title
             response = client.get('/')
             assert response.status_code == 200
             assert b'Lexicographic Curation Workbench' in response.data
-            assert b'Lexicographic Curation Workbench' not in response.data
             
     @pytest.mark.integration
     def test_corpus_management_single_route(self, app: Flask):

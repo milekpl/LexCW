@@ -6,19 +6,18 @@ Test script to verify the architectural constraint: variant entries must not hav
 import sys
 import os
 import pytest
+from flask import Flask
 
 sys.path.insert(0, os.path.abspath('.'))
 
-from app import create_app
 from app.services.dictionary_service import DictionaryService
 
 @pytest.mark.integration
-def test_variant_entries_have_no_senses():
+def test_variant_entries_have_no_senses(app: Flask, dict_service_with_db: DictionaryService):
     """Test that variant entries do not have senses."""
-    app = create_app()
     
     with app.app_context():
-        dict_service = app.injector.get(DictionaryService)
+        dict_service = dict_service_with_db
         
         # Find all entries that have variant relations (outgoing)
         # Use search with empty query to get all entries

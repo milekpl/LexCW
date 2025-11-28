@@ -1,8 +1,16 @@
+"""
+Test worksets functionality.
+
+NOTE: These tests require PostgreSQL to be configured.
+Tests will be skipped if PostgreSQL is not available.
+"""
+
 import pytest
 from flask import Flask
 from app.models.workset import Workset, WorksetQuery, QueryFilter
 
-def test_create_workset(client):
+
+def test_create_workset(client, postgres_available):
     """Test creating a new workset."""
     query = WorksetQuery(filters=[QueryFilter(field='lexical_unit', operator='starts_with', value='test')])
     response = client.post('/api/worksets', json={

@@ -96,10 +96,8 @@ class TestEntryFormLoading:
         response = client.get(f'/entries/{test_entry}/edit')
         assert response.status_code == 200
         content = response.get_data(as_text=True)
-        expected_selects = [
-            'semantic_domain',
-            'usage_type',
-            'status'
-        ]
-        for select_name in expected_selects:
-            assert f'name="{select_name}"' in content or f'id="{select_name}"' in content
+        # Check for entry-level status field
+        assert 'name="status"' in content or 'id="status"' in content
+        # Check for sense-level domain_type (semantic domain) and usage_type fields
+        assert 'name="senses[0].domain_type"' in content or '.domain_type' in content
+        assert 'name="senses[0].usage_type"' in content or '.usage_type' in content

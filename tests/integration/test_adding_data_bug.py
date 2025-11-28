@@ -11,7 +11,7 @@ User scenario:
 """
 
 import pytest
-from app import create_app
+from flask import Flask
 from app.models.entry import Entry
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 
@@ -21,15 +21,8 @@ from app.utils.multilingual_form_processor import merge_form_data_with_entry_dat
 class TestAddingDataToEmptyFields:
     """Test the specific case of adding data to previously empty fields."""
 
-    @pytest.fixture
-    def app(self):
-        """Create test app instance."""
-        app = create_app()
-        app.config['TESTING'] = True
-        return app
-
     @pytest.mark.integration
-    def test_adding_definition_to_empty_field(self, app):
+    def test_adding_definition_to_empty_field(self, app: Flask):
         """
         CRITICAL TEST: Adding data to previously empty fields should work.
         

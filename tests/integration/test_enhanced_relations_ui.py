@@ -32,10 +32,6 @@ def test_relation_search_returns_entries_with_senses(client: FlaskClient) -> Non
             test_entry = entry
             break
 
-    # If no test entries found, skip this test as the database may not be set up
-    if test_entry is None:
-        pytest.skip("No test entries found in database for relation search test")
-
     # Verify the entry has the expected structure for relations
     assert "id" in test_entry
     # Entries may or may not have senses depending on the dictionary data

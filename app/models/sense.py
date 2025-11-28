@@ -26,17 +26,15 @@ class Sense(BaseModel):
         """
         Initialize a sense.
         
-        BREAKING CHANGE: Only flattened format {lang: {text: value}} is supported.
-        Nested array format [{lang: X, text: Y}] is NOT supported.
-        String values are NOT auto-converted.
+        LIFT format: flat structure {lang: text} for glosses and definitions.
         
         Args:
             id_: Unique identifier for the sense.
             **kwargs: Additional attributes to set on the sense.
         """
-        # Initialize attributes - FLATTENED FORMAT ONLY
-        self.glosses: dict[str, dict[str, str]] = kwargs.pop('glosses', {})
-        self.definitions: dict[str, dict[str, str]] = kwargs.pop('definitions', {})
+        # Initialize attributes - LIFT FLAT FORMAT {lang: text}
+        self.glosses: dict[str, str] = kwargs.pop('glosses', {})
+        self.definitions: dict[str, str] = kwargs.pop('definitions', {})
         self.grammatical_info = kwargs.pop('grammatical_info', None)
         self.examples = kwargs.pop('examples', [])
         self.relations = kwargs.pop('relations', [])
@@ -64,18 +62,37 @@ class Sense(BaseModel):
         else:
             self.domain_type: list[str] = []
 
-        # Support 'gloss' and 'definition' as aliases but REQUIRE flattened format
+        # Academic Domains - single string field (separate from semantic domains)
+        academic_domain_value = kwargs.pop('academic_domain', None)
+        if isinstance(academic_domain_value, str):
+            self.academic_domain: Optional[str] = academic_domain_value if academic_domain_value.strip() else None
+        elif academic_domain_value is None:
+            self.academic_domain: Optional[str] = None
+        else:
+            # Handle non-string values by converting to string
+            self.academic_domain: Optional[str] = str(academic_domain_value) if academic_domain_value else None
+
+        # Support 'gloss' and 'definition' as aliases - LIFT flat format {lang: text}
+        # Accept strings for backward compatibility and auto-convert to default language
         if 'gloss' in kwargs:
             gloss_value = kwargs.pop('gloss')
-            if not isinstance(gloss_value, dict):
-                raise ValueError(f"Sense 'gloss' must be a dict in flattened format {{lang: {{text: value}}}}, got {type(gloss_value)}")
-            self.glosses = gloss_value
+            if isinstance(gloss_value, str):
+                # Auto-convert string to LIFT flat format with default language
+                self.glosses = {'en': gloss_value} if gloss_value else {}
+            elif isinstance(gloss_value, dict):
+                self.glosses = gloss_value
+            else:
+                raise ValueError(f"Sense 'gloss' must be a string or dict in LIFT flat format {{lang: text}}, got {type(gloss_value)}")
 
         if 'definition' in kwargs:
             def_value = kwargs.pop('definition')
-            if not isinstance(def_value, dict):
-                raise ValueError(f"Sense 'definition' must be a dict in flattened format {{lang: {{text: value}}}}, got {type(def_value)}")
-            self.definitions = def_value
+            if isinstance(def_value, str):
+                # Auto-convert string to LIFT flat format with default language
+                self.definitions = {'en': def_value} if def_value else {}
+            elif isinstance(def_value, dict):
+                self.definitions = def_value
+            else:
+                raise ValueError(f"Sense 'definition' must be a string or dict in LIFT flat format {{lang: text}}, got {type(def_value)}")
 
         # Validate format - all values must be dicts with 'text' key
         if not isinstance(self.glosses, dict):
@@ -101,12 +118,13 @@ class Sense(BaseModel):
         from app.services.validation_engine import ValidationEngine
 
         # Check for at least one non-empty gloss or definition
+        # LIFT flat format: values are strings, not dicts
         has_nonempty_gloss = any(
-            isinstance(val, dict) and val.get("text", "").strip()
+            isinstance(val, str) and val.strip()
             for val in self.glosses.values()
         )
         has_nonempty_definition = any(
-            isinstance(val, dict) and val.get("text", "").strip()
+            isinstance(val, str) and val.strip()
             for val in self.definitions.values()
         )
         if not (has_nonempty_gloss or has_nonempty_definition):
@@ -184,28 +202,29 @@ class Sense(BaseModel):
     
     def add_definition(self, language: str, text: str) -> None:
         """
-        Add a definition to the sense in flattened format.
+        Add a definition to the sense in LIFT flat format.
         Args:
             language: Language code (e.g., 'en', 'pl').
             text: Definition text.
         """
-        self.definitions[language] = {"text": text}
+        self.definitions[language] = text
     
     def add_gloss(self, language: str, text: str) -> None:
         """
-        Add a gloss to the sense in flattened format.
+        Add a gloss to the sense in LIFT flat format.
         Args:
             language: Language code (e.g., 'en', 'pl').
             text: Gloss text.
         """
-        self.glosses[language] = {"text": text}
+        self.glosses[language] = text
     
     @property
-    def definition(self) -> dict[str, dict[str, str]]:
+    def definition(self) -> dict[str, str]:
         """
         Get the full multilingual definition dict for display or serialization.
+        LIFT flat format: {lang: text}
         Returns:
-            The full definitions dict (lang -> {text: ...}).
+            The full definitions dict (lang -> text).
         """
         return self.definitions
 
@@ -220,18 +239,20 @@ class Sense(BaseModel):
             self.definitions = value
     
     @property
-    def gloss(self) -> dict[str, dict[str, str]]:
+    def gloss(self) -> dict[str, str]:
         """
         Get the full multilingual gloss dict for display or serialization.
+        LIFT flat format: {lang: text}
         Returns:
-            The full glosses dict (lang -> {text: ...}).
+            The full glosses dict (lang -> text).
         """
         return self.glosses
 
     @gloss.setter
-    def gloss(self, value: dict[str, dict[str, str]]) -> None:
+    def gloss(self, value: dict[str, str]) -> None:
         """
         Set the full multilingual glosses dict.
+        LIFT flat format: {lang: text}
         Args:
             value: Dict of glosses by language.
         """
@@ -241,6 +262,7 @@ class Sense(BaseModel):
     def get_definition(self, lang: Optional[str] = None) -> str:
         """
         Get the definition in the specified language.
+        LIFT flat format: values are strings directly.
         
         Args:
             lang: Language code to retrieve. If None, returns the default.
@@ -249,17 +271,16 @@ class Sense(BaseModel):
             The definition text in the specified language, or empty string if not found.
         """
         if lang:
-            val = self.definitions.get(lang)
-            if isinstance(val, dict):
-                return val.get("text", "")
-            elif isinstance(val, str):
-                return val
-            return ""
-        return self.definition
+            return self.definitions.get(lang, '')
+        # Return first available definition or call property
+        if self.definitions:
+            return next(iter(self.definitions.values()), '')
+        return ''
     
     def get_gloss(self, lang: Optional[str] = None) -> str:
         """
         Get the gloss in the specified language.
+        LIFT flat format: values are strings directly.
         
         Args:
             lang: Language code to retrieve. If None, returns the default.
@@ -268,13 +289,11 @@ class Sense(BaseModel):
             The gloss text in the specified language, or empty string if not found.
         """
         if lang:
-            val = self.glosses.get(lang)
-            if isinstance(val, dict):
-                return val.get("text", "")
-            elif isinstance(val, str):
-                return val
-            return ""
-        return self.gloss
+            return self.glosses.get(lang, '')
+        # Return first available gloss or call property
+        if self.glosses:
+            return next(iter(self.glosses.values()), '')
+        return ''
     
     def get_available_definition_languages(self) -> List[str]:
         """

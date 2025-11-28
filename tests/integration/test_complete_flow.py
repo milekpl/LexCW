@@ -6,16 +6,16 @@ Test the complete entry creation flow with realistic form data.
 import sys
 import os
 import pytest
+from flask import Flask
 
 sys.path.insert(0, os.path.abspath('.'))
 
-from app import create_app
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 from app.models.entry import Entry
 from app.services.validation_engine import ValidationEngine
 
 @pytest.mark.integration
-def test_complete_entry_flow():
+def test_complete_entry_flow(app: Flask):
     """Test the complete entry creation flow as it happens in the view."""
     print("=== Testing Complete Entry Creation Flow ===")
     
@@ -44,7 +44,6 @@ def test_complete_entry_flow():
     # Step 3: Validate entry (as done in create_entry in dictionary service)
     print(f"4. Running entry validation...")
     
-    app = create_app()
     with app.app_context():
         try:
             validator = ValidationEngine()

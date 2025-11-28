@@ -14,6 +14,10 @@ from typing import Generator
 import threading
 import time
 from urllib.parse import urlparse
+from dotenv import load_dotenv
+
+# Load environment variables from .env file BEFORE any imports
+load_dotenv()
 
 # Add parent directory to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -74,14 +78,6 @@ def sample_lift_files() -> dict[str, str]:
 @pytest.fixture(scope="function")
 def basex_test_connector(basex_available: bool, test_db_name: str, sample_lift_files: dict[str, str]):
     """Create BaseX connector with isolated test database loaded with sample LIFT files."""
-    if not basex_available:
-        pytest.skip("BaseX server not available")
-    
-    # Verify sample files exist
-    if not os.path.exists(sample_lift_files['lift']):
-        pytest.skip(f"Sample LIFT file not found: {sample_lift_files['lift']}")
-    if not os.path.exists(sample_lift_files['ranges']):
-        pytest.skip(f"Sample LIFT ranges file not found: {sample_lift_files['ranges']}")
     
     # First create connector without database to create the database
     connector = BaseXConnector(
@@ -246,7 +242,7 @@ def basex_test_connector(basex_available: bool, test_db_name: str, sample_lift_f
         
     except Exception as e:
         logger.error(f"Failed to setup BaseX test connector: {e}")
-        pytest.skip(f"Could not setup BaseX connection: {e}")
+        raise
     finally:
         # Cleanup: drop test database and disconnect
         try:
@@ -321,6 +317,10 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     from app.views import workbench_bp
     app.register_blueprint(workbench_bp)
     
+    # Register the settings routes blueprint
+    from app.routes.settings_routes import settings_bp
+    app.register_blueprint(settings_bp)
+    
     # Set up dependency injection for the test app
     from injector import Injector, singleton
     from app.database.basex_connector import BaseXConnector
@@ -357,6 +357,42 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     with tempfile.TemporaryDirectory() as temp_instance_path:
         config_manager = ConfigManager(temp_instance_path)
         app.config_manager = config_manager  # type: ignore
+    
+    # Set up PostgreSQL connection pool for workset tests (if available)
+    try:
+        import psycopg2.pool
+        host = os.getenv('POSTGRES_HOST')
+        if not host:
+            # Try to get Windows host IP from WSL
+            try:
+                result = os.popen("ip route show | grep -i default | awk '{ print $3}'").read().strip()
+                if result:
+                    host = result
+            except Exception:
+                pass
+        
+        if host:
+            port = int(os.getenv('POSTGRES_PORT', '5432'))
+            user = os.getenv('POSTGRES_USER', 'dict_user')
+            password = os.getenv('POSTGRES_PASSWORD', 'dict_pass')
+            database = os.getenv('POSTGRES_DB', 'dictionary_analytics')
+            
+            pg_pool = psycopg2.pool.SimpleConnectionPool(
+                1, 10,
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                database=database
+            )
+            app.pg_pool = pg_pool  # type: ignore
+            logger.info("PostgreSQL connection pool initialized for tests")
+        else:
+            app.pg_pool = None  # type: ignore
+            logger.info("PostgreSQL not configured for tests (workset tests will be skipped)")
+    except Exception as e:
+        app.pg_pool = None  # type: ignore
+        logger.warning(f"Failed to initialize PostgreSQL pool: {e}")
     
     # Create application context
     with app.app_context():
@@ -427,6 +463,7 @@ def live_server(app: Flask):
     # No explicit shutdown needed for daemon thread, but can add if necessary
     # For example, if app.run() had a shutdown mechanism.
     # In this setup, the thread will exit when the main process exits.
+
 
 
 
@@ -536,6 +573,185 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "integration: mark test as integration test (requires real database)"
     )
+
+
+# ==============================================================================
+# PostgreSQL Fixtures for WSL Integration
+# ==============================================================================
+
+@pytest.fixture(scope="session")
+def postgres_available() -> bool:
+    """Check if PostgreSQL is available from WSL."""
+    try:
+        import psycopg2
+        host = os.getenv('POSTGRES_HOST')
+        if not host:
+            # Try to auto-detect Windows host IP from WSL
+            try:
+                # Method 1: Use ip route (more reliable)
+                import subprocess
+                result = subprocess.run(['ip', 'route'], capture_output=True, text=True, timeout=2)
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if 'default' in line:
+                            parts = line.split()
+                            if len(parts) >= 3:
+                                host = parts[2]
+                                break
+            except:
+                pass
+            
+            if not host:
+                # Method 2: Fallback to resolv.conf
+                try:
+                    with open('/etc/resolv.conf', 'r') as f:
+                        for line in f:
+                            if line.startswith('nameserver'):
+                                host = line.split()[1]
+                                break
+                except:
+                    host = 'localhost'
+        
+        port = int(os.getenv('POSTGRES_PORT', '5432'))
+        user = os.getenv('POSTGRES_USER', 'dict_user')
+        password = os.getenv('POSTGRES_PASSWORD', 'dict_pass')
+        database = os.getenv('POSTGRES_DB', 'dictionary_analytics')
+        
+        logger.info(f"Testing PostgreSQL connection to {host}:{port}")
+        
+        conn = psycopg2.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database=database,
+            connect_timeout=3
+        )
+        conn.close()
+        logger.info("PostgreSQL connection successful")
+        return True
+    except ImportError:
+        logger.warning("psycopg2 not installed - install with: pip install psycopg2-binary")
+        return False
+    except Exception as e:
+        logger.warning(f"PostgreSQL not available: {e}")
+        logger.info("See docs/POSTGRESQL_WSL_SETUP.md for setup instructions")
+        return False
+
+
+@pytest.fixture(scope="function")
+def postgres_test_connection(postgres_available: bool):
+    """
+    Provide a raw psycopg2 connection to PostgreSQL database.
+    
+    Automatically detects Windows host IP from WSL if POSTGRES_HOST not set.
+    Connection is automatically rolled back after test.
+    """
+    import psycopg2
+    
+    host = os.getenv('POSTGRES_HOST')
+    if not host:
+        # Auto-detect Windows host IP from WSL
+        try:
+            # Method 1: Use ip route (more reliable)
+            import subprocess
+            result = subprocess.run(['ip', 'route'], capture_output=True, text=True, timeout=2)
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'default' in line:
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            host = parts[2]
+                            break
+        except:
+            pass
+        
+        if not host:
+            # Method 2: Fallback to resolv.conf
+            try:
+                with open('/etc/resolv.conf', 'r') as f:
+                    for line in f:
+                        if line.startswith('nameserver'):
+                            host = line.split()[1]
+                            break
+            except:
+                host = 'localhost'
+    
+    port = int(os.getenv('POSTGRES_PORT', '5432'))
+    user = os.getenv('POSTGRES_USER', 'dict_user')
+    password = os.getenv('POSTGRES_PASSWORD', 'dict_pass')
+    database = os.getenv('POSTGRES_DB', 'dictionary_analytics')
+    
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        user=user,
+        password=password,
+        database=database
+    )
+    
+    # Start transaction
+    conn.autocommit = False
+    
+    yield conn
+    
+    # Rollback any changes
+    try:
+        conn.rollback()
+        conn.close()
+    except:
+        pass
+
+
+@pytest.fixture(scope="function")
+def postgres_test_engine(postgres_available: bool):
+    """
+    Provide a SQLAlchemy engine for PostgreSQL database.
+    
+    Automatically detects Windows host IP from WSL if POSTGRES_HOST not set.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import NullPool
+    
+    host = os.getenv('POSTGRES_HOST')
+    if not host:
+        # Auto-detect Windows host IP from WSL
+        try:
+            # Method 1: Use ip route (more reliable)
+            import subprocess
+            result = subprocess.run(['ip', 'route'], capture_output=True, text=True, timeout=2)
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'default' in line:
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            host = parts[2]
+                            break
+        except:
+            pass
+        
+        if not host:
+            # Method 2: Fallback to resolv.conf
+            try:
+                with open('/etc/resolv.conf', 'r') as f:
+                    for line in f:
+                        if line.startswith('nameserver'):
+                            host = line.split()[1]
+                            break
+            except:
+                host = 'localhost'
+    
+    port = int(os.getenv('POSTGRES_PORT', '5432'))
+    user = os.getenv('POSTGRES_USER', 'dict_user')
+    password = os.getenv('POSTGRES_PASSWORD', 'dict_pass')
+    database = os.getenv('POSTGRES_DB', 'dictionary_analytics')
+    
+    url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    engine = create_engine(url, poolclass=NullPool)
+    
+    yield engine
+    
+    engine.dispose()
 
 
 def pytest_collection_modifyitems(config, items):

@@ -269,13 +269,14 @@ class WorksetService:
                     search_term = f.value
                     fields.append('lexical_unit')
 
-            entries, total_count = dictionary_service.search_entries(
-                query=search_term,
-                fields=fields,
+            # Use list_entries instead of search_entries since it supports sorting
+            # list_entries has filter_text, sort_by, and sort_order parameters
+            entries, total_count = dictionary_service.list_entries(
+                filter_text=search_term if search_term else "",
                 limit=10000,  # Large limit for workset
                 offset=0,
-                sort_by=query.sort_by,
-                sort_order=query.sort_order
+                sort_by=query.sort_by if query.sort_by else "lexical_unit",
+                sort_order=query.sort_order if query.sort_order else "asc"
             )
 
             entry_dicts = [entry.to_dict() for entry in entries]

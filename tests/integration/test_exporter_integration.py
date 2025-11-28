@@ -141,8 +141,8 @@ class TestExporterIntegration:
                 senses=[
                     Sense(
                         id="export_sense_1",
-                        gloss="Export test gloss 1",
-                        definition="Export test definition 1",
+                        gloss={"en": "Export test gloss 1"},
+                        definition={"en": "Export test definition 1"},
                         grammatical_info="Noun"
                     )
                 ]
@@ -153,14 +153,14 @@ class TestExporterIntegration:
                 senses=[
                     Sense(
                         id="export_sense_2a",
-                        gloss="Export test gloss 2a",
-                        definition="Export test definition 2a",
+                        gloss={"en": "Export test gloss 2a"},
+                        definition={"en": "Export test definition 2a"},
                         grammatical_info="Verb"
                     ),
                     Sense(
                         id="export_sense_2b",
-                        gloss="Export test gloss 2b", 
-                        definition="Export test definition 2b",
+                        gloss={"en": "Export test gloss 2b"}, 
+                        definition={"en": "Export test definition 2b"},
                         grammatical_info="Noun"
                     )
                 ]
@@ -171,8 +171,8 @@ class TestExporterIntegration:
                 senses=[
                     Sense(
                         id="export_sense_3",
-                        gloss="Export test gloss 3",
-                        definition="Export test definition 3",
+                        gloss={"en": "Export test gloss 3"},
+                        definition={"en": "Export test definition 3"},
                         grammatical_info="Adjective"
                     )
                 ]

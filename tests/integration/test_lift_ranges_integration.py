@@ -266,7 +266,10 @@ def test_lift_ranges_entry_form_integration(client: FlaskClient) -> None:
     
     # Check that common range types appear in the form
     # (Either as select elements or as JavaScript configuration)
-    essential_ranges = ['grammatical-info', 'semantic-domain', 'usage-type', 'status']
+    essential_ranges = ['grammatical-info', 'usage-type', 'status']
+    # semantic-domain may be named semantic-domain-ddp4 in some LIFT files
+    optional_semantic = ['semantic-domain', 'semantic-domain-ddp4']
+    
     for range_type in essential_ranges:
         # The range should either be a select element or loaded via JavaScript
         range_found = (
@@ -277,6 +280,13 @@ def test_lift_ranges_entry_form_integration(client: FlaskClient) -> None:
             range_type.replace('-', '') in form_html
         )
         assert range_found, f"Range type '{range_type}' not found in entry form"
+    
+    # Check that at least one semantic domain variant exists
+    semantic_found = any(
+        f'"{sd}"' in form_html or f'name="{sd}"' in form_html or f'id="{sd}"' in form_html
+        for sd in optional_semantic
+    )
+    assert semantic_found, f"No semantic domain range found. Expected one of: {optional_semantic}"
 
 
 @pytest.mark.integration

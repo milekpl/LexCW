@@ -29,20 +29,10 @@ class TestDatabaseConnectorsCoverage:
     """Tests focused on database connector coverage."""
     
     @pytest.mark.integration
-    def test_basex_connector_instantiation(self, basex_available: bool) -> None:
+    def test_basex_connector_instantiation(self, basex_test_connector) -> None:
         """Test BaseX connector creation and basic methods."""
-        if not basex_available:
-            pytest.skip("BaseX server not available")
-            
-        from app.database.basex_connector import BaseXConnector
-        
-        connector = BaseXConnector(
-            host=os.getenv('BASEX_HOST', 'localhost'),
-            port=int(os.getenv('BASEX_PORT', '1984')),
-            username=os.getenv('BASEX_USERNAME', 'admin'),
-            password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database='test_coverage'
-        )
+        # basex_test_connector already provides a connected BaseX connector
+        connector = basex_test_connector
         
         # Test basic properties and methods exist
         assert hasattr(connector, 'connect'), "Should have connect method"
@@ -51,14 +41,13 @@ class TestDatabaseConnectorsCoverage:
         assert hasattr(connector, 'create_database'), "Should have create_database method"
         assert hasattr(connector, 'drop_database'), "Should have drop_database method"
         
-        # Test connection
+        # Connector is already connected from fixture
+        assert connector.is_connected(), "Should be connected after connect"
+        
+        # Test basic database operations with a temporary database
+        test_db = f"test_coverage_{uuid.uuid4().hex[:8]}"
+        
         try:
-            connector.connect()
-            assert connector.is_connected(), "Should be connected after connect"
-            
-            # Test basic database operations
-            test_db = f"test_coverage_{uuid.uuid4().hex[:8]}"
-            
             # Create test database
             connector.create_database(test_db)
             
@@ -68,13 +57,17 @@ class TestDatabaseConnectorsCoverage:
             
             # Cleanup
             connector.drop_database(test_db)
-            connector.disconnect()
             
             print("BaseX connector basic functionality: OK")
             
         except Exception as e:
             print(f"BaseX connector test failed: {e}")
-            pytest.skip("BaseX connection issues")
+            # Clean up test database if it was created
+            try:
+                connector.drop_database(test_db)
+            except Exception:
+                pass
+            raise
     
     @pytest.mark.integration
     def test_mock_connector_coverage(self) -> None:

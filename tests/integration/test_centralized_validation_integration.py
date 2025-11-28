@@ -30,7 +30,7 @@ class TestCentralizedValidationIntegration:
         valid_entry = Entry(
             id="test_entry",
             lexical_unit={"en": "test"},
-            senses=[Sense(id="sense1", gloss="test")]
+            senses=[Sense(id="sense1", glosses={"en": "test"})]
         )
         
         # Should not raise exception
@@ -49,7 +49,7 @@ class TestCentralizedValidationIntegration:
             invalid_entry = Entry(
                 id="test_entry",
                 lexical_unit={},  # Empty lexical unit
-                senses=[Sense(id="sense1", gloss="test")]
+                senses=[Sense(id="sense1", glosses={"en": "test"})]
             )
             invalid_entry.validate()
         
@@ -72,35 +72,50 @@ class TestCentralizedValidationIntegration:
     @pytest.mark.integration
     def test_sense_validation_integration(self):
         """Test that Sense model validation integrates with centralized system."""
-        # Test valid sense (has gloss)
-        valid_sense = Sense(id="test_sense", gloss="test definition")
+        # Test valid sense (has gloss) - LIFT flat format
+        valid_sense = Sense(id="test_sense", glosses={"en": "test definition"})
         assert valid_sense.validate()
 
         # Test sense with empty gloss but valid definition (should pass)
-        valid_sense2 = Sense(id="test_sense2", gloss="", definitions={"en": {"text": "valid definition"}})
+        valid_sense2 = Sense(id="test_sense2", glosses={}, definitions={"en": "valid definition"})
         assert valid_sense2.validate()
 
         # Test sense with both gloss and definition empty (should fail)
         with pytest.raises(ValidationError) as exc_info:
-            invalid_sense = Sense(id="test_sense3", gloss="", definitions={})
+            invalid_sense = Sense(id="test_sense3", glosses={}, definitions={})
             invalid_sense.validate()
         assert "gloss" in str(exc_info.value).lower() or "definition" in str(exc_info.value).lower()
 
     @pytest.mark.integration
     def test_language_code_validation_integration(self):
         """Test that language code validation works through models."""
-        # Test invalid language code
+        # Test that entry accepts allowed language codes
+        entry_with_various_langs = Entry(
+            id="test_entry",
+            lexical_unit={"pl": "teste", "en": "test"},  # Allowed language codes
+            senses=[Sense(id="sense1", glosses={"en": "test"})]
+        )
+        # Should not raise an error
+        entry_with_various_langs.validate()
+        
+        # Test that validation catches disallowed language codes
         with pytest.raises(ValidationError) as exc_info:
+            invalid_lang_entry = Entry(
+                id="test_entry2",
+                lexical_unit={"xx": "test"},  # Invalid language code
+                senses=[Sense(id="sense1", glosses={"en": "test"})]
+            )
+            invalid_lang_entry.validate()
+        assert "language code" in str(exc_info.value).lower()
+        
+        # Test that validation still catches structural issues
+        with pytest.raises(ValidationError):
             invalid_entry = Entry(
-                id="test_entry",
-                lexical_unit={"invalid_lang": "test"},  # Invalid language code
-                senses=[Sense(id="sense1", gloss="test")]
+                id="",  # Empty ID should fail
+                lexical_unit={"en": "test"},
+                senses=[Sense(id="sense1", glosses={"en": "test"})]
             )
             invalid_entry.validate()
-        
-        # Should catch the invalid language code
-        error_msg = str(exc_info.value).lower()
-        assert "language" in error_msg or "invalid_lang" in error_msg
 
     @pytest.mark.integration
     def test_validation_result_contains_rule_information(self):
@@ -176,7 +191,7 @@ class TestCentralizedValidationIntegration:
         entry = Entry(
             id="test_entry",
             lexical_unit={"en": "test"},
-            senses=[Sense(id="sense1", gloss="test")]
+            senses=[Sense(id="sense1", glosses={"en": "test"})]
         )
         
         # Convert to dict and validate
@@ -248,7 +263,7 @@ class TestValidationEnginePerformance:
             "id": "performance_test",
             "lexical_unit": {"en": "test"},
             "senses": [
-                {"id": f"sense_{i}", "gloss": f"test gloss {i}"} 
+                {"id": f"sense_{i}", "gloss": {"en": {"text": f"test gloss {i}"}}} 
                 for i in range(10)
             ],
             "notes": {"etymology": "test etymology"},
@@ -280,7 +295,7 @@ class TestValidationEnginePerformance:
             test_entries.append({
                 "id": f"entry_{i}",
                 "lexical_unit": {"en": f"word_{i}"},
-                "senses": [{"id": f"sense_{i}", "gloss": f"meaning {i}"}]
+                "senses": [{"id": f"sense_{i}", "gloss": {"en": {"text": f"meaning {i}"}}}]
             })
         
         # Measure time for multiple validations
@@ -298,8 +313,12 @@ class TestValidationEnginePerformance:
         assert total_time < 2.0, f"50 validations took {total_time:.3f}s, expected < 2s"
         assert avg_time < 0.04, f"Average validation time {avg_time:.3f}s, expected < 0.04s"
         
-        # All should be valid
-        assert all(r.is_valid for r in results)
+        # All should be valid - if not, print errors for debugging
+        invalid_results = [r for r in results if not r.is_valid]
+        if invalid_results:
+            for idx, r in enumerate(invalid_results[:3]):  # Print first 3 errors
+                print(f"\nInvalid result {idx}: Errors={r.errors}, Warnings={r.warnings}")
+        assert all(r.is_valid for r in results), f"Found {len(invalid_results)} invalid results"
 
 
 if __name__ == "__main__":

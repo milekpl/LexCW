@@ -18,7 +18,7 @@ class TestSenseLevelFields:
         """Test that Sense model accepts usage_type as a list."""
         sense = Sense(
             id_="test_sense",
-            glosses={"en": {"text": "test"}},
+            glosses={"en": "test"},
             usage_type=["formal", "written"]
         )
         
@@ -29,7 +29,7 @@ class TestSenseLevelFields:
         """Test that Sense model accepts domain_type as a list."""
         sense = Sense(
             id_="test_sense",
-            glosses={"en": {"text": "test"}},
+            glosses={"en": "test"},
             domain_type=["1.1 Universe, creation", "1.2 World"]
         )
         
@@ -40,7 +40,7 @@ class TestSenseLevelFields:
         """Test that usage_type and domain_type default to empty lists."""
         sense = Sense(
             id_="test_sense",
-            glosses={"en": {"text": "test"}}
+            glosses={"en": "test"}
         )
         
         assert sense.usage_type == []
@@ -109,7 +109,7 @@ class TestSenseLevelFields:
         """Test that Sense.to_dict() includes usage_type and domain_type."""
         sense = Sense(
             id_="test_sense",
-            glosses={"en": {"text": "test"}},
+            glosses={"en": "test"},
             usage_type=["formal"],
             domain_type=["1.1"]
         )

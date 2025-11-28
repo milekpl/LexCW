@@ -7,26 +7,24 @@ import sys
 from pathlib import Path
 
 import pytest
+from flask import Flask
 
 # Add the app directory to the path
 sys.path.insert(0, str(Path(__file__).parent / 'app'))
 
 # Set up Flask app context
-from app import create_app
 from app.services.dictionary_service import DictionaryService
 
 @pytest.mark.integration
-def test_invalid_entry_in_search():
+def test_invalid_entry_in_search(app: Flask, dict_service_with_db: DictionaryService):
     """Test that invalid entries appear in search results."""
-    
-    app = create_app()
     
     with app.app_context():
         print("Testing search for invalid entry")
         print("=" * 50)
         
         # Get the dictionary service
-        dict_service = app.injector.get(DictionaryService)
+        dict_service = dict_service_with_db
         
         # Search for the problematic entry
         entries, total = dict_service.search_entries("Scholastic Assessment Test", limit=10)

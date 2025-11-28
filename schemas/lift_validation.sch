@@ -40,9 +40,9 @@
         <title>R1.2: Entry Format Validation</title>
         
         <rule context="lift:entry/@id">
-            <!-- R1.2.1: Entry ID format validation -->
-            <assert test="matches(., '^[a-zA-Z0-9_-]+$')">
-                R1.2.1 Violation: Invalid entry ID format '<value-of select="."/>'. Use only letters, numbers, underscores, and hyphens
+            <!-- R1.2.1: Entry ID format validation (allows spaces per LIFT standard) -->
+            <assert test="matches(., '^[a-zA-Z0-9_\- ]+$')">
+                R1.2.1 Violation: Invalid entry ID format '<value-of select="."/>'. Use only letters, numbers, underscores, hyphens, and spaces
             </assert>
         </rule>
     </pattern>

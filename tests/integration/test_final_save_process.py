@@ -4,21 +4,19 @@ Test the end-to-end save process for the Protestantism entry
 to confirm the fix is working in the actual web application context.
 """
 
-from app import create_app
+import pytest
+from flask import Flask
 from app.services.dictionary_service import DictionaryService
 from app.models.entry import Entry
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 
 
-import pytest
-
 @pytest.mark.integration
-def test_protestantism_save_process():
+def test_protestantism_save_process(app: Flask, dict_service_with_db: DictionaryService):
     """Test the actual save process that would happen via the web form."""
     
-    app = create_app()
     with app.app_context():
-        dict_service = app.injector.get(DictionaryService)
+        dict_service = dict_service_with_db
         
         entry_id = 'Protestantism_b97495fb-d52f-4755-94bf-a7a762339605'
         

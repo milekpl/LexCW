@@ -235,7 +235,9 @@ def get_corpus_stats_ui():
     
     # Try to get cached corpus stats first
     cache = CacheService()
-    if cache.is_available():
+    # Skip cache during tests to avoid stale statistics
+    use_cache = cache.is_available() and not current_app.testing
+    if use_cache:
         cached_stats = cache.get('corpus_stats')
         if cached_stats:
             try:
@@ -283,7 +285,7 @@ def get_corpus_stats_ui():
                 corpus_stats['last_updated'] = 'N/A'
             
             # Cache the stats for 30 minutes (1800 seconds)
-            if cache.is_available():
+            if use_cache:
                 cache.set('corpus_stats', json.dumps(corpus_stats), ttl=1800)
                 current_app.logger.info("Cached fresh corpus stats for 30 minutes")
 

@@ -243,6 +243,7 @@ class EnhancedLiftParser:
             lang = gloss_elem.get('lang', 'en')
             text_elem = self._find_element(gloss_elem, 'text')
             if text_elem is not None:
+                # LIFT format: flat structure {lang: text}
                 gloss[lang] = text_elem.text or ''
         
         # Parse definition
@@ -310,7 +311,10 @@ class EnhancedLiftParser:
         )
     
     def _parse_multitext(self, element: Optional[ET.Element]) -> Dict[str, str]:
-        """Parse a multitext element into language-text dictionary."""
+        """Parse a multitext element into language-text dictionary.
+        
+        LIFT format: flat structure {lang: text}
+        """
         if element is None:
             return {}
         

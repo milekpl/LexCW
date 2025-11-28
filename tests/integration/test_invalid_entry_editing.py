@@ -238,7 +238,7 @@ class TestInvalidEntryEditing:
                 assert not validation_result.is_valid  # Invalid but still loaded
 
             except NotFoundError:
-                pytest.skip("Test entry not available in real database")
+                raise
             except Exception as e:
                 pytest.fail(f"Entry should be editable even if invalid: {e}")
         """Integration test: verify the real problematic entry is now editable."""
@@ -286,7 +286,7 @@ class TestInvalidEntryEditing:
 
                 except NotFoundError:
                     # If entry doesn't exist in test environment, that's ok
-                    pytest.skip("Test entry not available in test environment")
+                    raise
                 except Exception as e:
                     pytest.fail(f"Entry should be editable even if invalid: {e}")
 

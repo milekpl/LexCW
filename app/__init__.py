@@ -98,9 +98,8 @@ def create_app(config_name=None):
     from app.views import main_bp
     app.register_blueprint(main_bp)
     
-    if not app.testing:
-        from app.routes.corpus_routes import corpus_bp
-        app.register_blueprint(corpus_bp)
+    from app.routes.corpus_routes import corpus_bp
+    app.register_blueprint(corpus_bp)
     
     # Register additional API routes
     from app.routes.api_routes import api_bp as additional_api_bp
@@ -132,19 +131,24 @@ def create_app(config_name=None):
     app.register_blueprint(settings_bp)
 
     # Create PostgreSQL connection pool and create tables
+    app.pg_pool = None
     try:
+        # Add connection timeout to prevent hanging
         pg_pool = psycopg2.pool.SimpleConnectionPool(
             1, 20,
             user=app.config.get("PG_USER"),
             password=app.config.get("PG_PASSWORD"),
             host=app.config.get("PG_HOST"),
             port=app.config.get("PG_PORT"),
-            database=app.config.get("PG_DATABASE")
+            database=app.config.get("PG_DATABASE"),
+            connect_timeout=3  # Add 3 second timeout
         )
         app.pg_pool = pg_pool
         create_workset_tables(pg_pool)
+        app.logger.info(f"Successfully connected to PostgreSQL at {app.config.get('PG_HOST')}:{app.config.get('PG_PORT')}")
     except (Exception, psycopg2.DatabaseError) as error:
         app.logger.error(f"Error while connecting to PostgreSQL: {error}")
+        app.logger.warning("PostgreSQL features will be unavailable. See docs/POSTGRESQL_WSL_SETUP.md for setup instructions.")
     
     # Initialize Swagger documentation
     swagger_config = {

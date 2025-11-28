@@ -399,6 +399,8 @@ class ValidationEngine:
             errors.extend(self._validate_sense_required_non_variant(rule_id, rule_config, data))
         elif custom_function == 'validate_unique_note_types':
             errors.extend(self._validate_unique_note_types(rule_id, rule_config, data))
+        elif custom_function == 'validate_note_content':
+            errors.extend(self._validate_note_content(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_synonym_antonym_exclusion':
             errors.extend(self._validate_synonym_antonym_exclusion(rule_id, rule_config, data))
         elif custom_function == 'validate_subsense_depth':
@@ -407,6 +409,8 @@ class ValidationEngine:
             errors.extend(self._validate_unique_languages_in_multitext(rule_id, rule_config, data))
         elif custom_function == 'validate_language_codes':
             errors.extend(self._validate_language_codes(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_language_code_format':
+            errors.extend(self._validate_language_code_format(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_pronunciation_language_codes':
             errors.extend(self._validate_pronunciation_language_codes(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_date_fields':
@@ -546,6 +550,36 @@ class ValidationEngine:
         
         return errors
     
+    def _validate_note_content(self, rule_id: str, rule_config: Dict[str, Any],
+                               data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R3.1.2: Validate that note content is non-empty for simple string notes.
+        
+        Skips multilingual notes (objects) as they are validated by R3.1.3.
+        """
+        errors: List[ValidationError] = []
+        
+        notes = data.get('notes', {})
+        if not isinstance(notes, dict):
+            return errors
+        
+        for note_type, note_content in notes.items():
+            # Only validate simple string notes
+            if isinstance(note_content, str):
+                # Check if content is empty or whitespace-only
+                if not note_content or not note_content.strip():
+                    errors.append(ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config['name'],
+                        message=rule_config['error_message'],
+                        path=f"$.notes.{note_type}",
+                        priority=ValidationPriority(rule_config['priority']),
+                        category=ValidationCategory(rule_config['category']),
+                        value=note_content
+                    ))
+            # Skip objects (multilingual notes) - they're validated by R3.1.3
+        
+        return errors
+    
     def _validate_synonym_antonym_exclusion(self, rule_id: str, rule_config: Dict[str, Any], 
                                           data: Dict[str, Any]) -> List[ValidationError]:
         """R8.5.2: Validate no conflicting synonym/antonym relations."""
@@ -618,10 +652,14 @@ class ValidationEngine:
     
     def _validate_language_codes(self, rule_id: str, rule_config: Dict[str, Any], 
                                 data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
-        """R1.2.3: Validate language codes against approved project list."""
+        """R1.2.3: Validate language codes against approved project list (DEPRECATED - use format validation)."""
         errors: List[ValidationError] = []
         
         allowed_languages = rule_config['validation'].get('allowed_languages', [])
+        
+        # If no allowed languages specified, skip validation (permissive mode)
+        if not allowed_languages:
+            return errors
         
         for match in matches:
             if isinstance(match.value, dict):
@@ -637,6 +675,34 @@ class ValidationEngine:
                             category=ValidationCategory(rule_config['category']),
                             value=lang_code
                         ))
+        
+        return errors
+    
+    def _validate_language_code_format(self, rule_id: str, rule_config: Dict[str, Any], 
+                                      data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """Validate language codes follow RFC 4646 format (flexible for LIFT standard)."""
+        import re
+        errors: List[ValidationError] = []
+        
+        # RFC 4646 simplified pattern: language[-script][-region][-variant]
+        # Examples: en, pl, seh-fonipa, qaa-x-spec, pt-br, zh-hans-cn
+        # Note: Codes must be lowercase, no underscores
+        rfc4646_pattern = re.compile(r'^[a-z]{2,3}(-[a-z0-9]+)*$')
+        
+        # Get lexical unit
+        lexical_unit = data.get('lexical_unit', {})
+        if isinstance(lexical_unit, dict):
+            for lang_code in lexical_unit.keys():
+                if not rfc4646_pattern.match(lang_code):
+                    errors.append(ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config['name'],
+                        message=rule_config['error_message'].replace('{value}', lang_code),
+                        path=f"$.lexical_unit.{lang_code}",
+                        priority=ValidationPriority(rule_config.get('priority', 'warning')),
+                        category=ValidationCategory(rule_config['category']),
+                        value=lang_code
+                    ))
         
         return errors
     

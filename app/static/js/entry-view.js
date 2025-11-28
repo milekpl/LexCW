@@ -30,4 +30,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('audioPlayerModal').addEventListener('hidden.bs.modal', function() {
         audioPlayer.pause();
     });
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('status') === 'saved') {
+        showToast('Entry saved successfully.', 'success');
+    }
 });

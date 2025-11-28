@@ -20,8 +20,8 @@ def test_dictionary_service_with_real_basex(dict_service_with_db: DictionaryServ
         senses=[
             Sense(
                 id_="sense_1",
-                glosses={"en": {"text": "test gloss"}},
-                definitions={"en": {"text": "test definition"}}
+                glosses={"en": "test gloss"},
+                definitions={"en": "test definition"}
             )
         ]
     )

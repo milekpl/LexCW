@@ -71,15 +71,20 @@ class TestEntryValidationRulesFixed:
     
     def test_r1_1_1_entry_id_required(self):
         """Test R1.1.1: Entry ID is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            entry = Entry(id_=None, lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
-            entry.validate("save")
-        assert "Entry ID is required" in str(exc_info.value)
+        from app.services.validation_engine import ValidationEngine
+        
+        # Test with None ID using raw data (bypass model auto-generation)
+        engine = ValidationEngine()
+        data = {"id": None, "lexical_unit": {"pl": "test"}, "senses": [{"id": "sense1", "gloss": {"pl": "test"}}]}
+        result = engine.validate_json(data, "save")
+        assert not result.is_valid
+        assert any("Entry ID is required" in str(e.message) for e in result.errors)
 
-        with pytest.raises(ValidationError) as exc_info:
-            entry = Entry(id_="", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
-            entry.validate("save")
-        assert "Entry ID is required" in str(exc_info.value)
+        # Test with empty string ID
+        data = {"id": "", "lexical_unit": {"pl": "test"}, "senses": [{"id": "sense1", "gloss": {"pl": "test"}}]}
+        result = engine.validate_json(data, "save")
+        assert not result.is_valid
+        assert any("Entry ID is required" in str(e.message) for e in result.errors)
 
     def test_r1_1_2_lexical_unit_required(self):
         """Test R1.1.2: Lexical unit is required."""
@@ -116,8 +121,8 @@ class TestEntryValidationRulesFixed:
             )
             assert entry.validate("save") is True
 
-        # Test invalid IDs
-        invalid_ids = ["test entry", "entry@123", "entry#1", "entry.1", "entry/1"]
+        # Test invalid IDs - spaces are now ALLOWED per LIFT standard
+        invalid_ids = ["entry@123", "entry#1", "entry.1", "entry/1"]
         for invalid_id in invalid_ids:
             with pytest.raises(ValidationError) as exc_info:
                 entry = Entry(
@@ -156,14 +161,18 @@ class TestSenseValidationRulesFixed:
     
     def test_r2_1_1_sense_id_required(self):
         """Test R2.1.1: Sense ID is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            entry = Entry(
-                id_="test_entry",
-                lexical_unit={"pl": "test"},
-                senses=[Sense(id_=None, gloss={"pl": {"text": "test"}})]
-            )
-            entry.validate("save")
-        assert "Sense ID is required" in str(exc_info.value)
+        from app.services.validation_engine import ValidationEngine
+        
+        # Test with None sense ID using raw data (bypass model auto-generation)
+        engine = ValidationEngine()
+        data = {
+            "id": "test_entry",
+            "lexical_unit": {"pl": "test"},
+            "senses": [{"id": None, "gloss": {"pl": "test"}}]
+        }
+        result = engine.validate_json(data, "save")
+        assert not result.is_valid
+        assert any("Sense ID is required" in str(e.message) for e in result.errors)
 
     def test_r2_1_2_sense_definition_or_gloss_required(self):
         """Test R2.1.2: Sense definition OR gloss is required."""
@@ -255,9 +264,9 @@ class TestValidationEngineDirectly:
         result = engine.validate_json(valid_data, "save")
         assert result.is_valid is True
         
-        # Test with invalid ID
+        # Test with invalid ID (special characters not allowed)
         invalid_data = {
-            "id": "test entry",  # Invalid (contains space)
+            "id": "test@entry",  # Invalid (contains @ symbol)
             "lexical_unit": {"pl": "test"},
             "senses": [
                 {

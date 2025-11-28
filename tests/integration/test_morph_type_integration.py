@@ -12,7 +12,7 @@ Tests verify that:
 import pytest
 import json
 from unittest.mock import Mock, patch
-from app import create_app
+from flask import Flask
 from app.models.entry import Entry
 from app.services.dictionary_service import DictionaryService
 
@@ -21,18 +21,6 @@ from app.services.dictionary_service import DictionaryService
 @pytest.mark.integration
 class TestMorphTypeIntegration:
     """Integration tests for morph-type server-side logic and UI integration."""
-
-    @pytest.fixture
-    def app(self):
-        """Create test Flask app."""
-        app = create_app()
-        app.config['TESTING'] = True
-        return app
-
-    @pytest.fixture
-    def client(self, app):
-        """Create test client."""
-        return app.test_client()
 
     @pytest.fixture
     def mock_dict_service(self):

@@ -536,14 +536,16 @@ class LIFTParser:
             sense = self._parse_sense(sense_elem, sense_id)
             senses.append(sense)  # Keep as Sense object, don't convert to dict
         
-        # Parse entry-level traits (like morph-type)
+        # Parse entry-level traits (like morph-type, academic-domain)
         morph_type = None
+        academic_domain = None
         for trait_elem in self._find_elements(entry_elem, './/lift:trait', './/trait'):
             trait_name = trait_elem.get('name')
             trait_value = trait_elem.get('value')
             if trait_name == 'morph-type' and trait_value:
                 morph_type = trait_value
-                break  # Only need the first morph-type trait
+            elif trait_name == 'academic-domain' and trait_value:
+                academic_domain = trait_value
         
         date_created = entry_elem.get('dateCreated')
         date_modified = entry_elem.get('dateModified')
@@ -558,6 +560,7 @@ class LIFTParser:
             variants=variants,
             grammatical_info=grammatical_info,
             morph_type=morph_type,  # Add morph_type
+            academic_domain=academic_domain,  # Add academic_domain
             relations=relations,
             etymologies=etymologies,
             notes=notes,

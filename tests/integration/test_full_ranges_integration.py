@@ -118,10 +118,13 @@ def test_all_ranges_available(client: FlaskClient) -> None:
     
     # Should have these key ranges available (flexible for different environments)
     # Check for core ranges that should be present in any properly configured system
-    expected_core_ranges = ['grammatical-info', 'usage-type']
-    alternative_ranges = {
-        'lexical-relation': ['lexical-relation', 'relation-type', 'relation-types'],  # Various possible names
-        'variant': ['variant-type', 'variant-types']  # Various possible names
+    expected_core_ranges = ['grammatical-info', 'usage-type', 'lexical-relation']
+    
+    # Optional ranges that may vary by LIFT file
+    optional_ranges = {
+        'semantic-domain': ['semantic-domain', 'semantic-domain-ddp4'],
+        'status': ['status'],
+        'note-type': ['note-type'],
     }
     
     available_ranges = set(ranges.keys())
@@ -130,13 +133,13 @@ def test_all_ranges_available(client: FlaskClient) -> None:
     for core_range in expected_core_ranges:
         assert core_range in available_ranges, f"Core range '{core_range}' missing. Available: {list(available_ranges)}"
     
-    # Check alternative ranges (at least one variant should exist)
-    found_alternatives = 0
-    for category, alternatives in alternative_ranges.items():
+    # Check optional ranges (at least one should exist)
+    found_optional = 0
+    for category, alternatives in optional_ranges.items():
         if any(alt in available_ranges for alt in alternatives):
-            found_alternatives += 1
+            found_optional += 1
     
-    assert found_alternatives >= 2, f"Should find at least 2 alternative range categories. Available: {list(available_ranges)}"
+    assert found_optional >= 2, f"Should find at least 2 optional range categories. Available: {list(available_ranges)}"
     
     # Verify we have a reasonable number of ranges
     assert len(available_ranges) >= 5, f"Expected at least 5 ranges, got {len(available_ranges)}: {list(available_ranges)}"

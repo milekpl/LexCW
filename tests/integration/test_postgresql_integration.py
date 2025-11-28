@@ -396,10 +396,6 @@ class TestPostgreSQLIntegration:
     @pytest.mark.integration
     def test_real_connection(self):
         """Test real PostgreSQL connection (requires running PostgreSQL)."""
-        # Skip if no PostgreSQL credentials available
-        if not os.getenv('POSTGRES_PASSWORD'):
-            pytest.skip("PostgreSQL credentials not available")
-        
         config = PostgreSQLConfig(
             host=os.getenv('POSTGRES_HOST', 'localhost'),
             port=int(os.getenv('POSTGRES_PORT', 5432)),
@@ -417,15 +413,11 @@ class TestPostgreSQLIntegration:
             assert 'PostgreSQL' in results[0]['version']
             
         except DatabaseConnectionError:
-            pytest.skip("PostgreSQL not available for integration testing")
+            raise
     
     @pytest.mark.integration
     def test_schema_creation_real(self):
         """Test actual schema creation (requires running PostgreSQL)."""
-        # Skip if no PostgreSQL credentials available
-        if not os.getenv('POSTGRES_PASSWORD'):
-            pytest.skip("PostgreSQL credentials not available")
-        
         config = PostgreSQLConfig(
             host=os.getenv('POSTGRES_HOST', 'localhost'),
             port=int(os.getenv('POSTGRES_PORT', 5432)),
@@ -461,7 +453,7 @@ class TestPostgreSQLIntegration:
             connector.execute_query("DROP TABLE IF EXISTS test_migration")
             
         except DatabaseConnectionError:
-            pytest.skip("PostgreSQL not available for integration testing")
+            raise
 
 
 if __name__ == '__main__':

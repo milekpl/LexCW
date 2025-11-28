@@ -98,8 +98,8 @@ class TestSenseLevelFieldsNoDataLoss:
             senses=[
                 Sense(
                     id_="sense1",
-                    glosses={"pl": {"text": "formalne słowo"}},
-                    definitions={"en": {"text": "A word used in formal contexts"}},
+                    glosses={"pl": "formalne słowo"},
+                    definitions={"en": "A word used in formal contexts"},
                     usage_type=["formal", "written"]
                 )
             ]
@@ -127,8 +127,8 @@ class TestSenseLevelFieldsNoDataLoss:
             senses=[
                 Sense(
                     id_="sense1",
-                    glosses={"pl": {"text": "wszechświat"}},
-                    definitions={"en": {"text": "All existing matter and space"}},
+                    glosses={"pl": "wszechświat"},
+                    definitions={"en": "All existing matter and space"},
                     domain_type=["1.1 Universe, creation", "1.2 World"]
                 )
             ]
@@ -157,8 +157,8 @@ class TestSenseLevelFieldsNoDataLoss:
             senses=[
                 Sense(
                     id_="sense1",
-                    glosses={"pl": {"text": "test"}},
-                    definitions={"en": {"text": "Original definition"}},
+                    glosses={"pl": "test"},
+                    definitions={"en": "Original definition"},
                     usage_type=["informal"]
                 )
             ]
