@@ -23,7 +23,7 @@ def test_entry_save():
     print("🧪 Test 1: Creating entry without POS")
     
     test_data = {
-        'lexical_unit': 'test-word',
+        'lexical_unit': {'en': 'test-word'},
         'citation_form': '',
         'grammatical_info.part_of_speech': '',  # Empty POS
         'semantic_domain': '',
@@ -51,7 +51,7 @@ def test_entry_save():
     print("\n🧪 Test 2: Creating phrase entry")
     
     phrase_data = {
-        'lexical_unit': 'test phrase with spaces',  # This should be classified as phrase
+        'lexical_unit': {'en': 'test phrase with spaces'},  # This should be classified as phrase
         'citation_form': '',
         'grammatical_info.part_of_speech': '',  # Empty POS for phrase
         'semantic_domain': '',

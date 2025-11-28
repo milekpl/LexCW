@@ -245,7 +245,7 @@ class TestXQueryBuilder:
     def test_advanced_search_query(self):
         """Test advanced search query."""
         criteria = {
-            'lexical_unit': 'test',
+            'lexical_unit': {'en': 'test'},
             'sense_gloss': 'meaning',
             'grammatical_info': 'noun'
         }

@@ -82,6 +82,7 @@ class TestLIFTParserComprehensive:
                 <text>complex</text>
             </form>
         </lexical-unit>
+        <grammatical-info value="Adjective"/>
         <pronunciation>
             <form lang="seh-fonipa">
                 <text>ˈkɒmpleks</text>

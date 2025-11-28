@@ -99,11 +99,12 @@ class TestSettingsRoute(unittest.TestCase):
     @pytest.mark.integration
     def test_update_settings_successfully(self):
         """Test updating settings via POST request."""
+        import json
         new_settings_data = {
             'project_name': 'My Awesome Dictionary',
             'source_language_code': 'pl',
             'source_language_name': 'Polish',
-            'available_target_languages': ['de'],  # Use checkbox list instead of single target
+            'available_target_languages': json.dumps(['de']),  # JSON string format for searchable selector
             'csrf_token': 'testing_csrf_token'
         }
 
@@ -178,22 +179,23 @@ class TestSettingsRoute(unittest.TestCase):
 
         # Check for source language select dropdown (English will be selected by default)
         self.assertIn(b'<select class="form-select" id="source_language_code"', response.data)
-        self.assertIn(b'value="en">English</option>', response.data)
-        self.assertIn(b'value="es">Spanish</option>', response.data)
-        self.assertIn(b'value="fr">French</option>', response.data)
-        self.assertIn(b'value="de">German</option>', response.data)
+        self.assertIn(b'value="en">English (en)</option>', response.data)
+        self.assertIn(b'value="es">Spanish (es)</option>', response.data)
+        self.assertIn(b'value="fr">French (fr)</option>', response.data)
+        self.assertIn(b'value="de">German (de)</option>', response.data)
         
-        # Check for target language checkboxes
-        self.assertIn(b'name="available_target_languages" type="checkbox" value="en"', response.data)
-        self.assertIn(b'name="available_target_languages" type="checkbox" value="es"', response.data)
-        self.assertIn(b'name="available_target_languages" type="checkbox" value="fr"', response.data)
+        # Check for target language searchable interface (new dict-based format)
+        self.assertIn(b'name="available_target_languages"', response.data)
+        self.assertIn(b'language-search-input', response.data)
+        self.assertIn(b'selected-languages-list', response.data)
         
-        # Verify we have multiple language options (should be 30 languages)
-        option_count = response.data.count(b'value="en">English</option>')
+        # Verify we have multiple language options in the source language dropdown
+        option_count = response.data.count(b'value="en">English (en)</option>')
         self.assertGreaterEqual(option_count, 1, "Should have English option in source language dropdown")
         
-        checkbox_count = response.data.count(b'name="available_target_languages"')
-        self.assertGreaterEqual(checkbox_count, 25, "Should have at least 25 target language checkboxes")
+        # Check that searchable language selector exists
+        selector_count = response.data.count(b'searchable-language-selector')
+        self.assertGreaterEqual(selector_count, 1, "Should have searchable language selector for target languages")
 
 
 if __name__ == '__main__':

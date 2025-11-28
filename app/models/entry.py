@@ -115,56 +115,27 @@ class Entry(BaseModel):
 
         super().__init__(id_, **kwargs)
         
-        # Handle lexical_unit - ensure it's a dictionary
+        # Handle lexical_unit - must be a dictionary
         lexical_unit_raw = kwargs.get('lexical_unit', {})
-        if isinstance(lexical_unit_raw, dict):
-            self.lexical_unit: Dict[str, str] = lexical_unit_raw
-        elif isinstance(lexical_unit_raw, str):
-            # Convert string to dict for backward compatibility
-            self.lexical_unit: Dict[str, str] = {'en': lexical_unit_raw} if lexical_unit_raw.strip() else {}
-        elif isinstance(lexical_unit_raw, list):
-            # Handle case where lexical_unit is passed as a list (form processing error)
-            # Take the first non-empty item or use default
-            if lexical_unit_raw and isinstance(lexical_unit_raw[0], str):
-                self.lexical_unit: Dict[str, str] = {'en': lexical_unit_raw[0]} if lexical_unit_raw[0].strip() else {}
-            else:
-                self.lexical_unit: Dict[str, str] = {}
-        else:
-            self.lexical_unit: Dict[str, str] = {}
+        if not isinstance(lexical_unit_raw, dict):
+            raise ValueError(f"lexical_unit must be a dict {{lang: text}}, got {type(lexical_unit_raw)}")
+        self.lexical_unit: Dict[str, str] = lexical_unit_raw
             
-        # Handle citations - ensure it's a list of dictionaries
+        # Handle citations - must be a list of dictionaries
         citations_raw = kwargs.get('citations', [])
-        if isinstance(citations_raw, list):
-            self.citations: List[Dict[str, Any]] = []
-            for citation in citations_raw:
-                if isinstance(citation, dict):
-                    self.citations.append(citation)
-                elif isinstance(citation, str):
-                    # Convert string to dict format for default language
-                    self.citations.append({'en': citation})
-        else:
-            self.citations: List[Dict[str, Any]] = []
+        if not isinstance(citations_raw, list):
+            raise ValueError(f"citations must be a list of dicts, got {type(citations_raw)}")
+        self.citations: List[Dict[str, Any]] = []
+        for citation in citations_raw:
+            if not isinstance(citation, dict):
+                raise ValueError(f"Each citation must be a dict {{lang: text}}, got {type(citation)}")
+            self.citations.append(citation)
         
-        # Handle pronunciations - ensure it's a dictionary
+        # Handle pronunciations - must be a dictionary
         pronunciations_raw = kwargs.get('pronunciations', {})
-        if isinstance(pronunciations_raw, dict):
-            self.pronunciations: Dict[str, str] = pronunciations_raw
-        elif isinstance(pronunciations_raw, list):
-            # Handle case where pronunciations might be passed as a list
-            # Convert list to dict format expected by the LIFT parser
-            self.pronunciations: Dict[str, str] = {}
-            for item in pronunciations_raw:
-                if isinstance(item, dict):
-                    # If list contains dict items with .value, .type' pattern
-                    if '.value' in item and '.type' in item:
-                        self.pronunciations[item['.type']] = item['.value']
-                    elif 'value' in item and 'type' in item:
-                        self.pronunciations[item['type']] = item['value']
-                elif isinstance(item, str):
-                    # If list contains string items, use default type
-                    self.pronunciations['seh-fonipa'] = item
-        else:
-            self.pronunciations: Dict[str, str] = {}
+        if not isinstance(pronunciations_raw, dict):
+            raise ValueError(f"pronunciations must be a dict {{ws: text}}, got {type(pronunciations_raw)}")
+        self.pronunciations: Dict[str, str] = pronunciations_raw
             
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
         

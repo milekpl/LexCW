@@ -31,7 +31,7 @@ def test_template_rendering():
     print("🧪 Test 1: Entry without homograph number")
     entry_no_homograph = Entry(
         id="test-1",
-        lexical_unit="test",
+        lexical_unit={"en": "test"},
         senses=[]
     )
     
@@ -60,7 +60,7 @@ def test_template_rendering():
     print("\n🧪 Test 2: Entry with homograph number")
     entry_with_homograph = Entry(
         id="test-2", 
-        lexical_unit="test",
+        lexical_unit={"en": "test"},
         homograph_number=2,
         senses=[]
     )

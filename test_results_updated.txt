@@ -1,0 +1,288 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-7.4.0, pluggy-1.6.0
+rootdir: /mnt/d/Dokumenty/slownik-wielki/flask-app
+configfile: pytest.ini
+plugins: base-url-2.1.0, cov-4.1.0, mock-3.11.1, playwright-0.5.0
+collected 1183 items / 13 deselected / 1170 selected
+
+tests/integration/test_settings_page_playwright.py FFFFFFFFF             [  0%]
+tests/integration/test_validation_playwright.py FFF                      [  1%]
+tests/integration/test_academic_domains_crud.py .....F....F.F            [  2%]
+tests/integration/test_academic_domains_form_integration.py FF..FFF..    [  2%]
+tests/integration/test_adding_data_bug.py ..                             [  3%]
+tests/integration/test_advanced_crud.py ........                         [  3%]
+tests/integration/test_api_caching_improvements.py .....                 [  4%]
+tests/integration/test_api_comprehensive.py ...................          [  5%]
+tests/integration/test_api_entries_fix.py .                              [  5%]
+tests/integration/test_api_integration.py ...FF........                  [  7%]
+tests/integration/test_app_consistency.py .......                        [  7%]
+tests/integration/test_auto_save_requirements.py ...............         [  8%]
+tests/integration/test_autosave_system.py ........                       [  9%]
+tests/integration/test_backend_dict_field_error.py .                     [  9%]
+tests/integration/test_basex_connector.py .....                          [ 10%]
+tests/integration/test_basic_postgresql.py ...........s                  [ 11%]
+tests/integration/test_caching_integration.py ss...                      [ 11%]
+tests/integration/test_centralized_validation_integration.py ........... [ 12%]
+.                                                                        [ 12%]
+tests/integration/test_complete_filtering_and_refresh.py .....           [ 12%]
+tests/integration/test_complete_flow.py .                                [ 13%]
+tests/integration/test_complex_forms.py ..                               [ 13%]
+tests/integration/test_corpus_analytics_fix.py .                         [ 13%]
+tests/integration/test_corpus_caching.py ..                              [ 13%]
+tests/integration/test_corpus_management_integration.py ......           [ 14%]
+tests/integration/test_corpus_management_missing_table.py ..             [ 14%]
+tests/integration/test_corpus_management_view.py ...                     [ 14%]
+tests/integration/test_corpus_migrator_stats.py ...                      [ 14%]
+tests/integration/test_corpus_routes.py .........                        [ 15%]
+tests/integration/test_cross_reference_functionality.py .......          [ 16%]
+tests/integration/test_dashboard.py ......................               [ 17%]
+tests/integration/test_dashboard_mock_only.py .                          [ 18%]
+tests/integration/test_dashboard_optimized.py ......................     [ 19%]
+tests/integration/test_dates_ui.py ..                                    [ 20%]
+tests/integration/test_debug_relations.py .                              [ 20%]
+tests/integration/test_definition_conflict.py ...                        [ 20%]
+tests/integration/test_delete_entry.py E                                 [ 20%]
+tests/integration/test_dictionary_service.py .........                   [ 21%]
+tests/integration/test_display_api.py sssss                              [ 21%]
+tests/integration/test_dynamic_ranges.py ......                          [ 22%]
+tests/integration/test_enhanced_relations.py ..                          [ 22%]
+tests/integration/test_enhanced_relations_ui.py .....                    [ 22%]
+tests/integration/test_entries_api_postgresql_integration.py ...         [ 23%]
+tests/integration/test_entries_clear_cache.py .                          [ 23%]
+tests/integration/test_entries_filtering_integration.py .....            [ 23%]
+tests/integration/test_entry_edit_pos.py .                               [ 23%]
+tests/integration/test_entry_editing_always_works.py .                   [ 23%]
+tests/integration/test_entry_form_layout.py .                            [ 23%]
+tests/integration/test_entry_form_loads.py ....                          [ 24%]
+tests/integration/test_entry_manual.py .                                 [ 24%]
+tests/integration/test_entry_update.py .                                 [ 24%]
+tests/integration/test_etymology_ui.py ......                            [ 24%]
+tests/integration/test_exporter_integration.py ......                    [ 25%]
+tests/integration/test_fast_corpus_processing.py sssssssssssss           [ 26%]
+tests/integration/test_filtering_validation.py ..                        [ 26%]
+tests/integration/test_final_save_process.py .                           [ 26%]
+tests/integration/test_flask_search_endpoint.py ....                     [ 27%]
+tests/integration/test_focused_coverage.py ..........                    [ 27%]
+tests/integration/test_form_serializer_integration.py .                  [ 28%]
+tests/integration/test_form_state_management_requirements.py .......     [ 28%]
+tests/integration/test_form_submission.py .                              [ 28%]
+tests/integration/test_full_ranges_integration.py ....                   [ 29%]
+tests/integration/test_grammatical_category_integration.py ..            [ 29%]
+tests/integration/test_high_impact_coverage.py ...........               [ 30%]
+tests/integration/test_homograph_numbers.py ..................           [ 31%]
+tests/integration/test_integration_ui_fixes.py .                         [ 31%]
+tests/integration/test_invalid_entry_editability.py .....                [ 32%]
+tests/integration/test_invalid_entry_editing.py ......s                  [ 32%]
+tests/integration/test_language_constraints.py .                         [ 32%]
+tests/integration/test_language_selector.py Es                           [ 33%]
+tests/integration/test_lift_entry_dates_integration.py .                 [ 33%]
+tests/integration/test_lift_ranges_comprehensive.py ............         [ 34%]
+tests/integration/test_lift_ranges_e2e_integration.py .s...              [ 34%]
+tests/integration/test_lift_ranges_integration.py .........              [ 35%]
+tests/integration/test_lift_ranges_parser_comprehensive.py ..........    [ 36%]
+tests/integration/test_lift_ranges_sample_file.py ...                    [ 36%]
+tests/integration/test_live_search_functionality.py ......               [ 37%]
+tests/integration/test_migration_real_integration.py ........            [ 37%]
+tests/integration/test_model_integration.py ...                          [ 37%]
+tests/integration/test_morph_type_inheritance.py .....                   [ 38%]
+tests/integration/test_morph_type_inheritance_fixed.py .....             [ 38%]
+tests/integration/test_morph_type_integration.py ....F....FFFFFF.F       [ 40%]
+tests/integration/test_morph_type_lift.py .                              [ 40%]
+tests/integration/test_morph_type_manual.py .                            [ 40%]
+tests/integration/test_morph_type_server_side.py ......                  [ 40%]
+tests/integration/test_multilingual_dots.py ..                           [ 41%]
+tests/integration/test_multilingual_editing.py .......                   [ 41%]
+tests/integration/test_multilingual_entry_integration.py ......          [ 42%]
+tests/integration/test_multilingual_notes_form_processing.py .......     [ 42%]
+tests/integration/test_multilingual_notes_search.py ......               [ 43%]
+tests/integration/test_namespace_handling.py ...................F...     [ 45%]
+tests/integration/test_navigation_performance.py .F..                    [ 45%]
+tests/integration/test_parser_comprehensive.py ...............           [ 46%]
+tests/integration/test_performance_benchmarks.py EEEEEE.                 [ 47%]
+tests/integration/test_phase_3_integration.py .......                    [ 48%]
+tests/integration/test_phase_4_real_time_validation.py ................  [ 49%]
+tests/integration/test_pos_inheritance_scenarios.py ..                   [ 49%]
+tests/integration/test_pos_ui.py E                                       [ 49%]
+tests/integration/test_postgresql_integration.py ..............          [ 50%]
+tests/integration/test_postgresql_real_integration.py .......            [ 51%]
+tests/integration/test_pronunciation_and_dynamic_ranges.py ....          [ 51%]
+tests/integration/test_pronunciation_display.py F.                       [ 52%]
+tests/integration/test_pronunciation_form_display.py ..                  [ 52%]
+tests/integration/test_pronunciation_unicode_fix.py ...                  [ 52%]
+tests/integration/test_query_builder.py ......                           [ 52%]
+tests/integration/test_query_builder_filter_consistency.py .....         [ 53%]
+tests/integration/test_query_builder_ui.py ..............                [ 54%]
+tests/integration/test_ranges_api.py .......                             [ 55%]
+tests/integration/test_real_endpoint.py .                                [ 55%]
+tests/integration/test_real_integration.py FFF..FFFFF                    [ 56%]
+tests/integration/test_real_submission.py .                              [ 56%]
+tests/integration/test_relation_variant_types.py .....                   [ 56%]
+tests/integration/test_relations_ui.py ............                      [ 57%]
+tests/integration/test_relations_variants_ui_playwright.py EEEE          [ 58%]
+tests/integration/test_save_debug.py .                                   [ 58%]
+tests/integration/test_search.py .......                                 [ 58%]
+tests/integration/test_search_api_debug.py .....                         [ 59%]
+tests/integration/test_search_functionality.py ..........                [ 60%]
+tests/integration/test_search_integration_comprehensive.py ............. [ 61%]
+........                                                                 [ 61%]
+tests/integration/test_search_invalid_entry.py .                         [ 61%]
+tests/integration/test_search_pagination.py ....                         [ 62%]
+tests/integration/test_sense_deletion.py EEE                             [ 62%]
+tests/integration/test_sense_deletion_fixed.py EEE                       [ 62%]
+tests/integration/test_sense_level_fields_no_data_loss.py .........      [ 63%]
+tests/integration/test_serialization_error.py .                          [ 63%]
+tests/integration/test_settings_page_playwright.py E                     [ 63%]
+tests/integration/test_settings_route.py .F.F.                           [ 64%]
+tests/integration/test_sorting_and_editing.py EEEEE                      [ 64%]
+tests/integration/test_statistics_and_status.py .....                    [ 64%]
+tests/integration/test_template_rendering.py .                           [ 65%]
+tests/integration/test_tools_page.py ..                                  [ 65%]
+tests/integration/test_ui_fixes.py ..                                    [ 65%]
+tests/integration/test_ui_form_submission.py .....                       [ 65%]
+tests/integration/test_ui_ranges_phase4.py ..............                [ 67%]
+tests/integration/test_usage_type_string_bug.py ..                       [ 67%]
+tests/integration/test_validation_relaxation.py ....                     [ 67%]
+tests/integration/test_validation_rules.py ...........................s. [ 70%]
+..s.                                                                     [ 70%]
+tests/integration/test_validation_rules_fixed.py ...............         [ 71%]
+tests/integration/test_variant_container.py ....                         [ 71%]
+tests/integration/test_variant_entry_complete.py ....                    [ 72%]
+tests/integration/test_variant_entry_listing_fix.py ...                  [ 72%]
+tests/integration/test_variant_forms_ui.py ............                  [ 73%]
+tests/integration/test_variant_sense_validation.py .                     [ 73%]
+tests/integration/test_variant_trait_labels_ui.py ....                   [ 74%]
+tests/integration/test_variant_validation_fix.py .                       [ 74%]
+tests/integration/test_web_endpoint.py ..                                [ 74%]
+tests/integration/test_web_form_protestantism.py ..                      [ 74%]
+tests/integration/test_web_form_real.py ..                               [ 74%]
+tests/integration/test_word_sketch_integration.py ............           [ 75%]
+tests/integration/test_working_coverage.py .                             [ 75%]
+tests/integration/test_workset_api.py .FFFFF..F                          [ 76%]
+tests/integration/test_worksets.py .                                     [ 76%]
+tests/unit/test_academic_domains.py .....................                [ 78%]
+tests/unit/test_additional_coverage.py ................................. [ 81%]
+....                                                                     [ 81%]
+tests/unit/test_basic.py ..............                                  [ 82%]
+tests/unit/test_cache_service.py .....                                   [ 83%]
+tests/unit/test_centralized_validation.py ................               [ 84%]
+tests/unit/test_comprehensive_empty_fields.py .....                      [ 84%]
+tests/unit/test_config_manager.py .                                      [ 85%]
+tests/unit/test_cross_reference_queries.py .........                     [ 85%]
+tests/unit/test_data_loss_critical.py ..                                 [ 85%]
+tests/unit/test_dictionary_service_filtering.py .....                    [ 86%]
+tests/unit/test_entry_display.py ...                                     [ 86%]
+tests/unit/test_entry_model_comprehensive.py ................            [ 88%]
+tests/unit/test_etymology_model.py .                                     [ 88%]
+tests/unit/test_etymology_ui_unit.py .....                               [ 88%]
+tests/unit/test_expanded_coverage.py .........                           [ 89%]
+tests/unit/test_final_coverage_push.py ........                          [ 90%]
+tests/unit/test_form_serializer_unit.py .F...FF....F..                   [ 91%]
+tests/unit/test_form_serializer_unit_fast.py .F...FF....F..              [ 92%]
+tests/unit/test_grammatical_category_clearing.py ...                     [ 92%]
+tests/unit/test_grammatical_category_fix.py ...                          [ 92%]
+tests/unit/test_grammatical_info_dot_notation.py ..                      [ 93%]
+tests/unit/test_grammatical_info_parsing.py .....                        [ 93%]
+tests/unit/test_id_generation.py .                                       [ 93%]
+tests/unit/test_jinja_templates.py ..                                    [ 93%]
+tests/unit/test_js_form_parsing.py .                                     [ 93%]
+tests/unit/test_language_selection_requirements.py ...                   [ 94%]
+tests/unit/test_lift_date_parsing.py .                                   [ 94%]
+tests/unit/test_lift_parser.py .                                         [ 94%]
+tests/unit/test_lift_parser_extended.py ..                               [ 94%]
+tests/unit/test_lift_parser_senses.py .                                  [ 94%]
+tests/unit/test_lift_traits_and_language_codes.py .....                  [ 94%]
+tests/unit/test_list_fields.py .                                         [ 95%]
+tests/unit/test_pos_inheritance.py .........                             [ 95%]
+tests/unit/test_pos_inheritance_debug.py .                               [ 95%]
+tests/unit/test_processor_fix.py .                                       [ 95%]
+tests/unit/test_scholastic_assessment_entry.py .                         [ 96%]
+tests/unit/test_sense_level_fields.py .........                          [ 96%]
+tests/unit/test_settings_form_current_state.py .....ssss                 [ 97%]
+tests/unit/test_simple_unit.py .                                         [ 97%]
+tests/unit/test_system_status.py ....                                    [ 98%]
+tests/unit/test_unit_coverage.py .......................                 [100%]
+
+=========================== short test summary info ============================
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsPageUX::test_source_language_selection_functionality[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsPageUX::test_target_languages_interface_exists[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsPageUX::test_form_submission_works[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsPageUX::test_current_settings_display[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsLanguageUXRequirements::test_multiple_target_languages_can_be_selected[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsLanguageUXRequirements::test_language_options_are_comprehensive[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsLanguageUXRequirements::test_language_selection_updates_json_storage[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsLanguageUXRequirements::test_settings_affect_entry_form_language_options[chromium]
+FAILED tests/integration/test_settings_page_playwright.py::TestSettingsLanguageUXRequirements::test_language_validation_and_warnings[chromium]
+FAILED tests/integration/test_validation_playwright.py::test_validation_respects_project_settings[chromium]
+FAILED tests/integration/test_validation_playwright.py::test_empty_source_language_definition_allowed[chromium]
+FAILED tests/integration/test_validation_playwright.py::test_ipa_character_validation[chromium]
+FAILED tests/integration/test_academic_domains_crud.py::TestAcademicDomainsIntegration::test_retrieve_entries_by_academic_domain
+FAILED tests/integration/test_academic_domains_crud.py::TestAcademicDomainsIntegration::test_unicode_academic_domain_handling
+FAILED tests/integration/test_academic_domains_crud.py::TestAcademicDomainsIntegration::test_form_data_processing_academic_domain
+FAILED tests/integration/test_academic_domains_form_integration.py::TestAcademicDomainsFormIntegration::test_form_submission_entry_level_academic_domain
+FAILED tests/integration/test_academic_domains_form_integration.py::TestAcademicDomainsFormIntegration::test_form_submission_multiple_academic_domains
+FAILED tests/integration/test_academic_domains_form_integration.py::TestAcademicDomainsFormIntegration::test_form_validation_invalid_academic_domain
+FAILED tests/integration/test_academic_domains_form_integration.py::TestAcademicDomainsFormIntegration::test_academic_domain_view_display
+FAILED tests/integration/test_academic_domains_form_integration.py::TestAcademicDomainsFormIntegration::test_form_unicode_academic_domains
+FAILED tests/integration/test_api_integration.py::TestAPIIntegration::test_api_entries_create
+FAILED tests/integration/test_api_integration.py::TestAPIIntegration::test_api_entries_update
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_entry_model_auto_classification_logic
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_server_side_classification_accuracy[word-stem]
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_server_side_classification_accuracy[two words-phrase]
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_server_side_classification_accuracy[pre--prefix]
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_server_side_classification_accuracy[-suf-suffix]
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_server_side_classification_accuracy[-mid--infix]
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_server_side_classification_accuracy[-stem]
+FAILED tests/integration/test_morph_type_integration.py::TestMorphTypeIntegration::test_end_to_end_morph_type_workflow
+FAILED tests/integration/test_namespace_handling.py::TestXQueryBuilder::test_advanced_search_query
+FAILED tests/integration/test_navigation_performance.py::TestMainNavigation::test_corpus_management_page_loads
+FAILED tests/integration/test_pronunciation_display.py::test_pronunciation_display_in_entry_form
+FAILED tests/integration/test_real_integration.py::TestRealIntegration::test_real_entry_creation_and_retrieval
+FAILED tests/integration/test_real_integration.py::TestRealIntegration::test_real_search_functionality
+FAILED tests/integration/test_real_integration.py::TestRealIntegration::test_real_entry_update_and_delete
+FAILED tests/integration/test_real_integration.py::TestRealIntegration::test_real_error_handling
+FAILED tests/integration/test_real_integration.py::TestRealIntegration::test_real_sense_operations
+FAILED tests/integration/test_real_integration.py::TestRealModelInteractions::test_sense_property_setters
+FAILED tests/integration/test_real_integration.py::TestRealModelInteractions::test_entry_sense_integration
+FAILED tests/integration/test_real_integration.py::TestRealModelInteractions::test_entry_validation_comprehensive
+FAILED tests/integration/test_settings_route.py::TestSettingsRoute::test_language_choices_in_form
+FAILED tests/integration/test_settings_route.py::TestSettingsRoute::test_update_settings_successfully
+FAILED tests/integration/test_workset_api.py::TestWorksetAPI::test_get_workset_with_pagination
+FAILED tests/integration/test_workset_api.py::TestWorksetAPI::test_update_workset_query
+FAILED tests/integration/test_workset_api.py::TestWorksetAPI::test_delete_workset
+FAILED tests/integration/test_workset_api.py::TestWorksetAPI::test_bulk_update_workset
+FAILED tests/integration/test_workset_api.py::TestWorksetAPI::test_get_bulk_operation_progress
+FAILED tests/integration/test_workset_api.py::TestWorksetPerformance::test_workset_concurrent_access
+FAILED tests/unit/test_form_serializer_unit.py::TestFormSerializerUnit::test_simple_field_serialization
+FAILED tests/unit/test_form_serializer_unit.py::TestFormSerializerUnit::test_dictionary_entry_scenario
+FAILED tests/unit/test_form_serializer_unit.py::TestFormSerializerUnit::test_empty_value_handling
+FAILED tests/unit/test_form_serializer_unit.py::TestFormSerializerUnit::test_unicode_support
+FAILED tests/unit/test_form_serializer_unit_fast.py::TestFormSerializerUnit::test_simple_field_serialization
+FAILED tests/unit/test_form_serializer_unit_fast.py::TestFormSerializerUnit::test_dictionary_entry_scenario
+FAILED tests/unit/test_form_serializer_unit_fast.py::TestFormSerializerUnit::test_empty_value_handling
+FAILED tests/unit/test_form_serializer_unit_fast.py::TestFormSerializerUnit::test_unicode_support
+ERROR tests/integration/test_delete_entry.py::test_delete_entry - playwright....
+ERROR tests/integration/test_language_selector.py::test_language_selector_shows_only_configured_languages
+ERROR tests/integration/test_performance_benchmarks.py::TestPerformanceBenchmarks::test_bulk_entry_creation_performance
+ERROR tests/integration/test_performance_benchmarks.py::TestPerformanceBenchmarks::test_search_performance
+ERROR tests/integration/test_performance_benchmarks.py::TestPerformanceBenchmarks::test_entry_retrieval_performance
+ERROR tests/integration/test_performance_benchmarks.py::TestPerformanceBenchmarks::test_count_operations_performance
+ERROR tests/integration/test_performance_benchmarks.py::TestPerformanceBenchmarks::test_memory_usage_during_operations
+ERROR tests/integration/test_performance_benchmarks.py::TestPerformanceBenchmarks::test_concurrent_operations_performance
+ERROR tests/integration/test_pos_ui.py::test_pos_inheritance_ui - playwright....
+ERROR tests/integration/test_relations_variants_ui_playwright.py::TestRelationsVariantsUIPlaywright::test_variant_container_displays_correctly
+ERROR tests/integration/test_relations_variants_ui_playwright.py::TestRelationsVariantsUIPlaywright::test_relations_container_displays_correctly
+ERROR tests/integration/test_relations_variants_ui_playwright.py::TestRelationsVariantsUIPlaywright::test_variant_form_interaction
+ERROR tests/integration/test_relations_variants_ui_playwright.py::TestRelationsVariantsUIPlaywright::test_relation_form_interaction
+ERROR tests/integration/test_sense_deletion.py::test_add_and_remove_sense - p...
+ERROR tests/integration/test_sense_deletion.py::test_remove_empty_sense_with_validation_warning
+ERROR tests/integration/test_sense_deletion.py::test_validation_warnings_allow_save
+ERROR tests/integration/test_sense_deletion_fixed.py::test_sense_deletion_persists_after_save
+ERROR tests/integration/test_sense_deletion_fixed.py::test_default_template_not_serialized
+ERROR tests/integration/test_sense_deletion_fixed.py::test_multiple_deletions
+ERROR tests/integration/test_settings_page_playwright.py::TestSettingsPageUX::test_settings_page_basic_functionality
+ERROR tests/integration/test_sorting_and_editing.py::test_date_modified_sorting_ascending
+ERROR tests/integration/test_sorting_and_editing.py::test_date_modified_sorting_descending
+ERROR tests/integration/test_sorting_and_editing.py::test_entry_editing_loads_successfully
+ERROR tests/integration/test_sorting_and_editing.py::test_entry_editing_save_functionality
+ERROR tests/integration/test_sorting_and_editing.py::test_multiple_entries_sorting_consistency
+= 57 failed, 1058 passed, 30 skipped, 13 deselected, 25 errors in 256.81s (0:04:16) =

@@ -22,7 +22,7 @@ def test_real_form_submission():
     with app.test_client() as client:
         # Test 1: POST with JSON data (as the frontend sends it)
         entry_data = {
-            'lexical_unit': 'testword',
+            'lexical_unit': {'en': 'testword'},
             'senses': [
                 {
                     'definition': 'Test definition',
@@ -48,7 +48,7 @@ def test_real_form_submission():
         # Test 2: POST with form data (as traditional form submission)
         print(f"\n2. Testing form data submission...")
         form_data = {
-            'lexical_unit': 'testword2',
+            'lexical_unit': {'en': 'testword2'},
             'senses[0].definition': 'Test definition 2',
             'senses[0].gloss': 'Test gloss 2',
             'morph_type': 'stem'

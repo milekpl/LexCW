@@ -117,15 +117,15 @@ class TestMorphTypeInheritance:
     def test_morph_type_patterns(self):
         """Test various morph-type classification patterns"""
         test_cases = [
-            # (lexical_unit, explicit_morph_type, expected_result)
-            ('word', None, 'stem'),
-            ('multi word', None, 'phrase'),
-            ('pre-', None, 'prefix'),
-            ('-suf', None, 'suffix'),
-            ('-in-', None, 'infix'),
-            ('word', 'phrase', 'phrase'),  # Explicit should override
-            ('', None, 'stem'),  # Empty should default to stem
-            ('pre-', 'stem', 'stem'),  # Explicit should override auto-classification
+            # (lexical_unit_dict, explicit_morph_type, expected_result)
+            ({'en': 'word'}, None, 'stem'),
+            ({'en': 'multi word'}, None, 'phrase'),
+            ({'en': 'pre-'}, None, 'prefix'),
+            ({'en': '-suf'}, None, 'suffix'),
+            ({'en': '-in-'}, None, 'infix'),
+            ({'en': 'word'}, 'phrase', 'phrase'),  # Explicit should override
+            ({'en': ''}, None, 'stem'),  # Empty should default to stem
+            ({'en': 'pre-'}, 'stem', 'stem'),  # Explicit should override auto-classification
         ]
         
         for lexical_unit, explicit_morph_type, expected in test_cases:

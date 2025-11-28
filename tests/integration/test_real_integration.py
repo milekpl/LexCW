@@ -106,11 +106,11 @@ class TestRealIntegration:
         entry = Entry(
             id_="real_test_entry",
             lexical_unit={"en": "integration", "pl": "integracja"},
-            senses=[{
-                "id": "real_sense_1",
-                " 1": {"en": "A comprehensive test of system components working together"},
-                " 1": {"en": "The process of combining parts into a whole"}
-            }]
+            senses=[Sense(
+                id_="real_sense_1",
+                definitions={"en": {"text": "A comprehensive test of system components working together"}},
+                glosses={"en": "The process of combining parts into a whole"}
+            )]
         )
 
         assert entry.validate()
@@ -122,8 +122,9 @@ class TestRealIntegration:
         assert retrieved_entry.id == "real_test_entry"
         assert retrieved_entry.lexical_unit["en"] == "integration"
         assert len(retrieved_entry.senses) == 1
-        assert retrieved_entry.senses[0].definitions["en"] == "A comprehensive test of system components working together"
-        assert retrieved_entry.senses[0].glosses["en"] == "The process of combining parts into a whole"
+        assert retrieved_entry.senses[0].definitions["en"]["text"] == "A comprehensive test of system components working together"
+        # Glosses are stored as {lang: {text: value}} in LIFT format
+        assert retrieved_entry.senses[0].glosses["en"]["text"] == "The process of combining parts into a whole"
     
     @pytest.mark.integration
     def test_real_search_functionality(self, dict_service):
@@ -131,30 +132,33 @@ class TestRealIntegration:
         entries = [
             Entry(
                 id_="search_test_1",
-                lexical_unit={"en": "apple", "pl": "jabłko"},
-                senses=[{
-                    "id": "apple_sense_1",
-                    " 1": {"en": "A red or green fruit that grows on trees"},
-                    " 1": {"en": "A round fruit"}
-                }]
+                lexical_unit={"en": "apple", "pl": "jab\u0142ko"},
+                grammatical_info="Noun",
+                senses=[Sense(
+                    id_="apple_sense_1",
+                    definitions={"en": {"text": "A red or green fruit that grows on trees"}},
+                    glosses={"en": "A round fruit"}
+                )]
             ),
             Entry(
                 id_="search_test_2",
                 lexical_unit={"en": "application", "pl": "aplikacja"},
-                senses=[{
-                    "id": "app_sense_1",
-                    " 1": {"en": "Software designed for end users"},
-                    " 1": {"en": "A computer program"}
-                }]
+                grammatical_info="Noun",
+                senses=[Sense(
+                    id_="app_sense_1",
+                    definitions={"en": {"text": "Software designed for end users"}},
+                    glosses={"en": "A computer program"}
+                )]
             ),
             Entry(
                 id_="search_test_3",
                 lexical_unit={"en": "appreciate", "pl": "doceniać"},
-                senses=[{
-                    "id": "appreciate_sense_1",
-                    " 1": {"en": "To understand the worth or importance of something"},
-                    " 1": {"en": "To value or recognize"}
-                }]
+                grammatical_info="Verb",
+                senses=[Sense(
+                    id_="appreciate_sense_1",
+                    definitions={"en": {"text": "To understand the worth or importance of something"}},
+                    glosses={"en": "To value or recognize"}
+                )]
             )
         ]
         
@@ -193,10 +197,10 @@ class TestRealIntegration:
         entry = Entry(
             id_="update_test_entry",
             lexical_unit={"en": "original"},
-            senses=[{
-                "id": "original_sense",
-                " 1": {"en": "Original gloss"}
-            }]
+            senses=[Sense(
+                id_="original_sense",
+                glosses={"en": "Original gloss"}
+            )]
         )
         dict_service.create_entry(entry)
         # Update entry
@@ -206,7 +210,8 @@ class TestRealIntegration:
         # Verify update
         updated_entry = dict_service.get_entry("update_test_entry")
         assert updated_entry.lexical_unit["en"] == "updated"
-        assert updated_entry.senses[0].glosses["en"] == "Updated gloss"
+        # Glosses are stored as {lang: {text: value}} in LIFT format
+        assert updated_entry.senses[0].glosses["en"]["text"] == "Updated gloss"
         
         # Delete entry
         success = dict_service.delete_entry("update_test_entry")
@@ -227,10 +232,10 @@ class TestRealIntegration:
             entry = Entry(
                 id_=f"stats_test_{i}",
                 lexical_unit={"en": f"word_{i}"},
-                senses=[{
-                    "id": f"sense_{i}",
-                    "glosses": {"en": f"Definition {i}"}
-                }]
+                senses=[Sense(
+                    id_=f"sense_{i}",
+                    glosses={"en": f"Definition {i}"}
+                )]
             )
             dict_service.create_entry(entry)
         
@@ -309,7 +314,7 @@ class TestRealIntegration:
         entry = Entry(
             id_="duplicate_test",
             lexical_unit={"en": "duplicate"},
-            senses=[{"id": "dup_sense", " 1": {"en": "First"}}]
+            senses=[Sense(id_="dup_sense", glosses={"en": "First"})]
         )
         # First creation should succeed
         dict_service.create_entry(entry)
@@ -324,7 +329,7 @@ class TestRealIntegration:
         non_existent = Entry(
             id_="non_existent",
             lexical_unit={"en": "test"},
-            senses=[{"id": "test", " 1": {"en": "test"}}]
+            senses=[Sense(id_="test", glosses={"en": "test"})]
         )
         with pytest.raises(NotFoundError):
             dict_service.update_entry(non_existent)
@@ -337,25 +342,25 @@ class TestRealIntegration:
             id_="multi_sense_test",
             lexical_unit={"en": "bank"},
             senses=[
-                {
-                    "id": "bank_sense_1",
-                    " 1": {"en": "Financial institution"},
-                    " 1": {"en": "A place where money is kept and financial services are provided"}
-                },
-                {
-                    "id": "bank_sense_2", 
-                    " 1": {"en": "Side of a river"},
-                    " 1": {"en": "The land alongside a river or lake"}
-                }
+                Sense(
+                    id_="bank_sense_1",
+                    glosses={"en": "Financial institution"},
+                    definitions={"en": {"text": "A place where money is kept and financial services are provided"}}
+                ),
+                Sense(
+                    id_="bank_sense_2", 
+                    glosses={"en": "Side of a river"},
+                    definitions={"en": {"text": "The land alongside a river or lake"}}
+                )
             ]
         )
         dict_service.create_entry(entry)
         # Retrieve and verify
         retrieved = dict_service.get_entry("multi_sense_test")
         assert len(retrieved.senses) == 2
-        # Test sense access
-        financial_sense = next((s for s in retrieved.senses if "Financial" in s.glosses["en"]), None)
-        river_sense = next((s for s in retrieved.senses if "river" in s.glosses["en"]), None)
+        # Test sense access - glosses are {lang: {text: value}} format
+        financial_sense = next((s for s in retrieved.senses if "Financial" in s.glosses["en"]["text"]), None)
+        river_sense = next((s for s in retrieved.senses if "river" in s.glosses["en"]["text"]), None)
         assert financial_sense is not None
         assert river_sense is not None
         assert financial_sense.id == "bank_sense_1"
@@ -372,21 +377,22 @@ class TestRealModelInteractions:
         """Test that property setters work correctly for multilingual dicts."""
         sense = Sense(id_="test_sense")
 
-        # Test string assignment (should create nested dict)
+        # Test string assignment (should create dict)
         sense.glosses = {"en": "Test gloss"}
         assert sense.glosses["en"] == "Test gloss"
 
-        sense.definitions = {"en": "Test definition"}
-        assert sense.definitions["en"] == "Test definition"
+        sense.definitions = {"en": {"text": "Test definition"}}
+        assert sense.definitions["en"]["text"] == "Test definition"
 
         # Test dict assignment (multiple languages)
         sense.glosses = {"pl": "Polski tekst", "en": "English text"}
         assert sense.glosses["pl"] == "Polski tekst"
         assert sense.glosses["en"] == "English text"
 
-        # Test that the structure is always {lang: {text: ...}}
-        for lang, val in sense.glosses.items():
-            assert isinstance(val, dict) and "text" in val
+        # Test that definitions have nested structure
+        sense.definitions = {"en": {"text": "Test"}, "pl": {"text": "Test PL"}}
+        assert sense.definitions["en"]["text"] == "Test"
+        assert sense.definitions["pl"]["text"] == "Test PL"
     
     @pytest.mark.integration
     def test_entry_sense_integration(self):
@@ -395,16 +401,16 @@ class TestRealModelInteractions:
             id_="integration_test",
             lexical_unit={"en": "test", "pl": "test"},
             senses=[
-                {
-                    "id": "sense_1",
-                    " 1": {"en": "First sense"},
-                    " 1": {"en": "First definition"}
-                },
-                {
-                    "id": "sense_2",
-                    "glosses": {"en": "Second sense", "pl": "Drugi sens"},
-                    "definitions": {"en": "Second definition", "pl": "Druga definicja"}
-                }
+                Sense(
+                    id_="sense_1",
+                    glosses={"en": "First sense"},
+                    definitions={"en": {"text": "First definition"}}
+                ),
+                Sense(
+                    id_="sense_2",
+                    glosses={"en": "Second sense", "pl": "Drugi sens"},
+                    definitions={"en": {"text": "Second definition"}, "pl": {"text": "Druga definicja"}}
+                )
             ]
         )
 
@@ -416,15 +422,15 @@ class TestRealModelInteractions:
         sense1 = entry.senses[0]
         assert sense1.id == "sense_1"
         assert sense1.glosses["en"] == "First sense"
-        assert sense1.definitions["en"] == "First definition"
+        assert sense1.definitions["en"]["text"] == "First definition"
 
         # Test second sense with multiple languages
         sense2 = entry.senses[1]
         assert sense2.id == "sense_2"
         assert sense2.glosses["en"] == "Second sense"
         assert sense2.glosses["pl"] == "Drugi sens"
-        assert sense2.definitions["en"] == "Second definition"
-        assert sense2.definitions["pl"] == "Druga definicja"
+        assert sense2.definitions["en"]["text"] == "Second definition"
+        assert sense2.definitions["pl"]["text"] == "Druga definicja"
     
     @pytest.mark.integration
     def test_entry_validation_comprehensive(self):
@@ -433,14 +439,14 @@ class TestRealModelInteractions:
         valid_entry = Entry(
             id_="valid_test",
             lexical_unit={"en": "valid"},
-            senses=[{"id": "valid_sense", "gloss": "Valid"}]
+            senses=[Sense(id_="valid_sense", glosses={"en": "Valid"})]
         )
         assert valid_entry.validate()
         
         # Entry without lexical unit
         invalid_entry1 = Entry(
             id_="invalid_1",
-            senses=[{"id": "sense", "gloss": "test"}]
+            senses=[Sense(id_="sense", glosses={"en": "test"})]
         )
         with pytest.raises(ValidationError) as exc_info:
             invalid_entry1.validate()
@@ -450,7 +456,7 @@ class TestRealModelInteractions:
         invalid_entry2 = Entry(
             id_="invalid_2",
             lexical_unit={"en": "test"},
-            senses=[{"id": "", "gloss": "test"}]
+            senses=[Sense(id_="", glosses={"en": "test"})]
         )
         with pytest.raises(ValidationError) as exc_info:
             invalid_entry2.validate()

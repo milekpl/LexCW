@@ -72,29 +72,21 @@ class Sense(BaseModel):
             # Handle non-string values by converting to string
             self.academic_domain: Optional[str] = str(academic_domain_value) if academic_domain_value else None
 
-        # Support 'gloss' and 'definition' as aliases - LIFT flat format {lang: text}
-        # Accept strings for backward compatibility and auto-convert to default language
+        # Handle gloss and definition - LIFT flat format {lang: text}
+        # Only accept dict format
         if 'gloss' in kwargs:
             gloss_value = kwargs.pop('gloss')
-            if isinstance(gloss_value, str):
-                # Auto-convert string to LIFT flat format with default language
-                self.glosses = {'en': gloss_value} if gloss_value else {}
-            elif isinstance(gloss_value, dict):
-                self.glosses = gloss_value
-            else:
-                raise ValueError(f"Sense 'gloss' must be a string or dict in LIFT flat format {{lang: text}}, got {type(gloss_value)}")
+            if not isinstance(gloss_value, dict):
+                raise ValueError(f"Sense 'gloss' must be a dict in LIFT flat format {{lang: text}}, got {type(gloss_value)}")
+            self.glosses = gloss_value
 
         if 'definition' in kwargs:
             def_value = kwargs.pop('definition')
-            if isinstance(def_value, str):
-                # Auto-convert string to LIFT flat format with default language
-                self.definitions = {'en': def_value} if def_value else {}
-            elif isinstance(def_value, dict):
-                self.definitions = def_value
-            else:
-                raise ValueError(f"Sense 'definition' must be a string or dict in LIFT flat format {{lang: text}}, got {type(def_value)}")
+            if not isinstance(def_value, dict):
+                raise ValueError(f"Sense 'definition' must be a dict in LIFT flat format {{lang: text}}, got {type(def_value)}")
+            self.definitions = def_value
 
-        # Validate format - all values must be dicts with 'text' key
+        # Validate format
         if not isinstance(self.glosses, dict):
             self.glosses = {}
         if not isinstance(self.definitions, dict):

@@ -323,11 +323,9 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            try:
-                if self.get_entry(entry.id):
-                    raise ValidationError(f"Entry with ID {entry.id} already exists")
-            except NotFoundError:
-                pass  # Entry doesn't exist, which is what we want
+            # Check if entry already exists
+            if self.entry_exists(entry.id):
+                raise ValidationError(f"Entry with ID {entry.id} already exists")
 
             entry_xml = self._prepare_entry_xml(entry)
 

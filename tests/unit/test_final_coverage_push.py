@@ -49,10 +49,10 @@ class TestFinalCoveragePush:
                 "seh-fonipa": "complex_word"
             },
             senses=[complex_sense],
-            pronunciations=[
-                Pronunciation(id="pron1", ipa="kəmˈpleks"),
-                Pronunciation(id="pron2", ipa="ˈkɒmpleks", location="UK")
-            ],
+            pronunciations={
+                "en": "kəmˈpleks",
+                "en-GB": "ˈkɒmpleks"
+            },
             etymologies={
                 "en": "from Latin complexus",
                 "pl": "z łaciny complexus"
@@ -166,7 +166,7 @@ class TestFinalCoveragePush:
             id="empty_entry",
             lexical_unit={"en": "test"},
             senses=[],
-            pronunciations=[],
+            pronunciations={},
             etymologies={},
             notes={},
             custom_fields={}
@@ -264,7 +264,7 @@ class TestFinalCoveragePush:
         
         # Test advanced search with complex criteria
         complex_criteria = {
-            "lexical_unit": "test",
+            "lexical_unit": {"en": "test"},
             "grammatical_info": "noun",
             "definition": "complex definition",
             "gloss": "test gloss",
@@ -454,9 +454,9 @@ class TestFinalCoveragePush:
                         id="complex",
                         lexical_unit={"en": "test", "pl": "test"},
                         senses=[Sense(id="s1", grammatical_info="noun")],
-                        pronunciations=[Pronunciation(id="p1", ipa="test")]
+                        pronunciations={"en": "test"}
                     ),
-                    Entry(id="empty", lexical_unit={"en": ""}, senses=[], pronunciations=[]),
+                    Entry(id="empty", lexical_unit={"en": ""}, senses=[], pronunciations={}),
                 ]
                 
                 for entry in test_entries:

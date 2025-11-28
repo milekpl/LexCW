@@ -113,8 +113,8 @@ class TestAPIIntegration:
             "senses": [
                 {
                     "id": "create_sense_1",
-                    "gloss": "Create test gloss",
-                    "definition": "Create test definition"
+                    "gloss": {"en": "Create test gloss"},
+                    "definition": {"en": {"text": "Create test definition"}}
                 }
             ]
         }
@@ -159,8 +159,8 @@ class TestAPIIntegration:
             "senses": [
                 {
                     "id": "update_sense",
-                    "gloss": "Modified gloss",
-                    "definition": "Modified definition"
+                    "gloss": {"en": "Modified gloss"},
+                    "definition": {"en": {"text": "Modified definition"}}
                 }
             ]
         }

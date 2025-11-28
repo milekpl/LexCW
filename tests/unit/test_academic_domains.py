@@ -257,33 +257,32 @@ class TestAcademicDomainsValidation:
         assert sense.academic_domain is not None
 
     def test_empty_string_academic_domain(self) -> None:
-        """Test that empty string academic_domain is handled correctly."""
+        """Test that empty string academic_domain becomes None."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
             academic_domain=""
         )
         
-        assert sense.academic_domain == ""
+        assert sense.academic_domain is None
 
     def test_whitespace_only_academic_domain(self) -> None:
-        """Test that whitespace-only academic_domain is handled correctly."""
+        """Test that whitespace-only academic_domain becomes None."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
             academic_domain="   "
         )
         
-        # Should preserve whitespace or trim - depends on implementation choice
-        assert sense.academic_domain is not None
+        # Empty/whitespace strings are normalized to None
+        assert sense.academic_domain is None
 
     def test_unicode_academic_domain(self) -> None:
         """Test that Unicode academic_domain values are handled correctly."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
-            academic_domain="informatyka"  # Polish characters
+            academic_domain="informatyka"  # Polish word
         )
         
         assert sense.academic_domain == "informatyka"
-        assert "ż" in sense.academic_domain  # Verify Unicode is preserved

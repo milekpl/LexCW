@@ -68,7 +68,7 @@ class TestMorphTypeIntegration:
         # Mock an entry with morph-type
         mock_entry = Entry()
         mock_entry.id = 'test-entry-1'
-        mock_entry.lexical_unit = 'test-word'
+        mock_entry.lexical_unit = {'en': 'test-word'}
         mock_entry.morph_type = 'suffix'
         
         mock_dict_service.get_entry_for_editing.return_value = mock_entry
@@ -129,7 +129,7 @@ class TestMorphTypeIntegration:
                 # Send request with explicit morph_type that differs from auto-classification
                 response = client.post('/entries/add', 
                     data={
-                        'lexical_unit': 'word',  # Would auto-classify as 'stem'
+                        'lexical_unit': {'en': 'word'},  # Would auto-classify as 'stem'
                         'morph_type': 'phrase'   # But explicit value should be preserved
                     },
                     content_type='application/x-www-form-urlencoded'
@@ -148,13 +148,13 @@ class TestMorphTypeIntegration:
         # Test cases with expected classifications
         test_cases = [
             # (lexical_unit, explicit_morph_type, expected_result)
-            ('word', None, 'stem'),
-            ('multi word', None, 'phrase'),
-            ('pre-', None, 'prefix'),
-            ('-suf', None, 'suffix'),
-            ('-in-', None, 'infix'),
-            ('word', 'phrase', 'phrase'),  # Explicit should override
-            ('', None, 'stem'),  # Empty should default to stem
+            ({'en': 'word'}, None, 'stem'),
+            ({'en': 'multi word'}, None, 'phrase'),
+            ({'en': 'pre-'}, None, 'prefix'),
+            ({'en': '-suf'}, None, 'suffix'),
+            ({'en': '-in-'}, None, 'infix'),
+            ({'en': 'word'}, 'phrase', 'phrase'),  # Explicit should override
+            ({'en': ''}, None, 'stem'),  # Empty should default to stem
         ]
         
         for lexical_unit, explicit_morph_type, expected in test_cases:
@@ -220,7 +220,7 @@ class TestMorphTypeIntegration:
         # Mock entry with morph-type
         mock_entry = Entry()
         mock_entry.id = 'test-entry-1' 
-        mock_entry.lexical_unit = 'test-'
+        mock_entry.lexical_unit = {'en': 'test-'}
         mock_entry.morph_type = 'prefix'
         
         mock_dict_service.get_entry_for_editing.return_value = mock_entry
@@ -247,7 +247,7 @@ class TestMorphTypeIntegration:
         """Test that JSON API responses include morph_type field."""
         mock_entry = Entry()
         mock_entry.id = 'test-entry-1'
-        mock_entry.lexical_unit = 'test-suffix'
+        mock_entry.lexical_unit = {'en': 'test-suffix'}
         mock_entry.morph_type = 'suffix'
         
         mock_dict_service.get_entry.return_value = mock_entry
@@ -263,12 +263,12 @@ class TestMorphTypeIntegration:
                     assert data['morph_type'] == 'suffix'
 
     @pytest.mark.parametrize("headword,expected_morph_type", [
-        ('word', 'stem'),
-        ('two words', 'phrase'),
-        ('pre-', 'prefix'),
-        ('-suf', 'suffix'),
-        ('-mid-', 'infix'),
-        ('', 'stem'),  # Default for empty
+        ({'en': 'word'}, 'stem'),
+        ({'en': 'two words'}, 'phrase'),
+        ({'en': 'pre-'}, 'prefix'),
+        ({'en': '-suf'}, 'suffix'),
+        ({'en': '-mid-'}, 'infix'),
+        ({'en': ''}, 'stem'),  # Default for empty
     ])
     @pytest.mark.integration
     def test_server_side_classification_accuracy(self, headword, expected_morph_type):
@@ -284,7 +284,7 @@ class TestMorphTypeIntegration:
         """Test that auto-classification never overrides LIFT data."""
         # Test case where auto-classification would differ from LIFT data
         entry_data = {
-            'lexical_unit': 'word',     # Would auto-classify as 'stem'
+            'lexical_unit': {'en': 'word'},     # Would auto-classify as 'stem'
             'morph_type': 'phrase'      # But LIFT says 'phrase'
         }
         
@@ -303,7 +303,7 @@ class TestMorphTypeIntegration:
             with patch('flask.current_app.injector.get') as mock_get:
                 mock_get.return_value = mock_dict_service
                 response = client.post('/entries/add', 
-                    data={'lexical_unit': 'pre-'},
+                    data={'lexical_unit': {'en': 'pre-'}},
                     content_type='application/x-www-form-urlencoded'
                 )
                 assert response.status_code == 302  # Redirect after successful creation

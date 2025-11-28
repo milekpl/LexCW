@@ -150,6 +150,7 @@ class TestExporterIntegration:
             Entry(
                 id="export_test_2", 
                 lexical_unit={"en": "export_word2", "pl": "słowo_eksportu2"},
+                grammatical_info="Verb",  # Entry-level POS required for conflicting sense POS
                 senses=[
                     Sense(
                         id="export_sense_2a",
