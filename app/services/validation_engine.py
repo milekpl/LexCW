@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 import jsonpath_ng
+import jsonschema
 from flasgger import swag_from
 
 
@@ -689,11 +690,25 @@ class ValidationEngine:
         # Note: Codes must be lowercase, no underscores
         rfc4646_pattern = re.compile(r'^[a-z]{2,3}(-[a-z0-9]+)*$')
         
+        # Blacklist of codes that match the pattern but are invalid
+        # 'ipa' is not a valid ISO 639 language code; use 'seh-fonipa' for IPA
+        invalid_codes = {'ipa'}
+        
         # Get lexical unit
         lexical_unit = data.get('lexical_unit', {})
         if isinstance(lexical_unit, dict):
             for lang_code in lexical_unit.keys():
-                if not rfc4646_pattern.match(lang_code):
+                if lang_code in invalid_codes:
+                    errors.append(ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config['name'],
+                        message=f"Invalid language code '{lang_code}'. For IPA transcriptions, use 'seh-fonipa'",
+                        path=f"$.lexical_unit.{lang_code}",
+                        priority=ValidationPriority(rule_config.get('priority', 'warning')),
+                        category=ValidationCategory(rule_config['category']),
+                        value=lang_code
+                    ))
+                elif not rfc4646_pattern.match(lang_code):
                     errors.append(ValidationError(
                         rule_id=rule_id,
                         rule_name=rule_config['name'],
@@ -864,14 +879,28 @@ class ValidationEngine:
                 if isinstance(lang, dict) and 'code' in lang:
                     valid_langs.add(lang['code'])
         
-        # If no project config, accept any RFC 4646 format
-        rfc4646_pattern = re.compile(r'^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2}|[0-9]{3})?(-[a-zA-Z0-9]{5,8}|[0-9][a-zA-Z0-9]{3})*(-[a-zA-Z0-9]{1,8})*$')
+        # If no project config, accept any RFC 4646 format (lowercase, hyphens)
+        rfc4646_pattern = re.compile(r'^[a-z]{2,3}(-[a-z0-9]+)*$')
+        
+        # Blacklist of codes that match the pattern but are invalid
+        # 'ipa' is not a valid ISO 639 language code; use 'seh-fonipa' for IPA
+        invalid_codes = {'ipa'}
         
         for note_type, note_content in notes.items():
             if isinstance(note_content, dict):
                 # Multilingual note
                 for lang_code in note_content.keys():
-                    if valid_langs and lang_code not in valid_langs:
+                    if lang_code in invalid_codes:
+                        errors.append(ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config['name'],
+                            message=f"Invalid language code '{lang_code}'. For IPA transcriptions, use 'seh-fonipa'",
+                            path=f"$.notes.{note_type}.{lang_code}",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=lang_code
+                        ))
+                    elif valid_langs and lang_code not in valid_langs:
                         errors.append(ValidationError(
                             rule_id=rule_id,
                             rule_name=rule_config['name'],
@@ -959,7 +988,7 @@ class SchematronValidator:
     """
     Schematron validator for XML validation.
     
-    This class integrates with PySchematron to validate LIFT XML
+    This class integrates with lxml's ISO Schematron support to validate LIFT XML
     against the Schematron rules we defined.
     """
     
@@ -975,10 +1004,29 @@ class SchematronValidator:
         self._setup_validator()
     
     def _setup_validator(self) -> None:
-        """Set up PySchematron validator."""
-        # Validation will be done using pyschematron.validate_document function
-        # No need to pre-load anything
-        pass
+        """Set up lxml Schematron validator."""
+        try:
+            from lxml import isoschematron, etree
+            
+            schema_path = Path(self.schema_file)
+            if not schema_path.is_absolute():
+                # Look for schema file relative to this module
+                schema_path = Path(__file__).parent.parent.parent / self.schema_file
+            
+            if not schema_path.exists():
+                raise FileNotFoundError(f"Schematron schema file not found: {schema_path}")
+            
+            # Load and compile Schematron schema
+            with open(schema_path, 'rb') as f:
+                schema_doc = etree.parse(f)
+            self._validator = isoschematron.Schematron(schema_doc)
+            
+        except ImportError:
+            # lxml is already in requirements, so this shouldn't happen
+            pass
+        except Exception:
+            # If setup fails, validator will be None and validate_xml will handle it
+            pass
     
     def validate_xml(self, xml_content: str) -> ValidationResult:
         """
@@ -991,54 +1039,40 @@ class SchematronValidator:
             ValidationResult with any Schematron violations
         """
         try:
-            from pyschematron import validate_document  # type: ignore
+            from lxml import etree
             
-            schema_path = Path(self.schema_file)
-            if not schema_path.is_absolute():
-                # Look for schema file relative to this module
-                schema_path = Path(__file__).parent.parent.parent / self.schema_file
+            if self._validator is None:
+                # Try to set up validator again
+                self._setup_validator()
+                if self._validator is None:
+                    raise RuntimeError("Schematron validator not initialized")
             
-            if not schema_path.exists():
-                raise FileNotFoundError(f"Schematron schema file not found: {schema_path}")
+            # Parse XML content
+            xml_doc = etree.fromstring(xml_content.encode('utf-8'))
             
-            # Use pyschematron to validate
-            result = validate_document(xml_content, str(schema_path))  # type: ignore
+            # Validate
+            is_valid = self._validator.validate(xml_doc)
             
             errors: List[ValidationError] = []
             warnings: List[ValidationError] = []
             info: List[ValidationError] = []
             
-            # Process validation result
-            if hasattr(result, 'is_valid') and not result.is_valid:  # type: ignore
-                # If validation failed, create error entries
-                if hasattr(result, 'failed_assertions'):  # type: ignore
-                    for assertion in result.failed_assertions:  # type: ignore
-                        error = ValidationError(
-                            rule_id=self._extract_rule_id(str(assertion)),
-                            rule_name="schematron_validation",
-                            message=str(assertion),
-                            path="",
-                            priority=ValidationPriority.CRITICAL,
-                            category=ValidationCategory.ENTRY_LEVEL
-                        )
-                        errors.append(error)
-                else:
-                    # Generic validation failure
-                    error = ValidationError(
-                        rule_id="SCHEMATRON_FAIL",
+            # Process validation errors
+            if not is_valid:
+                error_log = self._validator.error_log
+                for error in error_log:
+                    error_obj = ValidationError(
+                        rule_id=self._extract_rule_id(str(error.message)),
                         rule_name="schematron_validation",
-                        message="Schematron validation failed",
-                        path="",
+                        message=str(error.message),
+                        path=f"line {error.line}" if error.line else "",
                         priority=ValidationPriority.CRITICAL,
                         category=ValidationCategory.ENTRY_LEVEL
                     )
-                    errors.append(error)
+                    errors.append(error_obj)
             
-            is_valid = len(errors) == 0
             return ValidationResult(is_valid, errors, warnings, info)
             
-        except ImportError:
-            raise ImportError("PySchematron is required for XML validation. Install with: pip install pyschematron")
         except Exception as e:
             # Return validation error for setup/parsing issues
             return ValidationResult(False, [
@@ -1058,6 +1092,130 @@ class SchematronValidator:
         import re
         match = re.match(r'^([A-Z]\d+\.\d+\.\d+)', message)
         return match.group(1) if match else "UNKNOWN"
+
+
+class ValidationRulesSchemaValidator:
+    """
+    Validates the validation_rules.json file itself against a JSON Schema.
+    
+    This ensures that user edits to validation_rules.json maintain proper structure,
+    catching syntax errors and structural issues before they cause runtime problems.
+    """
+    
+    def __init__(self, schema_file: Optional[str] = None):
+        """
+        Initialize the schema validator.
+        
+        Args:
+            schema_file: Path to JSON Schema file for validation rules
+        """
+        self.schema_file = schema_file or "schemas/validation_rules.schema.json"
+        self._schema: Optional[Dict[str, Any]] = None
+        self._load_schema()
+    
+    def _load_schema(self) -> None:
+        """Load the JSON Schema from file."""
+        try:
+            schema_path = Path(self.schema_file)
+            if not schema_path.is_absolute():
+                # Look for schema file relative to this module
+                schema_path = Path(__file__).parent.parent.parent / self.schema_file
+            
+            if not schema_path.exists():
+                raise FileNotFoundError(f"Schema file not found: {schema_path}")
+            
+            with open(schema_path, 'r', encoding='utf-8') as f:
+                self._schema = json.load(f)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load validation rules schema: {str(e)}")
+    
+    def validate_rules_file(self, rules_file: Optional[str] = None) -> ValidationResult:
+        """
+        Validate a validation_rules.json file against the schema.
+        
+        Args:
+            rules_file: Path to validation_rules.json file (defaults to standard location)
+        
+        Returns:
+            ValidationResult with any schema validation errors
+        """
+        rules_path = Path(rules_file or "validation_rules.json")
+        if not rules_path.is_absolute():
+            rules_path = Path(__file__).parent.parent.parent / rules_path
+        
+        try:
+            with open(rules_path, 'r', encoding='utf-8') as f:
+                rules_data = json.load(f)
+        except json.JSONDecodeError as e:
+            return ValidationResult(
+                is_valid=False,
+                errors=[
+                    ValidationError(
+                        rule_id="JSON_SYNTAX",
+                        rule_name="json_syntax",
+                        message=f"Invalid JSON syntax in validation_rules.json: {str(e)}",
+                        path=f"line {e.lineno}, column {e.colno}",
+                        priority=ValidationPriority.CRITICAL,
+                        category=ValidationCategory.ENTRY_LEVEL
+                    )
+                ],
+                warnings=[],
+                info=[]
+            )
+        except Exception as e:
+            return ValidationResult(
+                is_valid=False,
+                errors=[
+                    ValidationError(
+                        rule_id="FILE_ERROR",
+                        rule_name="file_error",
+                        message=f"Cannot read validation_rules.json: {str(e)}",
+                        path=str(rules_path),
+                        priority=ValidationPriority.CRITICAL,
+                        category=ValidationCategory.ENTRY_LEVEL
+                    )
+                ],
+                warnings=[],
+                info=[]
+            )
+        
+        # Validate against schema
+        try:
+            jsonschema.validate(instance=rules_data, schema=self._schema)
+            return ValidationResult(is_valid=True, errors=[], warnings=[], info=[])
+        except jsonschema.ValidationError as e:
+            return ValidationResult(
+                is_valid=False,
+                errors=[
+                    ValidationError(
+                        rule_id="SCHEMA_VIOLATION",
+                        rule_name="schema_validation",
+                        message=f"Schema validation error: {e.message}",
+                        path='.'.join(str(p) for p in e.absolute_path) if e.absolute_path else str(e.path),
+                        priority=ValidationPriority.CRITICAL,
+                        category=ValidationCategory.ENTRY_LEVEL,
+                        value=e.instance
+                    )
+                ],
+                warnings=[],
+                info=[]
+            )
+        except Exception as e:
+            return ValidationResult(
+                is_valid=False,
+                errors=[
+                    ValidationError(
+                        rule_id="VALIDATION_ERROR",
+                        rule_name="validation_error",
+                        message=f"Schema validation failed: {str(e)}",
+                        path="",
+                        priority=ValidationPriority.CRITICAL,
+                        category=ValidationCategory.ENTRY_LEVEL
+                    )
+                ],
+                warnings=[],
+                info=[]
+            )
 
 
 # Custom validation functions for server-side only validation

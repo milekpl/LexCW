@@ -14,7 +14,12 @@ import json
 from pathlib import Path
 
 # Import will be available after we create the validation engine
-from app.services.validation_engine import ValidationEngine, ValidationResult, SchematronValidator
+from app.services.validation_engine import (
+    ValidationEngine, 
+    ValidationResult, 
+    SchematronValidator,
+    ValidationRulesSchemaValidator
+)
 
 
 class TestValidationEngine:
@@ -275,6 +280,95 @@ class TestSchematronValidator:
         except Exception as e:
             # Expected for incomplete schema setup
             assert "schema" in str(e).lower() or "schematron" in str(e).lower()
+
+
+class TestValidationRulesSchemaValidator:
+    """Test the JSON Schema validator for validation_rules.json."""
+
+    def test_schema_validator_initialization(self):
+        """Test that schema validator initializes properly."""
+        validator = ValidationRulesSchemaValidator()
+        assert validator is not None
+        assert validator._schema is not None
+
+    def test_valid_rules_file(self):
+        """Test that current validation_rules.json passes schema validation."""
+        validator = ValidationRulesSchemaValidator()
+        result = validator.validate_rules_file("validation_rules.json")
+        
+        # Print any errors for debugging
+        if not result.is_valid:
+            for error in result.errors:
+                print(f"Schema Error: {error.message} at {error.path}")
+        
+        assert result.is_valid, "validation_rules.json should pass schema validation"
+        assert len(result.errors) == 0
+
+    def test_invalid_json_syntax(self, tmp_path):
+        """Test that invalid JSON syntax is caught."""
+        # Create a file with invalid JSON
+        invalid_file = tmp_path / "invalid.json"
+        invalid_file.write_text('{"rules": {invalid json}}')
+        
+        validator = ValidationRulesSchemaValidator()
+        result = validator.validate_rules_file(str(invalid_file))
+        
+        assert not result.is_valid
+        assert len(result.errors) > 0
+        assert result.errors[0].rule_id == "JSON_SYNTAX"
+
+    def test_missing_required_field(self, tmp_path):
+        """Test that missing required fields are caught."""
+        # Create a rules file missing required 'name' field
+        invalid_rules = {
+            "rules": {
+                "R1.1.1": {
+                    "description": "Test rule",
+                    "category": "structure",
+                    "priority": "critical",
+                    "path": "id",
+                    "condition": "required",
+                    "validation": {"min_length": 1},
+                    "error_message": "Test error"
+                    # Missing 'name' field
+                }
+            }
+        }
+        invalid_file = tmp_path / "invalid_rules.json"
+        invalid_file.write_text(json.dumps(invalid_rules))
+        
+        validator = ValidationRulesSchemaValidator()
+        result = validator.validate_rules_file(str(invalid_file))
+        
+        assert not result.is_valid
+        assert len(result.errors) > 0
+        assert "name" in result.errors[0].message.lower()
+
+    def test_invalid_priority_value(self, tmp_path):
+        """Test that invalid enum values are caught."""
+        # Create a rules file with invalid priority
+        invalid_rules = {
+            "rules": {
+                "R1.1.1": {
+                    "name": "Test Rule",
+                    "description": "Test rule",
+                    "category": "structure",
+                    "priority": "super_critical",  # Invalid value
+                    "path": "id",
+                    "condition": "required",
+                    "validation": {"min_length": 1},
+                    "error_message": "Test error"
+                }
+            }
+        }
+        invalid_file = tmp_path / "invalid_priority.json"
+        invalid_file.write_text(json.dumps(invalid_rules))
+        
+        validator = ValidationRulesSchemaValidator()
+        result = validator.validate_rules_file(str(invalid_file))
+        
+        assert not result.is_valid
+        assert len(result.errors) > 0
 
 
 class TestValidationRuleLoading:

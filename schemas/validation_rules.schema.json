@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/validation-rules.schema.json",
+  "title": "Validation Rules Schema",
+  "description": "Schema for validation_rules.json - defines the structure and constraints for validation rules in the Lexicographic Curation Workbench",
+  "type": "object",
+  "required": ["rules"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Version of the validation rules schema"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the validation rules"
+    },
+    "rules": {
+      "type": "object",
+      "description": "Map of rule IDs to rule configurations",
+      "patternProperties": {
+        "^R[0-9]+\\.[0-9]+\\.[0-9]+$": {
+          "$ref": "#/definitions/validationRule"
+        }
+      },
+      "additionalProperties": false
+    },
+    "custom_functions": {
+      "type": "object",
+      "description": "Map of custom function names to their metadata",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "validationRule": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "category",
+        "priority",
+        "path",
+        "condition",
+        "validation",
+        "error_message"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name for the rule",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of what the rule validates",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "description": "Category this rule belongs to",
+          "enum": [
+            "entry_level",
+            "sense_level",
+            "note_validation",
+            "pronunciation",
+            "resource_validation",
+            "language_validation",
+            "date_validation",
+            "relation_validation",
+            "hierarchical_validation",
+            "pos"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Severity level of validation failure",
+          "enum": [
+            "critical",
+            "warning",
+            "informational"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "description": "JSONPath or dot-notation path to the field being validated",
+          "minLength": 1
+        },
+        "condition": {
+          "type": "string",
+          "description": "When this validation should run",
+          "enum": [
+            "required",
+            "if_present",
+            "custom",
+            "published_only",
+            "draft_only"
+          ]
+        },
+        "validation": {
+          "description": "Validation criteria - can contain multiple properties like pattern, type, minLength, etc.",
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "Regular expression pattern to validate against"
+            },
+            "enum": {
+              "type": "array",
+              "description": "List of allowed values",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "min_length": {
+              "type": "integer",
+              "description": "Minimum length for string values",
+              "minimum": 0
+            },
+            "minLength": {
+              "type": "integer",
+              "description": "Minimum length for string values (alternative naming)",
+              "minimum": 0
+            },
+            "minProperties": {
+              "type": "integer",
+              "description": "Minimum number of properties in object",
+              "minimum": 0
+            },
+            "min_items": {
+              "type": "integer",
+              "description": "Minimum number of items in array",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "description": "Expected data type",
+              "enum": ["string", "number", "boolean", "array", "object"]
+            },
+            "custom": {
+              "type": "string",
+              "description": "Name of custom validation function"
+            },
+            "custom_function": {
+              "type": "string",
+              "description": "Name of custom validation function (legacy field name)"
+            }
+          },
+          "minProperties": 1
+        },
+        "error_message": {
+          "type": "string",
+          "description": "Error message to show when validation fails",
+          "minLength": 1
+        },
+        "client_side": {
+          "type": "boolean",
+          "description": "Whether this rule should be enforced client-side",
+          "default": false
+        },
+        "server_side": {
+          "type": "boolean",
+          "description": "Whether this rule should be enforced server-side",
+          "default": true
+        },
+        "validation_mode": {
+          "type": "string",
+          "description": "When this validation should be enforced",
+          "enum": ["save_only", "always", "publish_only"]
+        },
+        "help_text": {
+          "type": "string",
+          "description": "Additional help text for users"
+        },
+        "examples": {
+          "type": "object",
+          "description": "Examples of valid and invalid values",
+          "properties": {
+            "valid": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "invalid": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

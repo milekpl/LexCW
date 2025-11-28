@@ -505,10 +505,23 @@ class TestNoteValidationRules:
         assert entry.validate() is True
 
         # Test invalid language codes in multilingual note
-        # Note: Language code validation is not currently implemented in the backend
-        # The application dynamically extracts language codes from LIFT files
-        # TODO: Implement language code validation if needed
-        pytest.skip("Language code validation not implemented in backend")
+        # 'ipa' is not a valid language code (only seh-fonipa is valid for IPA)
+        from app.services.validation_engine import ValidationEngine
+        engine = ValidationEngine()
+        invalid_data = {
+            "id": "test_entry",
+            "lexical_unit": {"pl": "test"},
+            "senses": [{"id": "sense1", "gloss": {"pl": "test"}}],
+            "notes": {
+                "etymology": {
+                    "pl": "Nota",
+                    "ipa": "Invalid - ipa is not a valid language code"
+                }
+            }
+        }
+        result = engine.validate_json(invalid_data)
+        # Should have warnings/errors about 'ipa' being invalid
+        assert not result.is_valid or len(result.warnings) > 0
 
 
 
