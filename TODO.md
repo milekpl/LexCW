@@ -1,5 +1,30 @@
 # Outstanding project issues and bugs
 
+## 🚧 REVOLUTIONARY CHANGE IN PLANNING
+
+### XML Direct Manipulation Architecture
+
+**Status**: ✅ APPROVED - Ready to implement  
+**Impact**: 🔴 BREAKING CHANGE - Major architectural revolution  
+**Plan**: [`docs/XML_DIRECT_MANIPULATION_PLAN.md`](docs/XML_DIRECT_MANIPULATION_PLAN.md)  
+**Kickoff**: [`IMPLEMENTATION_KICKOFF.md`](IMPLEMENTATION_KICKOFF.md)
+
+**Summary**: Transition from WTForms-based entry editing to **direct XML manipulation** in BaseX. This simplifies the architecture by removing intermediate Python object conversion.
+
+**Key Changes**:
+- Form operations will directly create/modify LIFT XML elements
+- JavaScript-based XML serialization replacing WTForms
+- XQuery-based CRUD operations instead of Python object → XQuery
+- Simplify Entry/Sense models to XML wrapper classes
+- Keep PostgreSQL only for: worksets, corpus analytics, validation results (no change)
+
+**Clarification**: PostgreSQL was **never** used for entry storage - entries are already in BaseX XML. This change just makes the form → BaseX flow more direct.
+
+**Timeline**: 4-week implementation plan  
+**Status**: Ready to start - see [`IMPLEMENTATION_KICKOFF.md`](IMPLEMENTATION_KICKOFF.md) for day-by-day tasks
+
+---
+
 ## Critical Issues
 
 ### 1. Ranges Data Not Loading from Database
