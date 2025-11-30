@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
      * Populates select elements with options from a given range.
      */
     async function initializeDynamicSelects(container) {
+        // Initialize grammatical-info selects
         const dynamicSelects = container.querySelectorAll('.dynamic-grammatical-info');
 
         const promises = Array.from(dynamicSelects).map(select => {
@@ -66,7 +67,30 @@ document.addEventListener('DOMContentLoaded', function() {
             return Promise.resolve(); // Return a resolved promise for selects without a rangeId
         });
 
-        await Promise.all(promises);
+        // Initialize ALL dynamic-lift-range selects (academic-domain, semantic-domain, usage-type, etc.)
+        const allDynamicRanges = container.querySelectorAll('.dynamic-lift-range');
+        
+        const rangePromises = Array.from(allDynamicRanges).map(select => {
+            const rangeId = select.dataset.rangeId;
+            const selectedValue = select.dataset.selected;
+            const hierarchical = select.dataset.hierarchical === 'true';
+            const searchable = select.dataset.searchable === 'true';
+            
+            if (rangeId && window.rangesLoader) {
+                console.log(`[Entry Form] Initializing range dropdown: ${rangeId}`);
+                return window.rangesLoader.populateSelect(select, rangeId, {
+                    selectedValue: selectedValue,
+                    emptyOption: select.querySelector('option[value=""]')?.textContent || 'Select option',
+                    hierarchical: hierarchical,
+                    searchable: searchable
+                }).catch(err => {
+                    console.error(`[Entry Form] Failed to populate ${rangeId}:`, err);
+                });
+            }
+            return Promise.resolve();
+        });
+
+        await Promise.all([...promises, ...rangePromises]);
     }
 
     /**
