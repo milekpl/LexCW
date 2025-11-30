@@ -1310,39 +1310,23 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Try to get the ranges document from the database
-            # First try to get the document by its original filename
-            original_ranges_filename = "sample-lift-file.lift-ranges" # Assuming this is the name it's imported with
+            # Primary strategy: Use collection() query to find lift-ranges anywhere
+            # This works for both embedded ranges in main LIFT file and separate ranges documents
+            self.logger.debug(f"Querying for ranges using collection('{db_name}')//lift-ranges")
             ranges_xml = self.db_connector.execute_query(
-                f"doc('{db_name}/{original_ranges_filename}')"
+                f"collection('{db_name}')//lift-ranges"
             )
+            
             if ranges_xml:
-                self.logger.debug(f"Found ranges document by original filename: {original_ranges_filename}")
-
-            if not ranges_xml:
-                # Try alternative path - if ranges were added as a separate document named 'ranges.xml'
-                ranges_xml = self.db_connector.execute_query(
-                    f"doc('{db_name}/ranges.xml')"
-                )
-                if ranges_xml:
-                    self.logger.debug("Found ranges document by 'ranges.xml' filename.")
-
-            if not ranges_xml:
-                # Try to get any ranges from the main LIFT document (if embedded)
-                ranges_xml = self.db_connector.execute_query(
-                    f"collection('{db_name}')//lift-ranges"
-                )
-                if ranges_xml:
-                    self.logger.debug("Found ranges document within the main LIFT collection.")
-
-            if not ranges_xml:
+                self.logger.debug("Found ranges document using collection() query")
+            else:
                 self.logger.warning(
                     "LIFT ranges not found in database. Returning empty ranges."
                 )
                 self.ranges = {}
                 return {}
 
-            self.logger.debug(f"Raw ranges XML from BaseX: {ranges_xml[:500]}...") # Log first 500 chars
+            self.logger.debug(f"Raw ranges XML from BaseX (first 500 chars): {ranges_xml[:500] if len(ranges_xml) > 500 else ranges_xml}")
             parsed_ranges = self.ranges_parser.parse_string(ranges_xml)
 
             # Ensure both singular and plural keys for all relevant types

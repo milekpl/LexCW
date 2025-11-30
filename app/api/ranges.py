@@ -178,6 +178,8 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
             'variant-types-from-traits': 'variant-types',
             'semantic-domains': 'semantic-domain-ddp4',
             'semantic-domain': 'semantic-domain-ddp4',
+            'academic-domain': 'domain-type',
+            'academic-domains': 'domain-type',
             'usage-types': 'usage-type',
             'note-types': 'note-type',
             'publications': 'Publications',

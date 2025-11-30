@@ -95,13 +95,14 @@ def get_all_ranges():
         ranges = dict_service.get_lift_ranges()
         
         return jsonify({
-            'ranges': ranges,
+            'success': True,
+            'data': ranges,
             'available_types': list(ranges.keys())
         })
         
     except Exception as e:
         logger.error(f"Error getting ranges: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api_bp.route('/ranges/<range_type>')
@@ -111,10 +112,13 @@ def get_range_by_type(range_type: str):
         dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_lift_ranges()
         
+        logger.info(f"[Ranges API] Requested: {range_type}, Available: {list(ranges.keys())[:5]}...")
+        
         # Handle both singular and plural forms
         range_data = None
         if range_type in ranges:
             range_data = ranges[range_type]
+            logger.info(f"[Ranges API] Found {range_type} directly in ranges")
         else:
             # Try alternative mappings based on actual LIFT data
             type_mappings = {
@@ -125,6 +129,8 @@ def get_range_by_type(range_type: str):
                 'variant-types-from-traits': ['variant-types', 'variants'],
                 'semantic-domains': ['semantic-domain-ddp4'],
                 'semantic-domain': ['semantic-domain-ddp4'],
+                'academic-domain': ['domain-type'],
+                'academic-domains': ['domain-type'],
                 'usage-types': ['usage-type'],
                 'usage-type': ['usage-type'],
                 'status': ['status'],
@@ -146,15 +152,24 @@ def get_range_by_type(range_type: str):
                 'do-not-publish-in': ['do-not-publish-in'],
             }
             
+            logger.info(f"[Ranges API] Trying mappings for {range_type}: {type_mappings.get(range_type, [])}")
+            
             for alt_key in type_mappings.get(range_type, []):
+                logger.info(f"[Ranges API] Checking if '{alt_key}' in ranges...")
                 if alt_key in ranges:
                     range_data = ranges[alt_key]
+                    logger.info(f"[Ranges API] Found! Mapped {range_type} -> {alt_key}")
                     break
         
         if not range_data:
-            return jsonify({'error': f'Range type "{range_type}" not found'}), 404
+            logger.warning(f"[Ranges API] Range '{range_type}' not found. Available: {list(ranges.keys())}")
+            return jsonify({
+                'success': False,
+                'error': f'Range type "{range_type}" not found'
+            }), 404
         
         return jsonify({
+            'success': True,
             'type': range_type,
             'data': range_data
         })

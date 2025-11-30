@@ -322,12 +322,15 @@ def ensure_test_database(connector: BaseXConnector, db_name: str):
             <description>Words with opposite meaning</description>
         </range-element>
     </range>
-    <range id="academic-domain">
+    <range id="domain-type">
         <range-element id="linguistics" label="Linguistics">
             <description>Linguistic terminology</description>
         </range-element>
         <range-element id="mathematics" label="Mathematics">
             <description>Mathematical terminology</description>
+        </range-element>
+        <range-element id="computer-science" label="Computer Science">
+            <description>Computing and IT terminology</description>
         </range-element>
     </range>
     <range id="usage-type">
@@ -344,6 +347,17 @@ def ensure_test_database(connector: BaseXConnector, db_name: str):
         </range-element>
         <range-element id="proto" label="Proto-language">
             <description>A reconstructed word from a proto-language.</description>
+        </range-element>
+    </range>
+    <range id="semantic-domain-ddp4">
+        <range-element id="1" label="Universe, creation">
+            <description>Related to the universe</description>
+        </range-element>
+        <range-element id="2" label="Person">
+            <description>Related to people</description>
+        </range-element>
+        <range-element id="3" label="Language and thought">
+            <description>Related to language and cognition</description>
         </range-element>
     </range>
     <range id="semantic-domain">
