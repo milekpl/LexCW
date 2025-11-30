@@ -113,13 +113,34 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
         logger.debug(f"[MERGE DEBUG] Processed lexical_unit: {lexical_unit}")
         merged_data['lexical_unit'] = lexical_unit
     elif 'lexical_unit' in form_data and isinstance(form_data['lexical_unit'], dict):
-        # Handle direct JSON object format: {"lexical_unit": {"en": "test"}}
-        logger.debug(f"[MERGE DEBUG] Using direct lexical_unit object: {form_data['lexical_unit']}")
-        merged_data['lexical_unit'] = form_data['lexical_unit']
+        # Handle direct JSON object format
+        raw_lu = form_data['lexical_unit']
+        
+        # Check if it's the new format: {"en": {"lang": "en", "text": "test"}}
+        # or old format: {"en": "test"}
+        processed_lu = {}
+        for lang_code, lang_data in raw_lu.items():
+            if isinstance(lang_data, dict) and 'text' in lang_data:
+                # New format from multilingual form fields
+                text = lang_data['text']
+                if text and isinstance(text, str) and text.strip():
+                    processed_lu[lang_code] = text.strip()
+            elif isinstance(lang_data, str):
+                # Old format - simple string
+                if lang_data.strip():
+                    processed_lu[lang_code] = lang_data.strip()
+            else:
+                logger.warning(f"[MERGE] Invalid lexical_unit format for language {lang_code}: {lang_data}")
+        
+        if not processed_lu:
+            raise ValueError("lexical_unit must have at least one language with non-empty text")
+        
+        logger.debug(f"[MERGE DEBUG] Using processed lexical_unit object: {processed_lu}")
+        merged_data['lexical_unit'] = processed_lu
     elif 'lexical_unit' in form_data and isinstance(form_data['lexical_unit'], str):
-        # Handle backward compatibility: convert string format to multilingual format
-        if form_data['lexical_unit'].strip():
-            merged_data['lexical_unit'] = {'en': form_data['lexical_unit'].strip()}
+        # DEPRECATED: String format is no longer supported
+        # This should not happen with the new form, but keep for transition period
+        raise ValueError("lexical_unit must be a dict {lang: text}, got string format")
     
     # Special handling for senses to preserve missing/empty fields
     if 'senses' in form_data and 'senses' in entry_data:
@@ -177,6 +198,27 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
         else:
             # If no valid part_of_speech, remove grammatical_info or set to empty
             merged_data['grammatical_info'] = ''
+    
+    # Backward compatibility: convert empty/invalid pronunciations list to dict
+    if 'pronunciations' in merged_data:
+        if isinstance(merged_data['pronunciations'], list):
+            # Form sends pronunciations as array: [{type: 'seh-fonipa', value: '/test/'}]
+            # Convert to dict format: {'seh-fonipa': '/test/'}
+            pron_dict = {}
+            for pron in merged_data['pronunciations']:
+                if isinstance(pron, dict) and 'type' in pron and 'value' in pron:
+                    pron_type = pron['type']
+                    pron_value = pron['value']
+                    if pron_value and pron_value.strip():
+                        pron_dict[pron_type] = pron_value.strip()
+            merged_data['pronunciations'] = pron_dict
+        elif not isinstance(merged_data['pronunciations'], dict):
+            # Invalid format
+            merged_data['pronunciations'] = {}
+    
+    # Backward compatibility: convert empty/invalid citations list to dict
+    if 'citations' in merged_data and not isinstance(merged_data['citations'], list):
+        merged_data['citations'] = []
     
     return merged_data
 

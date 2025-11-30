@@ -8,21 +8,31 @@ def test_delete_entry(playwright_page: Page, live_server):  # type: ignore
     """
     Tests that an entry can be successfully deleted from the UI.
     """
-    # 1. Navigate to the entries list page
-    playwright_page.goto(f"{live_server.url}/entries")
-
-    # 2. Add a new entry to ensure we have something to delete
-    # This assumes the "Add New Entry" button and form work.
-    # In a real scenario, you might use a fixture to pre-populate the DB.
-    playwright_page.click("text=Add New Entry")
-    expect(playwright_page).to_have_url(f"{live_server.url}/entries/add")
-
-
+    # 1. Navigate to add entry page directly
+    playwright_page.goto(f"{live_server.url}/entries/add")
+    
+    # Wait for page to load
+    playwright_page.wait_for_selector("#lexical-unit", timeout=10000)
+    
     # Fill in basic entry details
     lexical_unit_value = "TestEntryForDeletion"
+    
     playwright_page.fill("#lexical-unit", lexical_unit_value)
-    playwright_page.click("#add-sense-btn") # Add a sense to make it valid
-    playwright_page.fill("textarea[name*='definition']", "A test definition for deletion.")
+    
+    # Add a sense (check which button is visible)
+    if playwright_page.locator("#add-first-sense-btn").is_visible():
+        playwright_page.click("#add-first-sense-btn")
+    else:
+        playwright_page.click("#add-sense-btn")
+    
+    # Wait for sense to appear
+    playwright_page.wait_for_selector(".sense-item", state="visible", timeout=5000)
+    
+    # Fill in definition
+    sense_definition = playwright_page.locator(".sense-item .definition-text").first
+    sense_definition.fill("A test definition for deletion.")
+    
+    # Submit the form
     playwright_page.click("button[type='submit']:has-text('Save Entry')")
 
     # After saving, extract the entry ID from the redirect URL

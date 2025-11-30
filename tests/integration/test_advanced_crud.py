@@ -68,8 +68,9 @@ class TestAdvancedCRUD:
         assert sense1.id == "sense1"
         # Check for grammatical info and data
         assert getattr(sense1, "grammatical_info", None) == "noun"
-        assert sense1.glosses.get("pl", {}).get("text") == "złożony" or sense1.glosses.get("pl") == "złożony"
-        assert sense1.definitions.get("en", {}).get("text") == "Having many interconnected parts" or sense1.definitions.get("en") == "Having many interconnected parts"
+        # Use flat format (LIFT standard) - glosses and definitions are Dict[str, str]
+        assert sense1.glosses.get("pl") == "złożony"
+        assert sense1.definitions.get("en") == "Having many interconnected parts"
     
     @pytest.mark.integration
     def test_update_nonexistent_entry(self, dict_service_with_db):

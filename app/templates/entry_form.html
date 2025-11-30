@@ -80,9 +80,72 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label for="lexical-unit" class="form-label">Lexical Unit <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="lexical-unit" name="lexical_unit" 
-                               value="{{ entry.lexical_unit.values()|join(', ') }}" required>
+                        <label class="form-label">Lexical Unit <span class="text-danger">*</span></label>
+                        <div class="multilingual-forms lexical-unit-forms">
+                            {% set default_lang_code = current_app.config_manager.get_source_language().code if current_app and current_app.config_manager else 'en' %}
+                            {% if entry.lexical_unit %}
+                                {% for lang_code, text in entry.lexical_unit.items() %}
+                                    <div class="mb-2 language-form" data-language="{{ lang_code }}">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Language</label>
+                                                <select class="form-select language-select" 
+                                                        name="lexical_unit.{{ lang_code }}.lang"
+                                                        data-field-name="lexical_unit.{{ lang_code }}">
+                                                    {% for code, label in project_languages %}
+                                                        <option value="{{ code }}" {% if code == lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <label class="form-label">Headword Text</label>
+                                                <input type="text" class="form-control lexical-unit-text" 
+                                                       name="lexical_unit.{{ lang_code }}.text"
+                                                       value="{{ text }}"
+                                                       {% if lang_code == default_lang_code %}required{% endif %}
+                                                       placeholder="Enter headword in {{ lang_code }}">
+                                            </div>
+                                            <div class="col-md-1 d-flex align-items-end">
+                                                {% if lang_code != default_lang_code %}
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-lexical-unit-language-btn" 
+                                                            title="Remove language">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="mb-2 language-form" data-language="{{ default_lang_code }}">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Language</label>
+                                            <select class="form-select language-select" 
+                                                    name="lexical_unit.{{ default_lang_code }}.lang"
+                                                    data-field-name="lexical_unit.{{ default_lang_code }}">
+                                                {% for code, label in project_languages %}
+                                                    <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="form-label">Headword Text</label>
+                                            <input type="text" class="form-control lexical-unit-text" 
+                                                   name="lexical_unit.{{ default_lang_code }}.text"
+                                                   required
+                                                   placeholder="Enter headword in {{ default_lang_code }}">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <!-- No remove button for primary language -->
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2 add-lexical-unit-language-btn">
+                            <i class="fas fa-plus"></i> Add Translation
+                        </button>
                         <div class="form-text">The headword as it appears in the dictionary.</div>
                     </div>
 
@@ -810,7 +873,8 @@
                     <div id="senses-container">
                         {% if entry.senses %}
                             {% for sense in entry.senses %}
-                                <div class="sense-item card mb-4" data-sense-index="{{ loop.index0 }}">
+                                {% set sense_index = loop.index0 %}
+                                <div class="sense-item card mb-4" data-sense-index="{{ sense_index }}">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
                                     <div class="drag-handle me-2" title="Drag to reorder" style="cursor: grab;">
@@ -823,7 +887,7 @@
                                     <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>                                                                            
                                     {% if entry.senses|length > 1 %}
                                         <button type="button" class="btn btn-sm btn-outline-danger remove-sense-btn" 
-                                                data-index="{{ loop.index0 }}">
+                                                data-index="{{ sense_index }}">
                                             <i class="fas fa-trash"></i> Remove
                                         </button>
                                     {% endif %}
@@ -831,7 +895,7 @@
                                 </div>
                                     <div class="card-body">
                                         <!-- Hidden field for sense ID -->
-                                        <input type="hidden" name="senses[{{ loop.index0 }}].id" value="{{ sense.id }}">
+                                        <input type="hidden" name="senses[{{ sense_index }}].id" value="{{ sense.id }}">
                                         
                                         <div class="mb-3">
                                             <label class="form-label">Definition <span class="text-danger">*</span></label>
@@ -840,14 +904,26 @@
                                                 {% set data_langs = sense.definitions.keys()|list %}
                                                 {% set all_langs = (project_lang_codes + data_langs)|unique %}
                                                 {% for lang in all_langs %}
-                                                    {% set text = sense.definitions[lang]['text'] if lang in sense.definitions and 'text' in sense.definitions[lang] else '' %}
+                                                    {# Handle both flat LIFT format {lang: text} and nested form format {lang: {text: "..."}} #}
+                                                    {% if lang in sense.definitions %}
+                                                        {% set lang_value = sense.definitions[lang] %}
+                                                        {% if lang_value is mapping and 'text' in lang_value %}
+                                                            {% set text = lang_value['text'] %}
+                                                        {% elif lang_value is string %}
+                                                            {% set text = lang_value %}
+                                                        {% else %}
+                                                            {% set text = '' %}
+                                                        {% endif %}
+                                                    {% else %}
+                                                        {% set text = '' %}
+                                                    {% endif %}
                                                     <div class="mb-3 language-form" data-language="{{ lang }}">
                                                         <div class="row">
                                                             <div class="col-md-3">
                                                                 <label class="form-label">Language</label>
                                                                 <select class="form-select language-select"
-                                                                        name="senses[{{ loop.index0 }}].definition.{{ lang }}.lang"
-                                                                        data-field-name="senses[{{ loop.index0 }}].definition.{{ lang }}">
+                                                                        name="senses[{{ sense_index }}].definition.{{ lang }}.lang"
+                                                                        data-field-name="senses[{{ sense_index }}].definition.{{ lang }}">
                                                                     {% if lang not in project_lang_codes %}
                                                                         <option value="{{ lang }}" selected>{{ lang }} (original)</option>
                                                                     {% endif %}
@@ -859,7 +935,7 @@
                                                             <div class="col-md-9">
                                                                 <label class="form-label">Definition Text</label>
                                                                 <textarea class="form-control definition-text" 
-                                                                          name="senses[{{ loop.index0 }}].definition.{{ lang }}.text" 
+                                                                          name="senses[{{ sense_index }}].definition.{{ lang }}.text" 
                                                                           rows="2" 
                                                                           {% if loop.first %}required{% endif %}
                                                                           placeholder="Enter definition in {{ lang }}">{{ text }}</textarea>
@@ -888,14 +964,14 @@
                                         <div class="mb-3">
                                             <label class="form-label">Gloss</label>
                                             <div class="multilingual-forms gloss-forms">
-                                                {% for lang, gloss_text in sense.gloss.items() %}
+                                                {% for lang, gloss_text in sense.glosses.items() %}
                                                 <div class="mb-3 language-form" data-language="{{ lang }}">
                                                     <div class="row">
                                                         <div class="col-md-3">
                                                             <label class="form-label">Language</label>
                                                             <select class="form-select language-select"
-                                                                    name="senses[{{ loop.index0 }}].gloss.{{ lang }}.lang"
-                                                                    data-field-name="senses[{{ loop.index0 }}].gloss.{{ lang }}">
+                                                                    name="senses[{{ sense_index }}].gloss.{{ lang }}.lang"
+                                                                    data-field-name="senses[{{ sense_index }}].gloss.{{ lang }}">
                                                                 {% set project_lang_codes = project_languages|map(attribute=0)|list %}
                                                                 {% if lang not in project_lang_codes %}
                                                                     <option value="{{ lang }}" selected>{{ lang }} (original)</option>
@@ -908,7 +984,7 @@
                                                         <div class="col-md-8">
                                                             <label class="form-label">Gloss Text</label>
                                                             <input type="text" class="form-control gloss-text" 
-                                                                   name="senses[{{ loop.index0 }}].gloss.{{ lang }}.text" 
+                                                                   name="senses[{{ sense_index }}].gloss.{{ lang }}.text" 
                                                                    value="{{ gloss_text }}"
                                                                    placeholder="Enter gloss in {{ lang }}">
                                                         </div>
@@ -926,7 +1002,7 @@
                                             </div>
                                             <div class="mt-2">
                                                 <button type="button" class="btn btn-sm btn-outline-primary add-gloss-language-btn" 
-                                                        data-sense-index="{{ loop.index0 }}"
+                                                        data-sense-index="{{ sense_index }}"
                                                         title="Add another language">
                                                     <i class="fas fa-plus"></i> Add Language
                                                 </button>
@@ -1014,12 +1090,12 @@
                                                             </div>
                                                             <div class="mb-3">
                                                                 <label class="form-label">Example Sentence</label>
-                                                                <textarea class="form-control" name="senses[0].examples[{{ loop.index0 }}].sentence"
+                                                                <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].sentence"
                                                                           rows="2">{{ example.sentence }}</textarea>
                                                             </div>
                                                             <div class="mb-3">
                                                                 <label class="form-label">Translation</label>
-                                                                <textarea class="form-control" name="senses[0].examples[{{ loop.index0 }}].translation"
+                                                                <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation"
                                                                           rows="2">{{ example.translation }}</textarea>
                                                             </div>
                                                             <div class="mb-3">
@@ -1030,7 +1106,7 @@
                                                                     </span>
                                                                 </label>
                                                                 <select class="form-select dynamic-lift-range" 
-                                                                        name="senses[0].examples[{{ loop.index0 }}].translation_type"
+                                                                        name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation_type"
                                                                         data-range-id="translation-type"
                                                                         data-hierarchical="false"
                                                                         data-searchable="true">
@@ -1057,7 +1133,7 @@
                                 </div>
                         {% endfor %}
                         {% else %}
-                            <div class="sense-item card mb-4 default-sense-template" data-sense-index="0" id="default-sense-template">
+                            <div class="sense-item card mb-4 default-sense-template" data-sense-index="TEMPLATE" id="default-sense-template">
                                 <div class="card-header bg-light">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <h6 class="mb-0">Sense 1</h6>
@@ -1073,8 +1149,8 @@
                                                     <div class="col-md-3">
                                                         <label class="form-label">Language</label>
                                                         <select class="form-select language-select" 
-                                                                name="senses[0].definition.{{ default_lang_code }}.lang"
-                                                                data-field-name="senses[0].definition.{{ default_lang_code }}">
+                                                                name="senses[TEMPLATE].definition.{{ default_lang_code }}.lang"
+                                                                data-field-name="senses[TEMPLATE].definition.{{ default_lang_code }}">
                                                             {% set project_lang_codes = project_languages|map(attribute=0)|list %}
                                                             {% if default_lang_code not in project_lang_codes %}
                                                                 <option value="{{ default_lang_code }}" selected>{{ default_lang_code }} (original)</option>
@@ -1087,7 +1163,7 @@
                                                     <div class="col-md-8">
                                                         <label class="form-label">Definition Text</label>
                                                         <textarea class="form-control definition-text" 
-                                                                  name="senses[0].definition.{{ default_lang_code }}.text"
+                                                                  name="senses[TEMPLATE].definition.{{ default_lang_code }}.text"
                                                                   rows="2" 
                                                                   required
                                                                   placeholder="Enter definition in {{ default_lang_code }}"></textarea>
@@ -1116,8 +1192,8 @@
                                                     <div class="col-md-3">
                                                         <label class="form-label">Language</label>
                                                         <select class="form-select language-select" 
-                                                                name="senses[0].gloss.{{ default_lang_code }}.lang"
-                                                                data-field-name="senses[0].gloss.{{ default_lang_code }}">
+                                                                name="senses[TEMPLATE].gloss.{{ default_lang_code }}.lang"
+                                                                data-field-name="senses[TEMPLATE].gloss.{{ default_lang_code }}">
                                                             {% for code, label in project_languages %}
                                                                 <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                                             {% endfor %}
@@ -1126,7 +1202,7 @@
                                                     <div class="col-md-8">
                                                         <label class="form-label">Gloss Text</label>
                                                         <input type="text" class="form-control gloss-text" 
-                                                               name="senses[0].gloss.{{ default_lang_code }}.text"
+                                                               name="senses[TEMPLATE].gloss.{{ default_lang_code }}.text"
                                                                value=""
                                                                placeholder="Enter gloss in {{ default_lang_code }}">
                                                     </div>
@@ -1148,7 +1224,7 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Part of Speech</label>
-                                        <select class="form-select dynamic-grammatical-info" name="senses[0].grammatical_info"
+                                        <select class="form-select dynamic-grammatical-info" name="senses[TEMPLATE].grammatical_info"
                                                 data-range-id="grammatical-info">
                                             <option value="">Select part of speech</option>
                                         </select>
@@ -1159,7 +1235,7 @@
                                     <div class="mb-3">
                                         <label class="form-label">Semantic Domain</label>
                                         <select class="form-select dynamic-lift-range" 
-                                                name="senses[0].domain_type" 
+                                                name="senses[TEMPLATE].domain_type" 
                                                 data-range-id="semantic-domain-ddp4" 
                                                 data-hierarchical="true" 
                                                 data-searchable="true"
@@ -1173,7 +1249,7 @@
                                     <div class="mb-3">
                                         <label class="form-label">Usage Type</label>
                                         <select class="form-select dynamic-lift-range" 
-                                                name="senses[0].usage_type" 
+                                                name="senses[TEMPLATE].usage_type" 
                                                 data-range-id="usage-type"
                                                 data-hierarchical="true"
                                                 data-searchable="true"
@@ -1185,7 +1261,7 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Sense Note</label>
-                                        <textarea class="form-control" name="senses[0].note" rows="2"></textarea>
+                                        <textarea class="form-control" name="senses[TEMPLATE].note" rows="2"></textarea>
                                     </div>
                                     
                                     <div class="examples-section mt-4">
@@ -1607,7 +1683,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Initialize variant forms manager
     if (window.VariantFormsManager && document.getElementById('variants-container')) {
-        window.variantFormsManager = new VariantFormsManager('variants-container');
+        window.variantFormsManager = new VariantFormsManager('variants-container', {
+            variantRelations: {{ (variant_relations | default([])) | tojson | safe }}
+        });
     }
 
     // Initialize relations manager

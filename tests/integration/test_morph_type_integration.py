@@ -105,7 +105,7 @@ class TestMorphTypeIntegration:
                 with patch('flask.current_app.injector.get') as mock_get:
                     mock_get.return_value = mock_dict_service
                     response = client.post('/entries/add', 
-                        data={'lexical_unit': headword},
+                        data={'lexical_unit[en]': headword},  # Use bracket notation
                         content_type='application/x-www-form-urlencoded'
                     )
                     
@@ -302,8 +302,9 @@ class TestMorphTypeIntegration:
         with app.app_context():
             with patch('flask.current_app.injector.get') as mock_get:
                 mock_get.return_value = mock_dict_service
+                # Use bracket notation for multilingual fields as expected by form processor
                 response = client.post('/entries/add', 
-                    data={'lexical_unit': {'en': 'pre-'}},
+                    data={'lexical_unit[en]': 'pre-'},
                     content_type='application/x-www-form-urlencoded'
                 )
                 assert response.status_code == 302  # Redirect after successful creation

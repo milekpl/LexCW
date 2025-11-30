@@ -93,13 +93,15 @@ class TestAPIIntegration:
         assert data['id'] == 'api_single_test'
         assert data['lexical_unit']['en'] == 'single_test'
         assert len(data['senses']) == 1
-        # Accept both string and nested dict for gloss for backward compatibility
+        # LIFT flat format: gloss is {lang: text}
         gloss_val = data['senses'][0]['gloss']
-        if isinstance(gloss_val, dict):
-            assert 'en' in gloss_val
-            assert gloss_val['en']['text'] == 'Single test gloss'
+        assert isinstance(gloss_val, dict)
+        assert 'en' in gloss_val
+        # Handle both flat (string) and nested (dict with 'text') for compatibility
+        if isinstance(gloss_val['en'], str):
+            assert gloss_val['en'] == 'Single test gloss'
         else:
-            assert gloss_val == 'Single test gloss'
+            assert gloss_val['en']['text'] == 'Single test gloss'
         
     @pytest.mark.integration
     def test_api_entries_create(self, client):
@@ -252,19 +254,24 @@ class TestAPIIntegration:
         entry_data = data['entries'][0]
         assert 'senses' in entry_data
         assert len(entry_data['senses']) == 1
-        # Accept both string and nested dict for gloss and definition for backward compatibility
+        # LIFT flat format: gloss/definition are {lang: text}
         gloss_val = entry_data['senses'][0]['gloss']
-        if isinstance(gloss_val, dict):
-            assert 'en' in gloss_val
+        assert isinstance(gloss_val, dict)
+        assert 'en' in gloss_val
+        # Handle both flat (string) and nested (dict with 'text') for compatibility
+        if isinstance(gloss_val['en'], str):
+            assert gloss_val['en'] == 'Searchable gloss'
+        else:
             assert gloss_val['en']['text'] == 'Searchable gloss'
-        else:
-            assert gloss_val == 'Searchable gloss'
+            
         def_val = entry_data['senses'][0]['definition']
-        if isinstance(def_val, dict):
-            assert 'en' in def_val
-            assert def_val['en']['text'] == 'Searchable definition'
+        assert isinstance(def_val, dict)
+        assert 'en' in def_val
+        # Handle both flat (string) and nested (dict with 'text') for compatibility
+        if isinstance(def_val['en'], str):
+            assert def_val['en'] == 'Searchable definition'
         else:
-            assert def_val == 'Searchable definition'
+            assert def_val['en']['text'] == 'Searchable definition'
         
     @pytest.mark.integration
     def test_api_export_lift(self, client):

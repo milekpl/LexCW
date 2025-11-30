@@ -3,24 +3,23 @@
 Test to verify language constraints are properly enforced.
 """
 
-import requests
 import json
 
 import pytest
 
 @pytest.mark.integration
-def test_language_constraints():
+def test_language_constraints(client):
     """Test that only allowed languages are accepted."""
     
     # First, get the allowed languages
     print("=== Getting allowed languages ===")
-    response = requests.get('http://127.0.0.1:5000/api/ranges/language-codes')
+    response = client.get('/api/ranges/language-codes')
     
     if response.status_code != 200:
         print("❌ Failed to get language codes")
         return
     
-    allowed_languages = response.json().get('data', [])
+    allowed_languages = response.json.get('data', [])
     print(f"Allowed languages: {allowed_languages}")
     
     # Test with allowed language
@@ -34,7 +33,7 @@ def test_language_constraints():
             }
         }
         
-    _test_submission("Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data, "allowed language")
+    _test_submission(client, "Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data, "allowed language")
     
     # Test with disallowed language (Portuguese)
     print("\n=== Testing with disallowed language (Portuguese) ===")
@@ -46,15 +45,14 @@ def test_language_constraints():
         }
     }
     
-    _test_submission("Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data_pt, "disallowed language (Portuguese)")
+    _test_submission(client, "Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data_pt, "disallowed language (Portuguese)")
 
-def _test_submission(entry_id, data, description):
+def _test_submission(client, entry_id, data, description):
     """Test a specific data submission."""
-    url = f"http://127.0.0.1:5000/entries/{entry_id}/edit"
+    url = f"/entries/{entry_id}/edit"
     
     try:
-        headers = {'Content-Type': 'application/json'}
-        response = requests.post(url, json=data, headers=headers)
+        response = client.post(url, json=data, content_type='application/json')
         
         print(f"Status: {response.status_code}")
         
@@ -67,7 +65,7 @@ def _test_submission(entry_id, data, description):
         else:
             print(f"❓ UNEXPECTED: {description} submission returned {response.status_code}")
         
-        print(f"Response: {response.text[:200]}...")
+        print(f"Response: {response.data.decode('utf-8')[:200]}...")
         
     except Exception as e:
         print(f"❌ ERROR testing {description}: {e}")

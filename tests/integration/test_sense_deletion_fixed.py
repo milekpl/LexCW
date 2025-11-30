@@ -21,12 +21,14 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     
     The fix: Mark default-sense-template and exclude it from serialization.
     """
+    print("TEST STARTING: test_sense_deletion_persists_after_save")
     page = playwright_page
     
     # For this test, create an entry with 2 senses via API, then edit it
     import requests
     import json
     
+    print("Creating test entry data...")
     test_entry_data = {
         "id": "sense_deletion_test_" + str(hash("test"))[-8:],
         "lexical_unit": {"en": "sense_deletion_test"},
@@ -45,27 +47,39 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     }
     
     # Create entry via API
+    print(f"Creating entry via API at {live_server.url}/api/entries/...")
     response = requests.post(
         f"{live_server.url}/api/entries/",
         json=test_entry_data,
         headers={"Content-Type": "application/json"}
     )
+    print(f"API response status: {response.status_code}")
     assert response.status_code in [200, 201], f"Failed to create test entry: {response.text}"
     
     entry_id = test_entry_data["id"]
     edit_url = f"{live_server.url}/entries/{entry_id}/edit"
     
     # Navigate to edit the entry
+    print(f"Navigating to edit URL: {edit_url}")
     page.goto(edit_url)
     page.wait_for_load_state("networkidle")
     
+    print("Page loaded, setting up console monitoring...")
     # Setup console monitoring
     console_logs = []
     page.on("console", lambda msg: console_logs.append(msg.text))
     
     # Verify we have 2 real senses (excluding template)
+    print("Checking for real senses...")
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     initial_count = real_senses.count()
+    print(f"Found {initial_count} real senses")
+    
+    # DEBUG: Check if default-sense-template exists in DOM
+    default_template = page.locator('#default-sense-template')
+    template_count = default_template.count()
+    print(f"Found {template_count} default-sense-template elements in DOM")
+    
     assert initial_count == 2, f"Expected 2 real senses, got {initial_count}"
     
     # Clear console logs for deletion monitoring
@@ -75,41 +89,94 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     page.on("dialog", lambda dialog: dialog.accept())
     
     # Remove the second sense
+    print("Removing second sense...")
     remove_btn = real_senses.nth(1).locator('.remove-sense-btn')
     remove_btn.click()
     page.wait_for_timeout(500)
     
     # Verify sense was removed from DOM
+    print("Verifying sense removal...")
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     after_deletion = real_senses.count()
+    print(f"After deletion: {after_deletion} senses")
     assert after_deletion == 1, f"Expected 1 sense after deletion, got {after_deletion}"
     
+    # DEBUG: Check what sense-related fields exist in the form after deletion
+    sense_fields_js = """
+    Array.from(document.querySelectorAll('[name^="senses["]'))
+        .map(f => f.name)
+        .filter((name, idx, arr) => arr.indexOf(name) === idx)  // unique
+        .sort()
+    """
+    field_names = page.evaluate(sense_fields_js)
+    print(f"Fields in form after deletion: {field_names}")
+    senses_1_fields = [f for f in field_names if 'senses[1]' in f]
+    print(f"Fields for senses[1]: {senses_1_fields}")
+    
+    # Check where these fields are located in the DOM
+    if senses_1_fields:
+        for field_name in senses_1_fields:
+            parent_info_js = f"""
+            (function() {{
+                const field = document.querySelector('[name="{field_name}"]');
+                if (!field) return 'NOT FOUND';
+                const senseItem = field.closest('.sense-item');
+                if (!senseItem) return 'NOT IN SENSE-ITEM';
+                return 'IN SENSE-ITEM: ' + (senseItem.id || senseItem.dataset.senseIndex || 'unknown');
+            }})()
+            """
+            parent_info = page.evaluate(parent_info_js)
+            print(f"  {field_name}: {parent_info}")
+    
     # Check console logs for deletion confirmation
+    print("Checking console logs for deletion...")
     deletion_logs = [log for log in console_logs if 'SENSE DELETION' in log]
+    print(f"Found {len(deletion_logs)} deletion logs: {deletion_logs[:3] if deletion_logs else 'none'}")
     assert len(deletion_logs) > 0, "No sense deletion logs found"
     
     # Look for the critical log showing count after removal
     count_log = [log for log in deletion_logs if 'Sense count after removal: 1' in log]
+    print(f"Found {len(count_log)} count logs")
     assert len(count_log) > 0, f"Expected 'Sense count after removal: 1' in logs. Got: {deletion_logs}"
     
     # Clear and monitor serialization
+    print("Clearing console logs for serialization monitoring...")
     console_logs.clear()
     
     # Save the entry
+    print("Clicking Save Entry button...")
     page.click('button[type="submit"]:has-text("Save Entry")')
-    page.wait_for_timeout(2000)  # Wait for serialization and submission
+    page.wait_for_timeout(3000)  # Wait longer to ensure full JSON is logged
     
     # CRITICAL CHECK: Verify serialization only included 1 sense
+    print(f"Checking console logs... found {len(console_logs)} logs")
+    
+    # Find and print the full JSON payload
+    full_json_logs = [log for log in console_logs if 'FULL JSON PAYLOAD' in log]
+    if full_json_logs:
+        print("=" * 80)
+        print("FULL JSON PAYLOAD:")
+        print(full_json_logs[0])
+        print("=" * 80)
+    
     submit_logs = [log for log in console_logs if 'FORM SUBMIT' in log]
+    print(f"Found {len(submit_logs)} submit logs")
     assert len(submit_logs) > 0, f"No form submit logs found. All logs: {console_logs}"
+    
+    # Check for sense IDs in serialization
+    sense_id_logs = [log for log in console_logs if 'Sense' in log and ':' in log]
+    print(f"Sense ID logs: {sense_id_logs}")
     
     # Check for "Serialized senses: 1" (not 2!)
     serialized_count_log = [log for log in submit_logs if 'Serialized senses:' in log]
+    print(f"Found {len(serialized_count_log)} serialized count logs: {serialized_count_log}")
     assert len(serialized_count_log) > 0, f"No serialization count log. Submit logs: {submit_logs}"
     
     # This is THE critical assertion - if this fails, the default template is still being serialized
+    print(f"Checking serialization count: {serialized_count_log[0]}")
     if 'Serialized senses: 1' not in serialized_count_log[0]:
         # The bug is not fixed yet - skip rather than fail
+        print(f"SKIPPING: Form serializer includes template sense. Expected 'Serialized senses: 1', got: {serialized_count_log[0]}")
         pytest.skip(f"Known issue: Form serializer includes template sense. Expected 'Serialized senses: 1', got: {serialized_count_log[0]}")
     
     # Wait for navigation after save
@@ -126,7 +193,18 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
         f"BUG: Deleted sense reappeared! Expected 1 sense after reload, got {final_count}"
     
     # Verify the remaining sense has the correct content
-    remaining_def = real_senses.first.locator('textarea[name*="definition"]').first.input_value()
+    # Note: definition is now a multilingual field with .text suffix
+    print(f"DEBUG: Looking for definition field in {final_count} sense(s)...")
+    
+    # Debug: List all textarea fields in the first sense
+    debug_fields = real_senses.first.locator('textarea[name*="definition"]').all()
+    print(f"DEBUG: Found {len(debug_fields)} textarea fields with 'definition' in name")
+    for i, field in enumerate(debug_fields):
+        field_name = field.get_attribute('name')
+        field_value = field.input_value()
+        print(f"  Field {i}: name={field_name}, value='{field_value}'")
+    
+    remaining_def = real_senses.first.locator('textarea[name*="definition"][name$=".text"]').first.input_value()
     assert remaining_def == 'First definition', \
         f"Wrong sense remained. Expected 'First definition', got '{remaining_def}'"
     
@@ -146,8 +224,8 @@ def test_default_template_not_serialized(playwright_page, live_server):
     default_template = page.locator('#default-sense-template, .default-sense-template')
     expect(default_template).to_have_count(1)
     
-    # Fill minimal entry data
-    page.fill('input[name="lexical_unit"]', 'template_test')
+    # Fill minimal entry data - use new multilingual lexical_unit format
+    page.locator('input[name^="lexical_unit."][name$=".text"]').first.fill('template_test')
     page.locator('textarea[name*="definition"]').first.fill('Test definition')
     
     # Setup console monitoring
@@ -176,20 +254,20 @@ def test_multiple_deletions(playwright_page, live_server):
     page.goto(f"{live_server.url}/entries/add")
     page.wait_for_load_state("networkidle")
     
-    # Create entry with 3 senses
-    page.fill('input[name="lexical_unit"]', 'multi_delete_test')
-    page.locator('textarea[name*="definition"]').first.fill('Def 1')
+    # Create entry with 3 senses - use new multilingual lexical_unit format
+    page.locator('input[name^="lexical_unit."][name$=".text"]').first.fill('multi_delete_test')
+    page.locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 1')
     
     page.click('button:has-text("Add Sense")')
     page.wait_for_timeout(300)
     page.click('button:has-text("Add Sense")')
     page.wait_for_timeout(300)
     
-    # Fill in definitions for the senses
+    # Fill in definitions for the senses - use correct selector with .text suffix
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     try:
-        real_senses.nth(1).locator('textarea[name*="definition"]').first.fill('Def 2', timeout=5000)
-        real_senses.nth(2).locator('textarea[name*="definition"]').first.fill('Def 3', timeout=5000)
+        real_senses.nth(1).locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 2', timeout=5000)
+        real_senses.nth(2).locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 3', timeout=5000)
     except Exception as e:
         pytest.skip(f"Could not fill sense definitions: {e}")
     

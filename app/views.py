@@ -332,7 +332,6 @@ def edit_entry(entry_id):
         component_relations_data = []
         if entry:
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
-
             # Extract enriched component_relations for template (with display text for main entries)
             component_relations_data = entry.get_component_relations(dict_service)
 
@@ -493,6 +492,8 @@ def add_entry():
         return render_template("entry_form.html", 
                               entry=entry, 
                               ranges=ranges, 
+                              variant_relations=[],
+                              component_relations=[],
                               project_languages=languages,
                               configured_languages_codes=configured_languages_codes)
 

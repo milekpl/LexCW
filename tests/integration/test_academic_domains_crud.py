@@ -194,53 +194,53 @@ class TestAcademicDomainsIntegration:
     @pytest.mark.integration
     def test_retrieve_entries_by_academic_domain(self, dict_service_with_db: DictionaryService) -> None:
         """Test retrieving entries filtered by academic domain."""
-        # Create entries with different academic domains
+        # Create test entries with SENSE-LEVEL academic domains (moved from entry-level)
         entries_data = [
             Entry(
                 id_="entry_informatyka",
                 lexical_unit={"en": "algorithm"},
-                academic_domain="informatyka",
                 senses=[
                     Sense(
                         id_="sense1",
                         glosses={"en": "algorithm"},
-                        definitions={"en": {"text": "algorithm"}}
+                        definitions={"en": "algorithm"},
+                        academic_domain="informatyka"  # Sense-level now
                     )
                 ]
             ),
             Entry(
                 id_="entry_finanse",
                 lexical_unit={"en": "investment"},
-                academic_domain="finanse",
                 senses=[
                     Sense(
                         id_="sense1",
                         glosses={"en": "investment"},
-                        definitions={"en": {"text": "investment"}}
+                        definitions={"en": "investment"},
+                        academic_domain="finanse"  # Sense-level now
                     )
                 ]
             ),
             Entry(
                 id_="entry_prawniczy",
                 lexical_unit={"en": "contract"},
-                academic_domain="prawniczy",
                 senses=[
                     Sense(
                         id_="sense1",
                         glosses={"en": "contract"},
-                        definitions={"en": {"text": "contract"}}
+                        definitions={"en": "contract"},
+                        academic_domain="prawniczy"  # Sense-level now
                     )
                 ]
             ),
             Entry(
                 id_="entry_literatura",
                 lexical_unit={"en": "poem"},
-                academic_domain="literatura",
                 senses=[
                     Sense(
                         id_="sense1",
                         glosses={"en": "poem"},
-                        definitions={"en": {"text": "poem"}}
+                        definitions={"en": "poem"},
+                        academic_domain="literatura"  # Sense-level now
                     )
                 ]
             ),
@@ -250,22 +250,26 @@ class TestAcademicDomainsIntegration:
         for entry in entries_data:
             dict_service_with_db.create_entry(entry)
         
-        # Test filtering by academic domain using list_entries with custom filter
-        all_entries, _ = dict_service_with_db.list_entries(limit=100, offset=0)
+        # Get specific entries by ID and verify academic domains at sense level
+        entry_informatyka = dict_service_with_db.get_entry("entry_informatyka")
+        assert entry_informatyka is not None
+        assert len(entry_informatyka.senses) == 1
+        assert entry_informatyka.senses[0].academic_domain == "informatyka"
         
-        # Filter entries with academic_domain = "informatyka"
-        informatyka_entries = [e for e in all_entries if getattr(e, 'academic_domain', None) == "informatyka"]
-        assert len(informatyka_entries) == 1
-        assert informatyka_entries[0].id == "entry_informatyka"
+        entry_finanse = dict_service_with_db.get_entry("entry_finanse")
+        assert entry_finanse is not None
+        assert len(entry_finanse.senses) == 1
+        assert entry_finanse.senses[0].academic_domain == "finanse"
         
-        # Filter entries with academic_domain = "finanse"
-        finanse_entries = [e for e in all_entries if getattr(e, 'academic_domain', None) == "finanse"]
-        assert len(finanse_entries) == 1
-        assert finanse_entries[0].id == "entry_finanse"
+        entry_prawniczy = dict_service_with_db.get_entry("entry_prawniczy")
+        assert entry_prawniczy is not None
+        assert len(entry_prawniczy.senses) == 1
+        assert entry_prawniczy.senses[0].academic_domain == "prawniczy"
         
-        # Filter entries with None academic_domain
-        none_entries = [e for e in all_entries if getattr(e, 'academic_domain', None) is None]
-        assert len(none_entries) >= 0  # May have other entries in the database
+        entry_literatura = dict_service_with_db.get_entry("entry_literatura")
+        assert entry_literatura is not None
+        assert len(entry_literatura.senses) == 1
+        assert entry_literatura.senses[0].academic_domain == "literatura"
         
         # Clean up test entries
         for entry_id in ["entry_informatyka", "entry_finanse", "entry_prawniczy", "entry_literatura"]:
@@ -406,12 +410,12 @@ class TestAcademicDomainsIntegration:
         entry = Entry(
             id_="test_unicode_academic_domain",
             lexical_unit={"en": "word"},
-            academic_domain="informatyka",  # Contains Polish characters
             senses=[
                 Sense(
                     id_="sense1",
                     glosses={"en": "word"},
-                    definitions={"en": {"text": "word"}}
+                    definitions={"en": "word"},
+                    academic_domain="informatyka-żabki"  # Contains Polish character ż
                 )
             ]
         )
@@ -420,11 +424,12 @@ class TestAcademicDomainsIntegration:
         entry_id = dict_service_with_db.create_entry(entry)
         assert entry_id == "test_unicode_academic_domain"
         
-        # Retrieve and verify Unicode preservation
+        # Retrieve and verify Unicode preservation at sense level
         retrieved_entry = dict_service_with_db.get_entry("test_unicode_academic_domain")
         assert retrieved_entry is not None
-        assert retrieved_entry.academic_domain == "informatyka"
-        assert "ż" in retrieved_entry.academic_domain  # Verify Unicode is preserved
+        assert len(retrieved_entry.senses) == 1
+        assert retrieved_entry.senses[0].academic_domain == "informatyka-żabki"
+        assert "ż" in retrieved_entry.senses[0].academic_domain  # Verify Unicode is preserved
         
         # Clean up
         dict_service_with_db.delete_entry("test_unicode_academic_domain")
@@ -435,13 +440,12 @@ class TestAcademicDomainsIntegration:
         original_entry = Entry(
             id_="test_academic_serialization",
             lexical_unit={"en": "test word"},
-            academic_domain="informatyka",
             senses=[
                 Sense(
                     id_="sense1",
                     glosses={"en": "test"},
-                    definitions={"en": {"text": "test"}},
-                    academic_domain="finanse"
+                    definitions={"en": "test"},  # LIFT flat format
+                    academic_domain="finanse"  # Sense-level only
                 )
             ]
         )
@@ -456,8 +460,7 @@ class TestAcademicDomainsIntegration:
         entry_dict = retrieved_entry.to_dict()
         reconstructed_entry = Entry(**entry_dict)
         
-        # Verify academic domains are preserved
-        assert reconstructed_entry.academic_domain == "informatyka"
+        # Verify academic domain is preserved at sense level
         assert len(reconstructed_entry.senses) == 1
         assert reconstructed_entry.senses[0].academic_domain == "finanse"
         
@@ -466,36 +469,49 @@ class TestAcademicDomainsIntegration:
     
     @pytest.mark.integration
     def test_form_data_processing_academic_domain(self, dict_service_with_db: DictionaryService) -> None:
-        """Test that academic domain works correctly with form data processing."""
+        """Test that academic domain works correctly with form data processing at SENSE level.
+        
+        Note: academic_domain was moved to sense-level only.
+        Entry-level academic_domain is no longer supported.
+        """
         # Simulate form data that would come from the entry form
+        # Using bracket notation as expected by the form processor
         form_data = {
-            'lexical_unit.en': 'test word',
-            'academic_domain': 'informatyka',
-            'senses[0].id': 'sense1',
-            'senses[0].definition.en.text': 'test definition',
-            'senses[0].academic_domain': 'finanse'
+            'lexical_unit[en]': 'test word',
+            'senses[0][id]': 'sense1',
+            'senses[0][definition][en]': 'test definition',
+            'senses[0][academic_domain]': 'informatyka'  # Sense-level only
         }
         
-        from app.utils.multilingual_form_processor import process_entry_form_data
+        from app.utils.multilingual_form_processor import (
+            process_entry_form_data,
+            process_senses_form_data
+        )
         
-        # Process form data
+        # Process form data (entry and senses separately)
         entry_data = process_entry_form_data(form_data)
+        senses_data = process_senses_form_data(form_data)
         
         # Create entry from processed data
-        entry = Entry(**entry_data)
+        entry = Entry(lexical_unit=entry_data['lexical_unit'])
         
-        # Verify academic domains are set correctly
-        assert entry.academic_domain == "informatyka"
+        # Create senses from processed data
+        if senses_data:
+            from app.models.sense import Sense
+            entry.senses = [Sense(**sense_data) for sense_data in senses_data]
+        
+        # Verify academic domains are set correctly (sense-level only)
+        assert not hasattr(entry, 'academic_domain') or entry.academic_domain is None
         assert len(entry.senses) == 1
-        assert entry.senses[0].academic_domain == "finanse"
+        assert entry.senses[0].academic_domain == "informatyka"
         
         # Create in database and retrieve
         dict_service_with_db.create_entry(entry)
         retrieved_entry = dict_service_with_db.get_entry(entry.id)
         
-        # Verify academic domains are preserved after database roundtrip
-        assert retrieved_entry.academic_domain == "informatyka"
-        assert retrieved_entry.senses[0].academic_domain == "finanse"
+        # Verify academic domains are preserved after database roundtrip (sense-level only)
+        assert len(retrieved_entry.senses) == 1
+        assert retrieved_entry.senses[0].academic_domain == "informatyka"
         
         # Clean up
         dict_service_with_db.delete_entry(entry.id)

@@ -30,4 +30,5 @@ def test_parse_entry_with_single_sense():
     # Accept both plural and singular for compatibility
     defs = getattr(sense, 'definitions', None) or getattr(sense, 'definition', None)
     assert 'en' in defs
-    assert defs['en']['text'] == 'definition'
+    # LIFT flat format: definitions is Dict[str, str]
+    assert defs['en'] == 'definition'

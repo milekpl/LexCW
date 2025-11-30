@@ -587,22 +587,22 @@ class LIFTParser:
             
         Returns:
             Sense object.
-        """        # Parse glosses
+        """        # Parse glosses - LIFT flat format: {lang: text}
         glosses = {}
         for gloss_elem in self._find_elements(sense_elem, './/lift:gloss'):
             lang = gloss_elem.get('lang')
             text_elem = self._find_element(gloss_elem, './/lift:text')
             if lang and text_elem is not None and text_elem.text:
-                glosses[lang] = {"text": text_elem.text}
+                glosses[lang] = text_elem.text
         
-        # Parse definitions
+        # Parse definitions - LIFT flat format: {lang: text}
         definitions = {}
         for def_elem in self._find_elements(sense_elem, './/lift:definition'):
             for form_elem in self._find_elements(def_elem, './/lift:form'):
                 lang = form_elem.get('lang')
                 text_elem = self._find_element(form_elem, './/lift:text')
                 if lang and text_elem is not None and text_elem.text:
-                    definitions[lang] = {"text": text_elem.text}
+                    definitions[lang] = text_elem.text
         
         # Parse examples
         examples = []

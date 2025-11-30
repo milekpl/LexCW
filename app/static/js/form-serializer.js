@@ -37,6 +37,42 @@ function serializeFormToJSON(input, options = {}) {
     if (typeof HTMLFormElement !== 'undefined' && input instanceof HTMLFormElement) {
         formData = new FormData(input);
 
+        // Filter out fields from template elements (specifically #default-sense-template)
+        // BUT ONLY if there are other real sense items present
+        // (On add page with no senses, the default-sense-template IS the first sense)
+        const templateElement = input.querySelector('#default-sense-template');
+        const realSenses = input.querySelectorAll('.sense-item:not(#default-sense-template):not(.default-sense-template)');
+        
+        if (templateElement && realSenses.length > 0) {
+            // There are real senses, so default-sense-template is truly just a template
+            const templateFields = templateElement.querySelectorAll('[name]');
+            templateFields.forEach(field => {
+                if (field.name) {
+                    formData.delete(field.name);
+                }
+            });
+        } else if (templateElement && realSenses.length === 0) {
+            // No real senses - template IS the first sense
+            // Rename fields from senses[TEMPLATE] to senses[0]
+            const templateFields = templateElement.querySelectorAll('[name]');
+            const renamedEntries = [];
+            templateFields.forEach(field => {
+                if (field.name && field.name.includes('[TEMPLATE]')) {
+                    const newName = field.name.replace('[TEMPLATE]', '[0]');
+                    const value = formData.get(field.name);
+                    if (value !== null && value !== undefined) {
+                        renamedEntries.push({ oldName: field.name, newName: newName, value: value });
+                    }
+                }
+            });
+            
+            // Apply renames
+            renamedEntries.forEach(entry => {
+                formData.delete(entry.oldName);
+                formData.set(entry.newName, entry.value);
+            });
+        }
+
         // If we don't want disabled fields, we need to filter them out manually
         if (!config.includeDisabled) {
             const disabledFields = input.querySelectorAll('[disabled]');

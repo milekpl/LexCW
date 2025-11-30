@@ -491,11 +491,16 @@ def create_entry() -> Any:
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
+        # Process form data to handle backward compatibility (string lexical_unit, etc.)
+        from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
+        empty_entry_data = {}
+        processed_data = merge_form_data_with_entry_data(data, empty_entry_data)
+        
         # Create entry object
         now = datetime.datetime.utcnow().isoformat()
-        data['date_created'] = now
-        data['date_modified'] = now
-        entry = Entry.from_dict(data)
+        processed_data['date_created'] = now
+        processed_data['date_modified'] = now
+        entry = Entry.from_dict(processed_data)
         
         # Get dictionary service
         dict_service = get_dictionary_service()
@@ -513,6 +518,10 @@ def create_entry() -> Any:
         return jsonify({'success': True, 'entry_id': entry_id}), 201
         
     except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except ValueError as e:
+        # Form processor raises ValueError for validation issues
+        logger.error("Validation error creating entry: %s", str(e))
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error("Error creating entry: %s", str(e))
@@ -686,6 +695,11 @@ def update_entry(entry_id: str) -> Any:
         # Ensure ID in path matches ID in data
         if data.get('id') != entry_id:
             return jsonify({'error': 'Entry ID in path does not match ID in data'}), 400
+        
+        # Process form data to handle field format conversions
+        from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
+        existing_entry_data = {}  # We'll get the actual entry below
+        data = merge_form_data_with_entry_data(data, existing_entry_data)
         
         # Create entry object
         # Check if skip_validation parameter is set (extract BEFORE creating Entry)

@@ -63,7 +63,8 @@ def test_parse_entry_with_multiple_senses(lift_parser: LIFTParser):
     sense1 = entry.senses[0]
     assert sense1.id == "sense_1"
     assert sense1.grammatical_info == "verb"
-    assert sense1.definitions.get("en", {}).get("text") == "to move swiftly on foot"
+    # LIFT flat format: definitions is Dict[str, str]
+    assert sense1.definitions.get("en") == "to move swiftly on foot"
     assert len(sense1.examples) == 1
     example1 = sense1.examples[0]
     assert example1.get("form", {}).get("en") == "He can run very fast."

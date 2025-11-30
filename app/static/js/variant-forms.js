@@ -75,10 +75,18 @@ class VariantFormsManager {
     }
     
     renderExistingVariants() {
-        // Get variant data from the entry's variant_relations
-        const existingVariants = this.getExistingVariantRelationsFromEntry();
-        
         console.log('[VARIANT DEBUG] renderExistingVariants() called');
+        console.log('[VARIANT DEBUG] this.variantRelations:', this.variantRelations);
+        
+        // Use variant_relations passed via constructor options, or fallback to global scope
+        let existingVariants = this.variantRelations || [];
+        
+        // If constructor didn't provide data, try to get it from global scope
+        if (existingVariants.length === 0) {
+            console.log('[VARIANT DEBUG] No variants in constructor, trying global scope');
+            existingVariants = this.getExistingVariantRelationsFromEntry();
+        }
+        
         console.log('[VARIANT DEBUG] Existing variants:', existingVariants);
         console.log('[VARIANT DEBUG] Variant count:', existingVariants.length);
         
@@ -232,13 +240,19 @@ class VariantFormsManager {
                             </div>
                             ` : ''}
                             
-                            <!-- Hidden input field for form submission -->
+                            <!-- Hidden input fields for form submission -->
                             <input type="hidden" 
                                    name="variant_relations[${index}][ref]"
                                    value="${variantRelation.ref || ''}">
+                            <input type="hidden" 
+                                   name="variant_relations[${index}][type]"
+                                   value="${variantRelation.type || '_component-lexeme'}">
+                            <input type="hidden" 
+                                   name="variant_relations[${index}][order]"
+                                   value="${index}">
                             
                             <!-- Search interface for adding/changing variant targets -->
-                            <div class="input-group">
+                            <div class="input-group">`
                                 <input type="text" class="form-control variant-search-input" 
                                        placeholder="Search for entry to create variant relationship with..."
                                        data-variant-index="${index}">
@@ -489,7 +503,9 @@ class VariantFormsManager {
     }
 }
 
-// Initialize when DOM is ready
+// Don't auto-initialize - let the template initialize with data
+// The template will create the instance with options including variantRelations
+/*
 document.addEventListener('DOMContentLoaded', function() {
     console.log('[VARIANT DEBUG] DOMContentLoaded event fired');
     if (document.getElementById('variants-container')) {
@@ -499,6 +515,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[VARIANT DEBUG] variants-container not found in DOM');
     }
 });
+*/
 
 // Also make the class available immediately
 console.log('[VARIANT DEBUG] VariantFormsManager class defined');

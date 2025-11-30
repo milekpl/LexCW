@@ -122,9 +122,9 @@ class TestRealIntegration:
         assert retrieved_entry.id == "real_test_entry"
         assert retrieved_entry.lexical_unit["en"] == "integration"
         assert len(retrieved_entry.senses) == 1
-        assert retrieved_entry.senses[0].definitions["en"]["text"] == "A comprehensive test of system components working together"
-        # Glosses are stored as {lang: {text: value}} in LIFT format
-        assert retrieved_entry.senses[0].glosses["en"]["text"] == "The process of combining parts into a whole"
+        # LIFT flat format: {lang: text} (not nested)
+        assert retrieved_entry.senses[0].definitions["en"] == "A comprehensive test of system components working together"
+        assert retrieved_entry.senses[0].glosses["en"] == "The process of combining parts into a whole"
     
     @pytest.mark.integration
     def test_real_search_functionality(self, dict_service):
@@ -210,8 +210,8 @@ class TestRealIntegration:
         # Verify update
         updated_entry = dict_service.get_entry("update_test_entry")
         assert updated_entry.lexical_unit["en"] == "updated"
-        # Glosses are stored as {lang: {text: value}} in LIFT format
-        assert updated_entry.senses[0].glosses["en"]["text"] == "Updated gloss"
+        # Glosses are stored in LIFT flat format {lang: value}
+        assert updated_entry.senses[0].glosses["en"] == "Updated gloss"
         
         # Delete entry
         success = dict_service.delete_entry("update_test_entry")
@@ -358,9 +358,9 @@ class TestRealIntegration:
         # Retrieve and verify
         retrieved = dict_service.get_entry("multi_sense_test")
         assert len(retrieved.senses) == 2
-        # Test sense access - glosses are {lang: {text: value}} format
-        financial_sense = next((s for s in retrieved.senses if "Financial" in s.glosses["en"]["text"]), None)
-        river_sense = next((s for s in retrieved.senses if "river" in s.glosses["en"]["text"]), None)
+        # Test sense access - glosses are {lang: value} flat format
+        financial_sense = next((s for s in retrieved.senses if "Financial" in s.glosses["en"]), None)
+        river_sense = next((s for s in retrieved.senses if "river" in s.glosses["en"]), None)
         assert financial_sense is not None
         assert river_sense is not None
         assert financial_sense.id == "bank_sense_1"
@@ -381,18 +381,18 @@ class TestRealModelInteractions:
         sense.glosses = {"en": "Test gloss"}
         assert sense.glosses["en"] == "Test gloss"
 
-        sense.definitions = {"en": {"text": "Test definition"}}
-        assert sense.definitions["en"]["text"] == "Test definition"
+        sense.definitions = {"en": "Test definition"}
+        assert sense.definitions["en"] == "Test definition"
 
         # Test dict assignment (multiple languages)
         sense.glosses = {"pl": "Polski tekst", "en": "English text"}
         assert sense.glosses["pl"] == "Polski tekst"
         assert sense.glosses["en"] == "English text"
 
-        # Test that definitions have nested structure
-        sense.definitions = {"en": {"text": "Test"}, "pl": {"text": "Test PL"}}
-        assert sense.definitions["en"]["text"] == "Test"
-        assert sense.definitions["pl"]["text"] == "Test PL"
+        # Test that definitions use flat format
+        sense.definitions = {"en": "Test", "pl": "Test PL"}
+        assert sense.definitions["en"] == "Test"
+        assert sense.definitions["pl"] == "Test PL"
     
     @pytest.mark.integration
     def test_entry_sense_integration(self):
@@ -404,12 +404,12 @@ class TestRealModelInteractions:
                 Sense(
                     id_="sense_1",
                     glosses={"en": "First sense"},
-                    definitions={"en": {"text": "First definition"}}
+                    definitions={"en": "First definition"}
                 ),
                 Sense(
                     id_="sense_2",
                     glosses={"en": "Second sense", "pl": "Drugi sens"},
-                    definitions={"en": {"text": "Second definition"}, "pl": {"text": "Druga definicja"}}
+                    definitions={"en": "Second definition", "pl": "Druga definicja"}
                 )
             ]
         )
@@ -422,15 +422,15 @@ class TestRealModelInteractions:
         sense1 = entry.senses[0]
         assert sense1.id == "sense_1"
         assert sense1.glosses["en"] == "First sense"
-        assert sense1.definitions["en"]["text"] == "First definition"
+        assert sense1.definitions["en"] == "First definition"
 
         # Test second sense with multiple languages
         sense2 = entry.senses[1]
         assert sense2.id == "sense_2"
         assert sense2.glosses["en"] == "Second sense"
         assert sense2.glosses["pl"] == "Drugi sens"
-        assert sense2.definitions["en"]["text"] == "Second definition"
-        assert sense2.definitions["pl"]["text"] == "Druga definicja"
+        assert sense2.definitions["en"] == "Second definition"
+        assert sense2.definitions["pl"] == "Druga definicja"
     
     @pytest.mark.integration
     def test_entry_validation_comprehensive(self):
