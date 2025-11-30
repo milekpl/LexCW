@@ -31,12 +31,20 @@ class LIFTXMLSerializer {
      * @returns {string} LIFT XML string
      */
     serializeEntry(formData) {
+        // Validate required fields
+        if (!formData.id) {
+            throw new Error('Entry must have an id');
+        }
+        if (!formData.lexicalUnit || Object.keys(formData.lexicalUnit).length === 0) {
+            throw new Error('Entry must have a lexicalUnit with at least one form');
+        }
+
         // Create XML document
         const doc = document.implementation.createDocument(this.LIFT_NS, 'entry', null);
         const entry = doc.documentElement;
 
         // Set entry attributes
-        entry.setAttribute('id', formData.id || this.generateId());
+        entry.setAttribute('id', formData.id);
         
         if (formData.guid) {
             entry.setAttribute('guid', formData.guid);
@@ -168,14 +176,7 @@ class LIFTXMLSerializer {
             sense.appendChild(definition);
         }
 
-        // Add academic domain trait
-        if (senseData.academicDomain || senseData.academic_domain) {
-            const domain = senseData.academicDomain || senseData.academic_domain;
-            const domainTrait = this.createTrait(doc, 'academic-domain', domain);
-            sense.appendChild(domainTrait);
-        }
-
-        // Add domain-type trait (actual LIFT name)
+        // Add domain-type trait
         if (senseData.domainType || senseData.domain_type) {
             const domainType = senseData.domainType || senseData.domain_type;
             const domainTrait = this.createTrait(doc, 'domain-type', domainType);
@@ -452,14 +453,16 @@ class LIFTXMLSerializer {
 
         // Add gloss
         if (etymData.gloss && Object.keys(etymData.gloss).length > 0) {
-            const glossElem = doc.createElement('gloss');
             Object.entries(etymData.gloss).forEach(([lang, text]) => {
                 if (text) {
-                    const form = this.createForm(doc, lang, text);
-                    glossElem.appendChild(form);
+                    const glossElem = doc.createElement('gloss');
+                    glossElem.setAttribute('lang', lang);
+                    const textElem = doc.createElement('text');
+                    textElem.textContent = text;
+                    glossElem.appendChild(textElem);
+                    etymology.appendChild(glossElem);
                 }
             });
-            etymology.appendChild(glossElem);
         }
 
         return etymology;
@@ -520,19 +523,18 @@ class LIFTXMLSerializer {
             const parser = new DOMParser();
             const doc = parser.parseFromString(xmlString, 'text/xml');
 
-            // Check for parse errors
-            const parseError = doc.querySelector('parsererror');
-            if (parseError) {
+            // Check for parse errors (xmldom creates parsererror as documentElement)
+            if (doc.documentElement.nodeName === 'parsererror') {
                 errors.push({
                     type: 'PARSE_ERROR',
-                    message: parseError.textContent
+                    message: doc.documentElement.textContent
                 });
                 return { valid: false, errors };
             }
 
             // Check for required entry attributes
-            const entry = doc.querySelector('entry');
-            if (!entry) {
+            const entry = doc.documentElement;
+            if (entry.nodeName !== 'entry') {
                 errors.push({
                     type: 'MISSING_ELEMENT',
                     message: 'No entry element found'
@@ -547,9 +549,15 @@ class LIFTXMLSerializer {
                 });
             }
 
-            // Check for lexical-unit
-            const lexicalUnit = entry.querySelector('lexical-unit');
-            if (!lexicalUnit) {
+            // Check for lexical-unit (manual search since querySelector not available)
+            let hasLexicalUnit = false;
+            for (let i = 0; i < entry.childNodes.length; i++) {
+                if (entry.childNodes[i].nodeName === 'lexical-unit') {
+                    hasLexicalUnit = true;
+                    break;
+                }
+            }
+            if (!hasLexicalUnit) {
                 errors.push({
                     type: 'MISSING_ELEMENT',
                     message: 'Entry missing lexical-unit element'

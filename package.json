@@ -4,9 +4,11 @@
   "description": "Dictionary application with comprehensive form serialization",
   "main": "app/static/js/form-serializer.js",
   "scripts": {
-    "test": "npm run test:js && npm run test:python",
-    "test:js": "node tests/unit/test_form_serializer.js",
-    "test:js:watch": "nodemon tests/unit/test_form_serializer.js",
+    "test": "jest",
+    "test:js": "jest",
+    "test:js:watch": "jest --watch",
+    "test:js:coverage": "jest --coverage",
+    "test:lift-serializer": "jest test_lift_xml_serializer",
     "test:python": "python -m pytest tests/unit/ -v",
     "test:python:integration": "python -m pytest tests/integration/ -v",
     "test:all": "npm run test:js && npm run test:python && npm run test:python:integration",
@@ -14,9 +16,12 @@
     "format:js": "prettier --write app/static/js/**/*.js tests/unit/**/*.js"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@xmldom/xmldom": "^0.8.11",
     "eslint": "^8.0.0",
-    "prettier": "^2.0.0",
-    "nodemon": "^2.0.0"
+    "jest": "^30.2.0",
+    "nodemon": "^2.0.0",
+    "prettier": "^2.0.0"
   },
   "keywords": [
     "dictionary",
