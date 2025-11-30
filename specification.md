@@ -1,5 +1,8 @@
 # Lexicographic Curation Workbench (LCW) Specification v2.0
 
+> **⚠️ ARCHITECTURAL EVOLUTION NOTICE**  
+> A revolutionary architectural change is planned to transition to **direct XML manipulation**. See [`docs/XML_DIRECT_MANIPULATION_PLAN.md`](docs/XML_DIRECT_MANIPULATION_PLAN.md) for the comprehensive migration plan. This will eliminate the dual-database architecture for entry data, making BaseX the single source of truth for all LIFT entries.
+
 ## 1. Introduction
 
 ### 1.1 Purpose and Philosophy
