@@ -22,7 +22,7 @@ def mock_entry():
     """Create a mock entry with pronunciations."""
     entry = Entry(id_="test_pronunciation_entry",
         lexical_unit={"en": "pronunciation test"},
-        pronunciations={"seh-fonipa": "/pro.nun.si.eɪ.ʃən/"},
+        pronunciations={"seh-fonipa": "pronʌnsiˈeɪʃən"},  # Valid IPA characters
         grammatical_info="noun"
     ,
             senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
@@ -32,12 +32,12 @@ def mock_entry():
 def test_pronunciation_display_in_entry_form(app: Flask):
     """Test that pronunciations from LIFT entries are displayed in the entry form using real LIFT XML and parser."""
     from app.parsers.lift_parser import LIFTParser
-    # Use a realistic LIFT XML entry with the expected IPA value
+    # Use a realistic LIFT XML entry with valid IPA characters
     lift_xml = '''<?xml version="1.0" encoding="UTF-8"?>
     <lift producer="SIL.FLEx 9.1.25.877" version="0.13">
     <entry id="test_pronunciation_entry">
         <lexical-unit><form lang="en"><text>pronunciation test</text></form></lexical-unit>
-        <pronunciation><form lang="seh-fonipa"><text>/pro.nun.si.eɪ.ʃən/</text></form></pronunciation>
+        <pronunciation><form lang="seh-fonipa"><text>pronʌnsiˈeɪʃən</text></form></pronunciation>
         <sense id="sense1"><definition><form lang="en"><text>test definition</text></form></definition></sense>
     </entry>
     </lift>

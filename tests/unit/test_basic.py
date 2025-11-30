@@ -28,7 +28,7 @@ class TestEntry:
             lexical_unit={"en": "test"},
             senses=[{
                 "id": "sense_1",
-                "gloss": {"en": {"text": "A test entry"}}  # Flattened format required
+                "gloss": {"en": "A test entry"}  # LIFT flat format
             }]
         )        
         assert entry.id == "test_entry_1"
@@ -36,8 +36,8 @@ class TestEntry:
         assert len(entry.senses) == 1
         # Test with actual Sense object, not dictionary
         assert entry.senses[0].id == "sense_1"
-        # Gloss is a dict: {"en": {"text": ...}}
-        assert entry.senses[0].glosses["en"]["text"] == "A test entry"
+        # Gloss is a dict: {"en": "..."}
+        assert entry.senses[0].glosses["en"] == "A test entry"
     
     @pytest.mark.unit
     def test_entry_validation(self):

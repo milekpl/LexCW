@@ -219,6 +219,74 @@ document.addEventListener('DOMContentLoaded', function() {
         addSense();
     });
 
+    // Handle adding/removing lexical unit language forms
+    document.querySelector('.add-lexical-unit-language-btn')?.addEventListener('click', function() {
+        const container = document.querySelector('.lexical-unit-forms');
+        if (!container) return;
+        
+        // Get existing languages
+        const existingLangs = Array.from(container.querySelectorAll('.language-form'))
+            .map(form => form.dataset.language);
+        
+        // Get available languages from the first select
+        const firstSelect = container.querySelector('select.language-select');
+        if (!firstSelect) return;
+        
+        const availableLangs = Array.from(firstSelect.options)
+            .map(opt => ({ code: opt.value, label: opt.textContent }))
+            .filter(lang => !existingLangs.includes(lang.code));
+        
+        if (availableLangs.length === 0) {
+            alert('All available languages have already been added.');
+            return;
+        }
+        
+        const newLang = availableLangs[0];
+        
+        // Create new language form
+        const newForm = document.createElement('div');
+        newForm.className = 'mb-2 language-form';
+        newForm.dataset.language = newLang.code;
+        newForm.innerHTML = `
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label">Language</label>
+                    <select class="form-select language-select" 
+                            name="lexical_unit.${newLang.code}.lang"
+                            data-field-name="lexical_unit.${newLang.code}">
+                        ${Array.from(firstSelect.options).map(opt => 
+                            `<option value="${opt.value}" ${opt.value === newLang.code ? 'selected' : ''}>${opt.textContent}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Headword Text</label>
+                    <input type="text" class="form-control lexical-unit-text" 
+                           name="lexical_unit.${newLang.code}.text"
+                           placeholder="Enter headword in ${newLang.code}">
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-lexical-unit-language-btn" 
+                            title="Remove language">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(newForm);
+    });
+
+    document.querySelector('.lexical-unit-forms')?.addEventListener('click', function(e) {
+        const removeBtn = e.target.closest('.remove-lexical-unit-language-btn');
+        if (removeBtn) {
+            const languageForm = removeBtn.closest('.language-form');
+            if (languageForm && confirm('Remove this language variant?')) {
+                languageForm.remove();
+            }
+        }
+    });
+
     // --- Event Delegation for Dynamic Elements ---
 
     document.getElementById('pronunciation-container')?.addEventListener('click', function(e) {
@@ -487,6 +555,18 @@ async function submitForm() {
             includeEmpty: false,
             transform: (value) => (typeof value === 'string' ? value.trim() : value)
         });
+        
+        // CRITICAL FIX: Filter out any senses without an ID (ghost/incomplete senses)
+        // BUT ONLY in edit mode - on add page, new senses don't have IDs yet
+        const isEditMode = window.location.pathname.includes('/edit');
+        if (jsonData.senses && Array.isArray(jsonData.senses) && isEditMode) {
+            const originalCount = jsonData.senses.length;
+            jsonData.senses = jsonData.senses.filter(sense => sense && sense.id);
+            const filteredCount = originalCount - jsonData.senses.length;
+            if (filteredCount > 0) {
+                console.log(`[FORM SUBMIT] Filtered out ${filteredCount} incomplete sense(s) without ID`);
+            }
+        }
         
         // Log sense count for debugging
         console.log('[FORM SUBMIT] Serialized senses:', jsonData.senses?.length || 0);

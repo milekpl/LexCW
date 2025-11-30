@@ -68,16 +68,23 @@ class TestAcademicDomainsEntryLevel:
         assert template_dict['academic_domain'] == "prawniczy"
 
     def test_entry_form_processing_academic_domain(self) -> None:
-        """Test that form processor handles academic_domain correctly."""
+        """Test that form processor does NOT include academic_domain at entry level.
+        
+        Academic domain was moved to sense-level only as per specification.
+        This test verifies that entry-level academic_domain is NOT processed.
+        """
         form_data = {
-            'lexical_unit.en': 'test word',
-            'academic_domain': 'literatura'
+            'lexical_unit[en]': 'test word',  # Use bracket notation as expected by processor
+            'academic_domain': 'literatura'  # This should be ignored
         }
         
         entry_data = process_entry_form_data(form_data)
         
-        assert 'academic_domain' in entry_data
-        assert entry_data['academic_domain'] == "literatura"
+        # Academic domain should NOT be at entry level anymore
+        assert 'academic_domain' not in entry_data
+        # Only lexical_unit should be present
+        assert 'lexical_unit' in entry_data
+        assert entry_data['lexical_unit'] == {'en': 'test word'}
 
     def test_entry_form_processing_empty_academic_domain(self) -> None:
         """Test that form processor handles empty academic_domain."""

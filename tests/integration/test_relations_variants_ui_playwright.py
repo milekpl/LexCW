@@ -16,48 +16,48 @@ from app.models.entry import Entry
 
 
 @pytest.fixture(scope="function")
-def test_entry_with_variants(app):
+def test_entry_with_variants(dict_service_with_db):
     """Create a test entry with variants for UI testing."""
-    with app.app_context():
-        dict_service = app.dict_service
+    # Use the dict_service directly (no app context needed for BaseX operations)
+    dict_service = dict_service_with_db
+    
+    # Clean up any existing test entries
+    try:
+        existing_main = dict_service.get_entry('playwright_test_main')
+        if existing_main:
+            dict_service.delete_entry('playwright_test_main')
+    except Exception:
+        pass  # Entry doesn't exist, which is fine
         
-        # Clean up any existing test entries
-        try:
-            existing_main = dict_service.get_entry('playwright_test_main')
-            if existing_main:
-                dict_service.delete_entry('playwright_test_main')
-        except Exception:
-            pass  # Entry doesn't exist, which is fine
-            
-        try:
-            existing_variant = dict_service.get_entry('playwright_test_variant')
-            if existing_variant:
-                dict_service.delete_entry('playwright_test_variant')
-        except Exception:
-            pass  # Entry doesn't exist, which is fine
-        
-        # Create a main entry
-        main_entry = Entry(
-            id_='playwright_test_main',
-            lexical_unit={'en': 'color'},
-            senses=[{'id': 'sense1', 'glosses': {'en': 'appearance'}}]
-        )
-        dict_service.create_entry(main_entry)
-        
-        # Create a variant entry
-        variant_entry = Entry(
-            id_='playwright_test_variant',
-            lexical_unit={'en': 'colour'},
-            senses=[{'id': 'sense1', 'glosses': {'en': 'British spelling'}}],
-            variant_relations=[{
-                'type': '_component-lexeme',
-                'ref': 'playwright_test_main',
-                'variant_type': 'Spelling Variant'
-            }]
-        )
-        dict_service.create_entry(variant_entry)
-        
-        return main_entry.id, variant_entry.id
+    try:
+        existing_variant = dict_service.get_entry('playwright_test_variant')
+        if existing_variant:
+            dict_service.delete_entry('playwright_test_variant')
+    except Exception:
+        pass  # Entry doesn't exist, which is fine
+    
+    # Create a main entry
+    main_entry = Entry(
+        id_='playwright_test_main',
+        lexical_unit={'en': 'color'},
+        senses=[{'id': 'sense1', 'glosses': {'en': 'appearance'}}]
+    )
+    dict_service.create_entry(main_entry)
+    
+    # Create a variant entry
+    variant_entry = Entry(
+        id_='playwright_test_variant',
+        lexical_unit={'en': 'colour'},
+        senses=[{'id': 'sense1', 'glosses': {'en': 'British spelling'}}],
+        variant_relations=[{
+            'type': '_component-lexeme',
+            'ref': 'playwright_test_main',
+            'variant_type': 'Spelling Variant'
+        }]
+    )
+    dict_service.create_entry(variant_entry)
+    
+    return main_entry.id, variant_entry.id
 
 
 @pytest.mark.integration
@@ -75,12 +75,18 @@ class TestRelationsVariantsUIPlaywright:
         # Wait for page to load
         playwright_page.wait_for_selector("#variants-container", timeout=10000)
         
+        # DEBUG: Take screenshot and check what's visible
+        playwright_page.screenshot(path="debug_variant_container.png")
+        container_html = playwright_page.locator("#variants-container").inner_html()
+        print(f"DEBUG: variants-container HTML length: {len(container_html)}")
+        
         # Check that variants container exists and is visible
         variants_container = playwright_page.locator("#variants-container")
         expect(variants_container).to_be_visible()
         
-        # Get visible text (not including hidden input values)
-        visible_text = playwright_page.locator("body").text_content()
+        # Get visible text only (excluding hidden inputs)
+        # Use innerText instead of textContent to exclude hidden elements
+        visible_text = playwright_page.locator("body").inner_text()
         
         # These should NOT appear in the user-visible text
         assert "_component-lexeme" not in visible_text, "Technical relation type should not be visible to users"

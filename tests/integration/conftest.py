@@ -437,21 +437,34 @@ def playwright_page(app: Flask) -> Generator[Page, None, None]:
 @pytest.fixture(scope="function")
 def live_server(app: Flask):
     """Starts the Flask app in a separate thread for Playwright tests."""
-    port = 5000  # Default Flask port, adjust if needed
+    import socket
+    from werkzeug.serving import make_server
+    
+    # Find an available port
+    with socket.socket() as sock:
+        sock.bind(('', 0))
+        port = sock.getsockname()[1]
+    
     url = f"http://localhost:{port}"
     
-    # Function to run the Flask app
-    def run_app():
-        app.run(port=port, debug=False, use_reloader=False)
-
-    # Start the Flask app in a new thread
-    server_thread = threading.Thread(target=run_app)
-    server_thread.daemon = True  # Daemonize thread so it terminates when the main program exits
+    # Create server
+    server = make_server('localhost', port, app, threaded=True)
+    
+    # Start server in thread
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
-    # Wait for the server to start
-    # You might need a more robust check here, e.g., trying to connect to the URL
-    time.sleep(2)  # Give the server some time to boot up
+    # Wait for server to be ready
+    import socket as socket_module
+    max_retries = 20
+    for i in range(max_retries):
+        try:
+            with socket_module.create_connection(('localhost', port), timeout=1):
+                break
+        except (ConnectionRefusedError, OSError):
+            if i == max_retries - 1:
+                raise Exception(f"Server failed to start on port {port}")
+            time.sleep(0.2)
 
     class LiveServer:
         def __init__(self, url):
@@ -460,9 +473,9 @@ def live_server(app: Flask):
     
     yield LiveServer(url)
 
-    # No explicit shutdown needed for daemon thread, but can add if necessary
-    # For example, if app.run() had a shutdown mechanism.
-    # In this setup, the thread will exit when the main process exits.
+    # Shutdown server
+    server.shutdown()
+    server_thread.join(timeout=5)
 
 
 

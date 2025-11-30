@@ -34,18 +34,26 @@ def test_date_modified_sorting_ascending(playwright_page: Page, live_server):
     expect(last_modified_header).to_be_visible()
     last_modified_header.click()
     
-    # Wait for sorting to complete
-    time.sleep(3)
+    # Wait for sorting to complete and data to load
+    time.sleep(2)
     playwright_page.wait_for_selector("tbody#entries-list tr[data-entry-id]", timeout=10000)
     
-    # Get all date cells in the Last Modified column using the correct selector
-    date_cells = playwright_page.locator("td[data-column-id='date_modified']")
+    # Wait for JavaScript to finish rendering entries (check that rows have been populated)
+    # The entries are loaded via API and rendered by JavaScript
+    playwright_page.wait_for_function(
+        "document.querySelectorAll('tbody#entries-list tr[data-entry-id] td[data-column-id]').length > 0",
+        timeout=10000
+    )
+    time.sleep(1)  # Additional wait for date formatting
+    
+    # Get all date cells in the Last Modified column (using data-column-id set by JavaScript)
+    date_cells = playwright_page.locator("tbody#entries-list tr[data-entry-id] td[data-column-id='date_modified']")
     
     # Check that we have some entries
-    expect(date_cells.first).to_be_visible()
-    
-    # Collect all visible date values - check entire list to find entries without dates
     total_count = date_cells.count()
+    assert total_count > 0, "No entries found in the table"
+    
+    # Collect all date values
     date_values = []
     
     # Get all entries to properly test sorting
@@ -118,18 +126,25 @@ def test_date_modified_sorting_descending(playwright_page: Page, live_server):
     
     last_modified_header.click()  # Second click - descending
     
-    # Wait for sorting to complete
+    # Wait for sorting to complete and data to load
     time.sleep(3)
     playwright_page.wait_for_selector("tbody#entries-list tr[data-entry-id]", timeout=10000)
     
-    # Get all date cells in the Last Modified column using the correct selector
-    date_cells = playwright_page.locator("td[data-column-id='date_modified']")
+    # Wait for JavaScript to finish rendering entries
+    playwright_page.wait_for_function(
+        "document.querySelectorAll('tbody#entries-list tr[data-entry-id] td[data-column-id]').length > 0",
+        timeout=10000
+    )
+    time.sleep(1)  # Additional wait for date formatting
+    
+    # Get all date cells in the Last Modified column (using data-column-id set by JavaScript)
+    date_cells = playwright_page.locator("tbody#entries-list tr[data-entry-id] td[data-column-id='date_modified']")
     
     # Check that we have some entries
-    expect(date_cells.first).to_be_visible()
-    
-    # Collect all visible date values - check entire list
     total_count = date_cells.count()
+    assert total_count > 0, "No entries found in the table"
+    
+    # Collect all date values
     date_values = []
     
     # Get all entries to properly test sorting
@@ -231,7 +246,8 @@ def test_entry_editing_loads_successfully(playwright_page: Page, live_server):
     expect(error_alert).not_to_be_visible()
     
     # Verify form elements are present
-    lexical_unit_field = playwright_page.locator("#lexical-unit")
+    # Note: lexical_unit fields are multilingual with format: lexical_unit.{lang}.text
+    lexical_unit_field = playwright_page.locator("input[name='lexical_unit.en.text']").first
     expect(lexical_unit_field).to_be_visible()
     
     # Verify the form has the entry data loaded (not empty)
@@ -263,10 +279,11 @@ def test_entry_editing_save_functionality(playwright_page: Page, live_server):
     first_edit_button.click()
     
     # Wait for edit form to load
-    playwright_page.wait_for_selector("#lexical-unit", timeout=10000)
+    # Note: lexical_unit fields are multilingual with format: lexical_unit.{lang}.text
+    playwright_page.wait_for_selector("input[name='lexical_unit.en.text']", timeout=10000)
     
     # Get original value
-    lexical_unit_field = playwright_page.locator("#lexical-unit")
+    lexical_unit_field = playwright_page.locator("input[name='lexical_unit.en.text']").first
     original_value = lexical_unit_field.input_value()
     
     # Make a small change (add timestamp)
@@ -277,20 +294,24 @@ def test_entry_editing_save_functionality(playwright_page: Page, live_server):
     lexical_unit_field.fill(new_value)
     
     # Find and click save button
-    save_button = playwright_page.locator("button[type='submit']:has-text('Save Entry'), button:has-text('Save')")
+    save_button = playwright_page.locator("#save-btn")
     expect(save_button).to_be_visible()
+    
+    # Wait for any async validation to complete before clicking
+    time.sleep(1)
+    
     save_button.click()
     
     # Wait for save to complete and redirect
     # Should redirect to entry view with success message
     playwright_page.wait_for_url(re.compile(r"/entries/[^/]+(\?.*)?$"), timeout=10000)
     
-    # Check for success message
-    success_message = playwright_page.locator(".alert-success, .success, [class*='success']")
+    # Check for success toast message (more specific selector to avoid card headers)
+    success_message = playwright_page.get_by_role("alert")
     expect(success_message).to_be_visible(timeout=5000)
     
-    # Verify the change was saved by checking the displayed value
-    displayed_lexical_unit = playwright_page.locator("h1, .lexical-unit, [class*='lexical']").first
+    # Verify the change was saved by checking the displayed value in the h2 heading
+    displayed_lexical_unit = playwright_page.locator("h2 span.text-primary")
     expect(displayed_lexical_unit).to_contain_text(test_suffix)
     
     print(f"Entry successfully edited and saved with new value: {new_value}")

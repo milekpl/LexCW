@@ -41,9 +41,11 @@ class TestMainNavigation:
     def test_corpus_management_page_loads(self, client, app):
         """Test that corpus management page loads properly."""
         # Register the corpus blueprint for testing since it's excluded in testing mode
+        # Only register if not already registered
         with app.app_context():
             from app.routes.corpus_routes import corpus_bp
-            app.register_blueprint(corpus_bp)
+            if 'corpus' not in [bp.name for bp in app.blueprints.values()]:
+                app.register_blueprint(corpus_bp)
         
         with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator_class:
             # Mock the migrator instance

@@ -335,8 +335,13 @@ class XQueryBuilder:
             lexical_unit_path = XQueryBuilder.get_element_path(
                 "lexical-unit", has_namespace
             )
+            # Extract text value from multilingual dict if needed
+            lexical_value = criteria["lexical_unit"]
+            if isinstance(lexical_value, dict):
+                # Get first available language value (LIFT flat format: {'en': 'text'})
+                lexical_value = next(iter(lexical_value.values()), "")
             conditions.append(
-                f'contains($entry//{lexical_unit_path}, "{criteria["lexical_unit"]}")'
+                f'contains($entry//{lexical_unit_path}, "{lexical_value}")'
             )
 
         if "sense_gloss" in criteria:

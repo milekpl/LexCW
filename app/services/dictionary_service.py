@@ -627,7 +627,9 @@ class DictionaryService:
             # For text fields, empty values go last for ascending, first for descending
             if sort_by in ["date_modified", "date_created"]:
                 # Date fields: empty dates always go last
-                sort_expr += " empty greatest"
+                # For ascending: empty greatest (empty > all dates, so they go last)
+                # For descending: empty least (empty < all dates, so they go last)
+                sort_expr += " empty least" if sort_order.lower() == "desc" else " empty greatest"
             else:
                 # Text fields: empty strings are sorted last for ascending, first for descending
                 # This makes columns with missing data more predictable.

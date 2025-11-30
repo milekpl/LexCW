@@ -323,27 +323,34 @@ class Sense(BaseModel):
     def to_display_dict(self) -> Dict[str, Any]:
         """
         Convert the sense to a dictionary for display, simplifying multilingual fields.
+        LIFT flat format: values are strings directly (not nested dicts with 'text' key).
         """
         result = super().to_dict()
 
-        # Simplify definition
+        # Simplify definition - LIFT flat format {lang: text}
         definition_text = ''
         if self.definitions:
-            if 'en' in self.definitions and self.definitions['en'].get('text'):
-                definition_text = self.definitions['en']['text']
+            if 'en' in self.definitions:
+                val = self.definitions['en']
+                # Handle both flat (string) and nested (dict with 'text') formats for compatibility
+                definition_text = val if isinstance(val, str) else val.get('text', '')
             elif self.definitions:
                 first_lang = next(iter(self.definitions))
-                definition_text = self.definitions[first_lang].get('text', '')
+                val = self.definitions[first_lang]
+                definition_text = val if isinstance(val, str) else val.get('text', '')
         result['definition'] = definition_text
 
-        # Simplify gloss
+        # Simplify gloss - LIFT flat format {lang: text}
         gloss_text = ''
         if self.glosses:
-            if 'en' in self.glosses and self.glosses['en'].get('text'):
-                gloss_text = self.glosses['en']['text']
+            if 'en' in self.glosses:
+                val = self.glosses['en']
+                # Handle both flat (string) and nested (dict with 'text') formats for compatibility
+                gloss_text = val if isinstance(val, str) else val.get('text', '')
             elif self.glosses:
                 first_lang = next(iter(self.glosses))
-                gloss_text = self.glosses[first_lang].get('text', '')
+                val = self.glosses[first_lang]
+                gloss_text = val if isinstance(val, str) else val.get('text', '')
         result['gloss'] = gloss_text
 
         return result
