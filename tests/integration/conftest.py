@@ -317,6 +317,10 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     from app.views import workbench_bp
     app.register_blueprint(workbench_bp)
     
+    # Register the XML entries blueprint
+    from app.api.xml_entries import xml_entries_bp
+    app.register_blueprint(xml_entries_bp)
+    
     # Register the settings routes blueprint
     from app.routes.settings_routes import settings_bp
     app.register_blueprint(settings_bp)

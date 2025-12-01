@@ -125,6 +125,10 @@ def create_app(config_name=None):
     # Register entries API
     from app.api.entries import entries_bp
     app.register_blueprint(entries_bp, url_prefix='/api/entries')
+    
+    # Register XML entries API
+    from app.api.xml_entries import xml_entries_bp
+    app.register_blueprint(xml_entries_bp)
 
     # Register settings blueprint
     from app.routes.settings_routes import settings_bp

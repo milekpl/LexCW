@@ -210,13 +210,19 @@ class XMLEntryService:
         # Generate filename
         filename = self._generate_filename(entry_id)
         
+        # Strip XML declaration if present (BaseX doesn't like it in db:add)
+        xml_clean = xml_string.strip()
+        if xml_clean.startswith('<?xml'):
+            # Remove XML declaration line
+            xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
+        
         # Add to database
         session = self._get_session()
         try:
             query = f"""
             declare namespace lift = "{LIFT_NS}";
             
-            let $entry := {xml_string}
+            let $entry := {xml_clean}
             return db:add('{self.database}', $entry, '{filename}')
             """
             
@@ -362,6 +368,11 @@ class XMLEntryService:
         if not self.entry_exists(entry_id):
             raise EntryNotFoundError(f"Entry '{entry_id}' not found")
         
+        # Strip XML declaration if present
+        xml_clean = xml_string.strip()
+        if xml_clean.startswith('<?xml'):
+            xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
+        
         session = self._get_session()
         try:
             # Delete old entry
@@ -381,7 +392,7 @@ class XMLEntryService:
             add_query = f"""
             declare namespace lift = "{LIFT_NS}";
             
-            let $entry := {xml_string}
+            let $entry := {xml_clean}
             return db:add('{self.database}', $entry, '{filename}')
             """
             
