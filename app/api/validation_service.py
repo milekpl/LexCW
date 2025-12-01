@@ -177,6 +177,134 @@ def validate_entry() -> tuple[Dict[str, Any], int]:
         return {'error': f'Validation error: {str(e)}'}, 500
 
 
+@validation_service_bp.route('/api/validation/xml', methods=['POST'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Validate LIFT XML entry using centralized validation engine',
+    'description': 'Validates LIFT XML entry data against all applicable validation rules. Parses XML to Entry object and applies same validation as JSON endpoint.',
+    'consumes': ['application/xml', 'text/xml'],
+    'parameters': [
+        {
+            'name': 'xml_entry',
+            'in': 'body',
+            'required': True,
+            'description': 'LIFT XML string for a single entry',
+            'schema': {
+                'type': 'string',
+                'example': '<entry id="test-1"><lexical-unit><form lang="en"><text>test</text></form></lexical-unit></entry>'
+            }
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Validation completed',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'valid': {'type': 'boolean'},
+                    'errors': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'rule_id': {'type': 'string'},
+                                'rule_name': {'type': 'string'},
+                                'message': {'type': 'string'},
+                                'path': {'type': 'string'},
+                                'priority': {'type': 'string'},
+                                'category': {'type': 'string'},
+                                'value': {'type': 'string'}
+                            }
+                        }
+                    },
+                    'warnings': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'rule_id': {'type': 'string'},
+                                'rule_name': {'type': 'string'},
+                                'message': {'type': 'string'},
+                                'path': {'type': 'string'},
+                                'priority': {'type': 'string'},
+                                'category': {'type': 'string'},
+                                'value': {'type': 'string'}
+                            }
+                        }
+                    },
+                    'info': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'rule_id': {'type': 'string'},
+                                'rule_name': {'type': 'string'},
+                                'message': {'type': 'string'},
+                                'path': {'type': 'string'},
+                                'priority': {'type': 'string'},
+                                'category': {'type': 'string'},
+                                'value': {'type': 'string'}
+                            }
+                        }
+                    },
+                    'error_count': {'type': 'integer'},
+                    'has_critical_errors': {'type': 'boolean'}
+                }
+            }
+        },
+        400: {
+            'description': 'Invalid XML data',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'error': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
+def validate_xml_entry() -> tuple[Dict[str, Any], int]:
+    """
+    Validate LIFT XML entry using centralized validation engine.
+    
+    This endpoint receives LIFT XML entry data and validates it
+    against all applicable validation rules by:
+    1. Parsing XML to Entry object
+    2. Converting to dictionary
+    3. Applying same validation as JSON endpoint
+    
+    Returns:
+        Validation result with errors, warnings, and info
+    """
+    try:
+        # Get XML data from request body
+        xml_data = request.data.decode('utf-8')
+        if not xml_data or not xml_data.strip():
+            return {'error': 'No XML data provided'}, 400
+        
+        # Initialize validation engine
+        engine = ValidationEngine()
+        
+        # Perform XML validation
+        result = engine.validate_xml(xml_data)
+        
+        # Convert result to JSON-serializable format
+        response = {
+            'valid': result.is_valid,
+            'errors': [_error_to_dict(error) for error in result.errors],
+            'warnings': [_error_to_dict(error) for error in result.warnings],
+            'info': [_error_to_dict(error) for error in result.info],
+            'error_count': result.error_count,
+            'has_critical_errors': result.has_critical_errors
+        }
+        
+        return response, 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in XML validation endpoint: {str(e)}")
+        return {'error': f'XML validation error: {str(e)}'}, 500
+
+
 @validation_service_bp.route('/api/validation/rules', methods=['GET'])
 @swag_from({
     'tags': ['Validation'],

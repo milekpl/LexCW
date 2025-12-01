@@ -293,6 +293,10 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     from app.api.validation import validation_bp
     app.register_blueprint(validation_bp)
     
+    # Register the validation service blueprint
+    from app.api.validation_service import validation_service_bp
+    app.register_blueprint(validation_service_bp)
+    
     # Register the corpus routes blueprint
     from app.routes.corpus_routes import corpus_bp
     app.register_blueprint(corpus_bp)
