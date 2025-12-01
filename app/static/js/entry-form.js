@@ -45,6 +45,73 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize external components if they exist
     window.rangesLoader = window.rangesLoader || new RangesLoader();
+    
+    // Initialize LIFT XML Serializer
+    if (typeof LIFTXMLSerializer !== 'undefined') {
+        window.xmlSerializer = new LIFTXMLSerializer();
+        console.log('[Entry Form] LIFT XML Serializer initialized');
+    } else {
+        console.warn('[Entry Form] LIFT XML Serializer not available');
+    }
+    
+    // XML Preview Toggle Handler
+    const xmlPreviewPanel = document.getElementById('xml-preview-panel');
+    const toggleXmlPreviewBtn = document.getElementById('toggle-xml-preview-btn');
+    const copyXmlBtn = document.getElementById('copy-xml-btn');
+    const xmlPreviewContent = document.getElementById('xml-preview-content');
+    
+    if (toggleXmlPreviewBtn && xmlPreviewPanel) {
+        toggleXmlPreviewBtn.addEventListener('click', function() {
+            if (xmlPreviewPanel.style.display === 'none') {
+                // Show panel and generate XML
+                xmlPreviewPanel.style.display = 'block';
+                updateXmlPreview();
+                toggleXmlPreviewBtn.innerHTML = '<i class="fas fa-code-slash"></i> Hide XML';
+            } else {
+                // Hide panel
+                xmlPreviewPanel.style.display = 'none';
+                toggleXmlPreviewBtn.innerHTML = '<i class="fas fa-code"></i> XML Preview';
+            }
+        });
+    }
+    
+    // Copy XML to clipboard
+    if (copyXmlBtn && xmlPreviewContent) {
+        copyXmlBtn.addEventListener('click', function() {
+            const xmlText = xmlPreviewContent.textContent;
+            navigator.clipboard.writeText(xmlText).then(() => {
+                showToast('XML copied to clipboard', 'success');
+            }).catch(err => {
+                console.error('Failed to copy XML:', err);
+                showToast('Failed to copy XML', 'error');
+            });
+        });
+    }
+    
+    /**
+     * Update XML Preview with current form data
+     */
+    function updateXmlPreview() {
+        if (!window.xmlSerializer || !xmlPreviewContent) return;
+        
+        try {
+            // Serialize form to JSON first
+            const formData = window.FormSerializer.serializeFormToJSON(entryForm, {
+                includeEmpty: false
+            });
+            
+            // Generate XML from form data
+            const xmlString = window.xmlSerializer.serializeEntry(formData);
+            
+            // Display in preview panel
+            xmlPreviewContent.textContent = xmlString;
+            
+            // Highlight syntax (optional - could add a lightweight highlighter later)
+        } catch (error) {
+            console.error('[XML Preview] Error generating XML:', error);
+            xmlPreviewContent.textContent = `Error generating XML: ${error.message}`;
+        }
+    }
 
     /**
      * Function to initialize dynamic selects.
@@ -544,6 +611,7 @@ function validateForm(showSummaryModal = false) {
 
 /**
  * Serializes and submits the form data via AJAX with improved error handling.
+ * Now uses LIFT XML serialization instead of JSON.
  */
 async function submitForm() {
     const form = document.getElementById('entry-form');
@@ -569,69 +637,58 @@ async function submitForm() {
         progressBar.style.width = '10%';
         progressBar.textContent = 'Preparing data...';
 
-        // Check if we have the safe serialization method
-        if (typeof window.FormSerializer === 'undefined' || typeof window.FormSerializer.serializeFormToJSONSafe !== 'function') {
-            throw new Error('FormSerializer library is not loaded or does not support safe serialization.');
+        // Check if XML serializer is available
+        if (!window.xmlSerializer) {
+            throw new Error('LIFT XML Serializer is not loaded.');
         }
 
-        // Use the safe, async serialization method (web worker fallback)
-        const jsonData = await window.FormSerializer.serializeFormToJSONSafe(form, {
+        // Serialize form to JSON first
+        const formData = await window.FormSerializer.serializeFormToJSONSafe(form, {
             includeEmpty: false,
             transform: (value) => (typeof value === 'string' ? value.trim() : value)
         });
         
-        // CRITICAL FIX: Filter out any senses without an ID (ghost/incomplete senses)
-        // BUT ONLY in edit mode - on add page, new senses don't have IDs yet
-        const isEditMode = window.location.pathname.includes('/edit');
-        if (jsonData.senses && Array.isArray(jsonData.senses) && isEditMode) {
-            const originalCount = jsonData.senses.length;
-            jsonData.senses = jsonData.senses.filter(sense => sense && sense.id);
-            const filteredCount = originalCount - jsonData.senses.length;
-            if (filteredCount > 0) {
-                console.log(`[FORM SUBMIT] Filtered out ${filteredCount} incomplete sense(s) without ID`);
-            }
-        }
-        
-        // Log sense count for debugging
-        console.log('[FORM SUBMIT] Serialized senses:', jsonData.senses?.length || 0);
-        if (jsonData.senses) {
-            jsonData.senses.forEach((sense, i) => {
-                console.log(`[FORM SUBMIT] Sense ${i}:`, sense.id);
-            });
-        }
-        console.log('[FORM SUBMIT] FULL JSON PAYLOAD:', JSON.stringify(jsonData, null, 2));
-        
-        // Check if skip validation is enabled
-        const skipValidationCheckbox = document.getElementById('skip-validation-checkbox');
-        if (skipValidationCheckbox && skipValidationCheckbox.checked) {
-            jsonData.skip_validation = true;
-        }
+        console.log('[FORM SUBMIT] Form data serialized to JSON');
         
         // Update progress
         progressBar.style.width = '30%';
-        progressBar.textContent = 'Data prepared, sending...';
+        progressBar.textContent = 'Generating LIFT XML...';
         
-        const entryId = form.querySelector('input[name="id"]')?.value?.trim();
-        const apiUrl = entryId ? `/api/entries/${entryId}` : '/api/entries/';
-        const apiMethod = entryId ? 'PUT' : 'POST';
+        // Generate LIFT XML from form data
+        let xmlString;
+        try {
+            xmlString = window.xmlSerializer.serializeEntry(formData);
+            console.log('[FORM SUBMIT] LIFT XML generated successfully');
+            console.log('[FORM SUBMIT] XML Preview:', xmlString.substring(0, 500) + '...');
+        } catch (xmlError) {
+            throw new Error(`XML generation failed: ${xmlError.message}`);
+        }
         
-        console.log(`Submitting to URL: ${apiUrl}, Method: ${apiMethod}`);
-        
-        // Set a timeout for the fetch request
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        // Validate XML if needed
+        const skipValidationCheckbox = document.getElementById('skip-validation-checkbox');
+        const skipValidation = skipValidationCheckbox && skipValidationCheckbox.checked;
         
         // Update progress
         progressBar.style.width = '50%';
         progressBar.textContent = 'Sending to server...';
         
+        const entryId = form.querySelector('input[name="id"]')?.value?.trim();
+        const apiUrl = entryId ? `/api/xml/entries/${entryId}` : '/api/xml/entries';
+        const apiMethod = entryId ? 'PUT' : 'POST';
+        
+        console.log(`Submitting XML to URL: ${apiUrl}, Method: ${apiMethod}`);
+        
+        // Set a timeout for the fetch request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        
         const response = await fetch(apiUrl, {
             method: apiMethod,
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/xml',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify(jsonData),
+            body: xmlString,
             signal: controller.signal
         });
         
