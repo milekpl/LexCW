@@ -436,6 +436,68 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
+## File: `app/api/validation_service.py`
+
+### `/api/validation/entry`
+
+- **Endpoint Name:** `validation_service.validate_entry`
+- **HTTP Methods:** `POST`
+- **Handler Function:** `validate_entry`
+- **Defined at:** `app/api/validation_service.py:19-176`
+- **Description:** Validates JSON entry data using the centralized validation engine. Returns validation results with errors, warnings, and info.
+- **Request Body:** JSON entry data with structure: `{id, lexical_unit, senses, pronunciations, notes, relations}`
+- **Response:** `{valid, errors[], warnings[], info[], error_count, has_critical_errors}`
+
+---
+
+### `/api/validation/xml`
+
+- **Endpoint Name:** `validation_service.validate_xml_entry`
+- **HTTP Methods:** `POST`
+- **Handler Function:** `validate_xml_entry`
+- **Defined at:** `app/api/validation_service.py:179-305`
+- **Description:** Validates LIFT XML entry data using the centralized validation engine. Parses XML to Entry object and applies same validation rules as JSON endpoint.
+- **Request Body:** LIFT XML string for a single entry (Content-Type: application/xml or text/xml)
+- **Response:** `{valid, errors[], warnings[], info[], error_count, has_critical_errors}`
+- **Example Request:**
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <entry id="test-1">
+    <lexical-unit>
+      <form lang="en"><text>test</text></form>
+    </lexical-unit>
+    <sense id="s1">
+      <definition>
+        <form lang="en"><text>A procedure for critical evaluation</text></form>
+      </definition>
+    </sense>
+  </entry>
+  ```
+
+---
+
+### `/api/validation/rules`
+
+- **Endpoint Name:** `validation_service.get_validation_rules`
+- **HTTP Methods:** `GET`
+- **Handler Function:** `get_validation_rules`
+- **Defined at:** `app/api/validation_service.py:308-350`
+- **Description:** Returns all available validation rules with their metadata, categories, and priorities
+- **Response:** `{rules, categories[], priorities[]}`
+
+---
+
+### `/api/validation/rules/<rule_id>`
+
+- **Endpoint Name:** `validation_service.get_validation_rule`
+- **HTTP Methods:** `GET`
+- **Handler Function:** `get_validation_rule`
+- **Defined at:** `app/api/validation_service.py:353-410`
+- **Description:** Returns details for a specific validation rule by ID
+- **Response:** Rule details including rule_id, name, description, category, priority, path, validation criteria
+
+---
+
 ### `/validation/batch`
 
 - **Endpoint Name:** `validation_bp.validation_batch`

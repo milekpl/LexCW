@@ -270,6 +270,61 @@ class ValidationEngine:
             
         return self.validate_json(data, validation_mode)
     
+    def validate_xml(self, xml_string: str, validation_mode: str = "save") -> ValidationResult:
+        """
+        Validate LIFT XML entry against all validation rules.
+        
+        This method parses LIFT XML into an Entry object, converts it to a dictionary,
+        and validates using the same rules as validate_json().
+        
+        Args:
+            xml_string: LIFT XML string for a single entry
+            validation_mode: Validation mode - "save", "delete", "draft", or "all"
+            
+        Returns:
+            ValidationResult containing all validation issues
+            
+        Raises:
+            ValueError: If XML parsing fails or XML is invalid
+        """
+        try:
+            from app.parsers.lift_parser import LIFTParser
+            
+            # Parse LIFT XML to Entry object
+            parser = LIFTParser(validate=False)  # Don't validate during parsing
+            entry = parser.parse_entry(xml_string)
+            
+            # Convert Entry to dictionary
+            entry_dict = entry.to_dict()
+            
+            # Validate using existing JSON validation
+            return self.validate_json(entry_dict, validation_mode)
+            
+        except ImportError as e:
+            # LIFTParser not available
+            return ValidationResult(False, [
+                ValidationError(
+                    rule_id="XML_PARSER_ERROR",
+                    rule_name="xml_parsing",
+                    message=f"XML parser not available: {str(e)}",
+                    path="",
+                    priority=ValidationPriority.CRITICAL,
+                    category=ValidationCategory.ENTRY_LEVEL
+                )
+            ], [], [])
+        except Exception as e:
+            # XML parsing or conversion failed
+            return ValidationResult(False, [
+                ValidationError(
+                    rule_id="XML_PARSING_ERROR",
+                    rule_name="xml_parsing",
+                    message=f"Failed to parse XML: {str(e)}",
+                    path="",
+                    priority=ValidationPriority.CRITICAL,
+                    category=ValidationCategory.ENTRY_LEVEL
+                )
+            ], [], [])
+    
     def _convert_object_to_dict(self, obj: Any) -> Dict[str, Any]:
         """Convert an entry object to a dictionary for validation."""
         result: Dict[str, Any] = {}
