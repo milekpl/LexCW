@@ -488,6 +488,45 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             }
+
+            // --- Subsense Handlers (LIFT 0.13 - Day 22) ---
+            const addSubsenseBtn = e.target.closest('.add-subsense-btn');
+            if (addSubsenseBtn) {
+                const senseIndex = addSubsenseBtn.dataset.senseIndex;
+                addSubsense(senseIndex);
+                // Remove placeholder if exists
+                const subsensesContainer = document.querySelector(`.subsenses-container[data-sense-index="${senseIndex}"]`);
+                subsensesContainer?.querySelector('.no-subsenses')?.remove();
+                return;
+            }
+
+            const removeSubsenseBtn = e.target.closest('.remove-subsense-btn');
+            if (removeSubsenseBtn) {
+                const subsenseItem = removeSubsenseBtn.closest('.subsense-item');
+                const senseIndex = removeSubsenseBtn.dataset.senseIndex;
+                if (subsenseItem && confirm('Are you sure you want to remove this subsense?')) {
+                    const subsensesContainer = subsenseItem.parentElement;
+                    subsenseItem.remove();
+                    reindexSubsenses(senseIndex);
+
+                    // Show placeholder if no subsenses remain
+                    if (subsensesContainer.children.length === 0) {
+                        subsensesContainer.innerHTML = `
+                            <div class="no-subsenses text-center text-muted py-2 border border-success border-opacity-25 rounded">
+                                <p class="mb-2"><small>No subsenses yet. Add subsenses to create more specific meanings under this sense.</small></p>
+                            </div>`;
+                    }
+                }
+                return;
+            }
+
+            const addNestedSubsenseBtn = e.target.closest('.add-nested-subsense-btn');
+            if (addNestedSubsenseBtn) {
+                const senseIndex = addNestedSubsenseBtn.dataset.senseIndex;
+                const parentSubsenseIndex = addNestedSubsenseBtn.dataset.subsenseIndex;
+                addNestedSubsense(senseIndex, parentSubsenseIndex);
+                return;
+            }
         });
     }
 
@@ -895,6 +934,120 @@ function addExample(senseIndex) {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = template;
     examplesContainer.appendChild(tempDiv.firstElementChild);
+}
+
+/**
+ * Adds a new subsense field group to a specific sense (LIFT 0.13 - Day 22).
+ * @param {number|string} senseIndex - The index of the parent sense.
+ */
+async function addSubsense(senseIndex) {
+    const subsensesContainer = document.querySelector(`.subsenses-container[data-sense-index="${senseIndex}"]`);
+    const templateEl = document.getElementById('subsense-template');
+    if (!subsensesContainer || !templateEl) return;
+
+    const newIndex = subsensesContainer.querySelectorAll('.subsense-item').length;
+    const newNumber = newIndex + 1;
+
+    let template = templateEl.innerHTML
+        .replace(/SENSE_INDEX/g, senseIndex)
+        .replace(/SUBSENSE_INDEX/g, newIndex)
+        .replace(/NUMBER/g, newNumber);
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = template;
+    const newSubsenseElement = tempDiv.firstElementChild;
+    subsensesContainer.appendChild(newSubsenseElement);
+
+    // Populate grammatical info select for the new subsense
+    const grammaticalSelect = newSubsenseElement.querySelector('.dynamic-grammatical-info');
+    if (grammaticalSelect && window.rangesLoader) {
+        await window.rangesLoader.populateSelect(grammaticalSelect, 'grammatical-info', {
+            emptyOption: 'Select part of speech'
+        });
+    }
+}
+
+/**
+ * Adds a nested subsense (subsense within subsense) - recursive support.
+ * @param {number|string} senseIndex - The index of the parent sense.
+ * @param {number|string} parentSubsenseIndex - The index of the parent subsense.
+ */
+async function addNestedSubsense(senseIndex, parentSubsenseIndex) {
+    const nestedContainer = document.querySelector(
+        `.subsense-item[data-subsense-index="${parentSubsenseIndex}"] .nested-subsenses-container`
+    );
+    const templateEl = document.getElementById('subsense-template');
+    if (!nestedContainer || !templateEl) return;
+
+    const newIndex = nestedContainer.querySelectorAll('.subsense-item').length;
+    const newNumber = newIndex + 1;
+
+    // For nested subsenses, use a compound index
+    const nestedIndexPath = `${parentSubsenseIndex}_${newIndex}`;
+
+    let template = templateEl.innerHTML
+        .replace(/SENSE_INDEX/g, senseIndex)
+        .replace(/SUBSENSE_INDEX/g, nestedIndexPath)
+        .replace(/NUMBER/g, newNumber);
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = template;
+    const newSubsenseElement = tempDiv.firstElementChild;
+    
+    // Clear placeholder text if exists
+    if (nestedContainer.textContent.includes('No nested subsenses yet')) {
+        nestedContainer.innerHTML = '';
+    }
+    
+    nestedContainer.appendChild(newSubsenseElement);
+
+    // Populate grammatical info select
+    const grammaticalSelect = newSubsenseElement.querySelector('.dynamic-grammatical-info');
+    if (grammaticalSelect && window.rangesLoader) {
+        await window.rangesLoader.populateSelect(grammaticalSelect, 'grammatical-info', {
+            emptyOption: 'Select part of speech'
+        });
+    }
+}
+
+/**
+ * Re-indexes all subsenses for a specific sense.
+ * @param {number|string} senseIndex - The index of the parent sense.
+ */
+function reindexSubsenses(senseIndex) {
+    const subsensesContainer = document.querySelector(`.subsenses-container[data-sense-index="${senseIndex}"]`);
+    if (!subsensesContainer) return;
+
+    const subsenseItems = subsensesContainer.querySelectorAll(':scope > .subsense-item');
+    subsenseItems.forEach((subsense, newIndex) => {
+        const oldIndex = subsense.dataset.subsenseIndex;
+        if (oldIndex === newIndex.toString()) return;
+
+        // Update visual elements
+        subsense.querySelectorAll('small').forEach(small => {
+            if (small.textContent.includes('Subsense')) {
+                small.innerHTML = `<i class="fas fa-level-down-alt"></i> Subsense ${newIndex + 1}`;
+            }
+        });
+
+        // Update data attribute
+        subsense.dataset.subsenseIndex = newIndex;
+
+        // Update all name attributes
+        subsense.querySelectorAll('[name]').forEach(input => {
+            const name = input.getAttribute('name');
+            const newName = name.replace(
+                new RegExp(`senses\\[${senseIndex}\\]\\.subsenses\\[${oldIndex}\\]`),
+                `senses[${senseIndex}].subsenses[${newIndex}]`
+            );
+            input.setAttribute('name', newName);
+        });
+
+        // Update data-subsense-index on buttons
+        subsense.querySelectorAll('[data-subsense-index]').forEach(btn => {
+            btn.dataset.subsenseIndex = newIndex;
+        });
+    });
 }
 
 // --- Re-indexing Functions ---

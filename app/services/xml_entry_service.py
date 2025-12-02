@@ -562,11 +562,10 @@ class XMLEntryService:
         try:
             if query_text:
                 # Search with filter
+                # Note: Entries stored without xmlns, so don't use namespace prefix
                 query = f"""
-                declare namespace lift = "{LIFT_NS}";
-                
-                let $entries := //lift:entry[
-                    .//lift:lexical-unit//lift:text[contains(lower-case(.), lower-case('{query_text}'))]
+                let $entries := //entry[
+                    .//lexical-unit//text[contains(lower-case(.), lower-case('{query_text}'))]
                 ]
                 let $total := count($entries)
                 let $results := subsequence($entries, {offset + 1}, {limit})
@@ -577,7 +576,7 @@ class XMLEntryService:
                     return <entry id="{{$entry/@id/string()}}">
                         <lexical-unit>
                         {{
-                            for $lu in $entry//lift:lexical-unit//lift:text
+                            for $lu in $entry//lexical-unit//text
                             return <text>{{$lu/string()}}</text>
                         }}
                         </lexical-unit>
@@ -587,10 +586,9 @@ class XMLEntryService:
                 """
             else:
                 # Get all entries
+                # Note: Entries stored without xmlns, so don't use namespace prefix
                 query = f"""
-                declare namespace lift = "{LIFT_NS}";
-                
-                let $entries := //lift:entry
+                let $entries := //entry
                 let $total := count($entries)
                 let $results := subsequence($entries, {offset + 1}, {limit})
                 
@@ -600,7 +598,7 @@ class XMLEntryService:
                     return <entry id="{{$entry/@id/string()}}">
                         <lexical-unit>
                         {{
-                            for $lu in $entry//lift:lexical-unit//lift:text
+                            for $lu in $entry//lexical-unit//text
                             return <text>{{$lu/string()}}</text>
                         }}
                         </lexical-unit>
@@ -656,11 +654,10 @@ class XMLEntryService:
         """
         session = self._get_session()
         try:
+            # Note: Entries stored without xmlns, so don't use namespace prefix
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
-            
-            let $entries := //lift:entry
-            let $senses := //lift:sense
+            let $entries := //entry
+            let $senses := //sense
             
             return <stats>
                 <entries>{{count($entries)}}</entries>

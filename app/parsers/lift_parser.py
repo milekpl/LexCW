@@ -1033,8 +1033,131 @@ class LIFTParser:
                 relation_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}relation')
                 relation_elem.set('type', relation.get('type', 'unspecified'))
                 relation_elem.set('ref', relation.get('ref', ''))
+            
+            # LIFT 0.13: Add subsenses (recursive) - Day 22-23
+            if hasattr(sense, 'subsenses') and sense.subsenses:
+                for subsense_item in sense.subsenses:
+                    if isinstance(subsense_item, dict):
+                        subsense = Sense.from_dict(subsense_item)
+                    else:
+                        subsense = subsense_item
+                    self._generate_subsense_element(sense_elem, subsense)
         
         return entry_elem
+
+    def _generate_subsense_element(self, parent_elem: ET.Element, subsense: 'Sense') -> ET.Element:
+        """
+        Generate a subsense element (recursive for nested subsenses).
+        
+        Args:
+            parent_elem: Parent sense or subsense element
+            subsense: Subsense object
+            
+        Returns:
+            Subsense element
+        """
+        subsense_elem = ET.SubElement(parent_elem, '{' + self.NSMAP['lift'] + '}subsense')
+        if subsense.id:
+            subsense_elem.set('id', subsense.id)
+        
+        # Add glosses (same as sense)
+        for lang, val in subsense.glosses.items():
+            gloss_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}gloss')
+            gloss_elem.set('lang', lang)
+            text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+            if isinstance(val, dict):
+                text_elem.text = val.get('text', '')
+            else:
+                text_elem.text = str(val)
+        
+        # Add definitions
+        if subsense.definitions:
+            def_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}definition')
+            for lang, val in subsense.definitions.items():
+                form = ET.SubElement(def_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                form.set('lang', lang)
+                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                if isinstance(val, dict):
+                    text_elem.text = val.get('text', '')
+                else:
+                    text_elem.text = str(val)
+        
+        # Add grammatical info
+        if subsense.grammatical_info:
+            gram_info = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
+            gram_info.set('value', subsense.grammatical_info)
+        
+        # Add traits
+        if subsense.usage_type:
+            for usage_value in subsense.usage_type:
+                trait_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}trait')
+                trait_elem.set('name', 'usage-type')
+                trait_elem.set('value', usage_value)
+        
+        if subsense.domain_type:
+            for domain_value in subsense.domain_type:
+                trait_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}trait')
+                trait_elem.set('name', 'domain-type')
+                trait_elem.set('value', domain_value)
+        
+        if hasattr(subsense, 'academic_domain') and subsense.academic_domain:
+            trait_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}trait')
+            trait_elem.set('name', 'academic-domain')
+            trait_elem.set('value', subsense.academic_domain)
+        
+        # Add examples
+        for example_item in subsense.examples:
+            if isinstance(example_item, dict):
+                example = Example.from_dict(example_item)
+            else:
+                example = example_item
+            example_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}example')
+            if example.id:
+                example_elem.set('id', example.id)
+            # Add forms
+            for lang, text in example.form.items():
+                form = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                form.set('lang', lang)
+                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                text_elem.text = text
+            # Add translations
+            if example.translations:
+                trans_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}translation')
+                for lang, text in example.translations.items():
+                    form = ET.SubElement(trans_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                    form.set('lang', lang)
+                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
+        
+        # Add notes
+        for note_type, note_content in subsense.notes.items():
+            note_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}note')
+            note_elem.set('type', note_type)
+            if isinstance(note_content, dict):
+                for lang, text in note_content.items():
+                    form = ET.SubElement(note_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
+                    form.set('lang', lang)
+                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
+            else:
+                note_elem.text = str(note_content)
+        
+        # Add relations
+        for relation in subsense.relations:
+            relation_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}relation')
+            relation_elem.set('type', relation.get('type', 'unspecified'))
+            relation_elem.set('ref', relation.get('ref', ''))
+        
+        # RECURSIVE: Add nested subsenses
+        if hasattr(subsense, 'subsenses') and subsense.subsenses:
+            for nested_subsense_item in subsense.subsenses:
+                if isinstance(nested_subsense_item, dict):
+                    nested_subsense = Sense.from_dict(nested_subsense_item)
+                else:
+                    nested_subsense = nested_subsense_item
+                self._generate_subsense_element(subsense_elem, nested_subsense)
+        
+        return subsense_elem
 
     def _parse_multilingual_content(self, element: ET.Element, element_types: List[str]) -> Dict[str, str]:
         """

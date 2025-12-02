@@ -54,22 +54,22 @@ class TestFormFieldPersistence:
         entry_id = data['entry_id']
         
         # Retrieve the entry
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         print(f"GET response status: {response.status_code}")
         print(f"GET response data: {response.data}")
         assert response.status_code == 200
-        data = response.get_json()
-        print(f"GET response JSON: {data}")
-        assert data is not None, "Response JSON is None"
-        assert data['success'] is True
+        entry_data = response.get_json()
+        print(f"GET response JSON: {entry_data}")
+        assert entry_data is not None, "Response JSON is None"
+        assert 'xml' in entry_data
         
-        # Check grammatical_info persisted
-        entry_data = data['entry']
-        assert 'senses' in entry_data
-        assert len(entry_data['senses']) == 1
-        sense = entry_data['senses'][0]
-        assert 'grammatical_info' in sense
-        assert sense['grammatical_info'] == 'Countable Noun'
+        # Parse the XML to check grammatical_info persisted
+        xml_root = ET.fromstring(entry_data['xml'])
+        sense = xml_root.find('.//sense[@id="sense1"]')
+        assert sense is not None, "Sense not found in XML"
+        gram_info = sense.find('grammatical-info')
+        assert gram_info is not None, "grammatical-info element not found"
+        assert gram_info.get('value') == 'Countable Noun'
         
     @pytest.mark.integration
     def test_entry_level_grammatical_info_persistence(self, client, basex_test_connector):
@@ -96,13 +96,15 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
         # Check entry-level grammatical_info
-        assert 'grammatical_info' in entry_data
-        assert entry_data['grammatical_info'] == 'Verb'
+        xml_root = ET.fromstring(entry_data['xml'])
+        gram_info = xml_root.find('grammatical-info')
+        assert gram_info is not None, "entry-level grammatical-info not found"
+        assert gram_info.get('value') == 'Verb'
         
     @pytest.mark.integration
     def test_usage_type_persistence(self, client, basex_test_connector):
@@ -129,16 +131,17 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
-        # Check usage_type
-        sense = entry_data['senses'][0]
-        assert 'usage_type' in sense
-        # usage_type is stored as a list
-        assert isinstance(sense['usage_type'], list)
-        assert 'potocznie' in sense['usage_type']
+        # Check usage_type trait
+        xml_root = ET.fromstring(entry_data['xml'])
+        sense = xml_root.find('.//sense[@id="sense1"]')
+        assert sense is not None
+        trait = sense.find('trait[@name="usage-type"]')
+        assert trait is not None, "usage-type trait not found"
+        assert trait.get('value') == 'potocznie'
         
     @pytest.mark.integration
     def test_academic_domain_persistence(self, client, basex_test_connector):
@@ -165,14 +168,17 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
-        # Check academic_domain
-        sense = entry_data['senses'][0]
-        assert 'academic_domain' in sense
-        assert sense['academic_domain'] == 'mathematics'
+        # Check academic_domain trait
+        xml_root = ET.fromstring(entry_data['xml'])
+        sense = xml_root.find('.//sense[@id="sense1"]')
+        assert sense is not None
+        trait = sense.find('trait[@name="academic-domain"]')
+        assert trait is not None, "academic-domain trait not found"
+        assert trait.get('value') == 'mathematics'
         
     @pytest.mark.integration
     def test_semantic_domain_persistence(self, client, basex_test_connector):
@@ -199,16 +205,17 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
-        # Check domain_type (semantic domain)
-        sense = entry_data['senses'][0]
-        assert 'domain_type' in sense
-        # domain_type is stored as a list
-        assert isinstance(sense['domain_type'], list)
-        assert '1.1 Sky' in sense['domain_type']
+        # Check semantic-domain-ddp4 trait
+        xml_root = ET.fromstring(entry_data['xml'])
+        sense = xml_root.find('.//sense[@id="sense1"]')
+        assert sense is not None
+        trait = sense.find('trait[@name="semantic-domain-ddp4"]')
+        assert trait is not None, "semantic-domain-ddp4 trait not found"
+        assert trait.get('value') == '1.1 Sky'
         
     @pytest.mark.integration
     def test_etymology_persistence(self, client, basex_test_connector):
@@ -238,16 +245,16 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
         # Check etymology
-        assert 'etymology' in entry_data
-        assert len(entry_data['etymology']) > 0
-        etym = entry_data['etymology'][0]
-        assert etym['type'] == 'borrowed'
-        assert etym['source'] == 'English'
+        xml_root = ET.fromstring(entry_data['xml'])
+        etym = xml_root.find('etymology')
+        assert etym is not None, "etymology element not found"
+        assert etym.get('type') == 'borrowed'
+        assert etym.get('source') == 'English'
         
     @pytest.mark.integration
     def test_pronunciation_persistence(self, client, basex_test_connector):
@@ -276,14 +283,18 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
         # Check pronunciation
-        assert 'pronunciations' in entry_data
-        assert 'seh-fonipa' in entry_data['pronunciations']
-        assert entry_data['pronunciations']['seh-fonipa'] == 'vɨmaˈvjanɛ ˈswɔvɔ'
+        xml_root = ET.fromstring(entry_data['xml'])
+        pron = xml_root.find('pronunciation')
+        assert pron is not None, "pronunciation element not found"
+        form = pron.find('form[@lang="seh-fonipa"]')
+        assert form is not None
+        text = form.find('text')
+        assert text is not None and text.text == 'vɨmaˈvjanɛ ˈswɔvɔ'
         
     @pytest.mark.integration
     def test_variant_persistence(self, client, basex_test_connector):
@@ -313,16 +324,20 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
         # Check variant
-        assert 'variants' in entry_data
-        assert len(entry_data['variants']) > 0
-        variant = entry_data['variants'][0]
-        assert variant['text']['pl'] == 'wariant'
-        assert variant['type'] == 'dialectal'
+        xml_root = ET.fromstring(entry_data['xml'])
+        variant = xml_root.find('variant')
+        assert variant is not None, "variant element not found"
+        form = variant.find('form[@lang="pl"]')
+        assert form is not None
+        text = form.find('text')
+        assert text is not None and text.text == 'wariant'
+        trait = variant.find('trait[@name="variant-type"]')
+        assert trait is not None and trait.get('value') == 'dialectal'
         
     @pytest.mark.integration
     def test_relation_persistence(self, client, basex_test_connector):
@@ -351,14 +366,15 @@ class TestFormFieldPersistence:
         entry_id = response.get_json()['entry_id']
         
         # Retrieve
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f'/api/xml/entries/{entry_id}?format=json')
         assert response.status_code == 200
-        entry_data = response.get_json()['entry']
+        entry_data = response.get_json()
         
         # Check relation
-        sense = entry_data['senses'][0]
-        assert 'relations' in sense
-        assert len(sense['relations']) > 0
-        relation = sense['relations'][0]
-        assert relation['type'] == 'synonym'
-        assert relation['ref'] == 'other_entry'
+        xml_root = ET.fromstring(entry_data['xml'])
+        sense = xml_root.find('.//sense[@id="sense1"]')
+        assert sense is not None
+        relation = sense.find('relation')
+        assert relation is not None, "relation element not found"
+        assert relation.get('type') == 'synonym'
+        assert relation.get('ref') == 'other_entry'
