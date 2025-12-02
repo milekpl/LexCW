@@ -232,7 +232,113 @@ class LIFTXMLSerializer {
             });
         }
 
+        // Add subsenses (recursive structure)
+        if (senseData.subsenses && senseData.subsenses.length > 0) {
+            senseData.subsenses.forEach((subsenseData, index) => {
+                const subsense = this.serializeSubsense(doc, subsenseData, index);
+                sense.appendChild(subsense);
+            });
+        }
+
         return sense;
+    }
+
+    /**
+     * Serialize subsense data to LIFT XML subsense element (recursive)
+     * 
+     * @param {Document} doc - XML document
+     * @param {Object} subsenseData - Subsense data object
+     * @param {number} order - Order attribute value
+     * @returns {Element} Subsense element
+     */
+    serializeSubsense(doc, subsenseData, order = 0) {
+        // Create subsense element (has same structure as sense)
+        const subsense = doc.createElementNS(this.LIFT_NS, 'subsense');
+        
+        subsense.setAttribute('id', subsenseData.id || this.generateId());
+        
+        if (order !== undefined) {
+            subsense.setAttribute('order', order.toString());
+        }
+
+        // Add grammatical info
+        const grammaticalInfo = subsenseData.grammaticalInfo || subsenseData.grammatical_info;
+        if (grammaticalInfo) {
+            const gramInfo = this.createGrammaticalInfo(doc, grammaticalInfo);
+            subsense.appendChild(gramInfo);
+        }
+
+        // Add glosses
+        if (subsenseData.glosses && Object.keys(subsenseData.glosses).length > 0) {
+            Object.entries(subsenseData.glosses).forEach(([lang, glossData]) => {
+                if (glossData && (glossData.text || glossData.value)) {
+                    const gloss = this.createGloss(doc, lang, glossData.text || glossData.value);
+                    subsense.appendChild(gloss);
+                }
+            });
+        }
+
+        // Add definitions
+        if (subsenseData.definitions && Object.keys(subsenseData.definitions).length > 0) {
+            const definition = this.createDefinition(doc, subsenseData.definitions);
+            subsense.appendChild(definition);
+        } else if (subsenseData.definition && Object.keys(subsenseData.definition).length > 0) {
+            const definition = this.createDefinition(doc, subsenseData.definition);
+            subsense.appendChild(definition);
+        }
+
+        // Add traits (domain-type, semantic-domain, usage-type)
+        if (subsenseData.domainType || subsenseData.domain_type) {
+            const domainType = subsenseData.domainType || subsenseData.domain_type;
+            const domainTrait = this.createTrait(doc, 'domain-type', domainType);
+            subsense.appendChild(domainTrait);
+        }
+
+        if (subsenseData.semanticDomain || subsenseData.semantic_domain) {
+            const semDomain = subsenseData.semanticDomain || subsenseData.semantic_domain;
+            const semDomainTrait = this.createTrait(doc, 'semantic-domain-ddp4', semDomain);
+            subsense.appendChild(semDomainTrait);
+        }
+
+        if (subsenseData.usageType || subsenseData.usage_type) {
+            const usageType = subsenseData.usageType || subsenseData.usage_type;
+            const usageTrait = this.createTrait(doc, 'usage-type', usageType);
+            subsense.appendChild(usageTrait);
+        }
+
+        // Add examples
+        if (subsenseData.examples && subsenseData.examples.length > 0) {
+            subsenseData.examples.forEach(exData => {
+                const example = this.serializeExample(doc, exData);
+                subsense.appendChild(example);
+            });
+        }
+
+        // Add notes
+        if (subsenseData.notes && Object.keys(subsenseData.notes).length > 0) {
+            Object.entries(subsenseData.notes).forEach(([type, noteData]) => {
+                const note = this.createNote(doc, type, noteData);
+                subsense.appendChild(note);
+            });
+        }
+
+        // Add relations
+        if (subsenseData.relations && subsenseData.relations.length > 0) {
+            subsenseData.relations.forEach(relData => {
+                const relation = this.createRelation(doc, relData);
+                subsense.appendChild(relation);
+            });
+        }
+
+        // RECURSIVE: Add nested subsenses
+        if (subsenseData.subsenses && subsenseData.subsenses.length > 0) {
+            subsenseData.subsenses.forEach((nestedSubsense, index) => {
+                const nested = this.serializeSubsense(doc, nestedSubsense, index);
+                subsense.appendChild(nested);
+            });
+        }
+
+        return subsense;
     }
 
     /**

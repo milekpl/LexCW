@@ -140,18 +140,19 @@ class TestXMLFormSubmission:
         # Create multiple test entries
         for i in range(3):
             xml = SAMPLE_LIFT_XML.replace('integration_test_form_001', f'integration_test_form_search_{i:03d}')
-            client.post(
+            response = client.post(
                 '/api/xml/entries',
                 data=xml,
                 content_type='application/xml'
             )
+            assert response.status_code == 201, f"Failed to create entry {i}: {response.get_json()}"
         
         # Search for entries
         response = client.get('/api/xml/entries?q=test&limit=10')
         assert response.status_code == 200
         data = response.get_json()
         assert 'entries' in data
-        assert data['total'] >= 3
+        assert data['total'] >= 3, f"Expected >= 3 results, got {data['total']}"
         assert 'count' in data
         assert 'limit' in data
         assert 'offset' in data

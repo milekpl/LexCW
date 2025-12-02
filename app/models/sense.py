@@ -96,6 +96,17 @@ class Sense(BaseModel):
         if not isinstance(self.custom_fields, dict):
             self.custom_fields = {}
 
+        # LIFT 0.13: Subsenses (recursive sense structure) - Day 22
+        subsenses_value = kwargs.pop('subsenses', [])
+        self.subsenses: List['Sense'] = []
+        if isinstance(subsenses_value, list):
+            for subsense_data in subsenses_value:
+                if isinstance(subsense_data, Sense):
+                    self.subsenses.append(subsense_data)
+                elif isinstance(subsense_data, dict):
+                    # Recursively create Sense objects for subsenses
+                    self.subsenses.append(Sense.from_dict(subsense_data))
+
         # Now call super() with remaining kwargs
         super().__init__(id_, **kwargs)
     
@@ -317,6 +328,15 @@ class Sense(BaseModel):
         # Add computed properties for template compatibility
         result['definition'] = self.definition
         result['gloss'] = self.gloss
+        
+        # LIFT 0.13: Include subsenses (recursive)
+        if hasattr(self, 'subsenses') and self.subsenses:
+            result['subsenses'] = [
+                subsense.to_dict() if isinstance(subsense, Sense) else subsense
+                for subsense in self.subsenses
+            ]
+        else:
+            result['subsenses'] = []
         
         return result
 

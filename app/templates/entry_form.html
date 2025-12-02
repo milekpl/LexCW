@@ -1129,6 +1129,60 @@
                                                 {% endif %}
                                             </div>
                                         </div>
+                                        
+                                        <!-- Subsenses Section (LIFT 0.13 - Day 22) -->
+                                        <div class="subsenses-section mt-4">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <h6><i class="fas fa-sitemap"></i> Subsenses</h6>
+                                                <button type="button" class="btn btn-sm btn-outline-success add-subsense-btn" 
+                                                        data-sense-index="{{ loop.index0 }}"
+                                                        title="Add a more specific meaning under this sense">
+                                                    <i class="fas fa-plus"></i> Add Subsense
+                                                </button>
+                                            </div>
+                                            
+                                            <div class="subsenses-container ms-3" data-sense-index="{{ loop.index0 }}">
+                                                {% if sense.subsenses %}
+                                                    {% for subsense in sense.subsenses %}
+                                                        <!-- Subsense cards will be rendered here -->
+                                                        <div class="subsense-item card mb-3 border-success" data-subsense-index="{{ loop.index0 }}">
+                                                            <div class="card-header bg-success bg-opacity-10">
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <span><i class="fas fa-level-down-alt"></i> Subsense {{ loop.index }}</span>
+                                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-subsense-btn"
+                                                                            data-sense-index="{{ sense_index }}" data-subsense-index="{{ loop.index0 }}">
+                                                                        <i class="fas fa-trash"></i> Remove
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <div class="card-body">
+                                                                <input type="hidden" name="senses[{{ sense_index }}].subsenses[{{ loop.index0 }}].id" value="{{ subsense.id }}">
+                                                                
+                                                                <!-- Subsense Definition -->
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Definition</label>
+                                                                    <textarea class="form-control" 
+                                                                              name="senses[{{ sense_index }}].subsenses[{{ loop.index0 }}].definition" 
+                                                                              rows="2">{{ subsense.definition }}</textarea>
+                                                                </div>
+                                                                
+                                                                <!-- Subsense Gloss -->
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Gloss</label>
+                                                                    <input type="text" class="form-control" 
+                                                                           name="senses[{{ sense_index }}].subsenses[{{ loop.index0 }}].gloss" 
+                                                                           value="{{ subsense.gloss }}">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <div class="no-subsenses text-center text-muted py-2 border border-success border-opacity-25 rounded">
+                                                        <p class="mb-2"><small>No subsenses yet. Add subsenses to create more specific meanings under this sense.</small></p>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                         {% endfor %}
@@ -1623,6 +1677,131 @@
                 <label class="form-label">Reference</label>
                 <input type="text" class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].reference" 
                        value="">
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Subsense Template (LIFT 0.13 - Day 22) -->
+<template id="subsense-template">
+    <div class="subsense-item card mb-3 border-success" data-subsense-index="SUBSENSE_INDEX">
+        <div class="card-header bg-success bg-opacity-10 py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <small><i class="fas fa-level-down-alt"></i> Subsense NUMBER</small>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-subsense-btn" 
+                        data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX">
+                    <i class="fas fa-times"></i> Remove
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-3">
+            <!-- Hidden subsense ID -->
+            <input type="hidden" name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].id" value="">
+            
+            <!-- Subsense Definition (multilingual) -->
+            <div class="mb-3">
+                <label class="form-label">Definition <span class="text-danger">*</span></label>
+                <div class="multilingual-forms definition-forms">
+                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    <div class="mb-2 language-form" data-language="{{ default_lang_code }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label small">Language</label>
+                                <select class="form-select form-select-sm language-select" 
+                                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ default_lang_code }}.lang"
+                                        data-field-name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ default_lang_code }}">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-9">
+                                <label class="form-label small">Definition Text</label>
+                                <textarea class="form-control form-control-sm definition-text" 
+                                          name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ default_lang_code }}.text"
+                                          rows="2" 
+                                          required
+                                          placeholder="Enter more specific definition"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-1">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-subsense-definition-language-btn" 
+                            data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Subsense Gloss (multilingual) -->
+            <div class="mb-3">
+                <label class="form-label">Gloss</label>
+                <div class="multilingual-forms gloss-forms">
+                    {% set default_gloss_lang = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    <div class="mb-2 language-form" data-language="{{ default_gloss_lang }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label small">Language</label>
+                                <select class="form-select form-select-sm language-select" 
+                                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}.lang"
+                                        data-field-name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == default_gloss_lang %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-9">
+                                <label class="form-label small">Gloss Text</label>
+                                <input type="text" class="form-control form-control-sm gloss-text" 
+                                       name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}.text"
+                                       placeholder="Enter short equivalent">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-1">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-subsense-gloss-language-btn" 
+                            data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Subsense Grammatical Info -->
+            <div class="mb-3">
+                <label class="form-label">Part of Speech</label>
+                <select class="form-select form-select-sm dynamic-grammatical-info" 
+                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].grammatical_info"
+                        data-range-id="grammatical-info">
+                    <option value="">Select part of speech</option>
+                </select>
+            </div>
+            
+            <!-- Subsense Note -->
+            <div class="mb-2">
+                <label class="form-label">Note</label>
+                <textarea class="form-control form-control-sm" 
+                          name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].note" 
+                          rows="2"
+                          placeholder="Additional notes about this subsense"></textarea>
+            </div>
+            
+            <!-- Nested Subsenses Support (Recursive) -->
+            <div class="mt-3 p-2 border-start border-success border-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted"><i class="fas fa-sitemap"></i> Nested Subsenses</small>
+                    <button type="button" class="btn btn-sm btn-outline-success add-nested-subsense-btn" 
+                            data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX"
+                            title="Add even more specific meaning">
+                        <i class="fas fa-plus"></i> Add
+                    </button>
+                </div>
+                <div class="nested-subsenses-container" data-parent-subsense="SUBSENSE_INDEX">
+                    <small class="text-muted">No nested subsenses yet</small>
+                </div>
             </div>
         </div>
     </div>
