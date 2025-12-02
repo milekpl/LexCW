@@ -252,7 +252,7 @@ class VariantFormsManager {
                                    value="${index}">
                             
                             <!-- Search interface for adding/changing variant targets -->
-                            <div class="input-group">`
+                            <div class="input-group">
                                 <input type="text" class="form-control variant-search-input" 
                                        placeholder="Search for entry to create variant relationship with..."
                                        data-variant-index="${index}">

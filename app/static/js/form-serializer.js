@@ -117,15 +117,15 @@ function serializeFormToJSON(input, options = {}) {
         } catch (e) {
             console.error(`[FormSerializer] Error setting value for field '${key}':`, e);
             // Log the problematic field name and value for diagnosis
-            if (window && window.FormSerializerProblemFields) {
+            if (typeof window !== 'undefined' && window.FormSerializerProblemFields) {
                 window.FormSerializerProblemFields.push({ key, value, error: e.message });
-            } else if (window) {
+            } else if (typeof window !== 'undefined') {
                 window.FormSerializerProblemFields = [{ key, value, error: e.message }];
             }
             // Do not throw, just skip this field so the form can be saved
         }
     });
-    if (window && window.FormSerializerProblemFields && window.FormSerializerProblemFields.length > 0) {
+    if (typeof window !== 'undefined' && window.FormSerializerProblemFields && window.FormSerializerProblemFields.length > 0) {
         console.warn(`[FormSerializer] Skipped ${window.FormSerializerProblemFields.length} problematic fields. See window.FormSerializerProblemFields for details.`);
     }
     console.debug(`[FormSerializer] Finished processing ${fieldCount} fields. Last field: ${lastField}`);

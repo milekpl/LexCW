@@ -329,29 +329,12 @@ class ValidationUI {
     
     /**
      * Setup section validation badges
+     * DISABLED: Badges are too intrusive for the UX
      */
     setupSectionBadges() {
-        const sections = document.querySelectorAll('.card .card-header h5, .card .card-header h4');
-        
-        sections.forEach(header => {
-            const sectionId = this.getSectionId(header);
-            if (!sectionId) return;
-            
-            // Check if badge already exists
-            let badge = header.querySelector('.validation-badge');
-            
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'validation-badge badge-info section-status';
-                badge.textContent = 'Not validated';
-                badge.setAttribute('role', 'status');
-                badge.setAttribute('aria-live', 'polite');
-                
-                header.appendChild(badge);
-            }
-            
-            this.sectionBadges.set(sectionId, badge);
-        });
+        // Disabled - not creating validation badges anymore
+        // Users can use the Validate button to check form validity
+        return;
     }
     
     /**

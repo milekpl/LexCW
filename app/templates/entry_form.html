@@ -90,8 +90,8 @@
                                             <div class="col-md-3">
                                                 <label class="form-label">Language</label>
                                                 <select class="form-select language-select" 
-                                                        name="lexical_unit.{{ lang_code }}.lang"
-                                                        data-field-name="lexical_unit.{{ lang_code }}">
+                                                        name="lexical_unit_lang.{{ lang_code }}"
+                                                        data-current-lang="{{ lang_code }}">
                                                     {% for code, label in project_languages %}
                                                         <option value="{{ code }}" {% if code == lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                                     {% endfor %}
@@ -100,7 +100,7 @@
                                             <div class="col-md-8">
                                                 <label class="form-label">Headword Text</label>
                                                 <input type="text" class="form-control lexical-unit-text" 
-                                                       name="lexical_unit.{{ lang_code }}.text"
+                                                       name="lexical_unit.{{ lang_code }}"
                                                        value="{{ text }}"
                                                        {% if lang_code == default_lang_code %}required{% endif %}
                                                        placeholder="Enter headword in {{ lang_code }}">
@@ -122,8 +122,8 @@
                                         <div class="col-md-3">
                                             <label class="form-label">Language</label>
                                             <select class="form-select language-select" 
-                                                    name="lexical_unit.{{ default_lang_code }}.lang"
-                                                    data-field-name="lexical_unit.{{ default_lang_code }}">
+                                                    name="lexical_unit_lang.{{ default_lang_code }}"
+                                                    data-current-lang="{{ default_lang_code }}">
                                                 {% for code, label in project_languages %}
                                                     <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
                                                 {% endfor %}
@@ -132,7 +132,7 @@
                                         <div class="col-md-8">
                                             <label class="form-label">Headword Text</label>
                                             <input type="text" class="form-control lexical-unit-text" 
-                                                   name="lexical_unit.{{ default_lang_code }}.text"
+                                                   name="lexical_unit.{{ default_lang_code }}"
                                                    required
                                                    placeholder="Enter headword in {{ default_lang_code }}">
                                         </div>
@@ -560,14 +560,14 @@
                                             
                                             <!-- Hidden input field for form submission (NO raw ID visible to user) -->
                                             <input type="hidden" 
-                                                   name="variant_relations[{{ loop.index0 }}][ref]"
+                                                   name="variant_relations[{{ loop.index0 }}].ref"
                                                    value="{{ variant.ref or '' }}">
                                             <!-- Hidden technical fields -->
                                             <input type="hidden" 
-                                                   name="variant_relations[{{ loop.index0 }}][type]"
+                                                   name="variant_relations[{{ loop.index0 }}].type"
                                                    value="{{ variant.type or '_component-lexeme' }}">
                                             <input type="hidden" 
-                                                   name="variant_relations[{{ loop.index0 }}][order]"
+                                                   name="variant_relations[{{ loop.index0 }}].order"
                                                    value="{{ variant.order or loop.index0 }}">
                                             
                                             <!-- Search interface for adding/changing variant targets -->
@@ -586,7 +586,7 @@
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">Variant Type</label>
                                             <select class="form-control" 
-                                                    name="variant_relations[{{ loop.index0 }}][variant_type]" required>
+                                                    name="variant_relations[{{ loop.index0 }}].variant_type" required>
                                                 <option value="">Select variant type</option>
                                                 <option value="Spelling Variant" {% if variant.variant_type == 'Spelling Variant' %}selected{% endif %}>Spelling Variant</option>
                                                 <option value="Dialectal Variant" {% if variant.variant_type == 'Dialectal Variant' %}selected{% endif %}>Dialectal Variant</option>
@@ -767,7 +767,7 @@
                                                        title="<strong>Semantic Relationship:</strong><br>This entry has a '{{ relation.type }}' relationship with {% if relation.ref_display_text %}'<strong>{{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}</strong>'.{% else %}the target entry.{% endif %}"></i>
                                                 </label>
                                                 <select class="form-control relation-type-select" 
-                                                        name="relations[{{ loop.index0 }}][type]" 
+                                                        name="relations[{{ loop.index0 }}].type" 
                                                         data-range-id="lexical-relation"
                                                         data-hierarchical="true"
                                                         data-searchable="true"
@@ -794,7 +794,7 @@
                                                 
                                                 <!-- Hidden input field for form submission (NO raw ID visible to user) -->
                                                 <input type="hidden" 
-                                                       name="relations[{{ loop.index0 }}][ref]"
+                                                       name="relations[{{ loop.index0 }}].ref"
                                                        value="{{ relation.ref or '' }}">
                                                 
                                                 <!-- Search interface for adding/changing relations -->

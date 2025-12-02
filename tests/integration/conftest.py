@@ -269,12 +269,22 @@ def app(dict_service_with_db: DictionaryService) -> Generator[Flask, None, None]
     template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'app', 'templates')
     static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'app', 'static')
     app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
+    
+    # Get the test database name from the connector
+    test_db_name = dict_service_with_db.db_connector.database
+    
     app.config.update({
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
         'SECRET_KEY': 'test-secret-key-for-sessions',
         'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
-        'SQLALCHEMY_TRACK_MODIFICATIONS': False
+        'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+        # CRITICAL: Set BaseX database name for XML API to use the same test database
+        'BASEX_DATABASE': test_db_name,
+        'BASEX_HOST': os.getenv('BASEX_HOST', 'localhost'),
+        'BASEX_PORT': int(os.getenv('BASEX_PORT', '1984')),
+        'BASEX_USERNAME': os.getenv('BASEX_USERNAME', 'admin'),
+        'BASEX_PASSWORD': os.getenv('BASEX_PASSWORD', 'admin'),
     })
     
     # Initialize SQLAlchemy with the app

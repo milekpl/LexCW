@@ -12,12 +12,13 @@ def test_delete_entry(playwright_page: Page, live_server):  # type: ignore
     playwright_page.goto(f"{live_server.url}/entries/add")
     
     # Wait for page to load
-    playwright_page.wait_for_selector("#lexical-unit", timeout=10000)
+    playwright_page.wait_for_load_state("networkidle")
+    playwright_page.wait_for_selector("input.lexical-unit-text", timeout=10000)
     
     # Fill in basic entry details
     lexical_unit_value = "TestEntryForDeletion"
     
-    playwright_page.fill("#lexical-unit", lexical_unit_value)
+    playwright_page.locator("input.lexical-unit-text").first.fill(lexical_unit_value)
     
     # Add a sense (check which button is visible)
     if playwright_page.locator("#add-first-sense-btn").is_visible():

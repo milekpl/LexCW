@@ -1,0 +1,23 @@
+/**
+ * LIFT XML Serializer
+ * 
+ * Client-side library for generating LIFT 0.13 compliant XML from form data.
+ * 
+ * @see https://github.com/sillsdev/lift-standard
+ * @version 1.0.1-namespace-fix
+ */
+
+class LIFTXMLSerializer {
+    constructor() {
+        this.LIFT_NS = 'http://fieldworks.sil.org/schemas/lift/0.13';
+        this.LIFT_VERSION = '0.13';
+    }
+
+    /**
+     * Helper method to create elements with proper namespace
+     */
+    createElement(doc, tagName) {
+        return doc.createElementNS(this.LIFT_NS, tagName);
+    }
+
+    // Rest of the file content will be appended...

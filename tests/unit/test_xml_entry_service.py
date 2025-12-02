@@ -233,16 +233,17 @@ class TestUpdateEntry:
     
     def test_update_entry_success(self, xml_service, mock_basex_session):
         """Test successful entry update."""
-        # Mock entry_exists to return True, then execute delete and add
+        # Mock entry_exists to return True, then execute update checks
         query_mock = mock_basex_session.query.return_value
-        query_mock.execute.side_effect = ['true', '', '']  # exists, delete, add
+        # Order: entry_exists(), count_before, replace, count_after
+        query_mock.execute.side_effect = ['true', '1', '', '1']
         
         updated_xml = VALID_ENTRY_XML.replace('testword', 'updatedword')
         result = xml_service.update_entry('test_001', updated_xml)
         
         assert result['id'] == 'test_001'
         assert result['status'] == 'updated'
-        assert 'filename' in result
+        assert 'filename' not in result  # update doesn't create files
     
     def test_update_entry_not_found(self, xml_service, mock_basex_session):
         """Test update fails if entry doesn't exist."""

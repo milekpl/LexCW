@@ -12,11 +12,12 @@ def test_pos_inheritance_ui(playwright_page: Page, live_server):
     page.goto(f"{live_server.url}/entries/add")
     
     # Wait for page to load
-    page.wait_for_selector("#lexical-unit", timeout=10000)
+    page.wait_for_load_state("networkidle")
+    page.wait_for_selector("input.lexical-unit-text", timeout=10000)
     print("Page loaded successfully")
     
     # Fill in lexical unit
-    page.fill("#lexical-unit", "test")
+    page.locator("input.lexical-unit-text").first.fill("test")
     
     # Get POS field and required indicator
     pos_select = page.locator("#part-of-speech")

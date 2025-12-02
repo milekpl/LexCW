@@ -52,6 +52,11 @@ class DatabaseConnectionError(XMLEntryServiceError):
     pass
 
 
+class DuplicateEntryError(XMLEntryServiceError):
+    """Raised when attempting to create an entry that already exists."""
+    pass
+
+
 class XMLEntryService:
     """
     Service for managing LIFT XML entries in BaseX database.
@@ -205,7 +210,7 @@ class XMLEntryService:
         
         # Check if entry already exists
         if self.entry_exists(entry_id):
-            raise XMLEntryServiceError(f"Entry with ID '{entry_id}' already exists")
+            raise DuplicateEntryError(f"Entry with ID '{entry_id}' already exists")
         
         # Generate filename
         filename = self._generate_filename(entry_id)
@@ -215,6 +220,11 @@ class XMLEntryService:
         if xml_clean.startswith('<?xml'):
             # Remove XML declaration line
             xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
+        
+        # Remove xmlns declaration from root element - will be added by XQuery namespace declaration
+        # This is needed when embedding XML directly in XQuery
+        import re
+        xml_clean = re.sub(r'<entry\s+xmlns="[^"]*"\s+', '<entry ', xml_clean, count=1)
         
         # Add to database
         session = self._get_session()
@@ -262,10 +272,11 @@ class XMLEntryService:
         
         session = self._get_session()
         try:
+            # Use variable binding to avoid injection and escaping issues
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
+            declare variable $entryId external;
             
-            let $entry := //lift:entry[@id='{entry_id}']
+            let $entry := collection("{self.database}")//entry[@id=$entryId]
             return if ($entry) then
                 $entry
             else
@@ -273,11 +284,16 @@ class XMLEntryService:
             """
             
             q = session.query(query)
+            q.bind('entryId', entry_id)
             result = q.execute()
             q.close()
             
             if '<error>' in result:
                 raise EntryNotFoundError(f"Entry '{entry_id}' not found")
+            
+            # NOTE: Do NOT add xmlns here - entries in database don't have explicit xmlns
+            # (they inherit it from document context). Adding xmlns causes issues with
+            # replace node operations. The XML parser can handle both cases.
             
             # Parse XML result
             root = ET.fromstring(result)
@@ -373,39 +389,65 @@ class XMLEntryService:
         if xml_clean.startswith('<?xml'):
             xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
         
+        # Debug logging
+        logger.debug(f"Update XML for {entry_id} (first 500 chars): {xml_clean[:500]}")
+        logger.debug(f"Update XML length: {len(xml_clean)}")
+        
+        # CRITICAL: Strip xmlns from root element
+        # Entries in database don't have explicit xmlns (inherited from document context)
+        # If we try to replace a non-namespaced node with a namespaced one, BaseX deletes it!
+        # Must remove xmlns before parse-xml() to match database structure
+        import re
+        xml_clean = re.sub(r'<entry\s+xmlns="[^"]*"\s+', '<entry ', xml_clean, count=1)
+        logger.debug(f"After xmlns removal: {xml_clean[:200]}")
+        
         session = self._get_session()
         try:
-            # Delete old entry
-            delete_query = f"""
-            declare namespace lift = "{LIFT_NS}";
+            # First verify entry exists before update
+            check_query = f"""
+            declare variable $entryId external;
+            count(collection("{self.database}")//entry[@id=$entryId])
+            """
+            q_check = session.query(check_query)
+            q_check.bind('entryId', entry_id)
+            count_before = q_check.execute()
+            q_check.close()
+            logger.debug(f"Entry count before update: {count_before}")
             
-            for $entry in //lift:entry[@id='{entry_id}']
-            return db:delete('{self.database}', db:path($entry))
+            # Use parse-xml() with replace node
+            # XML MUST have xmlns attribute on root element for this to work
+            replace_query = f"""
+            declare variable $entryId external;
+            declare variable $newXml external;
+            
+            let $entry := collection("{self.database}")//entry[@id=$entryId]
+            let $newEntry := parse-xml($newXml)/*
+            return replace node $entry with $newEntry
             """
             
-            q = session.query(delete_query)
-            q.execute()
+            q = session.query(replace_query)
+            q.bind('entryId', entry_id)
+            q.bind('newXml', xml_clean)
+            result = q.execute()
             q.close()
+            logger.debug(f"Replace query result: '{result}'")
             
-            # Add updated entry
-            filename = self._generate_filename(entry_id)
-            add_query = f"""
-            declare namespace lift = "{LIFT_NS}";
+            # Verify entry still exists after update
+            q_check2 = session.query(check_query)
+            q_check2.bind('entryId', entry_id)
+            count_after = q_check2.execute()
+            q_check2.close()
+            logger.debug(f"Entry count after update: {count_after}")
             
-            let $entry := {xml_clean}
-            return db:add('{self.database}', $entry, '{filename}')
-            """
-            
-            q = session.query(add_query)
-            q.execute()
-            q.close()
+            if count_after == "0":
+                logger.error(f"CRITICAL: Entry {entry_id} was DELETED during update!")
+                raise XMLEntryServiceError(f"Entry was deleted during update operation")
             
             logger.info(f"Successfully updated entry: {entry_id}")
             
             return {
                 'id': entry_id,
-                'status': 'updated',
-                'filename': filename
+                'status': 'updated'
             }
             
         except Exception as e:
@@ -436,14 +478,16 @@ class XMLEntryService:
         
         session = self._get_session()
         try:
+            # Use variable binding to avoid injection and escaping issues
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
+            declare variable $entryId external;
             
-            for $entry in //lift:entry[@id='{entry_id}']
-            return db:delete('{self.database}', db:path($entry))
+            for $entry in collection("{self.database}")//entry[@id=$entryId]
+            return delete node $entry
             """
             
             q = session.query(query)
+            q.bind('entryId', entry_id)
             q.execute()
             q.close()
             
@@ -472,20 +516,25 @@ class XMLEntryService:
         """
         session = self._get_session()
         try:
+            # Use XQuery variable binding to avoid injection and escaping issues
+            # Note: entries may or may not have namespace, so check both
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
+            declare variable $entryId external;
             
-            exists(//lift:entry[@id='{entry_id}'])
+            exists(collection("{self.database}")//entry[@id=$entryId])
             """
             
             q = session.query(query)
+            q.bind('entryId', entry_id)
             result = q.execute()
             q.close()
+            
+            logger.debug(f"entry_exists check for '{entry_id}': result='{result}'")
             
             return result.strip().lower() == 'true'
             
         except Exception as e:
-            logger.error(f"Failed to check entry existence {entry_id}: {e}")
+            logger.error(f"Failed to check entry existence {entry_id}: {e}", exc_info=True)
             return False
         finally:
             session.close()

@@ -5,7 +5,8 @@ The bug was that the default-sense-template (always present in the DOM)
 was being serialized along with actual senses, causing ghost senses to appear.
 """
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import expect
+import requests
 
 
 @pytest.mark.integration
@@ -24,39 +25,50 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     print("TEST STARTING: test_sense_deletion_persists_after_save")
     page = playwright_page
     
-    # For this test, create an entry with 2 senses via API, then edit it
-    import requests
-    import json
+    # Create an entry with 2 senses via XML API (to match production flow)
+    print("Creating test entry with 2 senses via XML API...")
+    entry_id = "sense_deletion_test_" + str(hash("test"))[-8:]
     
-    print("Creating test entry data...")
-    test_entry_data = {
-        "id": "sense_deletion_test_" + str(hash("test"))[-8:],
-        "lexical_unit": {"en": "sense_deletion_test"},
-        "senses": [
-            {
-                "id": "sense_1",
-                "definition": {"en": "First definition"},
-                "gloss": {"en": "first"}
-            },
-            {
-                "id": "sense_2",
-                "definition": {"en": "Second definition"},
-                "gloss": {"en": "second"}
-            }
-        ]
-    }
+    # Create LIFT XML with 2 senses
+    entry_xml = f'''<entry id="{entry_id}">
+        <lexical-unit>
+            <form lang="en"><text>sense_deletion_test</text></form>
+        </lexical-unit>
+        <sense id="sense_1" order="0">
+            <definition>
+                <form lang="en"><text>First definition</text></form>
+            </definition>
+            <gloss>
+                <form lang="en"><text>first</text></form>
+            </gloss>
+        </sense>
+        <sense id="sense_2" order="1">
+            <definition>
+                <form lang="en"><text>Second definition</text></form>
+            </definition>
+            <gloss>
+                <form lang="en"><text>second</text></form>
+            </gloss>
+        </sense>
+    </entry>'''
     
-    # Create entry via API
-    print(f"Creating entry via API at {live_server.url}/api/entries/...")
+    # Create entry via XML API
     response = requests.post(
-        f"{live_server.url}/api/entries/",
-        json=test_entry_data,
-        headers={"Content-Type": "application/json"}
+        f"{live_server.url}/api/xml/entries",
+        data=entry_xml,
+        headers={"Content-Type": "application/xml"}
     )
     print(f"API response status: {response.status_code}")
-    assert response.status_code in [200, 201], f"Failed to create test entry: {response.text}"
+    assert response.status_code == 201, f"Failed to create test entry: {response.text}"
     
-    entry_id = test_entry_data["id"]
+    # Verify entry was created by retrieving it via XML API
+    verify_response = requests.get(
+        f"{live_server.url}/api/xml/entries/{entry_id}",
+        headers={"Accept": "application/xml"}
+    )
+    print(f"Verification GET status: {verify_response.status_code}")
+    assert verify_response.status_code == 200, f"Entry not found after creation: {verify_response.text}"
+    
     edit_url = f"{live_server.url}/entries/{entry_id}/edit"
     
     # Navigate to edit the entry
@@ -224,24 +236,40 @@ def test_default_template_not_serialized(playwright_page, live_server):
     default_template = page.locator('#default-sense-template, .default-sense-template')
     expect(default_template).to_have_count(1)
     
-    # Fill minimal entry data - use new multilingual lexical_unit format
-    page.locator('input[name^="lexical_unit."][name$=".text"]').first.fill('template_test')
-    page.locator('textarea[name*="definition"]').first.fill('Test definition')
+    # Check how many real sense items exist
+    real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
+    initial_sense_count = real_senses.count()
     
-    # Setup console monitoring
+    if initial_sense_count == 0:
+        # Need to add a sense first
+        add_sense_btn = page.locator('#add-sense-btn')
+        if add_sense_btn.is_visible():
+            add_sense_btn.click()
+            page.wait_for_timeout(500)
+            real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
+    
+    # Fill minimal entry data - use new multilingual lexical_unit format
+    page.locator('input.lexical-unit-text').first.fill('template_test')
+    
+    # Fill definition in the first real sense (not template)
+    first_real_sense = real_senses.first
+    definition_field = first_real_sense.locator('textarea[name*="definition"]')
+    definition_field.fill('Test definition')
+    
+    # Setup console monitoring BEFORE save
     console_logs = []
     page.on("console", lambda msg: console_logs.append(msg.text))
     
     # Save
     page.click('button[type="submit"]:has-text("Save Entry")')
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(3000)
     
     # Check serialization logs
     submit_logs = [log for log in console_logs if 'FORM SUBMIT' in log]
     
     # Should serialize exactly 1 sense (not 2 - one real + one template)
     count_log = [log for log in submit_logs if 'Serialized senses:' in log]
-    assert len(count_log) > 0, "No serialization count log"
+    assert len(count_log) > 0, f"No serialization count log. Got {len(console_logs)} total logs, {len(submit_logs)} submit logs"
     assert 'Serialized senses: 1' in count_log[0], \
         f"Default template was serialized! Got: {count_log[0]}"
 
@@ -255,7 +283,7 @@ def test_multiple_deletions(playwright_page, live_server):
     page.wait_for_load_state("networkidle")
     
     # Create entry with 3 senses - use new multilingual lexical_unit format
-    page.locator('input[name^="lexical_unit."][name$=".text"]').first.fill('multi_delete_test')
+    page.locator('input.lexical-unit-text').first.fill('multi_delete_test')
     page.locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 1')
     
     page.click('button:has-text("Add Sense")')

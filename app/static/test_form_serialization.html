@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Form Serialization</title></head>
+<body>
+<form id="test-form">
+    <input type="text" name="id" value="test_123">
+    <input type="text" name="lexical_unit[pl]" value="test word">
+    <select name="senses[0].grammatical_info">
+        <option value="">Select...</option>
+        <option value="Noun" selected>Noun</option>
+        <option value="Verb">Verb</option>
+    </select>
+    <textarea name="senses[0].definition[pl]">Test definition</textarea>
+</form>
+
+<script src="/static/js/form-serializer.js"></script>
+<script src="/static/js/lift-xml-serializer.js"></script>
+<script>
+const form = document.getElementById('test-form');
+const formData = window.FormSerializer.serializeFormToJSON(form);
+console.log('Serialized form data:', JSON.stringify(formData, null, 2));
+
+const serializer = new LIFTXMLSerializer();
+try {
+    const xml = serializer.serializeEntry(formData);
+    console.log('Generated XML:', xml);
+} catch (e) {
+    console.error('XML generation error:', e);
+}
+</script>
+</body>
+</html>

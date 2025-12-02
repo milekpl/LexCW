@@ -113,6 +113,14 @@ class InlineValidationManager {
      */
     async validateField(fieldId, value) {
         try {
+            // Check if validation should be skipped
+            const skipValidationCheckbox = document.getElementById('skip-validation-checkbox');
+            if (skipValidationCheckbox && skipValidationCheckbox.checked) {
+                // Clear any existing validation state for this field
+                window.validationUI?.clearFieldValidation(fieldId);
+                return null;
+            }
+            
             // Check cache first
             const cacheKey = `${fieldId}:${value}`;
             if (this.validationCache.has(cacheKey)) {
