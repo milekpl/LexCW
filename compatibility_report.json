@@ -1,0 +1,153 @@
+{
+  "timestamp": "2025-12-01T10:38:47.728569",
+  "database": "dictionary",
+  "total_entries": 397,
+  "tested_entries": 397,
+  "parsing": {
+    "success": 397,
+    "errors": 0,
+    "success_rate": 100.0,
+    "failed_ids": []
+  },
+  "validation": {
+    "valid": 355,
+    "invalid": 42,
+    "validation_rate": 89.4206549118388,
+    "invalid_ids": [
+      "attestation_928fe872-d8fb-4b7c-b4cd-686bf5bcddc5",
+      "be breath-tested (for alcohol)_d7fd7f41-1465-4388-a22f-85a4d664a12a",
+      "chi-square test_253db755-983a-4892-ab82-c6d2685d53a8",
+      "comparison test_cd3b1436-fe04-495b-896e-3cfddf45acdb",
+      "contestable_9369c8ec-5f1d-4668-9653-94ec2ac0157e",
+      "contestation_7fd86863-c0c7-4e01-986c-c38792dbc827",
+      "detestable_9b572028-e311-494a-8c72-74936d6a9693",
+      "detestation_f5debc66-939c-438f-bfb8-e41ff4a4cca5",
+      "enter a contest with sb|sth_a733c427-43a0-455b-96d9-2ee0a67edebf",
+      "eye test_c3a9c53c-a330-4250-b09d-99b496b0fb9f"
+    ]
+  },
+  "service": {
+    "success": 0,
+    "errors": 397,
+    "success_rate": 0.0,
+    "failed_ids": [
+      "acceptance test_3a03ccc9-0475-4900-b96c-fe0ce2a8e89b",
+      "achievement test_efa0609d-5d6e-4c7f-b57c-db99ea82e105",
+      "acid test_dc82bb0e-f5cb-4390-8912-0b53a0e54800",
+      "acid-test ratio_0e43733c-58dc-47d8-8410-5a414c79b168",
+      "admission test_33388fa3-ecdb-4bba-84be-abf74416b023",
+      "AIDS test_a774b9c4-c013-4f54-9017-cf818791080c",
+      "allergy test_ae6db02d-1780-44eb-8ada-5631bce29acb",
+      "animal testing_4e946d0e-a792-4d16-81f6-d376725af098",
+      "aptitude test_0fcaa962-e671-486b-8c29-1016d085620c",
+      "at the latest2_58f3dca0-76ce-4479-b9b5-8fbd021a0c6d"
+    ]
+  },
+  "error_details": [
+    {
+      "entry_id": "acceptance test_3a03ccc9-0475-4900-b96c-fe0ce2a8e89b",
+      "stage": "service",
+      "error": "Entry 'acceptance test_3a03ccc9-0475-4900-b96c-fe0ce2a8e89b' not found"
+    },
+    {
+      "entry_id": "achievement test_efa0609d-5d6e-4c7f-b57c-db99ea82e105",
+      "stage": "service",
+      "error": "Entry 'achievement test_efa0609d-5d6e-4c7f-b57c-db99ea82e105' not found"
+    },
+    {
+      "entry_id": "acid test_dc82bb0e-f5cb-4390-8912-0b53a0e54800",
+      "stage": "service",
+      "error": "Entry 'acid test_dc82bb0e-f5cb-4390-8912-0b53a0e54800' not found"
+    },
+    {
+      "entry_id": "acid-test ratio_0e43733c-58dc-47d8-8410-5a414c79b168",
+      "stage": "service",
+      "error": "Entry 'acid-test ratio_0e43733c-58dc-47d8-8410-5a414c79b168' not found"
+    },
+    {
+      "entry_id": "admission test_33388fa3-ecdb-4bba-84be-abf74416b023",
+      "stage": "service",
+      "error": "Entry 'admission test_33388fa3-ecdb-4bba-84be-abf74416b023' not found"
+    },
+    {
+      "entry_id": "AIDS test_a774b9c4-c013-4f54-9017-cf818791080c",
+      "stage": "service",
+      "error": "Entry 'AIDS test_a774b9c4-c013-4f54-9017-cf818791080c' not found"
+    },
+    {
+      "entry_id": "allergy test_ae6db02d-1780-44eb-8ada-5631bce29acb",
+      "stage": "service",
+      "error": "Entry 'allergy test_ae6db02d-1780-44eb-8ada-5631bce29acb' not found"
+    },
+    {
+      "entry_id": "animal testing_4e946d0e-a792-4d16-81f6-d376725af098",
+      "stage": "service",
+      "error": "Entry 'animal testing_4e946d0e-a792-4d16-81f6-d376725af098' not found"
+    },
+    {
+      "entry_id": "aptitude test_0fcaa962-e671-486b-8c29-1016d085620c",
+      "stage": "service",
+      "error": "Entry 'aptitude test_0fcaa962-e671-486b-8c29-1016d085620c' not found"
+    },
+    {
+      "entry_id": "at the latest2_58f3dca0-76ce-4479-b9b5-8fbd021a0c6d",
+      "stage": "service",
+      "error": "Entry 'at the latest2_58f3dca0-76ce-4479-b9b5-8fbd021a0c6d' not found"
+    },
+    {
+      "entry_id": "attest_c2685b44-70af-4327-90c1-6166e03fd158",
+      "stage": "service",
+      "error": "Entry 'attest_c2685b44-70af-4327-90c1-6166e03fd158' not found"
+    },
+    {
+      "entry_id": "attest to sth_86019562-3ad5-4d9d-ba03-66b3bfb91fc4",
+      "stage": "service",
+      "error": "Entry 'attest to sth_86019562-3ad5-4d9d-ba03-66b3bfb91fc4' not found"
+    },
+    {
+      "entry_id": "attestation_928fe872-d8fb-4b7c-b4cd-686bf5bcddc5",
+      "stage": "service",
+      "error": "Entry 'attestation_928fe872-d8fb-4b7c-b4cd-686bf5bcddc5' not found"
+    },
+    {
+      "entry_id": "attested_dcfb3267-aa00-4284-8c83-b10e4020a935",
+      "stage": "service",
+      "error": "Entry 'attested_dcfb3267-aa00-4284-8c83-b10e4020a935' not found"
+    },
+    {
+      "entry_id": "attested copy_f0913ab4-d738-4c10-8972-c53b095c6464",
+      "stage": "service",
+      "error": "Entry 'attested copy_f0913ab4-d738-4c10-8972-c53b095c6464' not found"
+    },
+    {
+      "entry_id": "attester_f68fe62d-7397-4800-aa38-5efd6dc299a0",
+      "stage": "service",
+      "error": "Entry 'attester_f68fe62d-7397-4800-aa38-5efd6dc299a0' not found"
+    },
+    {
+      "entry_id": "be breath-tested (for alcohol)_d7fd7f41-1465-4388-a22f-85a4d664a12a",
+      "stage": "service",
+      "error": "Entry 'be breath-tested (for alcohol)_d7fd7f41-1465-4388-a22f-85a4d664a12a' not found"
+    },
+    {
+      "entry_id": "be the latest craze_9f582fbf-70c4-4ce1-b5ff-6f933770271a",
+      "stage": "service",
+      "error": "Entry 'be the latest craze_9f582fbf-70c4-4ce1-b5ff-6f933770271a' not found"
+    },
+    {
+      "entry_id": "beauty contest_52e730be-dc5e-492d-80be-3f07488287ca",
+      "stage": "service",
+      "error": "Entry 'beauty contest_52e730be-dc5e-492d-80be-3f07488287ca' not found"
+    },
+    {
+      "entry_id": "bench test_2cd2dcb5-7826-489b-94a7-8d0ecf4ec943",
+      "stage": "service",
+      "error": "Entry 'bench test_2cd2dcb5-7826-489b-94a7-8d0ecf4ec943' not found"
+    }
+  ],
+  "summary": {
+    "overall_compatible": true,
+    "parsing_compatible": 100.0,
+    "service_compatible": 0.0
+  }
+}

@@ -4,7 +4,7 @@
  * Client-side library for generating LIFT 0.13 compliant XML from form data.
  * 
  * @see https://github.com/sillsdev/lift-standard
- * @version 1.0.0
+ * @version 1.0.1-namespace-fix
  */
 
 class LIFTXMLSerializer {
@@ -31,11 +31,18 @@ class LIFTXMLSerializer {
      * @returns {string} LIFT XML string
      */
     serializeEntry(formData) {
+        // Support both camelCase (lexicalUnit) and snake_case (lexical_unit)
+        const lexicalUnit = formData.lexicalUnit || formData.lexical_unit;
+        const grammaticalInfo = formData.grammaticalInfo || formData.grammatical_info;
+        const morphType = formData.morphType || formData.morph_type;
+        const dateCreated = formData.dateCreated || formData.date_created;
+        const dateModified = formData.dateModified || formData.date_modified;
+        
         // Validate required fields
-        if (!formData.id) {
-            throw new Error('Entry must have an id');
-        }
-        if (!formData.lexicalUnit || Object.keys(formData.lexicalUnit).length === 0) {
+        // For new entries (no ID), generate a temporary ID
+        const entryId = formData.id || this.generateEntryId();
+        
+        if (!lexicalUnit || Object.keys(lexicalUnit).length === 0) {
             throw new Error('Entry must have a lexicalUnit with at least one form');
         }
 
@@ -44,34 +51,34 @@ class LIFTXMLSerializer {
         const entry = doc.documentElement;
 
         // Set entry attributes
-        entry.setAttribute('id', formData.id);
+        entry.setAttribute('id', entryId);
         
         if (formData.guid) {
             entry.setAttribute('guid', formData.guid);
         }
         
-        if (formData.dateCreated) {
-            entry.setAttribute('dateCreated', this.formatDate(formData.dateCreated));
+        if (dateCreated) {
+            entry.setAttribute('dateCreated', this.formatDate(dateCreated));
         }
         
         // Always set dateModified to current time
         entry.setAttribute('dateModified', this.formatDate(new Date()));
 
         // Add lexical unit
-        if (formData.lexicalUnit && Object.keys(formData.lexicalUnit).length > 0) {
-            const lexicalUnit = this.createLexicalUnit(doc, formData.lexicalUnit);
-            entry.appendChild(lexicalUnit);
+        if (lexicalUnit && Object.keys(lexicalUnit).length > 0) {
+            const lexicalUnitEl = this.createLexicalUnit(doc, lexicalUnit);
+            entry.appendChild(lexicalUnitEl);
         }
 
         // Add grammatical info (entry-level)
-        if (formData.grammaticalInfo) {
-            const gramInfo = this.createGrammaticalInfo(doc, formData.grammaticalInfo);
+        if (grammaticalInfo) {
+            const gramInfo = this.createGrammaticalInfo(doc, grammaticalInfo);
             entry.appendChild(gramInfo);
         }
 
         // Add morph type trait
-        if (formData.morphType) {
-            const morphTrait = this.createTrait(doc, 'morph-type', formData.morphType);
+        if (morphType) {
+            const morphTrait = this.createTrait(doc, 'morph-type', morphType);
             entry.appendChild(morphTrait);
         }
 
@@ -117,10 +124,13 @@ class LIFTXMLSerializer {
 
         // Add senses
         if (formData.senses && formData.senses.length > 0) {
+            console.log(`[FORM SUBMIT] Serialized senses: ${formData.senses.length}`);
             formData.senses.forEach((senseData, index) => {
                 const sense = this.serializeSense(doc, senseData, index);
                 entry.appendChild(sense);
             });
+        } else {
+            console.log('[FORM SUBMIT] Serialized senses: 0');
         }
 
         // Serialize to string
@@ -142,7 +152,7 @@ class LIFTXMLSerializer {
      * @returns {Element} Sense element
      */
     serializeSense(doc, senseData, order = 0) {
-        const sense = doc.createElement('sense');
+        const sense = doc.createElementNS(this.LIFT_NS, 'sense');
         
         sense.setAttribute('id', senseData.id || this.generateId());
         
@@ -150,9 +160,10 @@ class LIFTXMLSerializer {
             sense.setAttribute('order', order.toString());
         }
 
-        // Add grammatical info
-        if (senseData.grammaticalInfo) {
-            const gramInfo = this.createGrammaticalInfo(doc, senseData.grammaticalInfo);
+        // Add grammatical info (support both camelCase and snake_case)
+        const grammaticalInfo = senseData.grammaticalInfo || senseData.grammatical_info;
+        if (grammaticalInfo) {
+            const gramInfo = this.createGrammaticalInfo(doc, grammaticalInfo);
             sense.appendChild(gramInfo);
         }
 
@@ -232,7 +243,7 @@ class LIFTXMLSerializer {
      * @returns {Element} Example element
      */
     serializeExample(doc, exampleData) {
-        const example = doc.createElement('example');
+        const example = doc.createElementNS(this.LIFT_NS, 'example');
 
         if (exampleData.source) {
             example.setAttribute('source', exampleData.source);
@@ -250,7 +261,7 @@ class LIFTXMLSerializer {
 
         // Add translations
         if (exampleData.translations && Object.keys(exampleData.translations).length > 0) {
-            const translation = doc.createElement('translation');
+            const translation = doc.createElementNS(this.LIFT_NS, 'translation');
             Object.entries(exampleData.translations).forEach(([lang, text]) => {
                 if (text) {
                     const form = this.createForm(doc, lang, text);
@@ -275,7 +286,7 @@ class LIFTXMLSerializer {
      * Create lexical-unit element
      */
     createLexicalUnit(doc, lexicalUnitData) {
-        const lexUnit = doc.createElement('lexical-unit');
+        const lexUnit = doc.createElementNS(this.LIFT_NS, 'lexical-unit');
         
         Object.entries(lexicalUnitData).forEach(([lang, text]) => {
             if (text) {
@@ -291,10 +302,10 @@ class LIFTXMLSerializer {
      * Create form element with text
      */
     createForm(doc, lang, text) {
-        const form = doc.createElement('form');
+        const form = doc.createElementNS(this.LIFT_NS, 'form');
         form.setAttribute('lang', lang);
 
-        const textElem = doc.createElement('text');
+        const textElem = doc.createElementNS(this.LIFT_NS, 'text');
         textElem.textContent = text;
         form.appendChild(textElem);
 
@@ -305,7 +316,7 @@ class LIFTXMLSerializer {
      * Create grammatical-info element
      */
     createGrammaticalInfo(doc, value) {
-        const gramInfo = doc.createElement('grammatical-info');
+        const gramInfo = doc.createElementNS(this.LIFT_NS, 'grammatical-info');
         gramInfo.setAttribute('value', value);
         return gramInfo;
     }
@@ -314,7 +325,7 @@ class LIFTXMLSerializer {
      * Create trait element
      */
     createTrait(doc, name, value) {
-        const trait = doc.createElement('trait');
+        const trait = doc.createElementNS(this.LIFT_NS, 'trait');
         trait.setAttribute('name', name);
         trait.setAttribute('value', value);
         return trait;
@@ -324,10 +335,10 @@ class LIFTXMLSerializer {
      * Create gloss element
      */
     createGloss(doc, lang, text) {
-        const gloss = doc.createElement('gloss');
+        const gloss = doc.createElementNS(this.LIFT_NS, 'gloss');
         gloss.setAttribute('lang', lang);
 
-        const textElem = doc.createElement('text');
+        const textElem = doc.createElementNS(this.LIFT_NS, 'text');
         textElem.textContent = text;
         gloss.appendChild(textElem);
 
@@ -338,7 +349,7 @@ class LIFTXMLSerializer {
      * Create definition element
      */
     createDefinition(doc, definitionData) {
-        const definition = doc.createElement('definition');
+        const definition = doc.createElementNS(this.LIFT_NS, 'definition');
 
         Object.entries(definitionData).forEach(([lang, defData]) => {
             if (defData && (defData.text || defData.value)) {
@@ -354,7 +365,7 @@ class LIFTXMLSerializer {
      * Create pronunciation element
      */
     createPronunciation(doc, pronData) {
-        const pronunciation = doc.createElement('pronunciation');
+        const pronunciation = doc.createElementNS(this.LIFT_NS, 'pronunciation');
 
         if (pronData.forms && Object.keys(pronData.forms).length > 0) {
             Object.entries(pronData.forms).forEach(([lang, text]) => {
@@ -368,7 +379,7 @@ class LIFTXMLSerializer {
         // Add media references if present
         if (pronData.media && pronData.media.length > 0) {
             pronData.media.forEach(mediaData => {
-                const media = doc.createElement('media');
+                const media = doc.createElementNS(this.LIFT_NS, 'media');
                 media.setAttribute('href', mediaData.href);
                 pronunciation.appendChild(media);
             });
@@ -381,7 +392,7 @@ class LIFTXMLSerializer {
      * Create variant element
      */
     createVariant(doc, variantData) {
-        const variant = doc.createElement('variant');
+        const variant = doc.createElementNS(this.LIFT_NS, 'variant');
 
         if (variantData.ref) {
             variant.setAttribute('ref', variantData.ref);
@@ -412,7 +423,7 @@ class LIFTXMLSerializer {
      * Create relation element
      */
     createRelation(doc, relData) {
-        const relation = doc.createElement('relation');
+        const relation = doc.createElementNS(this.LIFT_NS, 'relation');
 
         relation.setAttribute('type', relData.type);
         relation.setAttribute('ref', relData.ref);
@@ -436,7 +447,7 @@ class LIFTXMLSerializer {
      * Create etymology element
      */
     createEtymology(doc, etymData) {
-        const etymology = doc.createElement('etymology');
+        const etymology = doc.createElementNS(this.LIFT_NS, 'etymology');
 
         etymology.setAttribute('type', etymData.type);
         etymology.setAttribute('source', etymData.source);
@@ -455,9 +466,9 @@ class LIFTXMLSerializer {
         if (etymData.gloss && Object.keys(etymData.gloss).length > 0) {
             Object.entries(etymData.gloss).forEach(([lang, text]) => {
                 if (text) {
-                    const glossElem = doc.createElement('gloss');
+                    const glossElem = doc.createElementNS(this.LIFT_NS, 'gloss');
                     glossElem.setAttribute('lang', lang);
-                    const textElem = doc.createElement('text');
+                    const textElem = doc.createElementNS(this.LIFT_NS, 'text');
                     textElem.textContent = text;
                     glossElem.appendChild(textElem);
                     etymology.appendChild(glossElem);
@@ -472,7 +483,7 @@ class LIFTXMLSerializer {
      * Create note element
      */
     createNote(doc, type, noteData) {
-        const note = doc.createElement('note');
+        const note = doc.createElementNS(this.LIFT_NS, 'note');
         note.setAttribute('type', type);
 
         if (typeof noteData === 'string') {
@@ -578,6 +589,17 @@ class LIFTXMLSerializer {
                 }]
             };
         }
+    }
+
+    /**
+     * Generate a unique entry ID for new entries
+     * Format: new_entry_TIMESTAMP_RANDOM
+     * @returns {string} Generated entry ID
+     */
+    generateEntryId() {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 10);
+        return `new_entry_${timestamp}_${random}`;
     }
 }
 

@@ -103,8 +103,10 @@ class BaseXConnector:
         self.logger.info("Executing BaseX query:\n%s", query)
         print("[BaseXConnector] Executing query:\n" + query)
 
+        q = None
         try:
-            result = self._session.query(query).execute()
+            q = self._session.query(query)
+            result = q.execute()
             self.logger.debug(f"Query executed successfully: {query[:100]}...")
             return result
         except Exception as e:
@@ -112,6 +114,12 @@ class BaseXConnector:
             self.logger.error(error_msg)
             print("[BaseXConnector] Query execution failed:\n" + error_msg)
             raise DatabaseError(error_msg)
+        finally:
+            if q:
+                try:
+                    q.close()
+                except:
+                    pass  # Ignore errors when closing
     
     def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
         """
@@ -162,13 +170,21 @@ class BaseXConnector:
         if not self._session:
             self.connect()
         
+        q = None
         try:
-            self._session.query(query).execute()
+            q = self._session.query(query)
+            q.execute()
             self.logger.debug(f"Update executed successfully: {query[:100]}...")
         except Exception as e:
             error_msg = f"Update execution failed: {e}"
             self.logger.error(error_msg)
             raise DatabaseError(error_msg)
+        finally:
+            if q:
+                try:
+                    q.close()
+                except:
+                    pass  # Ignore errors when closing
     
     def create_database(self, db_name: str, content: str = "") -> None:
         """

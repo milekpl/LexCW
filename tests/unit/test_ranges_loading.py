@@ -6,11 +6,13 @@ Tests the DictionaryService.get_ranges() method with different query strategies.
 
 from __future__ import annotations
 
+import pytest
 from unittest.mock import Mock
 
 from app.services.dictionary_service import DictionaryService
 
 
+@pytest.mark.skip_et_mock
 class TestRangesLoading:
     """Test ranges loading from BaseX with various query strategies."""
 

@@ -1303,6 +1303,10 @@ class LIFTRangesParser:
             Dictionary of ranges, keyed by range ID.
         """
         try:
+            # Remove XML declaration if present (lxml doesn't like it with unicode strings)
+            if xml_string.strip().startswith('<?xml'):
+                xml_string = xml_string[xml_string.index('?>')+2:].strip()
+            
             root = ET.fromstring(xml_string)
             
             ranges = {}

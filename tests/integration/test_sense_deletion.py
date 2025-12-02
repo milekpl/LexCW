@@ -160,9 +160,18 @@ def test_default_template_not_serialized(playwright_page, live_server):
     default_template = page.locator('#default-sense-template, .default-sense-template')
     expect(default_template).to_have_count(1)
     
-    # Fill minimal entry data - use new multilingual lexical_unit format
-    page.locator('input[name^="lexical_unit."][name$=".text"]').first.fill('template_test')
-    page.locator('textarea[name*="definition"][name$=".text"]').first.fill('Test definition')
+    # Check if we need to add a sense first
+    real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
+    if real_senses.count() == 0:
+        add_sense_btn = page.locator('#add-sense-btn')
+        if add_sense_btn.is_visible():
+            add_sense_btn.click()
+            page.wait_for_timeout(500)
+    
+    # Fill minimal entry data - use correct multilingual selectors
+    page.locator('input.lexical-unit-text').first.fill('template_test')
+    first_sense = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)').first
+    first_sense.locator('textarea[name*="definition"]').first.fill('Test definition')
     
     # Setup console monitoring
     console_logs = []
@@ -170,14 +179,14 @@ def test_default_template_not_serialized(playwright_page, live_server):
     
     # Save
     page.click('button[type="submit"]:has-text("Save Entry")')
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(3000)
     
     # Check serialization logs
     submit_logs = [log for log in console_logs if 'FORM SUBMIT' in log]
     
     # Should serialize exactly 1 sense (not 2 - one real + one template)
     count_log = [log for log in submit_logs if 'Serialized senses:' in log]
-    assert len(count_log) > 0, "No serialization count log"
+    assert len(count_log) > 0, f"No serialization count log. Got {len(console_logs)} total logs"
     assert 'Serialized senses: 1' in count_log[0], \
         f"Default template was serialized! Got: {count_log[0]}"
 
@@ -190,27 +199,31 @@ def test_multiple_deletions(playwright_page, live_server):
     page.goto(f"{live_server.url}/entries/add")
     page.wait_for_load_state("networkidle")
     
-    # Create entry with 3 senses - use new multilingual lexical_unit format
-    page.locator('input[name^="lexical_unit."][name$=".text"]').first.fill('multi_delete_test')
+    # Fill lexical unit first
+    page.locator('input.lexical-unit-text').first.fill('multi_delete_test')
     
-    # Add 3 senses (on add page, there's no initial sense - only the template)
-    page.click('button:has-text("Add Sense")')
-    page.wait_for_timeout(500)
-    page.click('button:has-text("Add Sense")')
-    page.wait_for_timeout(500)
-    page.click('button:has-text("Add Sense")')
-    page.wait_for_timeout(500)
+    # Add 3 senses (on add page, check if we need to add the first one)
+    real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
+    initial_count = real_senses.count()
     
-    # Fill in definitions for all 3 senses
+    senses_to_add = 3 - initial_count
+    for _ in range(senses_to_add):
+        add_btn = page.locator('#add-sense-btn')
+        if add_btn.is_visible():
+            add_btn.click()
+            page.wait_for_timeout(500)
+    
+    # Refresh selector
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     sense_count = real_senses.count()
     
     if sense_count < 3:
         pytest.skip(f"Could not create 3 senses (only got {sense_count})")
     
-    real_senses.nth(0).locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 1', timeout=5000)
-    real_senses.nth(1).locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 2', timeout=5000)
-    real_senses.nth(2).locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 3', timeout=5000)
+    # Fill in definitions for all 3 senses
+    real_senses.nth(0).locator('textarea[name*="definition"]').first.fill('Def 1', timeout=5000)
+    real_senses.nth(1).locator('textarea[name*="definition"]').first.fill('Def 2', timeout=5000)
+    real_senses.nth(2).locator('textarea[name*="definition"]').first.fill('Def 3', timeout=5000)
     
     # Monitor console for errors
     console_logs = []

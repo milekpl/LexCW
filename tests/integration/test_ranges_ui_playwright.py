@@ -19,13 +19,13 @@ class TestRangesUIPlaywright:
     def test_grammatical_info_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
         """Test that grammatical info dropdown is populated with values from LIFT ranges."""
         # Navigate to entry creation/edit page
-        playwright_page.goto(f'{live_server.url}/entries/new')
+        playwright_page.goto(f'{live_server.url}/entries/add')
         
         # Wait for page to load
         playwright_page.wait_for_load_state('networkidle')
         
-        # Find the grammatical info dropdown (Part of Speech)
-        pos_select = playwright_page.locator('select#grammatical_info, select[name="grammatical_info"], select[name="part_of_speech"]')
+        # Find the grammatical info dropdown (entry-level Part of Speech)
+        pos_select = playwright_page.locator('select#part-of-speech, select[name="grammatical_info"]')
         
         # Wait for it to be visible
         expect(pos_select.first).to_be_visible(timeout=10000)
@@ -46,7 +46,7 @@ class TestRangesUIPlaywright:
     def test_relation_type_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
         """Test that relation type dropdown is populated with values from LIFT ranges."""
         # Navigate to entry edit page (relations are shown in edit mode)
-        playwright_page.goto(f'{live_server.url}/entries/new')
+        playwright_page.goto(f'{live_server.url}/entries/add')
         
         # Wait for page to load
         playwright_page.wait_for_load_state('networkidle')
@@ -73,9 +73,9 @@ class TestRangesUIPlaywright:
             # Should have more than just the empty/placeholder option
             assert len(options) > 1, f"Expected multiple relation type options, got: {options}"
             
-            # Check for common relation types
+            # Check for common relation types (both English and Polish)
             options_text = " ".join(options).lower()
-            common_relations = ['synonym', 'antonym', 'related']
+            common_relations = ['synonym', 'synonim', 'antonym', 'antonim', 'related', 'compare', 'porownaj']
             has_relation = any(rel in options_text for rel in common_relations)
             assert has_relation, f"Expected at least one common relation type in: {options}"
         else:

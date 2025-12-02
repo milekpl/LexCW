@@ -99,14 +99,22 @@ class BaseXConnectorSimple:
         if not self._session:
             self.connect()
         
+        q = None
         try:
-            result = self._session.query(query).execute()
+            q = self._session.query(query)
+            result = q.execute()
             self.logger.debug(f"Query executed successfully: {query[:100]}...")
             return result
         except Exception as e:
             error_msg = f"Query execution failed: {e}"
             self.logger.error(error_msg)
             raise DatabaseError(error_msg)
+        finally:
+            if q:
+                try:
+                    q.close()
+                except:
+                    pass  # Ignore errors when closing
     
     def execute_command(self, command: str) -> str:
         """
@@ -140,13 +148,21 @@ class BaseXConnectorSimple:
         if not self._session:
             self.connect()
         
+        q = None
         try:
-            self._session.query(query).execute()
+            q = self._session.query(query)
+            q.execute()
             self.logger.debug(f"Update executed successfully: {query[:100]}...")
         except Exception as e:
             error_msg = f"Update execution failed: {e}"
             self.logger.error(error_msg)
             raise DatabaseError(error_msg)
+        finally:
+            if q:
+                try:
+                    q.close()
+                except:
+                    pass  # Ignore errors when closing
     
     def create_database(self, db_name: str, content: str = "") -> None:
         """

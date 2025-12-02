@@ -95,12 +95,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!window.xmlSerializer || !xmlPreviewContent) return;
         
         try {
-            // Serialize form to JSON first
+            // Serialize form to JSON first (includeEmpty: true to ensure we get all fields)
             const formData = window.FormSerializer.serializeFormToJSON(entryForm, {
-                includeEmpty: false
+                includeEmpty: true
             });
             
-            // Generate XML from form data
+            console.log('[XML Preview] Form data:', formData);
+            console.log('[XML Preview] lexical_unit:', formData.lexical_unit);
+            
+            // Generate XML directly from form data (serializer now handles snake_case)
             const xmlString = window.xmlSerializer.serializeEntry(formData);
             
             // Display in preview panel
@@ -109,7 +112,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Highlight syntax (optional - could add a lightweight highlighter later)
         } catch (error) {
             console.error('[XML Preview] Error generating XML:', error);
-            xmlPreviewContent.textContent = `Error generating XML: ${error.message}`;
+            console.error('[XML Preview] Error stack:', error.stack);
+            xmlPreviewContent.textContent = `Error generating XML: ${error.message}\n\nCheck browser console (F12) for details.`;
         }
     }
 
@@ -295,7 +299,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    document.getElementById('validate-btn')?.addEventListener('click', () => validateForm(true));
+    const validateBtn = document.getElementById('validate-btn');
+    if (validateBtn) {
+        validateBtn.addEventListener('click', () => {
+            console.log('[Entry Form] Validate button clicked');
+            validateForm(true);
+        });
+        console.log('[Entry Form] Validate button event listener attached');
+    } else {
+        console.warn('[Entry Form] Validate button not found');
+    }
 
     document.getElementById('cancel-btn')?.addEventListener('click', () => {
         if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
@@ -343,8 +356,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="col-md-3">
                     <label class="form-label">Language</label>
                     <select class="form-select language-select" 
-                            name="lexical_unit.${newLang.code}.lang"
-                            data-field-name="lexical_unit.${newLang.code}">
+                            name="lexical_unit_lang.${newLang.code}"
+                            data-current-lang="${newLang.code}">
                         ${Array.from(firstSelect.options).map(opt => 
                             `<option value="${opt.value}" ${opt.value === newLang.code ? 'selected' : ''}>${opt.textContent}</option>`
                         ).join('')}
@@ -353,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="col-md-8">
                     <label class="form-label">Headword Text</label>
                     <input type="text" class="form-control lexical-unit-text" 
-                           name="lexical_unit.${newLang.code}.text"
+                           name="lexical_unit.${newLang.code}"
                            placeholder="Enter headword in ${newLang.code}">
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
@@ -503,6 +516,7 @@ document.addEventListener('DOMContentLoaded', function() {
  * @returns {boolean} - True if the form is valid, false otherwise.
  */
 function validateForm(showSummaryModal = false) {
+    console.log('[validateForm] Called with showSummaryModal:', showSummaryModal);
     const errors = [];
     let isValid = true;
 
@@ -524,10 +538,12 @@ function validateForm(showSummaryModal = false) {
     // Clear previous validation
     document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
 
-    // Validate Lexical Unit
-    const lexicalUnitEl = document.getElementById('lexical-unit');
-    if (!lexicalUnitEl.value.trim()) {
-        invalidate(lexicalUnitEl, 'Lexical Unit is required.');
+    // Validate Lexical Unit (check all language inputs, at least one must have a value)
+    const lexicalUnitInputs = document.querySelectorAll('.lexical-unit-text');
+    const hasLexicalUnit = Array.from(lexicalUnitInputs).some(input => input.value.trim());
+    if (!hasLexicalUnit && lexicalUnitInputs.length > 0) {
+        // Mark the first input as invalid
+        invalidate(lexicalUnitInputs[0], 'Lexical Unit is required in at least one language.');
     }
 
     // Validate Part of Speech (only if required by inheritance logic)
@@ -595,14 +611,39 @@ function validateForm(showSummaryModal = false) {
         });
     }
 
-    // Show summary modal if requested and there are errors
-    if (!isValid && showSummaryModal) {
-        const errorsList = document.getElementById('validation-errors-list');
-        if (errorsList) {
-            errorsList.innerHTML = errors.map(error => `<li class="text-danger">${error}</li>`).join('');
-            const validationModal = new bootstrap.Modal(document.getElementById('validationModal'));
-            validationModal.show();
+    // Show summary if requested
+    if (showSummaryModal) {
+        console.log('[validateForm] Showing feedback, isValid:', isValid, 'errors:', errors);
+        
+        if (!isValid) {
+            // Form has errors - show them in modal for detailed review
+            const errorsList = document.getElementById('validation-errors-list');
+            const validationModalEl = document.getElementById('validationModal');
+            
+            if (!validationModalEl) {
+                console.error('[validateForm] validationModal element not found');
+                showToast(`Form has ${errors.length} validation error(s). Check the form for details.`, 'error');
+                return isValid;
+            }
+            
+            if (errorsList) {
+                errorsList.innerHTML = errors.map(error => `<li class="text-danger">${error}</li>`).join('');
+                const modalHeader = validationModalEl.querySelector('.modal-header');
+                const modalTitle = validationModalEl.querySelector('.modal-title');
+                if (modalHeader) modalHeader.className = 'modal-header bg-danger text-white';
+                if (modalTitle) modalTitle.textContent = 'Validation Errors';
+                const validationModal = new bootstrap.Modal(validationModalEl);
+                validationModal.show();
+            } else {
+                console.error('[validateForm] validation-errors-list element not found');
+                showToast(`Form has ${errors.length} validation error(s). Check the form for details.`, 'error');
+            }
+        } else {
+            // Form is valid - show unobtrusive success toast
+            showToast('✓ Form validation passed! No errors found.', 'success');
         }
+    } else {
+        console.log('[validateForm] isValid:', isValid, 'showSummaryModal:', showSummaryModal);
     }
 
     return isValid;
@@ -644,8 +685,7 @@ async function submitForm() {
 
         // Serialize form to JSON first
         const formData = await window.FormSerializer.serializeFormToJSONSafe(form, {
-            includeEmpty: false,
-            transform: (value) => (typeof value === 'string' ? value.trim() : value)
+            includeEmpty: false
         });
         
         console.log('[FORM SUBMIT] Form data serialized to JSON');
@@ -654,7 +694,7 @@ async function submitForm() {
         progressBar.style.width = '30%';
         progressBar.textContent = 'Generating LIFT XML...';
         
-        // Generate LIFT XML from form data
+        // Generate LIFT XML directly from form data (serializer now handles snake_case)
         let xmlString;
         try {
             xmlString = window.xmlSerializer.serializeEntry(formData);

@@ -15,7 +15,8 @@ from app.services.xml_entry_service import (
     XMLEntryServiceError,
     EntryNotFoundError,
     InvalidXMLError,
-    DatabaseConnectionError
+    DatabaseConnectionError,
+    DuplicateEntryError
 )
 
 # Create blueprint
@@ -32,12 +33,14 @@ def get_xml_entry_service() -> XMLEntryService:
     """
     # Get BaseX configuration from app config
     config = current_app.config
+    database = config.get('BASEX_DATABASE', 'dictionary')
+    logger.debug(f'[XML API] Creating XMLEntryService with database: {database}')
     return XMLEntryService(
         host=config.get('BASEX_HOST', 'localhost'),
         port=config.get('BASEX_PORT', 1984),
         username=config.get('BASEX_USERNAME', 'admin'),
         password=config.get('BASEX_PASSWORD', 'admin'),
-        database=config.get('BASEX_DATABASE', 'dictionary')
+        database=database
     )
 
 
@@ -129,6 +132,9 @@ def create_entry() -> Any:
     except InvalidXMLError as e:
         logger.error('[XML API] Invalid XML: %s', str(e))
         return jsonify({'error': f'Invalid XML: {str(e)}'}), 400
+    except DuplicateEntryError as e:
+        logger.error('[XML API] Duplicate entry: %s', str(e))
+        return jsonify({'error': str(e)}), 409
     except DatabaseConnectionError as e:
         logger.error('[XML API] Database connection error: %s', str(e))
         return jsonify({'error': f'Database error: {str(e)}'}), 500
