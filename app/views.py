@@ -334,6 +334,11 @@ def edit_entry(entry_id):
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
             # Extract enriched component_relations for template (with display text for main entries)
             component_relations_data = entry.get_component_relations(dict_service)
+            
+            # Enrich sense relations with display text
+            for sense in entry.senses:
+                if hasattr(sense, 'relations') and sense.relations:
+                    sense.relations = sense.enrich_relations_with_display_text(dict_service)
 
         # Get project languages for multilingual fields
         languages = get_project_languages()

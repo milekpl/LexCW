@@ -20,6 +20,7 @@ class Sense(BaseModel):
         relations: List of semantic relations to other senses.
         notes: Dictionary mapping note types to note content.
         custom_fields: Dictionary of custom fields for the sense.
+        illustrations: List of illustration dictionaries with 'href' and optional 'label' (multilingual).
     """
     
     def __init__(self, id_: Optional[str] = None, **kwargs):
@@ -36,10 +37,20 @@ class Sense(BaseModel):
         self.glosses: dict[str, str] = kwargs.pop('glosses', {})
         self.definitions: dict[str, str] = kwargs.pop('definitions', {})
         self.grammatical_info = kwargs.pop('grammatical_info', None)
+        self.grammatical_traits: dict[str, str] | None = kwargs.pop('grammatical_traits', None)
         self.examples = kwargs.pop('examples', [])
         self.relations = kwargs.pop('relations', [])
         self.notes = kwargs.pop('notes', {})
         self.custom_fields = kwargs.pop('custom_fields', {})
+        self.traits: dict[str, str] = kwargs.pop('traits', {})
+        self.illustrations: list[dict[str, Any]] = kwargs.pop('illustrations', [])
+        
+        # LIFT 0.13: Literal meaning field - stores literal meaning of compounds/idioms (multitext) - Day 28
+        literal_meaning_value = kwargs.pop('literal_meaning', None)
+        if isinstance(literal_meaning_value, dict):
+            self.literal_meaning: Optional[Dict[str, str]] = literal_meaning_value
+        else:
+            self.literal_meaning: Optional[Dict[str, str]] = None
         
         # LIFT-aligned fields: usage_type and domain_type (semantic/academic domains)
         # These are stored as lists to support multiple values
@@ -106,6 +117,40 @@ class Sense(BaseModel):
                 elif isinstance(subsense_data, dict):
                     # Recursively create Sense objects for subsenses
                     self.subsenses.append(Sense.from_dict(subsense_data))
+
+        # LIFT 0.13: Reversals (bilingual dictionary support) - Day 24-25
+        reversals_value = kwargs.pop('reversals', [])
+        self.reversals: List[Dict[str, Any]] = []
+        if isinstance(reversals_value, list):
+            for reversal_data in reversals_value:
+                if isinstance(reversal_data, dict):
+                    # Validate basic reversal structure
+                    # Optional: type attribute, forms dict, optional main element, optional grammatical_info
+                    self.reversals.append(reversal_data)
+
+        # LIFT 0.13: Annotations (editorial workflow) - Day 26-27
+        annotations_value = kwargs.pop('annotations', [])
+        self.annotations: List[Dict[str, Any]] = []
+        if isinstance(annotations_value, list):
+            for annotation_data in annotations_value:
+                if isinstance(annotation_data, dict):
+                    # Validate annotation structure: name is required
+                    self.annotations.append(annotation_data)
+
+        # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
+        # Exemplar field - stores exemplar form for the sense (multitext)
+        exemplar_value = kwargs.pop('exemplar', None)
+        if isinstance(exemplar_value, dict):
+            self.exemplar: Optional[Dict[str, str]] = exemplar_value
+        else:
+            self.exemplar: Optional[Dict[str, str]] = None
+
+        # Scientific name field - stores scientific/Latin name for biological terms (multitext)
+        scientific_name_value = kwargs.pop('scientific_name', None)
+        if isinstance(scientific_name_value, dict):
+            self.scientific_name: Optional[Dict[str, str]] = scientific_name_value
+        else:
+            self.scientific_name: Optional[Dict[str, str]] = None
 
         # Now call super() with remaining kwargs
         super().__init__(id_, **kwargs)
@@ -200,8 +245,78 @@ class Sense(BaseModel):
         """
         self.relations.append({
             'type': relation_type,
-            'target_id': target_id
+            'ref': target_id
         })
+    
+    def enrich_relations_with_display_text(self, dict_service=None) -> list[dict]:
+        """
+        Enrich sense relations with display text from target senses.
+        
+        Args:
+            dict_service: Dictionary service to look up target entries/senses
+            
+        Returns:
+            List of enriched relation dictionaries with ref_display_text and ref_gloss
+        """
+        if not dict_service or not self.relations:
+            return self.relations
+            
+        enriched_relations = []
+        
+        for relation in self.relations:
+            enriched = relation.copy()
+            
+            try:
+                # The ref format is typically: entry_id_sense_id or just sense_id
+                ref = relation.get('ref', '')
+                if not ref:
+                    enriched_relations.append(enriched)
+                    continue
+                
+                # Try to parse the sense ID to get entry and sense IDs
+                # Format could be: "entry_id_sense_guid" or just "sense_guid"
+                # We need to search for the sense across all entries
+                
+                # For now, try to extract entry_id from the ref
+                # Common pattern: "word_sense_guid" or just "sense_guid"
+                parts = ref.rsplit('_', 1)  # Split from right to get last part as sense ID
+                
+                # Search all entries to find the one with this sense
+                all_entries, _ = dict_service.list_entries(limit=None)
+                
+                target_entry = None
+                target_sense = None
+                
+                for entry in all_entries:
+                    for sense in entry.senses:
+                        if sense.id == ref or (hasattr(sense, 'id_') and sense.id_ == ref):
+                            target_entry = entry
+                            target_sense = sense
+                            break
+                    if target_sense:
+                        break
+                
+                if target_entry and target_sense:
+                    # Get headword from entry
+                    enriched['ref_display_text'] = target_entry.get_lexical_unit()
+                    
+                    # Get gloss or definition from sense
+                    if target_sense.glosses:
+                        # Get first available gloss
+                        first_gloss = next(iter(target_sense.glosses.values()), '')
+                        enriched['ref_gloss'] = first_gloss
+                    elif target_sense.definitions:
+                        # Fallback to definition
+                        first_def = next(iter(target_sense.definitions.values()), '')
+                        enriched['ref_gloss'] = first_def
+                        
+            except Exception:
+                # If resolution fails, just use the relation as-is
+                pass
+                
+            enriched_relations.append(enriched)
+            
+        return enriched_relations
     
     def add_definition(self, language: str, text: str) -> None:
         """
@@ -337,6 +452,34 @@ class Sense(BaseModel):
             ]
         else:
             result['subsenses'] = []
+        
+        # LIFT 0.13: Include reversals - Day 24-25
+        if hasattr(self, 'reversals') and self.reversals:
+            result['reversals'] = self.reversals
+        else:
+            result['reversals'] = []
+        
+        # LIFT 0.13: Include annotations - Day 26-27
+        if hasattr(self, 'annotations') and self.annotations:
+            result['annotations'] = self.annotations
+        else:
+            result['annotations'] = []
+        
+        # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
+        if hasattr(self, 'exemplar') and self.exemplar:
+            result['exemplar'] = self.exemplar
+        else:
+            result['exemplar'] = None
+        
+        if hasattr(self, 'scientific_name') and self.scientific_name:
+            result['scientific_name'] = self.scientific_name
+        else:
+            result['scientific_name'] = None
+        
+        if hasattr(self, 'literal_meaning') and self.literal_meaning:
+            result['literal_meaning'] = self.literal_meaning
+        else:
+            result['literal_meaning'] = None
         
         return result
 

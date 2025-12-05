@@ -60,6 +60,7 @@ class Variant(BaseModel):
     def __init__(self, form: Dict[str, str], **kwargs: Any):
         super().__init__(**kwargs)
         self.form: Dict[str, str] = form
+        self.grammatical_traits: Dict[str, str] | None = kwargs.pop('grammatical_traits', None)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert variant to dictionary with nested objects."""
@@ -113,7 +114,19 @@ class Entry(BaseModel):
         # Handle variant_relations if provided (convert to relations)
         variant_relations_data = kwargs.pop('variant_relations', [])
 
+        # LIFT 0.13: Annotations (editorial workflow) - Day 26-27
+        annotations_value = kwargs.pop('annotations', [])
+        self.annotations: List[Dict[str, Any]] = []
+        if isinstance(annotations_value, list):
+            for annotation_data in annotations_value:
+                if isinstance(annotation_data, dict):
+                    # Validate annotation structure: name is required
+                    self.annotations.append(annotation_data)
+
         super().__init__(id_, **kwargs)
+        
+        # General traits (Day 31-32) - arbitrary key-value metadata
+        self.traits: Dict[str, str] = kwargs.get('traits', {})
         
         # Handle lexical_unit - must be a dictionary
         lexical_unit_raw = kwargs.get('lexical_unit', {})
@@ -136,6 +149,23 @@ class Entry(BaseModel):
         if not isinstance(pronunciations_raw, dict):
             raise ValueError(f"pronunciations must be a dict {{ws: text}}, got {type(pronunciations_raw)}")
         self.pronunciations: Dict[str, str] = pronunciations_raw
+        
+        # Handle pronunciation media elements (LIFT 0.13 Day 35)
+        pronunciation_media_raw = kwargs.get('pronunciation_media', [])
+        if not isinstance(pronunciation_media_raw, list):
+            raise ValueError(f"pronunciation_media must be a list, got {type(pronunciation_media_raw)}")
+        self.pronunciation_media: List[Dict[str, Any]] = pronunciation_media_raw
+        
+        # Handle pronunciation custom fields (LIFT 0.13 Day 40)
+        pronunciation_cv_pattern_raw = kwargs.get('pronunciation_cv_pattern', {})
+        if not isinstance(pronunciation_cv_pattern_raw, dict):
+            raise ValueError(f"pronunciation_cv_pattern must be a dict, got {type(pronunciation_cv_pattern_raw)}")
+        self.pronunciation_cv_pattern: Dict[str, str] = pronunciation_cv_pattern_raw
+        
+        pronunciation_tone_raw = kwargs.get('pronunciation_tone', {})
+        if not isinstance(pronunciation_tone_raw, dict):
+            raise ValueError(f"pronunciation_tone must be a dict, got {type(pronunciation_tone_raw)}")
+        self.pronunciation_tone: Dict[str, str] = pronunciation_tone_raw
             
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
         
@@ -540,6 +570,15 @@ class Entry(BaseModel):
 
         # Add variant relations derived from relations with variant-type traits
         result['variant_relations'] = self.get_variant_relations()
+
+        # LIFT 0.13: Include annotations - Day 26-27
+        if hasattr(self, 'annotations') and self.annotations:
+            result['annotations'] = self.annotations
+        else:
+            result['annotations'] = []
+
+        # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
+
 
         return result
 

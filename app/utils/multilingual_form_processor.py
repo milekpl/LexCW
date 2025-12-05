@@ -142,6 +142,28 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
         # This should not happen with the new form, but keep for transition period
         raise ValueError("lexical_unit must be a dict {lang: text}, got string format")
     
+    # LIFT 0.13 Custom Fields (Day 28): Process literal_meaning (entry-level)
+    literal_meaning = process_multilingual_field_form_data(form_data, 'literal_meaning')
+    if literal_meaning:
+        logger.debug(f"[MERGE DEBUG] Processed literal_meaning: {literal_meaning}")
+        merged_data['literal_meaning'] = literal_meaning
+    elif 'literal_meaning' in form_data and isinstance(form_data['literal_meaning'], dict):
+        # Handle direct JSON object format
+        raw_lm = form_data['literal_meaning']
+        processed_lm = {}
+        for lang_code, lang_data in raw_lm.items():
+            if isinstance(lang_data, dict) and 'text' in lang_data:
+                text = lang_data['text']
+                if text and isinstance(text, str) and text.strip():
+                    processed_lm[lang_code] = text.strip()
+            elif isinstance(lang_data, str):
+                if lang_data.strip():
+                    processed_lm[lang_code] = lang_data.strip()
+        
+        if processed_lm:
+            logger.debug(f"[MERGE DEBUG] Using processed literal_meaning object: {processed_lm}")
+            merged_data['literal_meaning'] = processed_lm
+    
     # Special handling for senses to preserve missing/empty fields
     if 'senses' in form_data and 'senses' in entry_data:
         # Direct senses array format - merge with existing
@@ -160,7 +182,18 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
             logger.debug(f"[MERGE DEBUG] Using form_senses as new senses: {form_senses}")
             merged_data['senses'] = form_senses
     
-    # Process other form fields (excluding notes, multilingual fields, and senses)
+    # Process new components from form data and add to relations
+    form_components = process_components_form_data(form_data)
+    if form_components:
+        logger.debug(f"[MERGE DEBUG] Adding {len(form_components)} new components to relations")
+        # Get existing relations or initialize empty list
+        existing_relations = merged_data.get('relations', [])
+        if not isinstance(existing_relations, list):
+            existing_relations = []
+        # Append new component relations
+        merged_data['relations'] = existing_relations + form_components
+    
+    # Process other form fields (excluding notes, multilingual fields, senses, and components)
     # Handle dot notation fields by converting them to nested structures
     dot_notation_fields = {}
     
@@ -168,6 +201,7 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
         if (not key.startswith('notes[') and 
             not key.startswith('lexical_unit[') and 
             not key.startswith('senses[') and
+            not key.startswith('components[') and
             key not in ['lexical_unit', 'senses']):
             
             if '.' in key:
@@ -313,9 +347,14 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
                         logger.debug(f"[MERGE] Sense {sense_id} field '{field}': after normalization: {merged_sense[field]}")
                 else:
                     # For other fields, preserve if missing, empty, or whitespace-only string
+                    # Exception: For list fields (relations, examples), empty list means "clear it"
                     preserve = False
                     if field not in form_sense:
                         preserve = True
+                    elif field in ('relations', 'examples', 'subsenses', 'variants'):
+                        # For list fields, explicitly allow empty lists (they mean "clear")
+                        # Only preserve if the field is missing entirely
+                        preserve = False
                     elif not form_value:
                         preserve = True
                     elif isinstance(form_value, str) and form_value.strip() == '':
@@ -402,6 +441,7 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
             # Parse both bracket notation: senses[0][definition] -> (0, 'definition')
             # And dot notation: senses[0].definition -> (0, 'definition')
             # And complex: senses[0][examples][0][text] -> (0, 'examples', 0, 'text')
+            # And mixed: senses[0].relations[0].type -> (0, 'relations', 0, 'type')
             
             # Remove 'senses[' from the beginning
             key_part = key[7:]  # Remove 'senses['
@@ -413,13 +453,44 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 # Remove trailing ']' from the last part
                 if parts and parts[-1].endswith(']'):
                     parts[-1] = parts[-1][:-1]
-            elif key_part.count(']') == 1 and '.' in key_part:
-                # Dot notation: senses[0].definition
-                # Split on first ']' then split the rest on '.'
+            elif '.' in key_part:
+                # Dot notation: senses[0].definition or senses[0].relations[0].type
+                # First, split on the first '].' to get the sense index
                 close_bracket_pos = key_part.find(']')
+                if close_bracket_pos == -1:
+                    logger.debug(f"[SENSES DEBUG] Unrecognized format (no closing bracket): {key}")
+                    continue
+                    
                 index_part = key_part[:close_bracket_pos]
-                field_part = key_part[close_bracket_pos + 2:]  # Skip '].'
-                parts = [index_part] + field_part.split('.')
+                remainder = key_part[close_bracket_pos + 1:]  # Skip ']'
+                
+                # Now split the remainder on dots, but handle brackets within
+                # e.g., ".relations[0].type" -> ['', 'relations[0]', 'type']
+                parts = [index_part]
+                current = ''
+                in_bracket = False
+                for char in remainder:
+                    if char == '[':
+                        in_bracket = True
+                        if current and current != '.':
+                            parts.append(current.lstrip('.'))
+                            current = ''
+                    elif char == ']':
+                        in_bracket = False
+                        if current:
+                            parts.append(current)
+                            current = ''
+                    elif char == '.' and not in_bracket:
+                        if current:
+                            parts.append(current)
+                            current = ''
+                    else:
+                        current += char
+                
+                if current and current != '.':
+                    parts.append(current.lstrip('.'))
+                    
+                logger.debug(f"[SENSES DEBUG] Parsed dot notation: {key} -> {parts}")
             else:
                 logger.debug(f"[SENSES DEBUG] Unrecognized format: {key}")
                 continue
@@ -503,6 +574,32 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                             logger.debug(f"[SENSES DEBUG] Invalid example index in: {key}")
                             # Invalid example index, skip
                             continue
+                    
+                    elif len(parts) == 4 and parts[1] == 'relations':
+                        # Relation field: senses[0][relations][0][type] or senses[0].relations[0].type
+                        try:
+                            relation_index = int(parts[2])
+                            relation_field = parts[3]
+                            
+                            # Initialize relations list if not exists
+                            if 'relations' not in senses_data[sense_index]:
+                                senses_data[sense_index]['relations'] = []
+                            
+                            # Extend relations list if needed
+                            while len(senses_data[sense_index]['relations']) <= relation_index:
+                                senses_data[sense_index]['relations'].append({})
+                            
+                            logger.debug(f"[SENSES DEBUG] Setting relation: senses[{sense_index}][relations][{relation_index}][{relation_field}] = {value}")
+                            # Store as string, don't strip if it's already stripped
+                            if isinstance(value, str):
+                                senses_data[sense_index]['relations'][relation_index][relation_field] = value.strip()
+                            else:
+                                senses_data[sense_index]['relations'][relation_index][relation_field] = value
+                        
+                        except ValueError:
+                            logger.debug(f"[SENSES DEBUG] Invalid relation index in: {key}")
+                            # Invalid relation index, skip
+                            continue
                 
                 except ValueError:
                     logger.debug(f"[SENSES DEBUG] Invalid sense index in: {key}")
@@ -513,8 +610,88 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     result = []
     for sense_index in sorted(senses_data.keys()):
         sense_dict = senses_data[sense_index]
+        
+        # If this is an existing sense (has ID) and no relations were submitted,
+        # explicitly set relations to empty list to clear any existing relations
+        if sense_dict.get('id') and 'relations' not in sense_dict:
+            sense_dict['relations'] = []
+            logger.debug(f"[SENSES DEBUG] Sense {sense_index} has ID but no relations in form - setting to empty list")
+        
         logger.debug(f"[SENSES DEBUG] Final sense {sense_index}: {sense_dict}")
         result.append(sense_dict)
     
     logger.debug(f"[SENSES DEBUG] Final result: {result}")
+    return result
+
+
+def process_components_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Process components[n].field form data into a list of component dictionaries.
+    Components are converted to _component-lexeme relations with complex-form-type traits.
+    
+    Args:
+        form_data: Raw form data containing components[n].field entries
+        
+    Returns:
+        List of component dictionaries to be converted to Relation objects
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.debug(f"[COMPONENTS DEBUG] Starting components form data processing")
+    
+    components_data = {}
+    
+    for key, value in form_data.items():
+        if key.startswith('components[') and '].' in key:
+            try:
+                # Extract index and field name: components[0].ref -> index=0, field=ref
+                index_end = key.index(']')
+                index_str = key[len('components['):index_end]
+                field = key[index_end + 2:]  # Skip '].''
+                
+                component_index = int(index_str)
+                
+                if component_index not in components_data:
+                    components_data[component_index] = {}
+                
+                # Store the field value
+                if value and isinstance(value, str):
+                    components_data[component_index][field] = value.strip()
+                    logger.debug(f"[COMPONENTS DEBUG] components[{component_index}][{field}] = {value.strip()}")
+                    
+            except (ValueError, IndexError):
+                logger.debug(f"[COMPONENTS DEBUG] Invalid component key: {key}")
+                continue
+    
+    # Convert to list of relation dicts with _component-lexeme type
+    result = []
+    for component_index in sorted(components_data.keys()):
+        comp = components_data[component_index]
+        
+        # Skip if no ref provided
+        if 'ref' not in comp or not comp['ref']:
+            logger.debug(f"[COMPONENTS DEBUG] Skipping component {component_index} - no ref")
+            continue
+        
+        # Convert to _component-lexeme relation format
+        relation_dict = {
+            'type': '_component-lexeme',
+            'ref': comp['ref'],
+            'traits': {
+                'complex-form-type': comp.get('type', 'compound')
+            }
+        }
+        
+        # Add order if provided
+        if 'order' in comp:
+            try:
+                relation_dict['order'] = int(comp['order'])
+            except ValueError:
+                pass
+        
+        logger.debug(f"[COMPONENTS DEBUG] Component {component_index} -> relation: {relation_dict}")
+        result.append(relation_dict)
+    
+    logger.debug(f"[COMPONENTS DEBUG] Final result: {result}")
     return result

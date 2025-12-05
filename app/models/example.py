@@ -32,6 +32,7 @@ class Example(BaseModel):
         self.translations: Dict[str, str] = kwargs.get('translations', {})
         self.notes: Dict[str, str] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
+        self.traits: Dict[str, str] = kwargs.get('traits', {})
         
         # Handle form_text convenience parameter before calling super().__init__
         if 'form_text' in kwargs and isinstance(kwargs['form_text'], str):

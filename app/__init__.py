@@ -85,7 +85,7 @@ def create_app(config_name=None):
     # Register blueprints
     from app.api import api_bp
     app.register_blueprint(api_bp)
-
+    
     from app.api.validation import validation_bp
     app.register_blueprint(validation_bp)
     
@@ -129,30 +129,37 @@ def create_app(config_name=None):
     # Register XML entries API
     from app.api.xml_entries import xml_entries_bp
     app.register_blueprint(xml_entries_bp)
-
+    
+    # Register display API
+    from app.api.display import display_bp
+    app.register_blueprint(display_bp)
+    
     # Register settings blueprint
     from app.routes.settings_routes import settings_bp
     app.register_blueprint(settings_bp)
 
     # Create PostgreSQL connection pool and create tables
     app.pg_pool = None
-    try:
-        # Add connection timeout to prevent hanging
-        pg_pool = psycopg2.pool.SimpleConnectionPool(
-            1, 20,
-            user=app.config.get("PG_USER"),
-            password=app.config.get("PG_PASSWORD"),
-            host=app.config.get("PG_HOST"),
-            port=app.config.get("PG_PORT"),
-            database=app.config.get("PG_DATABASE"),
-            connect_timeout=3  # Add 3 second timeout
-        )
-        app.pg_pool = pg_pool
-        create_workset_tables(pg_pool)
-        app.logger.info(f"Successfully connected to PostgreSQL at {app.config.get('PG_HOST')}:{app.config.get('PG_PORT')}")
-    except (Exception, psycopg2.DatabaseError) as error:
-        app.logger.error(f"Error while connecting to PostgreSQL: {error}")
-        app.logger.warning("PostgreSQL features will be unavailable. See docs/POSTGRESQL_WSL_SETUP.md for setup instructions.")
+    
+    # Skip PostgreSQL connection in testing mode (uses SQLite in-memory)
+    if not app.config.get('TESTING'):
+        try:
+            # Add connection timeout to prevent hanging
+            pg_pool = psycopg2.pool.SimpleConnectionPool(
+                1, 20,
+                user=app.config.get("PG_USER"),
+                password=app.config.get("PG_PASSWORD"),
+                host=app.config.get("PG_HOST"),
+                port=app.config.get("PG_PORT"),
+                database=app.config.get("PG_DATABASE"),
+                connect_timeout=3  # Add 3 second timeout
+            )
+            app.pg_pool = pg_pool
+            create_workset_tables(pg_pool)
+            app.logger.info(f"Successfully connected to PostgreSQL at {app.config.get('PG_HOST')}:{app.config.get('PG_PORT')}")
+        except (Exception, psycopg2.DatabaseError) as error:
+            app.logger.error(f"Error while connecting to PostgreSQL: {error}")
+            app.logger.warning("PostgreSQL features will be unavailable. See docs/POSTGRESQL_WSL_SETUP.md for setup instructions.")
     
     # Initialize Swagger documentation
     swagger_config = {

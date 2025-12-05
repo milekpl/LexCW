@@ -394,6 +394,7 @@ class TestPostgreSQLIntegration:
     """Integration tests requiring actual PostgreSQL connection."""
     
     @pytest.mark.integration
+    @pytest.mark.skipif(not os.getenv('POSTGRES_HOST'), reason="PostgreSQL server not configured")
     def test_real_connection(self):
         """Test real PostgreSQL connection (requires running PostgreSQL)."""
         config = PostgreSQLConfig(
@@ -416,6 +417,7 @@ class TestPostgreSQLIntegration:
             raise
     
     @pytest.mark.integration
+    @pytest.mark.skipif(not os.getenv('POSTGRES_HOST'), reason="PostgreSQL server not configured")
     def test_schema_creation_real(self):
         """Test actual schema creation (requires running PostgreSQL)."""
         config = PostgreSQLConfig(
