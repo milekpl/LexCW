@@ -18,9 +18,9 @@ class TestAdvancedCRUD:
     @pytest.mark.integration
     def test_create_entry_duplicate_id(self, dict_service_with_db: DictionaryService) -> None:
         """Test creating an entry with a duplicate ID."""
-        # Create an entry with an ID that already exists
+        # Create an entry with a unique ID (not test_entry_1 which is from fixture)
         entry = Entry(
-            id_="test_entry_1", 
+            id_="duplicate_test_entry",
             lexical_unit={"en": "duplicate"},
             senses=[{"id": "sense_1", "definition": {"en": "a duplicate entry"}}]
         )

@@ -21,24 +21,124 @@ import subprocess
 import socket
 import time
 
-@pytest.fixture
-def dict_service_with_db() -> Generator[DictionaryService, None, None]:
-    """Yield a DictionaryService using a unique, empty BaseX test database per test, and clean up after."""
-    # Generate a unique test database name
-    test_db_name = f"test_{uuid.uuid4().hex[:8]}"
-    os.environ["TEST_DB_NAME"] = test_db_name
-    connector = BaseXConnector(database=test_db_name)
-    # Ensure the test database is created and initialized
-    ensure_test_database(connector, test_db_name)
-    service = DictionaryService(db_connector=connector)
+logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(scope="class")
+def basex_available() -> bool:
+    """Check if BaseX server is available."""
     try:
-        yield service
-    finally:
-        # Robustly drop the test database after the test
+        connector = BaseXConnector(
+            host=os.getenv('BASEX_HOST', 'localhost'),
+            port=int(os.getenv('BASEX_PORT', '1984')),
+            username=os.getenv('BASEX_USERNAME', 'admin'),
+            password=os.getenv('BASEX_PASSWORD', 'admin'),
+            database=None,  # Don't try to open a specific database
+        )
+        # Just test the session creation without opening a database
+        from BaseXClient.BaseXClient import Session as BaseXSession
+        session = BaseXSession(connector.host, connector.port, connector.username, connector.password)
+        session.close()
+        return True
+    except Exception as e:
+        logger.warning(f"BaseX server not available: {e}")
+        return False
+
+
+@pytest.fixture(scope="function")
+def test_db_name() -> str:
+    """Generate a unique test database name."""
+    return f"test_{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture(scope="function")
+def basex_test_connector(basex_available: bool, test_db_name: str):
+    """Create BaseX connector with isolated test database."""
+    if not basex_available:
+        pytest.skip("BaseX server not available")
+    
+    # First create connector without database to create the database
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=None,  # No database initially
+    )
+    
+    try:
+        # Connect without opening a database
+        connector.connect()
+        
+        # Create the test database
+        connector.create_database(test_db_name)
+        
+        # Now set the database name and reconnect
+        connector.database = test_db_name
+        connector.disconnect()
+        connector.connect()  # Reconnect with the database
+        
+        # Add sample LIFT content using BaseX command
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+    <entry id="test_entry_1">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="test_sense_1">
+            <definition>
+                <form lang="en"><text>A test entry</text></form>
+            </definition>
+            <gloss lang="pl"><text>test</text></gloss>
+        </sense>
+    </entry>
+</lift>'''
+            f.write(sample_lift)
+            temp_file = f.name
+        
+        # Use BaseX ADD command to add the document to the database
         try:
-            # Ensure connector is connected
-            if not getattr(connector, 'session', None):
-                connector.connect()
+            connector.execute_command(f"ADD {temp_file}")
+            logger.info("Added LIFT data to test database using ADD command")
+        except Exception as e:
+            logger.warning(f"Failed to add data with ADD command: {e}")
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(temp_file)
+            except OSError:
+                pass
+        
+        # Add ranges.xml similarly
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift-ranges>
+    <range id="grammatical-info">
+        <range-element id="Noun" label="Noun" abbrev="n"/>
+        <range-element id="Verb" label="Verb" abbrev="v"/>
+        <range-element id="Adjective" label="Adjective" abbrev="adj"/>
+    </range>
+</lift-ranges>'''
+            f.write(ranges_xml)
+            temp_file = f.name
+        
+        try:
+            connector.execute_command(f"ADD {temp_file}")
+            logger.info("Added ranges.xml to test database")
+        except Exception as e:
+            logger.warning(f"Failed to add ranges.xml: {e}")
+        finally:
+            try:
+                os.unlink(temp_file)
+            except OSError:
+                pass
+        
+        yield connector
+        
+    finally:
+        # Clean up test database
+        try:
             connector.execute_update(f"db:drop('{test_db_name}')")
             logger.info(f"Dropped test database: {test_db_name}")
         except Exception as e:
@@ -49,7 +149,11 @@ def dict_service_with_db() -> Generator[DictionaryService, None, None]:
             except Exception:
                 pass
 
-logger = logging.getLogger(__name__)
+
+@pytest.fixture(scope="function")
+def dict_service_with_db(basex_test_connector: BaseXConnector) -> DictionaryService:
+    """Create dictionary service with real test database."""
+    return DictionaryService(db_connector=basex_test_connector)
 
 
 # --- Flask live server fixture for Selenium integration tests ---
@@ -217,170 +321,6 @@ def populated_dict_service(dict_service_with_db: DictionaryService, sample_entry
     return dict_service_with_db
 
 
-
-
-def ensure_test_database(connector: BaseXConnector, db_name: str):
-    logger.info(f"Ensuring test database '{db_name}' exists.")
-    """
-    Ensure a test database exists and is properly initialized with minimal LIFT content.
-    
-    Args:
-        connector: BaseX connector instance
-        db_name: Name of the test database
-    """
-    try:
-        # Check if database exists, create if not
-        try:
-            exists_result = connector.execute_query(f"db:exists('{db_name}')")
-            exists = exists_result.strip().lower() == 'true'
-        except Exception:
-            exists = False
-            
-        if not exists:
-            connector.create_database(db_name)
-            logger.info(f"Created test database: {db_name}")
-        
-        # Ensure database has minimal LIFT structure
-        try:
-            result = connector.execute_query("count(//entry)")
-            entry_count = int(result.strip()) if result.strip().isdigit() else 0
-        except Exception:
-            entry_count = 0
-            
-        if entry_count == 0:
-            # Add minimal LIFT structure
-            minimal_lift = '''<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
-    <entry id="test_entry_1">
-        <lexical-unit>
-            <form lang="en"><text>test</text></form>
-        </lexical-unit>
-        <sense id="test_sense_1">
-            <definition>
-                <form lang="en"><text>A test entry</text></form>
-            </definition>
-        </sense>
-    </entry>
-</lift>'''
-            
-            try:
-                # Try different methods to add content
-                connector.execute_update(f"db:replace('{db_name}', '{minimal_lift}', 'lift.xml')")
-                logger.info(f"Added minimal LIFT content to test database: {db_name}")
-            except Exception as e:
-                logger.warning(f"Failed to add content to test database {db_name}: {e}")
-        
-        # Ensure ranges.xml exists in the database
-        try:
-            result = connector.execute_query("doc('ranges.xml')")
-            ranges_exist = bool(result and len(result.strip()) > 0)
-        except Exception:
-            ranges_exist = False
-            
-        if not ranges_exist:
-            # Add sample ranges.xml
-            ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
-<lift-ranges>
-    <range id="grammatical-info">
-        <range-element id="Noun" label="Noun" abbrev="n">
-            <description>This is a noun.</description>
-        </range-element>
-        <range-element id="Verb" label="Verb" abbrev="v">
-            <description>This is a verb.</description>
-        </range-element>
-        <range-element id="Adjective" label="Adjective" abbrev="adj">
-            <description>This is an adjective.</description>
-        </range-element>
-        <range-element id="Adverb" label="Adverb" abbrev="adv">
-            <description>This is an adverb.</description>
-        </range-element>
-        <range-element id="Pronoun" label="Pronoun" abbrev="pr">
-            <description>This is a pronoun.</description>
-        </range-element>
-        <range-element id="Preposition" label="Preposition" abbrev="pre">
-            <description>This is a preposition.</description>
-        </range-element>
-        <range-element id="Conjunction" label="Conjunction" abbrev="conj">
-            <description>This is a conjunction.</description>
-        </range-element>
-        <range-element id="Interjection" label="Interjection" abbrev="int">
-            <description>This is an interjection.</description>
-        </range-element>
-    </range>
-    <range id="variant-type">
-        <range-element id="dialectal" label="Dialectal Variant">
-            <description>A dialect variant</description>
-        </range-element>
-        <range-element id="orthographic" label="Orthographic Variant">
-            <description>Alternative spelling</description>
-        </range-element>
-    </range>
-    <range id="relation-type">
-        <range-element id="synonym" label="Synonym">
-            <description>Words with same meaning</description>
-        </range-element>
-        <range-element id="antonym" label="Antonym">
-            <description>Words with opposite meaning</description>
-        </range-element>
-    </range>
-    <range id="domain-type">
-        <range-element id="linguistics" label="Linguistics">
-            <description>Linguistic terminology</description>
-        </range-element>
-        <range-element id="mathematics" label="Mathematics">
-            <description>Mathematical terminology</description>
-        </range-element>
-        <range-element id="computer-science" label="Computer Science">
-            <description>Computing and IT terminology</description>
-        </range-element>
-    </range>
-    <range id="usage-type">
-        <range-element id="formal" label="Formal">
-            <description>Formal language</description>
-        </range-element>
-        <range-element id="informal" label="Informal">
-            <description>Informal or colloquial language</description>
-        </range-element>
-    </range>
-    <range id="etymology">
-        <range-element id="borrowed" label="Borrowed">
-            <description>A word borrowed from another language.</description>
-        </range-element>
-        <range-element id="proto" label="Proto-language">
-            <description>A reconstructed word from a proto-language.</description>
-        </range-element>
-    </range>
-    <range id="semantic-domain-ddp4">
-        <range-element id="1" label="Universe, creation">
-            <description>Related to the universe</description>
-        </range-element>
-        <range-element id="2" label="Person">
-            <description>Related to people</description>
-        </range-element>
-        <range-element id="3" label="Language and thought">
-            <description>Related to language and cognition</description>
-        </range-element>
-    </range>
-    <range id="semantic-domain">
-        <range-element id="agriculture" label="Agriculture">
-            <description>Related to farming and agriculture.</description>
-        </range-element>
-        <range-element id="technology" label="Technology">
-            <description>Related to technology and engineering.</description>
-        </range-element>
-    </range>
-</lift-ranges>'''
-            
-            try:
-                connector.execute_update(f"db:add('{db_name}', '{ranges_xml}', 'ranges.xml')")
-                logger.info(f"Added sample ranges.xml to test database: {db_name}")
-            except Exception as e:
-                logger.warning(f"Failed to add ranges.xml to test database {db_name}: {e}")
-                
-    except Exception as e:
-        logger.error(f"Failed to ensure test database {db_name}: {e}")
-        raise
-
-
 # Unit test configuration
 def pytest_configure(config):
     """Configure pytest for unit tests."""
@@ -396,21 +336,24 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Marks tests based on their location: `unit` or `integration`."""
+    """Marks tests based on their location: `unit`, `integration`, or `e2e`."""
     for item in items:
         path = str(item.fspath).replace('\\', '/')  # Normalize path separators
         if "tests/unit/" in path:
             item.add_marker(pytest.mark.unit)
         elif "tests/integration/" in path:
             item.add_marker(pytest.mark.integration)
+        elif "tests/e2e/" in path:
+            item.add_marker(pytest.mark.e2e)
+            item.add_marker(pytest.mark.integration)  # E2E tests are also integration tests
 
-    # Deselect tests not in unit or integration folders
+    # Deselect tests not in unit, integration, or e2e folders
     selected_items = []
     deselected_items = []
 
     for item in items:
         path = str(item.fspath).replace('\\', '/')  # Normalize path separators
-        if "tests/unit/" in path or "tests/integration/" in path:
+        if "tests/unit/" in path or "tests/integration/" in path or "tests/e2e/" in path:
             selected_items.append(item)
         else:
             deselected_items.append(item)

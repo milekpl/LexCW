@@ -43,6 +43,43 @@ class PronunciationFormsManager {
                 this.generateAudio(index);
             }
         });
+        
+        // LIFT 0.13: CV Pattern and Tone (Day 40)
+        // Add cv-pattern language button
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest('.add-cv-pattern-language-btn')) {
+                const button = e.target.closest('.add-cv-pattern-language-btn');
+                const pronIndex = button.dataset.pronIndex;
+                const container = button.closest('.mt-3').querySelector('.cv-pattern-forms');
+                this.addPronunciationCustomFieldLanguage(container, pronIndex, 'cv_pattern');
+            }
+        });
+        
+        // Remove cv-pattern language button
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest('.remove-cv-pattern-language-btn')) {
+                const languageForm = e.target.closest('.language-form-group');
+                this.removePronunciationCustomFieldLanguage(languageForm);
+            }
+        });
+        
+        // Add tone language button
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest('.add-tone-language-btn')) {
+                const button = e.target.closest('.add-tone-language-btn');
+                const pronIndex = button.dataset.pronIndex;
+                const container = button.closest('.mt-3').querySelector('.tone-forms');
+                this.addPronunciationCustomFieldLanguage(container, pronIndex, 'tone');
+            }
+        });
+        
+        // Remove tone language button
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest('.remove-tone-language-btn')) {
+                const languageForm = e.target.closest('.language-form-group');
+                this.removePronunciationCustomFieldLanguage(languageForm);
+            }
+        });
     }
     
     renderExistingPronunciations() {
@@ -167,6 +204,48 @@ class PronunciationFormsManager {
                             <i class="fas fa-microphone"></i> Generate
                         </button>
                     </div>
+                </div>
+                
+                <!-- LIFT 0.13: CV Pattern (Day 40) -->
+                <div class="mt-3 mb-2">
+                    <label class="form-label">
+                        CV Pattern
+                        <i class="fas fa-info-circle ms-1 form-tooltip" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           data-bs-html="true"
+                           title="<strong>About CV Pattern:</strong><br>Consonant-Vowel syllable structure pattern (e.g., CV, CVC, CVCC). Useful for phonological analysis."></i>
+                    </label>
+                    <div class="multilingual-forms cv-pattern-forms" data-pron-index="${index}">
+                        <!-- CV pattern languages will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary add-cv-pattern-language-btn" 
+                            data-pron-index="${index}"
+                            title="Add CV pattern in another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                    <div class="form-text small">Syllable structure pattern (Consonant-Vowel notation).</div>
+                </div>
+                
+                <!-- LIFT 0.13: Tone (Day 40) -->
+                <div class="mt-3 mb-2">
+                    <label class="form-label">
+                        Tone
+                        <i class="fas fa-info-circle ms-1 form-tooltip" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           data-bs-html="true"
+                           title="<strong>About Tone:</strong><br>Tone information for tone languages (e.g., High, Low, Rising, Falling, or numeric notation like 35, 51)."></i>
+                    </label>
+                    <div class="multilingual-forms tone-forms" data-pron-index="${index}">
+                        <!-- Tone languages will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary add-tone-language-btn" 
+                            data-pron-index="${index}"
+                            title="Add tone in another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                    <div class="form-text small">Tone marking for tone languages.</div>
                 </div>
                 
                 <div class="form-check">
@@ -436,6 +515,122 @@ class PronunciationFormsManager {
         
         audioElement.addEventListener('loadedmetadata', () => {
             console.log('Audio loaded successfully:', filename);
+        });
+    }
+    
+    /**
+     * Add a language form to a pronunciation custom field (cv_pattern or tone)
+     * @param {HTMLElement} container - Container for language forms
+     * @param {number} pronIndex - Pronunciation index
+     * @param {string} fieldName - Field name ('cv_pattern' or 'tone')
+     */
+    addPronunciationCustomFieldLanguage(container, pronIndex, fieldName) {
+        // Get available languages from a select element if present, or use defaults
+        const selectElement = document.querySelector('select.language-selector');
+        let availableLanguages = ['en', 'fr', 'pt', 'es'];
+        if (selectElement) {
+            availableLanguages = Array.from(selectElement.options)
+                .map(opt => opt.value)
+                .filter(val => val); // Remove empty values
+        }
+        
+        const existingLangs = Array.from(container.querySelectorAll('.language-form-group'))
+            .map(form => form.dataset.lang);
+        const availableLang = availableLanguages.find(lang => !existingLangs.includes(lang)) || availableLanguages[0];
+        
+        const displayName = fieldName === 'cv_pattern' ? 'CV Pattern' : 'Tone';
+        const placeholder = fieldName === 'cv_pattern' ? 'e.g., CVCC, CV-CVC' : 'e.g., High, 35, Rising';
+        
+        const languageFormHtml = `
+            <div class="language-form-group mb-2 border rounded p-2" data-lang="${availableLang}">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <label class="form-label small">Language</label>
+                        <select class="form-select form-select-sm language-selector" 
+                                name="pronunciations[${pronIndex}].${fieldName}.${availableLang}.lang"
+                                data-field-name="pronunciations[${pronIndex}].${fieldName}.${availableLang}">
+                            <option value="">Select language</option>
+                            ${availableLanguages.map(lang => 
+                                `<option value="${lang}" ${lang === availableLang ? 'selected' : ''}>${lang}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="col-md-9">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-grow-1">
+                                <label class="form-label small">${displayName}</label>
+                                <input type="text" class="form-control form-control-sm ${fieldName}-text" 
+                                       name="pronunciations[${pronIndex}].${fieldName}.${availableLang}.text" 
+                                       placeholder="${placeholder}">
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-${fieldName}-language-btn ms-2 mt-4" 
+                                    data-pron-index="${pronIndex}"
+                                    title="Remove this language">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', languageFormHtml);
+        
+        // Attach language change handler
+        const newForm = container.lastElementChild;
+        const select = newForm.querySelector('.language-selector');
+        select.addEventListener('change', (e) => this.handlePronunciationCustomFieldLanguageChange(e, pronIndex, fieldName));
+    }
+    
+    /**
+     * Remove a language form from a pronunciation custom field
+     * @param {HTMLElement} languageForm - Language form element to remove
+     */
+    removePronunciationCustomFieldLanguage(languageForm) {
+        if (languageForm) {
+            languageForm.remove();
+        }
+    }
+    
+    /**
+     * Handle language change for pronunciation custom fields
+     * @param {Event} event - Change event
+     * @param {number} pronIndex - Pronunciation index
+     * @param {string} fieldName - Field name ('cv_pattern' or 'tone')
+     */
+    handlePronunciationCustomFieldLanguageChange(event, pronIndex, fieldName) {
+        const select = event.target;
+        const newLang = select.value;
+        const languageForm = select.closest('.language-form-group');
+        const oldLang = languageForm.dataset.lang;
+        
+        if (!newLang || newLang === oldLang) return;
+        
+        // Update data-lang attribute
+        languageForm.dataset.lang = newLang;
+        
+        // Update all inputs/selects within this form
+        const inputs = languageForm.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            const name = input.getAttribute('name');
+            if (name) {
+                const newName = name.replace(
+                    `pronunciations[${pronIndex}].${fieldName}.${oldLang}`,
+                    `pronunciations[${pronIndex}].${fieldName}.${newLang}`
+                );
+                input.setAttribute('name', newName);
+            }
+            
+            // Update data-field-name for language selector
+            if (input.classList.contains('language-selector')) {
+                const fieldName = input.dataset.fieldName;
+                if (fieldName) {
+                    input.dataset.fieldName = fieldName.replace(
+                        `pronunciations[${pronIndex}].${fieldName}.${oldLang}`,
+                        `pronunciations[${pronIndex}].${fieldName}.${newLang}`
+                    );
+                }
+            }
         });
     }
     

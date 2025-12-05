@@ -133,6 +133,14 @@ class LIFTXMLSerializer {
             console.log('[FORM SUBMIT] Serialized senses: 0');
         }
 
+        // LIFT 0.13: Add annotations (editorial workflow) - Day 26-27
+        if (formData.annotations && formData.annotations.length > 0) {
+            formData.annotations.forEach(annotationData => {
+                const annotation = this.serializeAnnotation(doc, annotationData);
+                entry.appendChild(annotation);
+            });
+        }
+
         // Serialize to string
         const serializer = new XMLSerializer();
         let xmlString = serializer.serializeToString(doc);
@@ -240,6 +248,30 @@ class LIFTXMLSerializer {
             });
         }
 
+        // LIFT 0.13: Add reversals (bilingual dictionary support) - Day 24-25
+        if (senseData.reversals && senseData.reversals.length > 0) {
+            senseData.reversals.forEach(reversalData => {
+                const reversal = this.serializeReversal(doc, reversalData);
+                sense.appendChild(reversal);
+            });
+        }
+
+        // LIFT 0.13: Add annotations (editorial workflow) - Day 26-27
+        if (senseData.annotations && senseData.annotations.length > 0) {
+            senseData.annotations.forEach(annotationData => {
+                const annotation = this.serializeAnnotation(doc, annotationData);
+                sense.appendChild(annotation);
+            });
+        }
+
+        // LIFT 0.13: Add illustrations (images/graphics) - Day 33-34
+        if (senseData.illustrations && senseData.illustrations.length > 0) {
+            senseData.illustrations.forEach(illustrationData => {
+                const illustration = this.serializeIllustration(doc, illustrationData);
+                sense.appendChild(illustration);
+            });
+        }
+
         return sense;
     }
 
@@ -339,6 +371,163 @@ class LIFTXMLSerializer {
         }
 
         return subsense;
+    }
+
+    /**
+     * LIFT 0.13: Serialize reversal data to LIFT XML reversal element - Day 24-25
+     * Reversals support bilingual dictionaries (L2→L1 translations)
+     * 
+     * @param {Document} doc - XML document
+     * @param {Object} reversalData - Reversal data object
+     * @returns {Element} Reversal element
+     */
+    serializeReversal(doc, reversalData) {
+        const reversal = doc.createElementNS(this.LIFT_NS, 'reversal');
+
+        // Optional type attribute (language code)
+        if (reversalData.type) {
+            reversal.setAttribute('type', reversalData.type);
+        }
+
+        // Add forms (multitext)
+        if (reversalData.forms && Object.keys(reversalData.forms).length > 0) {
+            Object.entries(reversalData.forms).forEach(([lang, text]) => {
+                if (text) {
+                    const form = this.createForm(doc, lang, text);
+                    reversal.appendChild(form);
+                }
+            });
+        }
+
+        // Add grammatical-info at reversal level
+        if (reversalData.grammaticalInfo || reversalData.grammatical_info) {
+            const gramInfo = reversalData.grammaticalInfo || reversalData.grammatical_info;
+            const grammaticalInfoElement = this.createGrammaticalInfo(doc, gramInfo);
+            reversal.appendChild(grammaticalInfoElement);
+        }
+
+        // Add main sub-element (can be recursive)
+        if (reversalData.main) {
+            const mainElement = this.serializeReversalMain(doc, reversalData.main);
+            reversal.appendChild(mainElement);
+        }
+
+        return reversal;
+    }
+
+    /**
+     * LIFT 0.13: Serialize reversal main element (recursive structure) - Day 24-25
+     * 
+     * @param {Document} doc - XML document
+     * @param {Object} mainData - Main element data object
+     * @returns {Element} Main element
+     */
+    serializeReversalMain(doc, mainData) {
+        const main = doc.createElementNS(this.LIFT_NS, 'main');
+
+        // Add forms (multitext)
+        if (mainData.forms && Object.keys(mainData.forms).length > 0) {
+            Object.entries(mainData.forms).forEach(([lang, text]) => {
+                if (text) {
+                    const form = this.createForm(doc, lang, text);
+                    main.appendChild(form);
+                }
+            });
+        }
+
+        // Add grammatical-info at main level
+        if (mainData.grammaticalInfo || mainData.grammatical_info) {
+            const gramInfo = mainData.grammaticalInfo || mainData.grammatical_info;
+            const grammaticalInfoElement = this.createGrammaticalInfo(doc, gramInfo);
+            main.appendChild(grammaticalInfoElement);
+        }
+
+        // RECURSIVE: Add nested main elements
+        if (mainData.main) {
+            const nestedMain = this.serializeReversalMain(doc, mainData.main);
+            main.appendChild(nestedMain);
+        }
+
+        return main;
+    }
+
+    /**
+     * LIFT 0.13: Serialize annotation data to LIFT XML annotation element - Day 26-27
+     * Annotations support editorial workflow (review status, comments)
+     * 
+     * @param {Document} doc - XML document
+     * @param {Object} annotationData - Annotation data object
+     * @returns {Element} Annotation element
+     */
+    serializeAnnotation(doc, annotationData) {
+        const annotation = doc.createElementNS(this.LIFT_NS, 'annotation');
+
+        // Required: name attribute
+        if (annotationData.name) {
+            annotation.setAttribute('name', annotationData.name);
+        }
+
+        // Optional: value attribute
+        if (annotationData.value) {
+            annotation.setAttribute('value', annotationData.value);
+        }
+
+        // Optional: who attribute (person/email)
+        if (annotationData.who) {
+            annotation.setAttribute('who', annotationData.who);
+        }
+
+        // Optional: when attribute (datetime)
+        if (annotationData.when) {
+            annotation.setAttribute('when', annotationData.when);
+        }
+
+        // Add multitext content (forms)
+        if (annotationData.content && typeof annotationData.content === 'object') {
+            Object.entries(annotationData.content).forEach(([lang, text]) => {
+                if (text) {
+                    const form = this.createForm(doc, lang, text);
+                    annotation.appendChild(form);
+                }
+            });
+        }
+
+        return annotation;
+    }
+
+    /**
+     * Serialize illustration data to LIFT XML illustration element (Day 33-34)
+     * 
+     * @param {Document} doc - XML document
+     * @param {Object} illustrationData - Illustration data object
+     * @returns {Element} Illustration element
+     */
+    serializeIllustration(doc, illustrationData) {
+        const illustration = doc.createElementNS(this.LIFT_NS, 'illustration');
+
+        // Required: href attribute (path or URL to image)
+        if (illustrationData.href) {
+            illustration.setAttribute('href', illustrationData.href);
+        }
+
+        // Optional: multilingual label/caption
+        if (illustrationData.label && typeof illustrationData.label === 'object') {
+            const label = doc.createElementNS(this.LIFT_NS, 'label');
+            
+            Object.entries(illustrationData.label).forEach(([lang, text]) => {
+                if (text) {
+                    const form = this.createForm(doc, lang, text);
+                    label.appendChild(form);
+                }
+            });
+            
+            // Only append label if it has forms
+            if (label.childNodes.length > 0) {
+                illustration.appendChild(label);
+            }
+        }
+
+        return illustration;
     }
 
     /**
@@ -489,6 +678,32 @@ class LIFTXMLSerializer {
                 media.setAttribute('href', mediaData.href);
                 pronunciation.appendChild(media);
             });
+        }
+        
+        // LIFT 0.13: Add cv-pattern custom field (Day 40)
+        if (pronData.cv_pattern && Object.keys(pronData.cv_pattern).length > 0) {
+            const cvPatternField = doc.createElementNS(this.LIFT_NS, 'field');
+            cvPatternField.setAttribute('type', 'cv-pattern');
+            Object.entries(pronData.cv_pattern).forEach(([lang, text]) => {
+                if (text) {
+                    const form = this.createForm(doc, lang, text);
+                    cvPatternField.appendChild(form);
+                }
+            });
+            pronunciation.appendChild(cvPatternField);
+        }
+        
+        // LIFT 0.13: Add tone custom field (Day 40)
+        if (pronData.tone && Object.keys(pronData.tone).length > 0) {
+            const toneField = doc.createElementNS(this.LIFT_NS, 'field');
+            toneField.setAttribute('type', 'tone');
+            Object.entries(pronData.tone).forEach(([lang, text]) => {
+                if (text) {
+                    const form = this.createForm(doc, lang, text);
+                    toneField.appendChild(form);
+                }
+            });
+            pronunciation.appendChild(toneField);
         }
 
         return pronunciation;

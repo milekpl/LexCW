@@ -198,8 +198,11 @@ class ValidationEngine:
                 ValidationEngine._jsonpath_cache[path] = jsonpath_expr
             matches = jsonpath_expr.find(data)
             
+            # Extract condition type - it can be either a string or a dict with 'type' key
+            condition_type = condition if isinstance(condition, str) else condition.get('type')
+            
             # Handle different condition types
-            if condition == "required":
+            if condition_type == "required":
                 # For array element paths like $.senses[*].id, only validate if elements exist
                 # Don't require the elements themselves to exist
                 if '[*]' in path:
@@ -217,13 +220,13 @@ class ValidationEngine:
                             if not self._validate_value(match.value, validation):
                                 errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
             
-            elif condition == "if_present":
+            elif condition_type == "if_present":
                 # Only validate if the field is present
                 for match in matches:
                     if match.value is not None and not self._validate_value(match.value, validation):
                         errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
             
-            elif condition == "custom":
+            elif condition_type == "custom":
                 # Handle custom validation functions
                 custom_errors = self._apply_custom_validation(rule_id, rule_config, data, matches)
                 errors.extend(custom_errors)
@@ -479,6 +482,12 @@ class ValidationEngine:
             errors.extend(self._validate_pos_consistency(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_conflicting_pos':
             errors.extend(self._validate_conflicting_pos(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_no_circular_components':
+            errors.extend(self._validate_no_circular_components(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_no_circular_sense_relations':
+            errors.extend(self._validate_no_circular_sense_relations(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_no_circular_entry_relations':
+            errors.extend(self._validate_no_circular_entry_relations(rule_id, rule_config, data, matches))
         
         return errors
     
@@ -813,8 +822,12 @@ class ValidationEngine:
             if isinstance(obj, dict):
                 for key, value in obj.items():
                     new_path = f"{path}.{key}"
-                    if 'date' in key.lower() and isinstance(value, str):
-                        # This is a date field, validate it
+                    # Skip GenDate custom fields (Day 36-37) - they use YYYYMMDD format, not ISO 8601
+                    # GenDate fields are named like "CustomFldEntry-Date", "CustomFldSense-FirstRecorded", etc.
+                    is_gendate_field = ('CustomFld' in key and 'Date' in key) or (path.endswith('.traits') and 'date' in key.lower())
+                    
+                    if 'date' in key.lower() and isinstance(value, str) and not is_gendate_field:
+                        # This is a standard date field (not GenDate), validate it
                         if regex and not regex.match(value):
                             errors.append(ValidationError(
                                 rule_id=rule_id,
@@ -1035,6 +1048,115 @@ class ValidationEngine:
                     category=ValidationCategory(rule_config['category']),
                     value=None
                 ))
+        
+        return errors
+
+
+    def _validate_no_circular_components(self, rule_id: str, rule_config: Dict[str, Any],
+                                        data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R8.1.1: Validate that component relations don't reference the entry itself."""
+        errors: List[ValidationError] = []
+        entry_id = data.get('id')
+        
+        if not entry_id:
+            return errors
+        
+        relations = data.get('relations', [])
+        for idx, relation in enumerate(relations):
+            if not isinstance(relation, dict):
+                continue
+                
+            if relation.get('type') == '_component-lexeme':
+                ref = relation.get('ref')
+                if ref and ref == entry_id:
+                    errors.append(
+                        ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config.get('name', ''),
+                            message=rule_config.get('error_message', 'Component relation cannot reference the entry itself'),
+                            path=f"$.relations[{idx}].ref",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=ref
+                        )
+                    )
+        
+        return errors
+
+
+    def _validate_no_circular_sense_relations(self, rule_id: str, rule_config: Dict[str, Any],
+                                             data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R8.1.2: Validate that sense relations don't reference senses within the same entry."""
+        errors: List[ValidationError] = []
+        entry_id = data.get('id')
+        
+        if not entry_id:
+            return errors
+        
+        senses = data.get('senses', [])
+        for sense_idx, sense in enumerate(senses):
+            if not isinstance(sense, dict):
+                continue
+                
+            sense_relations = sense.get('relations', [])
+            for rel_idx, relation in enumerate(sense_relations):
+                if not isinstance(relation, dict):
+                    continue
+                    
+                ref = relation.get('ref')
+                if not ref:
+                    continue
+                
+                # Check if ref points to a sense in the same entry
+                # Format can be: "entry_id_sense_id" or just "sense_guid"
+                # If it starts with entry_id, it's a circular reference
+                if ref.startswith(entry_id):
+                    errors.append(
+                        ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config.get('name', ''),
+                            message=rule_config.get('error_message', 'Sense relation cannot reference a sense within the same entry'),
+                            path=f"$.senses[{sense_idx}].relations[{rel_idx}].ref",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=ref
+                        )
+                    )
+        
+        return errors
+
+
+    def _validate_no_circular_entry_relations(self, rule_id: str, rule_config: Dict[str, Any],
+                                             data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R8.1.3: Validate that entry-level relations don't reference the entry itself."""
+        errors: List[ValidationError] = []
+        entry_id = data.get('id')
+        
+        if not entry_id:
+            return errors
+        
+        relations = data.get('relations', [])
+        for idx, relation in enumerate(relations):
+            if not isinstance(relation, dict):
+                continue
+                
+            # Skip component-lexeme relations (handled by R8.1.1)
+            if relation.get('type') == '_component-lexeme':
+                continue
+                
+            ref = relation.get('ref')
+            if ref and ref == entry_id:
+                errors.append(
+                    ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config.get('name', ''),
+                        message=rule_config.get('error_message', 'Entry relation cannot reference the entry itself'),
+                        path=f"$.relations[{idx}].ref",
+                        priority=ValidationPriority(rule_config['priority']),
+                        category=ValidationCategory(rule_config['category']),
+                        value=ref
+                    )
+                )
         
         return errors
 

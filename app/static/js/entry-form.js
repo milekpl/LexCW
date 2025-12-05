@@ -402,12 +402,79 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        const uploadBtn = e.target.closest('.upload-audio-btn');
+        if (uploadBtn) {
+            const index = uploadBtn.dataset.index;
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'audio/*';
+            
+            fileInput.onchange = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                // For now, just set the filename (in production, upload to server)
+                // TODO: Implement actual server-side upload
+                const audioPath = `audio/${file.name}`;
+                const pronunciationItem = uploadBtn.closest('.pronunciation-item');
+                const audioPathInput = pronunciationItem.querySelector('input[name*="audio_path"]');
+                audioPathInput.value = audioPath;
+                
+                console.log('Selected audio file:', file.name, 'Size:', file.size, 'bytes');
+                // TODO: Upload file to server and get actual path/URL
+            };
+            
+            fileInput.click();
+            return;
+        }
+
         const generateBtn = e.target.closest('.generate-audio-btn');
         if (generateBtn) {
             const pronunciationItem = generateBtn.closest('.pronunciation-item');
             const ipaInput = pronunciationItem.querySelector('.ipa-input');
             const lexicalUnit = document.getElementById('lexical-unit').value;
-            generateAudio(lexicalUnit, ipaInput.value, generateBtn.dataset.index);
+            
+            // Allow generation even without IPA - will use word text for TTS
+            const ipaValue = ipaInput ? ipaInput.value.trim() : '';
+            generateAudio(lexicalUnit, ipaValue, generateBtn.dataset.index);
+        }
+    });
+
+    // --- Entry-Level Annotation Handlers (document-level, outside senses container) ---
+    document.addEventListener('click', function(e) {
+        // Only handle entry-level annotation buttons (not sense-level, which are in sensesContainer)
+        const target = e.target.closest('.add-annotation-btn, .remove-annotation-btn, .add-annotation-language-btn');
+        if (!target) return;
+        
+        // Check if this is an entry-level annotation (not inside senses-container)
+        if (target.closest('#senses-container')) {
+            // Let the sensesContainer handler deal with it
+            return;
+        }
+        
+        // Handle Add Annotation for entry
+        if (target.classList.contains('add-annotation-btn')) {
+            const containerType = target.dataset.containerType;
+            const index = target.dataset.index;
+            addAnnotation(containerType, index);
+            return;
+        }
+        
+        // Handle Remove Annotation for entry
+        if (target.classList.contains('remove-annotation-btn')) {
+            const annotationItem = target.closest('.annotation-item');
+            const containerType = target.dataset.containerType;
+            const index = target.dataset.index;
+            if (annotationItem && confirm('Are you sure you want to remove this annotation?')) {
+                removeAnnotation(annotationItem, containerType, index);
+            }
+            return;
+        }
+        
+        // Handle Add Language for entry annotations
+        if (target.classList.contains('add-annotation-language-btn')) {
+            addAnnotationLanguage(target);
+            return;
         }
     });
 
@@ -525,6 +592,51 @@ document.addEventListener('DOMContentLoaded', function() {
                 const senseIndex = addNestedSubsenseBtn.dataset.senseIndex;
                 const parentSubsenseIndex = addNestedSubsenseBtn.dataset.subsenseIndex;
                 addNestedSubsense(senseIndex, parentSubsenseIndex);
+                return;
+            }
+
+            // --- LIFT 0.13: Reversal Handlers (Day 24-25) ---
+            const addReversalBtn = e.target.closest('.add-reversal-btn');
+            if (addReversalBtn) {
+                const senseIndex = addReversalBtn.dataset.senseIndex;
+                addReversal(senseIndex);
+                return;
+            }
+
+            const removeReversalBtn = e.target.closest('.remove-reversal-btn');
+            if (removeReversalBtn) {
+                const reversalItem = removeReversalBtn.closest('.reversal-item');
+                const senseIndex = removeReversalBtn.dataset.senseIndex;
+                if (reversalItem && confirm('Are you sure you want to remove this reversal?')) {
+                    removeReversal(reversalItem, senseIndex);
+                }
+                return;
+            }
+            
+            // --- LIFT 0.13: Annotation Handlers (Day 26-27) ---
+            const addAnnotationBtn = e.target.closest('.add-annotation-btn');
+            if (addAnnotationBtn) {
+                const containerType = addAnnotationBtn.dataset.containerType; // "entry" or "sense"
+                const index = addAnnotationBtn.dataset.index;
+                addAnnotation(containerType, index);
+                return;
+            }
+            
+            const removeAnnotationBtn = e.target.closest('.remove-annotation-btn');
+            if (removeAnnotationBtn) {
+                const annotationItem = removeAnnotationBtn.closest('.annotation-item');
+                const containerType = removeAnnotationBtn.dataset.containerType;
+                const index = removeAnnotationBtn.dataset.index;
+                if (annotationItem && confirm('Are you sure you want to remove this annotation?')) {
+                    removeAnnotation(annotationItem, containerType, index);
+                }
+                return;
+            }
+            
+            // --- Annotation Add Language Button ---
+            const addAnnotationLanguageBtn = e.target.closest('.add-annotation-language-btn');
+            if (addAnnotationLanguageBtn) {
+                addAnnotationLanguage(addAnnotationLanguageBtn);
                 return;
             }
         });
@@ -1050,6 +1162,125 @@ function reindexSubsenses(senseIndex) {
     });
 }
 
+// --- LIFT 0.13: Reversal Functions (Day 24-25) ---
+
+/**
+ * Adds a new reversal to a specific sense.
+ * @param {number|string} senseIndex - The index of the parent sense.
+ */
+async function addReversal(senseIndex) {
+    const reversalsContainer = document.querySelector(`.reversals-container[data-sense-index="${senseIndex}"]`);
+    const templateEl = document.getElementById('reversal-template');
+    if (!reversalsContainer || !templateEl) return;
+
+    const newIndex = reversalsContainer.querySelectorAll('.reversal-item').length;
+    const newNumber = newIndex + 1;
+
+    let template = templateEl.innerHTML
+        .replace(/SENSE_INDEX/g, senseIndex)
+        .replace(/REVERSAL_INDEX/g, newIndex)
+        .replace(/NUMBER/g, newNumber);
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = template;
+    const newReversalElement = tempDiv.firstElementChild;
+    
+    // Remove "no reversals" placeholder if exists
+    const noReversalsPlaceholder = reversalsContainer.querySelector('.no-reversals');
+    if (noReversalsPlaceholder) {
+        noReversalsPlaceholder.remove();
+    }
+    
+    reversalsContainer.appendChild(newReversalElement);
+
+    // Populate reversal type select
+    const typeSelect = newReversalElement.querySelector('.reversal-type-select');
+    if (typeSelect && window.rangesLoader) {
+        await window.rangesLoader.populateSelect(typeSelect, 'reversal-type', {
+            emptyOption: '-- Select Language --'
+        });
+    }
+
+    // Populate grammatical info selects
+    const grammaticalSelects = newReversalElement.querySelectorAll('.dynamic-grammatical-info');
+    grammaticalSelects.forEach(async select => {
+        if (window.rangesLoader) {
+            await window.rangesLoader.populateSelect(select, 'grammatical-info', {
+                emptyOption: '-- Select --'
+            });
+        }
+    });
+}
+
+/**
+ * Removes a reversal from a specific sense.
+ * @param {Element} reversalItem - The reversal item element to remove.
+ * @param {number|string} senseIndex - The index of the parent sense.
+ */
+function removeReversal(reversalItem, senseIndex) {
+    if (!reversalItem) return;
+
+    const reversalsContainer = reversalItem.closest('.reversals-container');
+    reversalItem.remove();
+
+    // If no more reversals, show placeholder
+    const remainingReversals = reversalsContainer.querySelectorAll('.reversal-item');
+    if (remainingReversals.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'no-reversals text-center text-muted py-2 border border-info border-opacity-25 rounded';
+        placeholder.innerHTML = '<p class="mb-2"><small>No reversals yet. Add reversals for bilingual dictionary support.</small></p>';
+        reversalsContainer.appendChild(placeholder);
+    } else {
+        // Re-index remaining reversals
+        reindexReversals(senseIndex);
+    }
+}
+
+/**
+ * Re-indexes all reversals for a specific sense after removal.
+ * @param {number|string} senseIndex - The index of the parent sense.
+ */
+function reindexReversals(senseIndex) {
+    const reversalsContainer = document.querySelector(`.reversals-container[data-sense-index="${senseIndex}"]`);
+    if (!reversalsContainer) return;
+
+    const reversalItems = reversalsContainer.querySelectorAll('.reversal-item');
+    reversalItems.forEach((reversal, newIndex) => {
+        const oldIndex = reversal.dataset.reversalIndex;
+        if (oldIndex === newIndex.toString()) return;
+
+        // Update visual elements
+        reversal.querySelector('.card-header span').innerHTML = `<i class="fas fa-language"></i> Reversal ${newIndex + 1}`;
+
+        // Update data attribute
+        reversal.dataset.reversalIndex = newIndex;
+
+        // Update all name attributes
+        reversal.querySelectorAll('[name]').forEach(input => {
+            const name = input.getAttribute('name');
+            const newName = name.replace(
+                new RegExp(`senses\\[${senseIndex}\\]\\.reversals\\[${oldIndex}\\]`),
+                `senses[${senseIndex}].reversals[${newIndex}]`
+            );
+            input.setAttribute('name', newName);
+        });
+
+        // Update data-reversal-index on buttons
+        reversal.querySelectorAll('[data-reversal-index]').forEach(btn => {
+            btn.dataset.reversalIndex = newIndex;
+        });
+
+        // Update collapse target IDs for main element
+        const toggleBtn = reversal.querySelector('.toggle-main-btn');
+        const collapseDiv = reversal.querySelector('.collapse');
+        if (toggleBtn && collapseDiv) {
+            const newId = `reversal-main-${senseIndex}-${newIndex}`;
+            toggleBtn.setAttribute('data-bs-target', `#${newId}`);
+            collapseDiv.id = newId;
+        }
+    });
+}
+
 // --- Re-indexing Functions ---
 
 /**
@@ -1149,6 +1380,12 @@ function generateAudio(word, ipa, index) {
     const btn = document.querySelector(`.generate-audio-btn[data-index="${index}"]`);
     if (!btn) return;
 
+    // Check if we have either word or IPA to generate from
+    if (!word || word.trim() === '') {
+        showToast('Please enter a lexical unit (word) to generate audio', 'warning');
+        return;
+    }
+
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
     btn.disabled = true;
@@ -1160,7 +1397,7 @@ function generateAudio(word, ipa, index) {
             },
             body: JSON.stringify({
                 word,
-                ipa
+                ipa  // Can be empty - backend will use word text for TTS
             })
         })
         .then(async response => {
@@ -1190,4 +1427,280 @@ function generateAudio(word, ipa, index) {
             btn.disabled = false;
         });
 }
+
+// =====================
+// LIFT 0.13: Annotation Management (Day 26-27)
+// =====================
+
+/**
+ * Adds a new annotation to entry or sense.
+ * @param {string} containerType - "entry" or "sense"
+ * @param {number|string} index - The index (0 for entry, sense index for sense)
+ */
+function addAnnotation(containerType, index) {
+    const selector = containerType === 'entry' 
+        ? '.annotations-container[data-container-type="entry"]'
+        : `.annotations-container[data-container-type="sense"][data-index="${index}"]`;
+    
+    const annotationsContainer = document.querySelector(selector);
+    if (!annotationsContainer) return;
+
+    const newIndex = annotationsContainer.querySelectorAll('.annotation-item').length;
+    const newNumber = newIndex + 1;
+
+    // Build name prefix
+    const namePrefix = containerType === 'entry' 
+        ? `annotations[${newIndex}]`
+        : `senses[${index}].annotations[${newIndex}]`;
+    
+    // Build collapse ID
+    const collapseId = containerType === 'entry'
+        ? `annotation-content-entry-${newIndex}`
+        : `annotation-content-${index}-${newIndex}`;
+
+    // Create new annotation HTML
+    const newAnnotationHTML = `
+        <div class="annotation-item card mb-3 border-warning" data-annotation-index="${newIndex}">
+            <div class="card-header bg-warning bg-opacity-10">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-tag"></i> Annotation ${newNumber}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-annotation-btn"
+                            data-container-type="${containerType}" data-index="${index}" data-annotation-index="${newIndex}">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Annotation Name (required) -->
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control annotation-name-input" 
+                           name="${namePrefix}.name"
+                           placeholder="e.g., review-status, comment, flagged"
+                           required>
+                    <small class="form-text text-muted">
+                        Common names: review-status, comment, reviewer-comment, approval-status, flagged, priority, needs-revision
+                    </small>
+                </div>
+                
+                <!-- Annotation Value (optional) -->
+                <div class="mb-3">
+                    <label class="form-label">Value</label>
+                    <input type="text" class="form-control" 
+                           name="${namePrefix}.value"
+                           placeholder="e.g., approved, pending, rejected">
+                </div>
+                
+                <!-- Annotation Who (optional) -->
+                <div class="mb-3">
+                    <label class="form-label">Who</label>
+                    <input type="text" class="form-control" 
+                           name="${namePrefix}.who"
+                           placeholder="e.g., editor@example.com, John Doe">
+                    <small class="form-text text-muted">Person or email who created this annotation (will be auto-filled with username when user management is implemented)</small>
+                </div>
+                
+                <!-- Annotation When (auto-populated) -->
+                <div class="mb-3">
+                    <label class="form-label">When</label>
+                    <input type="datetime-local" class="form-control" 
+                           name="${namePrefix}.when"
+                           value="${new Date().toISOString().slice(0, 16)}"
+                           readonly>
+                    <small class="form-text text-muted">Timestamp when this annotation was created (auto-generated)</small>
+                </div>
+                
+                <!-- Annotation Content (collapsible) -->
+                <div class="annotation-content-section">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0">Content</label>
+                        <button type="button" class="btn btn-sm btn-outline-secondary toggle-content-btn"
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#${collapseId}">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                    <div class="collapse" id="${collapseId}">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <div class="annotation-content-forms">
+                                    <div class="input-group mb-2">
+                                        <span class="input-group-text">en</span>
+                                        <textarea class="form-control" 
+                                               name="${namePrefix}.content.en"
+                                               rows="2"
+                                               placeholder="Enter comment or description in English"></textarea>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2 add-annotation-language-btn">
+                                    <i class="fas fa-plus"></i> Add Language
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = newAnnotationHTML.trim();
+    const newAnnotationElement = tempDiv.firstElementChild;
+    
+    // Remove "no annotations" placeholder if exists
+    const noAnnotationsPlaceholder = annotationsContainer.querySelector('.no-annotations');
+    if (noAnnotationsPlaceholder) {
+        noAnnotationsPlaceholder.remove();
+    }
+    
+    annotationsContainer.appendChild(newAnnotationElement);
+}
+
+/**
+ * Removes an annotation from entry or sense.
+ * @param {Element} annotationItem - The annotation item element to remove.
+ * @param {string} containerType - "entry" or "sense"
+ * @param {number|string} index - The index (0 for entry, sense index for sense)
+ */
+function removeAnnotation(annotationItem, containerType, index) {
+    if (!annotationItem) return;
+
+    const annotationsContainer = annotationItem.closest('.annotations-container');
+    annotationItem.remove();
+
+    // If no more annotations, show placeholder
+    const remainingAnnotations = annotationsContainer.querySelectorAll('.annotation-item');
+    if (remainingAnnotations.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'no-annotations text-center text-muted py-3 border border-warning border-opacity-25 rounded';
+        const placeholderText = containerType === 'entry'
+            ? 'No entry-level annotations yet. Add annotations for editorial workflow (review status, comments, etc.).'
+            : 'No annotations yet. Add annotations for editorial workflow (review status, comments, etc.).';
+        placeholder.innerHTML = `<p class="mb-2"><small>${placeholderText}</small></p>`;
+        annotationsContainer.appendChild(placeholder);
+    } else {
+        // Re-index remaining annotations
+        reindexAnnotations(containerType, index);
+    }
+}
+
+/**
+ * Re-indexes all annotations for entry or sense after removal.
+ * @param {string} containerType - "entry" or "sense"
+ * @param {number|string} index - The index (0 for entry, sense index for sense)
+ */
+function reindexAnnotations(containerType, index) {
+    const selector = containerType === 'entry' 
+        ? '.annotations-container[data-container-type="entry"]'
+        : `.annotations-container[data-container-type="sense"][data-index="${index}"]`;
+    
+    const annotationsContainer = document.querySelector(selector);
+    if (!annotationsContainer) return;
+
+    const annotationItems = annotationsContainer.querySelectorAll('.annotation-item');
+    annotationItems.forEach((annotation, newIndex) => {
+        const oldIndex = annotation.dataset.annotationIndex;
+        if (oldIndex === newIndex.toString()) return;
+
+        // Update visual elements
+        annotation.querySelector('.card-header span').innerHTML = `<i class="fas fa-tag"></i> Annotation ${newIndex + 1}`;
+
+        // Update data attribute
+        annotation.dataset.annotationIndex = newIndex;
+
+        // Build name prefix for replacement
+        const oldNamePrefix = containerType === 'entry'
+            ? `annotations[${oldIndex}]`
+            : `senses[${index}].annotations[${oldIndex}]`;
+        
+        const newNamePrefix = containerType === 'entry'
+            ? `annotations[${newIndex}]`
+            : `senses[${index}].annotations[${newIndex}]`;
+
+        // Update all name attributes
+        annotation.querySelectorAll('[name]').forEach(input => {
+            const name = input.getAttribute('name');
+            const newName = name.replace(oldNamePrefix, newNamePrefix);
+            input.setAttribute('name', newName);
+        });
+
+        // Update data-annotation-index on buttons
+        annotation.querySelectorAll('[data-annotation-index]').forEach(btn => {
+            btn.dataset.annotationIndex = newIndex;
+        });
+
+        // Update collapse target IDs
+        const toggleBtn = annotation.querySelector('.toggle-content-btn');
+        const collapseDiv = annotation.querySelector('.collapse');
+        if (toggleBtn && collapseDiv) {
+            const oldCollapseId = collapseDiv.id;
+            const newCollapseId = containerType === 'entry'
+                ? `annotation-content-entry-${newIndex}`
+                : `annotation-content-${index}-${newIndex}`;
+            
+            collapseDiv.id = newCollapseId;
+            toggleBtn.setAttribute('data-bs-target', `#${newCollapseId}`);
+        }
+    });
+}
+
+/**
+ * Adds a new language field to an annotation's content section.
+ * @param {Element} button - The "Add Language" button element.
+ */
+function addAnnotationLanguage(button) {
+    const contentBody = button.closest('.card-body');
+    const formsContainer = contentBody.querySelector('.annotation-content-forms');
+    
+    if (!formsContainer) return;
+    
+    // Prompt for language code
+    const langCode = prompt('Enter language code (e.g., fr, es, de):');
+    if (!langCode || !langCode.trim()) return;
+    
+    const sanitizedLang = langCode.trim().toLowerCase();
+    
+    // Check if language already exists
+    const existingLangs = Array.from(formsContainer.querySelectorAll('.input-group-text')).map(span => span.textContent.trim());
+    if (existingLangs.includes(sanitizedLang)) {
+        alert(`Language "${sanitizedLang}" already exists.`);
+        return;
+    }
+    
+    // Get the name prefix from an existing textarea
+    const existingTextarea = formsContainer.querySelector('textarea');
+    if (!existingTextarea) return;
+    
+    const existingName = existingTextarea.getAttribute('name');
+    const nameBase = existingName.substring(0, existingName.lastIndexOf('.') + 1);
+    
+    // Create new language input
+    const newLangHTML = `
+        <div class="input-group mb-2">
+            <span class="input-group-text">${sanitizedLang}</span>
+            <textarea class="form-control" 
+                   name="${nameBase}${sanitizedLang}"
+                   rows="2"
+                   placeholder="Enter comment or description in ${sanitizedLang}"></textarea>
+            <button type="button" class="btn btn-outline-danger remove-annotation-language-btn" title="Remove this language">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    formsContainer.insertAdjacentHTML('beforeend', newLangHTML);
+}
+
+// Event listener for removing language fields from annotations
+document.addEventListener('click', (e) => {
+    const removeLanguageBtn = e.target.closest('.remove-annotation-language-btn');
+    if (removeLanguageBtn) {
+        const inputGroup = removeLanguageBtn.closest('.input-group');
+        if (inputGroup && confirm('Remove this language?')) {
+            inputGroup.remove();
+        }
+    }
+});
+
+
 
