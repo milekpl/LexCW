@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ldml>
+	<identity>
+		<version number="" />
+		<generation date="2014-11-10T17:53:46" />
+		<language type="seh" />
+		<variant type="fonipa" />
+	</identity>
+	<collations />
+	<special xmlns:palaso="urn://palaso.org/ldmlExtensions/v1">
+		<palaso:abbreviation value="SenP" />
+		<palaso:defaultFontFamily value="Doulos SIL" />
+		<palaso:languageName value="Sena" />
+		<palaso:spellCheckingId value="seh_fonipa" />
+		<palaso:version value="2" />
+	</special>
+	<special xmlns:palaso2="urn://palaso.org/ldmlExtensions/v2">
+		<palaso2:knownKeyboards>
+			<palaso2:keyboard layout="IPA Unicode 6.2 (ver 1.3 US) MSK" locale="is-IS" os="Win32NT" />
+		</palaso2:knownKeyboards>
+		<palaso2:version value="2" />
+	</special>
+	<special xmlns:fw="urn://fieldworks.sil.org/ldmlExtensions/v1">
+		<fw:graphiteEnabled value="False" />
+		<fw:validChars value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-16&quot;?&gt; &lt;ValidCharacters&gt;   &lt;WordForming&gt;‌￼‍￼-￼'￼་￼༌￼⁰￼¹￼²￼³￼⁴￼⁵￼⁶￼⁷￼⁸￼⁹￼ꞌ￼Ꞌ&lt;/WordForming&gt;   &lt;Numeric /&gt;   &lt;Other /&gt; &lt;/ValidCharacters&gt;" />
+		<fw:variantName value="International Phonetic Alphabet" />
+	</special>
+</ldml>

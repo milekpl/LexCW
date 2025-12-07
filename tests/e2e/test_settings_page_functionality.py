@@ -23,9 +23,9 @@ class TestSettingsPageUX:
     to solve the language selector UX issues in entry forms.
     """
 
-    def test_settings_page_basic_functionality(self, page: Page) -> None:
+    def test_settings_page_basic_functionality(self, page: Page, app_url: str) -> None:
         """Test basic settings page functionality - this should pass already."""
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Page should load without errors
         expect(page).to_have_title(re.compile(r"Settings|Project Settings"))
@@ -38,9 +38,9 @@ class TestSettingsPageUX:
         project_name = page.locator('input[name="project_name"]')
         expect(project_name).to_be_visible()
 
-    def test_source_language_selection_functionality(self, page: Page) -> None:
+    def test_source_language_selection_functionality(self, page: Page, app_url: str) -> None:
         """Test that source language can be selected properly."""
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Source language code field should exist
         source_code_field = page.locator('input[name="source_language_code"], select[name="source_language_code"]')
@@ -55,9 +55,9 @@ class TestSettingsPageUX:
             source_name_field.fill("Test Language")
             expect(source_name_field).to_have_value("Test Language")
 
-    def test_target_languages_interface_exists(self, page: Page) -> None:
+    def test_target_languages_interface_exists(self, page: Page, app_url: str) -> None:
         """Test that target languages section exists and has some interface."""
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Target languages section should be present
         target_section = page.locator('fieldset:has-text("Target Languages")')
@@ -68,9 +68,9 @@ class TestSettingsPageUX:
         target_inputs = target_section.locator('input, select, button')
         expect(target_inputs.first).to_be_visible()
 
-    def test_form_submission_works(self, page: Page) -> None:
+    def test_form_submission_works(self, page: Page, app_url: str) -> None:
         """Test that form can be submitted without errors."""
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Fill required fields
         project_name = page.locator('input[name="project_name"]')
@@ -92,9 +92,9 @@ class TestSettingsPageUX:
         # Should not show error page
         expect(page).not_to_have_title(re.compile(r"Error|500|404"))
 
-    def test_current_settings_display(self, page: Page) -> None:
+    def test_current_settings_display(self, page: Page, app_url: str) -> None:
         """Test that current settings are displayed properly."""
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Current settings overview should exist
         overview = page.locator(':has-text("Current Settings Overview")')
@@ -113,14 +113,14 @@ class TestSettingsLanguageUXRequirements:
     These tests will initially FAIL - they define what we need to implement.
     """
 
-    def test_comprehensive_language_search_functionality(self, page: Page) -> None:
+    def test_comprehensive_language_search_functionality(self, page: Page, app_url: str) -> None:
         """
         REQUIREMENT: Users must be able to search from 150+ world languages.
         
         This tests the new comprehensive, non-discriminatory language interface
         that supports languages from all families and regions.
         """
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Should have searchable language interface
         search_input = page.locator('.language-search-input')
@@ -178,14 +178,14 @@ class TestSettingsLanguageUXRequirements:
         expect(page.locator('.selected-language-item:has-text("Swahili")')).not_to_be_visible()
         expect(selected_languages).to_have_count(2)  # Chinese, Quechua
 
-    def test_ethnologue_level_language_coverage(self, page: Page) -> None:
+    def test_ethnologue_level_language_coverage(self, page: Page, app_url: str) -> None:
         """
         REQUIREMENT: Language database should include languages from all families.
         
         This tests that the interface provides access to languages from
         major world language families, not just "common" languages.
         """
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         search_input = page.locator('.language-search-input')
         
@@ -225,14 +225,14 @@ class TestSettingsLanguageUXRequirements:
         # Should find at least 6 out of 9 major language families
         assert families_found >= 6, f"Only found {families_found} major language families, expected at least 6"
 
-    def test_language_metadata_richness(self, page: Page) -> None:
+    def test_language_metadata_richness(self, page: Page, app_url: str) -> None:
         """
         REQUIREMENT: Language entries should include family and region information.
         
         This tests that the interface provides rich metadata about languages,
         helping users understand language relationships and geography.
         """
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         search_input = page.locator('.language-search-input')
         
@@ -280,14 +280,14 @@ class TestSettingsLanguageUXRequirements:
         # Either in search results or selected display should have metadata
         assert has_family_info or has_region_info or has_metadata_in_selected, "No language metadata found"
 
-    def test_accessibility_and_usability_features(self, page: Page) -> None:
+    def test_accessibility_and_usability_features(self, page: Page, app_url: str) -> None:
         """
         REQUIREMENT: Interface should be accessible and user-friendly.
         
         This tests keyboard navigation, screen reader support, and
         other accessibility features of the language selection interface.
         """
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Test keyboard navigation
         search_input = page.locator('.language-search-input')
@@ -322,14 +322,14 @@ class TestSettingsLanguageUXRequirements:
         remove_button = page.locator('.selected-language-item:has-text("French") .remove-language')
         expect(remove_button).to_have_attribute('title', re.compile(r'[Rr]emove.*French'))
 
-    def test_performance_with_large_language_database(self, page: Page) -> None:
+    def test_performance_with_large_language_database(self, page: Page, app_url: str) -> None:
         """
         REQUIREMENT: Interface should perform well with 150+ languages.
         
         This tests that search and selection remain responsive even with
         a comprehensive language database.
         """
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         search_input = page.locator('.language-search-input')
         
@@ -370,14 +370,14 @@ class TestSettingsLanguageUXRequirements:
             selected_count = page.locator('.selected-language-item').count()
             assert selected_count > 0, f"Failed to add {lang}"
 
-    def test_form_integration_and_data_persistence(self, page: Page) -> None:
+    def test_form_integration_and_data_persistence(self, page: Page, app_url: str) -> None:
         """
         REQUIREMENT: Selected languages should integrate with form submission.
         
         This tests that the comprehensive language selection properly
         integrates with the settings form and persists data correctly.
         """
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Fill in project name
         project_name = page.locator('input[name="project_name"]')
@@ -414,7 +414,7 @@ class TestSettingsLanguageUXRequirements:
         
         # Should show updated settings
         # (This test defines the requirement - implementation will make it work)
-        page.goto("http://localhost:5000/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Previously selected languages should be preserved
         # (Implementation will determine exact persistence mechanism)

@@ -25,11 +25,6 @@ class TestAcademicDomainsFormIntegration:
     """Integration tests for Academic Domains form integration."""
 
     @pytest.fixture
-    def client(self, app: Flask) -> Client:
-        """Flask test client."""
-        return app.test_client()
-
-    @pytest.fixture
     def test_entry_data_entry_level_academic_domain(self) -> dict:
         """Test data for entry with sense-level academic domain."""
         return {

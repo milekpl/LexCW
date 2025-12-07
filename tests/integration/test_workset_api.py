@@ -21,7 +21,7 @@ class TestWorksetAPI:
     """Test workset management API endpoints."""
 
     @pytest.mark.integration
-    def test_create_workset_from_query(self, client: FlaskClient, postgres_available) -> None:
+    def test_create_workset_from_query(self, client: FlaskClient) -> None:
         """Test POST /api/worksets - create filtered workset."""
         # RED: Test for feature that doesn't exist yet
         workset_data = {
@@ -54,7 +54,7 @@ class TestWorksetAPI:
         assert data['total_entries'] >= 0
 
     @pytest.mark.integration
-    def test_get_workset_with_pagination(self, client: FlaskClient, postgres_available) -> None:
+    def test_get_workset_with_pagination(self, client: FlaskClient) -> None:
         """Test GET /api/worksets/{id} - retrieve workset with pagination."""
         # RED: Test for workset retrieval - should return 404 for non-existent workset
         # Use integer ID 999999 which should not exist
@@ -65,7 +65,7 @@ class TestWorksetAPI:
         assert 'error' in data
 
     @pytest.mark.integration
-    def test_update_workset_query(self, client: FlaskClient, postgres_available) -> None:
+    def test_update_workset_query(self, client: FlaskClient) -> None:
         """Test PUT /api/worksets/{id}/query - update workset criteria."""
         # First create a workset to update
         workset_data = {
@@ -106,7 +106,7 @@ class TestWorksetAPI:
         assert data['updated_entries'] >= 0
 
     @pytest.mark.integration
-    def test_delete_workset(self, client: FlaskClient, postgres_available) -> None:
+    def test_delete_workset(self, client: FlaskClient) -> None:
         """Test DELETE /api/worksets/{id} - remove workset."""
         # First create a workset to delete
         workset_data = {
@@ -134,7 +134,7 @@ class TestWorksetAPI:
         assert data['success'] is True
 
     @pytest.mark.integration
-    def test_bulk_update_workset(self, client: FlaskClient, postgres_available) -> None:
+    def test_bulk_update_workset(self, client: FlaskClient) -> None:
         """Test POST /api/worksets/{id}/bulk-update - apply changes to workset."""
         # First create a workset to update
         workset_data = {
@@ -175,7 +175,7 @@ class TestWorksetAPI:
         assert 'task_id' in data  # For async processing
 
     @pytest.mark.integration
-    def test_get_bulk_operation_progress(self, client: FlaskClient, postgres_available) -> None:
+    def test_get_bulk_operation_progress(self, client: FlaskClient) -> None:
         """Test GET /api/worksets/{id}/progress - track bulk operation progress."""
         # First create a workset
         workset_data = {
@@ -206,7 +206,7 @@ class TestWorksetAPI:
         assert 'completed_items' in data
 
     @pytest.mark.integration
-    def test_validate_workset_query(self, client: FlaskClient, postgres_available) -> None:
+    def test_validate_workset_query(self, client: FlaskClient) -> None:
         """Test POST /api/queries/validate - validate query performance."""
         # RED: Test for query validation
         query_to_validate = {
@@ -235,7 +235,7 @@ class TestWorksetPerformance:
     """Test workset performance requirements."""
 
     @pytest.mark.integration
-    def test_workset_handles_large_datasets(self, client: FlaskClient, postgres_available) -> None:
+    def test_workset_handles_large_datasets(self, client: FlaskClient) -> None:
         """Test workset operations handle 1000+ entries in <5 seconds."""
         # RED: Test for performance requirements from spec
         large_workset_data = {
@@ -270,7 +270,7 @@ class TestWorksetPerformance:
     @pytest.mark.skip(reason="BaseX sessions and Flask test clients are not thread-safe. "
                       "Real concurrent access works fine in production with separate HTTP requests, "
                       "but cannot be tested with in-process threading using test fixtures.")
-    def test_workset_concurrent_access(self, client: FlaskClient, app, postgres_available) -> None:
+    def test_workset_concurrent_access(self, client: FlaskClient, app) -> None:
         """Test multiple users can access worksets simultaneously.
         
         Note: This test is skipped because it tries to simulate concurrency using threading

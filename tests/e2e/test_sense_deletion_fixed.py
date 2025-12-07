@@ -10,7 +10,7 @@ import requests
 
 
 @pytest.mark.integration
-def test_sense_deletion_persists_after_save(playwright_page, live_server):
+def test_sense_deletion_persists_after_save(page, flask_test_server):
     """
     CRITICAL TEST: Verify that deleted senses don't reappear after save.
     
@@ -23,7 +23,7 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     The fix: Mark default-sense-template and exclude it from serialization.
     """
     print("TEST STARTING: test_sense_deletion_persists_after_save")
-    page = playwright_page
+    page = page
     
     # Create an entry with 2 senses via XML API (to match production flow)
     print("Creating test entry with 2 senses via XML API...")
@@ -54,7 +54,7 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     
     # Create entry via XML API
     response = requests.post(
-        f"{live_server.url}/api/xml/entries",
+        f"{flask_test_server}/api/xml/entries",
         data=entry_xml,
         headers={"Content-Type": "application/xml"}
     )
@@ -63,13 +63,13 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     
     # Verify entry was created by retrieving it via XML API
     verify_response = requests.get(
-        f"{live_server.url}/api/xml/entries/{entry_id}",
+        f"{flask_test_server}/api/xml/entries/{entry_id}",
         headers={"Accept": "application/xml"}
     )
     print(f"Verification GET status: {verify_response.status_code}")
     assert verify_response.status_code == 200, f"Entry not found after creation: {verify_response.text}"
     
-    edit_url = f"{live_server.url}/entries/{entry_id}/edit"
+    edit_url = f"{flask_test_server}/entries/{entry_id}/edit"
     
     # Navigate to edit the entry
     print(f"Navigating to edit URL: {edit_url}")
@@ -224,12 +224,12 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
 
 
 @pytest.mark.integration
-def test_default_template_not_serialized(playwright_page, live_server):
+def test_default_template_not_serialized(page, flask_test_server):
     """Test that the default-sense-template is never included in serialization."""
-    page = playwright_page
+    page = page
     
     # Navigate to add entry page
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{flask_test_server}/entries/add")
     page.wait_for_load_state("networkidle")
     
     # Verify default template exists in DOM
@@ -275,11 +275,11 @@ def test_default_template_not_serialized(playwright_page, live_server):
 
 
 @pytest.mark.integration
-def test_multiple_deletions(playwright_page, live_server):
+def test_multiple_deletions(page, flask_test_server):
     """Test deleting multiple senses in sequence."""
-    page = playwright_page
+    page = page
     
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{flask_test_server}/entries/add")
     page.wait_for_load_state("networkidle")
     
     # Create entry with 3 senses - use new multilingual lexical_unit format
@@ -304,7 +304,7 @@ def test_multiple_deletions(playwright_page, live_server):
     page.wait_for_url("**/entries/**", timeout=10000)
     
     entry_id = page.url.split('/')[-1].split('?')[0]
-    edit_url = f"{live_server.url}/entries/{entry_id}/edit"
+    edit_url = f"{flask_test_server}/entries/{entry_id}/edit"
     
     # Delete sense 2
     page.goto(edit_url)

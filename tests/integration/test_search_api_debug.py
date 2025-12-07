@@ -4,25 +4,7 @@ Test search functionality with actual API calls.
 
 import json
 import pytest
-from app import create_app
 from app.models.entry import Entry
-
-
-@pytest.fixture
-def app():
-    """Create test app."""
-    return create_app({
-        'TESTING': True,
-        'DATABASE_TYPE': 'mock',
-        'MOCK_DATA_ENABLED': True
-    })
-
-
-@pytest.fixture
-def client(app):
-    """Create test client."""
-    return app.test_client()
-
 
 
 @pytest.mark.integration

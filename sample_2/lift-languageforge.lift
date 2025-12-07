@@ -1,0 +1,3434 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- See http://code.google.com/p/lift-standard for more information on the format used here. -->
+<lift producer="SIL.FLEx 8.1.2.41947" version="0.13">
+<header>
+<ranges>
+<range id="dialect" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="etymology" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="grammatical-info" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="lexical-relation" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="note-type" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="paradigm" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="reversal-type" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="semantic-domain-ddp4" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="status" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="users" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="location" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<!-- The following ranges are produced by FieldWorks Language Explorer, and are not part of the LIFT standard. -->
+<range id="anthro-code" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="translation-type" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<!-- The parts of speech are duplicated in another range because derivational affixes require a "From" PartOfSpeech as well as a "To" PartOfSpeech. -->
+<range id="from-part-of-speech" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="morph-type" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="exception-feature" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="inflection-feature" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="inflection-feature-type" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="num-feature-value" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="do-not-publish-in" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="domain-type" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+<range id="usage-type" href="file://D:/Dokumenty/slownik-wielki/lift-languageforge/lift-languageforge.lift-ranges"/>
+</ranges>
+<fields>
+<field tag="cv-pattern">
+<form lang="en"><text>This records the syllable pattern for a LexPronunciation in FieldWorks.</text></form>
+</field>
+<field tag="tone">
+<form lang="en"><text>This records the tone information for a LexPronunciation in FieldWorks.</text></form>
+</field>
+<field tag="comment">
+<form lang="en"><text>This records a comment (note) in a LexEtymology in FieldWorks.</text></form>
+</field>
+<field tag="import-residue">
+<form lang="en"><text>This records residue left over from importing a standard format file into FieldWorks (or LinguaLinks).</text></form>
+</field>
+<field tag="literal-meaning">
+<form lang="en"><text>This field is used to store a literal meaning of the entry.  Typically, this field is necessary only for a compound or an idiom where the meaning of the whole is different from the sum of its parts.</text></form>
+</field>
+<field tag="summary-definition">
+<form lang="en"><text>A summary definition (located at the entry level in the Entry pane) is a general definition summarizing all the senses of a primary entry. It has no theoretical value; its use is solely pragmatic.</text></form>
+</field>
+<field tag="scientific-name">
+<form lang="en"><text>This field stores the scientific name pertinent to the current sense.</text></form>
+</field>
+<field tag="FTFlags">
+<form lang="en"><text></text></form>
+<form lang="qaa-x-spec"><text>Class=LexSense; Type=String; WsSelector=kwsAnal</text></form>
+</field>
+</fields>
+</header>
+<entry dateCreated="2013-02-03T13:37:57Z" dateModified="2013-04-03T22:35:47Z" id="Z_65edbfc9-27a2-43e5-9895-4de017ee8a93" guid="65edbfc9-27a2-43e5-9895-4de017ee8a93">
+<lexical-unit>
+<form lang="en"><text>Z</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zed</text></form>
+</pronunciation>
+<sense id="87dff795-9d66-4d18-bb98-94ee05291abf">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>litera Z</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:57Z" dateModified="2013-04-03T22:35:47Z" id="zaffer_21502db7-e957-411f-924d-a636438ee8b3" guid="21502db7-e957-411f-924d-a636438ee8b3">
+<lexical-unit>
+<form lang="en"><text>zaffer</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzafə</text></form>
+</pronunciation>
+<sense id="f4542832-7ae6-4f69-a331-5f2e54a79aa9">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>niebieski tlenek kobaltu</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:57Z" dateModified="2013-04-03T22:35:47Z" id="Zaire_49e8039f-48f8-4906-9be6-e47c4bb35aee" guid="49e8039f-48f8-4906-9be6-e47c4bb35aee">
+<lexical-unit>
+<form lang="en"><text>Zaire</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɑːˈɪər, (ˌ)zaɪˈɪə, zɑːˈɪə</text></form>
+</pronunciation>
+<sense id="f624328f-c8f2-4681-868c-8bbbf1c61439">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zair</text></form>
+</definition>
+<trait  name="domain-type" value="geografia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:57Z" dateModified="2013-04-03T22:35:47Z" id="Zairean1_a1cac8f5-9900-43db-965b-89a306cd967c" guid="a1cac8f5-9900-43db-965b-89a306cd967c" order="1">
+<lexical-unit>
+<form lang="en"><text>Zairean</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zaɪˈɪəriən, zɑːˈɪərɪən</text></form>
+</pronunciation>
+<sense id="9dd4e0bc-e672-4039-b944-6cfb2e601c5a">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>mieszkaniec/mieszkanka Zairu</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:57Z" dateModified="2013-04-03T22:35:47Z" id="Zairean2_d3b1d9ec-ddfb-49fe-a892-ce6e03e83c3e" guid="d3b1d9ec-ddfb-49fe-a892-ce6e03e83c3e" order="2">
+<lexical-unit>
+<form lang="en"><text>Zairean</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zaɪˈɪəriən, zɑːˈɪərɪən</text></form>
+</pronunciation>
+<sense id="d18fdaad-2ea5-4df4-9946-a26fb4d9f9d8">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zairski</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:57Z" dateModified="2013-04-03T22:35:47Z" id="Zambezi_3646bc5f-4d61-4c56-baf2-b006e4c67aca" guid="3646bc5f-4d61-4c56-baf2-b006e4c67aca">
+<lexical-unit>
+<form lang="en"><text>Zambezi</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zæmˈbiːzɪ, (ˌ)zæmˈbiːzi</text></form>
+</pronunciation>
+<sense id="e416129e-2267-462c-9d91-24e16134cbc9">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zambezi</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="Zambia_c4001c6d-aa56-4f95-a6d4-1dd144ea7260" guid="c4001c6d-aa56-4f95-a6d4-1dd144ea7260">
+<lexical-unit>
+<form lang="en"><text>Zambia</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzæmbɪə, ˈzæmbiə</text></form>
+</pronunciation>
+<sense id="4da0faa5-bb55-4738-96ed-5a6433f9160c">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zambia</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="Zambian1_7d620d4f-0b4a-4105-8144-46c248d91df9" guid="7d620d4f-0b4a-4105-8144-46c248d91df9" order="1">
+<lexical-unit>
+<form lang="en"><text>Zambian</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzæmbɪən, ˈzæmbiən</text></form>
+</pronunciation>
+<sense id="287b08b5-89a8-4e96-853b-ca69a67b40fa">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zambijczyk/Zambijka</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="Zambian2_516a810e-1b92-4fe4-9c9e-5889422c7039" guid="516a810e-1b92-4fe4-9c9e-5889422c7039" order="2">
+<lexical-unit>
+<form lang="en"><text>Zambian</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzæmbɪən, ˈzæmbiən</text></form>
+</pronunciation>
+<sense id="d4d3a5e1-3811-4d2f-9596-f746e171a246">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zambijski</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2014-10-29T19:25:03Z" id="zamindar_fbd027c2-283c-4ea5-8d1c-44e4496e2416" guid="fbd027c2-283c-4ea5-8d1c-44e4496e2416">
+<lexical-unit>
+<form lang="en"><text>zamindar</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzamaɪndə</text></form>
+</pronunciation>
+<sense id="9228d112-38ac-4528-8b19-705449c0ef93">
+<grammatical-info value="Noun">
+</grammatical-info>
+<gloss lang="pl"><text>(w Indiach w czasach kolonizacji brytyjskiej)</text></gloss>
+<definition>
+<form lang="pl"><text>poborca podatkowy, właściciel ziemski</text></form>
+</definition>
+<trait  name="domain-type" value="historia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zaniness_16a44812-bfc0-43bb-93ec-ddb4814cce03" guid="16a44812-bfc0-43bb-93ec-ddb4814cce03">
+<lexical-unit>
+<form lang="en"><text>zaniness</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzeɪninəs</text></form>
+</pronunciation>
+<sense id="d9c63796-bc37-4fc5-8568-30cb13735612">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zwariowanie, wariactwo</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zany1_f5eee91c-5796-4f63-894d-f74387f3e6ff" guid="f5eee91c-5796-4f63-894d-f74387f3e6ff" order="1">
+<lexical-unit>
+<form lang="en"><text>zany</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzeɪni, ˈzeɪnɪ</text></form>
+</pronunciation>
+<sense id="d0cb426a-8917-4ce6-bfc5-6fdcac96f500">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>wariat, błazen</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zany2_db46d7a4-e72e-41c1-bab7-21fafd4a90fd" guid="db46d7a4-e72e-41c1-bab7-21fafd4a90fd" order="2">
+<lexical-unit>
+<form lang="en"><text>zany</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzeɪni, ˈzeɪnɪ</text></form>
+</pronunciation>
+<sense id="c3a5695d-ce01-4c30-9df0-7cf0c98c95d0">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>dziwny, dziwaczny, błazeński</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zap1_9d0cc823-b181-4fa6-95c0-8d149d987345" guid="9d0cc823-b181-4fa6-95c0-8d149d987345" order="1">
+<lexical-unit>
+<form lang="en"><text>zap</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zæp</text></form>
+</pronunciation>
+<sense id="2bc8b82c-dbac-45c9-b3bc-bb265e164783">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>werwa, ikra</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zap2_cd6b079f-f06b-4f19-bfa8-8e239b7a0d58" guid="cd6b079f-f06b-4f19-bfa8-8e239b7a0d58" order="2">
+<lexical-unit>
+<form lang="en"><text>zap</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zæp θruː</text></form>
+</pronunciation>
+<sense id="72cf2484-6642-41d6-a4fc-85591bf96e03" order="0">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>gnać</text></form>
+</definition>
+</sense>
+<sense id="1610291d-9516-4e9e-83a1-f111e17f299c" order="1">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>mordować, zabijać</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zapper_437e4f6c-5dd4-4a8d-b6c8-fa309a295e98" guid="437e4f6c-5dd4-4a8d-b6c8-fa309a295e98">
+<lexical-unit>
+<form lang="en"><text>zapper</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzæpə</text></form>
+</pronunciation>
+<sense id="db56f718-d9a1-4b01-8259-e4a25b9b10e0" order="0">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>pilot (TV)</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+<sense id="9bd96f02-2fe0-473a-a34b-435d9a5c94cf" order="1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>urządzenie elektryczne do zabijania owadów</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-04T12:42:07Z" id="zappy_c490202e-f346-4573-abc3-292f89d2bbd7" guid="c490202e-f346-4573-abc3-292f89d2bbd7">
+<lexical-unit>
+<form lang="en"><text>zappy</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzæpɪ</text></form>
+</pronunciation>
+<sense id="54be12b6-3404-4116-82cd-d29999f6b195">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>żywy, pełen werwy</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="Zarathustra_93062252-660d-4e1f-81ea-e5ae5a5d3e53" guid="93062252-660d-4e1f-81ea-e5ae5a5d3e53">
+<lexical-unit>
+<form lang="en"><text>Zarathustra</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzærəˈθuːstrə</text></form>
+</pronunciation>
+<sense id="05a26564-558c-4057-ad10-e68989bc3908">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zaratusztra</text></form>
+</definition>
+<trait  name="domain-type" value="historia"/>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="ZBB_2ee1f564-ceab-4745-96a5-7cc54673056f" guid="2ee1f564-ceab-4745-96a5-7cc54673056f">
+<lexical-unit>
+<form lang="en"><text>ZBB</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzɛdˌbiːˈbiː</text></form>
+</pronunciation>
+<sense id="7d936fac-ffd0-4215-bc8b-c046b8923897">
+<grammatical-info value="Acronym">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>budżet sporządzony „od zera”</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+<relation type="rozwiniecie" ref="d26e07bb-7943-42d2-be5a-6678b18ca029"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zeal_f9254cf0-e3fd-4ebf-96af-2ab548f3434e" guid="f9254cf0-e3fd-4ebf-96af-2ab548f3434e">
+<lexical-unit>
+<form lang="en"><text>zeal</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ziːəl, ziːl</text></form>
+</pronunciation>
+<sense id="64780905-60d9-454b-8c5b-36e02b932a89">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>gorliwość, zapał, entuzjazm</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zealot_3716b5ee-9cff-4a62-9d55-770d0342a8c8" guid="3716b5ee-9cff-4a62-9d55-770d0342a8c8">
+<lexical-unit>
+<form lang="en"><text>zealot</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzelət</text></form>
+</pronunciation>
+<sense id="7cef9dce-d922-4db4-a46e-3c31f22b45de">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>fanatyk/fanatyczka, gorliwiec</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zealous_7c0e8384-6148-415b-a7ea-2c06ab4dbc12" guid="7c0e8384-6148-415b-a7ea-2c06ab4dbc12">
+<lexical-unit>
+<form lang="en"><text>zealous</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzeləs</text></form>
+</pronunciation>
+<sense id="735d1369-b945-4a4d-a0a7-1e41a33059ce">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zagorzały, fanatyczny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zealously_dfe8e3a6-3e69-483b-b42c-12aa50c26ead" guid="dfe8e3a6-3e69-483b-b42c-12aa50c26ead">
+<lexical-unit>
+<form lang="en"><text>zealously</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzeləsli</text></form>
+</pronunciation>
+<sense id="ac3e0ac7-1d81-4d2d-928f-23f894543b5f">
+<grammatical-info value="Adverb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zagorzale, gorliwie</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebra_6900dbb8-f8e4-42cc-802c-e0b9f5ac55a3" guid="6900dbb8-f8e4-42cc-802c-e0b9f5ac55a3">
+<lexical-unit>
+<form lang="en"><text>zebra</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzebrə, ˈziːbrə</text></form>
+</pronunciation>
+<sense id="d087b253-26b5-4087-9470-f48ebf25e5f3">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zebra</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebra butterfly_9c52dc90-2f80-4d1a-9422-329241f4fecc" guid="9c52dc90-2f80-4d1a-9422-329241f4fecc">
+<lexical-unit>
+<form lang="en"><text>zebra butterfly</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzebrə ˈbʌtəflaɪ</text></form>
+</pronunciation>
+<sense id="bac74a35-746b-4779-a8e3-cc3802765247">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>pręgowany motyl</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+<trait  name="usage-type" value="amerykanski"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-04T12:09:55Z" id="zebra crossing_32065cd2-b5ce-456c-85b0-2dc2eb5ebc54" guid="32065cd2-b5ce-456c-85b0-2dc2eb5ebc54">
+<lexical-unit>
+<form lang="en"><text>zebra crossing</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzebrə ˈkrɒsɪŋ</text></form>
+</pronunciation>
+<sense id="a6ed34ca-9aaf-410b-90a3-92e3171e8aa7">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>pasy, przejście dla pieszych, zebra</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebra danio_d8740950-b6cf-48ae-9153-b249fb562769" guid="d8740950-b6cf-48ae-9153-b249fb562769">
+<lexical-unit>
+<form lang="en"><text>zebra danio</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="f93a3f60-b882-4795-95b2-731f57bb06ee" order="0">
+<trait  name="variant-type" value="Free Variant"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebra finch_da32764b-f30f-413c-a62e-af5e5e0827f1" guid="da32764b-f30f-413c-a62e-af5e5e0827f1">
+<lexical-unit>
+<form lang="en"><text>zebra finch</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzebrə fɪntʃ</text></form>
+</pronunciation>
+<sense id="08515d87-ed0c-45ad-9f53-9c1633b66176">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>mały pręgowany ptak śpiewający</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+<trait  name="usage-type" value="australijski"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebra fish_db777b77-ceed-4bdc-ba5a-3072c2bd2354" guid="db777b77-ceed-4bdc-ba5a-3072c2bd2354">
+<lexical-unit>
+<form lang="en"><text>zebra fish</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzebrə fɪʃ</text></form>
+</pronunciation>
+<sense id="f93a3f60-b882-4795-95b2-731f57bb06ee">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>pręgowana ryba akwariowa</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:31:22Z" dateModified="2013-04-03T22:35:47Z" id="zebra mussel_4d66904c-915d-4a6e-88e2-b1e3ce183855" guid="4d66904c-915d-4a6e-88e2-b1e3ce183855">
+<lexical-unit>
+<form lang="en"><text>zebra mussel</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="mussel_a2305b8a-58c6-4f7a-b018-cbad4117629d" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="24fb26c7-bf95-41f0-92dd-d69272be0a5a">
+<definition>
+<form lang="pl"><text>racicznica</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebraic_c33ae3c2-92e6-4cf0-afe6-248715bdd34b" guid="c33ae3c2-92e6-4cf0-afe6-248715bdd34b">
+<lexical-unit>
+<form lang="en"><text>zebraic</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɛbɹˈeɪɪk</text></form>
+</pronunciation>
+<sense id="187615ae-583d-48e9-a550-cfe6e62c563c">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>dotyczący zebry, charakterystyczny dla zebry</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebrawood_74987b68-d72e-4a7d-a8a8-d88ff8e02f84" guid="74987b68-d72e-4a7d-a8a8-d88ff8e02f84">
+<lexical-unit>
+<form lang="en"><text>zebrawood</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɛbɹəˌwʊd</text></form>
+</pronunciation>
+<sense id="b47439b5-7cdb-4e24-be50-52a250825372">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>drzewo tropikalne o twardym prążkowanym drewnie</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebrine_b95e091a-3967-43e4-a9de-3ca2b917eac2" guid="b95e091a-3967-43e4-a9de-3ca2b917eac2">
+<lexical-unit>
+<form lang="en"><text>zebrine</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="187615ae-583d-48e9-a550-cfe6e62c563c" order="0">
+<trait  name="variant-type" value="Free Variant"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebroid1_d20546c9-b63f-48e3-9c59-b5b3c8f1d8a8" guid="d20546c9-b63f-48e3-9c59-b5b3c8f1d8a8" order="1">
+<lexical-unit>
+<form lang="en"><text>zebroid</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɛbɹɔɪd</text></form>
+</pronunciation>
+<sense id="94c88e5d-c58c-42a2-b379-7c4692f5baee">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zebroid</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebroid2_fe55dd2f-0a4d-4c07-8194-30bb97a7b939" guid="fe55dd2f-0a4d-4c07-8194-30bb97a7b939" order="2">
+<lexical-unit>
+<form lang="en"><text>zebroid</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɛbɹɔɪd</text></form>
+</pronunciation>
+<sense id="a74dd5f4-c06a-4076-8d2c-1c318633450e">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zebrowaty</text></form>
+</definition>
+<note>
+<form lang="pl"><text>Definicja: Problem: błąd pisowni; sugestie: zebrowaty-&gt;żebrowaty; zebrowaty-&gt;zebro waty; ;</text></form>
+</note>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zebu_d112b86c-522c-4048-a308-1c62b45d0ba3" guid="d112b86c-522c-4048-a308-1c62b45d0ba3">
+<lexical-unit>
+<form lang="en"><text>zebu</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈziːbjuː, ˈziːbuː</text></form>
+</pronunciation>
+<sense id="820d5942-fda3-455f-b443-460870947db5">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zebu</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2014-06-01T09:59:32Z" id="zecchino_111dd982-d894-4e2f-8c40-96648bef417b" guid="111dd982-d894-4e2f-8c40-96648bef417b">
+<lexical-unit>
+<form lang="en"><text>zecchino</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɛˈkiːnəʊ</text></form>
+</pronunciation>
+<sense id="09bbbfdd-6067-4aaf-9937-27158e9fb217">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cekiny</text></form>
+</definition>
+<relation type="synonim" ref="3a5a852a-ba2b-4f34-bcd6-1d0fb071494e"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zecchinos_79daee94-f942-4f3e-a347-ec7ac5291886" guid="79daee94-f942-4f3e-a347-ec7ac5291886">
+<lexical-unit>
+<form lang="en"><text>zecchinos</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zecchino_111dd982-d894-4e2f-8c40-96648bef417b" order="0">
+<trait  name="variant-type" value="Liczba mnoga"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zecchins_2f372148-e8c2-4360-9cbc-102ef2014a68" guid="2f372148-e8c2-4360-9cbc-102ef2014a68">
+<lexical-unit>
+<form lang="en"><text>zecchins</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zecchino_111dd982-d894-4e2f-8c40-96648bef417b" order="0">
+<trait  name="variant-type" value="Liczba mnoga"/>
+</relation>
+</entry>
+<entry dateCreated="2013-01-19T12:32:17Z" dateModified="2014-06-01T09:59:22Z" id="zechin_78527483-82f6-4ee7-9216-88b42922dd55" guid="78527483-82f6-4ee7-9216-88b42922dd55">
+<lexical-unit>
+<form lang="en"><text>zechin</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<field type="import-residue">
+<form lang="en"><text>This was automatically created to satisfy a Lexical Relation, and it should be checked.</text></form>
+</field>
+<relation type="_component-lexeme" ref="zecchino_111dd982-d894-4e2f-8c40-96648bef417b" order="0">
+<trait  name="variant-type" value="Free Variant"/>
+</relation>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɛkɪn</text></form>
+</pronunciation>
+<sense id="7172d45a-d8f0-46f8-81d7-76328179fb43">
+<field type="import-residue">
+<form lang="en"><text>This was automatically created to satisfy a Lexical Relation, and it should be checked.</text></form>
+</field>
+<relation type="synonim" ref="7881419b-eacf-4482-93c7-2cddff5c8db7"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zechins_3b8b05a0-204e-42d9-9378-ce5a614dc9bd" guid="3b8b05a0-204e-42d9-9378-ce5a614dc9bd">
+<lexical-unit>
+<form lang="en"><text>zechins</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zecchino_111dd982-d894-4e2f-8c40-96648bef417b" order="0">
+<trait  name="variant-type" value="Liczba mnoga"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2014-05-12T07:24:11Z" id="zed_6175d3b5-3d89-4a1a-90b9-5cc650072359" guid="6175d3b5-3d89-4a1a-90b9-5cc650072359">
+<lexical-unit>
+<form lang="en"><text>zed</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zed</text></form>
+</pronunciation>
+<sense id="274be978-25ba-4e19-9290-4ebab14bd701">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zet</text></form>
+</definition>
+<trait  name="usage-type" value="brytyjski"/>
+</sense>
+</entry>
+<entry dateCreated="2014-10-27T21:31:38Z" dateModified="2014-10-27T21:31:46Z" id="zedoaries_54655b50-69d7-47d6-8e55-1b032c207fde" guid="54655b50-69d7-47d6-8e55-1b032c207fde">
+<lexical-unit>
+<form lang="en"><text>zedoaries</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zedoary_622dc9fa-1f0c-4b91-baf6-5a71a62992ae" order="0">
+<trait  name="variant-type" value="Liczba mnoga"/>
+<trait name="hide-minor-entry" value="1"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zedoary_622dc9fa-1f0c-4b91-baf6-5a71a62992ae" guid="622dc9fa-1f0c-4b91-baf6-5a71a62992ae">
+<lexical-unit>
+<form lang="en"><text>zedoary</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzedəʊəri</text></form>
+</pronunciation>
+<sense id="201a1b7c-b3f9-4a65-bccc-5bc02b3a594f">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cytwar</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zedonk_db40d138-e45d-4105-92d5-daa0421f0d12" guid="db40d138-e45d-4105-92d5-daa0421f0d12">
+<lexical-unit>
+<form lang="en"><text>zedonk</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɛdɒŋk</text></form>
+</pronunciation>
+<sense id="2b08c26c-f042-4aaf-a373-2f1c9763624e">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>krzyżówka oślicy z samcem zebry</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zee_02a690fb-3934-4d82-9e34-2ad4309ebc82" guid="02a690fb-3934-4d82-9e34-2ad4309ebc82">
+<lexical-unit>
+<form lang="en"><text>zee</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ziː</text></form>
+</pronunciation>
+<sense id="0fd42214-90f5-4315-9217-36d79b206fb1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zet</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zein_3b7cbce3-bbc5-4e41-8ca9-164db9194b66" guid="3b7cbce3-bbc5-4e41-8ca9-164db9194b66">
+<lexical-unit>
+<form lang="en"><text>zein</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzeɪn</text></form>
+</pronunciation>
+<sense id="25da085e-5b38-42ea-9150-1bc643e17fdf">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zeina</text></form>
+</definition>
+<note>
+<form lang="pl"><text>Definicja: Problem: błąd pisowni; sugestie: zeina-&gt;teina; zeina-&gt;zegna; zeina-&gt;zezna; zeina-&gt;zgina; zeina-&gt;zina; ;</text></form>
+</note>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zeitgeist_f971842e-213f-44f8-9950-804f2347d35c" guid="f971842e-213f-44f8-9950-804f2347d35c">
+<lexical-unit>
+<form lang="en"><text>zeitgeist</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzaɪtɡaɪst, tˈsaɪtˌɡaɪst</text></form>
+</pronunciation>
+<sense id="55b56787-c740-44c3-a34b-802f69663d9e">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>duch czasów</text></form>
+</definition>
+<trait  name="usage-type" value="przenosnie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zelkova_8f9741c8-bd8c-4f42-bae7-8314edec75fb" guid="8f9741c8-bd8c-4f42-bae7-8314edec75fb">
+<lexical-unit>
+<form lang="en"><text>zelkova</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzelkəvə</text></form>
+</pronunciation>
+<sense id="b85db20e-84c8-475e-83d2-3118f3a8f94c">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>brzostnica</text></form>
+</definition>
+<note>
+<form lang="pl"><text>Definicja: Problem: błąd pisowni; sugestie: brzostnica-&gt;brzost nica; ;</text></form>
+</note>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="Zen_052e878c-3e32-45dd-8a66-ea524577109f" guid="052e878c-3e32-45dd-8a66-ea524577109f">
+<lexical-unit>
+<form lang="en"><text>Zen</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zen</text></form>
+</pronunciation>
+<sense id="ad231d02-3dd6-4e9f-8dc8-e9bca668b460">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zen, religia buddyjska</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2014-11-10T18:15:19Z" id="zenana_6e32dd6d-c6b2-4169-9f1e-c0c3ede9ca23" guid="6e32dd6d-c6b2-4169-9f1e-c0c3ede9ca23">
+<lexical-unit>
+<form lang="en"><text>zenana</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zeˈnɑːnə</text></form>
+</pronunciation>
+<sense id="33ab8da5-2f44-47e3-a00a-9e346d327449">
+<grammatical-info value="Noun">
+</grammatical-info>
+<gloss lang="pl"><text>(w Indiach i krajach muzułmańskich)</text></gloss>
+<definition>
+<form lang="pl"><text>część domu przeznaczona dla kobiet i dziewcząt</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="Zend_eb87e3cc-a229-4df9-813c-2eda06527bff" guid="eb87e3cc-a229-4df9-813c-2eda06527bff">
+<lexical-unit>
+<form lang="en"><text>Zend</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zend</text></form>
+</pronunciation>
+<sense id="5544a0c7-b496-40ad-82b4-58a5d837acf4">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>język awestyjski</text></form>
+</definition>
+<trait  name="domain-type" value="historia"/>
+<trait  name="domain-type" value="lingwistyka"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="Zend-Avesta_55da923e-9741-4df4-b4f0-aa31bc216913" guid="55da923e-9741-4df4-b4f0-aa31bc216913">
+<lexical-unit>
+<form lang="en"><text>Zend-Avesta</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="Zend_eb87e3cc-a229-4df9-813c-2eda06527bff" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="5ca91655-a4ce-4ae2-8e73-7120e2582964">
+<definition>
+<form lang="pl"><text>Awesta</text></form>
+</definition>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2014-05-20T06:34:06Z" id="Zener diode_b3bb9420-d063-4ab0-a8df-ba984df19aa7" guid="b3bb9420-d063-4ab0-a8df-ba984df19aa7">
+<lexical-unit>
+<form lang="en"><text>Zener diode</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɛnə ˈdaɪəʊd</text></form>
+</pronunciation>
+<sense id="47ba3d6a-dbdf-4d9f-a167-71eda16f3efc">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>dioda Zenera</text></form>
+</definition>
+<trait  name="domain-type" value="technika"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zenith_f95b235a-3491-4938-8a9b-8ee6e9b14ae5" guid="f95b235a-3491-4938-8a9b-8ee6e9b14ae5">
+<lexical-unit>
+<form lang="en"><text>zenith</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzenɪθ</text></form>
+</pronunciation>
+<sense id="d752d571-0876-4cc9-893b-b97f3a88fc45">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zenit, szczyt</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zenith distance_72fa3048-382e-4a78-8c1e-edf88c54de01" guid="72fa3048-382e-4a78-8c1e-edf88c54de01">
+<lexical-unit>
+<form lang="en"><text>zenith distance</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzenɪθ ˈdɪstəns</text></form>
+</pronunciation>
+<sense id="cc7bc415-2baf-4f6c-8ba9-568522d4d908">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>odległość zenitalna</text></form>
+</definition>
+<trait  name="domain-type" value="astronomia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zenithal_50f78b74-bf94-4487-b879-7609545d7cb8" guid="50f78b74-bf94-4487-b879-7609545d7cb8">
+<lexical-unit>
+<form lang="en"><text>zenithal</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzenɪθəl</text></form>
+</pronunciation>
+<sense id="36f1ed84-9ebd-48e5-8271-708e2d15c166">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zenitowy, zenitalny</text></form>
+</definition>
+<trait  name="domain-type" value="astronomia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zephyr_f335e1e8-9a61-4f38-a577-f59f6224bbc4" guid="f335e1e8-9a61-4f38-a577-f59f6224bbc4">
+<lexical-unit>
+<form lang="en"><text>zephyr</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzefə</text></form>
+</pronunciation>
+<sense id="ad3d7ed7-1bfa-4513-a579-dd6ff947f616">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>wietrzyk, zefir</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zeppelin_47ac286e-6683-42aa-a71a-4ea0c986c508" guid="47ac286e-6683-42aa-a71a-4ea0c986c508">
+<lexical-unit>
+<form lang="en"><text>zeppelin</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzepəlɪn</text></form>
+</pronunciation>
+<sense id="9b95caed-dc48-4289-9760-d44e68160675">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>sterowiec, zeppelin</text></form>
+</definition>
+<trait  name="domain-type" value="lotnictwo"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-05T18:52:21Z" id="zero1_5e262220-72d6-40fd-b27b-fbd45fc10012" guid="5e262220-72d6-40fd-b27b-fbd45fc10012" order="1">
+<lexical-unit>
+<form lang="en"><text>zero</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ</text></form>
+</pronunciation>
+<sense id="870c82fb-00cb-421f-8284-1b6b9ddf3400">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zero</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-05T18:52:21Z" id="zero2_31eb570b-f5fd-41dd-b590-c505522eef1f" guid="31eb570b-f5fd-41dd-b590-c505522eef1f" order="2">
+<lexical-unit>
+<form lang="en"><text>zero</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ</text></form>
+</pronunciation>
+<sense id="5af611bb-b706-4cf3-b24c-539cc260c9a5">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>ustawiać na zero, zerować</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero adjustment_7edfc686-609f-4843-af86-d07b9d88ab37" guid="7edfc686-609f-4843-af86-d07b9d88ab37">
+<lexical-unit>
+<form lang="en"><text>zero adjustment</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ əˈdʒʌstmənt</text></form>
+</pronunciation>
+<sense id="2da83d6b-f859-4124-9571-5c6bc601d29b">
+<grammatical-info value="Noun">
+</grammatical-info>
+<gloss lang="pl"><text>(miernika, przyrządu pomiarowego)</text></gloss>
+<definition>
+<form lang="pl"><text>nastawianie na zero, zerowanie</text></form>
+</definition>
+<relation type="synonim" ref="2e961608-9e2d-4051-9ce9-dc26403d1ff1"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero gravity_f0624818-a5fe-494b-83bc-f1e9fe9797ae" guid="f0624818-a5fe-494b-83bc-f1e9fe9797ae">
+<lexical-unit>
+<form lang="en"><text>zero gravity</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˈɡrævɪti</text></form>
+</pronunciation>
+<sense id="3d8c82c6-39a2-4427-8f02-e1d2fd4100cd">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>nieważkość</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero growth_ed7f2241-f316-4621-87bf-a5584fc8c410" guid="ed7f2241-f316-4621-87bf-a5584fc8c410">
+<lexical-unit>
+<form lang="en"><text>zero growth</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ɡrəʊθ</text></form>
+</pronunciation>
+<sense id="74e0f18f-30c8-4699-b501-72d5760f608d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zerowy wzrost</text></form>
+</definition>
+<trait  name="domain-type" value="biznes"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-04T12:09:55Z" id="zero hour_5246eb79-4902-493c-896c-099a9a2717b3" guid="5246eb79-4902-493c-896c-099a9a2717b3">
+<lexical-unit>
+<form lang="en"><text>zero hour</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zero1_5e262220-72d6-40fd-b27b-fbd45fc10012" order="0">
+<trait name="is-primary" value="true"/>
+<trait name="complex-form-type" value=""/>
+<trait name="hide-minor-entry" value="1"/>
+</relation>
+<relation type="_component-lexeme" ref="hour_ff56985b-c5ff-41f0-aca8-b59a37a307aa" order="1">
+<trait name="is-primary" value="true"/>
+<trait name="complex-form-type" value=""/>
+<trait name="hide-minor-entry" value="1"/>
+</relation>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˈaʊə</text></form>
+</pronunciation>
+<sense id="d9e5d29d-d0a5-4c7c-ad1e-d0b6493bf429">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>godzina zero, godzina rozpoczęcia działań</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero in on sth_72174a56-818e-4ed6-b006-fb65397224fe" guid="72174a56-818e-4ed6-b006-fb65397224fe">
+<lexical-unit>
+<form lang="en"><text>zero in on sth</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zero2_31eb570b-f5fd-41dd-b590-c505522eef1f" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="3084bde5-1d6d-4f84-82c9-6545a355cc58" order="0">
+<definition>
+<form lang="pl"><text>kierować się na</text></form>
+</definition>
+</sense>
+<sense id="75baf3ef-49e0-4089-876b-915ad9505bce" order="1">
+<definition>
+<form lang="pl"><text>koncentrować się na</text></form>
+</definition>
+<trait  name="usage-type" value="przenosnie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero inflation_bc94c2bf-1986-4978-bcef-a6ef818dd887" guid="bc94c2bf-1986-4978-bcef-a6ef818dd887">
+<lexical-unit>
+<form lang="en"><text>zero inflation</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ɪnˈfleɪʃn̩</text></form>
+</pronunciation>
+<sense id="39e8e314-264b-40a6-ac52-da52b9eb66aa">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zerowa inflacja</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+</sense>
+</entry>
+<entry dateCreated="2013-03-26T17:22:03Z" dateModified="2013-04-03T22:35:47Z" id="zero option_3eb7103d-4668-4a17-9b3b-447af21e0bda" guid="3eb7103d-4668-4a17-9b3b-447af21e0bda">
+<lexical-unit>
+<form lang="en"><text>zero option</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="option_064e6e7f-6123-4df2-b7f2-05726958d8f6" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="f8a90b81-ec47-4873-8619-c337cc50e228">
+<definition>
+<form lang="pl"><text>opcja zerowa</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero overhead growth_7d46ac5d-e423-4ad8-985c-434dd4d041a1" guid="7d46ac5d-e423-4ad8-985c-434dd4d041a1">
+<lexical-unit>
+<form lang="en"><text>zero overhead growth</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˌəʊvəˈhed ɡrəʊθ</text></form>
+</pronunciation>
+<sense id="26ae5089-80fd-4566-857c-1b24cba8ac37">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zero wzrostu kosztów ogólnych</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero population growth_bc83b6e5-07e3-4cd4-922d-bf48979ac880" guid="bc83b6e5-07e3-4cd4-922d-bf48979ac880">
+<lexical-unit>
+<form lang="en"><text>zero population growth</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˌpɒpjʊˈleɪʃn̩ ɡrəʊθ</text></form>
+</pronunciation>
+<sense id="a42dbaf9-4b3b-424b-8853-d576bb5707c0">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zerowy przyrost ludności</text></form>
+</definition>
+<trait  name="domain-type" value="socjologia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero setting_3488cc68-00b3-4873-921d-63b8ca655f23" guid="3488cc68-00b3-4873-921d-63b8ca655f23">
+<lexical-unit>
+<form lang="en"><text>zero setting</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˈsetɪŋ</text></form>
+</pronunciation>
+<sense id="2e961608-9e2d-4051-9ce9-dc26403d1ff1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<relation type="synonim" ref="2da83d6b-f859-4124-9571-5c6bc601d29b"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero tolerance_a8ae0e2a-0836-45f8-84ab-0f767d977d27" guid="a8ae0e2a-0836-45f8-84ab-0f767d977d27">
+<lexical-unit>
+<form lang="en"><text>zero tolerance</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zero1_5e262220-72d6-40fd-b27b-fbd45fc10012" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="aeae3fec-952e-4924-b240-66f9c2388db9">
+<definition>
+<form lang="pl"><text>zero tolerancji</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero value_34597284-d089-442a-8509-c5b76e7e03a3" guid="34597284-d089-442a-8509-c5b76e7e03a3">
+<lexical-unit>
+<form lang="en"><text>zero value</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˈvæljuː</text></form>
+</pronunciation>
+<sense id="1c4cd5f3-4c78-4f00-ba8e-22c3b4576e9b">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>wartość zerowa</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero visibility_e8d69bc1-9119-4432-8b39-7e373200c351" guid="e8d69bc1-9119-4432-8b39-7e373200c351">
+<lexical-unit>
+<form lang="en"><text>zero visibility</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˌvɪzəˈbɪlɪti</text></form>
+</pronunciation>
+<sense id="086a0b1b-cf4c-49e0-8416-d3b216e3eb64">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>widoczność zerowa</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:59:51Z" id="zero-based budget_481f5283-65f2-45a5-a9f2-d9d2fae1e334" guid="481f5283-65f2-45a5-a9f2-d9d2fae1e334">
+<lexical-unit>
+<form lang="en"><text>zero-based budget</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ beɪst ˈbʌdʒət</text></form>
+</pronunciation>
+<sense id="d26e07bb-7943-42d2-be5a-6678b18ca029">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>budżet sporządzony „od zera”</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+<relation type="skrot" ref="7d936fac-ffd0-4215-bc8b-c046b8923897"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-05T17:44:12Z" dateModified="2013-04-04T12:09:55Z" id="zero-coupon bond_d3e25e5b-f5b8-440f-8010-762a95b7e024" guid="d3e25e5b-f5b8-440f-8010-762a95b7e024">
+<lexical-unit>
+<form lang="en"><text>zero-coupon bond</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="bond1_cf744cf8-b01d-4015-9c71-7fe96adc6c26" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ ˈkuːpɒn bɒnd</text></form>
+</pronunciation>
+<sense id="3cdfe598-c520-4934-8c48-55ebd44b86af">
+<definition>
+<form lang="pl"><text>obligacja o kuponie zerowym, sprzedawana z dyskontem, obligacja zerokuponowa</text></form>
+</definition>
+<note>
+<form lang="pl"><text>Definicja: Problem: błąd pisowni; sugestie: zerokuponowa-&gt;zero kuponowa; ;</text></form>
+</note>
+<trait  name="domain-type" value="finanse"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero-defect_b0ad137c-622f-4c89-bf7c-0ef511c8cfaa" guid="b0ad137c-622f-4c89-bf7c-0ef511c8cfaa">
+<lexical-unit>
+<form lang="en"><text>zero-defect</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ dɪˈfekt</text></form>
+</pronunciation>
+<sense id="1f371843-01aa-42dd-a268-af401b2514a2">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>bezbłędny, bezusterkowy</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zeroes_3636bf5a-1f67-4952-91e6-01fad9d64e79" guid="3636bf5a-1f67-4952-91e6-01fad9d64e79">
+<lexical-unit>
+<form lang="en"><text>zeroes</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zero1_5e262220-72d6-40fd-b27b-fbd45fc10012" order="0">
+<trait  name="variant-type" value="Liczba mnoga"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-05T18:52:21Z" id="zeroing_4d9d54cc-e9da-460a-9873-6dd6da05be92" guid="4d9d54cc-e9da-460a-9873-6dd6da05be92">
+<lexical-unit>
+<form lang="en"><text>zeroing</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊɪŋ</text></form>
+</pronunciation>
+<sense id="9ec859e8-3560-4962-8d11-69751f0e6caf">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>nastawianie na zero, zerowanie</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-03-06T10:33:54Z" dateModified="2013-04-03T22:35:47Z" id="zero-plus tick_71d52b49-13f6-4a8c-aac0-2ce0d5ed0571" guid="71d52b49-13f6-4a8c-aac0-2ce0d5ed0571">
+<lexical-unit>
+<form lang="en"><text>zero-plus tick</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="tick1_8f268bb2-a6c5-4b46-91d4-b9031001a340" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="a51344f2-b965-4d08-8f19-0f4d424de43e">
+<definition>
+<form lang="pl"><text>cena akcji jak w dniu poprzednim</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero-point energy_d5785e97-8f7b-4531-8b7b-50738db2f80d" guid="d5785e97-8f7b-4531-8b7b-50738db2f80d">
+<lexical-unit>
+<form lang="en"><text>zero-point energy</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ pɔɪnt ˈenədʒi</text></form>
+</pronunciation>
+<sense id="4a364659-a6b5-41a4-bd5c-05ec4314b2a5">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>energia zerowa</text></form>
+</definition>
+<trait  name="domain-type" value="fizyka"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zero-rated_73687d61-0f42-4d24-a32a-3121fe060b1f" guid="73687d61-0f42-4d24-a32a-3121fe060b1f">
+<lexical-unit>
+<form lang="en"><text>zero-rated</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzɪərəʊˈreɪtɪd, ˈzɪərəʊ ˈreɪtɪd</text></form>
+</pronunciation>
+<sense id="26e8e1f7-c04c-4636-9e3f-6bd9db8b4a4a" order="0">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zwolniony z VAT-u</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+<trait  name="usage-type" value="brytyjski"/>
+</sense>
+<sense id="0f537bc7-ed5d-4de7-99d0-63cbb243d17a" order="1">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>podatek ze stawką zerową</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:58Z" dateModified="2013-04-03T22:35:47Z" id="zeros_b1fb4b0a-e2fa-41b5-bd84-b2c591153dc3" guid="b1fb4b0a-e2fa-41b5-bd84-b2c591153dc3">
+<lexical-unit>
+<form lang="en"><text>zeros</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zero1_5e262220-72d6-40fd-b27b-fbd45fc10012" order="0">
+<trait  name="variant-type" value="Liczba mnoga"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2014-11-08T19:35:18Z" id="zero-sum game_74c98d3f-1b0e-4406-a97c-12a7cbc00450" guid="74c98d3f-1b0e-4406-a97c-12a7cbc00450">
+<lexical-unit>
+<form lang="en"><text>zero-sum game</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊ</text></form>
+</pronunciation>
+<sense id="83498116-834a-4fe2-8a68-91e3cd4964cc">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>gra o sumie zerowej</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-05T18:52:21Z" id="zeroth_37323528-ee96-4fa6-9181-42a43b51cb68" guid="37323528-ee96-4fa6-9181-42a43b51cb68">
+<lexical-unit>
+<form lang="en"><text>zeroth</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪərəʊθ</text></form>
+</pronunciation>
+<sense id="210da7db-1a6a-47b3-a4a5-26de4b3e4c14">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zerowy</text></form>
+</definition>
+<trait  name="domain-type" value="fizyka"/>
+<trait  name="domain-type" value="matematyka"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zerovalent_0300d932-c484-4f29-acf2-4f282a4a954a" guid="0300d932-c484-4f29-acf2-4f282a4a954a">
+<lexical-unit>
+<form lang="en"><text>zerovalent</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈziəɹuːvələnt</text></form>
+</pronunciation>
+<sense id="e41ca2b1-5eac-46f4-a211-7e3401f51c64">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zerowartościowy</text></form>
+</definition>
+<note>
+<form lang="pl"><text>Definicja: Problem: błąd pisowni; sugestie: zerowartościowy-&gt;zero wartościowy; ;</text></form>
+</note>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-04T16:00:02Z" id="zest1_50bc26a7-48aa-450e-90c7-7e5ed38efaaf" guid="50bc26a7-48aa-450e-90c7-7e5ed38efaaf" order="1">
+<lexical-unit>
+<form lang="en"><text>zest</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzest</text></form>
+</pronunciation>
+<sense id="efacd1af-5e8f-45d9-80bc-b444f115bcea" order="0">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zapał, entuzjazm</text></form>
+</definition>
+</sense>
+<sense id="1262fa7a-8899-4e42-b5d2-7bbaa59d5838" order="1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>smak, przyprawa, aromat</text></form>
+</definition>
+<trait  name="usage-type" value="przenosnie"/>
+</sense>
+<sense id="71e36d78-b72f-4457-81b3-81c691d85e2c" order="2">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>skórka</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-04T16:00:02Z" id="zest2_b26e51e9-434d-4c88-a394-2a4acf8709e0" guid="b26e51e9-434d-4c88-a394-2a4acf8709e0" order="2">
+<lexical-unit>
+<form lang="en"><text>zest</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzest</text></form>
+</pronunciation>
+<sense id="848fd715-b22b-4577-a3fc-4a3d3607d741">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>dodawać smaku, uprzyjemniać</text></form>
+</definition>
+<trait  name="usage-type" value="przenosnie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zest for life_659518d5-c9e8-481b-a849-a30ee96f2be5" guid="659518d5-c9e8-481b-a849-a30ee96f2be5">
+<lexical-unit>
+<form lang="en"><text>zest for life</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zest1_50bc26a7-48aa-450e-90c7-7e5ed38efaaf" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="81c3b0ed-d82d-436a-9118-ec2f74f42c5f">
+<definition>
+<form lang="pl"><text>radość życia</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zestful_5038313b-469d-44c5-9aeb-0dd68c4f64c2" guid="5038313b-469d-44c5-9aeb-0dd68c4f64c2">
+<lexical-unit>
+<form lang="en"><text>zestful</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzestfəl</text></form>
+</pronunciation>
+<sense id="0ee725d4-a385-4570-a1ff-7b2cc6dd192a" order="0">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>pełen zapału, entuzjazmu</text></form>
+</definition>
+</sense>
+<sense id="8cb17ecc-8796-4abc-b382-d73a13e1e295" order="1">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>radosny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-04T16:00:02Z" id="zesty_39183512-7b9b-4608-8726-bd7176b5d343" guid="39183512-7b9b-4608-8726-bd7176b5d343">
+<lexical-unit>
+<form lang="en"><text>zesty</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzesti</text></form>
+</pronunciation>
+<sense id="0139623b-3a4f-4586-a853-261cd0c5f812" order="0">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>przyjemnie ostry</text></form>
+</definition>
+<trait  name="domain-type" value="kulinaria"/>
+</sense>
+<sense id="36cc7065-a3e5-4561-91c6-00f430819d0e" order="1">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>żywy, energiczny</text></form>
+</definition>
+<trait  name="usage-type" value="przenosnie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="Zeus_c70a5fd9-34d5-4a84-97b7-ad581cf419b8" guid="c70a5fd9-34d5-4a84-97b7-ad581cf419b8">
+<lexical-unit>
+<form lang="en"><text>Zeus</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zjuːs</text></form>
+</pronunciation>
+<sense id="cb797078-f1c8-445e-8371-0f0682df578a">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zeus</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zibeline1_7b76f933-1354-469c-a2e9-72f135b5888b" guid="7b76f933-1354-469c-a2e9-72f135b5888b" order="1">
+<lexical-unit>
+<form lang="en"><text>zibeline</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪbəlaɪn</text></form>
+</pronunciation>
+<sense id="258ef430-324d-48ea-b3b2-5de04ece4903">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>soból</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zibeline2_353ce194-0662-4375-af48-75acec71edbb" guid="353ce194-0662-4375-af48-75acec71edbb" order="2">
+<lexical-unit>
+<form lang="en"><text>zibeline</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪbəlaɪn</text></form>
+</pronunciation>
+<sense id="c7b59f63-a038-487b-966a-8038592bd015">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>sobolowy</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zibeline cloth_f3c726a2-1787-4c71-ab4a-390dd252a2d5" guid="f3c726a2-1787-4c71-ab4a-390dd252a2d5">
+<lexical-unit>
+<form lang="en"><text>zibeline cloth</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zibeline2_353ce194-0662-4375-af48-75acec71edbb" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="1c3cee06-400c-4942-bf75-de9337b43353">
+<definition>
+<form lang="pl"><text>gruby, miękki materiał z wełny owczej</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zibet_f5d0df51-8d1a-4c0b-9d9a-82b8b2650646" guid="f5d0df51-8d1a-4c0b-9d9a-82b8b2650646">
+<lexical-unit>
+<form lang="en"><text>zibet</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪbɪt</text></form>
+</pronunciation>
+<sense id="2cfe975d-e1eb-4ccd-bf62-eebb28d722ad">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cyweta indyjska</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zidovudine_8bdd8750-7a21-4887-b185-19e43f6c57a7" guid="8bdd8750-7a21-4887-b185-19e43f6c57a7">
+<lexical-unit>
+<form lang="en"><text>zidovudine</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪdəˌvjuːdiːn</text></form>
+</pronunciation>
+<sense id="812001f2-dbe0-47b1-a6b2-8c5886ef971d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>AZT</text></form>
+</definition>
+<trait  name="domain-type" value="medycyna"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="ziggurat_ed697e89-9ca2-43b9-96f4-a7eb09286387" guid="ed697e89-9ca2-43b9-96f4-a7eb09286387">
+<lexical-unit>
+<form lang="en"><text>ziggurat</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪɡəˌræt, ˈzɪɡuræt</text></form>
+</pronunciation>
+<sense id="11514276-947c-45c4-809d-28a56be0aab0">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zigurat</text></form>
+</definition>
+<trait  name="domain-type" value="historia"/>
+<trait  name="domain-type" value="budownictwo"/>
+<relation type="synonim" ref="17568796-f08c-4482-a539-f2b656d004ea"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zigzag1_7d11f4bc-0086-4ecc-9ff6-22ab1b713eeb" guid="7d11f4bc-0086-4ecc-9ff6-22ab1b713eeb" order="1">
+<lexical-unit>
+<form lang="en"><text>zigzag</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪɡzæɡ</text></form>
+</pronunciation>
+<sense id="788b3461-ca0b-4f5f-9c95-e3b2eb63adc1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zygzak</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zigzag2_894603d8-66c1-47aa-9f92-f9a420cef0c2" guid="894603d8-66c1-47aa-9f92-f9a420cef0c2" order="2">
+<lexical-unit>
+<form lang="en"><text>zigzag</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪɡzæɡ</text></form>
+</pronunciation>
+<sense id="01bd7ad9-919d-4481-bfb6-d88c6f44ff73">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>poruszać się zygzakiem</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zigzag3_9d2063d6-a0bc-482a-9fcc-27fbe0ac18d0" guid="9d2063d6-a0bc-482a-9fcc-27fbe0ac18d0" order="3">
+<lexical-unit>
+<form lang="en"><text>zigzag</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪɡzæɡ</text></form>
+</pronunciation>
+<sense id="d0f642c2-4c2c-4cbe-ae4f-162cfd377f1d">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zygzakowaty</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-07T13:02:08Z" dateModified="2013-04-03T22:35:47Z" id="zikkurat_7640b33c-0961-4327-b2c7-700132dfd322" guid="7640b33c-0961-4327-b2c7-700132dfd322">
+<lexical-unit>
+<form lang="en"><text>zikkurat</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zikurat_8fe1e4ff-23ed-4937-bf8a-4b0b050909db" order="0">
+<trait  name="variant-type" value="Spelling Variant"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:44:16Z" dateModified="2014-11-07T09:31:39Z" id="zikurat_8fe1e4ff-23ed-4937-bf8a-4b0b050909db" guid="8fe1e4ff-23ed-4937-bf8a-4b0b050909db">
+<lexical-unit>
+<form lang="en"><text>zikurat</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<sense id="17568796-f08c-4482-a539-f2b656d004ea">
+<grammatical-info value="Noun">
+</grammatical-info>
+<gloss lang="pl"><text>(sakralna budowla wieżowa z Mezopotamii)</text></gloss>
+<definition>
+<form lang="pl"><text>zigurat, ziggurat</text></form>
+</definition>
+<trait  name="domain-type" value="historia"/>
+<relation type="synonim" ref="11514276-947c-45c4-809d-28a56be0aab0"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zila_dbe7e9fc-9d82-4f9a-ad04-00db2a127a0b" guid="dbe7e9fc-9d82-4f9a-ad04-00db2a127a0b">
+<lexical-unit>
+<form lang="en"><text>zila</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈziːlə</text></form>
+</pronunciation>
+<sense id="bcd5ff21-f128-4cff-bde8-1dfe3a4e4a04">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>okręg administracyjny w Indiach pod panowaniem brytyjskim</text></form>
+</definition>
+<trait  name="domain-type" value="historia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2014-05-18T11:23:16Z" id="zilch_0ecd5b42-4d2f-4aaf-bf91-a425c5f7daba" guid="0ecd5b42-4d2f-4aaf-bf91-a425c5f7daba">
+<lexical-unit>
+<form lang="en"><text>zilch</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪltʃ</text></form>
+</pronunciation>
+<sense id="fd572cd3-6cf9-4612-a2fa-d577b5653aa8">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>nic, zero, figa</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+<trait  name="usage-type" value="potocznie"/>
+<trait  name="usage-type" value="kanadyjski"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zillion_593fea55-3f80-4905-95ba-dd9ef40a5462" guid="593fea55-3f80-4905-95ba-dd9ef40a5462">
+<lexical-unit>
+<form lang="en"><text>zillion</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪljən</text></form>
+</pronunciation>
+<sense id="75b7a186-eb6b-42ab-9c1d-dfa15ac7412d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>masa (ludzi, rzeczy), tysiąc jeden, milion</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zillionaire_28abc7de-65f9-4a6a-8e31-3b01ae32afcf" guid="28abc7de-65f9-4a6a-8e31-3b01ae32afcf">
+<lexical-unit>
+<form lang="en"><text>zillionaire</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪljəˌner</text></form>
+</pronunciation>
+<sense id="d7abe18a-b947-4d13-b6ea-fb24c65486ab">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>miliarder(ka)</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="Zimbabwe_4cad7281-e1a3-4fe1-9ae8-8df43938c912" guid="4cad7281-e1a3-4fe1-9ae8-8df43938c912">
+<lexical-unit>
+<form lang="en"><text>Zimbabwe</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪmˈbɑːbwɪ, zɪmˈbɑːbwi</text></form>
+</pronunciation>
+<sense id="f618d252-1ba3-49a4-9cc7-1e61e6710ac6">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zimbabwe</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="Zimbabwean_95234a6d-c25a-448e-a386-a28607a9c83f" guid="95234a6d-c25a-448e-a386-a28607a9c83f">
+<lexical-unit>
+<form lang="en"><text>Zimbabwean</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪmˈbɑːbwɪən, zɪmˈbɑːbwiən</text></form>
+</pronunciation>
+<sense id="0cf32d5b-cda1-4c54-8340-73e0db15afbf">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>mieszkaniec/mieszkanka Zimbabwe</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zimmer frame_ee033f1b-42ff-408c-92f7-1d81fe10c526" guid="ee033f1b-42ff-408c-92f7-1d81fe10c526">
+<lexical-unit>
+<form lang="en"><text>zimmer frame</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪmə freɪm</text></form>
+</pronunciation>
+<sense id="f3d97edd-167d-44c8-9441-730de274f08e">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>balkonik do chodzenia</text></form>
+</definition>
+<trait  name="usage-type" value="brytyjski"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zinc1_78986818-8689-4327-914c-683a9913675d" guid="78986818-8689-4327-914c-683a9913675d" order="1">
+<lexical-unit>
+<form lang="en"><text>zinc</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk</text></form>
+</pronunciation>
+<sense id="2daeaca6-b890-40a2-aac5-d07ca0483f4c">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynk</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zinc2_3073b59e-29c9-4401-8785-233e531b9f4b" guid="3073b59e-29c9-4401-8785-233e531b9f4b" order="2">
+<lexical-unit>
+<form lang="en"><text>zinc</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk</text></form>
+</pronunciation>
+<sense id="f2d49824-0257-4700-9afc-2dc59dbfb7fb">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynkować</text></form>
+</definition>
+<trait  name="domain-type" value="technika"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zinc blende_d7aebd93-c04d-422f-950e-14891686f556" guid="d7aebd93-c04d-422f-950e-14891686f556">
+<lexical-unit>
+<form lang="en"><text>zinc blende</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk blend</text></form>
+</pronunciation>
+<sense id="4430a146-a78f-4059-8945-7dafbcd9d2f7">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>blenda cynkowa</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zinc chloride_2977eeac-5965-4790-ad3f-4e419a3e0acc" guid="2977eeac-5965-4790-ad3f-4e419a3e0acc">
+<lexical-unit>
+<form lang="en"><text>zinc chloride</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk ˈklɔːraɪd</text></form>
+</pronunciation>
+<sense id="29002c40-986f-460b-a354-b25ff31cf682">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>chlorek cynkowy</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:37:59Z" dateModified="2013-04-03T22:35:47Z" id="zinc ointment_b82912ac-86b1-4989-99ef-548f5b426b79" guid="b82912ac-86b1-4989-99ef-548f5b426b79">
+<lexical-unit>
+<form lang="en"><text>zinc ointment</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk ˈɔɪntmənt</text></form>
+</pronunciation>
+<sense id="9f9c6938-eadb-4904-a5e5-806028e43d0d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>maść cynkowa</text></form>
+</definition>
+<trait  name="domain-type" value="medycyna"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zinc oxide_4717b226-19e7-480f-bf20-14dc25f2b372" guid="4717b226-19e7-480f-bf20-14dc25f2b372">
+<lexical-unit>
+<form lang="en"><text>zinc oxide</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk ˈɒksaɪd</text></form>
+</pronunciation>
+<sense id="ed530d0a-63e4-43ec-9543-33660eabd0a9">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>tlenek cynkowy</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zinc sulfate_43d90f7f-bb66-4e8e-99b5-9ea43bc96202" guid="43d90f7f-bb66-4e8e-99b5-9ea43bc96202">
+<lexical-unit>
+<form lang="en"><text>zinc sulfate</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk ˈsəlˌfet</text></form>
+</pronunciation>
+<sense id="c127dbf1-86ca-406b-8638-0d6380fc7e28">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>siarczan cynkowy</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zinc sulfide_580ae923-a3bb-4f12-8bb5-c6fbe22edb60" guid="580ae923-a3bb-4f12-8bb5-c6fbe22edb60">
+<lexical-unit>
+<form lang="en"><text>zinc sulfide</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk ˈsəlˌfaɪd</text></form>
+</pronunciation>
+<sense id="0076df80-1b6d-45d0-b1a7-e5e9c98f016b">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>siarczek cynkowy</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zinc white_cc7f9e7f-5cee-491b-b113-1e4b56fea715" guid="cc7f9e7f-5cee-491b-b113-1e4b56fea715">
+<lexical-unit>
+<form lang="en"><text>zinc white</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋk waɪt</text></form>
+</pronunciation>
+<sense id="873d49ad-5d6d-4b07-bf2b-244b1d7f5ab5">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>biel cynkowa</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zincate_12ebd535-16a3-47a0-a736-29ff55997d0b" guid="12ebd535-16a3-47a0-a736-29ff55997d0b">
+<lexical-unit>
+<form lang="en"><text>zincate</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪnkeɪt</text></form>
+</pronunciation>
+<sense id="b7f9e38a-50f0-4367-898d-f0e115a62e18">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynkan</text></form>
+</definition>
+<note>
+<form lang="pl"><text>Definicja: Problem: błąd pisowni; sugestie: cynkan-&gt;cynian; cynkan-&gt;cynka; cynkan-&gt;cyn kan; cynkan-&gt;cynk an; cynkan-&gt;cynka n; ;</text></form>
+</note>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zincic_4c7dfe5a-b2fb-427d-98d2-6237b23b1cea" guid="4c7dfe5a-b2fb-427d-98d2-6237b23b1cea">
+<lexical-unit>
+<form lang="en"><text>zincic</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪnsɪk</text></form>
+</pronunciation>
+<sense id="2cd69800-cbe0-4791-a3ab-ef5b3b9f6ef5">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynkowy</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zinciferous_2af1b81e-0d61-4a56-ab74-cf19c510c212" guid="2af1b81e-0d61-4a56-ab74-cf19c510c212">
+<lexical-unit>
+<form lang="en"><text>zinciferous</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋˈkɪfərəs</text></form>
+</pronunciation>
+<sense id="91b0d87c-35b3-4339-aeaf-c4973a4c0d12">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynkonośny, zawierający cynk</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zincify_7b309871-eea3-43e6-9745-a7ccd7ac33fe" guid="7b309871-eea3-43e6-9745-a7ccd7ac33fe">
+<lexical-unit>
+<form lang="en"><text>zincify</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪnsɪˌfaɪ</text></form>
+</pronunciation>
+<sense id="64d481a5-33a6-4af3-8837-25870df88b71">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynkować</text></form>
+</definition>
+<trait  name="domain-type" value="technika"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zincograph_9cb853df-ce69-4865-b50c-f8633c0d244c" guid="9cb853df-ce69-4865-b50c-f8633c0d244c">
+<lexical-unit>
+<form lang="en"><text>zincograph</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪnkəɡɹˌaf</text></form>
+</pronunciation>
+<sense id="b7034d82-09ce-4610-991d-afd783c79748">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynkografia</text></form>
+</definition>
+<trait  name="domain-type" value="technika"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zine_0921af29-ca96-43b3-8a6d-9fd79588d0a3" guid="0921af29-ca96-43b3-8a6d-9fd79588d0a3">
+<lexical-unit>
+<form lang="en"><text>zine</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzaɪn, ziːn</text></form>
+</pronunciation>
+<sense id="c9a709dc-6b5e-40a2-84f8-289a674cd85f">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>czasopismo internetowe</text></form>
+</definition>
+<trait  name="domain-type" value="technika"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zing1_86710ae9-0dee-40db-859c-1868e059055c" guid="86710ae9-0dee-40db-859c-1868e059055c" order="1">
+<lexical-unit>
+<form lang="en"><text>zing</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋ</text></form>
+</pronunciation>
+<sense id="1972a598-142d-4487-8b03-271d076e768e" order="0">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>brzdęk</text></form>
+</definition>
+</sense>
+<sense id="04c0eb70-c130-46f1-96a7-655aee454a4c" order="1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>energia, żywość</text></form>
+</definition>
+<trait  name="usage-type" value="przenosnie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zing2_78ccb0e1-fad1-4aa9-b50d-111522da597e" guid="78ccb0e1-fad1-4aa9-b50d-111522da597e" order="2">
+<lexical-unit>
+<form lang="en"><text>zing</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪŋ</text></form>
+</pronunciation>
+<sense id="8620688a-ffa0-4833-8e98-c284c15cf548">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>brzęczeć, bzyczeć</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zing up_adae8bd9-25b4-4195-a372-eb9d198502d9" guid="adae8bd9-25b4-4195-a372-eb9d198502d9">
+<lexical-unit>
+<form lang="en"><text>zing up</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zing2_78ccb0e1-fad1-4aa9-b50d-111522da597e" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="162f7ffe-f529-4a3b-96f3-1660f35720f6">
+<definition>
+<form lang="pl"><text>ożywiać</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zing with energy_d6f2e33e-2629-4b90-90d4-ce4c5e16c5f7" guid="d6f2e33e-2629-4b90-90d4-ce4c5e16c5f7">
+<lexical-unit>
+<form lang="en"><text>zing with energy</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zing2_78ccb0e1-fad1-4aa9-b50d-111522da597e" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="f83ad66c-1032-46e7-84e4-d29077b407e3">
+<definition>
+<form lang="pl"><text>tryskać energią</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zinger_f253eaca-77c1-4023-a325-3eb80a43e065" guid="f253eaca-77c1-4023-a325-3eb80a43e065">
+<lexical-unit>
+<form lang="en"><text>zinger</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪŋə</text></form>
+</pronunciation>
+<sense id="975b4bd2-1526-4bbc-a762-45e5fd37ed3b" order="0">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>celna uwaga</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+<sense id="c3f9ab4d-0000-4981-bc0c-22058a5b4193" order="1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>docinek, złośliwość</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zingy_f2bb6514-c1f4-46f0-8220-749b0e1d8bb8" guid="f2bb6514-c1f4-46f0-8220-749b0e1d8bb8">
+<lexical-unit>
+<form lang="en"><text>zingy</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪŋɪ</text></form>
+</pronunciation>
+<sense id="4e8fb10f-fa9c-4523-a89d-38a3437c5aea">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>żywy, energiczny</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zinnia_34779e1d-3e4e-4989-8ee2-3ee4cf94b72b" guid="34779e1d-3e4e-4989-8ee2-3ee4cf94b72b">
+<lexical-unit>
+<form lang="en"><text>zinnia</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪnɪə, ˈzɪnjə, ˈzɪniə</text></form>
+</pronunciation>
+<sense id="04c67638-c1cf-45b4-8b27-663ddf1a588d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cynia</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="Zion_3114862b-833d-46f4-8453-56c07593a6f1" guid="3114862b-833d-46f4-8453-56c07593a6f1">
+<lexical-unit>
+<form lang="en"><text>Zion</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzaɪən</text></form>
+</pronunciation>
+<sense id="87d273a2-81c3-494e-a41d-7d5924611b7c">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Syjon</text></form>
+</definition>
+<trait  name="domain-type" value="geografia"/>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="Zionism_e483d660-5243-4b33-8ba4-4cddef31cc24" guid="e483d660-5243-4b33-8ba4-4cddef31cc24">
+<lexical-unit>
+<form lang="en"><text>Zionism</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzaɪənɪzm, ˈzaɪəˌnɪzəm, ˈzaɪənɪzəm</text></form>
+</pronunciation>
+<sense id="154ec54b-fb3d-4b0e-bd32-93551cc5f67b">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>syjonizm</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="Zionist1_a491a913-964c-4bb7-a7a4-0583e169f421" guid="a491a913-964c-4bb7-a7a4-0583e169f421" order="1">
+<lexical-unit>
+<form lang="en"><text>Zionist</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzaɪənɪst</text></form>
+</pronunciation>
+<sense id="fbe8bedb-218e-4f37-8db0-82d1b4141107">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>syjonista/syjonistka</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="Zionist2_d982ed87-a854-47c7-8604-c5f3299858fb" guid="d982ed87-a854-47c7-8604-c5f3299858fb" order="2">
+<lexical-unit>
+<form lang="en"><text>Zionist</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzaɪənɪst</text></form>
+</pronunciation>
+<sense id="05b1e9fb-dbfb-49d9-9c4f-c6d80b391bef">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>syjonistyczny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zip1_1df9a911-5493-457c-acef-55ea7685504e" guid="1df9a911-5493-457c-acef-55ea7685504e" order="1">
+<lexical-unit>
+<form lang="en"><text>zip</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪp</text></form>
+</pronunciation>
+<sense id="d29c5a0b-8dc9-43f6-bc11-2db5f88fb520" order="0">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>świst</text></form>
+</definition>
+</sense>
+<sense id="b99a9bd4-6b28-43a3-b1ee-e635fa446ba1" order="1">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>życie, energia</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+<sense id="aa9470c9-f951-4c8d-aa4f-df4b01f2ed81" order="2">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zamek błyskawiczny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zip2_bab6ed08-f392-434f-aa22-6e32ec074cb3" guid="bab6ed08-f392-434f-aa22-6e32ec074cb3" order="2">
+<lexical-unit>
+<form lang="en"><text>zip</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪp</text></form>
+</pronunciation>
+<sense id="083012bc-8558-42b1-a3f1-9cc26ba5f037" order="0">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zapinać</text></form>
+</definition>
+</sense>
+<sense id="61f76400-335e-4ca3-8b55-f98aa566c363" order="1">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>świstać</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+<sense id="bce36b36-28de-442a-888f-6667761cf0ae" order="2">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>migać, gnać</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+<sense id="902c1005-1560-4aba-a693-f8c73af16427" order="3">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>kompresować</text></form>
+</definition>
+<trait  name="domain-type" value="informatyka"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-22T17:17:06Z" dateModified="2013-08-13T17:23:53Z" id="zip code_1d77818f-0004-435f-9c2a-bb602f8ad797" guid="1d77818f-0004-435f-9c2a-bb602f8ad797">
+<lexical-unit>
+<form lang="en"><text>zip code</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="code1_205a8ed8-1a20-4862-8e6d-acd11341e078" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪp kəʊd, ˈzɪpkəʊd</text></form>
+</pronunciation>
+<sense id="f09650ce-6c3c-45d1-a53a-e9e3ec3a9d8d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>kod pocztowy</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+<relation type="synonim" ref="fd7eb359-ffb7-4e69-9127-44c68b34eb40"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zip fastener_f2df3f3d-bed9-4b1f-a748-b4524043932c" guid="f2df3f3d-bed9-4b1f-a748-b4524043932c">
+<lexical-unit>
+<form lang="en"><text>zip fastener</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪp ˈfɑːsnə</text></form>
+</pronunciation>
+<sense id="37e1a342-d338-48d7-a0bb-da1685b86153">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zamek błyskawiczny</text></form>
+</definition>
+<relation type="synonim" ref="ec9f5f85-01ff-4ee8-89b6-4c1ae0d9a64c"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zip sb up_d2f308bc-4ba5-4f6f-a5d3-fcb1b27f2801" guid="d2f308bc-4ba5-4f6f-a5d3-fcb1b27f2801">
+<lexical-unit>
+<form lang="en"><text>zip sb up</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zip2_bab6ed08-f392-434f-aa22-6e32ec074cb3" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="9bc9e56c-f99d-4a5e-9e68-51953080dec5" order="0">
+<definition>
+<form lang="pl"><text>zapiąć komuś zamek</text></form>
+</definition>
+</sense>
+<sense id="0cabf4bf-28b8-4d95-80f3-f6a1d4470865" order="1">
+<gloss lang="pl"><text>(np. dziecko)</text></gloss>
+<definition>
+<form lang="pl"><text>zasunąć zamek na kimś, zapiąć kogoś</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zip sth open_c1cce4d9-e6cb-49d6-bb7f-f62122da1e85" guid="c1cce4d9-e6cb-49d6-bb7f-f62122da1e85">
+<lexical-unit>
+<form lang="en"><text>zip sth open</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zip2_bab6ed08-f392-434f-aa22-6e32ec074cb3" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="b7514b59-f949-4ede-a03e-5acb3a55aadf">
+<definition>
+<form lang="pl"><text>zapiąć coś</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zip sth shut_ceded91b-9d8d-4afd-b2c6-3d99da5c3e55" guid="ceded91b-9d8d-4afd-b2c6-3d99da5c3e55">
+<lexical-unit>
+<form lang="en"><text>zip sth shut</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zip2_bab6ed08-f392-434f-aa22-6e32ec074cb3" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="7d418085-7c08-4c11-94a0-1bd0dce7fc44">
+<definition>
+<form lang="pl"><text>rozpiąć coś</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zip up_86add345-f7b1-4b10-b582-62f9e7ed70d3" guid="86add345-f7b1-4b10-b582-62f9e7ed70d3">
+<lexical-unit>
+<form lang="en"><text>zip up</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zip2_bab6ed08-f392-434f-aa22-6e32ec074cb3" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="9fd2f3a1-8227-479f-9a02-d6ecfe81d8a1">
+<definition>
+<form lang="pl"><text>zasuwać zamek błyskawiczny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-15T18:50:49Z" dateModified="2014-05-29T10:05:19Z" id="zip your lip_24288aaf-d892-4640-a9b6-54b31bf992d2" guid="24288aaf-d892-4640-a9b6-54b31bf992d2">
+<lexical-unit>
+<form lang="en"><text>zip your lip</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="button your lip_9f3bdfab-02aa-4ed5-a952-5a4e3daf6817" order="0">
+<trait name="variant-type" value=""/>
+</relation>
+<sense id="a501b2e8-5979-4f92-8c5b-4e95d0a235cb">
+<note>
+<form lang="pl"><text>EXAMPLE_TRANSLATION</text></form>
+</note>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zipper_b501c61b-2fc3-4a73-b69d-8223b0a3bed7" guid="b501c61b-2fc3-4a73-b69d-8223b0a3bed7">
+<lexical-unit>
+<form lang="en"><text>zipper</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪpə</text></form>
+</pronunciation>
+<sense id="ec9f5f85-01ff-4ee8-89b6-4c1ae0d9a64c">
+<grammatical-info value="Noun">
+</grammatical-info>
+<trait  name="usage-type" value="amerykanski"/>
+<relation type="synonim" ref="37e1a342-d338-48d7-a0bb-da1685b86153"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zippo_1193a25a-d33c-4900-8bd5-d8ade246e424" guid="1193a25a-d33c-4900-8bd5-d8ade246e424">
+<lexical-unit>
+<form lang="en"><text>zippo</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪpəʊ</text></form>
+</pronunciation>
+<sense id="b8615035-c9d1-4148-9c15-97dee3b830a9">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>nic, zero</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zippy_0cbc91ec-3c6d-4809-a747-1315c049efaa" guid="0cbc91ec-3c6d-4809-a747-1315c049efaa">
+<lexical-unit>
+<form lang="en"><text>zippy</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪpi, ˈzɪpɪ</text></form>
+</pronunciation>
+<sense id="108c439d-5294-43ab-acc5-fbbfbb9c5796">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>żywy, szybki</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-05T18:47:19Z" id="zirconium_35f05252-57e5-4e94-b271-e9c41b542bba" guid="35f05252-57e5-4e94-b271-e9c41b542bba">
+<lexical-unit>
+<form lang="en"><text>zirconium</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zərˈkəʊniəm, zəːˈkəʊnjəm, zɜːˈkəʊniəm</text></form>
+</pronunciation>
+<sense id="f9b1844f-fbb8-415b-9de6-d7f4d7b30002">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cyrkon</text></form>
+</definition>
+<trait  name="domain-type" value="chemia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zit_370a8b22-cbb2-45a8-9e09-47c112cbb0d3" guid="370a8b22-cbb2-45a8-9e09-47c112cbb0d3">
+<lexical-unit>
+<form lang="en"><text>zit</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɪt</text></form>
+</pronunciation>
+<sense id="73bd009d-6cec-4f14-adeb-8a8938d6bdc3">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>syf, pryszcz</text></form>
+</definition>
+<trait  name="usage-type" value="slangowe"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zither_ebe7a9bb-bd7d-41be-8a00-ec403749e8f3" guid="ebe7a9bb-bd7d-41be-8a00-ec403749e8f3">
+<lexical-unit>
+<form lang="en"><text>zither</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪðə</text></form>
+</pronunciation>
+<sense id="7f30abca-a973-44ca-b4ba-154fb320581e">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cytra</text></form>
+</definition>
+<trait  name="domain-type" value="muzyka"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zitherist_062ef766-f6bc-47e9-a1be-aec5c6aa3bb8" guid="062ef766-f6bc-47e9-a1be-aec5c6aa3bb8">
+<lexical-unit>
+<form lang="en"><text>zitherist</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪθəɹˌɪst</text></form>
+</pronunciation>
+<sense id="774af347-6a59-4cb2-b035-b3bc24025093">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cytrzysta/cytrzystka</text></form>
+</definition>
+<trait  name="domain-type" value="muzyka"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zitty_4a0cec00-5dc2-4f3b-9075-5c17ff92dd39" guid="4a0cec00-5dc2-4f3b-9075-5c17ff92dd39">
+<lexical-unit>
+<form lang="en"><text>zitty</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɪtɪ</text></form>
+</pronunciation>
+<sense id="e24423c3-b714-4985-8ec2-fb7b548d80b4">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>pryszczaty</text></form>
+</definition>
+<trait  name="usage-type" value="slangowe"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zloty_ebe97ac2-b36b-479c-b2d8-a36d82102041" guid="ebe97ac2-b36b-479c-b2d8-a36d82102041">
+<lexical-unit>
+<form lang="en"><text>zloty</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzlɒti</text></form>
+</pronunciation>
+<sense id="3910c57a-11c0-4a1f-b52a-587cb97eccdc">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>złoty (waluta polska)</text></form>
+</definition>
+<trait  name="domain-type" value="finanse"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-05T18:52:21Z" id="zodiac_a4684468-0061-41e8-b7e7-9d2cceb7bded" guid="a4684468-0061-41e8-b7e7-9d2cceb7bded">
+<lexical-unit>
+<form lang="en"><text>zodiac</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzəʊdɪæk, ˈzəʊdiæk</text></form>
+</pronunciation>
+<sense id="b9f80d42-c144-479c-b9ae-b875ea5b4729">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zodiak</text></form>
+</definition>
+<trait  name="domain-type" value="astrologia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-03T22:35:47Z" id="zodiacal_1d5f0b0f-8b45-4779-9e16-7cf8152b7b76" guid="1d5f0b0f-8b45-4779-9e16-7cf8152b7b76">
+<lexical-unit>
+<form lang="en"><text>zodiacal</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zəuˈdaɪəkəl, zəʊˈdaɪəkəl</text></form>
+</pronunciation>
+<sense id="4e86ace7-c19d-44a7-9578-72694b59ff80">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zodiakalny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-10T23:14:17Z" dateModified="2013-04-03T22:35:47Z" id="zodiacal light_3b382c38-51cd-469f-9396-83586ae978c7" guid="3b382c38-51cd-469f-9396-83586ae978c7">
+<lexical-unit>
+<form lang="en"><text>zodiacal light</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="light1_09d92fd4-d4a3-4478-963c-c591fe84da0a" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="df77417e-a84b-4bda-8d90-3357355c8515">
+<definition>
+<form lang="pl"><text>światło zodiakalne</text></form>
+</definition>
+<trait  name="domain-type" value="astronomia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-01-19T12:32:16Z" dateModified="2013-04-03T22:35:47Z" id="zodiacal sign_ff743abc-a50b-47bd-8ca8-aea9cf880e4d" guid="ff743abc-a50b-47bd-8ca8-aea9cf880e4d">
+<lexical-unit>
+<form lang="en"><text>zodiacal sign</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="star sign_b35b1ac8-e082-4b6b-a7d6-44c07311d102" order="0">
+<trait name="variant-type" value=""/>
+</relation>
+<sense id="3ad636f7-f251-4cb3-879f-57c4c94dfcbe">
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2014-05-20T06:35:06Z" id="zombie_b18072e5-03c5-4099-a92d-265d52a8c0ab" guid="b18072e5-03c5-4099-a92d-265d52a8c0ab">
+<lexical-unit>
+<form lang="en"><text>zombie</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzɒmbi, ˈzɔmbɪ</text></form>
+</pronunciation>
+<sense id="f9cfac01-62cb-4ccb-8869-a28e7cea37cf">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zombi, żywy trup</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-05T18:47:19Z" id="zonal_8e528cb0-f42f-4f2c-9e6b-7d00162631b3" guid="8e528cb0-f42f-4f2c-9e6b-7d00162631b3">
+<lexical-unit>
+<form lang="en"><text>zonal</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzəʊnəl, ˈzəʊnl, ˈzəʊnl̩</text></form>
+</pronunciation>
+<sense id="76811ade-ff75-43d7-81c3-a457042c75df">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>strefowy</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-10T23:14:12Z" dateModified="2013-04-03T22:35:47Z" id="zonal layer_6645c763-2c7f-4b0b-a451-3b297efe0d51" guid="6645c763-2c7f-4b0b-a451-3b297efe0d51">
+<lexical-unit>
+<form lang="en"><text>zonal layer</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="layer1_37085d58-34ba-4ebb-bdf4-50224b99a2f8" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="be7c4cb5-4c11-4d1c-8505-5f426bba47e5">
+<definition>
+<form lang="pl"><text>warstwa obwodowa</text></form>
+</definition>
+<trait  name="domain-type" value="medycyna"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:00Z" dateModified="2013-04-05T18:52:21Z" id="zone1_6d07e996-5ac6-49e7-97af-2175061dfb35" guid="6d07e996-5ac6-49e7-97af-2175061dfb35" order="1">
+<lexical-unit>
+<form lang="en"><text>zone</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zəʊn</text></form>
+</pronunciation>
+<sense id="52727c33-2ae0-42e9-a1d5-a355affa19c5">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>strefa, pas</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-05T18:52:21Z" id="zone2_cea4bbb0-36f6-472c-91eb-6a36ff319b0f" guid="cea4bbb0-36f6-472c-91eb-6a36ff319b0f" order="2">
+<lexical-unit>
+<form lang="en"><text>zone</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zəʊn</text></form>
+</pronunciation>
+<sense id="a4afd154-1095-4eb4-be0c-c2318c43daca">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>dzielić na strefy</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zone defense_2537112d-b858-4533-a1ff-dba8d7363cd1" guid="2537112d-b858-4533-a1ff-dba8d7363cd1">
+<lexical-unit>
+<form lang="en"><text>zone defense</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zəʊn dɪˈfens</text></form>
+</pronunciation>
+<sense id="13012fe1-a537-41fd-8d76-a212cfd9cb00">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>obrona strefowa</text></form>
+</definition>
+<trait  name="domain-type" value="sport"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zone out_0bcbb118-d346-421c-975b-b498e960fd8e" guid="0bcbb118-d346-421c-975b-b498e960fd8e">
+<lexical-unit>
+<form lang="en"><text>zone out</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zone2_cea4bbb0-36f6-472c-91eb-6a36ff319b0f" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="059cc85a-bbc2-40ee-94bf-4d74201e067b">
+<definition>
+<form lang="pl"><text>oklapnąć</text></form>
+</definition>
+<trait  name="usage-type" value="slangowe"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoned_3450af2a-acd6-402e-bc69-9113609d7186" guid="3450af2a-acd6-402e-bc69-9113609d7186">
+<lexical-unit>
+<form lang="en"><text>zoned</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zəʊnd</text></form>
+</pronunciation>
+<sense id="43087cc9-1b58-4306-b2d2-a10b0701fcf0">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>podzielony na strefy</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-20T18:27:38Z" dateModified="2013-04-03T22:35:47Z" id="zoned business district_40acbcf8-3131-4454-83e5-e5f5c294f653" guid="40acbcf8-3131-4454-83e5-e5f5c294f653">
+<lexical-unit>
+<form lang="en"><text>zoned business district</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zoned_3450af2a-acd6-402e-bc69-9113609d7186" order="0">
+<trait name="is-primary" value="true"/>
+<trait name="complex-form-type" value=""/>
+</relation>
+<sense id="f72d124c-63e2-4095-a20b-8e74b790f395">
+<definition>
+<form lang="pl"><text>dzielnica z przeznaczeniem pod zabudowę biurową</text></form>
+</definition>
+<trait  name="domain-type" value="budownictwo"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoned out_b4312aef-fe72-4800-b9e4-38e34f0e20fa" guid="b4312aef-fe72-4800-b9e4-38e34f0e20fa">
+<lexical-unit>
+<form lang="en"><text>zoned out</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zoned_3450af2a-acd6-402e-bc69-9113609d7186" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="9dda15f6-4afc-4a88-8c9d-c922c06825cd">
+<definition>
+<form lang="pl"><text>przymulony, nawalony</text></form>
+</definition>
+<trait  name="usage-type" value="amerykanski"/>
+<trait  name="usage-type" value="slangowe"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoned residential district_7b492365-184d-482b-ae35-61b6d8ea012d" guid="7b492365-184d-482b-ae35-61b6d8ea012d">
+<lexical-unit>
+<form lang="en"><text>zoned residential district</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zoned_3450af2a-acd6-402e-bc69-9113609d7186" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="2bd8f9c5-4724-4d7c-a4fe-111d3d1f4712">
+<definition>
+<form lang="pl"><text>dzielnica z przeznaczeniem pod zabudowę mieszkalną</text></form>
+</definition>
+<trait  name="domain-type" value="budownictwo"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-05T18:52:21Z" id="zoning_b1b354fa-e8b9-414b-a65f-da6290b8db6c" guid="b1b354fa-e8b9-414b-a65f-da6290b8db6c">
+<lexical-unit>
+<form lang="en"><text>zoning</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzəʊnɪŋ</text></form>
+</pronunciation>
+<sense id="913cd76c-c254-47e3-a1ef-aa56c43dcbaa">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>podział na strefy</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:35:59Z" dateModified="2013-04-03T22:35:47Z" id="zoning variance_6f3f1507-01a8-4f8d-89b7-ec7e049f48c7" guid="6f3f1507-01a8-4f8d-89b7-ec7e049f48c7">
+<lexical-unit>
+<form lang="en"><text>zoning variance</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="variance_3ace71af-1363-47c2-b689-2f51f7a60b20" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="afa52f2c-4bf4-49cd-a904-311ddc8aeeb7">
+<definition>
+<form lang="pl"><text>specjalne pozwolenie na budowę</text></form>
+</definition>
+<trait  name="domain-type" value="budownictwo"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zonked_dd848e69-4878-4ecc-827e-693c006fc02e" guid="dd848e69-4878-4ecc-827e-693c006fc02e">
+<lexical-unit>
+<form lang="en"><text>zonked</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zɒŋkt, zɔŋkt</text></form>
+</pronunciation>
+<sense id="0e97c9d9-f442-4256-b419-0e285b8b8d87" order="0">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>wypompowany, wymęczony</text></form>
+</definition>
+<trait  name="usage-type" value="potocznie"/>
+</sense>
+<sense id="81b35359-ae9f-4219-884f-534571087d98" order="1">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>naćpany</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoo_dba0cd14-5da9-417c-9065-4eb6e9626ded" guid="dba0cd14-5da9-417c-9065-4eb6e9626ded">
+<lexical-unit>
+<form lang="en"><text>zoo</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zuː</text></form>
+</pronunciation>
+<sense id="a31ff527-1eaf-4ea7-b0d6-90da204130a4">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>ogród zoologiczny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoo-keeper_704d113b-34ce-433c-8d1b-b944ba6ccd1e" guid="704d113b-34ce-433c-8d1b-b944ba6ccd1e">
+<lexical-unit>
+<form lang="en"><text>zoo-keeper</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzuːkiːpə, ˈzuːˌkiːpə</text></form>
+</pronunciation>
+<sense id="35ff8ef1-0627-47b8-89c5-665ef5cc597d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>dozorca w zoo</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2014-10-27T21:32:09Z" dateModified="2014-10-27T21:32:20Z" id="zoolatries_1d46a19e-7b0f-4334-9c5b-92a4460f4008" guid="1d46a19e-7b0f-4334-9c5b-92a4460f4008">
+<lexical-unit>
+<form lang="en"><text>zoolatries</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<relation type="_component-lexeme" ref="zoolatry_c65337c2-6869-4dc2-bb58-f5f50d0da103" order="0">
+<trait  name="variant-type" value="Liczba mnoga"/>
+<trait name="hide-minor-entry" value="1"/>
+</relation>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoolatry_c65337c2-6869-4dc2-bb58-f5f50d0da103" guid="c65337c2-6869-4dc2-bb58-f5f50d0da103">
+<lexical-unit>
+<form lang="en"><text>zoolatry</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzuːlətɹˌɪ</text></form>
+</pronunciation>
+<sense id="2ad4c4aa-cb73-439f-a27e-1811b19d1b89">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zoolatria, kult zwierząt</text></form>
+</definition>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2014-11-27T11:57:29Z" dateModified="2014-11-27T11:58:07Z" id="zoological_86dd64ee-157d-4f78-b6c7-d394b3a0ee4c" guid="86dd64ee-157d-4f78-b6c7-d394b3a0ee4c">
+<lexical-unit>
+<form lang="en"><text>zoological</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzuːəˈlɒdʒɪkəl</text></form>
+</pronunciation>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzəʊəˈlɒdʒɪkəl</text></form>
+</pronunciation>
+<sense id="9201c93d-0dba-4d9b-8975-69b04040c1c7">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zoologiczny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoological garden_65dce294-39ee-4c50-830a-3a33d52c3b1d" guid="65dce294-39ee-4c50-830a-3a33d52c3b1d">
+<lexical-unit>
+<form lang="en"><text>zoological garden</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzuːəˈlɒdʒɪkl̩ ˈɡɑːdn̩</text></form>
+</pronunciation>
+<sense id="98956783-2d5f-489c-9310-ebab889bc261">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>ogród zoologiczny</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoologist_8bce617a-cd27-4626-829b-6426c665409e" guid="8bce617a-cd27-4626-829b-6426c665409e">
+<lexical-unit>
+<form lang="en"><text>zoologist</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zəuˈɔlədʒɪst, zuːˈɒlədʒɪst, zəʊˈɒlədʒɪst</text></form>
+</pronunciation>
+<sense id="5700dfa1-5acb-4c14-837e-55616169c7bd">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zoolog/zoolożka</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoology_f34bc964-4235-4610-95a1-71536e454eb1" guid="f34bc964-4235-4610-95a1-71536e454eb1">
+<lexical-unit>
+<form lang="en"><text>zoology</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zuːˈɒlədʒi, zəʊˈɒlədʒi, zəuˈɔlədʒɪ</text></form>
+</pronunciation>
+<sense id="85fa2842-5f29-4105-b08f-6e3af57a871f">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zoologia</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoom1_40460b31-3dc0-4217-8532-fcaf1f02e8e0" guid="40460b31-3dc0-4217-8532-fcaf1f02e8e0" order="1">
+<lexical-unit>
+<form lang="en"><text>zoom</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zuːm</text></form>
+</pronunciation>
+<sense id="71c45f41-263d-4624-bc79-811212ba9b3b">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>warkot, brzęczenie</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoom2_0b0b1dde-abc9-42e6-811a-db343da5e812" guid="0b0b1dde-abc9-42e6-811a-db343da5e812" order="2">
+<lexical-unit>
+<form lang="en"><text>zoom</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zuːm</text></form>
+</pronunciation>
+<sense id="95cf046d-1c2b-4848-b39d-7f40580fc4ac">
+<grammatical-info value="Verb">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>mknąć, pędzić, gwałtownie wznosić się</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoom in_40632b91-4e6b-4d0a-b316-e665b34964aa" guid="40632b91-4e6b-4d0a-b316-e665b34964aa">
+<lexical-unit>
+<form lang="en"><text>zoom in</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zoom2_0b0b1dde-abc9-42e6-811a-db343da5e812" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="ce331369-ba65-4be4-952f-e9e4a31b9f91" order="0">
+<definition>
+<form lang="pl"><text>celować, nastawiać obiektyw na cel</text></form>
+</definition>
+</sense>
+<sense id="e6e87a76-401c-4df3-98a3-1b054d4f4cf1" order="1">
+<definition>
+<form lang="pl"><text>robić najazd</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-10T23:14:14Z" dateModified="2013-04-04T12:09:55Z" id="zoom lens_6c89566f-9425-480f-ab3d-283e0c9ebec5" guid="6c89566f-9425-480f-ab3d-283e0c9ebec5">
+<lexical-unit>
+<form lang="en"><text>zoom lens</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="lens1_f2116e86-3409-422c-9cdc-27ad7494c17b" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+<trait name="hide-minor-entry" value="1"/>
+</relation>
+<relation type="_component-lexeme" ref="zoom1_40460b31-3dc0-4217-8532-fcaf1f02e8e0" order="1">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+<trait name="hide-minor-entry" value="1"/>
+</relation>
+<sense id="c94190a3-92fd-46e4-a96a-b1ccbfb7a990">
+<definition>
+<form lang="pl"><text>obiektyw zmiennoogniskowy</text></form>
+</definition>
+<trait  name="domain-type" value="technika"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoom on sth zoom_b0c4a434-a074-4f4e-93c8-d59818b0c9bb" guid="b0c4a434-a074-4f4e-93c8-d59818b0c9bb">
+<lexical-unit>
+<form lang="en"><text>zoom on sth zoom</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zoom2_0b0b1dde-abc9-42e6-811a-db343da5e812" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="39941bc1-2ee8-4827-93e2-7fdb1074acb4">
+<definition>
+<form lang="pl"><text>najeżdżać na coś kamerą</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoom out_331da51d-f99c-4853-b580-8d14fda1a4a8" guid="331da51d-f99c-4853-b580-8d14fda1a4a8">
+<lexical-unit>
+<form lang="en"><text>zoom out</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="phrase"/>
+<relation type="_component-lexeme" ref="zoom2_0b0b1dde-abc9-42e6-811a-db343da5e812" order="0">
+<trait name="is-primary" value="true"/>
+<trait  name="complex-form-type" value="Compound"/>
+</relation>
+<sense id="eb21f157-8502-48eb-8f3d-817ed1e68c53">
+<definition>
+<form lang="pl"><text>przesunąć obiektyw na inny cel</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zooming_364f656b-232c-4779-83aa-842eb31d99e7" guid="364f656b-232c-4779-83aa-842eb31d99e7">
+<lexical-unit>
+<form lang="en"><text>zooming</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzuːmɪŋ</text></form>
+</pronunciation>
+<sense id="5cb3381a-a7ad-4559-b6dd-dbf824e6ccf7">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zbliżanie kamerą</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2014-11-27T19:19:29Z" dateModified="2014-11-27T19:20:15Z" id="zoophilia_66ef63d6-87ad-45d5-9581-c044f621dcaa" guid="66ef63d6-87ad-45d5-9581-c044f621dcaa">
+<lexical-unit>
+<form lang="en"><text>zoophilia</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzəʊəˈfɪlɪə</text></form>
+</pronunciation>
+<sense id="ffb2079b-30d0-4259-b5ba-915dbdeb8fe8">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zoofilia</text></form>
+</definition>
+<trait  name="domain-type" value="medycyna"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zoot_573a9040-2006-473a-8fab-5b418ab84d35" guid="573a9040-2006-473a-8fab-5b418ab84d35">
+<lexical-unit>
+<form lang="en"><text>zoot</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zuːt</text></form>
+</pronunciation>
+<sense id="67c16098-a2ee-40d8-9b38-59fcfdce4d80">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>ubranie z workowatymi spodniami i długą, szeroką w ramionach marynarką</text></form>
+</definition>
+<trait  name="usage-type" value="slangowe"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="Zoroaster_890c8165-e97c-4f38-b810-6c3ec15236f3" guid="890c8165-e97c-4f38-b810-6c3ec15236f3">
+<lexical-unit>
+<form lang="en"><text>Zoroaster</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzɒrəʊˈæstə, ˌzɔrəuˈæstə</text></form>
+</pronunciation>
+<sense id="eb6cc19d-4670-4e7f-b5ba-df9f5597b891">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zoroaster</text></form>
+</definition>
+<trait  name="domain-type" value="historia"/>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="Zoroastrian_6cd163e6-05ee-4c69-9192-e7ecbf776c25" guid="6cd163e6-05ee-4c69-9192-e7ecbf776c25">
+<lexical-unit>
+<form lang="en"><text>Zoroastrian</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzɒrəʊˈæstriən</text></form>
+</pronunciation>
+<sense id="d8249f87-259c-4d81-a1a8-0de3e8351b5d">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>wyznawca/wyznawczyni zoroastryzmu</text></form>
+</definition>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="Zoroastrianism_ebc34d27-f15d-48fc-85d4-850bc4ee8e2a" guid="ebc34d27-f15d-48fc-85d4-850bc4ee8e2a">
+<lexical-unit>
+<form lang="en"><text>Zoroastrianism</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˌzɒrəʊˈæstriənˌɪzəm</text></form>
+</pronunciation>
+<sense id="6631c29e-81fa-45e1-8918-b10d6f036248">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zoroastryzm</text></form>
+</definition>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zouave_66ed74ed-2365-4859-ad12-b143fcc06aed" guid="66ed74ed-2365-4859-ad12-b143fcc06aed">
+<lexical-unit>
+<form lang="en"><text>zouave</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zuːˈɑːv, zuˈɑːv</text></form>
+</pronunciation>
+<sense id="33a739f2-b924-455e-ae31-729ce759f287">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>żuaw</text></form>
+</definition>
+<trait  name="domain-type" value="militarny"/>
+<trait  name="domain-type" value="historia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-05T18:47:19Z" id="zucchetto_57301ba1-b3b5-481c-8163-dcf20805edc1" guid="57301ba1-b3b5-481c-8163-dcf20805edc1">
+<lexical-unit>
+<form lang="en"><text>zucchetto</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>tsuːˈketəʊ, zuˈketəʊ</text></form>
+</pronunciation>
+<sense id="26427ad3-6082-4695-b4b6-04bafdf6dcbd">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>piuska</text></form>
+</definition>
+<trait  name="domain-type" value="religia"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="zucchini_a9e5f297-eb8f-4478-a8c8-26afe98bd12d" guid="a9e5f297-eb8f-4478-a8c8-26afe98bd12d">
+<lexical-unit>
+<form lang="en"><text>zucchini</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>zʊˈkiːni, zuˈkiːnɪ, zuˈkiːni</text></form>
+</pronunciation>
+<sense id="55085e6b-801f-487c-8fb0-9e64590c88fd">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>cukinia</text></form>
+</definition>
+<trait  name="domain-type" value="przyroda"/>
+<trait  name="domain-type" value="kulinaria"/>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="Zulu1_fd8a58e4-099e-428a-9e7d-923ba20f9927" guid="fd8a58e4-099e-428a-9e7d-923ba20f9927" order="1">
+<lexical-unit>
+<form lang="en"><text>Zulu</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzuːluː</text></form>
+</pronunciation>
+<sense id="bcc4f5fa-61f3-48d7-a9b9-42b158073fd2">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zulus(ka)</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="Zulu2_b1368b83-862f-4ba6-aaca-f8c2932f00fc" guid="b1368b83-862f-4ba6-aaca-f8c2932f00fc" order="2">
+<lexical-unit>
+<form lang="en"><text>Zulu</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzuːluː</text></form>
+</pronunciation>
+<sense id="711ad025-99a7-41e2-8d29-6d678b4cc275">
+<grammatical-info value="Adjective">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>zuluski</text></form>
+</definition>
+</sense>
+</entry>
+<entry dateCreated="2013-02-03T13:38:01Z" dateModified="2013-04-03T22:35:47Z" id="Zurich_97853c4b-884e-4b2e-bf58-b45dd465d595" guid="97853c4b-884e-4b2e-bf58-b45dd465d595">
+<lexical-unit>
+<form lang="en"><text>Zurich</text></form>
+</lexical-unit>
+<trait  name="morph-type" value="stem"/>
+<pronunciation>
+<form lang="seh-fonipa"><text>ˈzjuərɪk, ˈzʊərɪk</text></form>
+</pronunciation>
+<sense id="5da2209e-a81a-48c1-b6ee-a0d006aba846">
+<grammatical-info value="Noun">
+</grammatical-info>
+<definition>
+<form lang="pl"><text>Zurych</text></form>
+</definition>
+<trait  name="domain-type" value="geografia"/>
+</sense>
+</entry>
+</lift>

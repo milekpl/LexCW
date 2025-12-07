@@ -22,17 +22,6 @@ from config import TestingConfig
 class TestPhase4RealTimeValidation:
     """Test Phase 4 real-time validation feedback functionality"""
     
-    @pytest.fixture
-    def app(self):
-        """Create test Flask app"""
-        app = create_app(TestingConfig)
-        return app
-    
-    @pytest.fixture
-    def client(self, app):
-        """Create test client"""
-        return app.test_client()
-
     # ==========================================
     # 1. INLINE ERROR DISPLAY TESTS
     # ==========================================

@@ -23,25 +23,25 @@ class TestSettingsPageUX:
     to solve the language selector UX issues in entry forms.
     """
 
-    def test_settings_page_basic_functionality(self, playwright_page: Page, live_server) -> None:
+    def test_settings_page_basic_functionality(self, page: Page, app_url) -> None:
         """Test basic settings page functionality - this should pass already."""
-        playwright_page.goto(f"{live_server.url}/settings/")
+        page.goto(f"{app_url}/settings/")
         
         # Page should load without errors
-        expect(playwright_page).to_have_title(re.compile(r"Settings|Project Settings"))
+        expect(page).to_have_title(re.compile(r"Settings|Project Settings"))
         
         # Should have a settings form (be more specific to avoid navbar search form)
-        settings_form = playwright_page.locator('form[action="/settings/"]')
+        settings_form = page.locator('form[action="/settings/"]')
         expect(settings_form).to_be_visible()
         
         # Should have basic required fields
-        project_name = playwright_page.locator('input[name="project_name"]')
+        project_name = page.locator('input[name="project_name"]')
         expect(project_name).to_be_visible()
 
-    def test_source_language_selection_functionality(self, playwright_page: Page, live_server) -> None:
+    def test_source_language_selection_functionality(self, page: Page, app_url) -> None:
         """Test that source language can be selected from dropdown."""
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Source language code field should exist
         source_code_field = page.locator('input[name="source_language_code"], select[name="source_language_code"]')
@@ -56,10 +56,10 @@ class TestSettingsPageUX:
             source_name_field.fill("Test Language")
             expect(source_name_field).to_have_value("Test Language")
 
-    def test_target_languages_interface_exists(self, playwright_page: Page, live_server) -> None:
+    def test_target_languages_interface_exists(self, page: Page, app_url) -> None:
         """Test that target languages section exists and has some interface."""
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Target languages section should be present
         target_section = page.locator('fieldset:has-text("Target Languages")')
@@ -70,10 +70,10 @@ class TestSettingsPageUX:
         search_input = target_section.locator('.language-search-input')
         expect(search_input).to_be_visible()
 
-    def test_form_submission_works(self, playwright_page: Page, live_server) -> None:
+    def test_form_submission_works(self, page: Page, app_url) -> None:
         """Test that form can be submitted without errors."""
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Fill required fields
         project_name = page.locator('input[name="project_name"]')
@@ -96,10 +96,10 @@ class TestSettingsPageUX:
         # Should not show error page
         expect(page).not_to_have_title(re.compile(r"Error|500|404"))
 
-    def test_current_settings_display(self, playwright_page: Page, live_server) -> None:
+    def test_current_settings_display(self, page: Page, app_url) -> None:
         """Test that current settings are displayed properly."""
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Current settings overview should exist - use more specific selector
         overview = page.locator('div.card-header:has-text("Current Settings Overview")')
@@ -118,15 +118,15 @@ class TestSettingsLanguageUXRequirements:
     These tests will initially FAIL - they define what we need to implement.
     """
 
-    def test_multiple_target_languages_can_be_selected(self, playwright_page: Page, live_server) -> None:
+    def test_multiple_target_languages_can_be_selected(self, page: Page, app_url) -> None:
         """
         REQUIREMENT: Users must be able to select multiple target languages.
         
         This is core to solving the UX nightmare - users need to configure
         which languages they use for definitions/translations.
         """
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Target languages section should allow multiple selections via searchable interface
         target_section = page.locator('fieldset:has-text("Target Languages")')
@@ -148,15 +148,15 @@ class TestSettingsLanguageUXRequirements:
         search_results = results_container.locator('.language-search-result')
         expect(search_results.first).to_be_visible()
 
-    def test_language_options_are_comprehensive(self, playwright_page: Page, live_server) -> None:
+    def test_language_options_are_comprehensive(self, page: Page, app_url) -> None:
         """
         REQUIREMENT: Language options should include common lexicographic languages.
         
         Users should be able to select from major world languages used in
         dictionary/lexicographic work.
         """
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Should have searchable interface for comprehensive languages
         search_input = page.locator('.language-search-input')
@@ -182,15 +182,15 @@ class TestSettingsLanguageUXRequirements:
         # Should find at least 4 out of 5 major languages
         assert found_count >= 4, f"Only found {found_count} major languages, need at least 4"
 
-    def test_language_selection_updates_json_storage(self, playwright_page: Page, live_server) -> None:
+    def test_language_selection_updates_json_storage(self, page: Page, app_url) -> None:
         """
         REQUIREMENT: Language selections should update the JSON storage field.
         
         The form uses a hidden JSON field to store target languages.
         Selecting languages should update this field properly.
         """
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Hidden JSON field should exist
         json_field = page.locator('input[name="available_target_languages"]')
@@ -199,15 +199,15 @@ class TestSettingsLanguageUXRequirements:
         # Field should be hidden (type="hidden")
         expect(json_field).to_have_attribute("type", "hidden")
 
-    def test_settings_affect_entry_form_language_options(self, playwright_page: Page, live_server) -> None:
+    def test_settings_affect_entry_form_language_options(self, page: Page, app_url) -> None:
         """
         REQUIREMENT: Settings should affect entry form language dropdowns.
         
         This is the ultimate goal - entry forms should only show configured languages,
         not all possible languages. This solves the "UX nightmare" mentioned in issue #5.
         """
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Configure specific languages
         project_name = page.locator('input[name="project_name"]')
@@ -225,7 +225,7 @@ class TestSettingsLanguageUXRequirements:
         page.wait_for_timeout(1000)
         
         # Now check entry form
-        page.goto(f"{live_server.url}/entries/add")
+        page.goto(f"{app_url}/entries/add")
         
         # Entry form should reflect configured languages
         # Should NOT show every possible language in dropdowns
@@ -239,14 +239,14 @@ class TestSettingsLanguageUXRequirements:
         # The exact selectors depend on the entry form implementation
         # This test documents the requirement
 
-    def test_language_validation_and_warnings(self, playwright_page: Page, live_server) -> None:
+    def test_language_validation_and_warnings(self, page: Page, app_url) -> None:
         """
         REQUIREMENT: Should provide validation and warnings for language configuration.
         
         Users should get helpful feedback when configuring languages.
         """
-        page = playwright_page
-        page.goto(f"{live_server.url}/settings/")
+        page = page
+        page.goto(f"{app_url}/settings/")
         
         # Try to submit without required language configuration
         project_name = page.locator('input[name="project_name"]')

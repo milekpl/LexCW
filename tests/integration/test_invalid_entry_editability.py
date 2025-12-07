@@ -19,16 +19,6 @@ from app.models.sense import Sense
 class TestInvalidEntryEditability:
     """Test that invalid entries can always be edited and viewed."""
 
-    @pytest.fixture
-    def app(self):
-        """Create test app."""
-        return create_app('testing')
-
-    @pytest.fixture
-    def client(self, app):
-        """Create test client."""
-        return app.test_client()
-
     @pytest.mark.integration
     def test_get_entry_for_editing_bypasses_validation(self, app):
         """Test that get_entry_for_editing bypasses validation."""

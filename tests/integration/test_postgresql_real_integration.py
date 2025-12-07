@@ -37,12 +37,15 @@ class TestPostgreSQLRealIntegration:
     @pytest.fixture(scope="class")
     def postgres_connector(self, postgres_config: PostgreSQLConfig) -> PostgreSQLConnector:
         """Real PostgreSQL connector for testing."""
+        if not os.getenv('POSTGRES_HOST'):
+            pytest.skip("PostgreSQL server not configured - set POSTGRES_HOST environment variable")
         try:
             connector = PostgreSQLConnector(postgres_config)
             # Test connection
             connector.fetch_all("SELECT 1")
             return connector
         except (DatabaseConnectionError, DatabaseError) as e:
+            pytest.skip(f"PostgreSQL connection failed: {e}")
             raise
     
     @pytest.fixture(scope="function")

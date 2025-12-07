@@ -1994,6 +1994,7 @@
                                                                                                 <span class="input-group-text">{{ lang }}</span>
                                                                                                 <textarea class="form-control" 
                                                                                                        name="senses[{{ sense_index }}].annotations[{{ loop.index0 }}].content.{{ lang }}"
+                                                                                                       data-lang="{{ lang }}"
                                                                                                        rows="2"
                                                                                                        placeholder="Enter comment or description in {{ lang }}">{{ text }}</textarea>
                                                                                                 {% if lang != 'en' %}
@@ -2008,6 +2009,7 @@
                                                                                             <span class="input-group-text">en</span>
                                                                                             <textarea class="form-control" 
                                                                                                    name="senses[{{ sense_index }}].annotations[{{ loop.index0 }}].content.en"
+                                                                                                   data-lang="en"
                                                                                                    rows="2"
                                                                                                    placeholder="Enter comment or description in English"></textarea>
                                                                                         </div>
@@ -2165,6 +2167,69 @@
                                         <textarea class="form-control" name="senses[TEMPLATE].note" rows="2"></textarea>
                                     </div>
                                     
+                                    <!-- LIFT 0.13: Literal Meaning (Sense-Level Custom Field - Day 28) -->
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            Literal Meaning
+                                            <i class="fas fa-info-circle ms-1 form-tooltip" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top"
+                                               data-bs-html="true"
+                                               title="<strong>About Literal Meaning:</strong><br>The literal meaning of compounds or idioms. For example, 'sunflower' literally means 'sun-flower', or 'kick the bucket' literally means 'strike a pail with your foot'."></i>
+                                        </label>
+                                        <div class="multilingual-forms literal-meaning-forms"></div>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary add-literal-meaning-language-btn" 
+                                                    data-sense-index="0"
+                                                    title="Add another language">
+                                                <i class="fas fa-plus"></i> Add Language
+                                            </button>
+                                        </div>
+                                        <div class="form-text">The literal/compositional meaning of idioms or compound words.</div>
+                                    </div>
+                                    
+                                    <!-- LIFT 0.13: Exemplar (Sense-Level Custom Field - Day 28) -->
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            Exemplar
+                                            <i class="fas fa-info-circle ms-1 form-tooltip" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top"
+                                               data-bs-html="true"
+                                               title="<strong>About Exemplar:</strong><br>Shows the specific inflected form that this sense applies to."></i>
+                                        </label>
+                                        <div class="multilingual-forms exemplar-forms"></div>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary add-exemplar-language-btn" 
+                                                    data-sense-index="0"
+                                                    title="Add another language">
+                                                <i class="fas fa-plus"></i> Add Language
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Specific inflected form this sense applies to.</div>
+                                    </div>
+
+                                    <!-- LIFT 0.13: Scientific Name (Sense-Level Custom Field - Day 28) -->
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            Scientific Name
+                                            <i class="fas fa-info-circle ms-1 form-tooltip" 
+                                               data-bs-toggle="tooltip" 
+                                               data-bs-placement="top"
+                                               data-bs-html="true"
+                                               title="<strong>About Scientific Name:</strong><br>The scientific (Latin/binomial) name for biological terms."></i>
+                                        </label>
+                                        <div class="multilingual-forms scientific-name-forms"></div>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary add-scientific-name-language-btn" 
+                                                    data-sense-index="0"
+                                                    title="Add another language">
+                                                <i class="fas fa-plus"></i> Add Language
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Scientific/Latin name for biological or taxonomic terms.</div>
+                                    </div>
+                                    
                                     <div class="examples-section mt-4">
                                         <div class="d-flex justify-content-between align-items-center mb-3">
                                             <h6><i class="fas fa-quote-left"></i> Examples</h6>
@@ -2181,6 +2246,24 @@
                                                         data-sense-index="0">
                                                     <i class="fas fa-plus"></i> Add Example
                                                 </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- LIFT 0.13: Annotations Section (Day 26-27) -->
+                                    <div class="annotations-section mt-4">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h6><i class="fas fa-clipboard-list"></i> Annotations</h6>
+                                            <button type="button" class="btn btn-sm btn-outline-warning add-annotation-btn" 
+                                                    data-container-type="sense" data-index="TEMPLATE"
+                                                    title="Add an annotation for editorial workflow (review status, comments, etc.)">
+                                                <i class="fas fa-plus"></i> Add Annotation
+                                            </button>
+                                        </div>
+                                        
+                                        <div class="annotations-container ms-3" data-container-type="sense" data-index="TEMPLATE">
+                                            <div class="no-annotations text-center text-muted py-2 border border-warning border-opacity-25 rounded">
+                                                <p class="mb-2"><small>No annotations yet. Add annotations for editorial workflow (review status, comments, etc.).</small></p>
                                             </div>
                                         </div>
                                     </div>
@@ -2288,6 +2371,7 @@
                                                                         <span class="input-group-text">{{ lang }}</span>
                                                                         <textarea class="form-control" 
                                                                                name="annotations[{{ loop.index0 }}].content.{{ lang }}"
+                                                                               data-lang="{{ lang }}"
                                                                                rows="2"
                                                                                placeholder="Enter comment or description in {{ lang }}">{{ text }}</textarea>
                                                                         {% if lang != 'en' %}
@@ -2302,6 +2386,7 @@
                                                                     <span class="input-group-text">en</span>
                                                                     <textarea class="form-control" 
                                                                            name="annotations[{{ loop.index0 }}].content.en"
+                                                                           data-lang="en"
                                                                            rows="2"
                                                                            placeholder="Enter comment or description in English"></textarea>
                                                                 </div>
@@ -2587,6 +2672,69 @@
                 <textarea class="form-control" name="senses[INDEX].note" rows="2"></textarea>
             </div>
             
+            <!-- LIFT 0.13: Literal Meaning (Sense-Level Custom Field - Day 28) -->
+            <div class="mb-3">
+                <label class="form-label">
+                    Literal Meaning
+                    <i class="fas fa-info-circle ms-1 form-tooltip" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       title="<strong>About Literal Meaning:</strong><br>The literal meaning of compounds or idioms. For example, 'sunflower' literally means 'sun-flower', or 'kick the bucket' literally means 'strike a pail with your foot'."></i>
+                </label>
+                <div class="multilingual-forms literal-meaning-forms"></div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-literal-meaning-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+                <div class="form-text">The literal/compositional meaning of idioms or compound words.</div>
+            </div>
+            
+            <!-- LIFT 0.13: Exemplar (Sense-Level Custom Field - Day 28) -->
+            <div class="mb-3">
+                <label class="form-label">
+                    Exemplar
+                    <i class="fas fa-info-circle ms-1 form-tooltip" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       title="<strong>About Exemplar:</strong><br>Shows the specific inflected form that this sense applies to."></i>
+                </label>
+                <div class="multilingual-forms exemplar-forms"></div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-exemplar-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+                <div class="form-text">Specific inflected form this sense applies to.</div>
+            </div>
+
+            <!-- LIFT 0.13: Scientific Name (Sense-Level Custom Field - Day 28) -->
+            <div class="mb-3">
+                <label class="form-label">
+                    Scientific Name
+                    <i class="fas fa-info-circle ms-1 form-tooltip" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       title="<strong>About Scientific Name:</strong><br>The scientific (Latin/binomial) name for biological terms."></i>
+                </label>
+                <div class="multilingual-forms scientific-name-forms"></div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-scientific-name-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+                <div class="form-text">Scientific/Latin name for biological or taxonomic terms.</div>
+            </div>
+            
             <div class="examples-section mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6><i class="fas fa-quote-left"></i> Examples</h6>
@@ -2603,6 +2751,24 @@
                                 data-sense-index="INDEX">
                             <i class="fas fa-plus"></i> Add Example
                         </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LIFT 0.13: Annotations Section (Day 26-27) -->
+            <div class="annotations-section mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6><i class="fas fa-clipboard-list"></i> Annotations</h6>
+                    <button type="button" class="btn btn-sm btn-outline-warning add-annotation-btn" 
+                            data-container-type="sense" data-index="INDEX"
+                            title="Add an annotation for editorial workflow (review status, comments, etc.)">
+                        <i class="fas fa-plus"></i> Add Annotation
+                    </button>
+                </div>
+                
+                <div class="annotations-container ms-3" data-container-type="sense" data-index="INDEX">
+                    <div class="no-annotations text-center text-muted py-2 border border-warning border-opacity-25 rounded">
+                        <p class="mb-2"><small>No annotations yet. Add annotations for editorial workflow (review status, comments, etc.).</small></p>
                     </div>
                 </div>
             </div>

@@ -15,8 +15,16 @@ Following TDD approach - these tests verify the complete annotation UX.
 from __future__ import annotations
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, expect, Locator
 import re
+
+
+def expand_collapsible(page: Page, section_locator: Locator) -> None:
+    """Helper to expand Bootstrap collapsible sections."""
+    toggle_btn = section_locator.locator('.toggle-content-btn')
+    if toggle_btn.is_visible():
+        toggle_btn.click()
+        page.wait_for_timeout(500)  # Wait for animation
 
 
 @pytest.mark.integration
@@ -29,10 +37,10 @@ class TestAnnotationsPlaywright:
     """
 
     @pytest.fixture(autouse=True)
-    def setup_test_entry(self, page: Page) -> None:
+    def setup_test_entry(self, page: Page, app_url: str) -> None:
         """Navigate to entry form before each test."""
         # Go to add new entry page
-        page.goto("http://localhost:5000/entry/add")
+        page.goto(f"{app_url}/entries/add")
         
         # Fill minimum required fields
         lexical_unit = page.locator('input[name="lexical_unit"]').first
@@ -42,7 +50,7 @@ class TestAnnotationsPlaywright:
         # Wait for page to be ready
         page.wait_for_load_state("networkidle")
 
-    def test_add_entry_level_annotation(self, page: Page) -> None:
+    def test_add_entry_level_annotation(self, page: Page, app_url: str) -> None:
         """Test adding an annotation at entry level."""
         # Click the Add Annotation button for entry
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
@@ -71,14 +79,21 @@ class TestAnnotationsPlaywright:
         expect(when_input).to_have_attribute('readonly', '')
         expect(when_input).not_to_have_value('')
         
-        # Content section should exist with English textarea
+        # Content section should exist
         content_section = annotation_item.locator('.annotation-content-section')
         expect(content_section).to_be_visible()
         
+        # Expand the collapsible content section
+        toggle_btn = content_section.locator('.toggle-content-btn')
+        if toggle_btn.is_visible():
+            toggle_btn.click()
+            page.wait_for_timeout(500)  # Wait for animation
+        
+        # Now the English textarea should be visible
         english_textarea = content_section.locator('textarea[data-lang="en"]')
         expect(english_textarea).to_be_visible()
 
-    def test_remove_entry_level_annotation(self, page: Page) -> None:
+    def test_remove_entry_level_annotation(self, page: Page, app_url: str) -> None:
         """Test removing an annotation at entry level."""
         # Add an annotation first
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
@@ -99,12 +114,21 @@ class TestAnnotationsPlaywright:
         # Annotation should be removed
         expect(annotation_item).not_to_be_visible()
 
-    def test_add_sense_level_annotation(self, page: Page) -> None:
+    def test_add_sense_level_annotation(self, page: Page, app_url: str) -> None:
         """Test adding an annotation at sense level."""
-        # First, ensure we have at least one sense
-        # The form should have a default sense on load
+        # Check if a sense exists, if not add one
+        sense_item = page.locator('.sense-item').first
+        if not sense_item.is_visible():
+            add_sense_btn = page.locator('.add-sense-btn, button:has-text("Add Another Sense")')
+            if add_sense_btn.is_visible():
+                add_sense_btn.click()
+                page.wait_for_timeout(500)
+        
         sense_item = page.locator('.sense-item').first
         expect(sense_item).to_be_visible()
+        
+        # Scroll to sense item to ensure it's in viewport
+        sense_item.scroll_into_view_if_needed()
         
         # Click the Add Annotation button for sense
         add_btn = sense_item.locator('.add-annotation-btn').first
@@ -133,11 +157,19 @@ class TestAnnotationsPlaywright:
         expect(when_input).to_have_attribute('readonly', '')
         expect(when_input).not_to_have_value('')
 
-    def test_remove_sense_level_annotation(self, page: Page) -> None:
+    def test_remove_sense_level_annotation(self, page: Page, app_url: str) -> None:
         """Test removing an annotation at sense level."""
         # Ensure we have a sense
         sense_item = page.locator('.sense-item').first
+        if not sense_item.is_visible():
+            add_sense_btn = page.locator('.add-sense-btn, button:has-text("Add Another Sense")')
+            if add_sense_btn.is_visible():
+                add_sense_btn.click()
+                page.wait_for_timeout(500)
+        
+        sense_item = page.locator('.sense-item').first
         expect(sense_item).to_be_visible()
+        sense_item.scroll_into_view_if_needed()
         
         # Add an annotation first
         add_btn = sense_item.locator('.add-annotation-btn').first
@@ -158,7 +190,7 @@ class TestAnnotationsPlaywright:
         # Annotation should be removed
         expect(annotation_item).not_to_be_visible()
 
-    def test_add_language_to_annotation_content(self, page: Page) -> None:
+    def test_add_language_to_annotation_content(self, page: Page, app_url: str) -> None:
         """Test adding a language variant to annotation content."""
         # Add an entry-level annotation
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
@@ -166,6 +198,10 @@ class TestAnnotationsPlaywright:
         
         annotation_item = page.locator('.annotations-section-entry .annotation-item').first
         expect(annotation_item).to_be_visible()
+        
+        # Expand the collapsible content section
+        content_section = annotation_item.locator('.annotation-content-section')
+        expand_collapsible(page, content_section)
         
         # Click Add Language button
         add_lang_btn = annotation_item.locator('.add-annotation-language-btn')
@@ -183,7 +219,7 @@ class TestAnnotationsPlaywright:
         remove_lang_btn = spanish_textarea.locator('..').locator('.remove-annotation-language-btn')
         expect(remove_lang_btn).to_be_visible()
 
-    def test_remove_language_from_annotation_content(self, page: Page) -> None:
+    def test_remove_language_from_annotation_content(self, page: Page, app_url: str) -> None:
         """Test removing a language variant from annotation content."""
         # Add an entry-level annotation
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
@@ -191,6 +227,10 @@ class TestAnnotationsPlaywright:
         
         annotation_item = page.locator('.annotations-section-entry .annotation-item').first
         expect(annotation_item).to_be_visible()
+        
+        # Expand the collapsible content section
+        content_section = annotation_item.locator('.annotation-content-section')
+        expand_collapsible(page, content_section)
         
         # Add a language
         add_lang_btn = annotation_item.locator('.add-annotation-language-btn')
@@ -214,7 +254,7 @@ class TestAnnotationsPlaywright:
         english_textarea = annotation_item.locator('textarea[data-lang="en"]')
         expect(english_textarea).to_be_visible()
 
-    def test_annotation_content_is_editable(self, page: Page) -> None:
+    def test_annotation_content_is_editable(self, page: Page, app_url: str) -> None:
         """Test that annotation content fields are editable."""
         # Add an entry-level annotation
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
@@ -222,6 +262,10 @@ class TestAnnotationsPlaywright:
         
         annotation_item = page.locator('.annotations-section-entry .annotation-item').first
         expect(annotation_item).to_be_visible()
+        
+        # Expand the collapsible content section
+        content_section = annotation_item.locator('.annotation-content-section')
+        expand_collapsible(page, content_section)
         
         # English content textarea should be editable
         english_textarea = annotation_item.locator('textarea[data-lang="en"]')
@@ -233,7 +277,7 @@ class TestAnnotationsPlaywright:
         english_textarea.fill(test_content)
         expect(english_textarea).to_have_value(test_content)
 
-    def test_multiple_annotations_can_be_added(self, page: Page) -> None:
+    def test_multiple_annotations_can_be_added(self, page: Page, app_url: str) -> None:
         """Test that multiple annotations can be added to the same entry."""
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
         
@@ -253,7 +297,7 @@ class TestAnnotationsPlaywright:
         annotations = page.locator('.annotations-section-entry .annotation-item').all()
         assert len(annotations) == 3
 
-    def test_annotation_fields_persist_on_form(self, page: Page) -> None:
+    def test_annotation_fields_persist_on_form(self, page: Page, app_url: str) -> None:
         """Test that annotation data persists in form fields."""
         # Add an entry-level annotation
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
@@ -272,6 +316,10 @@ class TestAnnotationsPlaywright:
         who_input = annotation_item.locator('input[name*=".who"]')
         who_input.fill('editor-john')
         
+        # Expand collapsible to access content textarea
+        content_section = annotation_item.locator('.annotation-content-section')
+        expand_collapsible(page, content_section)
+        
         content_textarea = annotation_item.locator('textarea[data-lang="en"]')
         content_textarea.fill('This entry has been reviewed and approved.')
         
@@ -281,14 +329,18 @@ class TestAnnotationsPlaywright:
         expect(who_input).to_have_value('editor-john')
         expect(content_textarea).to_have_value('This entry has been reviewed and approved.')
 
-    def test_duplicate_language_codes_are_prevented(self, page: Page) -> None:
-        """Test that duplicate language codes cannot be added to annotation content."""
+    def test_duplicate_language_codes_are_prevented(self, page: Page, app_url: str) -> None:
+        """Test that duplicate language codes are prevented."""
         # Add an entry-level annotation
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
         add_btn.click()
         
         annotation_item = page.locator('.annotations-section-entry .annotation-item').first
         expect(annotation_item).to_be_visible()
+        
+        # Expand the collapsible content section
+        content_section = annotation_item.locator('.annotation-content-section')
+        expand_collapsible(page, content_section)
         
         # Try to add English (which already exists)
         add_lang_btn = annotation_item.locator('.add-annotation-language-btn')
@@ -317,7 +369,7 @@ class TestAnnotationsPlaywright:
         english_textareas = annotation_item.locator('textarea[data-lang="en"]')
         expect(english_textareas).to_have_count(1)
 
-    def test_annotation_timestamp_format(self, page: Page) -> None:
+    def test_annotation_timestamp_format(self, page: Page, app_url: str) -> None:
         """Test that annotation timestamp is in correct format."""
         # Add an entry-level annotation
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')

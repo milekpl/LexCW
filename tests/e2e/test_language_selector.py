@@ -3,9 +3,9 @@ from playwright.sync_api import Page
 from flask import Flask
 
 @pytest.mark.integration
-def test_language_selector_shows_only_configured_languages(playwright_page: Page, live_server, app: Flask):
+def test_language_selector_shows_only_configured_languages(page: Page, flask_test_server, app: Flask):
     """Test that the language selector only shows languages configured in project settings."""
-    page = playwright_page
+    page = page
     
     # Configure project settings to only include 'en' and 'pl'
     with app.app_context():
@@ -13,7 +13,7 @@ def test_language_selector_shows_only_configured_languages(playwright_page: Page
         app.config_manager.set_target_languages([{'code': 'pl', 'name': 'Polish'}])
 
     # Navigate to the entry form
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{flask_test_server}/entries/add")
     
     # Wait for page to load
     page.wait_for_selector("select.language-select")
@@ -32,9 +32,9 @@ def test_language_selector_shows_only_configured_languages(playwright_page: Page
 
 @pytest.mark.integration  
 @pytest.mark.skip(reason="Validation warnings for unconfigured languages not yet implemented")
-def test_language_selector_shows_warning_for_unconfigured_languages(playwright_page: Page, live_server, app: Flask):
+def test_language_selector_shows_warning_for_unconfigured_languages(page: Page, flask_test_server, app: Flask):
     """Test that a validation warning is shown for unconfigured languages."""
-    page = playwright_page
+    page = page
     
     # Configure project settings to only include 'en'
     with app.app_context():
@@ -42,7 +42,7 @@ def test_language_selector_shows_warning_for_unconfigured_languages(playwright_p
         app.config_manager.set_target_languages([])
 
     # Navigate to the entry form
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{flask_test_server}/entries/add")
 
     # Wait for page to load
     page.wait_for_selector("select.language-select")

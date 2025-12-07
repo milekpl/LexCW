@@ -4,12 +4,12 @@ import pytest
 from playwright.sync_api import Page
 
 @pytest.mark.integration
-def test_pos_inheritance_ui(playwright_page: Page, live_server):
+def test_pos_inheritance_ui(page: Page, flask_test_server):
     """Test POS inheritance in the browser UI using Playwright."""
-    page = playwright_page
+    page = page
     
     print("Opening entry form...")
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{flask_test_server}/entries/add")
     
     # Wait for page to load
     page.wait_for_load_state("networkidle")
