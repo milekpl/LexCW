@@ -16,16 +16,16 @@ from playwright.sync_api import Page, expect
 class TestRangesUIPlaywright:
     """Test LIFT ranges loading and dropdown population in the UI."""
 
-    def test_grammatical_info_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_grammatical_info_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that grammatical info dropdown is populated with values from LIFT ranges."""
         # Navigate to entry creation/edit page
-        playwright_page.goto(f'{live_server.url}/entries/add')
+        page.goto(f'{app_url}/entries/add')
         
         # Wait for page to load
-        playwright_page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('networkidle')
         
         # Find the grammatical info dropdown (entry-level Part of Speech)
-        pos_select = playwright_page.locator('select#part-of-speech, select[name="grammatical_info"]')
+        pos_select = page.locator('select#part-of-speech, select[name="grammatical_info"]')
         
         # Wait for it to be visible
         expect(pos_select.first).to_be_visible(timeout=10000)
@@ -43,25 +43,25 @@ class TestRangesUIPlaywright:
         has_category = any(cat in options_text for cat in common_categories)
         assert has_category, f"Expected at least one common POS category in: {options}"
 
-    def test_relation_type_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_relation_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that relation type dropdown is populated with values from LIFT ranges."""
         # Navigate to entry edit page (relations are shown in edit mode)
-        playwright_page.goto(f'{live_server.url}/entries/add')
+        page.goto(f'{app_url}/entries/add')
         
         # Wait for page to load
-        playwright_page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('networkidle')
         
         # Scroll to relations section
-        playwright_page.evaluate("document.querySelector('#relations-container')?.scrollIntoView()")
+        page.evaluate("document.querySelector('#relations-container')?.scrollIntoView()")
         
         # Click "Add Relation" button if it exists
-        add_relation_btn = playwright_page.locator('#add-relation-btn, button:has-text("Add Relation")')
+        add_relation_btn = page.locator('#add-relation-btn, button:has-text("Add Relation")')
         if add_relation_btn.count() > 0:
             add_relation_btn.first.click()
-            playwright_page.wait_for_timeout(500)  # Wait for relation form to appear
+            page.wait_for_timeout(500)  # Wait for relation form to appear
         
         # Find relation type dropdown
-        relation_type_select = playwright_page.locator('select.relation-type-select, select[name*="relation"][name*="type"]')
+        relation_type_select = page.locator('select.relation-type-select, select[name*="relation"][name*="type"]')
         
         if relation_type_select.count() > 0:
             # Wait for it to be visible
@@ -83,25 +83,25 @@ class TestRangesUIPlaywright:
             # by checking via API
             pytest.skip("Relation dropdown not found in UI, needs UI implementation")
 
-    def test_variant_type_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_variant_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that variant type dropdown is populated with values from LIFT ranges."""
         # Navigate to entry edit page (variants are shown in edit mode)
-        playwright_page.goto(f'{live_server.url}/entries/new')
+        page.goto(f'{app_url}/entries/new')
         
         # Wait for page to load
-        playwright_page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('networkidle')
         
         # Scroll to variants section
-        playwright_page.evaluate("document.querySelector('#variants-container')?.scrollIntoView()")
+        page.evaluate("document.querySelector('#variants-container')?.scrollIntoView()")
         
         # Click "Add Variant" button if it exists
-        add_variant_btn = playwright_page.locator('#add-variant-btn, button:has-text("Add Variant")')
+        add_variant_btn = page.locator('#add-variant-btn, button:has-text("Add Variant")')
         if add_variant_btn.count() > 0:
             add_variant_btn.first.click()
-            playwright_page.wait_for_timeout(500)  # Wait for variant form to appear
+            page.wait_for_timeout(500)  # Wait for variant form to appear
         
         # Find variant type dropdown
-        variant_type_select = playwright_page.locator('select[name*="variant_type"], select[name*="variant"][name*="type"]')
+        variant_type_select = page.locator('select[name*="variant_type"], select[name*="variant"][name*="type"]')
         
         if variant_type_select.count() > 0:
             # Wait for it to be visible
@@ -121,13 +121,13 @@ class TestRangesUIPlaywright:
         else:
             pytest.skip("Variant dropdown not found in UI, needs UI implementation")
 
-    def test_ranges_loaded_via_api(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_ranges_loaded_via_api(self, page: Page, app_url, basex_test_connector):
         """Test that ranges are accessible via API endpoint."""
         # Navigate to the ranges API endpoint
-        playwright_page.goto(f'{live_server.url}/api/ranges')
+        page.goto(f'{app_url}/api/ranges')
         
         # Get the JSON response
-        content = playwright_page.content()
+        content = page.content()
         
         # Should contain ranges data (not an error page)
         assert 'grammatical-info' in content or 'relation-type' in content or 'semantic-domain' in content, \

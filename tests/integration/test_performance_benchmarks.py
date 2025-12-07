@@ -27,54 +27,6 @@ class TestPerformanceBenchmarks:
     """Performance benchmark tests for core operations."""
     
     @pytest.fixture(scope="function")
-    def dict_service(self, basex_available):
-        """Get dictionary service instance for performance testing."""
-        from app.database.basex_connector import BaseXConnector
-        
-        # Import the utility function from conftest
-        import sys
-        sys.path.append(os.path.dirname(__file__))
-        from conftest import ensure_test_database
-        
-        test_db_name = f"test_performance_{uuid.uuid4().hex[:8]}"
-        
-        # First create connector without database to ensure test db exists
-        temp_connector = BaseXConnector(
-            host=os.getenv('BASEX_HOST', 'localhost'),
-            port=int(os.getenv('BASEX_PORT', '1984')),
-            username=os.getenv('BASEX_USERNAME', 'admin'),
-            password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database=None  # No database initially
-        )
-        
-        connector = None
-        try:
-            temp_connector.connect()
-            ensure_test_database(temp_connector, test_db_name)
-            temp_connector.disconnect()
-            
-            # Now create connector with the test database
-            connector = BaseXConnector(
-                host=os.getenv('BASEX_HOST', 'localhost'),
-                port=int(os.getenv('BASEX_PORT', '1984')),
-                username=os.getenv('BASEX_USERNAME', 'admin'),
-                password=os.getenv('BASEX_PASSWORD', 'admin'),
-                database=test_db_name
-            )
-            connector.connect()
-            
-            service = DictionaryService(db_connector=connector)
-            yield service
-        finally:
-            # Cleanup
-            try:
-                if connector and connector.is_connected():
-                    connector.drop_database(test_db_name)
-                    connector.disconnect()
-            except Exception:
-                pass
-    
-    @pytest.fixture(scope="function")
     def sample_entries(self) -> List[Entry]:
         """Create sample entries for performance testing."""
         entries = []
@@ -105,14 +57,14 @@ class TestPerformanceBenchmarks:
         return entries
     
     @pytest.mark.integration
-    def test_bulk_entry_creation_performance(self, dict_service, sample_entries):
+    def test_bulk_entry_creation_performance(self, dict_service_with_db, sample_entries):
         """Test performance of creating multiple entries."""
         start_time = time.time()
         
         created_count = 0
         for entry in sample_entries:
             try:
-                dict_service.create_entry(entry)
+                dict_service_with_db.create_entry(entry)
                 created_count += 1
             except Exception as e:
                 print(f"Failed to create entry {entry.id}: {e}")
@@ -131,7 +83,7 @@ class TestPerformanceBenchmarks:
         assert entries_per_second >= 3.0, f"Creation rate too slow: {entries_per_second:.2f} entries/sec"
     
     @pytest.mark.integration
-    def test_search_performance(self, dict_service):
+    def test_search_performance(self, dict_service_with_db):
         """Test search performance with various query types."""
         search_queries = [
             "performance",
@@ -145,7 +97,7 @@ class TestPerformanceBenchmarks:
             start_time = time.time()
             
             try:
-                results, total = dict_service.search_entries(query)
+                results, total = dict_service_with_db.search_entries(query)
                 end_time = time.time()
                 duration = end_time - start_time
                 
@@ -162,7 +114,7 @@ class TestPerformanceBenchmarks:
                 # Search failures are acceptable for performance tests
     
     @pytest.mark.integration
-    def test_entry_retrieval_performance(self, dict_service):
+    def test_entry_retrieval_performance(self, dict_service_with_db):
         """Test performance of retrieving individual entries."""
         entry_ids = [f"perf_test_{i:03d}" for i in range(0, 50, 5)]  # Every 5th entry
         
@@ -173,7 +125,7 @@ class TestPerformanceBenchmarks:
             start_time = time.time()
             
             try:
-                entry = dict_service.get_entry(entry_id)
+                entry = dict_service_with_db.get_entry(entry_id)
                 end_time = time.time()
                 duration = end_time - start_time
                 
@@ -198,12 +150,12 @@ class TestPerformanceBenchmarks:
             assert avg_time < 0.5, f"Average retrieval time too slow: {avg_time:.3f}s"
     
     @pytest.mark.integration
-    def test_count_operations_performance(self, dict_service):
+    def test_count_operations_performance(self, dict_service_with_db):
         """Test performance of counting operations."""
         start_time = time.time()
         
         try:
-            entry_count = dict_service.get_entry_count()
+            entry_count = dict_service_with_db.get_entry_count()
             end_time = time.time()
             duration = end_time - start_time
             
@@ -220,7 +172,7 @@ class TestPerformanceBenchmarks:
             # Count failures are acceptable for performance tests
     
     @pytest.mark.integration
-    def test_memory_usage_during_operations(self, dict_service):
+    def test_memory_usage_during_operations(self, dict_service_with_db):
         """Test memory usage during dictionary operations."""
         import psutil
         import os
@@ -232,15 +184,15 @@ class TestPerformanceBenchmarks:
         try:
             # Search operations
             for i in range(10):
-                dict_service.search_entries(f"test_{i}")
+                dict_service_with_db.search_entries(f"test_{i}")
             
             # Count operations  
-            dict_service.get_entry_count()
+            dict_service_with_db.get_entry_count()
             
             # Entry retrieval
             for i in range(5):
                 try:
-                    dict_service.get_entry(f"perf_test_{i:03d}")
+                    dict_service_with_db.get_entry(f"perf_test_{i:03d}")
                 except Exception:
                     pass
             
@@ -256,14 +208,14 @@ class TestPerformanceBenchmarks:
             pytest.skip("psutil not available for memory testing")
     
     @pytest.mark.integration
-    def test_concurrent_operations_performance(self, dict_service: DictionaryService) -> None:
+    def test_concurrent_operations_performance(self, dict_service_with_db: DictionaryService) -> None:
         """Test performance under simulated load (sequential operations with timing)."""
         # Skip complex threading due to BaseX limitations
         # Instead, test sequential operations that simulate load patterns
         
         try:
             # Quick validation that basic operations work
-            dict_service.get_entry_count()
+            dict_service_with_db.get_entry_count()
         except Exception as e:
             raise
         
@@ -276,12 +228,12 @@ class TestPerformanceBenchmarks:
             try:
                 # Search operation
                 search_start = time.time()
-                dict_service.search_entries(f"performance_load_{i}")
+                dict_service_with_db.search_entries(f"performance_load_{i}")
                 search_time = time.time() - search_start
                 
                 # Count operation  
                 count_start = time.time()
-                dict_service.get_entry_count()
+                dict_service_with_db.get_entry_count()
                 count_time = time.time() - count_start
                 
                 operations.append({

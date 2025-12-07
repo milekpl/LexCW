@@ -17,18 +17,6 @@ class TestCorpusManagementIntegrationTableMissing:
     """Test corpus management view when PostgreSQL table is missing."""
     
     @pytest.fixture
-    def app(self):
-        """Create test app."""
-        app = create_app('testing')
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
-        return app
-    
-    @pytest.fixture
-    def client(self, app):
-        """Create test client."""
-        return app.test_client()
-    
     @pytest.mark.integration
     def test_corpus_management_handles_missing_table_gracefully(self, client) -> None:
         """Test that corpus management page works when parallel_corpus table doesn't exist."""

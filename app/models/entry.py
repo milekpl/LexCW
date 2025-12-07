@@ -18,9 +18,26 @@ if TYPE_CHECKING:
 class Etymology(BaseModel):
     """
     Represents an etymology in a LIFT entry.
+    
+    Attributes:
+        type: Etymology type (e.g., 'inheritance', 'borrowing')
+        source: Source language or reference
+        form: Dictionary mapping language codes to etymon forms
+        gloss: Dictionary mapping language codes to gloss text
+        comment: Optional dictionary mapping language codes to comment text (Day 45-46)
+        custom_fields: Optional dictionary of custom fields (Day 45-46)
     """
 
-    def __init__(self, type: str, source: str, form: Dict[str, str], gloss: Dict[str, str], **kwargs: Any):
+    def __init__(
+        self, 
+        type: str, 
+        source: str, 
+        form: Dict[str, str], 
+        gloss: Dict[str, str], 
+        comment: Optional[Dict[str, str]] = None,
+        custom_fields: Optional[Dict[str, Dict[str, str]]] = None,
+        **kwargs: Any
+    ):
         super().__init__(**kwargs)
         self.type: str = type
         self.source: str = source
@@ -31,11 +48,17 @@ class Etymology(BaseModel):
             raise ValueError("Etymology 'gloss' must be a nested dict {lang: text, ...}")
         self.form: Dict[str, str] = form
         self.gloss: Dict[str, str] = gloss
+        self.comment: Optional[Dict[str, str]] = comment
+        self.custom_fields: Dict[str, Dict[str, str]] = custom_fields or {}
 
     def to_dict(self) -> Dict[str, Any]:
         result = super().to_dict()
         result['form'] = self.form
         result['gloss'] = self.gloss
+        if self.comment:
+            result['comment'] = self.comment
+        if self.custom_fields:
+            result['custom_fields'] = self.custom_fields
         return result
 
 
@@ -90,9 +113,13 @@ class Entry(BaseModel):
         notes: Dictionary mapping note types to either simple text (legacy) or language-text mappings (multilingual).
         custom_fields: Dictionary of custom fields for the entry.
         homograph_number: Optional integer identifying the homograph number when entries share the same lexical unit.
+        date_created: ISO8601 timestamp for entry creation.
+        date_modified: ISO8601 timestamp for last modification.
+        date_deleted: ISO8601 timestamp for soft delete (LIFT 0.13).
+        order: Integer for manual entry ordering (LIFT 0.13).
     """
 
-    def __init__(self, id_: Optional[str] = None, date_created: Optional[str] = None, date_modified: Optional[str] = None, **kwargs: Any):
+    def __init__(self, id_: Optional[str] = None, date_created: Optional[str] = None, date_modified: Optional[str] = None, date_deleted: Optional[str] = None, order: Optional[int] = None, **kwargs: Any):
         """
         Initialize an entry.
 
@@ -100,10 +127,14 @@ class Entry(BaseModel):
             id_: Unique identifier for the entry.
             date_created: ISO8601 string for creation date.
             date_modified: ISO8601 string for last modification date.
+            date_deleted: ISO8601 string for soft delete timestamp (LIFT 0.13).
+            order: Integer for manual entry ordering (LIFT 0.13).
             **kwargs: Additional attributes to set on the entry.
         """
         self.date_created: Optional[str] = date_created
         self.date_modified: Optional[str] = date_modified
+        self.date_deleted: Optional[str] = date_deleted
+        self.order: Optional[int] = order
 
         # Extract complex structures before calling super to avoid double processing
         senses_data = kwargs.pop('senses', [])
@@ -552,6 +583,10 @@ class Entry(BaseModel):
         # Always include date fields, even if None
         result['date_created'] = self.date_created if hasattr(self, 'date_created') else None
         result['date_modified'] = self.date_modified if hasattr(self, 'date_modified') else None
+        result['date_deleted'] = self.date_deleted if hasattr(self, 'date_deleted') else None
+        
+        # LIFT 0.13: Include order attribute (manual entry ordering)
+        result['order'] = self.order if hasattr(self, 'order') else None
 
         # Note: headword is a computed property and should not be included in dict
 

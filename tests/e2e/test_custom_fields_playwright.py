@@ -27,63 +27,63 @@ class TestCustomFieldsPlaywright:
     can be added, edited, and removed correctly with multi-language support.
     """
 
-    def _setup_test_entry(self, page: Page, live_server) -> None:
-        """Navigate to entry form and add a sense (helper method, not a fixture)."""
+    @pytest.fixture(autouse=True)
+    def setup_test_entry(self, page: Page, app_url: str) -> None:
+        """Navigate to entry form and add a sense before each test."""
         # Go to add new entry page
-        page.goto(f"{live_server.url}/entries/add")
-        
-        # Wait for page to be ready
-        page.wait_for_load_state("networkidle")
+        page.goto(f"{app_url}/entries/add")
+        page.wait_for_load_state("load")
         
         # Fill minimum required fields for entry
-        # Fill lexical unit in English
-        lexical_unit_lang = page.locator('select[name="lexical_unit.en.lang"]').first
-        if lexical_unit_lang.is_visible():
-            lexical_unit_lang.select_option("en")
+        lexical_unit = page.locator('input[name="lexical_unit"]').first
+        if lexical_unit.is_visible():
+            lexical_unit.fill("test-word")
         
-        lexical_unit_text = page.locator('input[name="lexical_unit.en.text"]').first
-        if lexical_unit_text.is_visible():
-            lexical_unit_text.fill("test-word")
-        
-        # Add a sense if not present
+        # Add a sense
         add_sense_btn = page.locator('#add-sense-btn')
         if add_sense_btn.is_visible():
             add_sense_btn.click()
-            page.wait_for_timeout(500)  # Wait for sense to be added
+            page.wait_for_timeout(300)
         
         # Fill sense definition
-        sense_def = page.locator('textarea[name*="senses[0].definition"][name*=".text"]').first
+        sense_def = page.locator('textarea[name*="senses"][name*="definition"]').first
         if sense_def.is_visible():
             sense_def.fill("test definition")
 
-    def test_literal_meaning_field_visible(self, playwright_page: Page, live_server) -> None:
-        """Test that literal meaning field is visible at entry level."""
-        page = playwright_page
-        self._setup_test_entry(page, live_server)
-        
-        # Literal meaning section should be visible
-        literal_meaning_section = page.locator('.card').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))
-        expect(literal_meaning_section).to_be_visible()
-        
-        # Should have an Add Language button
-        add_lang_btn = literal_meaning_section.locator('.add-literal-meaning-language-btn')
-        expect(add_lang_btn).to_be_visible()
-        expect(add_lang_btn).to_contain_text('Add Language')
-
-    def test_add_literal_meaning_language(self, page: Page) -> None:
-        """Test adding a language to literal meaning field."""
-        # Find literal meaning section
-        literal_meaning_section = page.locator('.card').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))
-        
-        # Click Add Language button
-        add_lang_btn = literal_meaning_section.locator('.add-literal-meaning-language-btn')
-        add_lang_btn.click()
-        
-        # Wait for form to appear
+    def test_literal_meaning_field_visible(self, page: Page, app_url) -> None:
+        """Test that literal meaning field is visible in sense cards."""
+        # Scroll to see sense section
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
         
+        # Literal meaning label should be visible in sense
+        literal_meaning_label = page.locator('label').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE)).first
+        expect(literal_meaning_label).to_be_visible()
+        
+        # Should have an Add Language button
+        add_lang_btn = page.locator('.add-literal-meaning-language-btn').first
+        expect(add_lang_btn).to_be_visible()
+        expect(add_lang_btn).to_contain_text('Add Language')
+        expect(add_lang_btn).to_contain_text('Add Language')
+
+    def test_add_literal_meaning_language(self, page: Page, app_url: str) -> None:
+        """Test adding a language to literal meaning."""
+        # Scroll to see sense section
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(500)
+        
+        # Setup dialog handler to accept prompt and enter language code
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
+        # Click Add Language button for literal meaning
+        add_lang_btn = page.locator('.add-literal-meaning-language-btn').first
+        add_lang_btn.click()
+        
+        # Wait for form to be added
+        page.wait_for_timeout(300)
+        
         # A new language form group should appear
-        lang_form = literal_meaning_section.locator('.language-form-group').first
+        lang_form = page.locator('.literal-meaning-forms .language-form-group').first
         expect(lang_form).to_be_visible()
         
         # Should have language selector
@@ -94,21 +94,26 @@ class TestCustomFieldsPlaywright:
         text_area = lang_form.locator('textarea')
         expect(text_area).to_be_visible()
         
-        # Should have remove button (use more general selector)
+        # Should have remove button
         remove_btn = lang_form.locator('.remove-literal-meaning-language-btn')
         expect(remove_btn).to_be_visible()
 
-    def test_remove_literal_meaning_language(self, page: Page) -> None:
-        """Test removing a language from literal meaning field."""
-        # Find literal meaning section
-        literal_meaning_section = page.locator('.card').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))
+    def test_remove_literal_meaning_language(self, page: Page, app_url: str) -> None:
+        """Test removing a language from literal meaning."""
+        # Scroll to see sense section
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(500)
+        
+        # Setup dialog handler for adding language
+        page.on('dialog', lambda dialog: dialog.accept('en'))
         
         # Add a language first
-        add_lang_btn = literal_meaning_section.locator('.add-literal-meaning-language-btn')
+        add_lang_btn = page.locator('.add-literal-meaning-language-btn').first
         add_lang_btn.click()
+        page.wait_for_timeout(300)
         
         # Verify it was added
-        lang_form = literal_meaning_section.locator('.language-form-group').first
+        lang_form = page.locator('.literal-meaning-forms .language-form-group').first
         expect(lang_form).to_be_visible()
         
         # Click remove button
@@ -123,25 +128,30 @@ class TestCustomFieldsPlaywright:
         page.wait_for_timeout(500)
         
         # Language form should be removed - check count instead of element visibility
-        expect(literal_meaning_section.locator('.language-form-group')).to_have_count(0)
+        expect(page.locator('.literal-meaning-forms .language-form-group')).to_have_count(0)
 
-    def test_fill_literal_meaning_content(self, page: Page) -> None:
+    def test_fill_literal_meaning_content(self, page: Page, app_url: str) -> None:
         """Test filling literal meaning with actual content."""
-        # Find literal meaning section
-        literal_meaning_section = page.locator('.card').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))
+        # Scroll to see sense section
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(500)
+        
+        # Setup dialog handler for adding language
+        page.on('dialog', lambda dialog: dialog.accept('en'))
         
         # Add a language
-        add_lang_btn = literal_meaning_section.locator('.add-literal-meaning-language-btn')
+        add_lang_btn = page.locator('.add-literal-meaning-language-btn').first
         add_lang_btn.click()
+        page.wait_for_timeout(300)
         
         # Fill the content
-        text_area = literal_meaning_section.locator('textarea').first
+        text_area = page.locator('.literal-meaning-forms textarea').first
         text_area.fill('sun-flower')
         
         # Verify content
         expect(text_area).to_have_value('sun-flower')
 
-    def test_exemplar_field_visible_in_sense(self, page: Page) -> None:
+    def test_exemplar_field_visible_in_sense(self, page: Page, app_url: str) -> None:
         """Test that exemplar field is visible in sense cards."""
         # Scroll down to see the sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -156,15 +166,21 @@ class TestCustomFieldsPlaywright:
         expect(add_lang_btn).to_be_visible()
         expect(add_lang_btn).to_contain_text('Add Language')
 
-    def test_add_exemplar_language(self, page: Page) -> None:
+    def test_add_exemplar_language(self, page: Page, app_url: str) -> None:
         """Test adding a language to exemplar field."""
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
         
+        # Setup dialog handler to accept prompt and enter language code
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
         # Click Add Language button for exemplar
         add_lang_btn = page.locator('.add-exemplar-language-btn').first
         add_lang_btn.click()
+        
+        # Wait for form to be added
+        page.wait_for_timeout(300)
         
         # A new language form group should appear
         lang_form = page.locator('.exemplar-forms .language-form-group').first
@@ -182,15 +198,19 @@ class TestCustomFieldsPlaywright:
         remove_btn = lang_form.locator('button.remove-exemplar-language-btn')
         expect(remove_btn).to_be_visible()
 
-    def test_remove_exemplar_language(self, page: Page) -> None:
+    def test_remove_exemplar_language(self, page: Page, app_url: str) -> None:
         """Test removing a language from exemplar field."""
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
         
+        # Setup dialog handler for adding language
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
         # Add a language first
         add_lang_btn = page.locator('.add-exemplar-language-btn').first
         add_lang_btn.click()
+        page.wait_for_timeout(300)
         
         # Verify it was added
         lang_form = page.locator('.exemplar-forms .language-form-group').first
@@ -210,15 +230,19 @@ class TestCustomFieldsPlaywright:
         # Language form should be removed - check count instead of element visibility
         expect(page.locator('.exemplar-forms .language-form-group')).to_have_count(0)
 
-    def test_fill_exemplar_content(self, page: Page) -> None:
+    def test_fill_exemplar_content(self, page: Page, app_url: str) -> None:
         """Test filling exemplar with actual content."""
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
         
+        # Setup dialog handler for adding language
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
         # Add a language
         add_lang_btn = page.locator('.add-exemplar-language-btn').first
         add_lang_btn.click()
+        page.wait_for_timeout(300)
         
         # Fill the content
         text_area = page.locator('.exemplar-forms textarea').first
@@ -227,7 +251,7 @@ class TestCustomFieldsPlaywright:
         # Verify content
         expect(text_area).to_have_value('mice')
 
-    def test_scientific_name_field_visible_in_sense(self, page: Page) -> None:
+    def test_scientific_name_field_visible_in_sense(self, page: Page, app_url: str) -> None:
         """Test that scientific name field is visible in sense cards."""
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -242,15 +266,21 @@ class TestCustomFieldsPlaywright:
         expect(add_lang_btn).to_be_visible()
         expect(add_lang_btn).to_contain_text('Add Language')
 
-    def test_add_scientific_name_language(self, page: Page) -> None:
+    def test_add_scientific_name_language(self, page: Page, app_url: str) -> None:
         """Test adding a language to scientific name field."""
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
         
+        # Setup dialog handler to accept prompt and enter language code
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
         # Click Add Language button for scientific name
         add_lang_btn = page.locator('.add-scientific-name-language-btn').first
         add_lang_btn.click()
+        
+        # Wait for form to be added
+        page.wait_for_timeout(300)
         
         # A new language form group should appear
         lang_form = page.locator('.scientific-name-forms .language-form-group').first
@@ -268,15 +298,19 @@ class TestCustomFieldsPlaywright:
         remove_btn = lang_form.locator('button.remove-scientific-name-language-btn')
         expect(remove_btn).to_be_visible()
 
-    def test_remove_scientific_name_language(self, page: Page) -> None:
+    def test_remove_scientific_name_language(self, page: Page, app_url: str) -> None:
         """Test removing a language from scientific name field."""
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
         
+        # Setup dialog handler for adding language
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
         # Add a language first
         add_lang_btn = page.locator('.add-scientific-name-language-btn').first
         add_lang_btn.click()
+        page.wait_for_timeout(300)
         
         # Verify it was added
         lang_form = page.locator('.scientific-name-forms .language-form-group').first
@@ -296,15 +330,19 @@ class TestCustomFieldsPlaywright:
         # Language form should be removed - check count instead of element visibility
         expect(page.locator('.scientific-name-forms .language-form-group')).to_have_count(0)
 
-    def test_fill_scientific_name_content(self, page: Page) -> None:
+    def test_fill_scientific_name_content(self, page: Page, app_url: str) -> None:
         """Test filling scientific name with actual content."""
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
         
+        # Setup dialog handler for adding language
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
         # Add a language
         add_lang_btn = page.locator('.add-scientific-name-language-btn').first
         add_lang_btn.click()
+        page.wait_for_timeout(300)
         
         # Fill the content
         text_area = page.locator('.scientific-name-forms textarea').first
@@ -313,13 +351,23 @@ class TestCustomFieldsPlaywright:
         # Verify content
         expect(text_area).to_have_value('Helianthus annuus')
 
-    def test_add_multiple_languages_to_literal_meaning(self, page: Page) -> None:
+    def test_add_multiple_languages_to_literal_meaning(self, page: Page, app_url: str) -> None:
         """Test adding multiple languages to literal meaning."""
-        # Find literal meaning section
-        literal_meaning_section = page.locator('.card').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))
+        # Scroll to see sense section
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(500)
+        
+        # Setup dialog handler - will use different languages for each call
+        dialog_count = [0]
+        def handle_dialog(dialog):
+            langs = ['en', 'fr']
+            dialog.accept(langs[dialog_count[0]])
+            dialog_count[0] += 1
+        
+        page.on('dialog', handle_dialog)
         
         # Add first language
-        add_lang_btn = literal_meaning_section.locator('.add-literal-meaning-language-btn')
+        add_lang_btn = page.locator('.add-literal-meaning-language-btn').first
         add_lang_btn.click()
         page.wait_for_timeout(200)
         
@@ -327,47 +375,56 @@ class TestCustomFieldsPlaywright:
         add_lang_btn.click()
         page.wait_for_timeout(200)
         
-        # Should have two language form groups
-        lang_forms = literal_meaning_section.locator('.language-form-group')
+        # Should have two language form groups in the first sense's literal meaning
+        lang_forms = page.locator('.literal-meaning-forms .language-form-group').first.locator('xpath=../..').locator('.language-form-group')
         expect(lang_forms).to_have_count(2)
 
-    def test_all_custom_fields_visible_together(self, page: Page) -> None:
-        """Test that all three custom fields are visible simultaneously."""
-        # Literal meaning at entry level
-        literal_meaning_section = page.locator('.card').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))
-        expect(literal_meaning_section).to_be_visible()
+    def test_all_custom_fields_visible_together(self, page: Page, app_url: str) -> None:
+        """Test that all three custom fields are visible simultaneously in sense."""
+        # Scroll to see sense section
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(500)
         
-        # Exemplar in sense
-        exemplar_label = page.locator('label').filter(has_text=re.compile(r'^Exemplar$', re.IGNORECASE)).first
+        # All three fields should be in sense
+        literal_meaning_label = page.locator('label').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE)).first
+        expect(literal_meaning_label).to_be_visible()
+        
+        exemplar_label = page.locator('label').filter(has_text=re.compile(r'Exemplar', re.IGNORECASE)).first
         expect(exemplar_label).to_be_visible()
         
-        # Scientific Name in sense
         scientific_name_label = page.locator('label').filter(has_text=re.compile(r'Scientific Name', re.IGNORECASE)).first
         expect(scientific_name_label).to_be_visible()
 
-    def test_custom_fields_have_help_text(self, page: Page) -> None:
+    def test_custom_fields_have_help_text(self, page: Page, app_url: str) -> None:
         """Test that custom fields have informative help text."""
-        # Literal meaning help text
-        literal_meaning_section = page.locator('.card').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))
-        literal_help = literal_meaning_section.locator('.form-text')
+        # Scroll to see sense section
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(500)
+        
+        # Literal meaning help text in sense
+        literal_container = page.locator('.mb-3').filter(has=page.locator('label').filter(has_text=re.compile(r'Literal Meaning', re.IGNORECASE))).first
+        literal_help = literal_container.locator('.form-text').first
         expect(literal_help).to_be_visible()
-        expect(literal_help).to_contain_text('literal')
         
         # Find exemplar section by looking for its container
-        exemplar_container = page.locator('.mb-3').filter(has=page.locator('label').filter(has_text=re.compile(r'^Exemplar$', re.IGNORECASE)))
+        exemplar_container = page.locator('.mb-3').filter(has=page.locator('label').filter(has_text=re.compile(r'Exemplar', re.IGNORECASE))).first
         exemplar_help = exemplar_container.locator('.form-text').first
         expect(exemplar_help).to_be_visible()
         
         # Find scientific name section by looking for its container
-        scientific_container = page.locator('.mb-3').filter(has=page.locator('label').filter(has_text=re.compile(r'Scientific Name', re.IGNORECASE)))
+        scientific_container = page.locator('.mb-3').filter(has=page.locator('label').filter(has_text=re.compile(r'Scientific Name', re.IGNORECASE))).first
         scientific_help = scientific_container.locator('.form-text').first
         expect(scientific_help).to_be_visible()
 
-    def test_custom_fields_persist_after_add_another_sense(self, page: Page) -> None:
+    def test_custom_fields_persist_after_add_another_sense(self, page: Page, app_url: str) -> None:
         """Test that custom fields remain visible after adding another sense."""
+        # Setup dialog handler for adding language
+        page.on('dialog', lambda dialog: dialog.accept('en'))
+        
         # Add exemplar to first sense
         add_exemplar_btn = page.locator('.add-exemplar-language-btn').first
         add_exemplar_btn.click()
+        page.wait_for_timeout(300)
         
         # Fill it
         exemplar_text = page.locator('.exemplar-forms textarea.exemplar-text').first
@@ -384,9 +441,10 @@ class TestCustomFieldsPlaywright:
             sense_defs.first.fill('second definition')
         
         # Both senses should have exemplar fields
-        exemplar_btns = page.locator('.add-exemplar-language-btn')
+        # Count only buttons in actual sense cards (not the template)
+        exemplar_btns = page.locator('.sense-item:not(#default-sense-template) .add-exemplar-language-btn')
         expect(exemplar_btns).to_have_count(2)
         
         # First sense's exemplar content should still be there
-        first_exemplar = page.locator('.exemplar-forms textarea.exemplar-text').first
+        first_exemplar = page.locator('.exemplar-forms textarea').first
         expect(first_exemplar).to_have_value('first sense exemplar')

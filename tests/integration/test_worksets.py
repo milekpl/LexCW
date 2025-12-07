@@ -10,7 +10,7 @@ from flask import Flask
 from app.models.workset import Workset, WorksetQuery, QueryFilter
 
 
-def test_create_workset(client, postgres_available):
+def test_create_workset(client):
     """Test creating a new workset."""
     query = WorksetQuery(filters=[QueryFilter(field='lexical_unit', operator='starts_with', value='test')])
     response = client.post('/api/worksets', json={

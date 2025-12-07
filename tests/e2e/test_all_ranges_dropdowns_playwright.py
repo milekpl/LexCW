@@ -18,14 +18,14 @@ from playwright.sync_api import Page, expect
 class TestAllRangesDropdownsPlaywright:
     """Test all LIFT ranges dropdowns are populated in the UI."""
 
-    def test_grammatical_info_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_grammatical_info_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that grammatical info (part of speech) dropdown is populated."""
         # Navigate to entry edit page
-        playwright_page.goto(f'{live_server.url}/entries/new')
-        playwright_page.wait_for_load_state('networkidle')
+        page.goto(f'{app_url}/entries/new')
+        page.wait_for_load_state('networkidle')
         
         # Find grammatical info selects (both entry-level and sense-level)
-        pos_selects = playwright_page.locator('select.dynamic-grammatical-info, select[data-range-id="grammatical-info"]')
+        pos_selects = page.locator('select.dynamic-grammatical-info, select[data-range-id="grammatical-info"]')
         
         # Wait for at least one to be visible
         expect(pos_selects.first).to_be_visible(timeout=10000)
@@ -44,16 +44,16 @@ class TestAllRangesDropdownsPlaywright:
         
         print(f"✅ Grammatical info: {len(options)} options loaded")
 
-    def test_academic_domain_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_academic_domain_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that academic domain dropdown is populated from domain-type range."""
-        playwright_page.goto(f'{live_server.url}/entries/new')
-        playwright_page.wait_for_load_state('networkidle')
+        page.goto(f'{app_url}/entries/new')
+        page.wait_for_load_state('networkidle')
         
         # Wait a bit for JavaScript to initialize dropdowns
-        playwright_page.wait_for_timeout(2000)
+        page.wait_for_timeout(2000)
         
         # Find academic domain selects
-        academic_selects = playwright_page.locator('select[data-range-id="academic-domain"]')
+        academic_selects = page.locator('select[data-range-id="academic-domain"]')
         
         # Should exist in the page
         count = academic_selects.count()
@@ -77,22 +77,22 @@ class TestAllRangesDropdownsPlaywright:
             print(f"✅ Academic domain: {len(options)} options loaded")
         else:
             # If not visible, check via API that the range is accessible
-            playwright_page.goto(f'{live_server.url}/api/ranges/academic-domain')
-            content = playwright_page.content()
+            page.goto(f'{app_url}/api/ranges/academic-domain')
+            content = page.content()
             assert '"success":true' in content or '"data"' in content, \
                 f"Academic domain range not accessible via API: {content[:200]}"
             print("⚠️  Academic domain select exists but not visible (may need UI action to show)")
 
-    def test_semantic_domain_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_semantic_domain_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that semantic domain dropdown is populated from semantic-domain-ddp4 range."""
-        playwright_page.goto(f'{live_server.url}/entries/new')
-        playwright_page.wait_for_load_state('networkidle')
+        page.goto(f'{app_url}/entries/new')
+        page.wait_for_load_state('networkidle')
         
         # Wait for JavaScript to initialize dropdowns
-        playwright_page.wait_for_timeout(2000)
+        page.wait_for_timeout(2000)
         
         # Find semantic domain selects
-        semantic_selects = playwright_page.locator('select[data-range-id="semantic-domain-ddp4"]')
+        semantic_selects = page.locator('select[data-range-id="semantic-domain-ddp4"]')
         
         # Should exist in the page
         count = semantic_selects.count()
@@ -115,22 +115,22 @@ class TestAllRangesDropdownsPlaywright:
             print(f"✅ Semantic domain: {len(options)} options loaded")
         else:
             # Check via API
-            playwright_page.goto(f'{live_server.url}/api/ranges/semantic-domain')
-            content = playwright_page.content()
+            page.goto(f'{app_url}/api/ranges/semantic-domain')
+            content = page.content()
             assert '"success":true' in content or '"data"' in content, \
                 f"Semantic domain range not accessible via API: {content[:200]}"
             print("⚠️  Semantic domain select exists but not visible (may need UI action to show)")
 
-    def test_usage_type_dropdown_populated(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_usage_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that usage type dropdown is populated from usage-type range."""
-        playwright_page.goto(f'{live_server.url}/entries/new')
-        playwright_page.wait_for_load_state('networkidle')
+        page.goto(f'{app_url}/entries/new')
+        page.wait_for_load_state('networkidle')
         
         # Wait for JavaScript to initialize dropdowns
-        playwright_page.wait_for_timeout(2000)
+        page.wait_for_timeout(2000)
         
         # Find usage type selects
-        usage_selects = playwright_page.locator('select[data-range-id="usage-type"]')
+        usage_selects = page.locator('select[data-range-id="usage-type"]')
         
         # Should exist in the page
         count = usage_selects.count()
@@ -153,17 +153,17 @@ class TestAllRangesDropdownsPlaywright:
             print(f"✅ Usage type: {len(options)} options loaded")
         else:
             # Check via API
-            playwright_page.goto(f'{live_server.url}/api/ranges/usage-type')
-            content = playwright_page.content()
+            page.goto(f'{app_url}/api/ranges/usage-type')
+            content = page.content()
             assert '"success":true' in content or '"data"' in content, \
                 f"Usage type range not accessible via API: {content[:200]}"
             print("⚠️  Usage type select exists but not visible (may need UI action to show)")
 
-    def test_all_ranges_api_accessible(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_all_ranges_api_accessible(self, page: Page, app_url, basex_test_connector):
         """Test that all required ranges are accessible via API."""
         # First check what ranges are actually available
-        playwright_page.goto(f'{live_server.url}/api/ranges')
-        all_ranges_content = playwright_page.content()
+        page.goto(f'{app_url}/api/ranges')
+        all_ranges_content = page.content()
         
         # Try to extract available_types from JSON
         import json
@@ -180,8 +180,8 @@ class TestAllRangesDropdownsPlaywright:
                 print(f"Could not parse JSON: {e}")
         
         # Test that domain-type works directly
-        playwright_page.goto(f'{live_server.url}/api/ranges/domain-type')
-        direct_content = playwright_page.content()
+        page.goto(f'{app_url}/api/ranges/domain-type')
+        direct_content = page.content()
         print(f"\n🔍 Direct domain-type request: {'success' if '404' not in direct_content else 'FAILED'}")
         
         required_ranges = [
@@ -192,8 +192,8 @@ class TestAllRangesDropdownsPlaywright:
         ]
         
         for range_id in required_ranges:
-            response = playwright_page.goto(f'{live_server.url}/api/ranges/{range_id}')
-            content = playwright_page.content()
+            response = page.goto(f'{app_url}/api/ranges/{range_id}')
+            content = page.content()
             
             # Check HTTP status, not text content (since "404" might appear in domain names)
             assert response and response.ok, \
@@ -205,16 +205,16 @@ class TestAllRangesDropdownsPlaywright:
             
             print(f"✅ API accessible: /api/ranges/{range_id}")
 
-    def test_dynamic_lift_range_initialization(self, playwright_page: Page, live_server, basex_test_connector):
+    def test_dynamic_lift_range_initialization(self, page: Page, app_url, basex_test_connector):
         """Test that ALL elements with class 'dynamic-lift-range' are initialized."""
-        playwright_page.goto(f'{live_server.url}/entries/new')
-        playwright_page.wait_for_load_state('networkidle')
+        page.goto(f'{app_url}/entries/new')
+        page.wait_for_load_state('networkidle')
         
         # Wait for JavaScript initialization
-        playwright_page.wait_for_timeout(3000)
+        page.wait_for_timeout(3000)
         
         # Find all dynamic-lift-range selects
-        all_dynamic_selects = playwright_page.locator('select.dynamic-lift-range')
+        all_dynamic_selects = page.locator('select.dynamic-lift-range')
         total_count = all_dynamic_selects.count()
         
         assert total_count > 0, "Should have at least one dynamic-lift-range select"

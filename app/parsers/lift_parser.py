@@ -389,6 +389,26 @@ class LIFTParser:
                 if text_elem is not None and text_elem.text:
                     gloss = {lang or '': text_elem.text}
 
+            # Day 45-46: Parse comment and custom fields
+            comment: dict[str, str] | None = None
+            custom_fields: dict[str, dict[str, str]] = {}
+            
+            for field_elem in self._find_elements(etymology_elem, './/lift:field'):
+                field_type = field_elem.get('type', '')
+                field_value: dict[str, str] = {}
+                
+                for field_form_elem in self._find_elements(field_elem, './/lift:form'):
+                    field_lang = field_form_elem.get('lang', 'en')
+                    field_text_elem = self._find_element(field_form_elem, './/lift:text')
+                    if field_text_elem is not None and field_text_elem.text:
+                        field_value[field_lang] = field_text_elem.text
+                
+                if field_value:
+                    if field_type == 'comment':
+                        comment = field_value
+                    else:
+                        custom_fields[field_type] = field_value
+
             if form and gloss:
                 # Ensure form and gloss are always {lang: text, ...}
                 if not (isinstance(form, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in form.items())):
@@ -399,7 +419,9 @@ class LIFTParser:
                     type=etymology_type,
                     source=etymology_source,
                     form=form,
-                    gloss=gloss
+                    gloss=gloss,
+                    comment=comment,
+                    custom_fields=custom_fields if custom_fields else None
                 ))
 
           # Parse citations
@@ -639,6 +661,7 @@ class LIFTParser:
         
         date_created = entry_elem.get('dateCreated')
         date_modified = entry_elem.get('dateModified')
+        date_deleted = entry_elem.get('dateDeleted')  # LIFT 0.13: Soft delete support
         # Create and return Entry object
         # LIFT 0.13: Parse annotations (editorial workflow) - Day 26-27
         annotations = []
@@ -651,6 +674,8 @@ class LIFTParser:
             id_=entry_id,
             date_created=date_created,
             date_modified=date_modified,
+            date_deleted=date_deleted,  # LIFT 0.13: Soft delete
+            order=homograph_number,  # LIFT uses order for homograph number
             lexical_unit=lexical_unit,
             citations=citations,
             pronunciations=pronunciations,
@@ -706,7 +731,8 @@ class LIFTParser:
         for example_elem in self._find_elements(sense_elem, './/lift:example'):
             example_id = example_elem.get('id')
             example = self._parse_example(example_elem, example_id)
-            examples.append(example.to_dict())
+            # Day 47-48: Keep as Example objects instead of converting to dict
+            examples.append(example)
         
         # Parse relations (only direct children, not nested in subsenses)
         relations = []
@@ -923,6 +949,9 @@ class LIFTParser:
         Returns:
             Example object.
         """
+        # Day 47-48: Parse source attribute
+        source = example_elem.get('source')
+        
         # Parse forms - should be direct children of example
         form = {}
         for form_elem in self._find_elements(example_elem, './lift:form'):
@@ -940,11 +969,35 @@ class LIFTParser:
                 if lang and text_elem is not None and text_elem.text:
                     translations[lang] = text_elem.text
         
+        # Day 47-48: Parse note field and custom fields
+        note = None
+        custom_fields = {}
+        for field_elem in self._find_elements(example_elem, './lift:field'):
+            field_type = field_elem.get('type')
+            if not field_type:
+                continue
+            
+            # Parse multilingual content
+            field_content = {}
+            for form_elem in self._find_elements(field_elem, './lift:form'):
+                lang = form_elem.get('lang')
+                text_elem = self._find_element(form_elem, './lift:text')
+                if lang and text_elem is not None and text_elem.text:
+                    field_content[lang] = text_elem.text
+            
+            if field_type == 'note':
+                note = field_content
+            else:
+                custom_fields[field_type] = field_content
+        
         # Create and return Example object
         return Example(
             id_=example_id,
             form=form,
-            translations=translations
+            translations=translations,
+            source=source,
+            note=note,
+            custom_fields=custom_fields
         )
     
     def generate_lift_file(self, entries: List[Entry], file_path: str) -> None:
@@ -1020,6 +1073,8 @@ class LIFTParser:
             entry_elem.set('dateCreated', entry.date_created)
         if entry.date_modified:
             entry_elem.set('dateModified', entry.date_modified)
+        if entry.date_deleted:  # LIFT 0.13: Soft delete support
+            entry_elem.set('dateDeleted', entry.date_deleted)
 
         # Add homograph number if present (using 'order' attribute per LIFT specification)
         if entry.homograph_number is not None:
@@ -1052,6 +1107,27 @@ class LIFTParser:
                     gloss_elem.set('lang', lang)
                     text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
                     text_elem.text = text
+            
+            # Day 45-46: Generate comment field
+            if etymology.comment:
+                comment_field_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}field')
+                comment_field_elem.set('type', 'comment')
+                for lang, text in etymology.comment.items():
+                    form_elem = ET.SubElement(comment_field_elem, '{' + self.NSMAP['lift'] + '}form')
+                    form_elem.set('lang', lang)
+                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
+            
+            # Day 45-46: Generate custom fields
+            if etymology.custom_fields:
+                for field_type, field_value in etymology.custom_fields.items():
+                    field_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}field')
+                    field_elem.set('type', field_type)
+                    for lang, text in field_value.items():
+                        form_elem = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + '}form')
+                        form_elem.set('lang', lang)
+                        text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                        text_elem.text = text
 
         # Add citations
         for citation in entry.citations:
@@ -1293,7 +1369,11 @@ class LIFTParser:
                     example = example_item
                 example_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}example')
                 if example.id:
-                    example_elem.set('id', example.id)                # Add forms
+                    example_elem.set('id', example.id)
+                # Day 47-48: Add source attribute
+                if hasattr(example, 'source') and example.source:
+                    example_elem.set('source', example.source)
+                # Add forms
                 for lang, text in example.form.items():
                     form = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
                     form.set('lang', lang)
@@ -1308,6 +1388,28 @@ class LIFTParser:
                         form.set('lang', lang)
                         text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
                         text_elem.text = text
+                
+                # Day 47-48: Add note field
+                if hasattr(example, 'note') and example.note:
+                    note_field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
+                    note_field_elem.set('type', 'note')
+                    for lang, text in example.note.items():
+                        form_elem = ET.SubElement(note_field_elem, '{' + self.NSMAP['lift'] + '}form')
+                        form_elem.set('lang', lang)
+                        text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                        text_elem.text = text
+                
+                # Day 47-48: Add custom fields
+                if hasattr(example, 'custom_fields') and example.custom_fields:
+                    for field_type, field_value in example.custom_fields.items():
+                        if isinstance(field_value, dict):
+                            field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
+                            field_elem.set('type', field_type)
+                            for lang, text in field_value.items():
+                                form_elem = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + '}form')
+                                form_elem.set('lang', lang)
+                                text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                                text_elem.text = text
             
             # Add grammatical info
             if sense.grammatical_info:
@@ -1502,6 +1604,9 @@ class LIFTParser:
             example_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}example')
             if example.id:
                 example_elem.set('id', example.id)
+            # Day 47-48: Add source attribute
+            if hasattr(example, 'source') and example.source:
+                example_elem.set('source', example.source)
             # Add forms
             for lang, text in example.form.items():
                 form = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
@@ -1516,6 +1621,28 @@ class LIFTParser:
                     form.set('lang', lang)
                     text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
                     text_elem.text = text
+            
+            # Day 47-48: Add note field
+            if hasattr(example, 'note') and example.note:
+                note_field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
+                note_field_elem.set('type', 'note')
+                for lang, text in example.note.items():
+                    form_elem = ET.SubElement(note_field_elem, '{' + self.NSMAP['lift'] + '}form')
+                    form_elem.set('lang', lang)
+                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                    text_elem.text = text
+            
+            # Day 47-48: Add custom fields
+            if hasattr(example, 'custom_fields') and example.custom_fields:
+                for field_type, field_value in example.custom_fields.items():
+                    if isinstance(field_value, dict):
+                        field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
+                        field_elem.set('type', field_type)
+                        for lang, text in field_value.items():
+                            form_elem = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + '}form')
+                            form_elem.set('lang', lang)
+                            text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
+                            text_elem.text = text
         
         # Add notes
         for note_type, note_content in subsense.notes.items():

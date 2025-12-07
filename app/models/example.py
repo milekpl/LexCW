@@ -17,6 +17,9 @@ class Example(BaseModel):
         translations: Dictionary mapping language codes to translation text.
         notes: Dictionary mapping note types to note content.
         custom_fields: Dictionary of custom fields for the example.
+        source: Optional source reference (Day 47-48).
+        note: Optional multilingual note (Day 47-48).
+        traits: Dictionary of trait key-value pairs.
     """
     
     def __init__(self, id_: Optional[str] = None, **kwargs):
@@ -33,6 +36,9 @@ class Example(BaseModel):
         self.notes: Dict[str, str] = kwargs.get('notes', {})
         self.custom_fields: Dict[str, Any] = kwargs.get('custom_fields', {})
         self.traits: Dict[str, str] = kwargs.get('traits', {})
+        # Day 47-48: Add source and note attributes
+        self.source: Optional[str] = kwargs.get('source')
+        self.note: Optional[Dict[str, str]] = kwargs.get('note')
         
         # Handle form_text convenience parameter before calling super().__init__
         if 'form_text' in kwargs and isinstance(kwargs['form_text'], str):
@@ -42,7 +48,7 @@ class Example(BaseModel):
         
         # Now call parent __init__ with remaining kwargs
         parent_kwargs = {k: v for k, v in kwargs.items() 
-                        if k not in ['form', 'translations', 'notes', 'custom_fields', 'form_text']}
+                        if k not in ['form', 'translations', 'notes', 'custom_fields', 'form_text', 'source', 'note', 'traits']}
         super().__init__(id_, **parent_kwargs)  # type: ignore
     
     @property
@@ -86,6 +92,11 @@ class Example(BaseModel):
         result = super().to_dict()
         # Add form_text property to the dict
         result['form_text'] = self.form_text
+        # Day 47-48: Add source and note if present
+        if self.source:
+            result['source'] = self.source
+        if self.note:
+            result['note'] = self.note
         return result
 
     def validate(self) -> bool:

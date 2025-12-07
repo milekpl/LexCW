@@ -39,11 +39,6 @@ class TestLIFTRangesEndToEndIntegration:
         app.config['BASEX_DATABASE'] = 'test_ranges_e2e'
         return app
 
-    @pytest.fixture
-    def client(self, app):
-        """Create test client."""
-        return app.test_client()
-
     @pytest.mark.integration
     def test_complete_lift_ranges_pipeline(self, app, client):
         """

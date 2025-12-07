@@ -10,7 +10,7 @@ from playwright.sync_api import Page, expect
 
 
 @pytest.mark.integration
-def test_sense_deletion_persists_after_save(playwright_page, live_server):
+def test_sense_deletion_persists_after_save(page, flask_test_server):
     """
     CRITICAL TEST: Verify that deleted senses don't reappear after save.
     
@@ -23,7 +23,7 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     The fix: Mark default-sense-template and exclude it from serialization.
     """
     print("TEST STARTING: test_sense_deletion_persists_after_save")
-    page = playwright_page
+    page = page
     
     # For this test, create an entry with 2 senses via API, then edit it
     import requests
@@ -48,9 +48,9 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     }
     
     # Create entry via API
-    print(f"Creating entry via API at {live_server.url}/api/entries/...")
+    print(f"Creating entry via API at {flask_test_server}/api/entries/...")
     response = requests.post(
-        f"{live_server.url}/api/entries/",
+        f"{flask_test_server}/api/entries/",
         json=test_entry_data,
         headers={"Content-Type": "application/json"}
     )
@@ -58,7 +58,7 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
     assert response.status_code in [200, 201], f"Failed to create test entry: {response.text}"
     
     entry_id = test_entry_data["id"]
-    edit_url = f"{live_server.url}/entries/{entry_id}/edit"
+    edit_url = f"{flask_test_server}/entries/{entry_id}/edit"
     
     # Navigate to edit the entry
     print(f"Navigating to edit URL: {edit_url}")
@@ -148,12 +148,12 @@ def test_sense_deletion_persists_after_save(playwright_page, live_server):
 
 
 @pytest.mark.integration
-def test_default_template_not_serialized(playwright_page, live_server):
+def test_default_template_not_serialized(page, flask_test_server):
     """Test that the default-sense-template is never included in serialization."""
-    page = playwright_page
+    page = page
     
     # Navigate to add entry page
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{flask_test_server}/entries/add")
     page.wait_for_load_state("networkidle")
     
     # Verify default template exists in DOM
@@ -192,11 +192,11 @@ def test_default_template_not_serialized(playwright_page, live_server):
 
 
 @pytest.mark.integration
-def test_multiple_deletions(playwright_page, live_server):
+def test_multiple_deletions(page, flask_test_server):
     """Test deleting multiple senses in sequence."""
-    page = playwright_page
+    page = page
     
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{flask_test_server}/entries/add")
     page.wait_for_load_state("networkidle")
     
     # Fill lexical unit first
@@ -249,7 +249,7 @@ def test_multiple_deletions(playwright_page, live_server):
     
     entry_id = page.url.split('/')[-1].split('?')[0]
     print(f"DEBUG: Extracted entry ID: {entry_id}")
-    edit_url = f"{live_server.url}/entries/{entry_id}/edit"
+    edit_url = f"{flask_test_server}/entries/{entry_id}/edit"
     print(f"DEBUG: Will navigate to edit URL: {edit_url}")
     
     # Delete sense 2
@@ -300,12 +300,12 @@ def test_multiple_deletions(playwright_page, live_server):
 
 
 @pytest.mark.integration
-def test_add_and_remove_sense(playwright_page, live_server):
+def test_add_and_remove_sense(page, flask_test_server):
     """Test that adding and removing a sense works correctly."""
-    page = playwright_page
+    page = page
     
     # Navigate to edit an existing entry
-    page.goto(f"{live_server.url}/entries/AIDS%20test_a774b9c4-c013-4f54-9017-cf818791080c/edit")
+    page.goto(f"{flask_test_server}/entries/AIDS%20test_a774b9c4-c013-4f54-9017-cf818791080c/edit")
     
     # Wait for page to load
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
@@ -351,7 +351,7 @@ def test_add_and_remove_sense(playwright_page, live_server):
     page.wait_for_url("**/entries/**", timeout=10000)
     
     # Reload the page to verify persistence
-    page.goto(f"{live_server.url}/entries/AIDS%20test_a774b9c4-c013-4f54-9017-cf818791080c/edit")
+    page.goto(f"{flask_test_server}/entries/AIDS%20test_a774b9c4-c013-4f54-9017-cf818791080c/edit")
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
     
     # Verify the sense count persisted

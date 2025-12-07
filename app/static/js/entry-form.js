@@ -639,6 +639,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 addAnnotationLanguage(addAnnotationLanguageBtn);
                 return;
             }
+            
+            // --- Literal Meaning Add Language Button ---
+            const addLiteralMeaningBtn = e.target.closest('.add-literal-meaning-language-btn');
+            if (addLiteralMeaningBtn) {
+                addCustomFieldLanguage(addLiteralMeaningBtn, 'literal-meaning');
+                return;
+            }
+            
+            // --- Exemplar Add Language Button ---
+            const addExemplarBtn = e.target.closest('.add-exemplar-language-btn');
+            if (addExemplarBtn) {
+                addCustomFieldLanguage(addExemplarBtn, 'exemplar');
+                return;
+            }
+            
+            // --- Scientific Name Add Language Button ---
+            const addScientificNameBtn = e.target.closest('.add-scientific-name-language-btn');
+            if (addScientificNameBtn) {
+                addCustomFieldLanguage(addScientificNameBtn, 'scientific-name');
+                return;
+            }
         });
     }
 
@@ -1528,6 +1549,7 @@ function addAnnotation(containerType, index) {
                                         <span class="input-group-text">en</span>
                                         <textarea class="form-control" 
                                                name="${namePrefix}.content.en"
+                                               data-lang="en"
                                                rows="2"
                                                placeholder="Enter comment or description in English"></textarea>
                                     </div>
@@ -1680,6 +1702,7 @@ function addAnnotationLanguage(button) {
             <span class="input-group-text">${sanitizedLang}</span>
             <textarea class="form-control" 
                    name="${nameBase}${sanitizedLang}"
+                   data-lang="${sanitizedLang}"
                    rows="2"
                    placeholder="Enter comment or description in ${sanitizedLang}"></textarea>
             <button type="button" class="btn btn-outline-danger remove-annotation-language-btn" title="Remove this language">
@@ -1699,6 +1722,133 @@ document.addEventListener('click', (e) => {
         if (inputGroup && confirm('Remove this language?')) {
             inputGroup.remove();
         }
+    }
+});
+
+/**
+ * Add a language field to a custom field (literal-meaning, exemplar, scientific-name).
+ * @param {Element} button - The "Add Language" button element.
+ * @param {string} fieldType - The type of custom field ('literal-meaning', 'exemplar', 'scientific-name')
+ */
+function addCustomFieldLanguage(button, fieldType) {
+    // Find the container for this field type
+    const formsContainer = button.closest('.mb-3, .card-body').querySelector(`.${fieldType}-forms`);
+    
+    if (!formsContainer) {
+        console.error(`Could not find .${fieldType}-forms container`);
+        return;
+    }
+    
+    // Prompt for language code
+    const langCode = prompt('Enter language code (e.g., en, fr, es):');
+    if (!langCode || !langCode.trim()) return;
+    
+    const sanitizedLang = langCode.trim().toLowerCase();
+    
+    // Check if language already exists
+    const existingLangSelects = formsContainer.querySelectorAll('select.language-selector');
+    for (const select of existingLangSelects) {
+        if (select.value === sanitizedLang) {
+            alert(`Language "${sanitizedLang}" already exists.`);
+            return;
+        }
+    }
+    
+    // Determine name prefix based on field type and context (entry or sense)
+    let namePrefix = '';
+    const senseCard = button.closest('.sense-card');
+    
+    if (senseCard) {
+        // This is a sense-level field
+        const senseIndex = senseCard.dataset.senseIndex;
+        if (fieldType === 'exemplar') {
+            namePrefix = `senses[${senseIndex}].exemplar.`;
+        } else if (fieldType === 'scientific-name') {
+            namePrefix = `senses[${senseIndex}].scientific-name.`;
+        }
+    } else {
+        // This is an entry-level field
+        if (fieldType === 'literal-meaning') {
+            namePrefix = `literal-meaning.`;
+        }
+    }
+    
+    // Get available languages for the selector
+    const languagesJson = document.getElementById('project-languages-data')?.textContent;
+    let languageOptions = [];
+    if (languagesJson) {
+        try {
+            const languages = JSON.parse(languagesJson);
+            languageOptions = languages.map(([code, label]) => 
+                `<option value="${code}" ${code === sanitizedLang ? 'selected' : ''}>${label}</option>`
+            ).join('');
+        } catch (e) {
+            console.error('Failed to parse project languages:', e);
+        }
+    }
+    
+    // Create new language form group
+    const removeButtonClass = `remove-${fieldType}-language-btn`;
+    const textareaClass = `${fieldType}-text`;
+    
+    const newLangHTML = `
+        <div class="language-form-group mb-2">
+            <div class="row">
+                <div class="col-md-3">
+                    <select class="form-select language-selector" 
+                            name="${namePrefix}${sanitizedLang}_lang">
+                        ${languageOptions}
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <textarea class="form-control ${textareaClass}" 
+                           name="${namePrefix}${sanitizedLang}"
+                           rows="2"
+                           placeholder="Enter ${fieldType} in ${sanitizedLang}"></textarea>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-danger ${removeButtonClass}" 
+                            title="Remove this language">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    formsContainer.insertAdjacentHTML('beforeend', newLangHTML);
+}
+
+// Event listeners for removing custom field language forms
+document.addEventListener('click', (e) => {
+    // Literal meaning remove button
+    const removeLiteralMeaningBtn = e.target.closest('.remove-literal-meaning-language-btn');
+    if (removeLiteralMeaningBtn) {
+        const formGroup = removeLiteralMeaningBtn.closest('.language-form-group');
+        if (formGroup && confirm('Remove this language?')) {
+            formGroup.remove();
+        }
+        return;
+    }
+    
+    // Exemplar remove button
+    const removeExemplarBtn = e.target.closest('.remove-exemplar-language-btn');
+    if (removeExemplarBtn) {
+        const formGroup = removeExemplarBtn.closest('.language-form-group');
+        if (formGroup && confirm('Remove this language?')) {
+            formGroup.remove();
+        }
+        return;
+    }
+    
+    // Scientific name remove button
+    const removeScientificNameBtn = e.target.closest('.remove-scientific-name-language-btn');
+    if (removeScientificNameBtn) {
+        const formGroup = removeScientificNameBtn.closest('.language-form-group');
+        if (formGroup && confirm('Remove this language?')) {
+            formGroup.remove();
+        }
+        return;
     }
 });
 

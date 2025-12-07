@@ -40,9 +40,14 @@ class TestCorpusMigration:
     @pytest.fixture(scope="class")
     def migrator(self, postgres_config: PostgreSQLConfig) -> CorpusMigrator:
         """Real migrator instance for testing - uses test_corpus schema."""
+        if not os.getenv('POSTGRES_HOST'):
+            pytest.skip("PostgreSQL server not configured - set POSTGRES_HOST environment variable")
         migrator = CorpusMigrator(postgres_config, schema='test_corpus')
         # Test connection and create schema if needed
-        migrator.get_corpus_stats()
+        try:
+            migrator.get_corpus_stats()
+        except Exception as e:
+            pytest.skip(f"PostgreSQL connection failed: {e}")
         return migrator
     
     @pytest.fixture(scope="function")

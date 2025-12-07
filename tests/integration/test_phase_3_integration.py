@@ -19,17 +19,6 @@ from config import TestingConfig
 class TestPhase3AutoSaveIntegration:
     """Test Phase 3 auto-save and conflict resolution integration"""
     
-    @pytest.fixture
-    def app(self):
-        """Create test Flask app"""
-        app = create_app(TestingConfig)
-        return app
-    
-    @pytest.fixture
-    def client(self, app):
-        """Create test client"""
-        return app.test_client()
-    
     def test_auto_save_endpoint_integration(self, client):
         """Test that the auto-save endpoint is properly registered and working"""
         # Test the auto-save endpoint

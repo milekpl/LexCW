@@ -7,11 +7,10 @@ from playwright.sync_api import Page, expect
 
 
 @pytest.mark.integration
-def test_validation_respects_project_settings(playwright_page: Page, live_server):
+def test_validation_respects_project_settings(page: Page, app_url: str):
     """Test that validation uses project-configured source/target languages."""
-    page = playwright_page
     # Navigate to entry form
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{app_url}/entries/add")
     
     # Fill in required fields using new multilingual format
     page.fill('input[name^="lexical_unit."][name$=".text"]', 'test word')
@@ -29,10 +28,9 @@ def test_validation_respects_project_settings(playwright_page: Page, live_server
 
 
 @pytest.mark.integration
-def test_empty_source_language_definition_allowed(playwright_page: Page, live_server):
+def test_empty_source_language_definition_allowed(page: Page, app_url: str):
     """Test that empty source language definitions are allowed."""
-    page = playwright_page
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{app_url}/entries/add")
     
     # Fill in basic entry info using new multilingual format
     page.fill('input[name^="lexical_unit."][name$=".text"]', 'facal')  # Scots Gaelic
@@ -50,10 +48,9 @@ def test_empty_source_language_definition_allowed(playwright_page: Page, live_se
 
 
 @pytest.mark.integration
-def test_ipa_character_validation(playwright_page: Page, live_server):
+def test_ipa_character_validation(page: Page, app_url: str):
     """Test that IPA character validation works in browser."""
-    page = playwright_page
-    page.goto(f"{live_server.url}/entries/add")
+    page.goto(f"{app_url}/entries/add")
     
     # Fill in basic info using new multilingual format
     page.fill('input[name^="lexical_unit."][name$=".text"]', 'test')
