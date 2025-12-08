@@ -68,29 +68,32 @@ class TestAPIIntegration:
         assert response.status_code in [200, 404]
         
     @pytest.mark.integration
-    def test_api_entries_get_single_detailed(self, client: FlaskClient, dict_service_with_db: DictionaryService) -> None:
+    def test_api_entries_get_single_detailed(self, client: FlaskClient) -> None:
         """Test GET /api/entries/<id> - get single entry."""
-        # Create test entry
-        entry = Entry(
-            id_="api_single_test",
-            lexical_unit={"en": "single_test", "pl": "pojedynczy_test"},
-            senses=[
-                Sense(
-                    id_="single_sense",
-                    gloss={"en": "Single test gloss"},
-                    definition={"en": "Single test definition"}
-                )
-            ]
-        )
+        # Create test entry via XML API with unique ID
+        test_id = f"api_single_test_{uuid.uuid4().hex[:8]}"
+        entry_xml = f'''<entry id="{test_id}">
+            <lexical-unit>
+                <form lang="en"><text>single_test</text></form>
+                <form lang="pl"><text>pojedynczy_test</text></form>
+            </lexical-unit>
+            <sense id="single_sense">
+                <gloss lang="en"><text>Single test gloss</text></gloss>
+                <definition>
+                    <form lang="en"><text>Single test definition</text></form>
+                </definition>
+            </sense>
+        </entry>'''
         
-        dict_service_with_db.create_entry(entry)
+        create_response = client.post('/api/xml/entries', data=entry_xml, content_type='application/xml')
+        assert create_response.status_code == 201
         
         # Test API endpoint
-        response = client.get('/api/entries/api_single_test')
+        response = client.get(f'/api/entries/{test_id}')
         assert response.status_code == 200
         
         data = json.loads(response.data)
-        assert data['id'] == 'api_single_test'
+        assert data['id'] == test_id
         assert data['lexical_unit']['en'] == 'single_test'
         assert len(data['senses']) == 1
         # LIFT flat format: gloss is {lang: text}
@@ -105,51 +108,51 @@ class TestAPIIntegration:
         
     @pytest.mark.integration
     def test_api_entries_create(self, client):
-        """Test POST /api/entries - create new entry."""
-        new_entry_data = {
-            "id": "api_create_test",
-            "lexical_unit": {
-                "en": "create_test",
-                "pl": "test_tworzenia"
-            },
-            "senses": [
-                {
-                    "id": "create_sense_1",
-                    "gloss": {"en": "Create test gloss"},
-                    "definition": {"en": {"text": "Create test definition"}}
-                }
-            ]
-        }
+        """Test POST /api/xml/entries - create new entry."""
+        test_id = f"api_create_test_{uuid.uuid4().hex[:8]}"
+        entry_xml = f'''<entry id="{test_id}">
+            <lexical-unit>
+                <form lang="en"><text>create_test</text></form>
+                <form lang="pl"><text>test_tworzenia</text></form>
+            </lexical-unit>
+            <sense id="create_sense_1">
+                <gloss lang="en"><text>Create test gloss</text></gloss>
+                <definition>
+                    <form lang="en"><text>Create test definition</text></form>
+                </definition>
+            </sense>
+        </entry>'''
         
-        response = client.post('/api/entries', 
-                             data=json.dumps(new_entry_data),
-                             content_type='application/json')
+        response = client.post('/api/xml/entries', data=entry_xml, content_type='application/xml')
         assert response.status_code == 201
         
-        data = json.loads(response.data)
+        data = response.get_json()
         assert data['success'] is True
-        assert data['entry_id'] == 'api_create_test'
+        assert data['entry_id'] == test_id
         
         # Verify entry was created by getting it back
-        get_response = client.get('/api/entries/api_create_test')
+        get_response = client.get(f'/api/entries/{test_id}')
         assert get_response.status_code == 200
         
     @pytest.mark.integration
-    def test_api_entries_update(self, client, dict_service_with_db):
+    def test_api_entries_update(self, client):
         """Test PUT /api/entries/<id> - update entry."""
-        # Create entry to update
-        entry = Entry(
-            id="api_update_test",
-            lexical_unit={"en": "update_original", "pl": "oryginalny"},
-            senses=[
-                Sense(
-                    id="update_sense",
-                    gloss={"en": "Original gloss"},
-                    definition={"en": "Original definition"}
-                )
-            ]
-        )
-        dict_service_with_db.create_entry(entry)
+        # Create entry to update via XML API
+        test_id = f"api_update_test_{uuid.uuid4().hex[:8]}"
+        entry_xml = f'''<entry id="{test_id}">
+            <lexical-unit>
+                <form lang="en"><text>update_original</text></form>
+                <form lang="pl"><text>oryginalny</text></form>
+            </lexical-unit>
+            <sense id="update_sense">
+                <gloss lang="en"><text>Original gloss</text></gloss>
+                <definition>
+                    <form lang="en"><text>Original definition</text></form>
+                </definition>
+            </sense>
+        </entry>'''
+        create_response = client.post('/api/xml/entries', data=entry_xml, content_type='application/xml')
+        assert create_response.status_code == 201
         
         # Update data
         update_data = {
@@ -183,54 +186,60 @@ class TestAPIIntegration:
         assert updated_entry['lexical_unit']['en'] == 'update_modified'
         
     @pytest.mark.integration
-    def test_api_entries_delete(self, client, dict_service_with_db):
+    def test_api_entries_delete(self, client):
         """Test DELETE /api/entries/<id> - delete entry."""
-        # Create entry to delete
-        entry = Entry(
-            id="api_delete_test",
-            lexical_unit={"en": "delete_test", "pl": "test_usuwania"},
-            senses=[
-                Sense(
-                    id="delete_sense",
-                    gloss={"en": "Delete test gloss"},
-                    definition={"en": "Delete test definition"}
-                )
-            ]
-        )
-        dict_service_with_db.create_entry(entry)
+        # Create entry to delete via XML API
+        test_id = f"api_delete_test_{uuid.uuid4().hex[:8]}"
+        entry_xml = f'''<entry id="{test_id}">
+            <lexical-unit>
+                <form lang="en"><text>delete_test</text></form>
+                <form lang="pl"><text>test_usuwania</text></form>
+            </lexical-unit>
+            <sense id="delete_sense">
+                <gloss lang="en"><text>Delete test gloss</text></gloss>
+                <definition>
+                    <form lang="en"><text>Delete test definition</text></form>
+                </definition>
+            </sense>
+        </entry>'''
+        create_response = client.post('/api/xml/entries', data=entry_xml, content_type='application/xml')
+        assert create_response.status_code == 201
         
         # Verify entry exists
-        get_response = client.get('/api/entries/api_delete_test')
+        get_response = client.get(f'/api/entries/{test_id}')
         assert get_response.status_code == 200
         
         # Delete the entry
-        delete_response = client.delete('/api/entries/api_delete_test')
+        delete_response = client.delete(f'/api/entries/{test_id}')
         assert delete_response.status_code == 200
         
         data = json.loads(delete_response.data)
         assert data['success'] is True
         
         # Verify entry is deleted
-        get_response_after = client.get('/api/entries/api_delete_test')
+        get_response_after = client.get(f'/api/entries/{test_id}')
         assert get_response_after.status_code == 404
         
     # @pytest.mark.skip(reason="Search functionality needs investigation - BaseX XQuery issue")
     @pytest.mark.integration
-    def test_api_search(self, client, dict_service_with_db):
+    def test_api_search(self, client):
         """Test GET /api/search - search entries."""
-        # Create searchable entries
-        entry1 = Entry(
-            id="search_test_1",
-            lexical_unit={"en": "searchable_word", "pl": "słowo_do_wyszukania"},
-            senses=[
-                Sense(
-                    id="search_sense_1",
-                    gloss={"en": "Searchable gloss"},
-                    definition={"en": "Searchable definition"}
-                )
-            ]
-        )
-        result = dict_service_with_db.create_entry(entry1)
+        # Create searchable entry via XML API
+        test_id = f"search_test_{uuid.uuid4().hex[:8]}"
+        entry_xml = f'''<entry id="{test_id}">
+            <lexical-unit>
+                <form lang="en"><text>searchable_word</text></form>
+                <form lang="pl"><text>słowo_do_wyszukania</text></form>
+            </lexical-unit>
+            <sense id="search_sense_1">
+                <gloss lang="en"><text>Searchable gloss</text></gloss>
+                <definition>
+                    <form lang="en"><text>Searchable definition</text></form>
+                </definition>
+            </sense>
+        </entry>'''
+        create_response = client.post('/api/xml/entries', data=entry_xml, content_type='application/xml')
+        assert create_response.status_code == 201
         
         # Test search API
         response = client.get('/api/search/?q=searchable')
@@ -247,15 +256,18 @@ class TestAPIIntegration:
         assert len(data['entries']) > 0, "Search should return results"
         assert data['total'] > 0
         assert data['query'] == 'searchable'
-        assert data['entries'][0]['id'] == 'search_test_1'
-        assert data['entries'][0]['lexical_unit']['en'] == 'searchable_word'
+        # Check that our entry is in the results (may not be first due to other test data)
+        entry_ids = [e['id'] for e in data['entries']]
+        assert test_id in entry_ids, f"Entry {test_id} should be in search results"
+        # Find our specific entry
+        our_entry = next(e for e in data['entries'] if e['id'] == test_id)
+        assert our_entry['lexical_unit']['en'] == 'searchable_word'
         
         # Verify entry structure
-        entry_data = data['entries'][0]
-        assert 'senses' in entry_data
-        assert len(entry_data['senses']) == 1
+        assert 'senses' in our_entry
+        assert len(our_entry['senses']) == 1
         # LIFT flat format: gloss/definition are {lang: text}
-        gloss_val = entry_data['senses'][0]['gloss']
+        gloss_val = our_entry['senses'][0]['gloss']
         assert isinstance(gloss_val, dict)
         assert 'en' in gloss_val
         # Handle both flat (string) and nested (dict with 'text') for compatibility
@@ -264,7 +276,7 @@ class TestAPIIntegration:
         else:
             assert gloss_val['en']['text'] == 'Searchable gloss'
             
-        def_val = entry_data['senses'][0]['definition']
+        def_val = our_entry['senses'][0]['definition']
         assert isinstance(def_val, dict)
         assert 'en' in def_val
         # Handle both flat (string) and nested (dict with 'text') for compatibility

@@ -10,7 +10,7 @@ import pytest
 
 from app.models.entry import Entry
 from app.models.sense import Sense
-from app.utils.exceptions import DatabaseError, NotFoundError
+from app.utils.exceptions import DatabaseError, NotFoundError, ValidationError
 
 
 @pytest.fixture(scope="function")
@@ -95,7 +95,7 @@ class TestIntegrationCreateEntry:
         service.create_entry(entry)
         
         # Try to create again - should fail
-        with pytest.raises(DatabaseError, match="already exists|duplicate"):
+        with pytest.raises((ValidationError, DatabaseError), match="already exists|duplicate"):
             service.create_entry(entry)
     
     def test_create_invalid_entry_fails(self, service):
@@ -107,7 +107,7 @@ class TestIntegrationCreateEntry:
             senses=[]  # Empty senses
         )
         
-        with pytest.raises((DatabaseError, ValueError)):
+        with pytest.raises((ValidationError, DatabaseError, ValueError)):
             service.create_entry(invalid_entry)
 
 
@@ -142,7 +142,7 @@ class TestIntegrationGetEntry:
     
     def test_get_nonexistent_entry_fails(self, service):
         """Test that retrieving non-existent entry fails."""
-        with pytest.raises(EntryNotFoundError):
+        with pytest.raises(NotFoundError):
             service.get_entry('nonexistent_entry_xyz')
 
 
@@ -236,8 +236,8 @@ class TestIntegrationDeleteEntry:
     
     def test_delete_nonexistent_entry_fails(self, service):
         """Test that deleting non-existent entry fails."""
-        with pytest.raises(EntryNotFoundError):
-            service.delete_entry('nonexistent_entry_xyz')
+        with pytest.raises(NotFoundError):
+            service.delete_entry('nonexistent_delete_xyz')
 
 
 @pytest.mark.integration
@@ -258,10 +258,10 @@ class TestIntegrationSearch:
             service.create_entry(entry)
         
         # Search for entries
-        results = service.search_entries('searchword')
+        results, total_count = service.search_entries('searchword')
         
         # Should find at least the 3 we created
-        found_ids = [e.id_ for e in results]
+        found_ids = [e.id for e in results]
         assert 'integration_test_search_001' in found_ids
         assert 'integration_test_search_002' in found_ids
         assert 'integration_test_search_003' in found_ids
@@ -280,16 +280,17 @@ class TestIntegrationSearch:
             service.create_entry(entry)
         
         # Get all results
-        all_results = service.search_entries('pageword')
+        all_results, total_count = service.search_entries('pageword')
         
         # Should have at least 5
         assert len(all_results) >= 5
     
     def test_search_no_results(self, service):
         """Test search with no matching results."""
-        results = service.search_entries('nonexistent_xyz_abc')
+        results, total_count = service.search_entries('nonexistent_xyz_abc')
         
         assert len(results) == 0
+        assert total_count == 0
 
 
 @pytest.mark.integration
@@ -344,7 +345,7 @@ class TestIntegrationEndToEnd:
         
         # 2. READ
         retrieved = service.get_entry(entry_id)
-        assert retrieved.id_ == entry_id
+        assert retrieved.id == entry_id
         assert retrieved.lexical_unit['en'] == 'lifecycleword'
         
         # 3. UPDATE
@@ -353,7 +354,7 @@ class TestIntegrationEndToEnd:
             lexical_unit={'en': 'updatedlifecycleword'},
             senses=[Sense(glosses={'en': 'updated meaning'})]
         )
-        service.update_entry(entry_id, updated_entry)
+        service.update_entry(updated_entry)
         
         # Verify update
         retrieved = service.get_entry(entry_id)
@@ -364,7 +365,7 @@ class TestIntegrationEndToEnd:
         
         # Verify deletion
         assert not service.entry_exists(entry_id)
-        with pytest.raises(EntryNotFoundError):
+        with pytest.raises(NotFoundError):
             service.get_entry(entry_id)
     
     def test_multiple_concurrent_entries(self, service):

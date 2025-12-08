@@ -122,6 +122,10 @@ def create_app(config_name=None):
     from app.api.validation_endpoints import validation_api
     app.register_blueprint(validation_api, url_prefix='/api/validation')
     
+    # Register validation service API (includes /api/validation/xml endpoint)
+    from app.api.validation_service import validation_service_bp
+    app.register_blueprint(validation_service_bp)
+    
     # Register entries API
     from app.api.entries import entries_bp
     app.register_blueprint(entries_bp, url_prefix='/api/entries')
