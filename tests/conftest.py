@@ -173,9 +173,12 @@ def flask_test_server():
     if "TEST_DB_NAME" in os.environ:
         env["TEST_DB_NAME"] = os.environ["TEST_DB_NAME"]
 
+    # Use sys.executable to get the current Python interpreter
+    python_exe = sys.executable
+    
     # Start the Flask app using run.py
     proc = subprocess.Popen([
-        "python", "run.py"
+        python_exe, "run.py"
     ], env={**env, "FLASK_RUN_PORT": str(port)}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     # Wait for the server to be ready

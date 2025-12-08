@@ -15,6 +15,8 @@ This service:
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -215,27 +217,32 @@ class XMLEntryService:
         # Generate filename
         filename = self._generate_filename(entry_id)
         
-        # Strip XML declaration if present (BaseX doesn't like it in db:add)
+        # Strip XML declaration if present
         xml_clean = xml_string.strip()
         if xml_clean.startswith('<?xml'):
             # Remove XML declaration line
             xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
         
-        # Remove xmlns declaration from root element - will be added by XQuery namespace declaration
-        # This is needed when embedding XML directly in XQuery
+        # Remove xmlns declaration from entry element - namespace is declared in XQuery prologue
         import re
         xml_clean = re.sub(r'<entry\s+xmlns="[^"]*"\s+', '<entry ', xml_clean, count=1)
         
-        # Add to database
+        # Add to database using XQuery insert (same approach as DictionaryService)
+        # This inserts the entry as a child node of the <lift> root element
         session = self._get_session()
         try:
+            logger.info(f"Creating entry {entry_id}")
+            
+            # Build XQuery insert statement (same approach as DictionaryService)
+            # CRITICAL: Must use lift:lift to target the namespace-qualified root element
+            # The entry XML is embedded directly in the query
             query = f"""
             declare namespace lift = "{LIFT_NS}";
             
-            let $entry := {xml_clean}
-            return db:add('{self.database}', $entry, '{filename}')
+            insert node {xml_clean} into collection('{self.database}')//lift:lift
             """
             
+            logger.debug(f"Executing insert query for entry {entry_id}")
             q = session.query(query)
             q.execute()
             q.close()
@@ -249,7 +256,7 @@ class XMLEntryService:
             }
             
         except Exception as e:
-            logger.error(f"Failed to create entry {entry_id}: {e}")
+            logger.error(f"Failed to create entry {entry_id}: {e}", exc_info=True)
             raise XMLEntryServiceError(f"Failed to create entry: {e}") from e
         finally:
             session.close()
@@ -273,10 +280,12 @@ class XMLEntryService:
         session = self._get_session()
         try:
             # Use variable binding to avoid injection and escaping issues
+            # CRITICAL: Must use lift:entry to match namespace-qualified elements
             query = f"""
+            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             
-            let $entry := collection("{self.database}")//entry[@id=$entryId]
+            let $entry := collection("{self.database}")//lift:entry[@id=$entryId]
             return if ($entry) then
                 $entry
             else
@@ -405,8 +414,9 @@ class XMLEntryService:
         try:
             # First verify entry exists before update
             check_query = f"""
+            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
-            count(collection("{self.database}")//entry[@id=$entryId])
+            count(collection("{self.database}")//lift:entry[@id=$entryId])
             """
             q_check = session.query(check_query)
             q_check.bind('entryId', entry_id)
@@ -417,10 +427,11 @@ class XMLEntryService:
             # Use parse-xml() with replace node
             # XML MUST have xmlns attribute on root element for this to work
             replace_query = f"""
+            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             declare variable $newXml external;
             
-            let $entry := collection("{self.database}")//entry[@id=$entryId]
+            let $entry := collection("{self.database}")//lift:entry[@id=$entryId]
             let $newEntry := parse-xml($newXml)/*
             return replace node $entry with $newEntry
             """
@@ -480,9 +491,10 @@ class XMLEntryService:
         try:
             # Use variable binding to avoid injection and escaping issues
             query = f"""
+            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             
-            for $entry in collection("{self.database}")//entry[@id=$entryId]
+            for $entry in collection("{self.database}")//lift:entry[@id=$entryId]
             return delete node $entry
             """
             
@@ -517,11 +529,11 @@ class XMLEntryService:
         session = self._get_session()
         try:
             # Use XQuery variable binding to avoid injection and escaping issues
-            # Note: entries may or may not have namespace, so check both
             query = f"""
+            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             
-            exists(collection("{self.database}")//entry[@id=$entryId])
+            exists(collection("{self.database}")//lift:entry[@id=$entryId])
             """
             
             q = session.query(query)
@@ -562,10 +574,11 @@ class XMLEntryService:
         try:
             if query_text:
                 # Search with filter
-                # Note: Entries stored without xmlns, so don't use namespace prefix
                 query = f"""
-                let $entries := //entry[
-                    .//lexical-unit//text[contains(lower-case(.), lower-case('{query_text}'))]
+                declare namespace lift = "{LIFT_NS}";
+                
+                let $entries := //lift:entry[
+                    .//lift:lexical-unit//lift:text[contains(lower-case(.), lower-case('{query_text}'))]
                 ]
                 let $total := count($entries)
                 let $results := subsequence($entries, {offset + 1}, {limit})
@@ -576,7 +589,7 @@ class XMLEntryService:
                     return <entry id="{{$entry/@id/string()}}">
                         <lexical-unit>
                         {{
-                            for $lu in $entry//lexical-unit//text
+                            for $lu in $entry//lift:lexical-unit//lift:text
                             return <text>{{$lu/string()}}</text>
                         }}
                         </lexical-unit>
@@ -586,9 +599,10 @@ class XMLEntryService:
                 """
             else:
                 # Get all entries
-                # Note: Entries stored without xmlns, so don't use namespace prefix
                 query = f"""
-                let $entries := //entry
+                declare namespace lift = "{LIFT_NS}";
+                
+                let $entries := //lift:entry
                 let $total := count($entries)
                 let $results := subsequence($entries, {offset + 1}, {limit})
                 
@@ -598,7 +612,7 @@ class XMLEntryService:
                     return <entry id="{{$entry/@id/string()}}">
                         <lexical-unit>
                         {{
-                            for $lu in $entry//lexical-unit//text
+                            for $lu in $entry//lift:lexical-unit//lift:text
                             return <text>{{$lu/string()}}</text>
                         }}
                         </lexical-unit>
@@ -654,10 +668,11 @@ class XMLEntryService:
         """
         session = self._get_session()
         try:
-            # Note: Entries stored without xmlns, so don't use namespace prefix
             query = f"""
-            let $entries := //entry
-            let $senses := //sense
+            declare namespace lift = "{LIFT_NS}";
+            
+            let $entries := //lift:entry
+            let $senses := //lift:sense
             
             return <stats>
                 <entries>{{count($entries)}}</entries>

@@ -4,9 +4,16 @@ This test verifies that deleted senses stay deleted after save.
 The bug was that the default-sense-template (always present in the DOM)
 was being serialized along with actual senses, causing ghost senses to appear.
 """
+from __future__ import annotations
+
 import pytest
-from playwright.sync_api import expect
+from playwright.sync_api import expect, Page
 import requests
+import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from flask import Flask
 
 
 @pytest.mark.integration
@@ -23,11 +30,11 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
     The fix: Mark default-sense-template and exclude it from serialization.
     """
     print("TEST STARTING: test_sense_deletion_persists_after_save")
-    page = page
     
     # Create an entry with 2 senses via XML API (to match production flow)
     print("Creating test entry with 2 senses via XML API...")
-    entry_id = "sense_deletion_test_" + str(hash("test"))[-8:]
+    # Use timestamp to ensure unique ID across test runs
+    entry_id = f"sense_deletion_test_{int(time.time() * 1000)}"
     
     # Create LIFT XML with 2 senses
     entry_xml = f'''<entry id="{entry_id}">
@@ -226,7 +233,6 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
 @pytest.mark.integration
 def test_default_template_not_serialized(page, flask_test_server):
     """Test that the default-sense-template is never included in serialization."""
-    page = page
     
     # Navigate to add entry page
     page.goto(f"{flask_test_server}/entries/add")
@@ -275,66 +281,137 @@ def test_default_template_not_serialized(page, flask_test_server):
 
 
 @pytest.mark.integration
-def test_multiple_deletions(page, flask_test_server):
+def test_multiple_deletions(page: Page, flask_test_server: str, app: Flask) -> None:
     """Test deleting multiple senses in sequence."""
-    page = page
+    # Get project settings to determine language configuration
+    project_settings = app.config.get('PROJECT_SETTINGS', [])
+    
+    if not project_settings:
+        pytest.skip("No project settings configured - cannot determine language fields")
+    
+    settings = project_settings[0]
+    source_lang = settings.get('source_language', {}).get('code', 'en')
+    target_langs = settings.get('target_languages', [])
     
     page.goto(f"{flask_test_server}/entries/add")
     page.wait_for_load_state("networkidle")
     
-    # Create entry with 3 senses - use new multilingual lexical_unit format
+    # Fill lexical unit in source language
     page.locator('input.lexical-unit-text').first.fill('multi_delete_test')
-    page.locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 1')
     
-    page.click('button:has-text("Add Sense")')
-    page.wait_for_timeout(300)
-    page.click('button:has-text("Add Sense")')
-    page.wait_for_timeout(300)
-    
-    # Fill in definitions for the senses - use correct selector with .text suffix
+    # Check initial state - there should be 0 real senses (only template)
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
-    try:
-        real_senses.nth(1).locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 2', timeout=5000)
-        real_senses.nth(2).locator('textarea[name*="definition"][name$=".text"]').first.fill('Def 3', timeout=5000)
-    except Exception as e:
-        pytest.skip(f"Could not fill sense definitions: {e}")
+    initial_count = real_senses.count()
+    print(f"Initial sense count: {initial_count}")
+    
+    # Add three senses
+    for i in range(3):
+        page.click('button:has-text("Add Sense")')
+        page.wait_for_timeout(500)
+    
+    # Wait for senses to be created
+    page.wait_for_selector('.sense-item:not(#default-sense-template):not(.default-sense-template)', state='visible', timeout=10000)
+    
+    # Verify we have 3 senses
+    real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
+    sense_count = real_senses.count()
+    assert sense_count == 3, f"Expected 3 senses after adding, got {sense_count}"
+    
+    # Fill definitions one by one - use target language if available
+    target_lang = target_langs[0]['code'] if target_langs else source_lang
+    
+    for i in range(3):
+        # Try different definition field selectors based on project config
+        definition_field = real_senses.nth(i).locator(f'textarea[name*="definition"][name*="{target_lang}"]').first
+        if definition_field.count() == 0:
+            # Fallback to generic definition selector
+            definition_field = real_senses.nth(i).locator('textarea[name*="definition"]').first
+        
+        definition_field.fill(f'Def {i+1}')
+        page.wait_for_timeout(200)
     
     # Save
     page.click('button[type="submit"]:has-text("Save Entry")')
-    page.wait_for_url("**/entries/**", timeout=10000)
     
-    entry_id = page.url.split('/')[-1].split('?')[0]
+    # Wait a bit for processing
+    page.wait_for_timeout(2000)
+    
+    # Check if we're still on the add page (validation failed)
+    current_url = page.url
+    if '/add' in current_url:
+        # Validation failed - check for errors
+        error_elements = page.locator('.alert-danger, .invalid-feedback').all()
+        error_messages = []
+        for elem in error_elements:
+            if elem.is_visible():
+                error_messages.append(elem.text_content())
+        
+        print(f"Validation failed. Current URL: {current_url}")
+        print(f"Validation errors: {error_messages}")
+        
+        # Take screenshot for debugging
+        try:
+            page.screenshot(path="e2e_test_logs/multiple_deletions_validation_error.png")
+        except Exception:
+            pass
+        
+        pytest.fail(f"Entry save validation failed. Errors: {error_messages}")
+    
+    # Extract entry ID from URL (should be /entries/<id> or /entries/<id>/edit)
+    url_parts = page.url.rstrip('/').split('/')
+    # Handle query parameters
+    entry_id_with_params = url_parts[-1] if url_parts[-1] != 'edit' else url_parts[-2]
+    entry_id = entry_id_with_params.split('?')[0]  # Remove query params
+    print(f"Entry created with ID: {entry_id}")
     edit_url = f"{flask_test_server}/entries/{entry_id}/edit"
     
-    # Delete sense 2
+    # Delete sense 2 (middle sense)
     page.goto(edit_url)
     page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(2000)  # Give extra time for page to fully render
     
+    # Setup dialog handler before clicking delete
     page.on("dialog", lambda dialog: dialog.accept())
+    
+    # Verify we have 3 senses before deletion
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
-    real_senses.nth(1).locator('.remove-sense-btn').click()
+    pre_delete_count = real_senses.count()
+    print(f"Senses before first deletion: {pre_delete_count}")
+    assert pre_delete_count == 3, f"Expected 3 senses before deletion, got {pre_delete_count}"
+    
+    # Click remove button - first ensure senses are visible
+    page.wait_for_selector('.sense-item:not(#default-sense-template):not(.default-sense-template)', state='visible', timeout=10000)
+    remove_btn = real_senses.nth(1).locator('.remove-sense-btn')
+    
+    # Scroll into view and wait for button to be visible
+    remove_btn.scroll_into_view_if_needed()
+    page.wait_for_timeout(500)
+    remove_btn.click()
     page.wait_for_timeout(500)
     
     page.click('button[type="submit"]:has-text("Save Entry")')
     page.wait_for_url("**/entries/**", timeout=10000)
     
-    # Verify
+    # Verify first deletion persisted
     page.goto(edit_url)
     page.wait_for_load_state("networkidle")
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     assert real_senses.count() == 2, "First deletion didn't persist"
     
-    # Delete another
+    # Delete another sense
+    page.on("dialog", lambda dialog: dialog.accept())
     real_senses.nth(1).locator('.remove-sense-btn').click()
     page.wait_for_timeout(500)
     
     page.click('button[type="submit"]:has-text("Save Entry")')
     page.wait_for_url("**/entries/**", timeout=10000)
     
-    # Final check
+    # Final check - should have 1 sense remaining
     page.goto(edit_url)
     page.wait_for_load_state("networkidle")
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
-    assert real_senses.count() == 1, "Second deletion didn't persist"
+    final_count = real_senses.count()
+    assert final_count == 1, f"Second deletion didn't persist - expected 1 sense, got {final_count}"
     
     print("✅ Multiple deletions all persisted!")
+

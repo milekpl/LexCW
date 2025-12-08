@@ -56,11 +56,11 @@ def setup_e2e_test_database():
         connector.disconnect()
         connector.connect()
         
-        # Add sample LIFT content
+        # Add sample LIFT content with dateCreated and dateModified
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
             sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
-    <entry id="test_entry_1">
+    <entry id="test_entry_1" dateCreated="2024-01-15T10:30:00Z" dateModified="2024-03-20T14:45:00Z">
         <lexical-unit>
             <form lang="en"><text>test</text></form>
         </lexical-unit>
@@ -232,12 +232,43 @@ def app_url(flask_test_server: str) -> str:
     return flask_test_server
 
 
+@pytest.fixture(scope="function")
+def e2e_dict_service():
+    """Create a DictionaryService that uses the E2E test database (dictionary_test)."""
+    from app.database.basex_connector import BaseXConnector
+    from app.services.dictionary_service import DictionaryService
+    
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database='dictionary_test',  # Use the E2E test database
+    )
+    connector.connect()
+    
+    service = DictionaryService(db_connector=connector)
+    yield service
+    
+    # Cleanup
+    connector.disconnect()
+
+
 @pytest.fixture
 def app():
-    """Create Flask application for E2E tests."""
+    """Create Flask application for E2E tests with default project settings."""
     from app import create_app
     app = create_app('testing')
     app.config['TESTING'] = True
+    
+    # Set default project settings if not already configured
+    if not app.config.get('PROJECT_SETTINGS'):
+        app.config['PROJECT_SETTINGS'] = [{
+            'project_name': 'test_project',
+            'source_language': {'code': 'en', 'name': 'English'},
+            'target_languages': [{'code': 'pl', 'name': 'Polish'}]
+        }]
+    
     return app
 
 

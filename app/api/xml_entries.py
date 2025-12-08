@@ -30,11 +30,18 @@ def get_xml_entry_service() -> XMLEntryService:
     
     Returns:
         XMLEntryService instance configured with BaseX credentials.
+        
+    Note: Creates a new XMLEntryService instance with the same BaseX configuration
+    as the DictionaryService to ensure they connect to the same database.
     """
     # Get BaseX configuration from app config
     config = current_app.config
     database = config.get('BASEX_DATABASE', 'dictionary')
+    
+    # Important: Use the same database configuration as Dictionary Service
+    # to ensure both services see the same data
     logger.debug(f'[XML API] Creating XMLEntryService with database: {database}')
+    
     return XMLEntryService(
         host=config.get('BASEX_HOST', 'localhost'),
         port=config.get('BASEX_PORT', 1984),
@@ -42,6 +49,7 @@ def get_xml_entry_service() -> XMLEntryService:
         password=config.get('BASEX_PASSWORD', 'admin'),
         database=database
     )
+
 
 
 @xml_entries_bp.route('/entries', methods=['POST'], strict_slashes=False)
@@ -120,6 +128,13 @@ def create_entry() -> Any:
         result = xml_service.create_entry(xml_string)
         
         logger.info('[XML API] Entry created: %s', result['id'])
+        
+        # Clear entries cache after successful creation
+        from app.services.cache_service import CacheService
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear_pattern('entries:*')
+            logger.info('[XML API] Cleared entries cache after creating entry %s', result['id'])
         
         # Return response
         return jsonify({

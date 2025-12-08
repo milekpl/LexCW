@@ -232,7 +232,7 @@ class TestSettingsLanguageUXRequirements:
         # Should show only configured source and target languages
         
         # This is the end goal - entry forms become manageable instead of nightmarish
-        entry_form = page.locator("form")
+        entry_form = page.locator("form#entry-form")
         expect(entry_form).to_be_visible()
         
         # Language dropdowns in entry form should be limited to configured languages

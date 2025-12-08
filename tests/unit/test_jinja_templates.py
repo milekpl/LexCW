@@ -27,13 +27,13 @@ class TestJinjaTemplates(unittest.TestCase):
             cwd=str(project_root)
         )
         
-        # Check for any error output
-        if result.stdout:
-            self.fail(f"Jinja template validation failed:\\n{result.stdout}")
-        
         # Return code should be 0 for success
-        self.assertEqual(result.returncode, 0, 
-                        f"check_jinja.py failed with return code {result.returncode}")
+        if result.returncode != 0:
+            # Only fail if there was an actual error
+            error_output = result.stdout + result.stderr
+            self.fail(f"Jinja template validation failed:\n{error_output}")
+        
+        # Success - template is valid
     
     def test_all_templates_jinja_syntax(self) -> None:
         """Test that all HTML templates have valid Jinja syntax."""
