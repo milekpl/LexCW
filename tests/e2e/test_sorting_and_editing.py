@@ -246,8 +246,8 @@ def test_entry_editing_loads_successfully(page: Page, flask_test_server):
     expect(error_alert).not_to_be_visible()
     
     # Verify form elements are present
-    # Note: lexical_unit fields are multilingual with format: lexical_unit.{lang}.text
-    lexical_unit_field = page.locator("input[name='lexical_unit.en.text']").first
+    # Note: lexical_unit fields are multilingual with format: lexical_unit.{lang}
+    lexical_unit_field = page.locator("input.lexical-unit-text").first
     expect(lexical_unit_field).to_be_visible()
     
     # Verify the form has the entry data loaded (not empty)
@@ -279,11 +279,11 @@ def test_entry_editing_save_functionality(page: Page, flask_test_server):
     first_edit_button.click()
     
     # Wait for edit form to load
-    # Note: lexical_unit fields are multilingual with format: lexical_unit.{lang}.text
-    page.wait_for_selector("input[name='lexical_unit.en.text']", timeout=10000)
+    # Note: lexical_unit fields are multilingual with format: lexical_unit.{lang}
+    page.wait_for_selector("input.lexical-unit-text", timeout=10000)
     
     # Get original value
-    lexical_unit_field = page.locator("input[name='lexical_unit.en.text']").first
+    lexical_unit_field = page.locator("input.lexical-unit-text").first
     original_value = lexical_unit_field.input_value()
     
     # Make a small change (add timestamp)

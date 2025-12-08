@@ -12,11 +12,25 @@ def test_validation_respects_project_settings(page: Page, app_url: str):
     # Navigate to entry form
     page.goto(f"{app_url}/entries/add")
     
-    # Fill in required fields using new multilingual format
-    page.fill('input[name^="lexical_unit."][name$=".text"]', 'test word')
+    # Debug: Take screenshot and print page content
+    page.screenshot(path="e2e_test_logs/validation_add_page.png")
+    print(f"Page URL: {page.url}")
+    print(f"Page title: {page.title()}")
     
-    # Fill in the default template sense definition
-    page.fill('textarea[name*="definition"][name$=".text"]', 'English definition')
+    # Check if we got redirected or if there's an error
+    if 'error' in page.url or page.url.endswith('/entries'):
+        print("⚠ Page redirected or showing error")
+        print(f"Page content preview: {page.content()[:500]}")
+    
+    # Wait for form to load
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+    page.wait_for_selector('input.lexical-unit-text', state='visible', timeout=10000)
+    
+    # Fill in required fields using new multilingual format
+    page.fill('input.lexical-unit-text', 'test word')
+    
+    # Fill in the default template sense definition (in default sense template)
+    page.fill('textarea[name*="definition"]', 'English definition')
     
     # Try to save - should validate
     page.click('button[type="submit"]')
@@ -32,11 +46,15 @@ def test_empty_source_language_definition_allowed(page: Page, app_url: str):
     """Test that empty source language definitions are allowed."""
     page.goto(f"{app_url}/entries/add")
     
+    # Wait for form to load
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+    page.wait_for_selector('input.lexical-unit-text', state='visible', timeout=10000)
+    
     # Fill in basic entry info using new multilingual format
-    page.fill('input[name^="lexical_unit."][name$=".text"]', 'facal')  # Scots Gaelic
+    page.fill('input.lexical-unit-text', 'facal')  # Scots Gaelic
     
     # Fill in the template definition (it will be created as first sense)
-    page.fill('textarea[name*="definition"][name$=".text"]', 'word')  # Target language definition
+    page.fill('textarea[name*="definition"]', 'word')  # Target language definition
     
     # Save - should succeed
     page.click('button[type="submit"]')
@@ -52,8 +70,12 @@ def test_ipa_character_validation(page: Page, app_url: str):
     """Test that IPA character validation works in browser."""
     page.goto(f"{app_url}/entries/add")
     
+    # Wait for form to load
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+    page.wait_for_selector('input.lexical-unit-text', state='visible', timeout=10000)
+    
     # Fill in basic info using new multilingual format
-    page.fill('input[name^="lexical_unit."][name$=".text"]', 'test')
+    page.fill('input.lexical-unit-text', 'test')
     
     # Add pronunciation (if pronunciation button exists)
     add_pronunciation_btn = page.locator('button:has-text("Add Pronunciation")')
@@ -65,7 +87,7 @@ def test_ipa_character_validation(page: Page, app_url: str):
             ipa_input.fill('invalid@#$')
     
     # Add a valid sense definition
-    page.fill('textarea[name*="definition"][name$=".text"]', 'test definition')
+    page.fill('textarea[name*="definition"]', 'test definition')
     
     # Try to save
     page.click('button[type="submit"]')

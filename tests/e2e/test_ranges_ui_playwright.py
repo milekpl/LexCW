@@ -73,11 +73,12 @@ class TestRangesUIPlaywright:
             # Should have more than just the empty/placeholder option
             assert len(options) > 1, f"Expected multiple relation type options, got: {options}"
             
-            # Check for common relation types (both English and Polish)
+            # Check for relation types in our test data
             options_text = " ".join(options).lower()
-            common_relations = ['synonym', 'synonim', 'antonym', 'antonim', 'related', 'compare', 'porownaj']
-            has_relation = any(rel in options_text for rel in common_relations)
-            assert has_relation, f"Expected at least one common relation type in: {options}"
+            # Our E2E database has: component-lexeme, main-entry (from lexical-relation range)
+            expected_relations = ['component', 'main', 'lexeme', 'entry', 'synonym', 'antonym']
+            has_relation = any(rel in options_text for rel in expected_relations)
+            assert has_relation, f"Expected at least one relation type in: {options}"
         else:
             # If no relation dropdown found, at least verify ranges were loaded
             # by checking via API

@@ -16,10 +16,10 @@ from app.models.entry import Entry
 
 
 @pytest.fixture(scope="function")
-def test_entry_with_variants(dict_service_with_db):
+def test_entry_with_variants(e2e_dict_service):
     """Create a test entry with variants for UI testing."""
-    # Use the dict_service directly (no app context needed for BaseX operations)
-    dict_service = dict_service_with_db
+    # Use the e2e_dict_service which uses 'dictionary_test' database
+    dict_service = e2e_dict_service
     
     # Clean up any existing test entries
     try:

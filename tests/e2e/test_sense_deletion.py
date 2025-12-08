@@ -304,8 +304,9 @@ def test_add_and_remove_sense(page, flask_test_server):
     """Test that adding and removing a sense works correctly."""
     page = page
     
-    # Navigate to edit an existing entry
-    page.goto(f"{flask_test_server}/entries/AIDS%20test_a774b9c4-c013-4f54-9017-cf818791080c/edit")
+    # Navigate to edit an existing entry - use test_entry_1 from E2E database
+    entry_id = "test_entry_1"
+    page.goto(f"{flask_test_server}/entries/{entry_id}/edit")
     
     # Wait for page to load
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
@@ -316,7 +317,7 @@ def test_add_and_remove_sense(page, flask_test_server):
     print(f"Initial sense count: {initial_senses}")
     
     # Add a new sense
-    add_sense_btn = page.locator('button:has-text("Add Sense")')
+    add_sense_btn = page.locator('button#add-sense-btn')
     add_sense_btn.click()
     time.sleep(0.5)  # Wait for DOM update
     
@@ -351,7 +352,7 @@ def test_add_and_remove_sense(page, flask_test_server):
     page.wait_for_url("**/entries/**", timeout=10000)
     
     # Reload the page to verify persistence
-    page.goto(f"{flask_test_server}/entries/AIDS%20test_a774b9c4-c013-4f54-9017-cf818791080c/edit")
+    page.goto(f"{flask_test_server}/entries/{entry_id}/edit")
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
     
     # Verify the sense count persisted

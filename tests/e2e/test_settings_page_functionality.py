@@ -30,8 +30,8 @@ class TestSettingsPageUX:
         # Page should load without errors
         expect(page).to_have_title(re.compile(r"Settings|Project Settings"))
         
-        # Should have a form
-        settings_form = page.locator("form")
+        # Should have a form (use more specific selector to avoid navbar search form)
+        settings_form = page.locator("form[method='POST']")
         expect(settings_form).to_be_visible()
         
         # Should have basic required fields
@@ -65,7 +65,8 @@ class TestSettingsPageUX:
         
         # Should have some form of input for target languages
         # Could be checkboxes, dropdown, input fields, etc.
-        target_inputs = target_section.locator('input, select, button')
+        # Filter out hidden inputs
+        target_inputs = target_section.locator('input:not([type="hidden"]), select, button')
         expect(target_inputs.first).to_be_visible()
 
     def test_form_submission_works(self, page: Page, app_url: str) -> None:
@@ -81,8 +82,8 @@ class TestSettingsPageUX:
         if source_name.input_value() == "":
             source_name.fill("English")
         
-        # Submit the form
-        submit_button = page.locator('input[type="submit"], button[type="submit"]')
+        # Submit the form (use specific selector to avoid navbar search button)
+        submit_button = page.locator('input#submit[type="submit"]')
         expect(submit_button).to_be_visible()
         submit_button.click()
         
@@ -96,8 +97,8 @@ class TestSettingsPageUX:
         """Test that current settings are displayed properly."""
         page.goto(f"{app_url}/settings/")
         
-        # Current settings overview should exist
-        overview = page.locator(':has-text("Current Settings Overview")')
+        # Current settings overview should exist (use more specific selector)
+        overview = page.locator('.card-header:has-text("Current Settings Overview")')
         expect(overview).to_be_visible()
         
         # Should show project name
@@ -157,7 +158,7 @@ class TestSettingsLanguageUXRequirements:
         # Test 4: Search for Sign Language (accessibility)
         search_input.fill("Sign Language")
         page.wait_for_timeout(500)
-        sign_result = page.locator('.language-search-result:has-text("Sign Language")')
+        sign_result = page.locator('.language-search-result:has-text("Sign Language")').first
         expect(sign_result).to_be_visible()
         
         # Test 5: Search by language family
@@ -166,9 +167,14 @@ class TestSettingsLanguageUXRequirements:
         family_results = page.locator('.language-search-result')
         expect(family_results.first).to_be_visible()
         
-        # Should now have multiple selected languages
+        # Clear search to hide results before testing removal
+        search_input.fill("")
+        page.wait_for_timeout(300)
+        
+        # Should now have multiple selected languages (at least the ones we added)
         selected_languages = page.locator('.selected-language-item')
-        expect(selected_languages).to_have_count(3)  # Swahili, Chinese, Quechua
+        initial_count = selected_languages.count()
+        assert initial_count >= 3, f"Expected at least 3 selected languages, got {initial_count}"
         
         # Test removal functionality
         remove_button = page.locator('.selected-language-item:has-text("Swahili") .remove-language')
@@ -176,7 +182,9 @@ class TestSettingsLanguageUXRequirements:
         
         # Swahili should be removed
         expect(page.locator('.selected-language-item:has-text("Swahili")')).not_to_be_visible()
-        expect(selected_languages).to_have_count(2)  # Chinese, Quechua
+        # Count should decrease by 1
+        final_count = selected_languages.count()
+        assert final_count == initial_count - 1, f"Expected {initial_count - 1} languages after removal, got {final_count}"
 
     def test_ethnologue_level_language_coverage(self, page: Page, app_url: str) -> None:
         """
@@ -400,10 +408,11 @@ class TestSettingsLanguageUXRequirements:
         
         # Should have selected languages displayed
         selected_items = page.locator('.selected-language-item')
-        expect(selected_items).to_have_count_greater_than(2)
+        # Use count() > 2 instead of non-existent to_have_count_greater_than
+        assert selected_items.count() > 2, f"Expected more than 2 selected languages, got {selected_items.count()}"
         
-        # Submit the form
-        submit_button = page.locator('input[type="submit"], button[type="submit"]')
+        # Submit the form (use specific selector)
+        submit_button = page.locator('input#submit[type="submit"]')
         submit_button.click()
         
         # Wait for form processing
