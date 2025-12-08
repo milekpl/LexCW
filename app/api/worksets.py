@@ -433,9 +433,19 @@ def validate_query() -> tuple[Dict[str, Any], int]:
             return {'error': 'No JSON data provided'}, 400
         
         workset_service = WorksetService()
-        validation_result = workset_service.validate_query(WorksetQuery.from_dict(data))
         
-        return validation_result, 200
+        try:
+            query = WorksetQuery.from_dict(data)
+            validation_result = workset_service.validate_query(query)
+            return validation_result, 200
+        except (ValueError, KeyError, TypeError) as validation_error:
+            # Return validation errors as part of the response, not as HTTP errors
+            return {
+                'valid': False,
+                'errors': [str(validation_error)],
+                'estimated_results': 0,
+                'performance_estimate': 'unknown'
+            }, 200
         
     except Exception as e:
         logger.error(f"Error validating query: {e}")

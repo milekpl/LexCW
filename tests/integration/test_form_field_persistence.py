@@ -11,6 +11,9 @@ import pytest
 import uuid
 from lxml import etree as ET
 
+# LIFT namespace for XPath queries
+LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
+
 
 def generate_test_id(prefix: str) -> str:
     """Generate a unique test ID."""
@@ -65,16 +68,17 @@ class TestFormFieldPersistence:
         
         # Parse the XML to check grammatical_info persisted
         xml_root = ET.fromstring(entry_data['xml'])
-        sense = xml_root.find('.//sense[@id="sense1"]')
+        sense = xml_root.find(f'.//{LIFT_NS}sense[@id="sense1"]')
         assert sense is not None, "Sense not found in XML"
-        gram_info = sense.find('grammatical-info')
+        gram_info = sense.find(f'{LIFT_NS}grammatical-info')
         assert gram_info is not None, "grammatical-info element not found"
         assert gram_info.get('value') == 'Countable Noun'
         
     @pytest.mark.integration
     def test_entry_level_grammatical_info_persistence(self, client, basex_test_connector):
         """Test that entry-level grammatical_info persists correctly."""
-        entry_xml = '''<entry id="test_entry_pos_456">
+        entry_id = generate_test_id("test_entry_pos")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>inne słowo</text></form>
             </lexical-unit>
@@ -102,14 +106,15 @@ class TestFormFieldPersistence:
         
         # Check entry-level grammatical_info
         xml_root = ET.fromstring(entry_data['xml'])
-        gram_info = xml_root.find('grammatical-info')
+        gram_info = xml_root.find(f'{LIFT_NS}grammatical-info')
         assert gram_info is not None, "entry-level grammatical-info not found"
         assert gram_info.get('value') == 'Verb'
         
     @pytest.mark.integration
     def test_usage_type_persistence(self, client, basex_test_connector):
         """Test that usage-type (trait) persists correctly."""
-        entry_xml = '''<entry id="test_usage_789">
+        entry_id = generate_test_id("test_usage")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>potoczne słowo</text></form>
             </lexical-unit>
@@ -137,16 +142,17 @@ class TestFormFieldPersistence:
         
         # Check usage_type trait
         xml_root = ET.fromstring(entry_data['xml'])
-        sense = xml_root.find('.//sense[@id="sense1"]')
+        sense = xml_root.find(f'.//{LIFT_NS}sense[@id="sense1"]')
         assert sense is not None
-        trait = sense.find('trait[@name="usage-type"]')
+        trait = sense.find(f'{LIFT_NS}trait[@name="usage-type"]')
         assert trait is not None, "usage-type trait not found"
         assert trait.get('value') == 'potocznie'
         
     @pytest.mark.integration
     def test_academic_domain_persistence(self, client, basex_test_connector):
         """Test that academic-domain (trait) persists correctly."""
-        entry_xml = '''<entry id="test_domain_abc">
+        entry_id = generate_test_id("test_domain")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>termin naukowy</text></form>
             </lexical-unit>
@@ -174,16 +180,17 @@ class TestFormFieldPersistence:
         
         # Check academic_domain trait
         xml_root = ET.fromstring(entry_data['xml'])
-        sense = xml_root.find('.//sense[@id="sense1"]')
+        sense = xml_root.find(f'.//{LIFT_NS}sense[@id="sense1"]')
         assert sense is not None
-        trait = sense.find('trait[@name="academic-domain"]')
+        trait = sense.find(f'{LIFT_NS}trait[@name="academic-domain"]')
         assert trait is not None, "academic-domain trait not found"
         assert trait.get('value') == 'mathematics'
         
     @pytest.mark.integration
     def test_semantic_domain_persistence(self, client, basex_test_connector):
         """Test that semantic-domain-ddp4 (trait) persists correctly."""
-        entry_xml = '''<entry id="test_semantic_def">
+        entry_id = generate_test_id("test_semantic")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>słowo semantyczne</text></form>
             </lexical-unit>
@@ -209,18 +216,19 @@ class TestFormFieldPersistence:
         assert response.status_code == 200
         entry_data = response.get_json()
         
-        # Check semantic-domain-ddp4 trait
+        # Check semantic_domain trait
         xml_root = ET.fromstring(entry_data['xml'])
-        sense = xml_root.find('.//sense[@id="sense1"]')
+        sense = xml_root.find(f'.//{LIFT_NS}sense[@id="sense1"]')
         assert sense is not None
-        trait = sense.find('trait[@name="semantic-domain-ddp4"]')
+        trait = sense.find(f'{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
         assert trait is not None, "semantic-domain-ddp4 trait not found"
         assert trait.get('value') == '1.1 Sky'
         
     @pytest.mark.integration
     def test_etymology_persistence(self, client, basex_test_connector):
         """Test that etymology data persists correctly."""
-        entry_xml = '''<entry id="test_etym_ghi">
+        entry_id = generate_test_id("test_etym")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>zapożyczone słowo</text></form>
             </lexical-unit>
@@ -251,7 +259,7 @@ class TestFormFieldPersistence:
         
         # Check etymology
         xml_root = ET.fromstring(entry_data['xml'])
-        etym = xml_root.find('etymology')
+        etym = xml_root.find(f'{LIFT_NS}etymology')
         assert etym is not None, "etymology element not found"
         assert etym.get('type') == 'borrowed'
         assert etym.get('source') == 'English'
@@ -259,7 +267,8 @@ class TestFormFieldPersistence:
     @pytest.mark.integration
     def test_pronunciation_persistence(self, client, basex_test_connector):
         """Test that pronunciation data persists correctly."""
-        entry_xml = '''<entry id="test_pron_jkl">
+        entry_id = generate_test_id("test_pron")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>wymawiane słowo</text></form>
             </lexical-unit>
@@ -289,17 +298,18 @@ class TestFormFieldPersistence:
         
         # Check pronunciation
         xml_root = ET.fromstring(entry_data['xml'])
-        pron = xml_root.find('pronunciation')
+        pron = xml_root.find(f'{LIFT_NS}pronunciation')
         assert pron is not None, "pronunciation element not found"
-        form = pron.find('form[@lang="seh-fonipa"]')
-        assert form is not None
-        text = form.find('text')
+        form = pron.find(f'{LIFT_NS}form[@lang="seh-fonipa"]')
+        assert form is not None, "pronunciation form not found"
+        text = form.find(f'{LIFT_NS}text')
         assert text is not None and text.text == 'vɨmaˈvjanɛ ˈswɔvɔ'
         
     @pytest.mark.integration
     def test_variant_persistence(self, client, basex_test_connector):
         """Test that variant forms persist correctly."""
-        entry_xml = '''<entry id="test_variant_mno">
+        entry_id = generate_test_id("test_variant")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>podstawowa forma</text></form>
             </lexical-unit>
@@ -330,19 +340,20 @@ class TestFormFieldPersistence:
         
         # Check variant
         xml_root = ET.fromstring(entry_data['xml'])
-        variant = xml_root.find('variant')
+        variant = xml_root.find(f'{LIFT_NS}variant')
         assert variant is not None, "variant element not found"
-        form = variant.find('form[@lang="pl"]')
-        assert form is not None
-        text = form.find('text')
+        form = variant.find(f'{LIFT_NS}form[@lang="pl"]')
+        assert form is not None, "variant form not found"
+        text = form.find(f'{LIFT_NS}text')
         assert text is not None and text.text == 'wariant'
-        trait = variant.find('trait[@name="variant-type"]')
+        trait = variant.find(f'{LIFT_NS}trait[@name="variant-type"]')
         assert trait is not None and trait.get('value') == 'dialectal'
         
     @pytest.mark.integration
     def test_relation_persistence(self, client, basex_test_connector):
         """Test that lexical relations persist correctly."""
-        entry_xml = '''<entry id="test_relation_pqr">
+        entry_id = generate_test_id("test_relation")
+        entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="pl"><text>słowo z relacją</text></form>
             </lexical-unit>
@@ -372,9 +383,9 @@ class TestFormFieldPersistence:
         
         # Check relation
         xml_root = ET.fromstring(entry_data['xml'])
-        sense = xml_root.find('.//sense[@id="sense1"]')
+        sense = xml_root.find(f'.//{LIFT_NS}sense[@id="sense1"]')
         assert sense is not None
-        relation = sense.find('relation')
+        relation = sense.find(f'{LIFT_NS}relation')
         assert relation is not None, "relation element not found"
         assert relation.get('type') == 'synonym'
         assert relation.get('ref') == 'other_entry'

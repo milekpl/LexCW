@@ -204,39 +204,3 @@ def get_language_codes():
     except Exception as e:
         logger.error(f"Error getting language codes: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
-
-# Query validation endpoint
-@api_bp.route('/queries/validate', methods=['POST'])
-def validate_query():
-    """Validate a query for performance and syntax."""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No query data provided'}), 400
-        
-        query = data.get('query', '')
-        if not query:
-            return jsonify({'error': 'Query is required'}), 400
-        
-        # Basic validation - in a real implementation, this would be more sophisticated
-        validation_result = {
-            'valid': True,
-            'estimated_time': 0.1,
-            'warnings': [],
-            'suggestions': []
-        }
-        
-        # Check for potentially slow operations
-        if len(query) > 100:
-            validation_result['warnings'].append('Long queries may be slower')
-        
-        if '*' in query:
-            validation_result['warnings'].append('Wildcard searches may be resource-intensive')
-            validation_result['estimated_time'] = 2.0
-        
-        return jsonify(validation_result)
-        
-    except Exception as e:
-        logger.error(f"Error validating query: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
