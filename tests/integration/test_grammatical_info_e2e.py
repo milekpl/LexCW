@@ -11,6 +11,9 @@ import pytest
 import uuid
 from lxml import etree as ET
 
+# LIFT namespace
+LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
+
 
 def gen_id(prefix: str = "pos_e2e") -> str:
     """Generate unique test ID."""
@@ -52,7 +55,7 @@ class TestGrammaticalInfoEndToEnd:
         root = ET.fromstring(xml_data)
         
         # Verify grammatical-info element exists and has correct value
-        grammatical_info_elem = root.find('.//sense[@id="s1"]/grammatical-info')
+        grammatical_info_elem = root.find(f'.//{LIFT_NS}sense[@id="s1"]/{LIFT_NS}grammatical-info')
         assert grammatical_info_elem is not None, "Missing <grammatical-info> element"
         assert grammatical_info_elem.get('value') == 'Countable Noun', \
             f"Wrong value: {grammatical_info_elem.get('value')}"
@@ -88,7 +91,7 @@ class TestGrammaticalInfoEndToEnd:
         root = ET.fromstring(xml_data)
         
         # Verify entry-level grammatical-info
-        grammatical_info_elem = root.find('./grammatical-info')
+        grammatical_info_elem = root.find(f'./{LIFT_NS}grammatical-info')
         assert grammatical_info_elem is not None, "Missing entry-level <grammatical-info>"
         assert grammatical_info_elem.get('value') == 'Verb'
 
@@ -127,11 +130,11 @@ class TestGrammaticalInfoEndToEnd:
         xml_data = resp.data.decode('utf-8')
         root = ET.fromstring(xml_data)
         
-        sense1_pos = root.find('.//sense[@id="s1"]/grammatical-info')
+        sense1_pos = root.find(f'.//{LIFT_NS}sense[@id="s1"]/{LIFT_NS}grammatical-info')
         assert sense1_pos is not None
         assert sense1_pos.get('value') == 'Verb'
         
-        sense2_pos = root.find('.//sense[@id="s2"]/grammatical-info')
+        sense2_pos = root.find(f'.//{LIFT_NS}sense[@id="s2"]/{LIFT_NS}grammatical-info')
         assert sense2_pos is not None
         assert sense2_pos.get('value') == 'Countable Noun'
 
@@ -180,6 +183,6 @@ class TestGrammaticalInfoEndToEnd:
         xml_data = resp.data.decode('utf-8')
         root = ET.fromstring(xml_data)
         
-        pos_elem = root.find('.//sense[@id="s1"]/grammatical-info')
+        pos_elem = root.find(f'.//{LIFT_NS}sense[@id="s1"]/{LIFT_NS}grammatical-info')
         assert pos_elem is not None
         assert pos_elem.get('value') == 'Verb', "Update did not persist"

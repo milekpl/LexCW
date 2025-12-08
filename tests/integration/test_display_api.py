@@ -128,8 +128,8 @@ class TestDisplayAPI:
 
             mock_injector_get.side_effect = get_side_effect
 
-            # Mock the LIFT parser
-            with patch("app.api.display.LIFTParser") as mock_lift_parser:
+            # Mock the LIFT parser at its import location
+            with patch("app.parsers.lift_parser.LIFTParser") as mock_lift_parser:
                 mock_parser_instance = MagicMock()
                 mock_parser_instance.generate_lift_string.return_value = "<entry><lexical-unit>test</lexical-unit></entry>"
                 mock_lift_parser.return_value = mock_parser_instance

@@ -43,11 +43,12 @@ def test_grammatical_info_persists(client, basex_test_connector):
     
     # Parse XML response
     from lxml import etree as ET
+    LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
     xml_data = resp.data.decode('utf-8')
     root = ET.fromstring(xml_data)
     
     # Check if grammatical_info element exists
-    grammatical_info_elem = root.find('.//sense[@id="s1"]/grammatical-info')
+    grammatical_info_elem = root.find(f'.//{LIFT_NS}sense[@id="s1"]/{LIFT_NS}grammatical-info')
     print(f"grammatical-info element: {grammatical_info_elem}")
     
     # THE ACTUAL TEST - does grammatical_info persist?

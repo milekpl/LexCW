@@ -9,12 +9,33 @@ from app.services.dictionary_service import DictionaryService
 from app.models.entry import Entry
 
 @pytest.mark.integration
-def test_entry_form_loads_lift_ranges(client: FlaskClient, dict_service_with_db: DictionaryService, sample_entry: Entry):
+def test_entry_form_loads_lift_ranges(client: FlaskClient, basex_test_connector):
     """Test that the entry form loads LIFT ranges into select elements."""
-    dict_service_with_db.create_entry(sample_entry)
-
-    # Get ranges directly from the dictionary service to avoid test patch
-    ranges_dict = dict_service_with_db.get_lift_ranges()
+    import uuid
+    entry_id = f"test_entry_{uuid.uuid4().hex[:8]}"
+    
+    # Create entry via XML API
+    entry_xml = f'''<entry id="{entry_id}">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="sense1">
+            <grammatical-info value="noun"/>
+            <definition>
+                <form lang="en"><text>to try something</text></form>
+            </definition>
+        </sense>
+    </entry>'''
+    
+    resp = client.post('/api/xml/entries', data=entry_xml, 
+                      headers={'Content-Type': 'application/xml'})
+    assert resp.status_code == 201, f"Failed to create entry: {resp.data}"
+    
+    # Get ranges from API
+    ranges_resp = client.get('/api/ranges')
+    assert ranges_resp.status_code == 200
+    ranges_data = ranges_resp.get_json()
+    ranges_dict = ranges_data.get('data', ranges_data.get('ranges', {}))
     assert 'grammatical-info' in ranges_dict, f"Expected 'grammatical-info' in ranges, got: {list(ranges_dict.keys())}"
     
     # Verify ranges have the expected structure
@@ -28,7 +49,7 @@ def test_entry_form_loads_lift_ranges(client: FlaskClient, dict_service_with_db:
     assert 'id' in first_value, "Each range value should have an 'id'"
     assert first_value['id'] in ['Noun', 'Verb', 'Adjective', 'Adverb', 'Pronoun', 'Preposition', 'Conjunction', 'Interjection'], f"Expected a basic POS, got: {first_value['id']}"
     
-    response = client.get(f'/entries/{sample_entry.id}/edit', follow_redirects=True)
+    response = client.get(f'/entries/{entry_id}/edit', follow_redirects=True)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     html = response.data.decode('utf-8')
@@ -73,10 +94,28 @@ def test_pronunciation_display_with_seh_fonipa(client: FlaskClient, dict_service
             assert text in html
 
 @pytest.mark.integration
-def test_variant_forms_ui_with_ranges(client: FlaskClient, dict_service_with_db: DictionaryService, sample_entry: Entry):
+def test_variant_forms_ui_with_ranges(client: FlaskClient, basex_test_connector):
     """Test that variant forms UI uses LIFT ranges for type selection"""
-    dict_service_with_db.create_entry(sample_entry)
-    response = client.get(f'/entries/{sample_entry.id}/edit', follow_redirects=True)
+    import uuid
+    entry_id = f"test_entry_{uuid.uuid4().hex[:8]}"
+    
+    # Create entry via XML API
+    entry_xml = f'''<entry id="{entry_id}">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="sense1">
+            <definition>
+                <form lang="en"><text>test definition</text></form>
+            </definition>
+        </sense>
+    </entry>'''
+    
+    resp = client.post('/api/xml/entries', data=entry_xml, 
+                      headers={'Content-Type': 'application/xml'})
+    assert resp.status_code == 201
+    
+    response = client.get(f'/entries/{entry_id}/edit', follow_redirects=True)
     assert response.status_code == 200
     
     content = response.get_data(as_text=True)
@@ -89,10 +128,28 @@ def test_variant_forms_ui_with_ranges(client: FlaskClient, dict_service_with_db:
     assert 'VariantFormsManager' in content
 
 @pytest.mark.integration
-def test_relations_ui_with_ranges(client: FlaskClient, dict_service_with_db: DictionaryService, sample_entry: Entry):
+def test_relations_ui_with_ranges(client: FlaskClient, basex_test_connector):
     """Test that relations UI uses LIFT ranges for type selection"""
-    dict_service_with_db.create_entry(sample_entry)
-    response = client.get(f'/entries/{sample_entry.id}/edit', follow_redirects=True)
+    import uuid
+    entry_id = f"test_entry_{uuid.uuid4().hex[:8]}"
+    
+    # Create entry via XML API
+    entry_xml = f'''<entry id="{entry_id}">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="sense1">
+            <definition>
+                <form lang="en"><text>test definition</text></form>
+            </definition>
+        </sense>
+    </entry>'''
+    
+    resp = client.post('/api/xml/entries', data=entry_xml, 
+                      headers={'Content-Type': 'application/xml'})
+    assert resp.status_code == 201
+    
+    response = client.get(f'/entries/{entry_id}/edit', follow_redirects=True)
     assert response.status_code == 200
     
     content = response.get_data(as_text=True)
@@ -107,12 +164,29 @@ def test_relations_ui_with_ranges(client: FlaskClient, dict_service_with_db: Dic
 @pytest.mark.integration
 def test_usages_and_academic_domains_visible(
     client: FlaskClient,
-    dict_service_with_db: DictionaryService,
-    sample_entry: Entry
+    basex_test_connector
 ) -> None:
     """Test that usages and academic domains are visible in entry form"""
-    dict_service_with_db.create_entry(sample_entry)
-    response = client.get(f'/entries/{sample_entry.id}/edit', follow_redirects=True)
+    import uuid
+    entry_id = f"test_entry_{uuid.uuid4().hex[:8]}"
+    
+    # Create entry via XML API
+    entry_xml = f'''<entry id="{entry_id}">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="sense1">
+            <definition>
+                <form lang="en"><text>test definition</text></form>
+            </definition>
+        </sense>
+    </entry>'''
+    
+    resp = client.post('/api/xml/entries', data=entry_xml, 
+                      headers={'Content-Type': 'application/xml'})
+    assert resp.status_code == 201
+    
+    response = client.get(f'/entries/{entry_id}/edit', follow_redirects=True)
     assert response.status_code == 200
     
     content = response.get_data(as_text=True)

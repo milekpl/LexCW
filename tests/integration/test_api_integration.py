@@ -156,7 +156,7 @@ class TestAPIIntegration:
         
         # Update data
         update_data = {
-            "id": "api_update_test",
+            "id": test_id,
             "lexical_unit": {
                 "en": "update_modified",
                 "pl": "zmodyfikowany"
@@ -170,7 +170,7 @@ class TestAPIIntegration:
             ]
         }
         
-        response = client.put('/api/entries/api_update_test',
+        response = client.put(f'/api/entries/{test_id}',
                             data=json.dumps(update_data),
                             content_type='application/json')
         assert response.status_code == 200
@@ -179,7 +179,7 @@ class TestAPIIntegration:
         assert data['success'] is True
         
         # Verify update by getting the entry back
-        get_response = client.get('/api/entries/api_update_test')
+        get_response = client.get(f'/api/entries/{test_id}')
         assert get_response.status_code == 200
         
         updated_entry = json.loads(get_response.data)
