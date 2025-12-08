@@ -10,11 +10,28 @@ Tests the complete flow:
 """
 
 import pytest
+import uuid
 
 
-# Sample LIFT XML for testing
-SAMPLE_LIFT_XML = '''<?xml version="1.0" encoding="UTF-8"?>
-<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="integration_test_form_001" dateCreated="2024-12-01T12:00:00Z" dateModified="2024-12-01T12:00:00Z">
+def gen_id():
+    """Generate unique test ID."""
+    return f"integration_test_form_{uuid.uuid4().hex[:8]}"
+
+
+class TestXMLFormSubmission:
+    """Test XML-based form submission flow."""
+    
+    def test_create_entry_via_xml_api(self, client, basex_available, app):
+        """Test creating an entry via XML API endpoint."""
+        if not basex_available:
+            pytest.skip("BaseX not available")
+        
+        # Generate unique ID
+        test_id = gen_id()
+        
+        # Sample LIFT XML for testing
+        sample_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{test_id}" dateCreated="2024-12-01T12:00:00Z" dateModified="2024-12-01T12:00:00Z">
     <lexical-unit>
         <form lang="en"><text>test word</text></form>
     </lexical-unit>
@@ -26,15 +43,6 @@ SAMPLE_LIFT_XML = '''<?xml version="1.0" encoding="UTF-8"?>
         </definition>
     </sense>
 </entry>'''
-
-
-class TestXMLFormSubmission:
-    """Test XML-based form submission flow."""
-    
-    def test_create_entry_via_xml_api(self, client, basex_available, app):
-        """Test creating an entry via XML API endpoint."""
-        if not basex_available:
-            pytest.skip("BaseX not available")
         
         # Debug: print all routes
         print("\n=== Available routes ===")
@@ -44,7 +52,7 @@ class TestXMLFormSubmission:
         # Submit XML to create endpoint
         response = client.post(
             '/api/xml/entries',
-            data=SAMPLE_LIFT_XML,
+            data=sample_xml,
             content_type='application/xml'
         )
         
@@ -54,7 +62,7 @@ class TestXMLFormSubmission:
         assert response.status_code == 201
         data = response.get_json()
         assert data['success'] is True
-        assert data['entry_id'] == 'integration_test_form_001'
+        assert data['entry_id'] == test_id
         assert 'filename' in data
     
     def test_update_entry_via_xml_api(self, client, basex_available):
@@ -62,17 +70,35 @@ class TestXMLFormSubmission:
         if not basex_available:
             pytest.skip("BaseX not available")
         
+        # Generate unique ID
+        test_id = gen_id()
+        
+        # Sample LIFT XML for testing
+        sample_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{test_id}" dateCreated="2024-12-01T12:00:00Z" dateModified="2024-12-01T12:00:00Z">
+    <lexical-unit>
+        <form lang="en"><text>test word</text></form>
+    </lexical-unit>
+    <sense id="sense_001" order="0">
+        <grammatical-info value="noun"/>
+        <gloss lang="en"><text>a test word for form integration</text></gloss>
+        <definition>
+            <form lang="en"><text>A word used for testing the XML form submission flow.</text></form>
+        </definition>
+    </sense>
+</entry>'''
+        
         # First create an entry
         client.post(
             '/api/xml/entries',
-            data=SAMPLE_LIFT_XML,
+            data=sample_xml,
             content_type='application/xml'
         )
         
         # Update the entry
-        updated_xml = SAMPLE_LIFT_XML.replace('test word', 'updated test word')
+        updated_xml = sample_xml.replace('test word', 'updated test word')
         response = client.put(
-            '/api/xml/entries/integration_test_form_001',
+            f'/api/xml/entries/{test_id}',
             data=updated_xml,
             content_type='application/xml'
         )
@@ -80,31 +106,47 @@ class TestXMLFormSubmission:
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
-        assert data['entry_id'] == 'integration_test_form_001'
+        assert data['entry_id'] == test_id
     
     def test_get_entry_via_xml_api(self, client, basex_available):
         """Test retrieving an entry via XML API endpoint."""
         if not basex_available:
             pytest.skip("BaseX not available")
         
+        # Generate unique ID
+        test_id = gen_id()
+        sample_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{test_id}" dateCreated="2024-12-01T12:00:00Z" dateModified="2024-12-01T12:00:00Z">
+    <lexical-unit>
+        <form lang="en"><text>test word</text></form>
+    </lexical-unit>
+    <sense id="sense_001" order="0">
+        <grammatical-info value="noun"/>
+        <gloss lang="en"><text>a test word for form integration</text></gloss>
+        <definition>
+            <form lang="en"><text>A word used for testing the XML form submission flow.</text></form>
+        </definition>
+    </sense>
+</entry>'''
+        
         # First create an entry
         client.post(
             '/api/xml/entries',
-            data=SAMPLE_LIFT_XML,
+            data=sample_xml,
             content_type='application/xml'
         )
         
         # Retrieve as XML
-        response = client.get('/api/xml/entries/integration_test_form_001')
+        response = client.get(f'/api/xml/entries/{test_id}')
         assert response.status_code == 200
         assert response.content_type == 'application/xml; charset=utf-8'
-        assert b'integration_test_form_001' in response.data
+        assert test_id.encode() in response.data
         
         # Retrieve as JSON
-        response = client.get('/api/xml/entries/integration_test_form_001?format=json')
+        response = client.get(f'/api/xml/entries/{test_id}?format=json')
         assert response.status_code == 200
         data = response.get_json()
-        assert data['id'] == 'integration_test_form_001'
+        assert data['id'] == test_id
         assert 'xml' in data
         assert 'lexical_units' in data
         assert 'senses' in data
@@ -114,22 +156,38 @@ class TestXMLFormSubmission:
         if not basex_available:
             pytest.skip("BaseX not available")
         
+        # Generate unique ID
+        test_id = gen_id()
+        sample_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{test_id}" dateCreated="2024-12-01T12:00:00Z" dateModified="2024-12-01T12:00:00Z">
+    <lexical-unit>
+        <form lang="en"><text>test word</text></form>
+    </lexical-unit>
+    <sense id="sense_001" order="0">
+        <grammatical-info value="noun"/>
+        <gloss lang="en"><text>a test word for form integration</text></gloss>
+        <definition>
+            <form lang="en"><text>A word used for testing the XML form submission flow.</text></form>
+        </definition>
+    </sense>
+</entry>'''
+        
         # First create an entry
         client.post(
             '/api/xml/entries',
-            data=SAMPLE_LIFT_XML,
+            data=sample_xml,
             content_type='application/xml'
         )
         
         # Delete the entry
-        response = client.delete('/api/xml/entries/integration_test_form_001')
+        response = client.delete(f'/api/xml/entries/{test_id}')
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
-        assert data['entry_id'] == 'integration_test_form_001'
+        assert data['entry_id'] == test_id
         
         # Verify it's gone
-        response = client.get('/api/xml/entries/integration_test_form_001')
+        response = client.get(f'/api/xml/entries/{test_id}')
         assert response.status_code == 404
     
     def test_search_entries_via_xml_api(self, client, basex_available):
@@ -138,8 +196,22 @@ class TestXMLFormSubmission:
             pytest.skip("BaseX not available")
         
         # Create multiple test entries
+        search_base_id = f"integration_test_form_search_{uuid.uuid4().hex[:8]}"
         for i in range(3):
-            xml = SAMPLE_LIFT_XML.replace('integration_test_form_001', f'integration_test_form_search_{i:03d}')
+            test_id = f"{search_base_id}_{i:03d}"
+            xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{test_id}" dateCreated="2024-12-01T12:00:00Z" dateModified="2024-12-01T12:00:00Z">
+    <lexical-unit>
+        <form lang="en"><text>test word</text></form>
+    </lexical-unit>
+    <sense id="sense_001" order="0">
+        <grammatical-info value="noun"/>
+        <gloss lang="en"><text>a test word for form integration</text></gloss>
+        <definition>
+            <form lang="en"><text>A word used for testing the XML form submission flow.</text></form>
+        </definition>
+    </sense>
+</entry>'''
             response = client.post(
                 '/api/xml/entries',
                 data=xml,
@@ -205,17 +277,33 @@ class TestXMLFormSubmission:
         if not basex_available:
             pytest.skip("BaseX not available")
         
+        # Generate unique ID
+        test_id = gen_id()
+        sample_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{test_id}" dateCreated="2024-12-01T12:00:00Z" dateModified="2024-12-01T12:00:00Z">
+    <lexical-unit>
+        <form lang="en"><text>test word</text></form>
+    </lexical-unit>
+    <sense id="sense_001" order="0">
+        <grammatical-info value="noun"/>
+        <gloss lang="en"><text>a test word for form integration</text></gloss>
+        <definition>
+            <form lang="en"><text>A word used for testing the XML form submission flow.</text></form>
+        </definition>
+    </sense>
+</entry>'''
+        
         # Create an entry
         client.post(
             '/api/xml/entries',
-            data=SAMPLE_LIFT_XML,
+            data=sample_xml,
             content_type='application/xml'
         )
         
         # Try to update with different ID in XML
-        wrong_xml = SAMPLE_LIFT_XML.replace('integration_test_form_001', 'different_id')
+        wrong_xml = sample_xml.replace(test_id, 'different_id')
         response = client.put(
-            '/api/xml/entries/integration_test_form_001',
+            f'/api/xml/entries/{test_id}',
             data=wrong_xml,
             content_type='application/xml'
         )

@@ -55,20 +55,41 @@ class TestCompleteFilteringAndRefresh:
     @pytest.mark.integration
     def test_entries_filtering_api_integration(self, client: FlaskClient) -> None:
         """Test that entries API filtering works end-to-end."""
+        import uuid
+        
         # Clear cache first
         from app.services.cache_service import CacheService
         cache = CacheService()
         if cache.is_available():
             cache.clear_pattern('entries*')
-        # Test API call with filter (assumes test data is present in the DB)
+        
+        # Create a test entry to ensure we have data to filter
+        test_id = f"filter_test_{uuid.uuid4().hex[:8]}"
+        entry_xml = f'''<entry id="{test_id}">
+            <lexical-unit>
+                <form lang="en"><text>application</text></form>
+                <form lang="pl"><text>aplikacja</text></form>
+            </lexical-unit>
+            <sense id="sense_1">
+                <gloss lang="en"><text>Software application</text></gloss>
+                <definition>
+                    <form lang="en"><text>A computer program</text></form>
+                </definition>
+            </sense>
+        </entry>'''
+        
+        create_response = client.post('/api/xml/entries', data=entry_xml, content_type='application/xml')
+        assert create_response.status_code == 201
+        
+        # Test API call with filter
         response = client.get('/api/entries/?filter_text=app&limit=20&offset=0&sort_by=lexical_unit&sort_order=asc')
         assert response.status_code == 200
         data = response.get_json()
         assert 'entries' in data
         assert 'total_count' in data
-        # Optionally, check that at least one entry matches the filter
+        # Check that our test entry is included in the filtered results
         entries = data['entries']
-        assert any('app' in entry['lexical_unit']['en'] for entry in entries)
+        assert any(test_id == entry['id'] or 'app' in entry['lexical_unit'].get('en', '').lower() for entry in entries)
 
     @pytest.mark.integration
     def test_dashboard_cache_clear_endpoint(self, client: FlaskClient) -> None:
