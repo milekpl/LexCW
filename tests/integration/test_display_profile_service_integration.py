@@ -15,7 +15,7 @@ from app.models.workset_models import db
 class TestDisplayProfileService:
     """Test cases for DisplayProfileService CRUD operations."""
 
-    def test_create_profile(self, app: Any) -> None:
+    def test_create_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test creating a display profile."""
         service = DisplayProfileService()
         
@@ -38,7 +38,7 @@ class TestDisplayProfileService:
         assert len(profile.elements) == 1
         assert profile.elements[0].lift_element == "lexical-unit"
 
-    def test_create_profile_duplicate_name(self, app: Any) -> None:
+    def test_create_profile_duplicate_name(self, app: Any, cleanup_profile_db) -> None:
         """Test creating a profile with duplicate name raises error."""
         service = DisplayProfileService()
         
@@ -58,7 +58,7 @@ class TestDisplayProfileService:
         except ValueError as e:
             assert "already exists" in str(e).lower()
 
-    def test_get_profile(self, app: Any) -> None:
+    def test_get_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test getting a profile by ID."""
         service = DisplayProfileService()
         
@@ -75,7 +75,7 @@ class TestDisplayProfileService:
         assert retrieved.id == created.id
         assert retrieved.name == "Test Profile"
 
-    def test_get_profile_not_found(self, app: Any) -> None:
+    def test_get_profile_not_found(self, app: Any, cleanup_profile_db) -> None:
         """Test getting non-existent profile returns None."""
         service = DisplayProfileService()
         
@@ -83,7 +83,7 @@ class TestDisplayProfileService:
         
         assert profile is None
 
-    def test_get_profile_by_name(self, app: Any) -> None:
+    def test_get_profile_by_name(self, app: Any, cleanup_profile_db) -> None:
         """Test getting a profile by name."""
         service = DisplayProfileService()
         
@@ -99,7 +99,7 @@ class TestDisplayProfileService:
         assert retrieved is not None
         assert retrieved.name == "Test Profile"
 
-    def test_get_profile_by_name_not_found(self, app: Any) -> None:
+    def test_get_profile_by_name_not_found(self, app: Any, cleanup_profile_db) -> None:
         """Test getting non-existent profile by name returns None."""
         service = DisplayProfileService()
         
@@ -107,7 +107,7 @@ class TestDisplayProfileService:
         
         assert profile is None
 
-    def test_list_profiles(self, app: Any) -> None:
+    def test_list_profiles(self, app: Any, cleanup_profile_db) -> None:
         """Test listing all profiles."""
         service = DisplayProfileService()
         
@@ -124,7 +124,7 @@ class TestDisplayProfileService:
         assert "Profile 2" in profile_names
         assert "Profile 3" in profile_names
 
-    def test_list_profiles_filter_system(self, app: Any) -> None:
+    def test_list_profiles_filter_system(self, app: Any, cleanup_profile_db) -> None:
         """Test listing profiles with system filter."""
         service = DisplayProfileService()
         
@@ -142,7 +142,7 @@ class TestDisplayProfileService:
         assert "User Profile" in user_names
         assert "System Profile" not in user_names
 
-    def test_update_profile(self, app: Any) -> None:
+    def test_update_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test updating a profile."""
         service = DisplayProfileService()
         
@@ -162,7 +162,7 @@ class TestDisplayProfileService:
         assert updated.name == "Updated Name"
         assert updated.description == "Updated description"
 
-    def test_update_profile_elements(self, app: Any) -> None:
+    def test_update_profile_elements(self, app: Any, cleanup_profile_db) -> None:
         """Test updating profile elements."""
         service = DisplayProfileService()
         
@@ -202,7 +202,7 @@ class TestDisplayProfileService:
         assert updated.elements[0].css_class == "entry-headword-updated"
         assert updated.elements[1].lift_element == "pronunciation"
 
-    def test_delete_profile(self, app: Any) -> None:
+    def test_delete_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test deleting a profile."""
         service = DisplayProfileService()
         
@@ -217,7 +217,7 @@ class TestDisplayProfileService:
         deleted = service.get_profile(profile_id)
         assert deleted is None
 
-    def test_delete_system_profile_fails(self, app: Any) -> None:
+    def test_delete_system_profile_fails(self, app: Any, cleanup_profile_db) -> None:
         """Test that system profiles cannot be deleted."""
         service = DisplayProfileService()
         
@@ -236,7 +236,7 @@ class TestDisplayProfileService:
         except ValueError as e:
             assert "system profile" in str(e).lower()
 
-    def test_delete_default_profile_fails(self, app: Any) -> None:
+    def test_delete_default_profile_fails(self, app: Any, cleanup_profile_db) -> None:
         """Test that default profile can be deleted and is_default is reset."""
         service = DisplayProfileService()
         
@@ -255,7 +255,7 @@ class TestDisplayProfileService:
         deleted = service.get_profile(default_profile.id)
         assert deleted is None
 
-    def test_set_default_profile(self, app: Any) -> None:
+    def test_set_default_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test setting a profile as default."""
         service = DisplayProfileService()
         
@@ -283,7 +283,7 @@ class TestDisplayProfileService:
         assert profile1.is_default is False
         assert profile2.is_default is True
 
-    def test_get_default_profile(self, app: Any) -> None:
+    def test_get_default_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test getting the default profile."""
         service = DisplayProfileService()
         
@@ -301,7 +301,7 @@ class TestDisplayProfileService:
         assert default.id == profile2.id
         assert default.name == "Profile 2"
 
-    def test_get_default_profile_none(self, app: Any) -> None:
+    def test_get_default_profile_none(self, app: Any, cleanup_profile_db) -> None:
         """Test getting default profile when none exists."""
         service = DisplayProfileService()
         
@@ -313,7 +313,7 @@ class TestDisplayProfileService:
         
         assert default is None
 
-    def test_export_profile(self, app: Any) -> None:
+    def test_export_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test exporting a profile to JSON."""
         service = DisplayProfileService()
         
@@ -343,7 +343,7 @@ class TestDisplayProfileService:
         assert exported["elements"][0]["lift_element"] == "lexical-unit"
         assert exported["elements"][0]["config"] == {"font-weight": "bold"}
 
-    def test_import_profile(self, app: Any) -> None:
+    def test_import_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test importing a profile from JSON."""
         service = DisplayProfileService()
         
@@ -381,7 +381,7 @@ class TestDisplayProfileService:
         assert imported.elements[0].lift_element == "lexical-unit"
         assert imported.elements[1].lift_element == "pronunciation"
 
-    def test_import_profile_rename_if_exists(self, app: Any) -> None:
+    def test_import_profile_rename_if_exists(self, app: Any, cleanup_profile_db) -> None:
         """Test importing a profile with overwrite parameter."""
         service = DisplayProfileService()
         
@@ -403,7 +403,7 @@ class TestDisplayProfileService:
         assert imported.name == "Test Profile"
         assert imported.description == "Import test"
 
-    def test_create_from_registry_default(self, app: Any) -> None:
+    def test_create_from_registry_default(self, app: Any, cleanup_profile_db) -> None:
         """Test creating profile from registry default."""
         service = DisplayProfileService()
         
@@ -418,7 +418,7 @@ class TestDisplayProfileService:
         # Should have elements from registry
         assert len(profile.elements) > 0
 
-    def test_validate_element_config_valid(self, app: Any) -> None:
+    def test_validate_element_config_valid(self, app: Any, cleanup_profile_db) -> None:
         """Test validating valid element config."""
         service = DisplayProfileService()
         
@@ -433,7 +433,7 @@ class TestDisplayProfileService:
         result = service.validate_element_config(config)
         assert result is True
 
-    def test_validate_element_config_invalid_lift_element(self, app: Any) -> None:
+    def test_validate_element_config_invalid_lift_element(self, app: Any, cleanup_profile_db) -> None:
         """Test validating config with invalid lift element."""
         service = DisplayProfileService()
         
@@ -449,7 +449,7 @@ class TestDisplayProfileService:
         except ValueError as e:
             assert "unknown lift element" in str(e).lower()
 
-    def test_validate_element_config_missing_required(self, app: Any) -> None:
+    def test_validate_element_config_missing_required(self, app: Any, cleanup_profile_db) -> None:
         """Test validating config with missing required fields."""
         service = DisplayProfileService()
         

@@ -119,7 +119,11 @@ class DisplayProfileService:
         Returns:
             Default DisplayProfile or None if no default set
         """
-        return db.session.query(DisplayProfile).filter_by(is_default=True).first()
+        profile = db.session.query(DisplayProfile).filter_by(is_default=True).first()
+        if profile:
+            # Force refresh from database to avoid stale data
+            db.session.refresh(profile)
+        return profile
     
     def list_profiles(
         self,

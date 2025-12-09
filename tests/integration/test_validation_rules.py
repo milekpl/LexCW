@@ -367,7 +367,7 @@ class TestSenseValidationRules:
                 senses=[Sense(id_="sense1", definition={"en": {"text": ""}})],
             )
             entry.validate()
-        assert "definition cannot be empty" in str(exc_info.value).lower()
+        assert "sense must have definition, gloss, or be a variant reference" in str(exc_info.value).lower()
 
         # Test whitespace-only definition (multilanguage)
         with pytest.raises(ValidationError) as exc_info:
@@ -377,7 +377,7 @@ class TestSenseValidationRules:
                 senses=[Sense(id_="sense1", definition={"en": {"text": "   "}})],
             )
             entry.validate()
-        assert "definition cannot be empty" in str(exc_info.value).lower()
+        assert "sense must have definition, gloss, or be a variant reference" in str(exc_info.value).lower()
 
     @pytest.mark.integration
     def test_r2_2_2_gloss_content_validation(self):

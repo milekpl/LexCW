@@ -168,10 +168,18 @@ class CSSMappingService:
                 sense_count = 0
             
             # Add sense numbering CSS if enabled
-            should_number_senses = profile.number_senses
-            if profile.number_senses_if_multiple:
-                # Only number if there are multiple senses
-                should_number_senses = should_number_senses and sense_count > 1
+            should_number_senses = False
+            if profile.number_senses:
+                # Check if number_senses_if_multiple attribute exists (for backward compatibility)
+                has_conditional = hasattr(profile, 'number_senses_if_multiple') and profile.number_senses_if_multiple
+                if has_conditional:
+                    # Only number if there are multiple senses
+                    should_number_senses = sense_count > 1
+                    self._logger.info(f"Profile '{profile.name}': Conditional numbering ON - sense_count={sense_count}, will_number={should_number_senses}")
+                else:
+                    # Always number when number_senses is True
+                    should_number_senses = True
+                    self._logger.info(f"Profile '{profile.name}': Standard numbering ON - hasattr={hasattr(profile, 'number_senses_if_multiple')}, value={getattr(profile, 'number_senses_if_multiple', 'N/A')}")
             
             if should_number_senses and (not profile.custom_css or 'sense::before' not in profile.custom_css):
                 # If we have entry-level PoS, adjust sense numbering to account for it
