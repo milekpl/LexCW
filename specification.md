@@ -99,46 +99,81 @@ The LCW v2.0 employs a sophisticated hybrid database architecture optimized for 
 - **Data-Driven UI**: The UI adapts to the actual data without requiring manual configuration
 
 
-#### 3.1.3 Language Codes from LIFT Data and Project Settings
+#### 3.1.3 Language Codes from Project Settings
 
-**Critical Requirement**: All language dropdowns (vernacular, translation, etc.) MUST only offer language codes that are actually found in the LIFT XML **or** are explicitly enabled in the project settings. This ensures:
+**✅ IMPLEMENTED (December 2025)**: All language dropdowns (vernacular, translation, etc.) now exclusively use language codes configured in the project settings database. This ensures:
 
-- **Consistency**: Only codes actually used in the data or configured for the project are available for selection
-- **Reduced Errors**: Users cannot select languages that aren't represented in the data or project
+- **Consistency**: Only languages explicitly configured for the project are available for selection
+- **Reduced Errors**: Users cannot select languages that aren't configured for their project
 - **Project Relevance**: UI is tailored to the specific language codes of the current project
-- **Per-Project Customization**: Each project can define its own admissible language codes in a project settings file (e.g., `project_settings.yaml` or via the database), overriding or extending those found in the LIFT XML.
+- **Multi-Project Support**: Each project can define its own source and target languages in the database
 
-**Implementation Note**: Project-level settings for admissible languages are not yet implemented, but MUST be supported in the future. Until then, language codes are derived from LIFT data. When project settings are available, the UI and API must use the union of LIFT-derived and project-configured codes.
-
-**Action Item**: Implement a per-project settings mechanism (e.g., `project_settings.yaml` or database table) to define admissible language codes and other project-specific options. All language dropdowns must use this configuration when available.
+**Implementation Details**:
+- Database table `project_settings` stores source language and target languages as JSON columns
+- `ConfigManager` class provides methods to retrieve and update language configuration
+- Settings page (`/settings/`) allows configuration of:
+  - Source language (vernacular) - single language
+  - Target languages - multiple languages with searchable multi-select
+- `get_project_languages()` utility function provides language choices to all forms and templates
+- All language selectors throughout the application use this centralized configuration
 
 #### 3.1.4 Pronunciation Language Restrictions
 
-**Critical Requirement**: Pronunciation language MUST be restricted to only "seh-fonipa" with no language selector exposed in the UI. This ensures:
+**✅ IMPLEMENTED**: Pronunciation language is restricted to only "seh-fonipa" with no language selector exposed in the UI. This ensures:
 
 - **IPA Standardization**: All phonetic transcriptions use the IPA standard for Sena
 - **UI Simplification**: No language dropdown is shown for pronunciation fields
 - **Consistency**: All pronunciation data uses the same language code
+- **Validation**: Server-side validation enforces this restriction (validation rule R4.1.1)
 
 #### 3.1.5 Affected UI Components
 
-The following UI components MUST use dynamic ranges and follow the above requirements:
+**✅ IMPLEMENTED**: The following UI components use dynamic ranges and project settings:
 
-- **Entry Form Grammatical Info**: All grammatical categories from the LIFT RANGES file
-- **Relationship Type Selectors**: All lexical relation types with proper abbreviations from LIFT RANGES
-- **Variant Type Selectors**: All variant types extracted from `<trait>` elements in LIFT data
-- **Etymology Type Selectors**: All etymology types and classifications from LIFT RANGES
-- **Note Language Selectors**: Limited to project-relevant language codes found in LIFT data
-- **Search Filters**: All dropdown filters use the appropriate dynamic sources
-- **Query Builder**: Value suggestions based on available ranges or traits as appropriate
-- **Pronunciation Fields**: Fixed to "seh-fonipa" with no language selector
+- **Entry Form Grammatical Info**: ✅ All grammatical categories from the LIFT RANGES file
+- **Relationship Type Selectors**: ✅ All lexical relation types with proper abbreviations from LIFT RANGES
+- **Variant Type Selectors**: ✅ All variant types extracted from `<trait>` elements in LIFT data
+- **Etymology Type Selectors**: ✅ All etymology types and classifications from LIFT RANGES
+- **Note Language Selectors**: ✅ Limited to project-configured language codes from settings
+- **Lexical Unit Languages**: ✅ Uses project-configured languages
+- **Definition/Gloss Languages**: ✅ Uses project-configured languages
+- **Example Translation Languages**: ✅ Uses project-configured languages
+- **Pronunciation Fields**: ✅ Fixed to "seh-fonipa" with no language selector
+- **Search Filters**: 🔄 Partial - basic implementation exists, needs enhancement
+- **Query Builder**: 🔄 Partial - basic implementation exists, needs enhancement
 
-#### 3.1.3 Technical Implementation
+#### 3.1.6 Technical Implementation
 
-- **API Endpoints**: `/api/ranges` and `/api/ranges/{range_id}` provide real-time access to LIFT ranges
-- **JavaScript Integration**: `ranges-loader.js` utility handles dynamic population of select elements
-- **Fallback Support**: Default ranges available when database is unavailable
-- **Caching Strategy**: Ranges are cached for performance but refreshed when LIFT RANGES file changes
+**✅ IMPLEMENTED**: Complete implementation of project-level language settings:
+
+**Database Layer**:
+- PostgreSQL table `project_settings` with JSON columns for language configuration
+- Model class `ProjectSettings` with SQLAlchemy mappings
+- Migration script for schema updates (`migrate_project_settings.py`)
+
+**Backend Services**:
+- `ConfigManager` class for managing project settings
+  - `get_source_language()` - retrieves source/vernacular language configuration
+  - `get_target_languages()` - retrieves list of target language configurations
+  - `get_project_languages()` - returns combined list for UI components
+  - `update_current_settings()` - updates project configuration
+  
+**API Layer**:
+- Settings route (`/settings/`) for viewing and updating configuration
+- `SettingsForm` with searchable multi-select for target languages
+- 150+ world languages available for selection
+- Validation of language configurations
+
+**UI Integration**:
+- `get_project_languages()` utility function in `app/utils/language_utils.py`
+- All language selectors populated from project settings
+- Special "Vernacular" indicator for source language in dropdowns
+- Tooltips and accessibility features
+
+**Caching and Performance**:
+- Languages loaded once per request from database
+- Cached in Flask `current_app.config_manager`
+- No performance impact on form rendering
 
 ### 3.2 Workbench Interfaces
 
@@ -383,12 +418,27 @@ The LCW implements intelligent part-of-speech management with automatic inherita
   - Automatic form state preservation during validation errors
   - Validation errors displayed as helpful guidance, not barriers
 
-### 3.5.4 Technical Implementation
+### 3.6 Display Profiles and CSS Mapping
 
-- **API Endpoints**: `/api/ranges` and `/api/ranges/{range_id}` provide real-time access to LIFT ranges
-- **JavaScript Integration**: `ranges-loader.js` utility handles dynamic population of select elements
-- **Fallback Support**: Default ranges available when database is unavailable
-- **Caching Strategy**: Ranges are cached for performance but refreshed when LIFT RANGES file changes
+**✅ IMPLEMENTED (July 2025)**: Complete display profile system for customizable entry rendering.
+
+The LCW implements a sophisticated CSS-based display profile system that allows lexicographers to customize how dictionary entries are rendered without modifying code. This feature enables project-specific formatting conventions while maintaining data integrity.
+
+**Key Features**:
+- **Profile Management**: Create, edit, and manage multiple display profiles
+- **CSS Mapping**: Map LIFT XML elements to CSS classes and styles
+- **Field Visibility Control**: Show/hide specific fields per profile
+- **Language Filtering**: Control which language variants are displayed
+- **Preview Mode**: Real-time preview of formatting changes
+- **Export Integration**: Profiles can be applied to export formats
+
+**Technical Implementation**:
+- Display profiles stored in database with JSON configuration
+- CSS class mapping for LIFT elements (lexical-unit, sense, definition, etc.)
+- JavaScript-based profile switcher for live preview
+- Integration with entry form and search results display
+
+For detailed CSS mapping configuration, see Section 7.5.
 
 ## 4. Test-Driven Development Framework
 
@@ -1540,6 +1590,19 @@ Based on the existing codebase analysis, the following features have been implem
   - 🔄 **NEXT**: Integrate advanced search capabilities (regex, vector search)
   - 🔄 **NEXT**: Implement query validation and optimization engine
   - 🔄 **NEXT**: Add support for query templates and saving/sharing functionality
+
+- ✅ **COMPLETED**: **Project Language Settings** - ⭐ **COMPLETED** (December 2025)
+  - ✅ **COMPLETED**: Database schema for project settings (PostgreSQL `project_settings` table)
+  - ✅ **COMPLETED**: `ConfigManager` class for centralized settings management
+  - ✅ **COMPLETED**: Settings UI with searchable language multi-select (150+ languages)
+  - ✅ **COMPLETED**: Integration with all language selectors throughout application
+  - ✅ **COMPLETED**: Language configuration per project (source + multiple targets)
+  - ✅ **COMPLETED**: Validation of language codes against project settings
+  - ✅ **COMPLETED**: Migration scripts for database schema updates
+  - ✅ **COMPLETED**: `get_project_languages()` utility for consistent language access
+  - ✅ **COMPLETED**: E2E tests for settings page functionality
+  - ✅ **COMPLETED**: Integration tests for language selector behavior
+  - ✅ **COMPLETED**: Comprehensive language support (150+ world languages including sign languages)
 
 - ✅ **COMPLETED**: **Enhanced Entry Editing UI** - ⭐ **COMPLETED Phase 2A** (July 1, 2025)
   - ✅ **COMPLETED**: Comprehensive UI requirements analysis and gap identification

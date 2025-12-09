@@ -13,6 +13,7 @@ import psycopg2
 
 from app.database.basex_connector import BaseXConnector
 from app.services.dictionary_service import DictionaryService
+from app.services.merge_split_service import MergeSplitService
 from app.config_manager import ConfigManager
 from app.services.cache_service import CacheService
 from app.database.workset_db import create_workset_tables
@@ -153,6 +154,10 @@ def create_app(config_name=None):
     from app.routes.settings_routes import settings_bp
     app.register_blueprint(settings_bp)
 
+    # Register merge/split operations API
+    from app.api.merge_split import merge_split_bp
+    app.register_blueprint(merge_split_bp)
+
     # Create PostgreSQL connection pool and create tables
     app.pg_pool = None
     
@@ -279,7 +284,7 @@ def create_app(config_name=None):
         from app.services.ranges_service import RangesService
         ranges_service = RangesService(db_connector=basex_connector)
         binder.bind(RangesService, to=ranges_service, scope=singleton)
-        
+
         # Initialize and bind CSSMappingService
         from app.services.css_mapping_service import CSSMappingService
         from pathlib import Path
@@ -287,6 +292,11 @@ def create_app(config_name=None):
         storage_path = Path(app.instance_path) / "display_profiles.json"
         css_mapping_service = CSSMappingService(storage_path=storage_path)
         binder.bind(CSSMappingService, to=css_mapping_service, scope=singleton)
+
+        # Initialize and bind MergeSplitService
+        from app.services.merge_split_service import MergeSplitService
+        merge_split_service = MergeSplitService(dictionary_service=dictionary_service)
+        binder.bind(MergeSplitService, to=merge_split_service, scope=singleton)
 
     # Create and attach injector
     injector = Injector()
@@ -297,5 +307,6 @@ def create_app(config_name=None):
     app.dict_service = injector.get(DictionaryService)
     app.config_manager = injector.get(ConfigManager)
     app.cache_service = injector.get(CacheService)
+    app.merge_split_service = injector.get(MergeSplitService)
     
     return app

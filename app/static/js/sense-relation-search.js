@@ -47,6 +47,26 @@ class SenseRelationSearchHandler {
                 });
             }
         });
+        
+        // Add event delegation for relation type select changes (to update XML preview)
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('sense-relation-type-select')) {
+                // Trigger XML preview update when relation type changes
+                if (window.updateXmlPreview) {
+                    window.updateXmlPreview();
+                }
+            }
+        });
+        
+        // Add mutation observer to watch for changes to relation ref hidden inputs
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('sense-relation-ref-hidden')) {
+                // Trigger XML preview update when relation ref changes
+                if (window.updateXmlPreview) {
+                    window.updateXmlPreview();
+                }
+            }
+        });
     }
     
     async handleSenseRelationSearch(input) {
@@ -144,6 +164,8 @@ class SenseRelationSearchHandler {
         );
         if (hiddenInput) {
             hiddenInput.value = senseId;
+            // Dispatch change event to trigger any listeners
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
         
         // Find the relation card and update display
@@ -186,6 +208,11 @@ class SenseRelationSearchHandler {
         // Clear search input
         if (searchInput) {
             searchInput.value = '';
+        }
+        
+        // Trigger XML preview update if it exists
+        if (window.updateXmlPreview) {
+            window.updateXmlPreview();
         }
     }
     

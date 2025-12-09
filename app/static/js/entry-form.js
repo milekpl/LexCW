@@ -37,6 +37,68 @@ function showToast(message, type = 'info') {
     }, 3500);
 }
 
+// Helper to normalize numeric-keyed objects to arrays (used by serializers)
+const normalizeIndexedArray = window.normalizeIndexedArray || function(value) {
+    if (value === undefined || value === null) {
+        return [];
+    }
+
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (typeof value === 'object') {
+        const entries = Object.entries(value)
+            .filter(([key]) => key !== '__proto__' && key !== 'constructor' && key !== 'prototype' && !Number.isNaN(Number(key)))
+            .sort((a, b) => Number(a[0]) - Number(b[0]));
+
+        return entries.map(([, val]) => val);
+    }
+
+    return [];
+};
+
+if (!window.normalizeIndexedArray) {
+    window.normalizeIndexedArray = normalizeIndexedArray;
+}
+
+// Helper to apply sense relations from current DOM to formData, clearing stale values
+const applySenseRelationsFromDom = window.applySenseRelationsFromDom || function(form, formData, normalizeFn) {
+    const normalize = typeof normalizeFn === 'function' ? normalizeFn : normalizeIndexedArray;
+    const result = formData || {};
+    result.senses = normalize(result.senses);
+
+    const senseItems = form ? form.querySelectorAll('#senses-container .sense-item') : [];
+    senseItems.forEach((senseEl, fallbackIndex) => {
+        const senseIndex = senseEl.dataset.senseIndex;
+        const idx = Number.isNaN(Number(senseIndex)) ? fallbackIndex : Number(senseIndex);
+
+        if (!result.senses[idx]) {
+            result.senses[idx] = {};
+        }
+
+        const relations = [];
+        senseEl.querySelectorAll('.sense-relation-item').forEach((relEl, relIdx) => {
+            const typeEl = relEl.querySelector('.sense-relation-type-select');
+            const refEl = relEl.querySelector('.sense-relation-ref-hidden');
+            const type = typeEl ? (typeEl.value || '').trim() : '';
+            const ref = refEl ? (refEl.value || '').trim() : '';
+            if (type || ref) {
+                relations.push({ type, ref, order: relIdx });
+            }
+        });
+
+        // Always set relations to the current DOM state to avoid stale data
+        result.senses[idx].relations = relations;
+    });
+
+    return result;
+};
+
+if (!window.applySenseRelationsFromDom) {
+    window.applySenseRelationsFromDom = applySenseRelationsFromDom;
+}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     // REFACTOR: Define frequently used elements once to avoid repeated DOM queries.
@@ -99,6 +161,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = window.FormSerializer.serializeFormToJSON(entryForm, {
                 includeEmpty: true
             });
+
+            // Normalize senses and refresh relations directly from DOM to avoid stale values
+            formData.senses = normalizeIndexedArray(formData.senses);
+            applySenseRelationsFromDom(entryForm, formData, normalizeIndexedArray);
             
             console.log('[XML Preview] Form data:', formData);
             console.log('[XML Preview] lexical_unit:', formData.lexical_unit);
@@ -116,6 +182,9 @@ document.addEventListener('DOMContentLoaded', function() {
             xmlPreviewContent.textContent = `Error generating XML: ${error.message}\n\nCheck browser console (F12) for details.`;
         }
     }
+
+    // Expose for other modules (relations search, etc.) to trigger refresh
+    window.updateXmlPreview = updateXmlPreview;
 
     /**
      * Function to initialize dynamic selects.
@@ -859,6 +928,10 @@ async function submitForm() {
         const formData = await window.FormSerializer.serializeFormToJSONSafe(form, {
             includeEmpty: false
         });
+
+        // Normalize senses and refresh relations directly from DOM to avoid stale values before XML generation
+        formData.senses = normalizeIndexedArray(formData.senses);
+        applySenseRelationsFromDom(form, formData, normalizeIndexedArray);
         
         console.log('[FORM SUBMIT] Form data serialized to JSON');
         

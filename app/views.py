@@ -369,7 +369,13 @@ def edit_entry(entry_id):
                     return jsonify({"error": "No data provided"}), 400
 
             # Get existing entry data for merging (use non-validating method for editing)
-            existing_entry = dict_service.get_entry_for_editing(entry_id)
+            existing_entry = None
+            try:
+                existing_entry = dict_service.get_entry_for_editing(entry_id)
+            except NotFoundError:
+                # Entry doesn't exist yet - will be created instead of updated
+                pass
+            
             existing_data = existing_entry.to_dict() if existing_entry else {}
 
             # Merge form data with existing entry data, processing multilingual notes
@@ -377,12 +383,23 @@ def edit_entry(entry_id):
 
             entry = Entry.from_dict(merged_data)
             entry.id = entry_id
-            dict_service.update_entry(entry)
+            
+            # If entry doesn't exist, create it; otherwise update it
+            if existing_entry:
+                dict_service.update_entry(entry)
+            else:
+                dict_service.create_entry(entry)
             return jsonify({"id": entry_id, "message": "Entry updated successfully"})
 
-        entry = dict_service.get_entry_for_editing(
-            entry_id
-        )  # Use non-validating method for editing
+        # Try to load the entry for editing
+        entry = None
+        try:
+            entry = dict_service.get_entry_for_editing(
+                entry_id
+            )  # Use non-validating method for editing
+        except NotFoundError:
+            # Entry doesn't exist yet - create a new empty entry with the given ID
+            entry = Entry(id_=entry_id)
 
         # Apply POS inheritance when loading entry for editing
         if entry:
@@ -401,6 +418,7 @@ def edit_entry(entry_id):
         # Explicitly extract enriched variant_relations for template (with display text and error markers)
         variant_relations_data = []
         component_relations_data = []
+        subentries_data = []
         if entry:
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
             # Extract enriched component_relations for template (with display text for main entries)

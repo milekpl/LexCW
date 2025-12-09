@@ -243,10 +243,22 @@ def update_entry(entry_id: str) -> Any:
         # Get XML entry service
         xml_service = get_xml_entry_service()
         
-        # Update entry
-        result = xml_service.update_entry(entry_id, xml_string)
+        # Try to update entry, fall back to create if it doesn't exist
+        try:
+            result = xml_service.update_entry(entry_id, xml_string)
+        except EntryNotFoundError:
+            # Entry doesn't exist, create it instead
+            logger.info('[XML API] Entry %s not found, creating instead', entry_id)
+            result = xml_service.create_entry(xml_string)
         
-        logger.info('[XML API] Entry updated: %s', result['id'])
+        logger.info('[XML API] Entry saved: %s', result['id'])
+
+        # Clear entries cache after successful update or create
+        from app.services.cache_service import CacheService
+        cache = CacheService()
+        if cache.is_available():
+          cache.clear_pattern('entries:*')
+          logger.info('[XML API] Cleared entries cache after saving entry %s', result['id'])
         
         # Return response
         return jsonify({
@@ -256,9 +268,6 @@ def update_entry(entry_id: str) -> Any:
             'status': result.get('status')
         }), 200
         
-    except EntryNotFoundError as e:
-        logger.warning('[XML API] Entry not found: %s', entry_id)
-        return jsonify({'error': f'Entry not found: {entry_id}'}), 404
     except InvalidXMLError as e:
         logger.error('[XML API] Invalid XML: %s', str(e))
         return jsonify({'error': f'Invalid XML: {str(e)}'}), 400
