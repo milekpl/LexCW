@@ -98,6 +98,7 @@
                     <a class="nav-link" href="#annotations">Annotations</a>
                 </nav>
                 <a class="nav-link" href="#custom-fields">Custom Fields</a>
+                <a class="nav-link" href="#ranges-editor">Ranges Editor</a>
                 <a class="nav-link" href="#workflow">Workflow Features</a>
                 <a class="nav-link" href="#compatibility">FieldWorks Compatibility</a>
             </nav>
@@ -325,6 +326,81 @@ TTS: [Generate Audio]</code></pre>
                 <li><strong>Register Marking</strong>: Formal, Informal, Slang</li>
                 <li><strong>Subject Fields</strong>: Medicine, Law, Technology</li>
                 <li><strong>Geographic Tags</strong>: Regional classifications</li>
+            </ul>
+
+            <h2 id="ranges-editor">Ranges Editor <span class="feature-badge badge-professional">Professional</span></h2>
+            <p>
+                Manage controlled vocabularies (ranges) for your dictionary. Ranges define the valid values for fields like 
+                grammatical categories, semantic domains, and lexical relations.
+            </p>
+
+            <h3><i class="fas fa-list"></i> What are Ranges?</h3>
+            <p>
+                Ranges are LIFT's controlled vocabulary lists that ensure consistency across your dictionary. They define:
+            </p>
+            <ul class="feature-list">
+                <li><strong>Grammatical Information</strong>: Noun, Verb, Adjective, etc.</li>
+                <li><strong>Semantic Domains</strong>: Hierarchical classification systems</li>
+                <li><strong>Lexical Relations</strong>: Synonym, Antonym, Part of, etc.</li>
+                <li><strong>Custom Categories</strong>: Domain-specific classifications</li>
+            </ul>
+
+            <h3><i class="fas fa-edit"></i> Managing Ranges</h3>
+            <p>
+                Access the Ranges Editor from <strong>Tools → Ranges Editor</strong> to:
+            </p>
+            <ul class="feature-list">
+                <li><strong>View all ranges</strong>: Browse your controlled vocabularies</li>
+                <li><strong>Create new ranges</strong>: Add custom classification systems</li>
+                <li><strong>Edit range details</strong>: Update labels and descriptions in multiple languages</li>
+                <li><strong>Manage elements</strong>: Add, edit, or delete individual values within ranges</li>
+                <li><strong>Check usage</strong>: See which entries use specific range values</li>
+                <li><strong>Safe deletion</strong>: Migrate values before deleting to maintain data integrity</li>
+            </ul>
+
+            <h3><i class="fas fa-sitemap"></i> Hierarchical Ranges</h3>
+            <p>
+                The Ranges Editor supports two hierarchy patterns:
+            </p>
+            <ul>
+                <li><strong>Nested Hierarchy</strong>: Elements directly nested within parents (e.g., Noun → Common Noun, Proper Noun)</li>
+                <li><strong>Parent-Based Hierarchy</strong>: Flat structure with parent attributes (e.g., semantic domains)</li>
+            </ul>
+
+            <h3><i class="fas fa-chart-bar"></i> Usage Analysis</h3>
+            <p>
+                Before deleting range elements, the editor shows:
+            </p>
+            <ul>
+                <li><strong>Usage count</strong>: How many entries use each element</li>
+                <li><strong>Sample entries</strong>: Examples of entries using the element</li>
+                <li><strong>Unused elements</strong>: Elements safe to delete without affecting data</li>
+            </ul>
+
+            <div class="example-box">
+                <h5><i class="fas fa-lightbulb"></i> Example: Managing Grammatical Categories</h5>
+                <p>
+                    If you want to split "Noun" into "Common Noun" and "Proper Noun":
+                </p>
+                <ol>
+                    <li>Open <strong>Tools → Ranges Editor</strong></li>
+                    <li>Select the <code>grammatical-info</code> range</li>
+                    <li>Click <strong>Elements</strong> tab to see all grammatical categories</li>
+                    <li>Click <strong>Usage</strong> tab to see which categories are actually used</li>
+                    <li>Add new elements "Common Noun" and "Proper Noun"</li>
+                    <li>Update entries to use the new, more specific categories</li>
+                    <li>When ready, delete "Noun" and choose to migrate remaining references</li>
+                </ol>
+            </div>
+
+            <h3><i class="fas fa-exchange-alt"></i> Value Migration</h3>
+            <p>
+                When deleting a range element that's in use, you can:
+            </p>
+            <ul>
+                <li><strong>Replace</strong>: Migrate all references to another element</li>
+                <li><strong>Remove</strong>: Delete the value from all entries</li>
+                <li><strong>Cancel</strong>: Keep the element if you change your mind</li>
             </ul>
 
             <h2 id="workflow">Workflow Features</h2>

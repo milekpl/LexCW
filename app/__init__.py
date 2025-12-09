@@ -92,6 +92,9 @@ def create_app(config_name=None):
     from app.api.ranges import ranges_bp
     app.register_blueprint(ranges_bp)
     
+    from app.api.ranges_editor import ranges_editor_bp
+    app.register_blueprint(ranges_editor_bp)
+    
     from app.api.pronunciation import pronunciation_bp
     app.register_blueprint(pronunciation_bp)
     
@@ -271,6 +274,11 @@ def create_app(config_name=None):
         from app.services.cache_service import CacheService
         cache_service = CacheService()
         binder.bind(CacheService, to=cache_service, scope=singleton)
+        
+        # Initialize and bind RangesService
+        from app.services.ranges_service import RangesService
+        ranges_service = RangesService(db_connector=basex_connector)
+        binder.bind(RangesService, to=ranges_service, scope=singleton)
         
         # Initialize and bind CSSMappingService
         from app.services.css_mapping_service import CSSMappingService
