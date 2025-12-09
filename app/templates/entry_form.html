@@ -998,6 +998,7 @@
                                                         data-range-id="lexical-relation"
                                                         data-hierarchical="true"
                                                         data-searchable="true"
+                                                        data-selected-value="{{ relation.type or '' }}"
                                                         required>
                                                     <option value="">Select type</option>
                                                     <!-- Options will be populated dynamically from LIFT ranges -->
@@ -3130,7 +3131,9 @@
 <!-- LIFT XML Serializer -->
 <script src="{{ url_for('static', filename='js/lift-xml-serializer.js') }}"></script>
 <!-- Form serialization utilities -->
+<script src="{{ url_for('static', filename='js/normalize-indexed-array.js') }}"></script>
 <script src="{{ url_for('static', filename='js/form-serializer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sense-relations-utils.js') }}"></script>
 <!-- Form state management -->
 <script src="{{ url_for('static', filename='js/form-state-manager.js') }}"></script>
 <!-- Client validation -->

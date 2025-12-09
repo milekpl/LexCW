@@ -85,6 +85,9 @@ class RelationsManager {
         // Clear existing options except the first one
         selectElement.innerHTML = '<option value="">Select type</option>';
         
+        // Track if we found the current value in the loaded types
+        let currentValueFound = false;
+        
         // Add options from loaded relation types
         this.relationTypes.forEach(relationType => {
             const option = document.createElement('option');
@@ -99,10 +102,21 @@ class RelationsManager {
             // Select if this was the current value
             if (option.value === currentValue) {
                 option.selected = true;
+                currentValueFound = true;
             }
             
             selectElement.appendChild(option);
         });
+        
+        // If the current value wasn't found in the loaded types, add it as a fallback option
+        if (currentValue && !currentValueFound) {
+            const fallbackOption = document.createElement('option');
+            fallbackOption.value = currentValue;
+            fallbackOption.textContent = currentValue;
+            fallbackOption.selected = true;
+            fallbackOption.title = 'Value from database (not in current ranges)';
+            selectElement.appendChild(fallbackOption);
+        }
     }
     
     setupEventListeners() {
@@ -130,6 +144,16 @@ class RelationsManager {
         this.container.addEventListener('input', (e) => {
             if (e.target.classList.contains('relation-search-input')) {
                 this.handleEntrySearch(e.target);
+            }
+        });
+        
+        // Handle relation type changes (to update XML preview)
+        this.container.addEventListener('change', (e) => {
+            if (e.target.classList.contains('relation-type-select')) {
+                // Trigger XML preview update when relation type changes
+                if (window.updateXmlPreview) {
+                    window.updateXmlPreview();
+                }
             }
         });
     }
@@ -369,13 +393,16 @@ class RelationsManager {
     
     selectSearchResult(resultItem) {
         const entryId = resultItem.dataset.entryId;
-        const entryHeadword = resultItem.dataset.entryHeadword;
+        const entryHeadword = resultItem.dataset.entryHeadwork;
         const relationIndex = resultItem.dataset.relationIndex;
         
         // Update the hidden input with the entry ID
-        const hiddenInput = this.container.querySelector(`input[name="relations[${relationIndex}][ref]"]`);
+        // Use DOT notation to match the template's field naming convention
+        const hiddenInput = this.container.querySelector(`input[name="relations[${relationIndex}].ref"]`);
         if (hiddenInput) {
             hiddenInput.value = entryId;
+            // Dispatch change event to trigger any listeners
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
         
         // Update the search input to show the selected entry
@@ -388,6 +415,11 @@ class RelationsManager {
         const resultsContainer = document.getElementById(`search-results-${relationIndex}`);
         if (resultsContainer) {
             resultsContainer.style.display = 'none';
+        }
+        
+        // Trigger XML preview update
+        if (window.updateXmlPreview) {
+            window.updateXmlPreview();
         }
         
         console.log(`[RelationsManager] Selected entry "${entryHeadword}" (${entryId}) for relation ${relationIndex}`);

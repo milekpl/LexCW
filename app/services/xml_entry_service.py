@@ -233,13 +233,11 @@ class XMLEntryService:
         try:
             logger.info(f"Creating entry {entry_id}")
             
-            # Build XQuery insert statement (same approach as DictionaryService)
-            # CRITICAL: Must use lift:lift to target the namespace-qualified root element
+            # Build XQuery insert statement
+            # NOTE: Query without namespace prefix since root stored as 'lift' not 'lift:lift'
             # The entry XML is embedded directly in the query
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
-            
-            insert node {xml_clean} into collection('{self.database}')//lift:lift
+            insert node {xml_clean} into collection('{self.database}')//lift
             """
             
             logger.debug(f"Executing insert query for entry {entry_id}")
@@ -280,12 +278,12 @@ class XMLEntryService:
         session = self._get_session()
         try:
             # Use variable binding to avoid injection and escaping issues
-            # CRITICAL: Must use lift:entry to match namespace-qualified elements
+            # NOTE: Entries in BaseX are stored WITHOUT namespace prefix (just 'entry', not 'lift:entry')
+            # even though they have xmlns attribute. This is because xmlns is stripped during insert.
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             
-            let $entry := collection("{self.database}")//lift:entry[@id=$entryId]
+            let $entry := collection("{self.database}")//entry[@id=$entryId]
             return if ($entry) then
                 $entry
             else
@@ -399,6 +397,12 @@ class XMLEntryService:
             xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
         
         # Debug logging
+        logger.info(f"[XML UPDATE] Entry {entry_id}: XML length {len(xml_clean)}")
+        logger.info(f"[XML UPDATE] Has <relation> tags: {'<relation' in xml_clean}")
+        if '<relation' in xml_clean:
+            import re
+            relations = re.findall(r'<relation[^>]*>', xml_clean)
+            logger.info(f"[XML UPDATE] Found {len(relations)} relation(s): {relations[:3]}")
         logger.debug(f"Update XML for {entry_id} (first 500 chars): {xml_clean[:500]}")
         logger.debug(f"Update XML length: {len(xml_clean)}")
         
@@ -413,10 +417,10 @@ class XMLEntryService:
         session = self._get_session()
         try:
             # First verify entry exists before update
+            # NOTE: Query without namespace prefix since entries stored as 'entry' not 'lift:entry'
             check_query = f"""
-            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
-            count(collection("{self.database}")//lift:entry[@id=$entryId])
+            count(collection("{self.database}")//entry[@id=$entryId])
             """
             q_check = session.query(check_query)
             q_check.bind('entryId', entry_id)
@@ -425,13 +429,12 @@ class XMLEntryService:
             logger.debug(f"Entry count before update: {count_before}")
             
             # Use parse-xml() with replace node
-            # XML MUST have xmlns attribute on root element for this to work
+            # NOTE: Query without namespace prefix since entries stored as 'entry' not 'lift:entry'
             replace_query = f"""
-            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             declare variable $newXml external;
             
-            let $entry := collection("{self.database}")//lift:entry[@id=$entryId]
+            let $entry := collection("{self.database}")//entry[@id=$entryId]
             let $newEntry := parse-xml($newXml)/*
             return replace node $entry with $newEntry
             """
@@ -442,6 +445,31 @@ class XMLEntryService:
             result = q.execute()
             q.close()
             logger.debug(f"Replace query result: '{result}'")
+            
+            # Verify the update actually saved the relations
+            # NOTE: Query without namespace prefix
+            verify_query = f"""
+            declare variable $entryId external;
+            collection("{self.database}")//entry[@id=$entryId]
+            """
+            q_verify = session.query(verify_query)
+            q_verify.bind('entryId', entry_id)
+            saved_xml = q_verify.execute()
+            q_verify.close()
+            logger.info(f"[XML UPDATE] Saved XML has <relation>: {'<relation' in saved_xml}")
+            if '<relation' in saved_xml:
+                import re
+                saved_relations = re.findall(r'<relation[^>]*>', saved_xml)
+                logger.info(f"[XML UPDATE] Saved {len(saved_relations)} relation(s): {saved_relations[:3]}")
+            else:
+                logger.error(f"[XML UPDATE] CRITICAL: Relations were NOT saved to database!")
+            
+            # CRITICAL: Flush changes to ensure they're persisted before returning
+            try:
+                session.execute("FLUSH")
+                logger.debug(f"Flushed database changes for entry {entry_id}")
+            except Exception as flush_error:
+                logger.warning(f"Failed to flush database: {flush_error}")
             
             # Verify entry still exists after update
             q_check2 = session.query(check_query)
@@ -490,11 +518,11 @@ class XMLEntryService:
         session = self._get_session()
         try:
             # Use variable binding to avoid injection and escaping issues
+            # NOTE: Query without namespace prefix
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             
-            for $entry in collection("{self.database}")//lift:entry[@id=$entryId]
+            for $entry in collection("{self.database}")//entry[@id=$entryId]
             return delete node $entry
             """
             
@@ -529,11 +557,11 @@ class XMLEntryService:
         session = self._get_session()
         try:
             # Use XQuery variable binding to avoid injection and escaping issues
+            # NOTE: Query without namespace prefix since entries stored as 'entry' not 'lift:entry'
             query = f"""
-            declare namespace lift = "{LIFT_NS}";
             declare variable $entryId external;
             
-            exists(collection("{self.database}")//lift:entry[@id=$entryId])
+            exists(collection("{self.database}")//entry[@id=$entryId])
             """
             
             q = session.query(query)

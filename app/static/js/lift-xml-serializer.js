@@ -14,6 +14,24 @@ class LIFTXMLSerializer {
     }
 
     /**
+     * Normalize relation collections that may arrive as keyed objects.
+     */
+    normalizeRelationArray(relations) {
+        if (!relations) return [];
+        if (Array.isArray(relations)) {
+            return relations.filter(item => item !== undefined && item !== null);
+        }
+        if (typeof relations === 'object') {
+            return Object.keys(relations)
+                .filter(key => !Number.isNaN(Number(key)))
+                .sort((a, b) => Number(a) - Number(b))
+                .map(key => relations[key])
+                .filter(item => item !== undefined && item !== null);
+        }
+        return [];
+    }
+
+    /**
      * Serialize form data to LIFT XML entry element
      * 
      * @param {Object} formData - Form data object
@@ -39,8 +57,11 @@ class LIFTXMLSerializer {
         const dateModified = formData.dateModified || formData.date_modified;
         
         // Validate required fields
-        // For new entries (no ID), generate a temporary ID
-        const entryId = formData.id || this.generateEntryId();
+        const entryId = formData.id;
+
+        if (!entryId) {
+            throw new Error('Entry must have an id');
+        }
         
         if (!lexicalUnit || Object.keys(lexicalUnit).length === 0) {
             throw new Error('Entry must have a lexicalUnit with at least one form');
@@ -99,8 +120,9 @@ class LIFTXMLSerializer {
         }
 
         // Add relations
-        if (formData.relations && formData.relations.length > 0) {
-            formData.relations.forEach(relData => {
+        const entryRelations = this.normalizeRelationArray(formData.relations);
+        if (entryRelations.length > 0) {
+            entryRelations.forEach(relData => {
                 const relation = this.createRelation(doc, relData);
                 entry.appendChild(relation);
             });
@@ -233,8 +255,9 @@ class LIFTXMLSerializer {
         }
 
         // Add relations
-        if (senseData.relations && senseData.relations.length > 0) {
-            senseData.relations.forEach(relData => {
+        const senseRelations = this.normalizeRelationArray(senseData.relations);
+        if (senseRelations.length > 0) {
+            senseRelations.forEach(relData => {
                 const relation = this.createRelation(doc, relData);
                 sense.appendChild(relation);
             });
@@ -355,8 +378,9 @@ class LIFTXMLSerializer {
         }
 
         // Add relations
-        if (subsenseData.relations && subsenseData.relations.length > 0) {
-            subsenseData.relations.forEach(relData => {
+        const subsenseRelations = this.normalizeRelationArray(subsenseData.relations);
+        if (subsenseRelations.length > 0) {
+            subsenseRelations.forEach(relData => {
                 const relation = this.createRelation(doc, relData);
                 subsense.appendChild(relation);
             });

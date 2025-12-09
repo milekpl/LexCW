@@ -500,6 +500,29 @@ describe('LIFTXMLSerializer', () => {
             expect(xml).toContain('<relation type="synonym"');
             expect(xml).toContain('ref="exam_entry"');
         });
+
+        test('normalizes relations provided as keyed objects', () => {
+            const formData = {
+                id: 'relation_object_test',
+                lexical_unit: { en: 'normalize' },
+                relations: {
+                    0: { type: 'synonym', ref: 'entry_target_001' }
+                },
+                senses: [
+                    {
+                        id: 'sense_normalize_001',
+                        relations: {
+                            0: { type: 'antonym', ref: 'sense_target_001' }
+                        }
+                    }
+                ]
+            };
+
+            const xml = serializer.serializeEntry(formData);
+
+            expect(xml).toContain('relation type="synonym" ref="entry_target_001"');
+            expect(xml).toContain('relation type="antonym" ref="sense_target_001"');
+        });
     });
 
     describe('Notes', () => {

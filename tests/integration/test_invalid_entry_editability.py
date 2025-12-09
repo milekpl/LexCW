@@ -78,8 +78,11 @@ class TestInvalidEntryEditability:
                 
                 # Should call get_entry_for_editing (not get_entry)
                 mock_get.assert_called_with("invalid_test")
-                # Should redirect to entries list due to NotFoundError
-                assert response.status_code == 302
+                # Should now return 200 and show an empty form for creating the entry
+                # (This is the new behavior - non-existent entries can be created)
+                assert response.status_code == 200
+                # The form should be shown
+                assert b'form' in response.data or b'entry' in response.data
 
     @pytest.mark.integration
     def test_search_includes_invalid_entries(self, app):
