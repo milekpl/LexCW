@@ -490,6 +490,13 @@ class Sense(BaseModel):
         """
         result = super().to_dict()
 
+        # Convert Example objects to dicts
+        if 'examples' in result and result['examples']:
+            result['examples'] = [
+                ex.to_dict() if hasattr(ex, 'to_dict') else ex 
+                for ex in result['examples']
+            ]
+
         # Simplify definition - LIFT flat format {lang: text}
         definition_text = ''
         if self.definitions:

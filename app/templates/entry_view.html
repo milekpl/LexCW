@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Entry: {% if entry.lexical_unit is mapping %}{% for lang, val in entry.lexical_unit.items() %}{{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% endblock %}
+{% block title %}Entry: {% if entry.lexical_unit is mapping %}{% for lang, val in entry.lexical_unit.items() %}{{ val }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -10,13 +10,10 @@
             <span class="text-primary">
                 {% if entry.lexical_unit is mapping %}
                     {% for lang, val in entry.lexical_unit.items() %}
-                        {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                        {{ val }}{% if not loop.last %}, {% endif %}
                     {% endfor %}
                 {% else %}{{ entry.lexical_unit }}{% endif %}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}
             </span>
-            {% if entry.get_language_list() and entry.get_language_list()|length > 0 %}
-                <small class="text-muted">[{{ entry.get_language_list()|join(', ') }}]</small>
-            {% endif %}
             {% if entry.grammatical_info and entry.grammatical_info.part_of_speech %}
                 <span class="badge bg-secondary">{{ entry.grammatical_info.part_of_speech }}</span>
             {% endif %}
@@ -35,11 +32,29 @@
     </div>
 </div>
 
+{% if css_html %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-palette"></i> CSS Display (Using Current Profile)</h5>
+                <a href="{{ url_for('main.display_profiles') }}" class="btn btn-sm btn-light">
+                    <i class="fas fa-cog"></i> Configure Display
+                </a>
+            </div>
+            <div class="card-body">
+                {{ css_html|safe }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     <div class="col-md-8">
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
-                <h5><i class="fas fa-lightbulb"></i> Senses</h5>
+                <h5><i class="fas fa-lightbulb"></i> Senses (Structured View)</h5>
             </div>
             <div class="card-body">
                 {% if entry.senses %}
@@ -50,7 +65,7 @@
                                 <h5 class="mb-0">
                                     {% if sense.definitions %}
                                         {% for lang, val in sense.definitions.items() %}
-                                            {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                            {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
                                         {% endfor %}
                                     {% endif %}
                                 </h5>
@@ -59,7 +74,7 @@
                                 <div class="ms-4 mb-2">
                                     <span class="text-muted">Gloss:</span>
                                     {% for lang, val in sense.glosses.items() %}
-                                        {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                        {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
                                     {% endfor %}
                                 </div>
                             {% endif %}
@@ -86,7 +101,7 @@
                                     {% for note_type, note_dict in sense.notes.items() %}
                                         <div><strong>{{ note_type }}</strong>:
                                             {% for lang, val in note_dict.items() %}
-                                                {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                                {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
                                             {% endfor %}
                                         </div>
                                     {% endfor %}
@@ -147,10 +162,8 @@
                 {% if entry.pronunciations %}
                     <ul class="list-group list-group-flush">
                     {% for lang, val in entry.pronunciations.items() %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="pronunciation-ipa">{{ val }}</span> <small>[{{ lang }}]</small>
-                            </div>
+                        <li class="list-group-item">
+                            <span class="pronunciation-ipa">{{ val }}</span>
                         </li>
                     {% endfor %}
                     </ul>
@@ -196,28 +209,83 @@
                         {% for note_type, note_dict in entry.notes.items() %}
                             <div><strong>{{ note_type }}</strong>:
                                 {% for lang, val in note_dict.items() %}
-                                    {{ val.text if val is mapping and 'text' in val else val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
+                                    {{ val }} <small>[{{ lang }}]</small>{% if not loop.last %}, {% endif %}
                                 {% endfor %}
                             </div>
                         {% endfor %}
                     </div>
                 {% endif %}
                 
+                <!-- Component Relations Section (Main Entries) -->
+                {% if component_relations and component_relations|length > 0 %}
+                <div class="mb-3">
+                    <h6><i class="fas fa-layer-group"></i> Main Entries (Components)</h6>
+                    <div class="alert alert-success">
+                        <i class="fas fa-info-circle me-2"></i>
+                        This entry is a complex form composed of the following main entries:
+                    </div>
+                    <div class="list-group">
+                        {% for component in component_relations %}
+                        <a href="{{ url_for('main.view_entry', entry_id=component.ref) }}" 
+                           class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    {{ component.ref_display_text|safe if component.ref_display_text else component.ref }}
+                                    {% if component.is_primary %}
+                                    <span class="badge bg-success ms-2">Primary</span>
+                                    {% endif %}
+                                </h6>
+                                <small class="text-muted">{{ component.complex_form_type }}</small>
+                            </div>
+                            <small class="text-muted">Order: {{ component.order if component.order is not none else 'N/A' }}</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Subentries Section -->
+                {% if subentries and subentries|length > 0 %}
+                <div class="mb-3">
+                    <h6><i class="fas fa-sitemap"></i> Subentries (Complex Forms)</h6>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        This entry is a component of the following complex forms:
+                    </div>
+                    <div class="list-group">
+                        {% for subentry in subentries %}
+                        <a href="{{ url_for('main.view_entry', entry_id=subentry.id) }}" 
+                           class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    {{ subentry.display_text|safe }}
+                                    {% if subentry.is_primary %}
+                                    <span class="badge bg-success ms-2">Primary Component</span>
+                                    {% endif %}
+                                </h6>
+                                <small class="text-muted">{{ subentry.complex_form_type }}</small>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
                 <div class="mb-3">
                     <h6>Entry Details</h6>
                     <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>ID</span>
-                            <span class="text-muted">{{ entry.id }}</span>
-                        </li>
+                        {% if entry.date_created %}
                         <li class="list-group-item d-flex justify-content-between">
                             <span>Created</span>
-                            <span class="text-muted">{{ entry.date_created }}</span>
+                            <span class="text-muted">{{ entry.date_created.strftime('%Y-%m-%d %H:%M') if entry.date_created is not string else entry.date_created[:16] }}</span>
                         </li>
+                        {% endif %}
+                        {% if entry.date_modified %}
                         <li class="list-group-item d-flex justify-content-between">
                             <span>Last Modified</span>
-                            <span class="text-muted">{{ entry.date_modified }}</span>
+                            <span class="text-muted">{{ entry.date_modified.strftime('%Y-%m-%d %H:%M') if entry.date_modified is not string else entry.date_modified[:16] }}</span>
                         </li>
+                        {% endif %}
                     </ul>
                 </div>
             </div>

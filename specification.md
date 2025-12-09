@@ -46,7 +46,7 @@ The LCW v2.0 employs a sophisticated hybrid database architecture optimized for 
 - **Databases**:
   - BaseX 10+ (hierarchical XML storage for LIFT data)
   - PostgreSQL 14+ (relational analytics and indexing)
-- **Testing**: pytest, Selenium, coverage.py (TDD enforcement)
+- **Testing**: pytest, Playwright, coverage.py (TDD enforcement)
 - **AI/ML**: spaCy, transformers, scikit-learn
 
 #### 2.2.2 Development Framework
@@ -704,7 +704,7 @@ The entry form UI has been optimized to use a compact, accessible tooltip-based 
 
 - ✅ **Unit Tests**: All tooltip functionality covered with comprehensive test suite
 - ✅ **Integration Tests**: Form interactions and dynamic content loading validated
-- ✅ **Selenium Tests**: Complete UI interaction testing including:
+- ✅ **Playwright Tests**: Complete UI interaction testing including:
   - Tooltip rendering and positioning
   - Keyboard navigation
   - Dynamic content compatibility
@@ -1121,7 +1121,7 @@ The following defines the admissible IPA characters and sequences for pronunciat
 
 - **Frontend Testing**:
   - Jest for JavaScript unit testing
-  - Selenium for browser automation testing
+  - Playwright for browser automation testing
   - Cypress for end-to-end testing
 
 - **API Testing**:

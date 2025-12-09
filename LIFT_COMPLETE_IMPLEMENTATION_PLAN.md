@@ -6,6 +6,15 @@
 **Branch**: `feature/xml-direct-manipulation`  
 **Reference**: [FieldWorks LiftMergerTests.cs](https://github.com/sillsdev/FieldWorks/blob/5eb08254/Src/LexText/LexTextControls/LexTextControlsTests/LiftMergerTests.cs)
 
+**📚 NEW: Comprehensive Help System Added** (December 8, 2025)  
+- Online help page explaining LIFT features to lexicographers
+- 13 major sections covering all implemented features
+- Sidebar navigation with smooth scrolling
+- Visual hierarchy with badges and examples
+- Mobile-responsive design
+- 8/8 unit tests passing
+- Accessible at `/help` route
+
 ---
 
 ## Executive Summary

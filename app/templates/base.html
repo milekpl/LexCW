@@ -65,8 +65,15 @@
                             <li><a class="dropdown-item" href="{{ url_for('main.validation') }}">Validation</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('main.pronunciation') }}">Pronunciation</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('main.display_profiles') }}"><i class="fas fa-palette"></i> Display Profiles</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('main.settings') }}">Settings</a></li>
                         </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'main.help_page' %}active{% endif %}" 
+                           href="{{ url_for('main.help_page') }}">
+                            <i class="fas fa-question-circle"></i> Help
+                        </a>
                     </li>
                 </ul>
                 <form class="d-flex" action="{{ url_for('main.search') }}" method="get">

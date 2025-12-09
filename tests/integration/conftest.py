@@ -33,9 +33,9 @@ def postgres_available() -> bool:
     return bool(os.getenv('POSTGRES_HOST'))
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def app() -> Flask:
-    """Create Flask application for integration tests."""
+    """Create Flask application for integration tests (session-scoped for persistence)."""
     from app import create_app
     import psycopg2.pool
     from app.database.workset_db import create_workset_tables
@@ -72,10 +72,51 @@ def app() -> Flask:
     return app
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def client(app: Flask):
-    """Create Flask test client."""
-    return app.test_client()
+    """Create Flask test client (function-scoped for fresh context per test)."""
+    with app.app_context():
+        yield app.test_client()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_display_profiles(app: Flask):
+    """Clean up display profile storage before and after test session."""
+    from pathlib import Path
+    
+    # Get the storage path from app instance
+    storage_path = Path(app.instance_path) / "display_profiles.json"
+    
+    # Clean up before tests
+    if storage_path.exists():
+        storage_path.unlink()
+    
+    yield
+    
+    # Clean up after tests
+    if storage_path.exists():
+        storage_path.unlink()
+
+
+@pytest.fixture
+def sample_entry_xml() -> str:
+    """Sample LIFT XML entry for preview tests."""
+    return """
+    <entry id="test-entry-1">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <pronunciation>
+            <form lang="en-fonipa"><text>tɛst</text></form>
+        </pronunciation>
+        <sense id="sense-1">
+            <grammatical-info value="Noun"/>
+            <definition>
+                <form lang="en"><text>A procedure for testing something</text></form>
+            </definition>
+        </sense>
+    </entry>
+    """
 
 
 __all__ = [

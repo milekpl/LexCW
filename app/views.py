@@ -173,8 +173,79 @@ def view_entry(entry_id):
 
         # Get entry (use non-validating method to allow viewing invalid entries)
         entry = dict_service.get_entry_for_editing(entry_id)
+        
+        # Get component relations (main entries this is a subentry of)
+        component_relations = entry.get_component_relations(dict_service)
+        
+        # Get subentries (reverse component relations)
+        subentries = entry.get_subentries(dict_service)
+        
+        # Get CSS-rendered HTML for the entry using default profile
+        from app.services.css_mapping_service import CSSMappingService
+        from app.services.display_profile_service import DisplayProfileService
+        
+        css_service = CSSMappingService()
+        profile_service = DisplayProfileService()
+        
+        # Get default profile or create one if it doesn't exist
+        default_profile = profile_service.get_default_profile()
+        if not default_profile:
+            # Create a default profile from registry
+            default_profile = profile_service.create_from_registry_default(
+                name="Default Display Profile",
+                description="Auto-created default profile"
+            )
+            profile_service.set_default_profile(default_profile.id)
+        
+        # Render entry with CSS - need to get raw XML from database
+        css_html = None
+        try:
+            # Query database for raw XML
+            db_name = dict_service.db_connector.database
+            has_ns = dict_service._detect_namespace_usage()
+            query = dict_service._query_builder.build_entry_by_id_query(
+                entry_id, db_name, has_ns
+            )
+            entry_xml = dict_service.db_connector.execute_query(query)
+            
+            if entry_xml:
+                css_html = css_service.render_entry(
+                    entry_xml,
+                    profile=default_profile
+                )
+                
+                # If show_subentries is enabled, append subentry HTML
+                if default_profile.show_subentries and subentries:
+                    subentry_html_parts = []
+                    for subentry_info in subentries:
+                        try:
+                            # Get subentry XML
+                            subentry_query = dict_service._query_builder.build_entry_by_id_query(
+                                subentry_info['id'], db_name, has_ns
+                            )
+                            subentry_xml = dict_service.db_connector.execute_query(subentry_query)
+                            
+                            if subentry_xml:
+                                subentry_rendered = css_service.render_entry(
+                                    subentry_xml,
+                                    profile=default_profile
+                                )
+                                # Wrap in subentry container with CSS class
+                                subentry_html_parts.append(
+                                    f'<div class="subentry" data-subentry-id="{subentry_info["id"]}">{subentry_rendered}</div>'
+                                )
+                        except Exception as e:
+                            logger.warning(f"Error rendering subentry {subentry_info['id']}: {e}")
+                    
+                    # Append all subentries to main entry HTML
+                    if subentry_html_parts:
+                        css_html += '\n'.join(subentry_html_parts)
+                        
+        except Exception as e:
+            logger.warning(f"Error rendering entry with CSS: {e}")
 
-        return render_template("entry_view.html", entry=entry)
+        return render_template("entry_view.html", entry=entry, css_html=css_html, 
+                             component_relations=component_relations, subentries=subentries)
 
     except NotFoundError:
         flash(f"Entry with ID {entry_id} not found.", "danger")
@@ -334,6 +405,8 @@ def edit_entry(entry_id):
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
             # Extract enriched component_relations for template (with display text for main entries)
             component_relations_data = entry.get_component_relations(dict_service)
+            # Extract subentries (reverse component relations)
+            subentries_data = entry.get_subentries(dict_service)
             
             # Enrich sense relations with display text
             for sense in entry.senses:
@@ -349,6 +422,7 @@ def edit_entry(entry_id):
             ranges=ranges,
             variant_relations=variant_relations_data,
             component_relations=component_relations_data,
+            subentries=subentries_data,
             validation_result=validation_result,
             project_languages=languages,
         )
@@ -849,6 +923,14 @@ def settings():
     return redirect("/settings/")
 
 
+@main_bp.route("/display-profiles")
+def display_profiles():
+    """
+    Render the display profiles management page.
+    """
+    return render_template("display_profiles.html")
+
+
 @main_bp.route("/activity-log")
 def activity_log():
     """
@@ -1086,3 +1168,9 @@ def clear_cache():
         logger.error(f"Error clearing cache: {e}", exc_info=True)
         flash(f"Error clearing cache: {str(e)}", "danger")
     return redirect(url_for("main.tools"))
+
+
+@main_bp.route("/help")
+def help_page():
+    """Render the comprehensive help page about LIFT and application features."""
+    return render_template("help.html")

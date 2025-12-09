@@ -26,6 +26,28 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
+def app() -> Generator[Flask, None, None]:
+    """Create Flask application for unit tests that need database access."""
+    from app import create_app
+    
+    test_app = create_app('testing')
+    test_app.config['TESTING'] = True
+    test_app.config['WTF_CSRF_ENABLED'] = False
+    
+    # The db is already initialized in create_app via init_app
+    # Just need to create application context
+    with test_app.app_context():
+        from app.models.workset_models import db
+        db.create_all()
+        
+        yield test_app
+        
+        # Cleanup
+        db.session.remove()
+        db.drop_all()
+
+
+@pytest.fixture
 def mock_basex_connector() -> Mock:
     """Create a mock BaseX connector for unit tests."""
     connector = Mock(spec=BaseXConnector)

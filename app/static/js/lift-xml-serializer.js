@@ -612,7 +612,16 @@ class LIFTXMLSerializer {
      */
     createGrammaticalInfo(doc, value) {
         const gramInfo = doc.createElementNS(this.LIFT_NS, 'grammatical-info');
-        gramInfo.setAttribute('value', value);
+        
+        // Extract string value from object if necessary
+        let stringValue = value;
+        if (typeof value === 'object' && value !== null) {
+            // If it's an object, try to extract a string value
+            stringValue = value.value || value.part_of_speech || value.partOfSpeech || 
+                         Object.values(value)[0] || '';
+        }
+        
+        gramInfo.setAttribute('value', String(stringValue));
         return gramInfo;
     }
 

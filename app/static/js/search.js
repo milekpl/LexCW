@@ -221,14 +221,30 @@ function displaySearchResults(results) {
                 const senseClone = document.importNode(senseTemplate.content, true);
                 
                 senseClone.querySelector('.sense-number').textContent = index + 1;
-                senseClone.querySelector('.sense-definition').textContent = sense.definition;
+                
+                // Handle definition which might be an object with language keys
+                let definitionText = '';
+                if (sense.definition) {
+                    if (typeof sense.definition === 'string') {
+                        definitionText = sense.definition;
+                    } else if (typeof sense.definition === 'object') {
+                        // Try common language keys (pl first, then en)
+                        definitionText = sense.definition.pl || sense.definition.en || 
+                                       Object.values(sense.definition)[0] || '[object Object]';
+                    }
+                }
+                senseClone.querySelector('.sense-definition').textContent = definitionText;
                 
                 const examplesContainer = senseClone.querySelector('.sense-examples');
                 
                 if (sense.examples && sense.examples.length > 0) {
                     sense.examples.forEach(example => {
                         const exampleClone = document.importNode(exampleTemplate.content, true);
-                        exampleClone.querySelector('.example-text').textContent = example.text;
+                        // Use form_text which is already a string property from the API
+                        const exampleText = example.form_text || example.text || 
+                                          (typeof example.form === 'object' ? Object.values(example.form)[0] : example.form) || 
+                                          '[No example text]';
+                        exampleClone.querySelector('.example-text').textContent = exampleText;
                         examplesContainer.appendChild(exampleClone);
                     });
                 } else {
