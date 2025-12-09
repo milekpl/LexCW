@@ -17,14 +17,18 @@ load_dotenv()
 # Add parent directory to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-# Import fixtures from parent conftest
-from tests.conftest import (
-    basex_available,
-    test_db_name,
-    basex_test_connector,
-    dict_service_with_db,
-    flask_test_server,
-)
+# Import fixtures from parent conftest - use relative import
+parent_conftest_path = os.path.join(os.path.dirname(__file__), '..', 'conftest.py')
+import importlib.util
+spec = importlib.util.spec_from_file_location("parent_conftest", parent_conftest_path)
+parent_conftest = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(parent_conftest)
+
+basex_available = parent_conftest.basex_available
+test_db_name = parent_conftest.test_db_name
+basex_test_connector = parent_conftest.basex_test_connector
+dict_service_with_db = parent_conftest.dict_service_with_db
+flask_test_server = parent_conftest.flask_test_server
 
 
 @pytest.fixture(scope="session")
@@ -79,13 +83,25 @@ def client(app: Flask):
         yield app.test_client()
 
 
+@pytest.fixture(scope="function", autouse=True)
+def app_context(app: Flask):
+    """Provide application context for each test (autouse, function-scoped)."""
+    with app.app_context():
+        from app.models.project_settings import db
+        db.session.rollback()  # Clean up any previous transactions
+        yield app
+        db.session.rollback()  # Clean up after test
+
+
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_display_profiles(app: Flask):
+def cleanup_display_profiles():
     """Clean up display profile storage before and after test session."""
     from pathlib import Path
+    import tempfile
     
-    # Get the storage path from app instance
-    storage_path = Path(app.instance_path) / "display_profiles.json"
+    # Use a common instance path pattern
+    instance_path = Path(tempfile.gettempdir()) / "flask_test_instance"
+    storage_path = instance_path / "display_profiles.json"
     
     # Clean up before tests
     if storage_path.exists():
@@ -96,6 +112,41 @@ def cleanup_display_profiles(app: Flask):
     # Clean up after tests
     if storage_path.exists():
         storage_path.unlink()
+
+
+@pytest.fixture
+def cleanup_profile_db(app: Flask):
+    """Clean up display profiles from database before each test.
+    
+    This fixture is NOT autouse - tests that need it should explicitly request it.
+    """
+    with app.app_context():
+        from app.models.display_profile import DisplayProfile, ProfileElement
+        from app.models.project_settings import db
+        
+        # Clear all elements first (foreign key dependencies)
+        try:
+            ProfileElement.query.delete()
+            db.session.commit()
+            
+            # Clear all profiles
+            DisplayProfile.query.delete()
+            db.session.commit()
+        except Exception:
+            # If tables don't exist or app doesn't have proper DB, skip cleanup
+            pass
+        
+        yield
+        
+        # Clean up after test
+        try:
+            ProfileElement.query.delete()
+            db.session.commit()
+            
+            DisplayProfile.query.delete()
+            db.session.commit()
+        except Exception:
+            pass
 
 
 @pytest.fixture

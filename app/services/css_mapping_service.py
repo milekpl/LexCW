@@ -12,6 +12,7 @@ import uuid
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from xml.etree import ElementTree as ET
 
 from app.models.display_profile import DisplayProfile
 
@@ -157,8 +158,22 @@ class CSSMappingService:
             # Build CSS block
             css_parts = []
             
-            # Add sense numbering CSS if enabled (but only if not already in custom CSS)
-            if profile.number_senses and (not profile.custom_css or 'sense::before' not in profile.custom_css):
+            # Count number of senses in the entry
+            sense_count = 0
+            try:
+                root = ET.fromstring(entry_xml)
+                sense_count = len(root.findall('.//sense'))
+            except Exception as e:
+                self._logger.warning(f"Failed to count senses in entry: {e}")
+                sense_count = 0
+            
+            # Add sense numbering CSS if enabled
+            should_number_senses = profile.number_senses
+            if profile.number_senses_if_multiple:
+                # Only number if there are multiple senses
+                should_number_senses = should_number_senses and sense_count > 1
+            
+            if should_number_senses and (not profile.custom_css or 'sense::before' not in profile.custom_css):
                 # If we have entry-level PoS, adjust sense numbering to account for it
                 if entry_level_pos:
                     css_parts.append("""
