@@ -14,6 +14,7 @@ class ElementConfig:
     prefix: str = ""
     suffix: str = ""
     visibility: str = "always"  # "always", "if-content", "never"
+    display_mode: str = "inline"  # "inline" or "block"
     children: List[ElementConfig] = None
 
     def __post_init__(self):
@@ -23,11 +24,13 @@ class ElementConfig:
 class HTMLBuilder:
     """Builds HTML from LIFT XML elements according to display profile."""
 
-    def __init__(self, profile_elements: List[ElementConfig]):
+    def __init__(self, profile_elements: List[ElementConfig], entry_level_pos: Optional[str] = None):
         self.profile_elements = sorted(profile_elements, key=lambda x: x.display_order)
         self.element_config_map = {config.lift_element: config for config in self.profile_elements}
         self.html_parts = []
         self.current_indent = 0
+        self.entry_level_pos = entry_level_pos
+        self.pos_displayed = False  # Track if we've already shown the entry-level PoS
 
     def process_element(self, element: ET.Element, config: ElementConfig) -> str:
         """Process a single LIFT element according to its configuration."""
@@ -42,7 +45,8 @@ class HTMLBuilder:
             return ""
 
         # Build HTML for this element
-        html = f'<div class="{config.css_class}">'
+        tag = 'div' if config.display_mode == 'block' else 'span'
+        html = f'<{tag} class="{config.css_class}">'
 
         if config.prefix:
             html += f'<span class="prefix">{config.prefix}</span>'
@@ -52,7 +56,8 @@ class HTMLBuilder:
         if config.suffix:
             html += f'<span class="suffix">{config.suffix}</span>'
 
-        html += '</div>'
+        tag = 'div' if config.display_mode == 'block' else 'span'
+        html += f'</{tag}>'
 
         return html
 
@@ -71,19 +76,158 @@ class HTMLBuilder:
         return ' '.join(content_parts) if content_parts else ""
 
     def build_html(self, root: ET.Element) -> str:
-        """Build HTML from the LIFT XML root element."""
+        """Build HTML from the LIFT XML root element using hierarchical processing."""
         html_parts = []
+        processed = set()  # Track processed elements to avoid duplicates
 
-        # Process elements in the order specified by the profile
-        for config in self.profile_elements:
-            # Find all matching elements in the XML
-            elements = root.findall(f".//{config.lift_element}")
-            for element in elements:
-                element_html = self.process_element(element, config)
-                if element_html:
-                    html_parts.append(element_html)
+        # Process top-level entry structure hierarchically
+        html_parts.append(self._process_hierarchical(root, processed))
 
-        return '\n'.join(html_parts) if html_parts else "<div class='entry-empty'>No content to display</div>"
+        if not html_parts or not html_parts[0].strip():
+            return "<div class='entry-empty'>No content to display</div>"
+        
+        return ' '.join(html_parts)
+
+    def _process_hierarchical(self, element: ET.Element, processed: set) -> str:
+        """Process an element and its children hierarchically."""
+        elem_id = id(element)
+        if elem_id in processed:
+            return ""
+        
+        # Check if we have a config for this element
+        config = self.element_config_map.get(element.tag)
+        
+        if not config:
+            # No config for this element - process its children
+            child_parts = []
+            for child in element:
+                # If this is the entry element and we have entry-level PoS, 
+                # display it before the first sense
+                if (element.tag == 'entry' and child.tag == 'sense' and 
+                    self.entry_level_pos and not self.pos_displayed):
+                    self.pos_displayed = True
+                    child_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
+                
+                child_html = self._process_hierarchical(child, processed)
+                if child_html:
+                    child_parts.append(child_html)
+            return ' '.join(child_parts)
+        
+        # Mark as processed
+        processed.add(elem_id)
+        
+        # Check visibility
+        if config.visibility == "never":
+            return ""
+        
+        # Determine if this is a pure structural element (sense, subsense)
+        # These elements should NOT extract their own text, only wrap children
+        structural_only_elements = {'sense', 'subsense', 'entry'}
+        
+        # Get text content - most elements should extract their own text
+        if element.tag in structural_only_elements:
+            # Pure structural element - don't extract text
+            text_content = ""
+        elif element.tag == 'grammatical-info' and self.entry_level_pos:
+            # Skip sense-level grammatical-info if we're showing entry-level PoS
+            # But only if this grammatical-info matches the entry-level PoS
+            gram_value = element.attrib.get('value', '').strip()
+            if gram_value == self.entry_level_pos:
+                # This sense has same PoS as entry level, skip it
+                return ""
+            # Different PoS at sense level - show it (heterogeneous entry)
+            text_content = self._extract_text_from_forms(element)
+        else:
+            # Content or mixed element - extract text from form/text or attributes
+            text_content = self._extract_text_from_forms(element)
+        
+        # Process configured children
+        child_html_parts = []
+        for child in element:
+            # If this is the entry element and we have entry-level PoS, 
+            # display it before the first sense
+            if (element.tag == 'entry' and child.tag == 'sense' and 
+                self.entry_level_pos and not self.pos_displayed):
+                self.pos_displayed = True
+                child_html_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
+            
+            child_html = self._process_hierarchical(child, processed)
+            if child_html:
+                child_html_parts.append(child_html)
+        
+        # Combine text and child HTML
+        combined_content = text_content
+        if child_html_parts:
+            if text_content:
+                combined_content += ' ' + ' '.join(child_html_parts)
+            else:
+                combined_content = ' '.join(child_html_parts)
+        
+        # Apply conditional visibility
+        if config.visibility == "if-content" and not combined_content.strip():
+            return ""
+        
+        # Build HTML for this element
+        tag = 'div' if config.display_mode == 'block' else 'span'
+        html = f'<{tag} class="{config.css_class}">'
+        
+        if config.prefix:
+            html += f'<span class="prefix">{config.prefix}</span>'
+        
+        html += combined_content
+        
+        if config.suffix:
+            html += f'<span class="suffix">{config.suffix}</span>'
+        
+        html += f'</{tag}>'
+        
+        return html
+    
+    def _extract_text_from_forms(self, element: ET.Element) -> str:
+        """Extract text from LIFT form/text structure or element attributes.
+        
+        Args:
+            element: Element to extract text from
+            
+        Returns:
+            Extracted text content
+        """
+        # First, try to extract from form/text structure (most common)
+        text_parts = []
+        for form in element.findall('./form'):
+            for text_elem in form.findall('./text'):
+                if text_elem.text:
+                    text_parts.append(text_elem.text.strip())
+        
+        if text_parts:
+            return ' '.join(text_parts)
+        
+        # Handle trait elements specially - show name: value
+        if element.tag == 'trait':
+            name = element.attrib.get('name', '')
+            value = element.attrib.get('value', '')
+            if name and value:
+                return f"{name}: {value}"
+            elif value:
+                return value
+        
+        # Handle field elements - show type in brackets if no content
+        if element.tag == 'field' and 'type' in element.attrib:
+            # Field content was already checked in form/text above
+            # Only show type if no content found
+            return f"[{element.attrib['type']}]"
+        
+        # For elements without form/text, check if content is in attributes
+        # Only check 'value' attribute (for grammatical-info, etc.)
+        # Do NOT extract from 'type', 'name', etc. as those are metadata, not content
+        if 'value' in element.attrib:
+            return element.attrib['value']
+        
+        # Fallback: direct text content
+        if element.text and element.text.strip():
+            return element.text.strip()
+        
+        return ""
 
 class LIFTToHTMLTransformer:
     """Transforms LIFT XML to HTML using display profile configurations."""
@@ -94,14 +238,23 @@ class LIFTToHTMLTransformer:
             'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
         }
 
-    def transform(self, lift_xml: str, element_configs: List[ElementConfig]) -> str:
-        """Transform LIFT XML to HTML using the provided element configurations."""
+    def transform(self, lift_xml: str, element_configs: List[ElementConfig], entry_level_pos: Optional[str] = None) -> str:
+        """Transform LIFT XML to HTML using the provided element configurations.
+        
+        Args:
+            lift_xml: LIFT XML string to transform
+            element_configs: List of element configurations
+            entry_level_pos: Optional entry-level part of speech to display before first sense
+            
+        Returns:
+            HTML string
+        """
         try:
             # Parse the XML
             root = self._parse_lift_xml(lift_xml)
 
             # Create HTML builder with the profile configurations
-            html_builder = HTMLBuilder(element_configs)
+            html_builder = HTMLBuilder(element_configs, entry_level_pos=entry_level_pos)
 
             # Build and return the HTML
             return html_builder.build_html(root)

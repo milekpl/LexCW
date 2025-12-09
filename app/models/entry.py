@@ -728,6 +728,115 @@ class Entry(BaseModel):
         
         return component_relations
 
+    def get_subentries(self, dict_service) -> List[Dict[str, Any]]:
+        """
+        Get entries that have THIS entry as a component (reverse component relations).
+        These are subentries or complex forms that reference this entry.
+        
+        Args:
+            dict_service: DictionaryService instance for querying subentries
+        
+        Returns:
+            List of dictionaries containing subentry information.
+            Each dictionary contains:
+            - id: ID of the subentry
+            - lexical_unit: Lexical unit text
+            - display_text: Display text with homograph number
+            - complex_form_type: The complex form type
+            - is_primary: Whether this entry is a primary component
+            - order: The component order
+        """
+        if not dict_service:
+            return []
+        
+        subentries = []
+        
+        try:
+            # Query BaseX for entries that have a _component-lexeme relation pointing to this entry
+            query = f"""
+                for $entry in collection('dictionary')//entry
+                where $entry/relation[@type='_component-lexeme' and @ref='{self.id}']
+                return $entry
+            """
+            
+            result_xml = dict_service.db_connector.execute_query(query)
+            
+            if result_xml:
+                # Parse the results
+                import xml.etree.ElementTree as ET
+                import re
+                
+                # Extract all entry elements from the result
+                entry_matches = re.findall(r'<entry[^>]*>.*?</entry>', result_xml, re.DOTALL)
+                
+                for entry_xml in entry_matches:
+                    try:
+                        # Parse the entry to extract information
+                        entry_elem = ET.fromstring(entry_xml)
+                        subentry_id = entry_elem.get('id')
+                        
+                        if not subentry_id:
+                            continue
+                        
+                        # Get the full entry object for richer information
+                        subentry = dict_service.get_entry(subentry_id)
+                        
+                        if not subentry:
+                            continue
+                        
+                        # Find the specific relation to this entry
+                        relation_info = None
+                        for rel in subentry.relations:
+                            if (hasattr(rel, 'type') and rel.type == '_component-lexeme' and
+                                hasattr(rel, 'ref') and rel.ref == self.id):
+                                relation_info = {
+                                    'complex_form_type': rel.traits.get('complex-form-type', 'Unknown') if rel.traits else 'Unknown',
+                                    'is_primary': rel.traits.get('is-primary') == 'true' if rel.traits else False,
+                                    'order': int(rel.order) if hasattr(rel, 'order') and rel.order is not None else 0
+                                }
+                                break
+                        
+                        if not relation_info:
+                            relation_info = {'complex_form_type': 'Unknown', 'is_primary': False, 'order': 0}
+                        
+                        # Extract lexical unit
+                        lexical_unit = ''
+                        if hasattr(subentry, 'lexical_unit'):
+                            if isinstance(subentry.lexical_unit, dict):
+                                for lang in ['en', 'pl', 'cs', 'sk']:
+                                    if lang in subentry.lexical_unit:
+                                        lexical_unit = subentry.lexical_unit[lang]
+                                        break
+                                if not lexical_unit:
+                                    first_key = list(subentry.lexical_unit.keys())[0]
+                                    lexical_unit = subentry.lexical_unit[first_key]
+                            else:
+                                lexical_unit = str(subentry.lexical_unit)
+                        
+                        # Create display text with homograph number
+                        display_text = lexical_unit
+                        if hasattr(subentry, 'homograph_number') and subentry.homograph_number:
+                            display_text += f'<sub style="font-size: 0.8em; color: #6c757d;">{subentry.homograph_number}</sub>'
+                        
+                        subentries.append({
+                            'id': subentry_id,
+                            'lexical_unit': lexical_unit,
+                            'display_text': display_text,
+                            **relation_info
+                        })
+                        
+                    except Exception as e:
+                        print(f"[Entry] Warning: Error processing subentry: {e}")
+                        continue
+        
+        except Exception as e:
+            print(f"[Entry] Warning: Could not query subentries: {e}")
+        
+        # Sort by order
+        subentries.sort(key=lambda x: x.get('order', 0))
+        
+        return subentries
+
     def component_relations(self) -> List[Dict[str, Any]]:
         """
         Get component relations for template access.

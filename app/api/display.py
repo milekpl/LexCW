@@ -3,7 +3,6 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request, current_app
 from functools import wraps
 
-from app import injector
 from app.services.css_mapping_service import CSSMappingService
 from app.services.dictionary_service import DictionaryService
 
@@ -94,7 +93,7 @@ def create_profile():
       400:
         description: Invalid request data
     """
-    service = injector.get(CSSMappingService)
+    service = current_app.injector.get(CSSMappingService)
     profile = service.create_profile(request.json)
     return jsonify(profile.dict()), 201
 
@@ -136,7 +135,7 @@ def get_profile(profile_id: str):
       404:
         description: Profile not found
     """
-    service = injector.get(CSSMappingService)
+    service = current_app.injector.get(CSSMappingService)
     profile = service.get_profile(profile_id)
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
@@ -172,7 +171,7 @@ def list_profiles():
                     type: array
                     description: Element configurations
     """
-    service = injector.get(CSSMappingService)
+    service = current_app.injector.get(CSSMappingService)
     profiles = service.list_profiles()
     return jsonify([p.dict() for p in profiles])
 
@@ -246,7 +245,7 @@ def update_profile(profile_id: str):
       404:
         description: Profile not found
     """
-    service = injector.get(CSSMappingService)
+    service = current_app.injector.get(CSSMappingService)
     update_data = request.json
 
     # Validate required fields
@@ -294,7 +293,7 @@ def delete_profile(profile_id: str):
       404:
         description: Profile not found
     """
-    service = injector.get(CSSMappingService)
+    service = current_app.injector.get(CSSMappingService)
     success = service.delete_profile(profile_id)
 
     if not success:
@@ -361,7 +360,7 @@ def preview_entry(entry_id: str):
     if not profile_id:
         return jsonify({"error": "profile_id query parameter is required"}), 400
 
-    service = injector.get(CSSMappingService)
+    service = current_app.injector.get(CSSMappingService)
 
     # Get the profile
     profile = service.get_profile(profile_id)
@@ -369,7 +368,7 @@ def preview_entry(entry_id: str):
         return jsonify({"error": "Profile not found"}), 404
 
     # Get the entry XML from the dictionary service
-    dict_service = injector.get(DictionaryService)
+    dict_service = current_app.injector.get(DictionaryService)
     try:
         # Get the entry object first
         entry = dict_service.get_entry(entry_id)

@@ -138,6 +138,14 @@ def create_app(config_name=None):
     from app.api.display import display_bp
     app.register_blueprint(display_bp)
     
+    # Register LIFT element registry API
+    from app.api.lift_registry import registry_bp
+    app.register_blueprint(registry_bp)
+    
+    # Register display profile management API
+    from app.api.display_profiles import profiles_bp
+    app.register_blueprint(profiles_bp)
+    
     # Register settings blueprint
     from app.routes.settings_routes import settings_bp
     app.register_blueprint(settings_bp)
@@ -263,6 +271,14 @@ def create_app(config_name=None):
         from app.services.cache_service import CacheService
         cache_service = CacheService()
         binder.bind(CacheService, to=cache_service, scope=singleton)
+        
+        # Initialize and bind CSSMappingService
+        from app.services.css_mapping_service import CSSMappingService
+        from pathlib import Path
+        # Use instance path for display profiles storage
+        storage_path = Path(app.instance_path) / "display_profiles.json"
+        css_mapping_service = CSSMappingService(storage_path=storage_path)
+        binder.bind(CSSMappingService, to=css_mapping_service, scope=singleton)
 
     # Create and attach injector
     injector = Injector()

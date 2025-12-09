@@ -499,3 +499,65 @@ footer {
     margin-bottom: 0.5rem;
   }
 }
+
+/* Help Page Styles */
+.help-sidebar {
+  background-color: #f8f9fa;
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  box-shadow: var(--box-shadow);
+}
+
+.help-sidebar .nav-link {
+  color: var(--text-color);
+  padding: 0.5rem 0.75rem;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.help-sidebar .nav-link:hover {
+  color: var(--secondary-color);
+  background-color: rgba(52, 152, 219, 0.1);
+  border-left-color: var(--secondary-color);
+}
+
+.help-sidebar .nav-link.active {
+  color: var(--secondary-color);
+  font-weight: 600;
+  background-color: rgba(52, 152, 219, 0.15);
+  border-left-color: var(--secondary-color);
+}
+
+.help-content {
+  background-color: white;
+  border-radius: var(--border-radius);
+  padding: 2rem;
+  box-shadow: var(--box-shadow);
+}
+
+.help-content code {
+  background-color: #f8f9fa;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #e83e8c;
+}
+
+.help-content pre code {
+  display: block;
+  padding: 1rem;
+  overflow-x: auto;
+  color: var(--text-color);
+  background-color: #f8f9fa;
+}
+
+@media (max-width: 768px) {
+  .help-sidebar {
+    margin-bottom: 2rem;
+  }
+  
+  .help-content {
+    padding: 1rem;
+  }
+}
