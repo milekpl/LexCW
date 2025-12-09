@@ -931,6 +931,14 @@ def display_profiles():
     return render_template("display_profiles.html")
 
 
+@main_bp.route("/ranges-editor")
+def ranges_editor():
+    """
+    Render the LIFT ranges editor page.
+    """
+    return render_template("ranges_editor.html")
+
+
 @main_bp.route("/activity-log")
 def activity_log():
     """

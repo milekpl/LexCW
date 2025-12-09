@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}LIFT Ranges Editor{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-12">
+      <h2>LIFT Ranges Editor</h2>
+      <p class="text-muted">Manage controlled vocabularies for your dictionary</p>
+      
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Ranges</span>
+          <button class="btn btn-primary btn-sm" id="btnNewRange">
+            <i class="bi bi-plus"></i> New Range
+          </button>
+        </div>
+        <div class="card-body">
+          <input type="text" id="searchRanges" class="form-control mb-3" placeholder="Search ranges...">
+          
+          <table class="table table-hover" id="rangesTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Label</th>
+                <th>Elements</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Range Modal -->
+<div class="modal fade" id="createRangeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create New Range</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="createRangeForm">
+          <div class="mb-3">
+            <label for="rangeId" class="form-label">Range ID</label>
+            <input type="text" class="form-control" id="rangeId" required>
+            <div class="invalid-feedback">ID already exists</div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Labels</label>
+            <div id="labelsContainer">
+              <div class="input-group mb-2" data-lang-group="labels">
+                <select class="form-select lang-select" style="max-width: 100px">
+                  <option value="en">en</option>
+                  <option value="pl">pl</option>
+                  <option value="pt">pt</option>
+                </select>
+                <input type="text" class="form-control lang-text" placeholder="Label text" required>
+                <button type="button" class="btn btn-outline-danger btn-remove-lang">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddLabel">
+              + Add Language
+            </button>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Descriptions (optional)</label>
+            <div id="descriptionsContainer">
+              <div class="input-group mb-2" data-lang-group="descriptions">
+                <select class="form-select lang-select" style="max-width: 100px">
+                  <option value="en">en</option>
+                  <option value="pl">pl</option>
+                  <option value="pt">pt</option>
+                </select>
+                <input type="text" class="form-control lang-text" placeholder="Description text">
+                <button type="button" class="btn btn-outline-danger btn-remove-lang">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddDescription">
+              + Add Language
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnCreateRange">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Range Modal -->
+<div class="modal fade" id="editRangeModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Range: <span id="editRangeId"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-tabs" id="editRangeTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button">
+              Details
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="elements-tab" data-bs-toggle="tab" data-bs-target="#elements" type="button">
+              Elements
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="usage-tab" data-bs-toggle="tab" data-bs-target="#usage" type="button">
+              Usage
+            </button>
+          </li>
+        </ul>
+        
+        <div class="tab-content mt-3" id="editRangeTabContent">
+          <!-- Details Tab -->
+          <div class="tab-pane fade show active" id="details" role="tabpanel">
+            <form id="editRangeForm">
+              <input type="hidden" id="editRangeGuid">
+              <div class="mb-3">
+                <label class="form-label">Labels</label>
+                <div id="editLabelsContainer"></div>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddEditLabel">
+                  + Add Language
+                </button>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Descriptions</label>
+                <div id="editDescriptionsContainer"></div>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddEditDescription">
+                  + Add Language
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <!-- Elements Tab -->
+          <div class="tab-pane fade" id="elements" role="tabpanel">
+            <button class="btn btn-sm btn-primary mb-3" id="btnNewElement">
+              <i class="bi bi-plus"></i> New Element
+            </button>
+            <div id="elementsContainer"></div>
+          </div>
+          
+          <!-- Usage Tab -->
+          <div class="tab-pane fade" id="usage" role="tabpanel">
+            <div id="usageContainer">
+              <p class="text-muted">Loading usage information...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="btnSaveRange">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteRangeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Delete Range</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete range <strong id="deleteRangeName"></strong>?</p>
+        <div id="deleteUsageWarning" class="alert alert-warning" style="display: none;">
+          This range is used in <span id="deleteUsageCount"></span> entries. 
+          <p class="mt-2">Choose migration strategy:</p>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="migrationStrategy" id="migrateRemove" value="remove" checked>
+            <label class="form-check-label" for="migrateRemove">
+              Remove all usages
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="migrationStrategy" id="migrateReplace" value="replace">
+            <label class="form-check-label" for="migrateReplace">
+              Replace with another range
+            </label>
+          </div>
+          <div id="replaceRangeSelect" style="display: none;" class="mt-2">
+            <select class="form-select" id="replacementRange">
+              <option value="">Select replacement...</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmDelete">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Element Modal (Add/Edit) -->
+<div class="modal fade" id="elementModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="elementModalTitle">New Element</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="elementForm">
+          <div class="mb-3">
+            <label for="elementId" class="form-label">Element ID *</label>
+            <input type="text" class="form-control" id="elementId" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="elementAbbrev" class="form-label">Abbreviation</label>
+            <input type="text" class="form-control" id="elementAbbrev">
+          </div>
+          
+          <div class="mb-3">
+            <label for="elementValue" class="form-label">Value</label>
+            <input type="text" class="form-control" id="elementValue">
+          </div>
+          
+          <div class="mb-3">
+            <label for="elementParent" class="form-label">Parent</label>
+            <input type="text" class="form-control" id="elementParent">
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Descriptions</label>
+            <div id="elementDescriptionsContainer"></div>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddElementDescription">
+              + Add Language
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnSaveElement">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/ranges-editor.js') }}"></script>
+{% endblock %}
