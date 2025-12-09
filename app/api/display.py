@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, current_app
 from functools import wraps
+from typing import Any, Dict
 
-from app.services.css_mapping_service import CSSMappingService
+from app.services.display_profile_service import DisplayProfileService
 from app.services.dictionary_service import DictionaryService
 
 def require_authentication(f):
@@ -93,9 +94,18 @@ def create_profile():
       400:
         description: Invalid request data
     """
-    service = current_app.injector.get(CSSMappingService)
-    profile = service.create_profile(request.json)
-    return jsonify(profile.dict()), 201
+    service = DisplayProfileService()
+    data = request.json
+    profile = service.create_profile(
+        name=data.get('name') or data.get('profile_name', 'Unnamed Profile'),
+        description=data.get('description'),
+        elements=data.get('elements', []),
+        custom_css=data.get('custom_css'),
+        show_subentries=data.get('show_subentries', False),
+        number_senses=data.get('number_senses', True),
+        number_senses_if_multiple=data.get('number_senses_if_multiple', False)
+    )
+    return jsonify(profile.to_dict()), 201
 
 @display_bp.route("/<string:profile_id>", methods=["GET"])
 def get_profile(profile_id: str):
@@ -135,11 +145,16 @@ def get_profile(profile_id: str):
       404:
         description: Profile not found
     """
-    service = current_app.injector.get(CSSMappingService)
-    profile = service.get_profile(profile_id)
+    service = DisplayProfileService()
+    try:
+        profile_id_int = int(profile_id)
+    except ValueError:
+        return jsonify({"error": "Invalid profile ID"}), 400
+    
+    profile = service.get_profile(profile_id_int)
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
-    return jsonify(profile.dict())
+    return jsonify(profile.to_dict())
 
 @display_bp.route("", methods=["GET"])
 def list_profiles():
@@ -171,9 +186,9 @@ def list_profiles():
                     type: array
                     description: Element configurations
     """
-    service = current_app.injector.get(CSSMappingService)
+    service = DisplayProfileService()
     profiles = service.list_profiles()
-    return jsonify([p.dict() for p in profiles])
+    return jsonify([p.to_dict() for p in profiles]), 200
 
 @display_bp.route("/<string:profile_id>", methods=["PUT"])
 @require_authentication
@@ -245,18 +260,35 @@ def update_profile(profile_id: str):
       404:
         description: Profile not found
     """
-    service = current_app.injector.get(CSSMappingService)
+    service = DisplayProfileService()
+    try:
+        profile_id_int = int(profile_id)
+    except ValueError:
+        return jsonify({"error": "Invalid profile ID"}), 400
+    
     update_data = request.json
 
     # Validate required fields
-    if not update_data or "profile_name" not in update_data:
-        return jsonify({"error": "profile_name is required"}), 400
+    if not update_data:
+        return jsonify({"error": "Request data is required"}), 400
 
-    profile = service.update_profile(profile_id, update_data)
-    if not profile:
-        return jsonify({"error": "Profile not found"}), 404
+    try:
+        profile = service.update_profile(
+            profile_id_int,
+            name=update_data.get('name') or update_data.get('profile_name'),
+            description=update_data.get('description'),
+            elements=update_data.get('elements'),
+            custom_css=update_data.get('custom_css'),
+            show_subentries=update_data.get('show_subentries'),
+            number_senses=update_data.get('number_senses'),
+            number_senses_if_multiple=update_data.get('number_senses_if_multiple')
+        )
+    except ValueError as e:
+        if "not found" in str(e):
+            return jsonify({"error": "Profile not found"}), 404
+        return jsonify({"error": str(e)}), 400
 
-    return jsonify(profile.dict())
+    return jsonify(profile.to_dict())
 
 @display_bp.route("/<string:profile_id>", methods=["DELETE"])
 @require_authentication
@@ -293,13 +325,19 @@ def delete_profile(profile_id: str):
       404:
         description: Profile not found
     """
-    service = current_app.injector.get(CSSMappingService)
-    success = service.delete_profile(profile_id)
-
-    if not success:
-        return jsonify({"error": "Profile not found"}), 404
-
-    return jsonify({"success": True, "message": "Profile deleted successfully"})
+    service = DisplayProfileService()
+    try:
+        profile_id_int = int(profile_id)
+    except ValueError:
+        return jsonify({"error": "Invalid profile ID"}), 400
+    
+    try:
+        service.delete_profile(profile_id_int)
+        return jsonify({"success": True, "message": "Profile deleted successfully"}), 200
+    except ValueError as e:
+        if "not found" in str(e):
+            return jsonify({"error": "Profile not found"}), 404
+        return jsonify({"error": str(e)}), 400
 
 @display_bp.route("/entries/<string:entry_id>/preview")
 @require_authentication

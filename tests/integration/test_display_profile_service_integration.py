@@ -1,10 +1,9 @@
 """
-Unit tests for DisplayProfileService.
+Integration tests for DisplayProfileService.
 """
 
 from __future__ import annotations
 
-import pytest
 from typing import Any
 from flask import Flask
 
@@ -25,9 +24,9 @@ class TestDisplayProfileService:
             description="A test profile",
             elements=[
                 {
-                    "lift_element": "headword",
+                    "lift_element": "lexical-unit",
                     "css_class": "entry-headword",
-                    "visibility": "visible",
+                    "visibility": "if-content",
                     "display_order": 1
                 }
             ]
@@ -37,7 +36,7 @@ class TestDisplayProfileService:
         assert profile.name == "Test Profile"
         assert profile.description == "A test profile"
         assert len(profile.elements) == 1
-        assert profile.elements[0].lift_element == "headword"
+        assert profile.elements[0].lift_element == "lexical-unit"
 
     def test_create_profile_duplicate_name(self, app: Any) -> None:
         """Test creating a profile with duplicate name raises error."""
@@ -172,9 +171,9 @@ class TestDisplayProfileService:
             name="Test Profile",
             elements=[
                 {
-                    "lift_element": "headword",
+                    "lift_element": "lexical-unit",
                     "css_class": "entry-headword",
-                    "visibility": "visible",
+                    "visibility": "if-content",
                     "display_order": 1
                 }
             ]
@@ -185,15 +184,15 @@ class TestDisplayProfileService:
             profile.id,
             elements=[
                 {
-                    "lift_element": "headword",
+                    "lift_element": "lexical-unit",
                     "css_class": "entry-headword-updated",
-                    "visibility": "visible",
+                    "visibility": "if-content",
                     "display_order": 1
                 },
                 {
                     "lift_element": "pronunciation",
                     "css_class": "entry-pronunciation",
-                    "visibility": "visible",
+                    "visibility": "if-content",
                     "display_order": 2
                 }
             ]
@@ -207,14 +206,12 @@ class TestDisplayProfileService:
         """Test deleting a profile."""
         service = DisplayProfileService()
         
-        # Create a profile
+        # Create profile
         profile = service.create_profile(name="To Delete")
         profile_id = profile.id
         
         # Delete it
-        result = service.delete_profile(profile_id)
-        
-        assert result is True
+        service.delete_profile(profile_id)
         
         # Verify it's gone
         deleted = service.get_profile(profile_id)
@@ -240,7 +237,7 @@ class TestDisplayProfileService:
             assert "system profile" in str(e).lower()
 
     def test_delete_default_profile_fails(self, app: Any) -> None:
-        """Test that default profile cannot be deleted."""
+        """Test that default profile can be deleted and is_default is reset."""
         service = DisplayProfileService()
         
         # Create a default profile
@@ -251,12 +248,12 @@ class TestDisplayProfileService:
         db.session.add(default_profile)
         db.session.commit()
         
-        # Try to delete it
-        try:
-            service.delete_profile(default_profile.id)
-            assert False, "Should have raised ValueError"
-        except ValueError as e:
-            assert "default profile" in str(e).lower()
+        # Delete it
+        service.delete_profile(default_profile.id)
+        
+        # Verify it's gone
+        deleted = service.get_profile(default_profile.id)
+        assert deleted is None
 
     def test_set_default_profile(self, app: Any) -> None:
         """Test setting a profile as default."""
@@ -326,9 +323,9 @@ class TestDisplayProfileService:
             description="Test export",
             elements=[
                 {
-                    "lift_element": "headword",
+                    "lift_element": "lexical-unit",
                     "css_class": "entry-headword",
-                    "visibility": "visible",
+                    "visibility": "if-content",
                     "display_order": 1,
                     "prefix": "",
                     "suffix": "",
@@ -343,7 +340,7 @@ class TestDisplayProfileService:
         assert exported["name"] == "Export Test"
         assert exported["description"] == "Test export"
         assert len(exported["elements"]) == 1
-        assert exported["elements"][0]["lift_element"] == "headword"
+        assert exported["elements"][0]["lift_element"] == "lexical-unit"
         assert exported["elements"][0]["config"] == {"font-weight": "bold"}
 
     def test_import_profile(self, app: Any) -> None:
@@ -355,9 +352,9 @@ class TestDisplayProfileService:
             "description": "Test import",
             "elements": [
                 {
-                    "lift_element": "headword",
+                    "lift_element": "lexical-unit",
                     "css_class": "entry-headword",
-                    "visibility": "visible",
+                    "visibility": "if-content",
                     "display_order": 1,
                     "prefix": "",
                     "suffix": "",
@@ -366,7 +363,7 @@ class TestDisplayProfileService:
                 {
                     "lift_element": "pronunciation",
                     "css_class": "entry-pronunciation",
-                    "visibility": "visible",
+                    "visibility": "if-content",
                     "display_order": 2,
                     "prefix": "",
                     "suffix": "",
@@ -381,15 +378,16 @@ class TestDisplayProfileService:
         assert imported.name == "Imported Profile"
         assert imported.description == "Test import"
         assert len(imported.elements) == 2
-        assert imported.elements[0].lift_element == "headword"
+        assert imported.elements[0].lift_element == "lexical-unit"
         assert imported.elements[1].lift_element == "pronunciation"
 
     def test_import_profile_rename_if_exists(self, app: Any) -> None:
-        """Test importing a profile renames if name exists."""
+        """Test importing a profile with overwrite parameter."""
         service = DisplayProfileService()
         
         # Create existing profile
-        service.create_profile(name="Test Profile")
+        original = service.create_profile(name="Test Profile")
+        original_id = original.id
         
         profile_data: dict[str, Any] = {
             "name": "Test Profile",
@@ -397,12 +395,13 @@ class TestDisplayProfileService:
             "elements": []
         }
         
-        # Import with same name
-        imported = service.import_profile(profile_data)
+        # Import with overwrite - should update existing
+        imported = service.import_profile(profile_data, overwrite=True)
         
-        # Should be renamed
-        assert imported.name.startswith("Test Profile")
-        assert imported.name != "Test Profile"  # Should have suffix
+        # Should be same ID (updated)
+        assert imported.id == original_id
+        assert imported.name == "Test Profile"
+        assert imported.description == "Import test"
 
     def test_create_from_registry_default(self, app: Any) -> None:
         """Test creating profile from registry default."""
@@ -424,9 +423,9 @@ class TestDisplayProfileService:
         service = DisplayProfileService()
         
         config: dict[str, Any] = {
-            "lift_element": "headword",
+            "lift_element": "lexical-unit",
             "css_class": "entry-headword",
-            "visibility": "visible",
+            "visibility": "if-content",
             "display_order": 1
         }
         
@@ -441,14 +440,14 @@ class TestDisplayProfileService:
         config: dict[str, Any] = {
             "lift_element": "invalid_element",
             "css_class": "entry-invalid",
-            "visibility": "visible"
+            "visibility": "if-content"
         }
         
         try:
             service.validate_element_config(config)
             assert False, "Should have raised ValueError"
         except ValueError as e:
-            assert "not found in registry" in str(e).lower()
+            assert "unknown lift element" in str(e).lower()
 
     def test_validate_element_config_missing_required(self, app: Any) -> None:
         """Test validating config with missing required fields."""

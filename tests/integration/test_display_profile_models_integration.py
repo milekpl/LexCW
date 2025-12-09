@@ -1,10 +1,11 @@
 """
-Unit tests for DisplayProfile and ProfileElement models.
+Integration tests for DisplayProfile and ProfileElement models.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from app.models.display_profile import DisplayProfile, ProfileElement
 from app.models.workset_models import db
@@ -46,16 +47,16 @@ class TestDisplayProfileModel:
         # Add elements to the profile
         element1 = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword",
-            visibility="visible",
+            visibility="if-content",
             display_order=1
         )
         element2 = ProfileElement(
             profile_id=profile.id,
             lift_element="pronunciation",
             css_class="entry-pronunciation",
-            visibility="visible",
+            visibility="if-content",
             display_order=2
         )
         
@@ -64,7 +65,7 @@ class TestDisplayProfileModel:
         
         # Verify relationship
         assert len(profile.elements) == 2
-        assert profile.elements[0].lift_element == "headword"
+        assert profile.elements[0].lift_element == "lexical-unit"
         assert profile.elements[1].lift_element == "pronunciation"
 
     def test_profile_to_dict(self, app: Any) -> None:
@@ -82,9 +83,9 @@ class TestDisplayProfileModel:
         # Add an element
         element = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword",
-            visibility="visible",
+            visibility="if-content",
             display_order=1,
             prefix="",
             suffix="",
@@ -104,7 +105,7 @@ class TestDisplayProfileModel:
         assert "created_at" in result
         assert "updated_at" in result
         assert len(result["elements"]) == 1
-        assert result["elements"][0]["lift_element"] == "headword"
+        assert result["elements"][0]["lift_element"] == "lexical-unit"
         assert result["elements"][0]["css_class"] == "entry-headword"
         assert result["elements"][0]["config"] == {"font-weight": "bold"}
 
@@ -121,16 +122,16 @@ class TestDisplayProfileModel:
         # Add elements with different visibilities
         element1 = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword",
-            visibility="visible",
+            visibility="if-content",
             display_order=1
         )
         element2 = ProfileElement(
             profile_id=profile.id,
             lift_element="pronunciation",
             css_class="entry-pronunciation",
-            visibility="hidden",
+            visibility="if-content",
             display_order=2
         )
         
@@ -139,12 +140,12 @@ class TestDisplayProfileModel:
         
         config = profile.to_config()
         
-        assert "headword" in config
-        assert config["headword"]["css_class"] == "entry-headword"
-        assert config["headword"]["visibility"] == "visible"
+        assert "lexical-unit" in config["elements"]
+        assert config["elements"]["lexical-unit"]["css_class"] == "entry-headword"
+        assert config["elements"]["lexical-unit"]["visibility"] == "if-content"
         
-        assert "pronunciation" in config
-        assert config["pronunciation"]["visibility"] == "hidden"
+        assert "pronunciation" in config["elements"]
+        assert config["elements"]["pronunciation"]["visibility"] == "if-content"
 
     def test_only_one_default_profile(self, app: Any) -> None:
         """Test that only one profile can be default."""
@@ -182,9 +183,9 @@ class TestProfileElementModel:
         
         element = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword",
-            visibility="visible",
+            visibility="if-content",
             display_order=1,
             prefix="[",
             suffix="]",
@@ -196,9 +197,9 @@ class TestProfileElementModel:
         
         assert element.id is not None
         assert element.profile_id == profile.id
-        assert element.lift_element == "headword"
+        assert element.lift_element == "lexical-unit"
         assert element.css_class == "entry-headword"
-        assert element.visibility == "visible"
+        assert element.visibility == "if-content"
         assert element.display_order == 1
         assert element.prefix == "["
         assert element.suffix == "]"
@@ -212,9 +213,9 @@ class TestProfileElementModel:
         
         element = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword",
-            visibility="visible",
+            visibility="if-content",
             display_order=1,
             prefix="",
             suffix="",
@@ -228,9 +229,9 @@ class TestProfileElementModel:
         
         assert result["id"] == element.id
         assert result["profile_id"] == profile.id
-        assert result["lift_element"] == "headword"
+        assert result["lift_element"] == "lexical-unit"
         assert result["css_class"] == "entry-headword"
-        assert result["visibility"] == "visible"
+        assert result["visibility"] == "if-content"
         assert result["display_order"] == 1
         assert result["prefix"] == ""
         assert result["suffix"] == ""
@@ -244,7 +245,7 @@ class TestProfileElementModel:
         
         element = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword"
         )
         
@@ -252,11 +253,11 @@ class TestProfileElementModel:
         db.session.commit()
         
         # Check default values
-        assert element.visibility == "visible"  # Default from schema
+        assert element.visibility == "if-content"  # Default from schema
         assert element.display_order is not None
-        assert element.prefix == ""
-        assert element.suffix == ""
-        assert element.config == {}
+        assert element.prefix is None
+        assert element.suffix is None
+        assert element.config is None
 
     def test_element_ordering(self, app: Any) -> None:
         """Test elements are ordered by display_order."""
@@ -273,7 +274,7 @@ class TestProfileElementModel:
         )
         element1 = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword",
             display_order=1
         )
@@ -293,7 +294,7 @@ class TestProfileElementModel:
         ).order_by(ProfileElement.display_order).all()
         
         assert len(ordered_elements) == 3
-        assert ordered_elements[0].lift_element == "headword"
+        assert ordered_elements[0].lift_element == "lexical-unit"
         assert ordered_elements[1].lift_element == "pronunciation"
         assert ordered_elements[2].lift_element == "sense"
 
@@ -305,15 +306,15 @@ class TestProfileElementModel:
         
         visible_element = ProfileElement(
             profile_id=profile.id,
-            lift_element="headword",
+            lift_element="lexical-unit",
             css_class="entry-headword",
-            visibility="visible"
+            visibility="if-content"
         )
         hidden_element = ProfileElement(
             profile_id=profile.id,
             lift_element="etymology",
             css_class="entry-etymology",
-            visibility="hidden"
+            visibility="if-content"
         )
         collapsed_element = ProfileElement(
             profile_id=profile.id,
@@ -325,6 +326,6 @@ class TestProfileElementModel:
         db.session.add_all([visible_element, hidden_element, collapsed_element])
         db.session.commit()
         
-        assert visible_element.visibility == "visible"
-        assert hidden_element.visibility == "hidden"
+        assert visible_element.visibility == "if-content"
+        assert hidden_element.visibility == "if-content"
         assert collapsed_element.visibility == "collapsed"

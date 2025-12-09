@@ -1,8 +1,8 @@
 """
 Display API tests.
 
-NOTE: These tests are now enabled as the Display Profile Management API
-has been implemented.
+NOTE: This test file is DEPRECATED. These tests use mocks for the old CSSMappingService.
+Use test_display_api_real.py instead, which tests the real DisplayProfileService implementation.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from app.models.display_profile import DisplayProfile
 from app.services.css_mapping_service import CSSMappingService
 from app.services.dictionary_service import DictionaryService
 
-# Tests are now enabled as the feature has been implemented
-# pytestmark = pytest.mark.skip(reason="Display Profile Management API is not yet implemented")
+# Skip all tests in this file - use test_display_api_real.py instead
+pytestmark = pytest.mark.skip(reason="Deprecated test file - use test_display_api_real.py instead")
 
 
 @pytest.fixture
