@@ -219,6 +219,7 @@
             document.getElementById('profileCustomCSS').value = profile.custom_css || '';
             document.getElementById('showSubentries').checked = profile.show_subentries || false;
             document.getElementById('numberSenses').checked = profile.number_senses !== false;  // Default true
+            document.getElementById('numberSensesIfMultiple').checked = profile.number_senses_if_multiple || false;
             document.getElementById('isDefault').checked = profile.is_default;
             
             // Load elements
@@ -583,6 +584,7 @@
             custom_css: document.getElementById('profileCustomCSS').value,
             show_subentries: document.getElementById('showSubentries').checked,
             number_senses: document.getElementById('numberSenses').checked,
+            number_senses_if_multiple: document.getElementById('numberSensesIfMultiple').checked,
             elements: elements
         };
     }

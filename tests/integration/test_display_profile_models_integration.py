@@ -14,7 +14,7 @@ from app.models.workset_models import db
 class TestDisplayProfileModel:
     """Test cases for the DisplayProfile model."""
 
-    def test_create_profile(self, app: Any) -> None:
+    def test_create_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test creating a display profile."""
         profile = DisplayProfile(
             name="Test Profile",
@@ -34,7 +34,7 @@ class TestDisplayProfileModel:
         assert isinstance(profile.created_at, datetime)
         assert isinstance(profile.updated_at, datetime)
 
-    def test_profile_elements_relationship(self, app: Any) -> None:
+    def test_profile_elements_relationship(self, app: Any, cleanup_profile_db) -> None:
         """Test the relationship between profile and elements."""
         profile = DisplayProfile(
             name="Test Profile",
@@ -68,7 +68,7 @@ class TestDisplayProfileModel:
         assert profile.elements[0].lift_element == "lexical-unit"
         assert profile.elements[1].lift_element == "pronunciation"
 
-    def test_profile_to_dict(self, app: Any) -> None:
+    def test_profile_to_dict(self, app: Any, cleanup_profile_db) -> None:
         """Test converting profile to dictionary."""
         profile = DisplayProfile(
             name="Test Profile",
@@ -109,7 +109,7 @@ class TestDisplayProfileModel:
         assert result["elements"][0]["css_class"] == "entry-headword"
         assert result["elements"][0]["config"] == {"font-weight": "bold"}
 
-    def test_profile_to_config(self, app: Any) -> None:
+    def test_profile_to_config(self, app: Any, cleanup_profile_db) -> None:
         """Test converting profile to CSS config format."""
         profile = DisplayProfile(
             name="Test Profile",
@@ -147,7 +147,7 @@ class TestDisplayProfileModel:
         assert "pronunciation" in config["elements"]
         assert config["elements"]["pronunciation"]["visibility"] == "if-content"
 
-    def test_only_one_default_profile(self, app: Any) -> None:
+    def test_only_one_default_profile(self, app: Any, cleanup_profile_db) -> None:
         """Test that only one profile can be default."""
         profile1 = DisplayProfile(
             name="Profile 1",
@@ -175,7 +175,7 @@ class TestDisplayProfileModel:
 class TestProfileElementModel:
     """Test cases for the ProfileElement model."""
 
-    def test_create_element(self, app: Any) -> None:
+    def test_create_element(self, app: Any, cleanup_profile_db) -> None:
         """Test creating a profile element."""
         profile = DisplayProfile(name="Test Profile")
         db.session.add(profile)
@@ -205,7 +205,7 @@ class TestProfileElementModel:
         assert element.suffix == "]"
         assert element.config == {"font-weight": "bold", "color": "red"}
 
-    def test_element_to_dict(self, app: Any) -> None:
+    def test_element_to_dict(self, app: Any, cleanup_profile_db) -> None:
         """Test converting element to dictionary."""
         profile = DisplayProfile(name="Test Profile")
         db.session.add(profile)
@@ -237,7 +237,7 @@ class TestProfileElementModel:
         assert result["suffix"] == ""
         assert result["config"] == {"font-weight": "bold"}
 
-    def test_element_default_values(self, app: Any) -> None:
+    def test_element_default_values(self, app: Any, cleanup_profile_db) -> None:
         """Test element default values."""
         profile = DisplayProfile(name="Test Profile")
         db.session.add(profile)
@@ -259,7 +259,7 @@ class TestProfileElementModel:
         assert element.suffix is None
         assert element.config is None
 
-    def test_element_ordering(self, app: Any) -> None:
+    def test_element_ordering(self, app: Any, cleanup_profile_db) -> None:
         """Test elements are ordered by display_order."""
         profile = DisplayProfile(name="Test Profile")
         db.session.add(profile)
@@ -298,7 +298,7 @@ class TestProfileElementModel:
         assert ordered_elements[1].lift_element == "pronunciation"
         assert ordered_elements[2].lift_element == "sense"
 
-    def test_element_visibility_values(self, app: Any) -> None:
+    def test_element_visibility_values(self, app: Any, cleanup_profile_db) -> None:
         """Test different visibility values."""
         profile = DisplayProfile(name="Test Profile")
         db.session.add(profile)

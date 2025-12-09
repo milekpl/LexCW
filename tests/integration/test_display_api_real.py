@@ -111,7 +111,7 @@ class TestDisplayProfileAPIReal:
         profile_id = created["id"]
 
         # Update it
-        update_data = {"profile_name": "Updated Integration Profile"}
+        update_data = {"name": "Updated Integration Profile"}
         update_response = client.put(
             f"/api/display-profiles/{profile_id}",
             json=update_data
@@ -184,6 +184,51 @@ class TestDisplayProfileAPIReal:
         # The service creates profiles without names, so 201 is acceptable
         assert response.status_code in [201, 400]
 
+    def test_number_senses_if_multiple_field(self, client: FlaskClient, cleanup_profile_db) -> None:
+        """Test that number_senses_if_multiple field is saved and retrieved correctly."""
+        # Create profile with number_senses_if_multiple=True
+        profile_data = {
+            "name": "Conditional Numbering Profile",
+            "description": "Test profile for conditional sense numbering",
+            "number_senses": True,
+            "number_senses_if_multiple": True,
+            "elements": []
+        }
+        
+        create_response = client.post("/api/display-profiles", json=profile_data)
+        assert create_response.status_code == 201
+        created = create_response.get_json()
+        assert created is not None
+        assert created["number_senses"] is True
+        assert created["number_senses_if_multiple"] is True
+        
+        profile_id = created["id"]
+        
+        # Verify field persists on retrieval
+        get_response = client.get(f"/api/display-profiles/{profile_id}")
+        assert get_response.status_code == 200
+        retrieved = get_response.get_json()
+        assert retrieved is not None
+        assert retrieved["number_senses"] is True
+        assert retrieved["number_senses_if_multiple"] is True
+        
+        # Update to disable conditional numbering
+        update_response = client.put(
+            f"/api/display-profiles/{profile_id}",
+            json={"number_senses_if_multiple": False}
+        )
+        assert update_response.status_code == 200
+        updated = update_response.get_json()
+        assert updated is not None
+        assert updated["number_senses_if_multiple"] is False
+        
+        # Verify update persisted
+        get_response2 = client.get(f"/api/display-profiles/{profile_id}")
+        assert get_response2.status_code == 200
+        retrieved2 = get_response2.get_json()
+        assert retrieved2 is not None
+        assert retrieved2["number_senses_if_multiple"] is False
+
 
 @pytest.mark.integration
 class TestDisplayProfilePersistence:
@@ -223,7 +268,7 @@ class TestDisplayProfilePersistence:
         # Update it
         client.put(
             f"/api/display-profiles/{profile_id}",
-            json={"profile_name": "Persisted Update"}
+            json={"name": "Persisted Update"}
         )
 
         # Verify update persisted
