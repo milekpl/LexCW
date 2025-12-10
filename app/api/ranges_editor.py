@@ -426,9 +426,9 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
         # Transform frontend format to backend format
         element_data = {
             'id': data['id'],
-            'labels': {},  # LIFT uses description field, not labels
+            'labels': data.get('labels', {}),
             'descriptions': data.get('description', {}),
-            'abbrevs': {'und': data.get('abbrev', '')},
+            'abbrevs': data.get('abbrevs', {}),
             'parent': data.get('parent', ''),
             'traits': {}
         }
@@ -564,8 +564,18 @@ def update_range_element(range_id: str, element_id: str) -> Union[Response, Tupl
                 'error': 'No data provided'
             }), 400
         
+        # Transform frontend format to backend format
+        element_data = {
+            'id': element_id,
+            'labels': data.get('labels', {}),
+            'descriptions': data.get('description', {}),
+            'abbrevs': data.get('abbrevs', {}),
+            'parent': data.get('parent', ''),
+            'traits': data.get('traits', {})
+        }
+
         service = current_app.injector.get(RangesService)
-        service.update_range_element(range_id, element_id, data)
+        service.update_range_element(range_id, element_id, element_data)
         
         return jsonify({
             'success': True,
