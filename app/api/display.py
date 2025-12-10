@@ -422,7 +422,7 @@ def preview_entry(entry_id: str):
             return jsonify({"error": "Failed to generate entry XML"}), 500
 
         # Render the entry with the profile
-        html_output = service.render_entry(entry_xml, profile)
+        html_output = service.render_entry(entry_xml, profile, dict_service=dict_service)
         return jsonify({
             "success": True,
             "entry_id": entry_id,

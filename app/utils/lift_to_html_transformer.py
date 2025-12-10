@@ -211,6 +211,25 @@ class HTMLBuilder:
             elif value:
                 return value
         
+        # Handle relation elements specially - show type and headword (or ref if headword not available)
+        if element.tag == 'relation':
+            rel_type = element.attrib.get('type', '')
+            # Prefer data-headword if available (resolved by CSS service)
+            headword = element.attrib.get('data-headword', '')
+            ref = element.attrib.get('ref', '')
+            
+            if rel_type and headword:
+                return f"{rel_type}: {headword}"
+            elif rel_type and ref:
+                # Fallback to ref if headword not resolved
+                return f"{rel_type}: {ref}"
+            elif headword:
+                return headword
+            elif rel_type:
+                return rel_type
+            elif ref:
+                return ref
+        
         # Handle field elements - show type in brackets if no content
         if element.tag == 'field' and 'type' in element.attrib:
             # Field content was already checked in form/text above

@@ -211,7 +211,8 @@ def view_entry(entry_id):
             if entry_xml:
                 css_html = css_service.render_entry(
                     entry_xml,
-                    profile=default_profile
+                    profile=default_profile,
+                    dict_service=dict_service
                 )
                 
                 # If show_subentries is enabled, append subentry HTML
@@ -228,7 +229,8 @@ def view_entry(entry_id):
                             if subentry_xml:
                                 subentry_rendered = css_service.render_entry(
                                     subentry_xml,
-                                    profile=default_profile
+                                    profile=default_profile,
+                                    dict_service=dict_service
                                 )
                                 # Wrap in subentry container with CSS class
                                 subentry_html_parts.append(

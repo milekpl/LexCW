@@ -558,7 +558,7 @@ def preview_profile():
         
         # Render with CSS mapping service
         css_service = CSSMappingService()
-        html = css_service.render_entry(entry_xml, temp_profile)
+        html = css_service.render_entry(entry_xml, temp_profile, dict_service=dict_service)
         
         return jsonify({"html": html}), 200
     
