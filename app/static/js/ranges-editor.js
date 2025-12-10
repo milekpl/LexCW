@@ -53,7 +53,15 @@ class RangesEditor {
         });
         
         document.getElementById('btnAddElementDescription').addEventListener('click', () => {
-            this.addElementLanguageField();
+            this.addElementLanguageField('elementDescriptionsContainer', 'element-descriptions', 'Description');
+        });
+
+        document.getElementById('btnAddElementAbbrev').addEventListener('click', () => {
+            this.addElementLanguageField('elementAbbrevsContainer', 'element-abbrevs', 'Abbreviation');
+        });
+
+        document.getElementById('btnAddElementLabel').addEventListener('click', () => {
+            this.addElementLanguageField('elementLabelsContainer', 'element-labels', 'Label');
         });
         
         // Search box
@@ -574,45 +582,72 @@ class RangesEditor {
             title.textContent = 'Edit Element';
             document.getElementById('elementId').value = elementData.id;
             document.getElementById('elementId').readOnly = true;
-            document.getElementById('elementAbbrev').value = elementData.abbrev || '';
             document.getElementById('elementValue').value = elementData.value || '';
             document.getElementById('elementParent').value = elementData.parent || '';
-            
+
             // Populate descriptions
-            const container = document.getElementById('elementDescriptionsContainer');
-            container.innerHTML = '';
+            const descriptionsContainer = document.getElementById('elementDescriptionsContainer');
+            descriptionsContainer.innerHTML = '';
             if (elementData.description) {
                 for (const [lang, text] of Object.entries(elementData.description)) {
-                    this.addElementLanguageField(lang, text);
+                    this.addElementLanguageField('elementDescriptionsContainer', 'element-descriptions', 'Description', lang, text);
                 }
             } else {
-                this.addElementLanguageField();
+                this.addElementLanguageField('elementDescriptionsContainer', 'element-descriptions', 'Description');
+            }
+
+            // Populate abbreviations
+            const abbrevsContainer = document.getElementById('elementAbbrevsContainer');
+            abbrevsContainer.innerHTML = '';
+            if (elementData.abbrevs) {
+                for (const [lang, text] of Object.entries(elementData.abbrevs)) {
+                    this.addElementLanguageField('elementAbbrevsContainer', 'element-abbrevs', 'Abbreviation', lang, text);
+                }
+            } else {
+                this.addElementLanguageField('elementAbbrevsContainer', 'element-abbrevs', 'Abbreviation');
+            }
+
+            // Populate labels
+            const labelsContainer = document.getElementById('elementLabelsContainer');
+            labelsContainer.innerHTML = '';
+            if (elementData.labels) {
+                for (const [lang, text] of Object.entries(elementData.labels)) {
+                    this.addElementLanguageField('elementLabelsContainer', 'element-labels', 'Label', lang, text);
+                }
+            } else {
+                this.addElementLanguageField('elementLabelsContainer', 'element-labels', 'Label');
             }
         } else {
             // Create mode
             title.textContent = 'New Element';
             form.reset();
             document.getElementById('elementId').readOnly = false;
-            const container = document.getElementById('elementDescriptionsContainer');
-            container.innerHTML = '';
-            this.addElementLanguageField();
+            const descriptionsContainer = document.getElementById('elementDescriptionsContainer');
+            descriptionsContainer.innerHTML = '';
+            this.addElementLanguageField('elementDescriptionsContainer', 'element-descriptions', 'Description');
+            const abbrevsContainer = document.getElementById('elementAbbrevsContainer');
+            abbrevsContainer.innerHTML = '';
+            this.addElementLanguageField('elementAbbrevsContainer', 'element-abbrevs', 'Abbreviation');
+            const labelsContainer = document.getElementById('elementLabelsContainer');
+            labelsContainer.innerHTML = '';
+            this.addElementLanguageField('elementLabelsContainer', 'element-labels', 'Label');
         }
         
         new bootstrap.Modal(modal).show();
     }
     
-    addElementLanguageField(lang = 'en', text = '') {
-        const container = document.getElementById('elementDescriptionsContainer');
+    addElementLanguageField(containerId, groupName, placeholder, lang = 'en', text = '') {
+        const container = document.getElementById(containerId);
         const div = document.createElement('div');
         div.className = 'input-group mb-2';
-        div.setAttribute('data-lang-group', 'element-descriptions');
+        div.setAttribute('data-lang-group', groupName);
         div.innerHTML = `
             <select class="form-select lang-select" style="max-width: 100px">
                 <option value="en" ${lang === 'en' ? 'selected' : ''}>en</option>
                 <option value="pl" ${lang === 'pl' ? 'selected' : ''}>pl</option>
                 <option value="pt" ${lang === 'pt' ? 'selected' : ''}>pt</option>
             </select>
-            <input type="text" class="form-control lang-text" placeholder="Description" value="${this.escapeHtml(text)}">
+            <input type="text" class="form-control lang-text" placeholder="${placeholder}" value="${this.escapeHtml(text)}">
             <button type="button" class="btn btn-outline-danger btn-remove-lang">
                 <i class="bi bi-trash"></i>
             </button>
@@ -639,32 +674,31 @@ class RangesEditor {
     
     async saveElement() {
         const elementId = document.getElementById('elementId').value.trim();
-        const abbrev = document.getElementById('elementAbbrev').value.trim();
         const value = document.getElementById('elementValue').value.trim();
         const parent = document.getElementById('elementParent').value.trim();
-        
+
         if (!elementId) {
             this.showError('Element ID is required');
             return;
         }
-        
+
         // Collect descriptions
-        const descriptions = {};
-        document.querySelectorAll('#elementDescriptionsContainer [data-lang-group="element-descriptions"]').forEach(group => {
-            const lang = group.querySelector('.lang-select').value;
-            const text = group.querySelector('.lang-text').value.trim();
-            if (text) {
-                descriptions[lang] = text;
-            }
-        });
+        const descriptions = this.collectMultilingualData('elementDescriptionsContainer');
         
+        // Collect abbreviations
+        const abbrevs = this.collectMultilingualData('elementAbbrevsContainer');
+
+        // Collect labels
+        const labels = this.collectMultilingualData('elementLabelsContainer');
+
         try {
             const response = await fetch(`/api/ranges-editor/${this.currentRangeId}/elements`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     id: elementId,
-                    abbrev: abbrev,
+                    labels: labels,
+                    abbrevs: abbrevs,
                     value: value,
                     parent: parent,
                     description: descriptions

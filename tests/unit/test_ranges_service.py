@@ -324,6 +324,58 @@ class TestRangesService:
         # Verify insert was called
         mock_connector.execute_update.assert_called_once()
     
+    def test_create_range_element_with_multilingual_abbrev(self, service, mock_connector):
+        """Test creating a range element with multilingual abbreviations."""
+        # Mock: Range exists, element ID is unique
+        mock_connector.execute_query.side_effect = [
+            """<lift-ranges>
+              <range id="test-range" guid="12345"></range>
+            </lift-ranges>""",
+            'false'
+        ]
+
+        element_data = {
+            'id': 'new-element',
+            'labels': {'en': 'New Element'},
+            'descriptions': {'en': 'A new element'},
+            'abbrevs': {'en': 'NE', 'es': 'EN'}
+        }
+
+        service.create_range_element('test-range', element_data)
+
+        # Verify insert was called and contains multilingual abbrevs
+        mock_connector.execute_update.assert_called_once()
+        query = mock_connector.execute_update.call_args[0][0]
+        assert '<abbrev>' in query
+        assert '<form lang="en"><text>NE</text></form>' in query
+        assert '<form lang="es"><text>EN</text></form>' in query
+
+    def test_create_range_element_with_multilingual_label(self, service, mock_connector):
+        """Test creating a range element with multilingual labels."""
+        # Mock: Range exists, element ID is unique
+        mock_connector.execute_query.side_effect = [
+            """<lift-ranges>
+              <range id="test-range" guid="12345"></range>
+            </lift-ranges>""",
+            'false'
+        ]
+
+        element_data = {
+            'id': 'new-element',
+            'labels': {'en': 'New Element', 'es': 'Nuevo Elemento'},
+            'descriptions': {'en': 'A new element'},
+            'abbrevs': {'en': 'NE'}
+        }
+
+        service.create_range_element('test-range', element_data)
+
+        # Verify insert was called and contains multilingual labels
+        mock_connector.execute_update.assert_called_once()
+        query = mock_connector.execute_update.call_args[0][0]
+        assert '<label>' in query
+        assert '<form lang="en"><text>New Element</text></form>' in query
+        assert '<form lang="es"><text>Nuevo Elemento</text></form>' in query
+
     def test_create_range_element_missing_id(self, service, mock_connector):
         """Test creating element without ID raises ValidationError."""
         # Mock: Range exists
@@ -358,6 +410,64 @@ class TestRangesService:
         with pytest.raises(ValidationError, match="already exists"):
             service.create_range_element('test-range', element_data)
     
+    def test_update_range_element_with_multilingual_abbrev(self, service, mock_connector):
+        """Test updating a range element with multilingual abbreviations."""
+        # Mock: Range and element exist
+        mock_connector.execute_query.return_value = """
+        <lift-ranges>
+          <range id="test-range" guid="12345">
+            <range-element id="existing-element" guid="e1"></range-element>
+          </range>
+        </lift-ranges>
+        """
+
+        element_data = {
+            'id': 'existing-element',
+            'labels': {'en': 'Updated Element'},
+            'descriptions': {'en': 'An updated element'},
+            'abbrevs': {'en': 'UE', 'es': 'AE'}
+        }
+
+        service.update_range_element('test-range', 'existing-element', element_data)
+
+        # Verify delete and insert were called
+        assert mock_connector.execute_update.call_count == 2
+
+        # Verify insert contains multilingual abbrevs
+        query = mock_connector.execute_update.call_args_list[1][0][0]
+        assert '<abbrev>' in query
+        assert '<form lang="en"><text>UE</text></form>' in query
+        assert '<form lang="es"><text>AE</text></form>' in query
+
+    def test_update_range_element_with_multilingual_label(self, service, mock_connector):
+        """Test updating a range element with multilingual labels."""
+        # Mock: Range and element exist
+        mock_connector.execute_query.return_value = """
+        <lift-ranges>
+          <range id="test-range" guid="12345">
+            <range-element id="existing-element" guid="e1"></range-element>
+          </range>
+        </lift-ranges>
+        """
+
+        element_data = {
+            'id': 'existing-element',
+            'labels': {'en': 'Updated Element', 'es': 'Elemento Actualizado'},
+            'descriptions': {'en': 'An updated element'},
+            'abbrevs': {'en': 'UE'}
+        }
+
+        service.update_range_element('test-range', 'existing-element', element_data)
+
+        # Verify delete and insert were called
+        assert mock_connector.execute_update.call_count == 2
+
+        # Verify insert contains multilingual labels
+        query = mock_connector.execute_update.call_args_list[1][0][0]
+        assert '<label>' in query
+        assert '<form lang="en"><text>Updated Element</text></form>' in query
+        assert '<form lang="es"><text>Elemento Actualizado</text></form>' in query
+
     def test_find_range_usage_grammatical_info(self, service, mock_connector):
         """Test finding usage of grammatical-info range."""
         mock_connector.execute_query.return_value = 'entry1|headword1|2\nentry2|headword2|1'

@@ -307,3 +307,135 @@ class TestRangesEditorAPI:
         assert response.status_code in [400, 500]
         # Should still return JSON even on error
         assert 'application/json' in response.content_type
+
+    def test_create_update_delete_range_element_workflow_with_multilingual_abbrev(self, client: FlaskClient) -> None:
+        """Test complete workflow for a range element with multilingual abbreviations."""
+        range_id = 'test-workflow-range'
+        element_id = 'test-workflow-element'
+
+        # Step 1: Create a range to host the element
+        create_range_payload = {
+            'id': range_id,
+            'labels': {'en': 'Workflow Test Range'},
+            'descriptions': {'en': 'Testing element workflow'}
+        }
+        client.post('/api/ranges-editor/', data=json.dumps(create_range_payload), content_type='application/json')
+
+        # Step 2: Create a new range element with multilingual abbreviations
+        create_element_payload = {
+            'id': element_id,
+            'labels': {'en': 'Workflow Test Element'},
+            'descriptions': {'en': 'A test element'},
+            'abbrevs': {'en': 'WTE', 'es': 'ETW'}
+        }
+
+        create_response = client.post(
+            f'/api/ranges-editor/{range_id}/elements',
+            data=json.dumps(create_element_payload),
+            content_type='application/json'
+        )
+
+        assert create_response.status_code == 201
+
+        # Step 3: Get the created element to verify
+        get_response = client.get(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data['data']['abbrevs'] == {'en': 'WTE', 'es': 'ETW'}
+
+        # Step 4: Update the element with new multilingual abbreviations
+        update_element_payload = {
+            'labels': {'en': 'Updated Workflow Test Element'},
+            'abbrevs': {'en': 'UWTE', 'fr': 'ETUM'}
+        }
+
+        update_response = client.put(
+            f'/api/ranges-editor/{range_id}/elements/{element_id}',
+            data=json.dumps(update_element_payload),
+            content_type='application/json'
+        )
+
+        assert update_response.status_code == 200
+
+        # Step 5: Get the updated element to verify
+        get_updated_response = client.get(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert get_updated_response.status_code == 200
+        get_updated_data = json.loads(get_updated_response.data)
+        assert get_updated_data['data']['abbrevs'] == {'en': 'UWTE', 'fr': 'ETUM'}
+
+        # Step 6: Delete the element
+        delete_response = client.delete(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert delete_response.status_code == 200
+
+        # Verify it's deleted
+        verify_response = client.get(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert verify_response.status_code == 404
+
+        # Clean up the range
+        client.delete(f'/api/ranges-editor/{range_id}')
+
+    def test_create_update_delete_range_element_workflow_with_multilingual_label(self, client: FlaskClient) -> None:
+        """Test complete workflow for a range element with multilingual labels."""
+        range_id = 'test-workflow-range'
+        element_id = 'test-workflow-element'
+
+        # Step 1: Create a range to host the element
+        create_range_payload = {
+            'id': range_id,
+            'labels': {'en': 'Workflow Test Range'},
+            'descriptions': {'en': 'Testing element workflow'}
+        }
+        client.post('/api/ranges-editor/', data=json.dumps(create_range_payload), content_type='application/json')
+
+        # Step 2: Create a new range element with multilingual labels
+        create_element_payload = {
+            'id': element_id,
+            'labels': {'en': 'Workflow Test Element', 'es': 'Elemento de Flujo de Trabajo'},
+            'descriptions': {'en': 'A test element'},
+            'abbrevs': {'en': 'WTE'}
+        }
+
+        create_response = client.post(
+            f'/api/ranges-editor/{range_id}/elements',
+            data=json.dumps(create_element_payload),
+            content_type='application/json'
+        )
+
+        assert create_response.status_code == 201
+
+        # Step 3: Get the created element to verify
+        get_response = client.get(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data['data']['labels'] == {'en': 'Workflow Test Element', 'es': 'Elemento de Flujo de Trabajo'}
+
+        # Step 4: Update the element with new multilingual labels
+        update_element_payload = {
+            'labels': {'en': 'Updated Workflow Test Element', 'fr': 'Élément de Flux de Travail Mis à Jour'},
+            'abbrevs': {'en': 'UWTE'}
+        }
+
+        update_response = client.put(
+            f'/api/ranges-editor/{range_id}/elements/{element_id}',
+            data=json.dumps(update_element_payload),
+            content_type='application/json'
+        )
+
+        assert update_response.status_code == 200
+
+        # Step 5: Get the updated element to verify
+        get_updated_response = client.get(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert get_updated_response.status_code == 200
+        get_updated_data = json.loads(get_updated_response.data)
+        assert get_updated_data['data']['labels'] == {'en': 'Updated Workflow Test Element', 'fr': 'Élément de Flux de Travail Mis à Jour'}
+
+        # Step 6: Delete the element
+        delete_response = client.delete(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert delete_response.status_code == 200
+
+        # Verify it's deleted
+        verify_response = client.get(f'/api/ranges-editor/{range_id}/elements/{element_id}')
+        assert verify_response.status_code == 404
+
+        # Clean up the range
+        client.delete(f'/api/ranges-editor/{range_id}')
