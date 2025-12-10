@@ -16,6 +16,8 @@ applyTo: '**'
 3. **Assume the Development Environment**  
    - Code is developed in Visual Studio Code on Windows 11, using the PowerShell terminal.  
    - Provide Windows-specific commands and paths when relevant.
+   - **ALWAYS use .env file for configuration** - PostgreSQL and other services run on WSL with IP 172.17.96.1, not localhost
+   - **NEVER hardcode localhost or 127.0.0.1** - check .env file for actual service addresses
 
 4. **Clean Up Helper Files**  
    - After implementing features or running scripts, always remove or clean up any temporary, helper, or test files created during development.  
