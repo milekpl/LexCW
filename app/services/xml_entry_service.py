@@ -24,6 +24,8 @@ from typing import Any, Optional
 from xml.etree import ElementTree as ET
 
 from BaseXClient import BaseXClient
+from app.utils.xquery_builder import XQueryBuilder
+from app.utils.namespace_manager import LIFTNamespaceManager
 
 # LIFT XML namespace
 LIFT_NS = "http://fieldworks.sil.org/schemas/lift/0.13"
@@ -91,8 +93,45 @@ class XMLEntryService:
         self.password = password
         self.database = database
         
+        # Initialize namespace manager and query builder
+        self._detect_namespace_usage()
+        self._query_builder = XQueryBuilder()
+        
         # Test connection on initialization
         self._test_connection()
+    
+    def _detect_namespace_usage(self) -> bool:
+        """
+        Detect if the database uses namespaces.
+        
+        Returns:
+            True if namespaces are used, False otherwise
+        """
+        # Default to True until we check
+        self._has_namespace = True
+        
+        try:
+            session = self._get_session()
+            
+            # Check for namespace in root element
+            query = """
+            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('%s')/lift:lift)
+            """ % self.database
+            
+            q = session.query(query)
+            result = q.execute()
+            q.close()
+            session.close()
+            
+            self._has_namespace = (result.lower() == 'true')
+            logger.info(f"Detected namespace usage for '{self.database}': {self._has_namespace}")
+            return self._has_namespace
+            
+        except Exception as e:
+            logger.warning(f"Failed to detect namespace usage: {e}")
+            # Fallback to True as LIFT standard uses namespaces
+            return True
     
     def _get_session(self) -> BaseXClient.Session:
         """
@@ -218,28 +257,21 @@ class XMLEntryService:
         # Generate filename
         filename = self._generate_filename(entry_id)
         
-        # Strip XML declaration if present
-        xml_clean = xml_string.strip()
-        if xml_clean.startswith('<?xml'):
-            # Remove XML declaration line
-            xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
+        # Normalize XML based on detected namespace usage
+        xml_clean = LIFTNamespaceManager.normalize_lift_xml(
+            xml_string, 
+            LIFTNamespaceManager.LIFT_NAMESPACE if self._has_namespace else None
+        )
         
-        # Remove xmlns declaration from entry element - namespace is declared in XQuery prologue
-        import re
-        xml_clean = re.sub(r'<entry\s+xmlns="[^"]*"\s+', '<entry ', xml_clean, count=1)
-        
-        # Add to database using XQuery insert (same approach as DictionaryService)
-        # This inserts the entry as a child node of the <lift> root element
+        # Add to database using XQuery insert
         session = self._get_session()
         try:
             logger.info(f"Creating entry {entry_id}")
             
-            # Build XQuery insert statement
-            # NOTE: Query without namespace prefix since root stored as 'lift' not 'lift:lift'
-            # The entry XML is embedded directly in the query
-            query = f"""
-            insert node {xml_clean} into collection('{self.database}')//lift
-            """
+            # Build XQuery insert statement using builder
+            query = XQueryBuilder.build_insert_entry_query(
+                xml_clean, self.database, self._has_namespace
+            )
             
             logger.debug(f"Executing insert query for entry {entry_id}")
             q = session.query(query)
@@ -247,7 +279,6 @@ class XMLEntryService:
             q.close()
             
             # CRITICAL: Flush changes to ensure they're persisted before returning
-            # This makes the changes visible to other sessions immediately
             try:
                 session.execute("FLUSH")
                 logger.debug(f"Flushed database changes for entry {entry_id}")
@@ -286,33 +317,29 @@ class XMLEntryService:
         
         session = self._get_session()
         try:
-            # Use variable binding to avoid injection and escaping issues
-            # NOTE: Entries in BaseX are stored WITHOUT namespace prefix (just 'entry', not 'lift:entry')
-            # even though they have xmlns attribute. This is because xmlns is stripped during insert.
-            query = f"""
-            declare variable $entryId external;
-            
-            let $entry := collection("{self.database}")//entry[@id=$entryId]
-            return if ($entry) then
-                $entry
-            else
-                <error>Entry not found</error>
-            """
+            # Build query using builder
+            query = XQueryBuilder.build_entry_by_id_query(
+                entry_id, self.database, self._has_namespace
+            )
             
             q = session.query(query)
-            q.bind('entryId', entry_id)
             result = q.execute()
             q.close()
             
-            if '<error>' in result:
+            if not result:
                 raise EntryNotFoundError(f"Entry '{entry_id}' not found")
             
-            # NOTE: Do NOT add xmlns here - entries in database don't have explicit xmlns
-            # (they inherit it from document context). Adding xmlns causes issues with
-            # replace node operations. The XML parser can handle both cases.
-            
             # Parse XML result
-            root = ET.fromstring(result)
+            # Use namespace manager to parse correctly regardless of namespace presence
+            try:
+                root = ET.fromstring(result)
+            except ET.ParseError:
+                # Try wrapping in lift element if it's a bare entry
+                if not result.strip().startswith('<lift'):
+                    result = f'<lift>{result}</lift>'
+                    root = ET.fromstring(result).find('.//entry')
+                else:
+                    raise
             
             # Extract basic information
             entry_data = {
@@ -325,11 +352,15 @@ class XMLEntryService:
                 'senses': []
             }
             
+            # Get namespace URI for findall
+            ns = LIFTNamespaceManager.LIFT_NAMESPACE if self._has_namespace else ""
+            ns_prefix = f"{{{ns}}}" if ns else ""
+            
             # Extract lexical units
-            for lu in root.findall('.//{%s}lexical-unit' % LIFT_NS):
+            for lu in root.findall(f'.//{ns_prefix}lexical-unit'):
                 forms = []
-                for form in lu.findall('.//{%s}form' % LIFT_NS):
-                    text_elem = form.find('.//{%s}text' % LIFT_NS)
+                for form in lu.findall(f'.//{ns_prefix}form'):
+                    text_elem = form.find(f'.//{ns_prefix}text')
                     if text_elem is not None and text_elem.text:
                         forms.append({
                             'lang': form.attrib.get('lang'),
@@ -338,15 +369,15 @@ class XMLEntryService:
                 entry_data['lexical_units'].append({'forms': forms})
             
             # Extract senses
-            for sense in root.findall('.//{%s}sense' % LIFT_NS):
+            for sense in root.findall(f'.//{ns_prefix}sense'):
                 sense_data = {
                     'id': sense.attrib.get('id'),
                     'order': sense.attrib.get('order'),
                     'glosses': []
                 }
                 
-                for gloss in sense.findall('.//{%s}gloss' % LIFT_NS):
-                    text_elem = gloss.find('.//{%s}text' % LIFT_NS)
+                for gloss in sense.findall(f'.//{ns_prefix}gloss'):
+                    text_elem = gloss.find(f'.//{ns_prefix}text')
                     if text_elem is not None and text_elem.text:
                         sense_data['glosses'].append({
                             'lang': gloss.attrib.get('lang'),
@@ -386,20 +417,9 @@ class XMLEntryService:
         """
         print(f"[DEBUG] update_entry called for {entry_id}")
         
-        with open('/tmp/sense_deletion_debug.log', 'a') as f:
-            f.write(f"\nValidating XML and checking senses...\n")
-        
         try:
             # Validate XML
             root = self._validate_lift_xml(xml_string)
-            xml_entry_id = root.attrib['id']
-            
-            # Count senses in the ACTUAL XML received
-            import xml.etree.ElementTree as ET
-            sense_elements = root.findall('.//{http://fieldworks.sil.org/schemas/lift/0.13}sense') or root.findall('.//sense')
-            actual_sense_count_in_xml = len(sense_elements)
-            with open('/tmp/sense_deletion_debug.log', 'a') as f:
-                f.write(f"Actual XML has {actual_sense_count_in_xml} <sense> elements (by parsing)\n")
             xml_entry_id = root.attrib['id']
             
             # Ensure IDs match
@@ -414,79 +434,44 @@ class XMLEntryService:
             if not self.entry_exists(entry_id):
                 raise EntryNotFoundError(f"Entry '{entry_id}' not found")
             
-            # Strip XML declaration if present
-            xml_clean = xml_string.strip()
-            if xml_clean.startswith('<?xml'):
-                xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
-            
-            # Debug logging
-            logger.info(f"[XML UPDATE] Entry {entry_id}: XML length {len(xml_clean)}")
-            
-            # Count senses in the incoming XML
-            import re
-            sense_count = len(re.findall(r'<sense\s+', xml_clean))
-            logger.info(f"[XML UPDATE] Incoming XML has {sense_count} senses")
-            
-            logger.info(f"[XML UPDATE] Has <relation> tags: {'<relation' in xml_clean}")
-            if '<relation' in xml_clean:
-                relations = re.findall(r'<relation[^>]*>', xml_clean)
-                logger.info(f"[XML UPDATE] Found {len(relations)} relation(s): {relations[:3]}")
-            logger.debug(f"Update XML for {entry_id} (first 500 chars): {xml_clean[:500]}")
-            logger.debug(f"Update XML length: {len(xml_clean)}")
-            
-            # CRITICAL: Strip xmlns from root element
-            # Entries in database don't have explicit xmlns (inherited from document context)
-            # If we try to replace a non-namespaced node with a namespaced one, BaseX deletes it!
-            # Must remove xmlns before parse-xml() to match database structure
-            import re
-            xml_clean = re.sub(r'<entry\s+xmlns="[^"]*"\s+', '<entry ', xml_clean, count=1)
-            logger.debug(f"After xmlns removal: {xml_clean[:200]}")
+            # Generate normalized XML with appropriate namespace
+            xml_clean = LIFTNamespaceManager.normalize_lift_xml(
+                xml_string,
+                LIFTNamespaceManager.LIFT_NAMESPACE if self._has_namespace else None
+            )
             
             session = self._get_session()
         except Exception as prep_error:
             logger.error(f"Error preparing XML for update: {prep_error}")
             raise
         try:
-            # Use DELETE + INSERT in a single query for atomicity and reliability
-            # CRITICAL: Must use namespace declarations to match namespaced elements
-            combined_query = f"""
-            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
-            declare variable $entryId external;
-            (
-                for $entry in collection("{self.database}")//lift:entry[@id=$entryId]
-                return delete node $entry,
-                insert node {xml_clean} into collection('{self.database}')//lift:lift
+            # Use XQueryBuilder for update query
+            # Ideally we would use replace node, but delete+insert is safer for complex structures
+            
+            # Delete old entry
+            delete_query = XQueryBuilder.build_delete_entry_query(
+                entry_id, self.database, self._has_namespace
             )
-            """
             
-            q = session.query(combined_query)
-            q.bind('entryId', entry_id)
+            # Insert new entry
+            insert_query = XQueryBuilder.build_insert_entry_query(
+                xml_clean, self.database, self._has_namespace
+            )
             
-            try:
-                result = q.execute()
-                logger.debug(f"Combined DELETE+INSERT executed for entry {entry_id}")
-            except Exception as e:
-                logger.error(f"Combined query failed for entry {entry_id}: {e}")
-                raise
-            finally:
-                q.close()
+            # Execute as transaction-like (though BaseX doesn't support full ACID trans across multiple queries without script)
+            # We'll execute them sequentially
             
-            # Verify the entry was updated correctly
-            verify_query = f"""
-            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
-            declare variable $entryId external;
-            collection("{self.database}")//lift:entry[@id=$entryId]
-            """
-            q_verify = session.query(verify_query)
-            q_verify.bind('entryId', entry_id)
-            saved_xml = q_verify.execute()
-            q_verify.close()
+            logger.debug(f"Deleting old entry {entry_id}")
+            q_del = session.query(delete_query)
+            q_del.execute()
+            q_del.close()
             
-            # Count senses in the saved XML
-            saved_sense_count = len(re.findall(r'<sense\s+', saved_xml))
-            logger.info(f"[XML UPDATE] Saved XML has {saved_sense_count} senses (was {sense_count} in incoming)")
+            logger.debug(f"Inserting updated entry {entry_id}")
+            q_ins = session.query(insert_query)
+            q_ins.execute()
+            q_ins.close()
             
-            # CRITICAL: Flush changes to ensure they're persisted before returning
+            # CRITICAL: Flush changes
             try:
                 session.execute("FLUSH")
                 logger.debug(f"Flushed database changes for entry {entry_id}")
@@ -494,18 +479,7 @@ class XMLEntryService:
                 logger.warning(f"Failed to flush database: {flush_error}")
             
             # Verify entry exists after update
-            check_query = f"""
-            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
-            declare variable $entryId external;
-            count(collection("{self.database}")//lift:entry[@id=$entryId])
-            """
-            q_check2 = session.query(check_query)
-            q_check2.bind('entryId', entry_id)
-            count_after = q_check2.execute()
-            q_check2.close()
-            logger.debug(f"Entry count after update: {count_after}")
-            
-            if count_after == "0":
+            if not self.entry_exists(entry_id):
                 logger.error(f"CRITICAL: Entry {entry_id} was DELETED during update!")
                 raise XMLEntryServiceError("Entry was deleted during update operation")
             
@@ -518,8 +492,6 @@ class XMLEntryService:
             
         except Exception as e:
             logger.error(f"Failed to update entry {entry_id}: {e}")
-            with open('/tmp/sense_deletion_debug.log', 'a') as f:
-                f.write(f"UPDATE FAILED with exception: {e}\n")
             raise XMLEntryServiceError(f"Failed to update entry: {e}") from e
         finally:
             session.close()
@@ -546,17 +518,12 @@ class XMLEntryService:
         
         session = self._get_session()
         try:
-            # Use variable binding to avoid injection and escaping issues
-            # NOTE: Query without namespace prefix
-            query = f"""
-            declare variable $entryId external;
-            
-            for $entry in collection("{self.database}")//entry[@id=$entryId]
-            return delete node $entry
-            """
+            # Build query using builder
+            query = XQueryBuilder.build_delete_entry_query(
+                entry_id, self.database, self._has_namespace
+            )
             
             q = session.query(query)
-            q.bind('entryId', entry_id)
             q.execute()
             q.close()
             
@@ -585,17 +552,12 @@ class XMLEntryService:
         """
         session = self._get_session()
         try:
-            # CRITICAL: Use namespace declaration to match namespaced elements
-            # The lift element has xmlns="http://fieldworks.sil.org/schemas/lift/0.13"
-            query = f"""
-            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
-            declare variable $entryId external;
-            
-            exists(collection("{self.database}")//lift:entry[@id=$entryId])
-            """
+            # Build query using builder
+            query = XQueryBuilder.build_entry_exists_query(
+                entry_id, self.database, self._has_namespace
+            )
             
             q = session.query(query)
-            q.bind('entryId', entry_id)
             result = q.execute()
             q.close()
             
@@ -630,69 +592,55 @@ class XMLEntryService:
         
         session = self._get_session()
         try:
+            # Use XQueryBuilder to construct search query
+            # Note: The builder returns a sequence of entries, we need to wrap them
+            # to match the expected format
+            
             if query_text:
-                # Search with filter
-                query = f"""
-                declare namespace lift = "{LIFT_NS}";
-                
-                let $entries := //lift:entry[
-                    .//lift:lexical-unit//lift:text[contains(lower-case(.), lower-case('{query_text}'))]
-                ]
-                let $total := count($entries)
-                let $results := subsequence($entries, {offset + 1}, {limit})
-                
-                return <search-results total="{{$total}}" limit="{limit}" offset="{offset}">
-                {{
-                    for $entry in $results
-                    return <entry id="{{$entry/@id/string()}}">
-                        <lexical-unit>
-                        {{
-                            for $lu in $entry//lift:lexical-unit//lift:text
-                            return <text>{{$lu/string()}}</text>
-                        }}
-                        </lexical-unit>
-                    </entry>
-                }}
-                </search-results>
-                """
+                query = XQueryBuilder.build_search_query(
+                    query_text, self.database, self._has_namespace, limit, offset
+                )
             else:
-                # Get all entries
-                query = f"""
-                declare namespace lift = "{LIFT_NS}";
-                
-                let $entries := //lift:entry
-                let $total := count($entries)
-                let $results := subsequence($entries, {offset + 1}, {limit})
-                
-                return <search-results total="{{$total}}" limit="{limit}" offset="{offset}">
-                {{
-                    for $entry in $results
-                    return <entry id="{{$entry/@id/string()}}">
-                        <lexical-unit>
-                        {{
-                            for $lu in $entry//lift:lexical-unit//lift:text
-                            return <text>{{$lu/string()}}</text>
-                        }}
-                        </lexical-unit>
-                    </entry>
-                }}
-                </search-results>
-                """
+                query = XQueryBuilder.build_all_entries_query(
+                    self.database, self._has_namespace, limit, offset
+                )
+            
+            # TODO: Improve XQueryBuilder to return total count as well
+            # For now, we will execute the query and parse results
             
             q = session.query(query)
             result = q.execute()
             q.close()
             
-            # Parse results
-            root = ET.fromstring(result)
-            total = int(root.attrib.get('total', 0))
+            # Since result is a sequence of entry elements, we wrap them in a root element
+            # to parse with ElementTree
+            wrapped_result = f"<results>{result}</results>"
             
+            try:
+                root = ET.fromstring(wrapped_result)
+                entries_elems = list(root)
+            except ET.ParseError:
+                entries_elems = []
+            
+            # Get total count
+            count_query = XQueryBuilder.build_count_entries_query(
+                self.database, self._has_namespace, query_text if query_text else None
+            )
+            q_count = session.query(count_query)
+            total_str = q_count.execute()
+            q_count.close()
+            total = int(total_str) if total_str.isdigit() else 0
+            
+            # Process entries
             entries = []
-            for entry_elem in root.findall('entry'):
+            ns = LIFTNamespaceManager.LIFT_NAMESPACE if self._has_namespace else ""
+            ns_prefix = f"{{{ns}}}" if ns else ""
+            
+            for entry_elem in entries_elems:
                 entry_id = entry_elem.attrib.get('id')
                 texts = [
                     text.text
-                    for text in entry_elem.findall('.//text')
+                    for text in entry_elem.findall(f'.//{ns_prefix}text')
                     if text.text
                 ]
                 
@@ -726,23 +674,8 @@ class XMLEntryService:
         """
         session = self._get_session()
         try:
-            query = f"""
-            declare namespace lift = "{LIFT_NS}";
-            
-            let $entries := //lift:entry
-            let $senses := //lift:sense
-            
-            return <stats>
-                <entries>{{count($entries)}}</entries>
-                <senses>{{count($senses)}}</senses>
-                <avgSenses>{{
-                    if (count($entries) > 0) then
-                        count($senses) div count($entries)
-                    else
-                        0
-                }}</avgSenses>
-            </stats>
-            """
+            # Build query using builder
+            query = XQueryBuilder.build_statistics_query(self.database, self._has_namespace)
             
             q = session.query(query)
             result = q.execute()
@@ -750,10 +683,16 @@ class XMLEntryService:
             
             root = ET.fromstring(result)
             
+            # Calculate average separately as it might not be in the XML if relying on custom builder query
+            # (Though our builder includes it, safety check)
+            entries_count = int(root.find('entries').text or 0)
+            senses_count = int(root.find('senses').text or 0)
+            avg_senses = senses_count / entries_count if entries_count > 0 else 0
+            
             return {
-                'entries': int(root.find('entries').text or 0),
-                'senses': int(root.find('senses').text or 0),
-                'avg_senses': float(root.find('avgSenses').text or 0)
+                'entries': entries_count,
+                'senses': senses_count,
+                'avg_senses': avg_senses
             }
             
         except Exception as e:
