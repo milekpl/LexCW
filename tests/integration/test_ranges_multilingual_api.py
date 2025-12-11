@@ -22,6 +22,31 @@ def client(app: Flask):
     return app.test_client()
 
 
+@pytest.fixture(autouse=True)
+def cleanup_ranges(app):
+    """Clean up test ranges before and after tests."""
+    from app.services.ranges_service import RangesService
+    from app.utils.exceptions import NotFoundError
+    
+    range_ids = [
+        'test-range', 'ml-range', 'update-range', 'list-range', 
+        'val-range', 'ne-range', 'crud-range'
+    ]
+    
+    service = app.injector.get(RangesService)
+    
+    def _clean():
+        for rid in range_ids:
+            try:
+                service.delete_range(rid)
+            except (NotFoundError, Exception):
+                pass
+
+    _clean()
+    yield
+    _clean()
+
+
 class TestMultilingualElementAPI:
     """Test multilingual element CRUD via API."""
     

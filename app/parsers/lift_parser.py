@@ -2236,11 +2236,14 @@ class LIFTRangesParser:
             'id': range_id,
             'guid': range_elem.get('guid', ''),
             'values': [],
-            'description': {}
+            'labels': {},
+            'descriptions': {},
         }
         
         # Parse range labels and descriptions
-        range_data['description'] = self._parse_multilingual_content(range_elem, ['label', 'description'])
+        range_data['labels'] = self._parse_multilingual_content(range_elem, ['label'])
+        range_data['descriptions'] = self._parse_multilingual_content(range_elem, ['description'])
+
         
         # Check if this range uses parent attributes for hierarchy
         # Look for ANY range-element with a parent attribute, including nested ones
@@ -2273,8 +2276,10 @@ class LIFTRangesParser:
             'value': elem.get('value', ''),
             'parent': elem.get('parent', ''),  # Add parent attribute parsing
             'abbrev': '',  # Will be set below if abbrev element exists
-            'description': {},
-            'children': []
+            'abbrevs': {},
+            'labels': {},
+            'descriptions': {},
+            'children': [],
         }
         
         # Parse abbrev element (handle LIFT form structure)
@@ -2283,14 +2288,23 @@ class LIFTRangesParser:
             # First try direct text content
             if abbrev_elem.text and abbrev_elem.text.strip():
                 element_data['abbrev'] = abbrev_elem.text.strip()
+                element_data['abbrevs'] = {'und': abbrev_elem.text.strip()}
             else:
                 # Try form/text structure
-                text_elem = self._find_element(abbrev_elem, './lift:form/lift:text', './form/text')
-                if text_elem is not None and text_elem.text:
-                    element_data['abbrev'] = text_elem.text.strip()
+                for form_elem in self._find_elements(abbrev_elem, './lift:form', './form'):
+                    text_elem = self._find_element(form_elem, './lift:text', './text')
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
+                        lang = form_elem.get('lang', 'und')
+                        element_data['abbrevs'][lang] = text_elem.text.strip()
+                        
+                        # Set legacy abbrev if empty
+                        if not element_data['abbrev']:
+                            element_data['abbrev'] = text_elem.text.strip()
         
-        # Parse element labels and descriptions (handle LIFT form structure)
-        element_data['description'] = self._parse_multilingual_content(elem, ['label', 'description'])
+        # Parse element labels and descriptions
+        element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
+        element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
+
         
         # Parse child elements (recursive, direct children only)
         for child_elem in self._find_elements(elem, './lift:range-element', './range-element'):
@@ -2441,14 +2455,18 @@ class LIFTRangesParser:
             'id': element_id,
             'guid': elem.get('guid', ''),
             'value': elem.get('value', '') or element_id,
+            'parent': elem.get('parent', ''),
             'abbrev': '',
-            'description': {},
+            'abbrevs': {},
+            'labels': {},
+            'descriptions': {},
             'children': [],
-            'traits': {}
+            'traits': {},
         }
         
         # Parse multilingual labels and descriptions
-        element_data['description'] = self._parse_multilingual_content(elem, ['label', 'description'])
+        element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
+        element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
         
         # Parse abbreviation (handle LIFT form structure)
         abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
@@ -2456,13 +2474,18 @@ class LIFTRangesParser:
             # First try direct text content
             if abbrev_elem.text and abbrev_elem.text.strip():
                 element_data['abbrev'] = abbrev_elem.text.strip()
+                element_data['abbrevs'] = {'und': abbrev_elem.text.strip()}
             else:
                 # Try form/text structure
                 for form_elem in self._find_elements(abbrev_elem, './lift:form', './form'):
                     text_elem = self._find_element(form_elem, './lift:text', './text')
                     if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        element_data['abbrev'] = text_elem.text.strip()
-                        break
+                        lang = form_elem.get('lang', 'und')
+                        element_data['abbrevs'][lang] = text_elem.text.strip()
+                        
+                        # Set legacy abbrev if empty
+                        if not element_data['abbrev']:
+                            element_data['abbrev'] = text_elem.text.strip()
         
         # Parse traits (name-value pairs)
         for trait_elem in self._find_elements(elem, './lift:trait', './trait'):
@@ -2472,6 +2495,7 @@ class LIFTRangesParser:
                 element_data['traits'][trait_name] = trait_value or ''
         
         return element_data
+
 
     def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
         """

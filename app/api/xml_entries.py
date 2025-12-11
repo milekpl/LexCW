@@ -243,13 +243,8 @@ def update_entry(entry_id: str) -> Any:
         # Get XML entry service
         xml_service = get_xml_entry_service()
         
-        # Try to update entry, fall back to create if it doesn't exist
-        try:
-            result = xml_service.update_entry(entry_id, xml_string)
-        except EntryNotFoundError:
-            # Entry doesn't exist, create it instead
-            logger.info('[XML API] Entry %s not found, creating instead', entry_id)
-            result = xml_service.create_entry(xml_string)
+        # Update entry
+        result = xml_service.update_entry(entry_id, xml_string)
         
         logger.info('[XML API] Entry saved: %s', result['id'])
 
@@ -268,6 +263,9 @@ def update_entry(entry_id: str) -> Any:
             'status': result.get('status')
         }), 200
         
+    except EntryNotFoundError as e:
+        logger.warning('[XML API] Entry not found: %s', entry_id)
+        return jsonify({'error': f'Entry not found: {entry_id}'}), 404
     except InvalidXMLError as e:
         logger.error('[XML API] Invalid XML: %s', str(e))
         return jsonify({'error': f'Invalid XML: {str(e)}'}), 400

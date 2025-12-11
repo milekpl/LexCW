@@ -452,11 +452,19 @@ class RangesService:
         
         # Build parent map
         parent_map: Dict[str, Optional[str]] = {}
-        for value in range_obj.get('values', []):
-            vid = value.get('id')
-            vparent = value.get('parent')
-            if vid:
-                parent_map[vid] = vparent
+        
+        def collect_parents(elements: List[Dict[str, Any]]):
+            for value in elements:
+                vid = value.get('id')
+                vparent = value.get('parent')
+                if vid:
+                    parent_map[vid] = vparent
+                
+                # Recurse for children
+                if 'children' in value and value['children']:
+                    collect_parents(value['children'])
+        
+        collect_parents(range_obj.get('values', []))
         
         # Check if parent_id exists
         if parent_id not in parent_map:

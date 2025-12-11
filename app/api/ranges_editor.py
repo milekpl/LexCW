@@ -192,6 +192,7 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
         }), 201
     
     except ValidationError as e:
+        current_app.logger.error(f"Validation error creating range: {e}. Data: {data}")
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         current_app.logger.error(f"Error creating range: {e}", exc_info=True)
@@ -416,6 +417,7 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
     """Create new element in range."""
     try:
         data = request.get_json()
+
         
         if not data or 'id' not in data:
             return jsonify({
@@ -426,11 +428,11 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
         # Transform frontend format to backend format
         element_data = {
             'id': data['id'],
-            'labels': {},  # LIFT uses description field, not labels
-            'descriptions': data.get('description', {}),
-            'abbrevs': {'und': data.get('abbrev', '')},
+            'labels': data.get('labels', {}),
+            'descriptions': data.get('descriptions', {}),
+            'abbrevs': data.get('abbrevs', {}),
             'parent': data.get('parent', ''),
-            'traits': {}
+            'traits': data.get('traits', {})
         }
         
         # Set value field
@@ -448,6 +450,7 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
     except NotFoundError as e:
         return jsonify({'success': False, 'error': str(e)}), 404
     except ValidationError as e:
+        current_app.logger.error(f"Validation error creating element: {e}. Data: {element_data}")
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         current_app.logger.error(f"Error creating element in range {range_id}: {e}", exc_info=True)
