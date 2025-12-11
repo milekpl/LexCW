@@ -6,6 +6,7 @@ from app.services.ranges_service import RangesService
 from app.utils.exceptions import NotFoundError, ValidationError
 
 
+@pytest.mark.skip_et_mock
 class TestRangesService:
     """Test RangesService class."""
     
@@ -205,7 +206,7 @@ class TestRangesService:
                 <label><form lang="en"><text>Test Range</text></form></label>
               </range>
             </lift-ranges>""",
-            'entry1|headword1|1'  # Has usage
+            'entry1|||headword1|||1'  # Has usage
         ]
         
         with pytest.raises(ValidationError, match="is used in .* entries"):
@@ -220,8 +221,8 @@ class TestRangesService:
                 <label><form lang="en"><text>Test Range</text></form></label>
               </range>
             </lift-ranges>""",
-            'entry1|headword1|1',  # Has usage for delete check
-            'entry1|headword1|1'   # Has usage for migration
+            'entry1|||headword1|||1',  # Has usage for delete check
+            'entry1|||headword1|||1'   # Has usage for migration
         ]
         
         migration = {'operation': 'remove'}
@@ -360,7 +361,7 @@ class TestRangesService:
     
     def test_find_range_usage_grammatical_info(self, service, mock_connector):
         """Test finding usage of grammatical-info range."""
-        mock_connector.execute_query.return_value = 'entry1|headword1|2\nentry2|headword2|1'
+        mock_connector.execute_query.return_value = 'entry1|||headword1|||2\nentry2|||headword2|||1'
         
         usage = service.find_range_usage('grammatical-info', 'Noun')
         
@@ -381,7 +382,7 @@ class TestRangesService:
     def test_migrate_range_values_replace(self, service, mock_connector):
         """Test migrating range values with replace operation."""
         # Mock: Find usage and execute migration
-        mock_connector.execute_query.return_value = 'entry1|headword1|1\nentry2|headword2|1'
+        mock_connector.execute_query.return_value = 'entry1|||headword1|||1\nentry2|||headword2|||1'
         
         result = service.migrate_range_values(
             'grammatical-info',
@@ -400,7 +401,7 @@ class TestRangesService:
     def test_migrate_range_values_remove(self, service, mock_connector):
         """Test migrating range values with remove operation."""
         # Mock: Find usage and execute migration
-        mock_connector.execute_query.return_value = 'entry1|headword1|1'
+        mock_connector.execute_query.return_value = 'entry1|||headword1|||1'
         
         result = service.migrate_range_values(
             'custom-range',
@@ -417,7 +418,7 @@ class TestRangesService:
     def test_migrate_range_values_dry_run(self, service, mock_connector):
         """Test dry run of migration only counts affected entries."""
         # Mock: Find usage
-        mock_connector.execute_query.return_value = 'entry1|headword1|1\nentry2|headword2|1'
+        mock_connector.execute_query.return_value = 'entry1|||headword1|||1\nentry2|||headword2|||1'
         
         result = service.migrate_range_values(
             'grammatical-info',

@@ -60,7 +60,7 @@ def xml_service():
 def cleanup_test_entries(xml_service: XMLEntryService):
     """Clean up test entries before and after each test."""
     # Cleanup before test
-    test_entry_ids = ['test_crud_001', 'test_crud_002', 'test_crud_003']
+    test_entry_ids = ['test_crud_001', 'test_crud_002', 'test_crud_003', 'nonexistent_entry']
     for entry_id in test_entry_ids:
         try:
             xml_service.delete_entry(entry_id)

@@ -99,7 +99,7 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
-        query = f"""{prologue}
+        query = f"""
         for $entry in collection('{db_name}')//{entry_path}
         """
 
@@ -111,7 +111,7 @@ class XQueryBuilder:
         if limit:
             query = f"({query})[position() <= {limit}]"
 
-        return query
+        return prologue + "\n" + query
 
     @staticmethod
     def build_search_query(
@@ -137,7 +137,7 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
-        query = f"""{prologue}
+        query = f"""
         for $entry in collection('{db_name}')//{entry_path}
         where contains(string($entry), "{search_term}")
         """
@@ -150,7 +150,7 @@ class XQueryBuilder:
         if limit:
             query = f"({query})[position() <= {limit}]"
 
-        return query
+        return prologue + "\n" + query
 
     @staticmethod
     def build_count_entries_query(
@@ -366,7 +366,9 @@ class XQueryBuilder:
 
         where_clause = " and ".join(conditions) if conditions else "true()"
 
-        query = f"""{prologue}
+        where_clause = " and ".join(conditions) if conditions else "true()"
+
+        query = f"""
         for $entry in collection('{db_name}')//{entry_path}
         where {where_clause}
         """
@@ -379,7 +381,7 @@ class XQueryBuilder:
         if limit:
             query = f"({query})[position() <= {limit}]"
 
-        return query
+        return prologue + "\n" + query
 
     @staticmethod
     def build_get_lift_ranges_query(db_name: str, has_namespace: bool = True) -> str:
@@ -469,7 +471,7 @@ class XQueryBuilder:
         sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
         gi_path = XQueryBuilder.get_element_path("grammatical-info", has_namespace)
 
-        query = f"""{prologue}
+        query = f"""
         for $entry in collection('{db_name}')//{entry_path}
         where $entry/{sense_path}/{gi_path}[@value="{grammatical_info}"]
         """
@@ -482,7 +484,7 @@ class XQueryBuilder:
         if limit:
             query = f"({query})[position() <= {limit}]"
 
-        return query
+        return prologue + "\n" + query
 
     @staticmethod
     def build_related_entries_query(
@@ -513,7 +515,9 @@ class XQueryBuilder:
         
         relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
 
-        query = f"""{prologue}
+        relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
+
+        query = f"""
         let $entry_relations := collection('{db_name}')//{entry_path}[@id="{entry_id}"]/{relation_path}{relation_condition}/@ref
         for $related in collection('{db_name}')//{entry_path}[@id = $entry_relations]
         """
@@ -526,4 +530,4 @@ class XQueryBuilder:
         if limit:
             query = f"({query})[position() <= {limit}]"
 
-        return query
+        return prologue + "\n" + query
