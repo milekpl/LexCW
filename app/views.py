@@ -386,12 +386,56 @@ def edit_entry(entry_id):
             entry = Entry.from_dict(merged_data)
             entry.id = entry_id
             
-            # If entry doesn't exist, create it; otherwise update it
-            if existing_entry:
-                dict_service.update_entry(entry)
-            else:
-                dict_service.create_entry(entry)
-            return jsonify({"id": entry_id, "message": "Entry updated successfully"})
+            # Use XMLEntryService directly to avoid database lock issues
+            # This creates fresh sessions and doesn't hold persistent connections
+            from app.services.xml_entry_service import XMLEntryService
+            db_name = dict_service.db_connector.database
+            logger.info(f"[EDIT_ENTRY] Using database: {db_name}")
+            xml_service = XMLEntryService(
+                database=db_name  # Use the same database as DictionaryService!
+            )
+            
+            # Prepare the entry XML using DictionaryService's method
+            entry_xml = dict_service._prepare_entry_xml(entry)
+            
+            # CRITICAL: Close DictionaryService's persistent connection during update
+            # This allows XMLEntryService to get exclusive access to the database
+            db_connector = dict_service.db_connector
+            was_connected = db_connector.is_connected()
+            if was_connected:
+                try:
+                    db_connector.disconnect()
+                    logger.info(f"[EDIT_ENTRY] Disconnected DictionaryService connection before XMLEntryService update")
+                except Exception as e:
+                    logger.warning(f"[EDIT_ENTRY] Failed to disconnect: {e}")
+            
+            try:
+                # Try to update, fall back to create if entry doesn't exist
+                try:
+                    logger.info(f"[EDIT_ENTRY] Calling XMLEntryService.update_entry for {entry_id}")
+                    xml_service.update_entry(entry_id, entry_xml)
+                    logger.info(f"[EDIT_ENTRY] XMLEntryService.update_entry succeeded for {entry_id}")
+                except Exception as e:
+                    if "not found" in str(e).lower() or "does not exist" in str(e).lower():
+                        logger.info(f"[EDIT_ENTRY] Entry {entry_id} not found, creating instead")
+                        xml_service.create_entry(entry_xml)
+                        logger.info(f"[EDIT_ENTRY] XMLEntryService.create_entry succeeded for {entry_id}")
+                    else:
+                        raise
+                
+                return jsonify({"id": entry_id, "message": "Entry updated successfully"})
+            except Exception as update_error:
+                logger.error(f"[EDIT_ENTRY] Update/create failed: {update_error}", exc_info=True)
+                return jsonify({"error": f"Failed to save entry: {str(update_error)}"}), 500
+            finally:
+                # CRITICAL: Reconnect DictionaryService after update
+                if was_connected:
+                    try:
+                        db_connector.connect()
+                        logger.info(f"[EDIT_ENTRY] Reconnected DictionaryService connection after update")
+                    except Exception as e:
+                        logger.error(f"[EDIT_ENTRY] Failed to reconnect DictionaryService: {e}", exc_info=True)
+
 
         # Try to load the entry for editing
         entry = None

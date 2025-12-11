@@ -182,11 +182,22 @@ def setup_e2e_test_database():
             except OSError:
                 pass
         
+        # CRITICAL: Disconnect setup connector before yielding to tests
+        # If we keep this connection open, it will block database updates in the Flask server
+        try:
+            connector.disconnect()
+            logger.info("Disconnected setup connector before tests run")
+        except Exception as e:
+            logger.warning(f"Failed to disconnect setup connector: {e}")
+        
         yield
         
     finally:
         # Clean up test database after all tests
         try:
+            # Reconnect if needed for cleanup
+            if not connector.is_connected():
+                connector.connect()
             connector.execute_update(f"db:drop('{test_db}')")
             logger.info(f"Dropped E2E test database: {test_db}")
         except Exception as e:

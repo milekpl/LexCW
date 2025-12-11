@@ -173,8 +173,9 @@ class BaseXConnector:
         q = None
         try:
             q = self._session.query(query)
-            q.execute()
+            result = q.execute()
             self.logger.debug(f"Update executed successfully: {query[:100]}...")
+            
         except Exception as e:
             error_msg = f"Update execution failed: {e}"
             self.logger.error(error_msg)
@@ -185,6 +186,20 @@ class BaseXConnector:
                     q.close()
                 except:
                     pass  # Ignore errors when closing
+            
+            # CRITICAL: Close and reopen connection to force persistence
+            # BaseX doesn't commit changes until the session is properly closed
+            try:
+                old_session = self._session
+                self._session = None
+                if old_session:
+                    old_session.close()
+                self.logger.debug("Closed session to persist changes")
+                # Reconnect for next operation
+                self.connect()
+                self.logger.debug("Reopened session after persist")
+            except Exception as reconnect_error:
+                self.logger.warning(f"Failed to reconnect after update: {reconnect_error}")
     
     def create_database(self, db_name: str, content: str = "") -> None:
         """

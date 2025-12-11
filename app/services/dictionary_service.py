@@ -336,7 +336,7 @@ class DictionaryService:
             )
 
             self.db_connector.execute_update(query)
-
+            
             # Return the entry ID
             return entry.id
 

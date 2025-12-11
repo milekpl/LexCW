@@ -57,10 +57,15 @@ class LIFTXMLSerializer {
         const dateModified = formData.dateModified || formData.date_modified;
         
         // Validate required fields
-        const entryId = formData.id;
+        console.debug(`[FORM SUBMIT] serializeEntry called, incoming id: ${formData.id || '<none>'}`);
+        let entryId = formData.id;
 
         if (!entryId) {
-            throw new Error('Entry must have an id');
+            // For new entries (add page) there may be no id input.
+            // Generate a temporary entry id so XML can be produced and
+            // server can assign a permanent id on POST.
+            entryId = this.generateEntryId();
+            console.warn(`[FORM SUBMIT] No entry id provided; generated temporary id: ${entryId}`);
         }
         
         if (!lexicalUnit || Object.keys(lexicalUnit).length === 0) {
@@ -169,6 +174,14 @@ class LIFTXMLSerializer {
 
         // Remove XML declaration if present (we'll add it later if needed)
         xmlString = xmlString.replace(/<\?xml[^>]*\?>\s*/, '');
+        
+        // Log the actual XML being sent (for debugging sense deletion issues)
+        const senseMatches = xmlString.match(/<sense\s+/g);
+        const actualSenseCount = senseMatches ? senseMatches.length : 0;
+        console.log(`[FORM SUBMIT] Generated XML has ${actualSenseCount} <sense> elements`);
+        if (actualSenseCount !== formData.senses.length) {
+            console.warn(`[FORM SUBMIT] WARNING: Expected ${formData.senses.length} senses but XML has ${actualSenseCount}`);
+        }
 
         return xmlString;
     }
