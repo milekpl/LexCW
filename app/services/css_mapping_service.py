@@ -173,18 +173,11 @@ class CSSMappingService:
                 sense_count = 0
             
             # Add sense numbering CSS if enabled
+            # Simplified logic: number senses if number_senses is True AND there are multiple senses
             should_number_senses = False
-            if profile.number_senses:
-                # Check if number_senses_if_multiple attribute exists (for backward compatibility)
-                has_conditional = hasattr(profile, 'number_senses_if_multiple') and profile.number_senses_if_multiple
-                if has_conditional:
-                    # Only number if there are multiple senses
-                    should_number_senses = sense_count > 1
-                    self._logger.info(f"Profile '{profile.name}': Conditional numbering ON - sense_count={sense_count}, will_number={should_number_senses}")
-                else:
-                    # Always number when number_senses is True
-                    should_number_senses = True
-                    self._logger.info(f"Profile '{profile.name}': Standard numbering ON - hasattr={hasattr(profile, 'number_senses_if_multiple')}, value={getattr(profile, 'number_senses_if_multiple', 'N/A')}")
+            if profile.number_senses and sense_count > 1:
+                should_number_senses = True
+                self._logger.info(f"Profile '{profile.name}': Numbering ON (sense_count={sense_count})")
             
             if should_number_senses and (not profile.custom_css or 'sense::before' not in profile.custom_css):
                 # If we have entry-level PoS, adjust sense numbering to account for it
@@ -389,6 +382,43 @@ class CSSMappingService:
                     current_type = elem.attrib.get('type', '')
                     if current_type in note_map:
                         elem.attrib['type'] = note_map[current_type]
+
+            # trait: value attribute (maps to range with same name as trait "name")
+            # This handles semantic-domain, academic-domain, usage-type etc. if they are traits
+            for elem in root.findall('.//trait'):
+                trait_name = elem.attrib.get('name', '')
+                current_value = elem.attrib.get('value', '')
+                
+                # Check if we have a range map for this trait name
+                if trait_name and current_value:
+                    # Try exact match or plural/singular variations
+                    range_map = (range_abbr_maps.get(trait_name) or 
+                               range_abbr_maps.get(f"{trait_name}s") or
+                               range_abbr_maps.get(trait_name.rstrip('s')))
+                               
+                    if range_map and current_value in range_map:
+                        elem.attrib['value'] = range_map[current_value]
+            
+            # field: type attribute (maps to range with same name as field "type")
+            for elem in root.findall('.//field'):
+                field_type = elem.attrib.get('type', '')
+                
+                # Check if we have a range map for this field type
+                if field_type:
+                    # Try exact match or plural/singular variations
+                    range_map = (range_abbr_maps.get(field_type) or 
+                               range_abbr_maps.get(f"{field_type}s") or
+                               range_abbr_maps.get(field_type.rstrip('s')))
+                               
+                    # fields usually have content in form/text, but might use traits or other mechanism
+                    # If field has a 'value' trait-like attribute (uncommon but possible) OR
+                    # we just want to resolve the TYPE logic? 
+                    # Actually, fields hold content. Resolution is usually for the content if it's an ID.
+                    # But standard fields in LIFT hold text. 
+                    # If the USER meant "usage-type" as a range, it is typically a TRAIT.
+                    # If it is a field, it might be just text.
+                    # We'll assume traits cover the domains/usage-types requirements.
+                    pass
             
             # Convert back to string
             return ET.tostring(root, encoding='unicode')

@@ -13,7 +13,7 @@ from app.services.display_profile_service import DisplayProfileService
 class TestCSSRelationHeadwordResolution:
     """Test suite for CSS rendering with resolved relation references."""
 
-    def test_relation_displays_headword_not_id(self, app, populated_dict_service):
+    def test_relation_displays_headword_not_id(self, app, populated_dict_service, cleanup_profile_db):
         """Test that relations display headwords instead of IDs in CSS preview."""
         with app.app_context():
             dict_service = populated_dict_service
@@ -98,7 +98,7 @@ class TestCSSRelationHeadwordResolution:
             except:
                 pass  # Cleanup is best-effort
 
-    def test_relation_shows_id_when_target_missing(self, app, populated_dict_service):
+    def test_relation_shows_id_when_target_missing(self, app, populated_dict_service, cleanup_profile_db):
         """Test that relations fall back to showing ID when target doesn't exist."""
         with app.app_context():
             dict_service = populated_dict_service

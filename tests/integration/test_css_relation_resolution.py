@@ -15,9 +15,10 @@ class TestCSSRelationResolution:
     """Test suite for CSS rendering with resolved relation references."""
 
     def test_relation_resolves_to_headword_in_css_display(
-        self, app, dict_service
+        self, app, dict_service_with_db
     ) -> None:
         """Test that relations display headwords instead of IDs in CSS preview."""
+        dict_service = dict_service_with_db
         with app.app_context():
             # Create two entries - one to reference and one with the relation
             target_entry = Entry.from_dict({
@@ -77,9 +78,10 @@ class TestCSSRelationResolution:
             dict_service.delete_entry('target_entry_xyz')
 
     def test_relation_fallback_when_target_not_found(
-        self, app, dict_service
+        self, app, dict_service_with_db
     ) -> None:
         """Test that relations fall back to showing ID when target entry doesn't exist."""
+        dict_service = dict_service_with_db
         with app.app_context():
             # Create entry with relation to non-existent entry
             entry = Entry.from_dict({
@@ -125,9 +127,10 @@ class TestCSSRelationResolution:
             dict_service.delete_entry('entry_with_broken_ref')
 
     def test_multiple_relations_all_resolved(
-        self, app, dict_service
+        self, app, dict_service_with_db
     ) -> None:
         """Test that multiple relations are all resolved to headwords."""
+        dict_service = dict_service_with_db
         with app.app_context():
             # Create multiple target entries
             synonym = Entry.from_dict({
