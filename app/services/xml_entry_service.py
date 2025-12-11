@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -245,6 +246,14 @@ class XMLEntryService:
             q.execute()
             q.close()
             
+            # CRITICAL: Flush changes to ensure they're persisted before returning
+            # This makes the changes visible to other sessions immediately
+            try:
+                session.execute("FLUSH")
+                logger.debug(f"Flushed database changes for entry {entry_id}")
+            except Exception as flush_error:
+                logger.warning(f"Failed to flush database after create: {flush_error}")
+            
             logger.info(f"Successfully created entry: {entry_id}")
             
             return {
@@ -375,94 +384,107 @@ class XMLEntryService:
             InvalidXMLError: If XML is invalid
             DatabaseConnectionError: If database operation fails
         """
-        # Validate XML
-        root = self._validate_lift_xml(xml_string)
-        xml_entry_id = root.attrib['id']
+        print(f"[DEBUG] update_entry called for {entry_id}")
         
-        # Ensure IDs match
-        if entry_id != xml_entry_id:
-            raise InvalidXMLError(
-                f"Entry ID mismatch: URL has '{entry_id}', XML has '{xml_entry_id}'"
-            )
+        with open('/tmp/sense_deletion_debug.log', 'a') as f:
+            f.write(f"\nValidating XML and checking senses...\n")
         
-        logger.info(f"Updating entry: {entry_id}")
-        
-        # Check if entry exists
-        if not self.entry_exists(entry_id):
-            raise EntryNotFoundError(f"Entry '{entry_id}' not found")
-        
-        # Strip XML declaration if present
-        xml_clean = xml_string.strip()
-        if xml_clean.startswith('<?xml'):
-            xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
-        
-        # Debug logging
-        logger.info(f"[XML UPDATE] Entry {entry_id}: XML length {len(xml_clean)}")
-        logger.info(f"[XML UPDATE] Has <relation> tags: {'<relation' in xml_clean}")
-        if '<relation' in xml_clean:
-            import re
-            relations = re.findall(r'<relation[^>]*>', xml_clean)
-            logger.info(f"[XML UPDATE] Found {len(relations)} relation(s): {relations[:3]}")
-        logger.debug(f"Update XML for {entry_id} (first 500 chars): {xml_clean[:500]}")
-        logger.debug(f"Update XML length: {len(xml_clean)}")
-        
-        # CRITICAL: Strip xmlns from root element
-        # Entries in database don't have explicit xmlns (inherited from document context)
-        # If we try to replace a non-namespaced node with a namespaced one, BaseX deletes it!
-        # Must remove xmlns before parse-xml() to match database structure
-        import re
-        xml_clean = re.sub(r'<entry\s+xmlns="[^"]*"\s+', '<entry ', xml_clean, count=1)
-        logger.debug(f"After xmlns removal: {xml_clean[:200]}")
-        
-        session = self._get_session()
         try:
-            # First verify entry exists before update
-            # NOTE: Query without namespace prefix since entries stored as 'entry' not 'lift:entry'
-            check_query = f"""
+            # Validate XML
+            root = self._validate_lift_xml(xml_string)
+            xml_entry_id = root.attrib['id']
+            
+            # Count senses in the ACTUAL XML received
+            import xml.etree.ElementTree as ET
+            sense_elements = root.findall('.//{http://fieldworks.sil.org/schemas/lift/0.13}sense') or root.findall('.//sense')
+            actual_sense_count_in_xml = len(sense_elements)
+            with open('/tmp/sense_deletion_debug.log', 'a') as f:
+                f.write(f"Actual XML has {actual_sense_count_in_xml} <sense> elements (by parsing)\n")
+            xml_entry_id = root.attrib['id']
+            
+            # Ensure IDs match
+            if entry_id != xml_entry_id:
+                raise InvalidXMLError(
+                    f"Entry ID mismatch: URL has '{entry_id}', XML has '{xml_entry_id}'"
+                )
+            
+            logger.info(f"Updating entry: {entry_id}")
+            
+            # Check if entry exists
+            if not self.entry_exists(entry_id):
+                raise EntryNotFoundError(f"Entry '{entry_id}' not found")
+            
+            # Strip XML declaration if present
+            xml_clean = xml_string.strip()
+            if xml_clean.startswith('<?xml'):
+                xml_clean = '\n'.join(xml_clean.split('\n')[1:]).strip()
+            
+            # Debug logging
+            logger.info(f"[XML UPDATE] Entry {entry_id}: XML length {len(xml_clean)}")
+            
+            # Count senses in the incoming XML
+            import re
+            sense_count = len(re.findall(r'<sense\s+', xml_clean))
+            logger.info(f"[XML UPDATE] Incoming XML has {sense_count} senses")
+            
+            logger.info(f"[XML UPDATE] Has <relation> tags: {'<relation' in xml_clean}")
+            if '<relation' in xml_clean:
+                relations = re.findall(r'<relation[^>]*>', xml_clean)
+                logger.info(f"[XML UPDATE] Found {len(relations)} relation(s): {relations[:3]}")
+            logger.debug(f"Update XML for {entry_id} (first 500 chars): {xml_clean[:500]}")
+            logger.debug(f"Update XML length: {len(xml_clean)}")
+            
+            # CRITICAL: Strip xmlns from root element
+            # Entries in database don't have explicit xmlns (inherited from document context)
+            # If we try to replace a non-namespaced node with a namespaced one, BaseX deletes it!
+            # Must remove xmlns before parse-xml() to match database structure
+            import re
+            xml_clean = re.sub(r'<entry\s+xmlns="[^"]*"\s+', '<entry ', xml_clean, count=1)
+            logger.debug(f"After xmlns removal: {xml_clean[:200]}")
+            
+            session = self._get_session()
+        except Exception as prep_error:
+            logger.error(f"Error preparing XML for update: {prep_error}")
+            raise
+        try:
+            # Use DELETE + INSERT in a single query for atomicity and reliability
+            # CRITICAL: Must use namespace declarations to match namespaced elements
+            combined_query = f"""
+            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
             declare variable $entryId external;
-            count(collection("{self.database}")//entry[@id=$entryId])
-            """
-            q_check = session.query(check_query)
-            q_check.bind('entryId', entry_id)
-            count_before = q_check.execute()
-            q_check.close()
-            logger.debug(f"Entry count before update: {count_before}")
-            
-            # Use parse-xml() with replace node
-            # NOTE: Query without namespace prefix since entries stored as 'entry' not 'lift:entry'
-            replace_query = f"""
-            declare variable $entryId external;
-            declare variable $newXml external;
-            
-            let $entry := collection("{self.database}")//entry[@id=$entryId]
-            let $newEntry := parse-xml($newXml)/*
-            return replace node $entry with $newEntry
+            (
+                for $entry in collection("{self.database}")//lift:entry[@id=$entryId]
+                return delete node $entry,
+                insert node {xml_clean} into collection('{self.database}')//lift:lift
+            )
             """
             
-            q = session.query(replace_query)
+            q = session.query(combined_query)
             q.bind('entryId', entry_id)
-            q.bind('newXml', xml_clean)
-            result = q.execute()
-            q.close()
-            logger.debug(f"Replace query result: '{result}'")
             
-            # Verify the update actually saved the relations
-            # NOTE: Query without namespace prefix
+            try:
+                result = q.execute()
+                logger.debug(f"Combined DELETE+INSERT executed for entry {entry_id}")
+            except Exception as e:
+                logger.error(f"Combined query failed for entry {entry_id}: {e}")
+                raise
+            finally:
+                q.close()
+            
+            # Verify the entry was updated correctly
             verify_query = f"""
+            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
             declare variable $entryId external;
-            collection("{self.database}")//entry[@id=$entryId]
+            collection("{self.database}")//lift:entry[@id=$entryId]
             """
             q_verify = session.query(verify_query)
             q_verify.bind('entryId', entry_id)
             saved_xml = q_verify.execute()
             q_verify.close()
-            logger.info(f"[XML UPDATE] Saved XML has <relation>: {'<relation' in saved_xml}")
-            if '<relation' in saved_xml:
-                import re
-                saved_relations = re.findall(r'<relation[^>]*>', saved_xml)
-                logger.info(f"[XML UPDATE] Saved {len(saved_relations)} relation(s): {saved_relations[:3]}")
-            else:
-                logger.error(f"[XML UPDATE] CRITICAL: Relations were NOT saved to database!")
+            
+            # Count senses in the saved XML
+            saved_sense_count = len(re.findall(r'<sense\s+', saved_xml))
+            logger.info(f"[XML UPDATE] Saved XML has {saved_sense_count} senses (was {sense_count} in incoming)")
             
             # CRITICAL: Flush changes to ensure they're persisted before returning
             try:
@@ -471,7 +493,12 @@ class XMLEntryService:
             except Exception as flush_error:
                 logger.warning(f"Failed to flush database: {flush_error}")
             
-            # Verify entry still exists after update
+            # Verify entry exists after update
+            check_query = f"""
+            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            declare variable $entryId external;
+            count(collection("{self.database}")//lift:entry[@id=$entryId])
+            """
             q_check2 = session.query(check_query)
             q_check2.bind('entryId', entry_id)
             count_after = q_check2.execute()
@@ -480,7 +507,7 @@ class XMLEntryService:
             
             if count_after == "0":
                 logger.error(f"CRITICAL: Entry {entry_id} was DELETED during update!")
-                raise XMLEntryServiceError(f"Entry was deleted during update operation")
+                raise XMLEntryServiceError("Entry was deleted during update operation")
             
             logger.info(f"Successfully updated entry: {entry_id}")
             
@@ -491,6 +518,8 @@ class XMLEntryService:
             
         except Exception as e:
             logger.error(f"Failed to update entry {entry_id}: {e}")
+            with open('/tmp/sense_deletion_debug.log', 'a') as f:
+                f.write(f"UPDATE FAILED with exception: {e}\n")
             raise XMLEntryServiceError(f"Failed to update entry: {e}") from e
         finally:
             session.close()
@@ -556,12 +585,13 @@ class XMLEntryService:
         """
         session = self._get_session()
         try:
-            # Use XQuery variable binding to avoid injection and escaping issues
-            # NOTE: Query without namespace prefix since entries stored as 'entry' not 'lift:entry'
+            # CRITICAL: Use namespace declaration to match namespaced elements
+            # The lift element has xmlns="http://fieldworks.sil.org/schemas/lift/0.13"
             query = f"""
+            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
             declare variable $entryId external;
             
-            exists(collection("{self.database}")//entry[@id=$entryId])
+            exists(collection("{self.database}")//lift:entry[@id=$entryId])
             """
             
             q = session.query(query)

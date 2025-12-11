@@ -362,14 +362,33 @@ function serializeFormToJSONSafe(input, options = {}) {
         try {
             // Use a worker if available to prevent UI freezing
             if (window.Worker) {
-                try {
-                    const worker = new Worker('/static/js/form-serializer-worker.js');
+                    try {
+                    // Add a cache-busting query param so tests pick up latest worker file
+                    const worker = new Worker(`/static/js/form-serializer-worker.js?v=${Date.now()}`);
                     
                     worker.onmessage = function(e) {
+                        // Worker may send diagnostic messages under __debug
+                        if (e.data && e.data.__debug) {
+                            console.debug('[FormSerializer] Worker debug:', e.data.__debug);
+                            // do not clear timeout or terminate yet; wait for real result
+                            return;
+                        }
                         clearTimeout(timeout);
                         if (e.data.error) {
-                            reject(new Error(e.data.error));
+                            // Include stack if provided by worker
+                            const msg = e.data.error + (e.data.stack ? '\n' + e.data.stack : '');
+                            reject(new Error(msg));
                         } else {
+                            // Ensure returned result has an id to avoid older serializers throwing later
+                            try {
+                                if (e.data.result && !e.data.result.id) {
+                                    const tempId = `temp-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+                                    e.data.result.id = tempId;
+                                    console.warn('[FormSerializer] Worker result missing id; assigned temporary id:', tempId);
+                                }
+                            } catch (fixErr) {
+                                console.debug('[FormSerializer] Failed to assign temp id to worker result', fixErr);
+                            }
                             resolve(e.data.result);
                         }
                         worker.terminate();
@@ -381,13 +400,45 @@ function serializeFormToJSONSafe(input, options = {}) {
                         worker.terminate();
                     };
                     
-                    // Convert form to serializable format
-                    const formData = input instanceof HTMLFormElement ? 
-                        Array.from(new FormData(input).entries()) : 
-                        Array.from(input.entries());
-                    
+                    // Convert form to serializable format and apply the same
+                    // template-field preprocessing that the synchronous
+                    // serializer performs so the worker receives sanitized data.
+                    let formEntries;
+                    if (input instanceof HTMLFormElement) {
+                        // Start with FormData entries snapshot
+                        formEntries = Array.from(new FormData(input).entries());
+
+                        // Apply template preprocessing similar to serializeFormToJSON
+                        const templateElement = input.querySelector('#default-sense-template');
+                        const realSenses = input.querySelectorAll('.sense-item:not(#default-sense-template):not(.default-sense-template)');
+
+                        if (templateElement && realSenses.length > 0) {
+                            // Remove template fields from entries
+                            const templateFields = Array.from(templateElement.querySelectorAll('[name]')).map(f => f.name);
+                            formEntries = formEntries.filter(([name, value]) => !templateFields.includes(name));
+                        } else if (templateElement && realSenses.length === 0) {
+                            // Rename TEMPLATE indices to 0
+                            formEntries = formEntries.map(([name, value]) => {
+                                if (typeof name === 'string' && name.includes('[TEMPLATE]')) {
+                                    return [name.replace('[TEMPLATE]', '[0]'), value];
+                                }
+                                return [name, value];
+                            });
+                        }
+                    } else {
+                        formEntries = Array.from(input.entries());
+                    }
+
+                    // Log what we're about to post to the worker for diagnosis
+                    try {
+                        const sample = formEntries.slice(0, 10).map(e => e[0]);
+                        console.debug('[FormSerializer] Posting to worker', { count: formEntries.length, sampleNames: sample });
+                    } catch (logErr) {
+                        console.debug('[FormSerializer] Posting to worker (could not stringify sample)', logErr);
+                    }
+
                     worker.postMessage({
-                        formData: formData,
+                        formData: formEntries,
                         options: options
                     });
                 } catch (workerError) {

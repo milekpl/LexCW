@@ -68,7 +68,9 @@ const applySenseRelationsFromDom = window.applySenseRelationsFromDom || function
     const result = formData || {};
     result.senses = normalize(result.senses);
 
-    const senseItems = form ? form.querySelectorAll('#senses-container .sense-item') : [];
+    // CRITICAL: Exclude the default-sense-template to avoid adding ghost senses
+    // The template should never be included in the actual data being submitted
+    const senseItems = form ? form.querySelectorAll('#senses-container .sense-item:not(#default-sense-template):not(.default-sense-template)') : [];
     senseItems.forEach((senseEl, fallbackIndex) => {
         const senseIndex = senseEl.dataset.senseIndex;
         const idx = Number.isNaN(Number(senseIndex)) ? fallbackIndex : Number(senseIndex);
@@ -939,9 +941,27 @@ async function submitForm() {
         progressBar.style.width = '30%';
         progressBar.textContent = 'Generating LIFT XML...';
         
+        // Ensure formData has an id so older/cached serializers don't throw
+        if (!formData.id) {
+            let tempId;
+            if (window.xmlSerializer && typeof window.xmlSerializer.generateEntryId === 'function') {
+                try {
+                    tempId = window.xmlSerializer.generateEntryId();
+                } catch (e) {
+                    tempId = null;
+                }
+            }
+            if (!tempId) {
+                tempId = `temp-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+            }
+            formData.id = tempId;
+            console.warn(`[FORM SUBMIT] No entry id in formData; assigned temporary id: ${formData.id}`);
+        }
+
         // Generate LIFT XML directly from form data (serializer now handles snake_case)
         let xmlString;
         try {
+            console.debug('[FORM SUBMIT] Before serializeEntry - formData.id =', formData.id, 'xmlSerializer.generateEntryId =', typeof (window.xmlSerializer && window.xmlSerializer.generateEntryId));
             xmlString = window.xmlSerializer.serializeEntry(formData);
             console.log('[FORM SUBMIT] LIFT XML generated successfully');
             console.log('[FORM SUBMIT] XML Preview:', xmlString.substring(0, 500) + '...');
@@ -960,6 +980,11 @@ async function submitForm() {
         const entryId = form.querySelector('input[name="id"]')?.value?.trim();
         const apiUrl = entryId ? `/api/xml/entries/${entryId}` : '/api/xml/entries';
         const apiMethod = entryId ? 'PUT' : 'POST';
+        
+        // Debug: Log sense count in XML being sent
+        const senseMatchesBefore = xmlString.match(/<sense\s+/g);
+        const senseCountBefore = senseMatchesBefore ? senseMatchesBefore.length : 0;
+        console.log(`[FORM SUBMIT] About to send XML to ${apiUrl} with ${senseCountBefore} senses`);
         
         console.log(`Submitting XML to URL: ${apiUrl}, Method: ${apiMethod}`);
         

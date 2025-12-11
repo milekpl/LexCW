@@ -12,6 +12,15 @@ self.importScripts('/static/js/form-serializer.js');
 self.addEventListener('message', function(e) {
     try {
         const { formData, options } = e.data;
+        // Diagnostic logging: report how many entries and a small sample
+        try {
+            const count = Array.isArray(formData) ? formData.length : (formData && formData.length) || 0;
+            const sampleNames = (Array.isArray(formData) ? formData.slice(0,10) : formData).map ? (Array.isArray(formData) ? formData.slice(0,10).map(e => e[0]) : []) : [];
+            // use postMessage back to main thread to avoid console in worker environments
+            self.postMessage({ __debug: { receivedCount: count, sampleNames } });
+        } catch (dbgErr) {
+            // ignore logging errors
+        }
         
         // Create a FormData-like object from the array
         const formDataObj = {
@@ -28,6 +37,8 @@ self.addEventListener('message', function(e) {
         self.postMessage({ result });
     } catch (error) {
         // Send any errors back to the main thread
-        self.postMessage({ error: error.message });
+        const payload = { error: error.message };
+        if (error.stack) payload.stack = error.stack;
+        self.postMessage(payload);
     }
 });

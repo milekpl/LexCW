@@ -211,6 +211,11 @@ def test_default_template_not_serialized(page, flask_test_server):
     
     # Should serialize exactly 1 sense (not 2 - one real + one template)
     count_log = [log for log in submit_logs if 'Serialized senses:' in log]
+    # DEBUG: dump console logs when assertion would fail
+    if len(count_log) == 0:
+        print("DEBUG: console_logs:")
+        for i, cl in enumerate(console_logs):
+            print(i, repr(cl))
     assert len(count_log) > 0, f"No serialization count log. Got {len(console_logs)} total logs"
     assert 'Serialized senses: 1' in count_log[0], \
         f"Default template was serialized! Got: {count_log[0]}"
