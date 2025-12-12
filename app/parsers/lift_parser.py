@@ -272,8 +272,15 @@ class LIFTParser:
             xml_string = xml_string.strip()
             
             # Handle case where we have multiple entry elements without a root
-            # This is common in test mocks and some database responses
-            if xml_string.count('<entry') > 1 and not xml_string.startswith('<lift>'):
+            # This is common in test mocks and some database responses. Support both
+            # namespaced (<lift:entry>) and non-namespaced (<entry>) entries and
+            # strip any extra XML declarations that may appear mid-string.
+            import re
+            # Remove any XML declarations that are not at the start
+            xml_string = re.sub(r'<\?xml[^>]*\?>', '', xml_string)
+
+            entry_count = xml_string.count('<entry') + xml_string.count('<lift:entry')
+            if entry_count > 1 and not xml_string.lstrip().startswith('<lift>'):
                 # Multiple entries without a root - wrap them
                 xml_string = f"<lift>{xml_string}</lift>"
             
@@ -311,7 +318,10 @@ class LIFTParser:
             # Re-raise ValidationError as-is (already logged in inner try-except)
             raise
         except ET.ParseError as e:
+            import traceback
             self.logger.error(f"XML parsing error: {e}")
+            self.logger.error(f"XML string: {xml_string[:500]}...")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     def parse_entry_element(self, entry_elem: ET.Element) -> Entry:
@@ -1922,7 +1932,7 @@ class LIFTParser:
         element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
 
         # Add backward compatibility: provide singular 'description' field from plural 'descriptions'
-        element_data['description'] = element_data['descriptions'].copy()
+        element_data['description'] = element_data['descriptions']
 
         # Parse abbreviation (handle LIFT form structure)
         abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
@@ -2314,8 +2324,10 @@ class LIFTRangesParser:
         element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
         element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
 
+        # Do not fall back to labels for descriptions; descriptions must come from explicit description elements
+
         # Add backward compatibility: provide singular 'description' field from plural 'descriptions'
-        element_data['description'] = element_data['descriptions'].copy()
+        element_data['description'] = element_data['descriptions']
 
         # Parse child elements (recursive, direct children only)
         for child_elem in self._find_elements(elem, './lift:range-element', './range-element'):
@@ -2502,6 +2514,11 @@ class LIFTRangesParser:
         # Parse multilingual labels and descriptions
         element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
         element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
+
+        # Do not fall back to labels for descriptions; descriptions should only reflect explicit description fields
+
+        # Backward compatibility: provide singular 'description' field
+        element_data['description'] = element_data['descriptions']
         
         # Parse abbreviation (handle LIFT form structure)
         abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')

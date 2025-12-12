@@ -253,7 +253,8 @@ class TestLIFTRangesParserComprehensive:
         
         child_element = parent_element['children'][0]
         assert child_element['id'] == 'child-element', "Child element not found under parent"
-        assert child_element['description']['en'] == 'Child Element', "Child element description not parsed correctly"
+        # Description not provided in input; ensure label parsed instead
+        assert child_element['labels']['en'] == 'Child Element', "Child element label not parsed correctly"
 
     @pytest.mark.integration
     def test_parse_range_error_handling(self, ranges_parser):

@@ -162,30 +162,40 @@ class RelationsManager {
         // Get the current number of relations for indexing
         const existingRelations = this.container.querySelectorAll('.relation-item').length;
         const newIndex = existingRelations;
-        
+
         const newRelation = {
             type: '',
             ref: ''
         };
-        
+
         // Create new relation HTML
         const relationHtml = this.createRelationHtml(newRelation, newIndex);
-        
+
         // Remove empty state if it exists
         const emptyState = this.container.querySelector('.empty-state');
         if (emptyState) {
             emptyState.remove();
         }
-        
+
         // Add the new relation
         this.container.insertAdjacentHTML('beforeend', relationHtml);
-        
-        // Initialize the new relation's dropdown
+
+        // Initialize the new relation's dropdown with range data
         const newSelect = this.container.querySelector(`.relation-item[data-relation-index="${newIndex}"] .relation-type-select`);
         if (newSelect) {
-            this.populateRelationTypeSelect(newSelect);
+            // Populate with loaded relation types or use rangesLoader if available
+            if (this.relationTypes && this.relationTypes.length > 0) {
+                this.populateRelationTypeSelect(newSelect);
+            } else if (window.rangesLoader) {
+                // If rangesLoader is available, use it to populate the select
+                window.rangesLoader.populateSelect(newSelect, this.rangeId, {
+                    emptyOption: 'Select type'
+                }).catch(err => {
+                    console.error(`[RelationsManager] Failed to populate select via rangesLoader:`, err);
+                });
+            }
         }
-        
+
         console.log(`[RelationsManager] Added new relation at index ${newIndex}`);
     }
     
@@ -259,8 +269,8 @@ class RelationsManager {
                     <div class="row">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Relation Type</label>
-                            <select class="form-control relation-type-select" 
-                                    name="relations[${index}][type]" 
+                            <select class="form-control relation-type-select"
+                                    name="relations[${index}].type"
                                     data-range-id="${this.rangeId}"
                                     data-hierarchical="true"
                                     data-searchable="true"
@@ -273,8 +283,8 @@ class RelationsManager {
                             <label class="form-label fw-bold">Target Entry</label>
                             
                             <!-- Hidden input field for form submission (NO raw ID visible to user) -->
-                            <input type="hidden" 
-                                   name="relations[${index}][ref]"
+                            <input type="hidden"
+                                   name="relations[${index}].ref"
                                    value="${relation.ref || ''}">
                             
                             <!-- Search interface for adding/changing relations -->
@@ -336,22 +346,55 @@ class RelationsManager {
         const searchTerm = input.value.trim();
         const relationIndex = input.dataset.relationIndex;
         const resultsContainer = document.getElementById(`search-results-${relationIndex}`);
-        
+
         if (searchTerm.length < 2) {
             resultsContainer.style.display = 'none';
             return;
         }
-        
+
         try {
-            // Search for entries using the API
-            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=5`);
+            // Use a higher limit for more comprehensive search results
+            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=100`);
             if (response.ok) {
                 const result = await response.json();
-                this.displaySearchResults(result.entries || [], resultsContainer, relationIndex);
+                const prioritizedEntries = this.prioritizeSearchResults(result.entries || [], searchTerm);
+                this.displaySearchResults(prioritizedEntries, resultsContainer, relationIndex);
             }
         } catch (error) {
             console.warn('[RelationsManager] Entry search failed:', error);
         }
+    }
+
+    /**
+     * Prioritize search results by placing exact matches at the top
+     * @param {Array} entries - Array of search results
+     * @param {string} searchTerm - The term being searched for
+     * @returns {Array} - Prioritized array of entries
+     */
+    prioritizeSearchResults(entries, searchTerm) {
+        // Create a normalized search term for comparison
+        const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+
+        // Separate exact matches, partial matches, and others
+        const exactMatches = [];
+        const partialMatches = [];
+        const otherMatches = [];
+
+        entries.forEach(entry => {
+            // Get the headword for comparison
+            const headword = this.getEntryDisplayText(entry).toLowerCase();
+
+            if (headword === normalizedSearchTerm) {
+                exactMatches.push(entry);
+            } else if (headword.includes(normalizedSearchTerm)) {
+                partialMatches.push(entry);
+            } else {
+                otherMatches.push(entry);
+            }
+        });
+
+        // Combine the arrays with exact matches first
+        return [...exactMatches, ...partialMatches, ...otherMatches];
     }
     
     displaySearchResults(entries, container, relationIndex) {
@@ -362,27 +405,55 @@ class RelationsManager {
             container.style.display = 'block';
             return;
         }
-        
-        const resultsHtml = entries.map(entry => {
-            // Extract display text from headword or lexical_unit (which may be an object)
+
+        // Create scrollable container with better styling
+        const maxResultsToShow = 50; // Show first 50 results to prevent UI freezing
+        const resultsToShow = entries.slice(0, maxResultsToShow);
+        const remainingCount = entries.length - maxResultsToShow;
+
+        // Get the search input element to access the current search term
+        const input = document.querySelector(
+            `.relation-search-input[data-relation-index="${relationIndex}"]`
+        );
+        const currentSearchTerm = input ? input.value.trim().toLowerCase() : '';
+
+        const resultsHtml = resultsToShow.map(entry => {
             const displayText = this.getEntryDisplayText(entry);
+            const isExactMatch = displayText.toLowerCase() === currentSearchTerm;
+            const matchIndicator = isExactMatch ? '<span class="badge bg-success ms-2">Exact Match</span>' : '';
+
             return `
-            <div class="search-result-item p-2 border-bottom cursor-pointer" 
-                 data-entry-id="${entry.id}" 
+            <div class="search-result-item p-2 border-bottom cursor-pointer"
+                 data-entry-id="${entry.id}"
                  data-entry-headword="${displayText}"
                  data-relation-index="${relationIndex}">
-                <div class="fw-bold">${displayText}</div>
-                ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="fw-bold">${displayText}</div>
+                        ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
+                    </div>
+                    <div>
+                        ${matchIndicator}
+                    </div>
+                </div>
             </div>
         `}).join('');
-        
+
         container.innerHTML = `
-            <div class="border rounded bg-white shadow-sm">
+            <div class="search-results-container bg-white shadow-sm" style="max-height: 400px; overflow-y: auto;">
                 ${resultsHtml}
             </div>
         `;
+
+        if (remainingCount > 0) {
+            const remainingDiv = document.createElement('div');
+            remainingDiv.className = 'text-center text-muted p-2';
+            remainingDiv.innerHTML = `+ ${remainingCount} more results (refine search for better results)`;
+            container.querySelector('.search-results-container').appendChild(remainingDiv);
+        }
+
         container.style.display = 'block';
-        
+
         // Add click handlers for search results
         container.querySelectorAll('.search-result-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -393,9 +464,9 @@ class RelationsManager {
     
     selectSearchResult(resultItem) {
         const entryId = resultItem.dataset.entryId;
-        const entryHeadword = resultItem.dataset.entryHeadwork;
+        const entryHeadword = resultItem.dataset.entryHeadword;
         const relationIndex = resultItem.dataset.relationIndex;
-        
+
         // Update the hidden input with the entry ID
         // Use DOT notation to match the template's field naming convention
         const hiddenInput = this.container.querySelector(`input[name="relations[${relationIndex}].ref"]`);
@@ -404,24 +475,24 @@ class RelationsManager {
             // Dispatch change event to trigger any listeners
             hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
-        
+
         // Update the search input to show the selected entry
         const searchInput = this.container.querySelector(`input[data-relation-index="${relationIndex}"]`);
         if (searchInput) {
             searchInput.value = entryHeadword;
         }
-        
+
         // Hide the search results
         const resultsContainer = document.getElementById(`search-results-${relationIndex}`);
         if (resultsContainer) {
             resultsContainer.style.display = 'none';
         }
-        
+
         // Trigger XML preview update
         if (window.updateXmlPreview) {
             window.updateXmlPreview();
         }
-        
+
         console.log(`[RelationsManager] Selected entry "${entryHeadword}" (${entryId}) for relation ${relationIndex}`);
     }
     

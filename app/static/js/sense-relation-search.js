@@ -74,21 +74,55 @@ class SenseRelationSearchHandler {
         const senseIndex = input.dataset.senseIndex;
         const relationIndex = input.dataset.relationIndex;
         const resultsContainer = document.getElementById(`sense-search-results-${senseIndex}-${relationIndex}`);
-        
+
         if (searchTerm.length < 2) {
             resultsContainer.style.display = 'none';
             return;
         }
-        
+
         try {
-            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=10`);
+            // Use a higher limit for more comprehensive search results
+            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=100`);
             if (response.ok) {
                 const result = await response.json();
-                this.displaySenseSearchResults(result.entries || [], resultsContainer, senseIndex, relationIndex);
+                const prioritizedEntries = this.prioritizeSearchResults(result.entries || [], searchTerm);
+                this.displaySenseSearchResults(prioritizedEntries, resultsContainer, senseIndex, relationIndex);
             }
         } catch (error) {
             console.warn('[SenseRelationSearchHandler] Entry search failed:', error);
         }
+    }
+
+    /**
+     * Prioritize search results by placing exact matches at the top
+     * @param {Array} entries - Array of search results
+     * @param {string} searchTerm - The term being searched for
+     * @returns {Array} - Prioritized array of entries
+     */
+    prioritizeSearchResults(entries, searchTerm) {
+        // Create a normalized search term for comparison
+        const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+
+        // Separate exact matches, partial matches, and others
+        const exactMatches = [];
+        const partialMatches = [];
+        const otherMatches = [];
+
+        entries.forEach(entry => {
+            // Get the headword for comparison
+            const headword = this.getEntryHeadword(entry).toLowerCase();
+
+            if (headword === normalizedSearchTerm) {
+                exactMatches.push(entry);
+            } else if (headword.includes(normalizedSearchTerm)) {
+                partialMatches.push(entry);
+            } else {
+                otherMatches.push(entry);
+            }
+        });
+
+        // Combine the arrays with exact matches first
+        return [...exactMatches, ...partialMatches, ...otherMatches];
     }
     
     displaySenseSearchResults(entries, container, senseIndex, relationIndex) {
@@ -97,14 +131,28 @@ class SenseRelationSearchHandler {
             container.style.display = 'block';
             return;
         }
-        
-        const resultsHtml = entries.map(entry => {
+
+        // Create scrollable container with better styling
+        const maxResultsToShow = 50; // Show first 50 results to prevent UI freezing
+        const resultsToShow = entries.slice(0, maxResultsToShow);
+        const remainingCount = entries.length - maxResultsToShow;
+
+        // Get the search input element to access the current search term
+        const input = document.querySelector(
+            `.sense-relation-search-input[data-sense-index="${senseIndex}"][data-relation-index="${relationIndex}"]`
+        );
+        const currentSearchTerm = input ? input.value.trim().toLowerCase() : '';
+
+        const resultsHtml = resultsToShow.map((entry, globalIndex) => {
             const headword = this.getEntryHeadword(entry);
+            const isExactMatch = headword.toLowerCase() === currentSearchTerm;
+            const matchIndicator = isExactMatch ? '<span class="badge bg-success ms-2">Exact Match</span>' : '';
+
             const sensesHtml = entry.senses ? entry.senses.map((sense, idx) => {
                 const gloss = sense.gloss?.en || sense.definition?.en || sense.definition?.pl || 'No definition';
                 const senseId = sense.id || `${entry.id}_sense_${idx}`;
                 return `
-                    <div class="sense-result-item p-2 border-top" 
+                    <div class="sense-result-item p-2 border-top"
                          style="cursor: pointer;"
                          data-sense-id="${senseId}"
                          data-entry-headword="${headword}"
@@ -116,26 +164,41 @@ class SenseRelationSearchHandler {
                                 <small class="text-muted">Sense ${idx + 1}:</small>
                                 <span class="text-dark">${gloss}</span>
                             </div>
-                            <i class="fas fa-check-circle text-success"></i>
+                            <i class="fas fa-check-circle text-success" title="Select this sense"></i>
                         </div>
                     </div>
                 `;
             }).join('') : '';
-            
+
             return `
                 <div class="entry-result-group border rounded mb-2 mt-2 bg-white">
-                    <div class="entry-result-header p-2 bg-light border-bottom">
-                        <div class="fw-bold">${headword}</div>
+                    <div class="entry-result-header p-2 bg-light border-bottom d-flex justify-content-between">
+                        <div>
+                            <span class="fw-bold">${headword}</span>
+                            ${matchIndicator}
+                        </div>
                         <small class="text-muted">${entry.senses ? entry.senses.length : 0} sense(s)</small>
                     </div>
                     ${sensesHtml}
                 </div>
             `;
         }).join('');
-        
-        container.innerHTML = resultsHtml;
+
+        container.innerHTML = `
+            <div class="search-results-container" style="max-height: 400px; overflow-y: auto;">
+                ${resultsHtml}
+            </div>
+        `;
+
+        if (remainingCount > 0) {
+            const remainingDiv = document.createElement('div');
+            remainingDiv.className = 'text-center text-muted p-2';
+            remainingDiv.innerHTML = `+ ${remainingCount} more results (refine search for better results)`;
+            container.querySelector('.search-results-container').appendChild(remainingDiv);
+        }
+
         container.style.display = 'block';
-        
+
         // Add click handlers for sense selection
         container.querySelectorAll('.sense-result-item').forEach(item => {
             item.addEventListener('click', (e) => {
