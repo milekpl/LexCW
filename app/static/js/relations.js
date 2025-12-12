@@ -53,16 +53,9 @@ class RelationsManager {
             console.warn(`[RelationsManager] Failed to load relation types from range '${this.rangeId}':`, error);
         }
         
-        // Fallback to basic types if loading fails
-        this.relationTypes = [
-            { id: 'synonym', value: 'synonym', abbrev: 'syn', description: { en: 'Synonym - word with the same or similar meaning' } },
-            { id: 'antonym', value: 'antonym', abbrev: 'ant', description: { en: 'Antonym - word with opposite meaning' } },
-            { id: 'hypernym', value: 'hypernym', abbrev: 'hyper', description: { en: 'Hypernym - more general term' } },
-            { id: 'hyponym', value: 'hyponym', abbrev: 'hypo', description: { en: 'Hyponym - more specific term' } },
-            { id: 'meronym', value: 'meronym', abbrev: 'mero', description: { en: 'Meronym - part-whole relationship' } },
-            { id: 'holonym', value: 'holonym', abbrev: 'holo', description: { en: 'Holonym - whole-part relationship' } }
-        ];
-        console.log('[RelationsManager] Using fallback relation types:', this.relationTypes.length);
+        // If loading fails, keep relationTypes empty — no fallback values allowed
+        this.relationTypes = [];
+        console.warn('[RelationsManager] No relation types loaded from ranges or API; relation dropdowns will remain empty');
     }
     
     initializeExistingRelationDropdowns() {
@@ -108,15 +101,8 @@ class RelationsManager {
             selectElement.appendChild(option);
         });
         
-        // If the current value wasn't found in the loaded types, add it as a fallback option
-        if (currentValue && !currentValueFound) {
-            const fallbackOption = document.createElement('option');
-            fallbackOption.value = currentValue;
-            fallbackOption.textContent = currentValue;
-            fallbackOption.selected = true;
-            fallbackOption.title = 'Value from database (not in current ranges)';
-            selectElement.appendChild(fallbackOption);
-        }
+        // If the current value wasn't found in the loaded types, do NOT add it as fallback.
+        // Selecting an absent value should be handled by server/UI validation instead.
     }
     
     setupEventListeners() {

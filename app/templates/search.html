@@ -235,9 +235,9 @@
 document.addEventListener('DOMContentLoaded', async function() {
     // Load grammatical info options dynamically
     const posFilter = document.getElementById('pos-filter');
-    if (posFilter && window.rangesLoader) {
+        if (posFilter && window.rangesLoader) {
         const selectedValue = new URLSearchParams(window.location.search).get('pos') || '';
-        await window.rangesLoader.populateSelectWithFallback(posFilter, 'grammatical-info', {
+            await window.rangesLoader.populateSelect(posFilter, 'grammatical-info', {
             emptyOption: 'Any',
             selectedValue: selectedValue,
             valueField: 'value',

@@ -92,6 +92,8 @@ def create_app(config_name=None):
     
     from app.api.ranges import ranges_bp
     app.register_blueprint(ranges_bp)
+    from app.api.setup import setup_bp
+    app.register_blueprint(setup_bp)
     
     from app.api.ranges_editor import ranges_editor_bp
     app.register_blueprint(ranges_editor_bp)
@@ -297,6 +299,20 @@ def create_app(config_name=None):
         from app.services.merge_split_service import MergeSplitService
         merge_split_service = MergeSplitService(dictionary_service=dictionary_service)
         binder.bind(MergeSplitService, to=merge_split_service, scope=singleton)
+
+    # After DI, set a flag if this is a first-run (no project settings configured)
+    with app.app_context():
+        try:
+            config_manager = app.injector.get(ConfigManager)
+            settings = config_manager.get_all_settings()
+            app.config['FIRST_RUN_SETUP'] = False if settings else True
+        except Exception:
+            app.config['FIRST_RUN_SETUP'] = False
+
+    # Inject FIRST_RUN flag into templates
+    @app.context_processor
+    def inject_first_run_flag():
+        return {'FIRST_RUN_SETUP': app.config.get('FIRST_RUN_SETUP', False)}
 
     # Create and attach injector
     injector = Injector()

@@ -1477,6 +1477,8 @@ class DictionaryService:
         if self.ranges:
             return self.ranges
 
+        # Removed nested install_recommended_ranges definition to place it at class level
+
         try:
             db_name = self.db_connector.database
             if not db_name:
@@ -1521,6 +1523,68 @@ class DictionaryService:
             self.logger.info("Falling back to empty ranges.")
             self.ranges = {}
             return self.ranges
+
+    def install_recommended_ranges(self) -> Dict[str, Any]:
+        """
+        Install a minimal recommended set of LIFT ranges into the database.
+
+        This is intended for initial project setup (wizard) or when ranges
+        are missing. It will not overwrite existing ranges; if ranges are
+        present, it will raise a DatabaseError.
+        """
+        # If ranges already exist, do not overwrite
+        existing = self.get_ranges()
+        if existing:
+            raise DatabaseError("Ranges already exist in the database")
+
+        minimal_ranges_xml = (
+            '<lift-ranges>'
+            '<range id="grammatical-info">'
+            '  <range-element id="Noun"><label><form lang="en"><text>Noun</text></form></label></range-element>'
+            '  <range-element id="Verb"><label><form lang="en"><text>Verb</text></form></label></range-element>'
+            '  <range-element id="Adjective"><label><form lang="en"><text>Adjective</text></form></label></range-element>'
+            '  <range-element id="Adverb"><label><form lang="en"><text>Adverb</text></form></label></range-element>'
+            '</range>'
+            '<range id="lexical-relation">'
+            '  <range-element id="synonym"><label><form lang="en"><text>Synonym</text></form></label></range-element>'
+            '  <range-element id="antonym"><label><form lang="en"><text>Antonym</text></form></label></range-element>'
+            '</range>'
+            '<range id="status">'
+            '  <range-element id="Proposed"><label><form lang="en"><text>Proposed</text></form></label></range-element>'
+            '  <range-element id="Published"><label><form lang="en"><text>Published</text></form></label></range-element>'
+            '</range>'
+            '<range id="etymology">'
+            '  <range-element id="borrowed"><label><form lang="en"><text>borrowed</text></form></label></range-element>'
+            '  <range-element id="native"><label><form lang="en"><text>native</text></form></label></range-element>'
+            '</range>'
+            '<range id="morph-type">'
+            '  <range-element id="stem"><label><form lang="en"><text>stem</text></form></label></range-element>'
+            '  <range-element id="prefix"><label><form lang="en"><text>prefix</text></form></label></range-element>'
+            '  <range-element id="suffix"><label><form lang="en"><text>suffix</text></form></label></range-element>'
+            '  <range-element id="phrase"><label><form lang="en"><text>phrase</text></form></label></range-element>'
+            '</range>'
+            '</lift-ranges>'
+        )
+
+        # Escape double quotes for command string
+        xml_escaped = minimal_ranges_xml.replace('"', '\\"')
+
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            # Add a recommended ranges document; do not overwrite existing ranges files
+            cmd = f'ADD TO recommended-ranges.xml "{xml_escaped}"'
+            self.db_connector.execute_command(cmd)
+
+            # Clear cache and parse the newly added ranges
+            self.ranges = {}
+            ranges = self.get_ranges()
+            return ranges
+        except Exception as e:
+            self.logger.error(f"Failed to install recommended ranges: {e}")
+            raise DatabaseError(f"Failed to install recommended ranges: {e}") from e
 
     def get_system_status(self) -> Dict[str, Any]:
         """

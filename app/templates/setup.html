@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Initial Setup - Wizard{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5>Project Setup</h5>
+    </div>
+    <div class="card-body">
+        <form id="setup-form">
+            <div class="mb-3">
+                <label class="form-label">Project Name</label>
+                <input class="form-control" id="project_name" value="{{ current_app.config.get('PROJECT_SETTINGS')[0].get('project_name') if current_app.config.get('PROJECT_SETTINGS') else 'Default Project' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Source Language (vernacular)</label>
+                <input class="form-control" id="source_lang_code" placeholder="en" value="en">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Target Language (analysis)</label>
+                <input class="form-control" id="target_lang_code" placeholder="es" value="es">
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="install_ranges" checked>
+                <label class="form-check-label" for="install_ranges">Install recommended ranges</label>
+            </div>
+            <button type="button" class="btn btn-primary" id="run-setup-btn">Save settings</button>
+            <a class="btn btn-link" href="/">Skip and continue</a>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('run-setup-btn').addEventListener('click', async () => {
+    const projectName = document.getElementById('project_name').value || 'Default Project';
+    const sourceLang = { code: document.getElementById('source_lang_code').value || 'en', name: 'English' };
+    const targetLangs = [{ code: document.getElementById('target_lang_code').value || 'es', name: 'Spanish' }];
+    const installRanges = document.getElementById('install_ranges').checked;
+    try {
+        const resp = await fetch('/api/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_name: projectName, source_language: sourceLang, target_languages: targetLangs, install_recommended_ranges: installRanges })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            window.location.href = '/';
+        } else {
+            alert('Failed to save settings: ' + (data.error || 'Unknown'));
+        }
+    } catch (err) {
+        alert('Failed to save settings: ' + err);
+    }
+});
+</script>
+{% endblock %}

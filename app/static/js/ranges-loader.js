@@ -48,12 +48,7 @@ class RangesLoader {
             this.log(`Failed to load range ${rangeId}:`, error);
         }
         
-        // Use fallback data if API fails
-        if (this.fallbackData[rangeId]) {
-            this.log(`Using fallback data for range: ${rangeId}`);
-            this.cache.set(rangeId, this.fallbackData[rangeId]);
-            return this.fallbackData[rangeId];
-        }
+        // No fallback data allowed; return null if API fails
         
         return null;
     }
@@ -271,6 +266,8 @@ class RangesLoader {
         const allRanges = await this.loadAllRanges();
         if (!allRanges) {
             this.log('Failed to load ranges, skipping populate');
+            // Show a user-visible banner telling them to use the Ranges Editor
+            this._showRangesMissingBanner();
             return false;
         }
         
@@ -302,6 +299,51 @@ class RangesLoader {
         
         this.log('Finished populating all range selects');
         return true;
+    }
+
+    _showRangesMissingBanner() {
+        // If banner already present, do nothing
+        if (document.getElementById('ranges-missing-banner')) return;
+
+        const container = document.querySelector('main') || document.body;
+        const banner = document.createElement('div');
+        banner.id = 'ranges-missing-banner';
+        banner.className = 'alert alert-warning mt-3';
+        banner.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>Ranges not configured.</strong>
+                    <div class="small">This project has no LIFT ranges loaded. Use the <a href="/ranges-editor">Ranges Editor</a> to add ranges, or install a minimal recommended set to get started.</div>
+                </div>
+                <div>
+                    <button id="install-recommended-ranges" class="btn btn-sm btn-primary me-2">Install recommended ranges</button>
+                    <a href="/ranges-editor" class="btn btn-sm btn-outline-secondary">Open Ranges Editor</a>
+                </div>
+            </div>
+        `;
+
+        container.prepend(banner);
+
+        document.getElementById('install-recommended-ranges').addEventListener('click', async () => {
+            try {
+                const resp = await fetch('/api/ranges/install_recommended', { method: 'POST' });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    banner.className = 'alert alert-success mt-3';
+                    banner.querySelector('strong').textContent = 'Recommended ranges installed.';
+                    // Reload ranges
+                    await this.loadAllRanges();
+                    // Try populating selects again
+                    await this.populateAllRangeSelects();
+                } else {
+                    throw new Error(data.error || 'Failed to install recommended ranges');
+                }
+            } catch (err) {
+                banner.className = 'alert alert-danger mt-3';
+                banner.querySelector('strong').textContent = 'Failed to install recommended ranges.';
+                console.error('[RangesLoader] install recommended failed', err);
+            }
+        });
     }
     
     /**

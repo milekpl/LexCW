@@ -120,74 +120,17 @@ class RangesLoader {
     /**
      * Get fallback values for a specific range type
      */
-    getFallbackValues(rangeId) {
-        const fallbacks = {
-            'grammatical-info': [
-                { id: 'Noun', value: 'Noun', abbrev: 'n' },
-                { id: 'Verb', value: 'Verb', abbrev: 'v' },
-                { id: 'Adjective', value: 'Adjective', abbrev: 'adj' },
-                { id: 'Adverb', value: 'Adverb', abbrev: 'adv' },
-                { id: 'Pronoun', value: 'Pronoun', abbrev: 'pr' },
-                { id: 'Preposition', value: 'Preposition', abbrev: 'prep' },
-                { id: 'Conjunction', value: 'Conjunction', abbrev: 'conj' },
-                { id: 'Interjection', value: 'Interjection', abbrev: 'interj' },
-                { id: 'Article', value: 'Article', abbrev: 'art' }
-            ],
-            'relation-types': [
-                { id: 'synonym', value: 'synonym', abbrev: 'syn' },
-                { id: 'antonym', value: 'antonym', abbrev: 'ant' },
-                { id: 'hypernym', value: 'hypernym', abbrev: 'hyper' },
-                { id: 'hyponym', value: 'hyponym', abbrev: 'hypo' },
-                { id: 'meronym', value: 'meronym', abbrev: 'mero' }
-            ],
-            'variant-types': [
-                { id: 'dialectal', value: 'dialectal', abbrev: 'dial' },
-                { id: 'spelling', value: 'spelling', abbrev: 'sp' },
-                { id: 'morphological', value: 'morphological', abbrev: 'morph' },
-                { id: 'phonetic', value: 'phonetic', abbrev: 'phon' }
-            ]
-        };
-        
-        return fallbacks[rangeId] || [];
-    }
-    
     /**
      * Populate select with fallback values if ranges API fails
      */
     async populateSelectWithFallback(selectElement, rangeId, options = {}) {
         console.log('[RANGES DEBUG] PopulateSelectWithFallback called for:', rangeId);
+        // Keep compatibility call: we no longer provide fallback values.
         const success = await this.populateSelect(selectElement, rangeId, options);
-        console.log('[RANGES DEBUG] PopulateSelect result:', success);
-        
         if (!success) {
-            console.warn(`[RANGES DEBUG] Using fallback values for range ${rangeId}`);
-            const fallbackValues = this.getFallbackValues(rangeId);
-            
-            // Clear and populate with fallback
-            selectElement.innerHTML = '';
-            
-            if (options.emptyOption) {
-                const emptyOpt = document.createElement('option');
-                emptyOpt.value = '';
-                emptyOpt.textContent = options.emptyOption;
-                selectElement.appendChild(emptyOpt);
-            }
-            
-            fallbackValues.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.value;
-                option.textContent = options.includeAbbrev && item.abbrev ? 
-                    `${item.value} (${item.abbrev})` : item.value;
-                
-                if (options.selectedValue && option.value === options.selectedValue) {
-                    option.selected = true;
-                }
-                
-                selectElement.appendChild(option);
-            });
+            console.warn(`[RANGES DEBUG] Failed to populate select for ${rangeId}; no fallback values inserted`);
         }
-        
-        return true;
+        return success;
     }
     
     /**
