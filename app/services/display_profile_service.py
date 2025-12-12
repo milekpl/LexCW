@@ -35,6 +35,7 @@ class DisplayProfileService:
         custom_css: Optional[str] = None,
         show_subentries: bool = False,
         number_senses: bool = True,
+        elements: Optional[List[Dict[str, Any]]] = None,
         is_default: bool = False,
         is_system: bool = False
     ) -> DisplayProfile:
@@ -72,7 +73,7 @@ class DisplayProfileService:
             custom_css=custom_css,
             show_subentries=show_subentries,
             number_senses=number_senses,
-            number_senses=number_senses,
+
             is_default=is_default,
             is_system=is_system
         )
@@ -313,6 +314,79 @@ class DisplayProfileService:
             raise ValueError(f"Invalid element configuration: {error_message}")
         return True
     
+    def set_element_display_aspect(
+        self,
+        profile_id: int,
+        element_name: str,
+        aspect: str,
+        language: Optional[str] = None
+    ) -> ProfileElement:
+        """Set display aspect for an element in a profile.
+        
+        Args:
+            profile_id: Profile ID
+            element_name: LIFT element name (e.g. 'relation')
+            aspect: Display aspect ('full', 'abbr', 'label')
+            language: Optional language code for language-specific settings
+            
+        Returns:
+            Updated ProfileElement
+            
+        Raises:
+            ValueError: If profile not found or aspect invalid
+        """
+        profile = self.get_profile(profile_id)
+        if not profile:
+            raise ValueError(f"Profile with ID {profile_id} not found")
+            
+        # Find element
+        element = next((e for e in profile.elements if e.lift_element == element_name), None)
+        
+        if not element:
+            # Create new element if not found
+            element = ProfileElement(
+                profile_id=profile.id,
+                lift_element=element_name,
+                css_class=element_name,
+                visibility='if-content',
+                display_order=len(profile.elements) + 1
+            )
+            db.session.add(element)
+            
+        element.set_display_aspect(aspect)
+        if language:
+            element.set_display_language(language)
+            
+        db.session.commit()
+        return element
+
+    def get_element_display_aspect(
+        self,
+        profile_id: int,
+        element_name: str
+    ) -> Optional[Dict[str, str]]:
+        """Get display aspect configuration for an element.
+        
+        Args:
+            profile_id: Profile ID
+            element_name: LIFT element name
+            
+        Returns:
+            Dict with 'aspect' and 'language' keys, or None
+        """
+        profile = self.get_profile(profile_id)
+        if not profile:
+            return None
+            
+        element = next((e for e in profile.elements if e.lift_element == element_name), None)
+        if not element:
+            return None
+            
+        return {
+            'aspect': element.get_display_aspect(),
+            'language': element.get_display_language()
+        }
+
     def _add_element_to_profile(self, profile: DisplayProfile, config: Dict[str, Any]) -> ProfileElement:
         """Add an element to a profile.
         

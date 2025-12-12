@@ -322,8 +322,8 @@ class TestDisplayProfileCSSCRUD:
         retrieved = service.get_profile(profile.id)
         assert retrieved.custom_css == custom_css
 
-    def test_conditional_sense_numbering_single_sense(self, app):
-        """Test that conditional numbering doesn't number entries with single sense."""
+    def test_simplified_numbering_logic(self, app):
+        """Test the simplified numbering logic (number_senses=True implies >1 sense)."""
         with app.app_context():
             from app.services.display_profile_service import DisplayProfileService
             from app.services.css_mapping_service import CSSMappingService
@@ -332,11 +332,10 @@ class TestDisplayProfileCSSCRUD:
             service = DisplayProfileService()
             css_service = CSSMappingService()
         
-        # Create profile with conditional numbering enabled
+        # Create profile with numbering enabled (default behavior)
         profile = service.create_profile(
-            name="Conditional Numbering Test",
+            name="Simplified Numbering Test",
             number_senses=True,
-            number_senses_if_multiple=True,
             elements=[{
                 'lift_element': 'sense',
                 'css_class': 'sense',
@@ -346,49 +345,22 @@ class TestDisplayProfileCSSCRUD:
         
         db.session.commit()
         
-        # Entry with SINGLE sense
-        entry_xml = """
-            <entry id="test_entry">
+        # Case 1: Entry with SINGLE sense - should NOT be numbered
+        entry_single = """
+            <entry id="single_sense">
                 <sense id="s1">
                     <definition><form lang="en"><text>only meaning</text></form></definition>
                 </sense>
             </entry>
         """
         
-        html = css_service.render_entry(entry_xml, profile)
+        html_single = css_service.render_entry(entry_single, profile)
+        assert 'counter-reset: sense-counter' not in html_single
+        assert '.sense::before' not in html_single
         
-        # Verify numbering CSS is NOT injected for single sense
-        assert 'counter-reset: sense-counter' not in html
-        assert 'counter-increment: sense-counter' not in html
-        assert '.sense::before' not in html
-
-    def test_conditional_sense_numbering_multiple_senses(self, app):
-        """Test that conditional numbering DOES number entries with multiple senses."""
-        with app.app_context():
-            from app.services.display_profile_service import DisplayProfileService
-            from app.services.css_mapping_service import CSSMappingService
-            from app.models.workset_models import db
-            
-            service = DisplayProfileService()
-            css_service = CSSMappingService()
-        
-        # Create profile with conditional numbering enabled
-        profile = service.create_profile(
-            name="Conditional Numbering Multi Test",
-            number_senses=True,
-            number_senses_if_multiple=True,
-            elements=[{
-                'lift_element': 'sense',
-                'css_class': 'sense',
-                'display_order': 0
-            }]
-        )
-        
-        db.session.commit()
-        
-        # Entry with MULTIPLE senses
-        entry_xml = """
-            <entry id="test_entry">
+        # Case 2: Entry with MULTIPLE senses - SHOULD be numbered
+        entry_multi = """
+            <entry id="multi_sense">
                 <sense id="s1">
                     <definition><form lang="en"><text>first meaning</text></form></definition>
                 </sense>
@@ -398,131 +370,23 @@ class TestDisplayProfileCSSCRUD:
             </entry>
         """
         
-        html = css_service.render_entry(entry_xml, profile)
+        html_multi = css_service.render_entry(entry_multi, profile)
+        assert 'counter-reset: sense-counter' in html_multi
+        assert '.sense::before' in html_multi
         
-        # Verify numbering CSS IS injected for multiple senses
-        assert 'counter-reset: sense-counter' in html
-        assert 'counter-increment: sense-counter' in html
-        assert '.sense::before' in html
-
-    def test_number_senses_if_multiple_field_persistence(self, app):
-        """Test that number_senses_if_multiple field persists correctly."""
-        with app.app_context():
-            from app.services.display_profile_service import DisplayProfileService
-            
-            service = DisplayProfileService()
-        
-        # Create profile with number_senses_if_multiple=True
-        profile = service.create_profile(
-            name="Persistence Test",
-            number_senses=True,
-            number_senses_if_multiple=True
-        )
-        
-        assert profile.number_senses_if_multiple is True
-        
-        # Verify it persists after retrieval
-        retrieved = service.get_profile(profile.id)
-        assert retrieved.number_senses_if_multiple is True
-        
-        # Verify it's in to_dict()
-        profile_dict = retrieved.to_dict()
-        assert profile_dict['number_senses_if_multiple'] is True
-
-    def test_update_number_senses_if_multiple(self, app):
-        """Test updating the number_senses_if_multiple field."""
-        with app.app_context():
-            from app.services.display_profile_service import DisplayProfileService
-            
-            service = DisplayProfileService()
-        
-        # Create profile with conditional numbering disabled
-        profile = service.create_profile(
-            name="Update Test",
-            number_senses=True,
-            number_senses_if_multiple=False
-        )
-        
-        assert profile.number_senses_if_multiple is False
-        
-        # Update to enable conditional numbering
-        updated = service.update_profile(
-            profile.id,
-            number_senses_if_multiple=True
-        )
-        
-        assert updated.number_senses_if_multiple is True
-        
-        # Verify persistence
-        retrieved = service.get_profile(profile.id)
-        assert retrieved.number_senses_if_multiple is True
-
-    def test_import_export_with_number_senses_if_multiple(self, app):
-        """Test that import/export preserves number_senses_if_multiple."""
-        with app.app_context():
-            from app.services.display_profile_service import DisplayProfileService
-            
-            service = DisplayProfileService()
-        
-        # Create profile with conditional numbering
-        profile = service.create_profile(
-            name="Import/Export Test",
-            description="Test profile",
-            number_senses=True,
-            number_senses_if_multiple=True,
-            custom_css=".test { color: red; }"
-        )
-        
-        # Export
-        exported = service.export_profile(profile.id)
-        assert exported['number_senses_if_multiple'] is True
-        
-        # Import with new name
-        exported['name'] = "Imported Profile"
-        imported = service.import_profile(exported, overwrite=False)
-        
-        # Verify field was imported
-        assert imported.number_senses_if_multiple is True
-        assert imported.number_senses is True
-        assert imported.custom_css == ".test { color: red; }"
-
-    def test_conditional_numbering_with_nested_senses(self, app):
-        """Test conditional numbering with nested subsenses."""
-        with app.app_context():
-            from app.services.display_profile_service import DisplayProfileService
-            from app.services.css_mapping_service import CSSMappingService
-            from app.models.workset_models import db
-            
-            service = DisplayProfileService()
-            css_service = CSSMappingService()
-        
-        profile = service.create_profile(
-            name="Nested Senses Test",
-            number_senses=True,
-            number_senses_if_multiple=True,
-            elements=[{
-                'lift_element': 'sense',
-                'css_class': 'sense',
-                'display_order': 0
-            }]
-        )
-        
-        db.session.commit()
-        
-        # Entry with nested subsenses (counts as multiple senses)
-        entry_xml = """
-            <entry id="test_entry">
+        # Case 3: Nested senses count as multiple
+        entry_nested = """
+            <entry id="nested_sense">
                 <sense id="s1">
-                    <definition><form lang="en"><text>first</text></form></definition>
-                    <sense id="s1.1">
-                        <definition><form lang="en"><text>subsense</text></form></definition>
+                    <definition><form lang="en"><text>main</text></form></definition>
+                    <sense id="sub1">
+                        <definition><form lang="en"><text>sub</text></form></definition>
                     </sense>
                 </sense>
             </entry>
         """
         
-        html = css_service.render_entry(entry_xml, profile)
-        
-        # With 2 total senses (including subsense), numbering should be applied
-        assert 'counter-reset: sense-counter' in html
+        html_nested = css_service.render_entry(entry_nested, profile)
+        assert 'counter-reset: sense-counter' in html_nested
+
 

@@ -15,7 +15,7 @@ class TestCSSRelationResolution:
     """Test suite for CSS rendering with resolved relation references."""
 
     def test_relation_resolves_to_headword_in_css_display(
-        self, app, dict_service_with_db
+        self, app, dict_service_with_db, cleanup_profile_db
     ) -> None:
         """Test that relations display headwords instead of IDs in CSS preview."""
         dict_service = dict_service_with_db
@@ -30,7 +30,7 @@ class TestCSSRelationResolution:
                     'grammatical_info': 'Adjective'
                 }]
             })
-            dict_service.add_entry(target_entry)
+            dict_service.create_entry(target_entry)
             
             source_entry = Entry.from_dict({
                 'id': 'source_entry_abc',
@@ -45,7 +45,7 @@ class TestCSSRelationResolution:
                     }]
                 }]
             })
-            dict_service.add_entry(source_entry)
+            dict_service.create_entry(source_entry)
             
             # Get display profile
             profile_service = DisplayProfileService()
@@ -66,7 +66,7 @@ class TestCSSRelationResolution:
             
             # Render with CSS
             css_service = CSSMappingService()
-            html = css_service.render_entry(entry_xml, profile=default_profile)
+            html = css_service.render_entry(entry_xml, profile=default_profile, dict_service=dict_service)
             
             # Verify the relation displays the headword, not the ID
             assert 'Synonym' in html, "Relation type should be displayed"
@@ -78,7 +78,7 @@ class TestCSSRelationResolution:
             dict_service.delete_entry('target_entry_xyz')
 
     def test_relation_fallback_when_target_not_found(
-        self, app, dict_service_with_db
+        self, app, dict_service_with_db, cleanup_profile_db
     ) -> None:
         """Test that relations fall back to showing ID when target entry doesn't exist."""
         dict_service = dict_service_with_db
@@ -96,7 +96,7 @@ class TestCSSRelationResolution:
                     }]
                 }]
             })
-            dict_service.add_entry(entry)
+            dict_service.create_entry(entry)
             
             # Get display profile
             profile_service = DisplayProfileService()
@@ -117,7 +117,7 @@ class TestCSSRelationResolution:
             
             # Render with CSS
             css_service = CSSMappingService()
-            html = css_service.render_entry(entry_xml, profile=default_profile)
+            html = css_service.render_entry(entry_xml, profile=default_profile, dict_service=dict_service)
             
             # Should fall back to showing the ID
             assert 'See also' in html, "Relation type should be displayed"
@@ -127,7 +127,7 @@ class TestCSSRelationResolution:
             dict_service.delete_entry('entry_with_broken_ref')
 
     def test_multiple_relations_all_resolved(
-        self, app, dict_service_with_db
+        self, app, dict_service_with_db, cleanup_profile_db
     ) -> None:
         """Test that multiple relations are all resolved to headwords."""
         dict_service = dict_service_with_db
@@ -143,8 +143,8 @@ class TestCSSRelationResolution:
                 'lexical_unit': {'en': 'slow'},
                 'senses': [{'id': 's1', 'definition': {'en': 'not fast'}}]
             })
-            dict_service.add_entry(synonym)
-            dict_service.add_entry(antonym)
+            dict_service.create_entry(synonym)
+            dict_service.create_entry(antonym)
             
             # Create entry with multiple relations
             entry = Entry.from_dict({
@@ -159,7 +159,7 @@ class TestCSSRelationResolution:
                     ]
                 }]
             })
-            dict_service.add_entry(entry)
+            dict_service.create_entry(entry)
             
             # Get display profile
             profile_service = DisplayProfileService()
@@ -180,7 +180,7 @@ class TestCSSRelationResolution:
             
             # Render with CSS
             css_service = CSSMappingService()
-            html = css_service.render_entry(entry_xml, profile=default_profile)
+            html = css_service.render_entry(entry_xml, profile=default_profile, dict_service=dict_service)
             
             # Both relations should show headwords
             assert 'Synonym' in html

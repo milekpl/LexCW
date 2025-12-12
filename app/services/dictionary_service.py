@@ -934,6 +934,53 @@ class DictionaryService:
             )
             raise DatabaseError(f"Failed to get related entries: {str(e)}") from e
 
+    def get_reverse_related_entries(
+        self, entry_id: str, relation_type: Optional[str] = None
+    ) -> List[Entry]:
+        """
+        Get entries that reference the specified entry (reverse relations).
+
+        Args:
+            entry_id: ID of the entry to find references to.
+            relation_type: Optional type of relation to filter by.
+
+        Returns:
+            List of Entry objects that reference this entry.
+
+        Raises:
+            NotFoundError: If the entry does not exist.
+            DatabaseError: If there is an error getting reverse related entries.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            self.get_entry(entry_id)
+
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            query = self._query_builder.build_reverse_related_entries_query(
+                entry_id, db_name, has_ns, relation_type
+            )
+
+            result = self.db_connector.execute_query(query)
+
+            if not result:
+                return []
+
+            # Use non-validating parser for related entries to avoid validation errors
+            non_validating_parser = LIFTParser(validate=False)
+            return non_validating_parser.parse_string(f"<lift>{result}</lift>")
+
+        except NotFoundError:
+            raise
+        except Exception as e:
+            self.logger.error(
+                "Error getting reverse related entries for %s: %s", entry_id, str(e)
+            )
+            raise DatabaseError(f"Failed to get reverse related entries: {str(e)}") from e
+
     def get_entries_by_grammatical_info(self, grammatical_info: str) -> List[Entry]:
         """
         Get entries with the specified grammatical information.

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def app() -> Generator[Flask, None, None]:
+def db_app() -> Generator[Flask, None, None]:
     """Create Flask application for unit tests that need database access."""
     from app import create_app
     
@@ -94,7 +94,7 @@ def mock_dict_service(mock_basex_connector: Mock) -> Mock:
 
 
 @pytest.fixture
-def app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
+def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     """Create a Flask app for unit testing with mocked dependencies."""
     from flask import Flask
     import os
@@ -153,9 +153,9 @@ def app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
 
 
 @pytest.fixture
-def client(app: Flask) -> FlaskClient:
+def client(mock_app: Flask) -> FlaskClient:
     """Test client for unit testing with mocked dependencies."""
-    return app.test_client()
+    return mock_app.test_client()
 
 
 @pytest.fixture

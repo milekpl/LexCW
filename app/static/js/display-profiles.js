@@ -3,7 +3,7 @@
  * Handles CRUD operations, drag-and-drop reordering, and live preview
  */
 
-(function() {
+(function () {
     'use strict';
 
     // State management
@@ -12,14 +12,16 @@
         currentProfile: null,
         elementRegistry: null,
         sortableInstance: null,
-        previewEntry: null
+        previewEntry: null,
+        ranges: {}
     };
 
     // API endpoints
     const API = {
         profiles: '/api/profiles',
         registry: '/api/lift',
-        display: '/api/display'
+        display: '/api/display',
+        ranges: '/api/ranges-editor'
     };
 
     /**
@@ -29,16 +31,19 @@
         try {
             // Load element registry
             await loadElementRegistry();
-            
+
+            // Load ranges for autocomplete
+            await loadRanges();
+
             // Load profiles
             await loadProfiles();
-            
+
             // Set up event listeners
             setupEventListeners();
-            
+
             // Load preview entry
             await loadPreviewEntry();
-            
+
         } catch (error) {
             console.error('Initialization error:', error);
             showError('Failed to initialize page: ' + error.message);
@@ -52,13 +57,31 @@
         try {
             const response = await fetch(`${API.registry}/elements/displayable`);
             if (!response.ok) throw new Error('Failed to load element registry');
-            
+
             const data = await response.json();
             state.elementRegistry = data.elements;
-            
+
         } catch (error) {
             console.error('Error loading registry:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Load available ranges for autocomplete
+     */
+    async function loadRanges() {
+        try {
+            const response = await fetch(API.ranges);
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    state.ranges = result.data;
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load ranges for autocomplete:', error);
+            // Non-critical, just continue without autocomplete
         }
     }
 
@@ -69,20 +92,20 @@
         try {
             console.log('Fetching profiles from:', API.profiles);
             const response = await fetch(API.profiles);
-            
+
             console.log('Response status:', response.status);
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('Error response:', errorText);
                 throw new Error(`Failed to load profiles: ${response.status} ${response.statusText}`);
             }
-            
+
             const data = await response.json();
             console.log('Profiles loaded:', data);
             state.profiles = data.profiles || [];
-            
+
             renderProfiles();
-            
+
         } catch (error) {
             console.error('Error loading profiles:', error);
             showError('Failed to load profiles: ' + error.message);
@@ -98,7 +121,7 @@
     function renderProfiles() {
         const userProfiles = state.profiles.filter(p => !p.is_system);
         const systemProfiles = state.profiles.filter(p => p.is_system);
-        
+
         renderProfileList('userProfilesList', userProfiles, false);
         renderProfileList('systemProfilesList', systemProfiles, true);
     }
@@ -108,7 +131,7 @@
      */
     function renderProfileList(containerId, profiles, isSystem) {
         const container = document.getElementById(containerId);
-        
+
         if (profiles.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
@@ -122,9 +145,9 @@
             }
             return;
         }
-        
+
         container.innerHTML = profiles.map(profile => createProfileCard(profile, isSystem)).join('');
-        
+
         // Attach event listeners to profile cards
         profiles.forEach(profile => {
             const card = container.querySelector(`[data-profile-id="${profile.id}"]`);
@@ -141,7 +164,7 @@
         const defaultBadge = profile.is_default ? '<span class="badge bg-primary profile-badge">Default</span>' : '';
         const systemBadge = isSystem ? '<span class="badge bg-secondary profile-badge">System</span>' : '';
         const elementCount = profile.elements ? profile.elements.length : 0;
-        
+
         return `
             <div class="profile-card ${profile.is_default ? 'default' : ''} ${isSystem ? 'system' : ''}" data-profile-id="${profile.id}">
                 <div class="profile-card-header">
@@ -202,14 +225,14 @@
      */
     function showProfileModal(profile = null) {
         state.currentProfile = profile;
-        
+
         const modal = new bootstrap.Modal(document.getElementById('profileModal'));
         const form = document.getElementById('profileForm');
         const title = document.getElementById('profileModalLabel');
-        
+
         // Reset form
         form.reset();
-        
+
         if (profile) {
             // Edit mode
             title.textContent = 'Edit Display Profile';
@@ -221,7 +244,7 @@
             document.getElementById('numberSenses').checked = profile.number_senses !== false;  // Default true
             document.getElementById('numberSensesIfMultiple').checked = profile.number_senses_if_multiple || false;
             document.getElementById('isDefault').checked = profile.is_default;
-            
+
             // Load elements
             renderElementConfig(profile.elements || []);
         } else {
@@ -231,7 +254,7 @@
             document.getElementById('numberSenses').checked = true;  // Default true for new profiles
             renderElementConfig([]);
         }
-        
+
         setupSortable();
         modal.show();
     }
@@ -241,7 +264,7 @@
      */
     function renderElementConfig(elements) {
         const container = document.getElementById('elementConfigContainer');
-        
+
         if (elements.length === 0) {
             container.innerHTML = `
                 <div class="text-muted text-center py-3">
@@ -250,12 +273,12 @@
             `;
             return;
         }
-        
+
         container.innerHTML = elements
             .sort((a, b) => (a.display_order || a.order || 0) - (b.display_order || b.order || 0))
             .map((elem, index) => createElementConfigItem(elem, index))
             .join('');
-        
+
         // Attach event listeners
         container.querySelectorAll('.element-remove').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -263,7 +286,7 @@
                 updatePreview();
             });
         });
-        
+
         container.querySelectorAll('.element-controls input, .element-controls select').forEach(input => {
             input.addEventListener('change', updatePreview);
         });
@@ -278,10 +301,46 @@
         const displayName = registryElem?.display_name || elementName;
         const displayMode = elem.config?.display_mode || 'inline';
         const abbrFormat = elem.config?.abbr_format || 'abbr';
-        
-        // Check if this element is a range element (grammatical-info, etc.)
-        const isRangeElement = elementName === 'grammatical-info' || registryElem?.type === 'range';
-        
+        const filter = elem.config?.filter || '';
+
+        // Check if this element is a range element or relation
+        const isRangeElement = elementName === 'grammatical-info' ||
+            elementName === 'relation' ||
+            registryElem?.type === 'range';
+
+        // Prepare datalist options based on element type
+        let datalistId = '';
+        let datalistHtml = '';
+        let placeholder = 'Filter...';
+
+        if (elementName === 'trait' || elementName === 'field') {
+            datalistId = `list-ranges-${index}`;
+            const rangeOptions = Object.keys(state.ranges || {}).map(id =>
+                `<option value="${id}">${state.ranges[id].labels?.en || id}</option>`
+            ).join('');
+
+            // Also add common field types for 'field'
+            const fieldOptions = (elementName === 'field') ?
+                `<option value="usage">Usage</option><option value="note">Note</option>` : '';
+
+            datalistHtml = `<datalist id="${datalistId}">${rangeOptions}${fieldOptions}</datalist>`;
+            placeholder = elementName === 'trait' ? 'Range ID (e.g. academic-domain)' : 'Field Type (e.g. usage)';
+
+        } else if (elementName === 'relation') {
+            datalistId = `list-relations-${index}`;
+            datalistHtml = `
+                <datalist id="${datalistId}">
+                    <option value="synonym">Synonym</option>
+                    <option value="antonym">Antonym</option>
+                    <option value="hypernym">Hypernym</option>
+                    <option value="hyponym">Hyponym</option>
+                    <option value="_component_lexeme">Component Lexeme (Subentry)</option>
+                    <option value="!_component_lexeme">Exclude Component Lexeme</option>
+                </datalist>
+            `;
+            placeholder = 'Type (e.g. synonym, !antonym)';
+        }
+
         return `
             <div class="element-config-item" data-element="${elementName}" data-order="${index}">
                 <span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>
@@ -310,6 +369,26 @@
                         <option value="abbr" ${abbrFormat === 'abbr' ? 'selected' : ''}>Abbr</option>
                         <option value="label" ${abbrFormat === 'label' ? 'selected' : ''}>Label</option>
                         <option value="full" ${abbrFormat === 'full' ? 'selected' : ''}>Full</option>
+                    </select>
+                    ` : ''}
+                    ${datalistHtml}
+                    ${(datalistId) ? `
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           name="elements[${index}][filter]" 
+                           value="${filter}" 
+                           placeholder="${placeholder}"
+                           list="${datalistId}"
+                           style="width: 150px;"
+                           title="Filter by type/range">
+                    ` : ''}
+                    ${(elementName === 'trait' || elementName === 'field' || elementName === 'relation') ? `
+                    <select class="form-select form-select-sm" name="elements[${index}][separator]" title="List Separator" style="width: 100px;">
+                        <option value=", " ${(elem.config?.separator === ', ' || !elem.config?.separator) ? 'selected' : ''}>, (comma)</option>
+                        <option value="; " ${elem.config?.separator === '; ' ? 'selected' : ''}>; (semicolon)</option>
+                        <option value=" " ${elem.config?.separator === ' ' ? 'selected' : ''}>(space)</option>
+                        <option value=" | " ${elem.config?.separator === ' | ' ? 'selected' : ''}>| (pipe)</option>
+                        <option value=" • " ${elem.config?.separator === ' • ' ? 'selected' : ''}>• (bullet)</option>
                     </select>
                     ` : ''}
                     <input type="text" 
@@ -351,17 +430,17 @@
      */
     function setupSortable() {
         const container = document.getElementById('elementConfigContainer');
-        
+
         if (state.sortableInstance) {
             state.sortableInstance.destroy();
         }
-        
+
         state.sortableInstance = new Sortable(container, {
             handle: '.drag-handle',
             animation: 150,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
-            onEnd: function() {
+            onEnd: function () {
                 updateElementOrders();
                 updatePreview();
             }
@@ -389,7 +468,7 @@
             showError('Element registry not loaded');
             return;
         }
-        
+
         // Group elements by category
         const byCategory = {};
         state.elementRegistry.forEach(elem => {
@@ -397,7 +476,7 @@
             if (!byCategory[cat]) byCategory[cat] = [];
             byCategory[cat].push(elem);
         });
-        
+
         // Create dialog HTML
         const categories = Object.keys(byCategory).sort();
         const html = `
@@ -421,14 +500,14 @@
                 </div>
             </div>
         `;
-        
+
         const container = document.getElementById('elementConfigContainer');
         const existingSelector = container.querySelector('.add-element-selector');
         if (existingSelector) {
             existingSelector.remove();
         } else {
             container.insertAdjacentHTML('beforeend', html);
-            
+
             container.querySelectorAll('.add-element-selector button').forEach(btn => {
                 btn.addEventListener('click', () => {
                     addElement(btn.dataset.element);
@@ -447,11 +526,11 @@
             showError('Element not found in registry');
             return;
         }
-        
+
         const container = document.getElementById('elementConfigContainer');
         const existingItems = container.querySelectorAll('.element-config-item');
         const index = existingItems.length;
-        
+
         const newElement = {
             lift_element: elementName,
             css_class: registryElem.default_css || '',
@@ -460,26 +539,26 @@
             prefix: '',
             suffix: ''
         };
-        
+
         const html = createElementConfigItem(newElement, index);
-        
+
         if (existingItems.length === 0) {
             container.innerHTML = html;
         } else {
             container.insertAdjacentHTML('beforeend', html);
         }
-        
+
         // Attach listeners to new item
         const newItem = container.lastElementChild;
         newItem.querySelector('.element-remove')?.addEventListener('click', (e) => {
             e.currentTarget.closest('.element-config-item').remove();
             updatePreview();
         });
-        
+
         newItem.querySelectorAll('.element-controls input, .element-controls select').forEach(input => {
             input.addEventListener('change', updatePreview);
         });
-        
+
         setupSortable();
         updatePreview();
     }
@@ -491,13 +570,13 @@
         try {
             const response = await fetch(`${API.registry}/default-profile`);
             if (!response.ok) throw new Error('Failed to load default profile');
-            
+
             const data = await response.json();
             renderElementConfig(data.profile);
             setupSortable();
             updatePreview();
             showSuccess('Reset to default configuration');
-            
+
         } catch (error) {
             console.error('Error resetting to default:', error);
             showError('Failed to load default configuration');
@@ -510,7 +589,7 @@
     async function updatePreview() {
         const previewContainer = document.getElementById('profilePreview');
         const config = getProfileConfig();
-        
+
         try {
             const response = await fetch('/api/profiles/preview', {
                 method: 'POST',
@@ -522,15 +601,15 @@
                     number_senses: config.number_senses
                 })
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to render preview');
             }
-            
+
             const data = await response.json();
             previewContainer.innerHTML = data.html || '<p class="text-muted">No preview available</p>';
-            
+
         } catch (error) {
             console.error('Error updating preview:', error);
             previewContainer.innerHTML = `<p class="text-danger">Preview error: ${error.message}</p>`;
@@ -550,21 +629,32 @@
     function getProfileConfig() {
         const elements = [];
         const items = document.querySelectorAll('.element-config-item');
-        
+
         items.forEach((item, index) => {
             const elementName = item.dataset.element;
             const displayMode = item.querySelector('[name$="[display_mode]"]')?.value || 'inline';
             const abbrFormat = item.querySelector('[name$="[abbr_format]"]')?.value || 'abbr';
-            
+            const filter = item.querySelector('[name$="[filter]"]')?.value || '';
+            const separator = item.querySelector('[name$="[separator]"]')?.value || ', ';
+
             const configObj = {
                 display_mode: displayMode
             };
-            
+
+            if (filter) {
+                configObj.filter = filter;
+            }
+
+            // Add separator for groupable elements
+            if (item.querySelector('[name$="[separator]"]')) {
+                configObj.separator = separator;
+            }
+
             // Only add abbr_format if the dropdown exists (for range elements)
             if (item.querySelector('[name$="[abbr_format]"]')) {
                 configObj.abbr_format = abbrFormat;
             }
-            
+
             const config = {
                 lift_element: elementName,
                 css_class: item.querySelector('[name$="[css_class]"]')?.value || '',
@@ -577,7 +667,7 @@
             };
             elements.push(config);
         });
-        
+
         return {
             name: document.getElementById('profileName').value,
             description: document.getElementById('profileDescription').value,
@@ -598,32 +688,32 @@
             form.reportValidity();
             return;
         }
-        
+
         const profileId = document.getElementById('profileId').value;
         const config = getProfileConfig();
         config.is_default = document.getElementById('isDefault').checked;
-        
+
         try {
             const url = profileId ? `${API.profiles}/${profileId}` : API.profiles;
             const method = profileId ? 'PUT' : 'POST';
-            
+
             const response = await fetch(url, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to save profile');
             }
-            
+
             const profile = await response.json();
             showSuccess(`Profile "${profile.name}" ${profileId ? 'updated' : 'created'} successfully`);
-            
+
             bootstrap.Modal.getInstance(document.getElementById('profileModal')).hide();
             await loadProfiles();
-            
+
         } catch (error) {
             console.error('Error saving profile:', error);
             showError(error.message);
@@ -655,7 +745,7 @@
     async function duplicateProfile(profile) {
         const newName = prompt(`Enter name for duplicated profile:`, `${profile.name} (Copy)`);
         if (!newName) return;
-        
+
         try {
             const config = {
                 name: newName,
@@ -663,21 +753,21 @@
                 elements: profile.elements,
                 is_default: false
             };
-            
+
             const response = await fetch(API.profiles, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to duplicate profile');
             }
-            
+
             showSuccess(`Profile duplicated as "${newName}"`);
             await loadProfiles();
-            
+
         } catch (error) {
             console.error('Error duplicating profile:', error);
             showError(error.message);
@@ -692,12 +782,12 @@
             const response = await fetch(`${API.profiles}/${profile.id}/default`, {
                 method: 'POST'
             });
-            
+
             if (!response.ok) throw new Error('Failed to set default profile');
-            
+
             showSuccess(`"${profile.name}" set as default profile`);
             await loadProfiles();
-            
+
         } catch (error) {
             console.error('Error setting default:', error);
             showError('Failed to set default profile');
@@ -711,11 +801,11 @@
         try {
             const response = await fetch(`${API.profiles}/${profile.id}/export`);
             if (!response.ok) throw new Error('Failed to export profile');
-            
+
             const data = await response.json();
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-            
+
             const a = document.createElement('a');
             a.href = url;
             a.download = `${profile.name.replace(/\s+/g, '_')}_profile.json`;
@@ -723,9 +813,9 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
             showSuccess('Profile exported successfully');
-            
+
         } catch (error) {
             console.error('Error exporting profile:', error);
             showError('Failed to export profile');
@@ -738,28 +828,28 @@
     function deleteProfile(profile) {
         document.getElementById('deleteProfileName').textContent = profile.name;
         const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        
+
         document.getElementById('btnConfirmDelete').onclick = async () => {
             try {
                 const response = await fetch(`${API.profiles}/${profile.id}`, {
                     method: 'DELETE'
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.error || 'Failed to delete profile');
                 }
-                
+
                 showSuccess(`Profile "${profile.name}" deleted`);
                 bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
                 await loadProfiles();
-                
+
             } catch (error) {
                 console.error('Error deleting profile:', error);
                 showError(error.message);
             }
         };
-        
+
         modal.show();
     }
 
@@ -769,22 +859,22 @@
     async function createDefaultProfile() {
         const name = prompt('Enter name for the new profile:', 'Default Profile');
         if (!name) return;
-        
+
         try {
             const response = await fetch(`${API.profiles}/create-default`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name })
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to create profile');
             }
-            
+
             showSuccess(`Profile "${name}" created from defaults`);
             await loadProfiles();
-            
+
         } catch (error) {
             console.error('Error creating default profile:', error);
             showError(error.message);
@@ -797,36 +887,36 @@
     function handleImportProfile() {
         const modal = new bootstrap.Modal(document.getElementById('importModal'));
         modal.show();
-        
+
         document.getElementById('btnConfirmImport').onclick = async () => {
             const fileInput = document.getElementById('importFile');
             const overwrite = document.getElementById('overwriteExisting').checked;
-            
+
             if (!fileInput.files.length) {
                 showError('Please select a file');
                 return;
             }
-            
+
             try {
                 const file = fileInput.files[0];
                 const text = await file.text();
                 const data = JSON.parse(text);
-                
+
                 const response = await fetch(`${API.profiles}/import?overwrite=${overwrite}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.error || 'Failed to import profile');
                 }
-                
+
                 showSuccess('Profile imported successfully');
                 bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
                 await loadProfiles();
-                
+
             } catch (error) {
                 console.error('Error importing profile:', error);
                 showError(error.message);
@@ -845,9 +935,9 @@
         document.getElementById('btnAddElement')?.addEventListener('click', showAddElementDialog);
         document.getElementById('btnResetElements')?.addEventListener('click', resetToDefault);
         document.getElementById('btnRefreshPreview')?.addEventListener('click', updatePreview);
-        
+
         // CSS help toggle
-        document.getElementById('btnToggleCSSHelp')?.addEventListener('click', function() {
+        document.getElementById('btnToggleCSSHelp')?.addEventListener('click', function () {
             const panel = document.getElementById('cssHelpPanel');
             const collapse = new bootstrap.Collapse(panel, { toggle: true });
             const icon = this.querySelector('i');
