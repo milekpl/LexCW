@@ -1909,7 +1909,9 @@ class LIFTParser:
             'abbrev': '',
             'description': {},
             'children': [],
-            'traits': {}
+            'traits': {},
+            'reverse_labels': {},
+            'reverse_abbrevs': {},
         }
         
         # Parse multilingual labels and descriptions
@@ -2311,6 +2313,28 @@ class LIFTRangesParser:
             child_data = self._parse_range_element(child_elem)
             element_data['children'].append(child_data)
         
+        # Parse reverse relation fields (for non-symmetric relations)
+        element_data['reverse_labels'] = {}
+        element_data['reverse_abbrevs'] = {}
+        
+        # Parse all field elements and check their type
+        for field_elem in self._find_elements(elem, './lift:field', './field'):
+            field_type = field_elem.get('type', '')
+            
+            if field_type == 'reverse-label':
+                for form_elem in self._find_elements(field_elem, './lift:form', './form'):
+                    lang = form_elem.get('lang', 'und')
+                    text_elem = self._find_element(form_elem, './lift:text', './text')
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
+                        element_data['reverse_labels'][lang] = text_elem.text.strip()
+            
+            elif field_type == 'reverse-abbrev':
+                for form_elem in self._find_elements(field_elem, './lift:form', './form'):
+                    lang = form_elem.get('lang', 'und')
+                    text_elem = self._find_element(form_elem, './lift:text', './text')
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
+                        element_data['reverse_abbrevs'][lang] = text_elem.text.strip()
+        
         return element_data
 
     def _parse_parent_based_hierarchy(self, range_elem: ET.Element, range_id: str) -> List[Dict[str, Any]]:
@@ -2462,6 +2486,8 @@ class LIFTRangesParser:
             'descriptions': {},
             'children': [],
             'traits': {},
+            'reverse_labels': {},
+            'reverse_abbrevs': {},
         }
         
         # Parse multilingual labels and descriptions
@@ -2493,6 +2519,45 @@ class LIFTRangesParser:
             trait_value = trait_elem.get('value')
             if trait_name:
                 element_data['traits'][trait_name] = trait_value or ''
+        
+        
+        # Parse reverse relation fields (for non-symmetric relations)
+        element_data['reverse_labels'] = {}
+        element_data['reverse_abbrevs'] = {}
+        
+        # DEBUG: Print element ID
+        if 'skrot' in element_id.lower() or element_id in ['abbreviation', 'skrot']:
+            print(f"DEBUG: Processing element_id='{element_id}'")
+        
+        # Parse all field elements and check their type
+        all_fields = self._find_elements(elem, './lift:field', './field')
+        if element_id == 'skrot':
+            print(f"DEBUG skrot: Found {len(all_fields)} field elements")
+        
+        for field_elem in all_fields:
+            field_type = field_elem.get('type', '')
+            if element_id == 'skrot':
+                print(f"DEBUG skrot: Processing field type '{field_type}'")
+            
+            if field_type == 'reverse-label':
+                forms = self._find_elements(field_elem, './lift:form', './form')
+                if element_id == 'skrot':
+                    print(f"DEBUG skrot: Found {len(forms)} forms in reverse-label")
+                for form_elem in forms:
+                    lang = form_elem.get('lang', 'und')
+                    text_elem = self._find_element(form_elem, './lift:text', './text')
+                    if element_id == 'skrot':
+                        print(f"DEBUG skrot: Lang={lang}, text_elem={text_elem}, text={text_elem.text if text_elem is not None else 'None'}")
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
+                        element_data['reverse_labels'][lang] = text_elem.text.strip()
+            
+            elif field_type == 'reverse-abbrev':
+                forms = self._find_elements(field_elem, './lift:form', './form')
+                for form_elem in forms:
+                    lang = form_elem.get('lang', 'und')
+                    text_elem = self._find_element(form_elem, './lift:text', './text')
+                    if text_elem is not None and text_elem.text and text_elem.text.strip():
+                        element_data['reverse_abbrevs'][lang] = text_elem.text.strip()
         
         return element_data
 

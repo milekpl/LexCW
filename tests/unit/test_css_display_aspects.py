@@ -18,9 +18,17 @@ from app.services.css_mapping_service import CSSMappingService
 class TestDisplayAspectConfiguration:
     """Test suite for configuring display aspects."""
 
-    def test_profile_element_set_display_aspect(self, app: Flask) -> None:
+    @pytest.fixture(autouse=True)
+    def setup_cleanup(self, db_app):
+        """Clean up database before and after tests."""
+        with db_app.app_context():
+            db.session.query(ProfileElement).delete()
+            db.session.query(DisplayProfile).delete()
+            db.session.commit()
+
+    def test_profile_element_set_display_aspect(self, db_app: Flask) -> None:
         """Should set display aspect on ProfileElement."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -44,9 +52,9 @@ class TestDisplayAspectConfiguration:
             elem.set_display_aspect('label')
             assert elem.get_display_aspect() == 'label'
 
-    def test_profile_element_invalid_display_aspect(self, app: Flask) -> None:
+    def test_profile_element_invalid_display_aspect(self, db_app: Flask) -> None:
         """Should reject invalid display aspects."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -60,9 +68,9 @@ class TestDisplayAspectConfiguration:
             with pytest.raises(ValueError, match="Invalid display aspect"):
                 elem.set_display_aspect('invalid')
 
-    def test_profile_element_set_display_language(self, app: Flask) -> None:
+    def test_profile_element_set_display_language(self, db_app: Flask) -> None:
         """Should set display language on ProfileElement."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -86,9 +94,9 @@ class TestDisplayAspectConfiguration:
             elem.set_display_language('*')
             assert elem.get_display_language() == '*'
 
-    def test_profile_element_aspect_config_structure(self, app: Flask) -> None:
+    def test_profile_element_aspect_config_structure(self, db_app: Flask) -> None:
         """Should properly structure config with aspect and language."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -108,9 +116,9 @@ class TestDisplayAspectConfiguration:
             assert elem.config['display_aspect'] == 'abbr'
             assert elem.config['language'] == 'pl'
 
-    def test_service_set_element_display_aspect(self, app: Flask) -> None:
+    def test_service_set_element_display_aspect(self, db_app: Flask) -> None:
         """Should set element display aspect via service."""
-        with app.app_context():
+        with db_app.app_context():
             service = DisplayProfileService()
             profile = service.create_profile(name="Display Aspect Test")
             
@@ -123,9 +131,9 @@ class TestDisplayAspectConfiguration:
             # Verify display aspect
             assert element.get_display_aspect() == 'abbr'
 
-    def test_service_get_element_display_aspect(self, app: Flask) -> None:
+    def test_service_get_element_display_aspect(self, db_app: Flask) -> None:
         """Should retrieve element display aspect via service."""
-        with app.app_context():
+        with db_app.app_context():
             service = DisplayProfileService()
             profile = service.create_profile(name="Get Aspect Test")
             
@@ -141,9 +149,9 @@ class TestDisplayAspectConfiguration:
             assert result['aspect'] == 'abbr'
             assert result['language'] == 'en'
 
-    def test_aspect_full_is_valid(self, app: Flask) -> None:
+    def test_aspect_full_is_valid(self, db_app: Flask) -> None:
         """Should accept 'full' as valid aspect."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -159,9 +167,9 @@ class TestDisplayAspectConfiguration:
             elem.set_display_aspect('full')
             assert elem.get_display_aspect() == 'full'
 
-    def test_aspect_label_is_valid(self, app: Flask) -> None:
+    def test_aspect_label_is_valid(self, db_app: Flask) -> None:
         """Should accept 'label' as valid aspect."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -177,9 +185,9 @@ class TestDisplayAspectConfiguration:
             elem.set_display_aspect('label')
             assert elem.get_display_aspect() == 'label'
 
-    def test_aspect_abbr_is_valid(self, app: Flask) -> None:
+    def test_aspect_abbr_is_valid(self, db_app: Flask) -> None:
         """Should accept 'abbr' as valid aspect."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -200,35 +208,35 @@ class TestCSSDisplayAspectApplication:
     """Test suite for applying display aspects during CSS rendering."""
 
     def test_css_mapping_service_apply_display_aspects_exists(
-        self, app: Flask
+        self, db_app: Flask
     ) -> None:
         """Should have apply_display_aspects method."""
-        with app.app_context():
+        with db_app.app_context():
             service = CSSMappingService()
             assert hasattr(service, 'apply_display_aspects')
             assert callable(getattr(service, 'apply_display_aspects'))
 
     def test_css_mapping_relation_display_aspect_method_exists(
-        self, app: Flask
+        self, db_app: Flask
     ) -> None:
         """Should have _apply_relation_display_aspect method."""
-        with app.app_context():
+        with db_app.app_context():
             service = CSSMappingService()
             assert hasattr(service, '_apply_relation_display_aspect')
 
     def test_css_mapping_grammatical_display_aspect_method_exists(
-        self, app: Flask
+        self, db_app: Flask
     ) -> None:
         """Should have _apply_grammatical_display_aspect method."""
-        with app.app_context():
+        with db_app.app_context():
             service = CSSMappingService()
             assert hasattr(service, '_apply_grammatical_display_aspect')
 
     def test_css_mapping_build_range_lookup_method_exists(
-        self, app: Flask
+        self, db_app: Flask
     ) -> None:
         """Should have _build_range_lookup method."""
-        with app.app_context():
+        with db_app.app_context():
             service = CSSMappingService()
             assert hasattr(service, '_build_range_lookup')
 
@@ -236,9 +244,9 @@ class TestCSSDisplayAspectApplication:
 class TestProfileElementIntegration:
     """Integration tests for ProfileElement with DisplayProfile."""
 
-    def test_profile_element_belongs_to_profile(self, app: Flask) -> None:
+    def test_profile_element_belongs_to_profile(self, db_app: Flask) -> None:
         """ProfileElement should be associated with DisplayProfile."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -256,10 +264,10 @@ class TestProfileElementIntegration:
             assert elem in profile.elements
 
     def test_multiple_elements_with_different_aspects(
-        self, app: Flask
+        self, db_app: Flask
     ) -> None:
         """Profile should support multiple elements with different aspects."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)
@@ -287,9 +295,9 @@ class TestProfileElementIntegration:
             assert relation.get_display_aspect() == 'abbr'
             assert gram_info.get_display_aspect() == 'label'
 
-    def test_element_aspect_persistence(self, app: Flask) -> None:
+    def test_element_aspect_persistence(self, db_app: Flask) -> None:
         """Display aspect should persist across database sessions."""
-        with app.app_context():
+        with db_app.app_context():
             profile = DisplayProfile()
             profile.name = "Test Profile"
             db.session.add(profile)

@@ -37,7 +37,6 @@ class DisplayProfile(db.Model):
     # Global display settings
     show_subentries: bool = Column(Boolean, default=False, nullable=False)
     number_senses: bool = Column(Boolean, default=True, nullable=False)  # Auto-number senses with CSS
-    number_senses_if_multiple: bool = Column(Boolean, default=False, nullable=False)  # Only number senses if entry has multiple senses
     
     # Profile metadata
     is_default: bool = Column(Boolean, default=False, nullable=False)
@@ -69,7 +68,6 @@ class DisplayProfile(db.Model):
             'custom_css': self.custom_css,
             'show_subentries': self.show_subentries,
             'number_senses': self.number_senses,
-            'number_senses_if_multiple': self.number_senses_if_multiple,
             'is_default': self.is_default,
             'is_system': self.is_system,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -148,3 +146,50 @@ class ProfileElement(db.Model):
             'suffix': self.suffix,
             'config': self.config
         }
+
+    def set_display_aspect(self, aspect: str) -> None:
+        """Set the display aspect (full, label, abbr).
+        
+        Args:
+            aspect: one of 'full', 'label', 'abbr'
+            
+        Raises:
+            ValueError: if aspect is invalid
+        """
+        valid_aspects = {'full', 'label', 'abbr'}
+        if aspect not in valid_aspects:
+            raise ValueError(f"Invalid display aspect: {aspect}")
+        
+        if self.config is None:
+            self.config = {}
+        
+        # Determine if config is mutable dict or needs assignment
+        # SQLAlchemy JSON types sometimes track mutations, sometimes need reassignment
+        new_config = dict(self.config)
+        new_config['display_aspect'] = aspect
+        self.config = new_config
+
+    def get_display_aspect(self) -> Optional[str]:
+        """Get the current display aspect."""
+        if not self.config:
+            return None
+        return self.config.get('display_aspect')
+
+    def set_display_language(self, lang: str) -> None:
+        """Set the display language.
+        
+        Args:
+            lang: language code or '*'
+        """
+        if self.config is None:
+            self.config = {}
+            
+        new_config = dict(self.config)
+        new_config['language'] = lang
+        self.config = new_config
+
+    def get_display_language(self) -> Optional[str]:
+        """Get the current display language."""
+        if not self.config:
+            return None
+        return self.config.get('language')

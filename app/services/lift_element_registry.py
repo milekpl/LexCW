@@ -243,7 +243,7 @@ class LIFTElementRegistry:
             # Metadata and extensibility (order 500-590)
             ("note", "block", "if-content", None),
             ("field", "block", "if-content", "custom-field"),
-            ("trait", "inline", "never", None),  # Traits are metadata, never shown by default
+            ("trait", "inline", "if-content", None),  # Traits included per user request
             ("etymology", "block", "if-content", None),
             ("relation", "inline", "if-content", None),
         ]

@@ -15,6 +15,8 @@ class ElementConfig:
     suffix: str = ""
     visibility: str = "always"  # "always", "if-content", "never"
     display_mode: str = "inline"  # "inline" or "block"
+    filter: Optional[str] = None
+    separator: str = ", "  # Separator for multiple occurrences of same element
     children: List[ElementConfig] = None
 
     def __post_init__(self):
@@ -98,9 +100,14 @@ class HTMLBuilder:
         config = self.element_config_map.get(element.tag)
         
         if not config:
-            # No config for this element - process its children
+            # No config for this element - process its children with grouping
             child_parts = []
-            for child in element:
+            i = 0
+            children_list = list(element)
+            
+            while i < len(children_list):
+                child = children_list[i]
+                
                 # If this is the entry element and we have entry-level PoS, 
                 # display it before the first sense
                 if (element.tag == 'entry' and child.tag == 'sense' and 
@@ -108,9 +115,55 @@ class HTMLBuilder:
                     self.pos_displayed = True
                     child_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
                 
-                child_html = self._process_hierarchical(child, processed)
-                if child_html:
-                    child_parts.append(child_html)
+                # Check if this child should be grouped
+                child_config = self.element_config_map.get(child.tag)
+                should_group = child_config and child.tag in ('trait', 'field', 'relation')
+                
+                if should_group:
+                    # Collect all consecutive elements of same type
+                    same_type_elements = [child]
+                    j = i + 1
+                    while j < len(children_list) and children_list[j].tag == child.tag:
+                        same_type_elements.append(children_list[j])
+                        j += 1
+                    
+                    # Mark all as processed
+                    for elem in same_type_elements:
+                        processed.add(id(elem))
+                    
+                    # Extract text content from all elements
+                    same_type_texts = []
+                    for elem in same_type_elements:
+                        # Apply filter check
+                        if child_config.filter and not self._check_filter(elem, child_config.filter):
+                            continue
+                        
+                        text = self._extract_text_from_forms(elem)
+                        if text:
+                            same_type_texts.append(text)
+                    
+                    # Join with configured separator and wrap once
+                    if same_type_texts:
+                        joined_text = child_config.separator.join(same_type_texts)
+                        tag = 'div' if child_config.display_mode == 'block' else 'span'
+                        html = f'<{tag} class="{child_config.css_class}">'
+                        if child_config.prefix:
+                            html += f'<span class="prefix">{child_config.prefix}</span>'
+                        html += joined_text
+                        if child_config.suffix:
+                            html += f'<span class="suffix">{child_config.suffix}</span>'
+                        html += f'</{tag}>'
+                        child_parts.append(html)
+                    
+                    # Skip the elements we just processed
+                    i = j
+                else:
+                    # Process single element normally
+                    child_html = self._process_hierarchical(child, processed)
+                    if child_html:
+                        child_parts.append(child_html)
+                    i += 1
+            
             return ' '.join(child_parts)
         
         # Mark as processed
@@ -118,6 +171,10 @@ class HTMLBuilder:
         
         # Check visibility
         if config.visibility == "never":
+            return ""
+        
+        # Check filter if present
+        if config.filter and not self._check_filter(element, config.filter):
             return ""
         
         # Determine if this is a pure structural element (sense, subsense)
@@ -141,9 +198,14 @@ class HTMLBuilder:
             # Content or mixed element - extract text from form/text or attributes
             text_content = self._extract_text_from_forms(element)
         
-        # Process configured children
+        # Process configured children with grouping for same-type elements
         child_html_parts = []
-        for child in element:
+        i = 0
+        children_list = list(element)
+        
+        while i < len(children_list):
+            child = children_list[i]
+            
             # If this is the entry element and we have entry-level PoS, 
             # display it before the first sense
             if (element.tag == 'entry' and child.tag == 'sense' and 
@@ -151,9 +213,55 @@ class HTMLBuilder:
                 self.pos_displayed = True
                 child_html_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
             
-            child_html = self._process_hierarchical(child, processed)
-            if child_html:
-                child_html_parts.append(child_html)
+            # Check if this child has a config and if we should group it
+            child_config = self.element_config_map.get(child.tag)
+            # Group elements that can appear multiple times: trait, field, relation
+            should_group = child_config and child.tag in ('trait', 'field', 'relation')
+            
+            if should_group:
+                # Collect all consecutive elements of same type
+                same_type_elements = [child]
+                j = i + 1
+                while j < len(children_list) and children_list[j].tag == child.tag:
+                    same_type_elements.append(children_list[j])
+                    j += 1
+                
+                # Mark all as processed
+                for elem in same_type_elements:
+                    processed.add(id(elem))
+                
+                # Extract text content from all elements
+                same_type_texts = []
+                for elem in same_type_elements:
+                    # Apply filter check
+                    if child_config.filter and not self._check_filter(elem, child_config.filter):
+                        continue
+                    
+                    text = self._extract_text_from_forms(elem)
+                    if text:
+                        same_type_texts.append(text)
+                
+                # Join with configured separator and wrap once
+                if same_type_texts:
+                    joined_text = child_config.separator.join(same_type_texts)
+                    tag = 'div' if child_config.display_mode == 'block' else 'span'
+                    html = f'<{tag} class="{child_config.css_class}">'
+                    if child_config.prefix:
+                        html += f'<span class="prefix">{child_config.prefix}</span>'
+                    html += joined_text
+                    if child_config.suffix:
+                        html += f'<span class="suffix">{child_config.suffix}</span>'
+                    html += f'</{tag}>'
+                    child_html_parts.append(html)
+                
+                # Skip the elements we just processed
+                i = j
+            else:
+                # Process single element normally
+                child_html = self._process_hierarchical(child, processed)
+                if child_html:
+                    child_html_parts.append(child_html)
+                i += 1
         
         # Combine text and child HTML
         combined_content = text_content
@@ -202,13 +310,10 @@ class HTMLBuilder:
         if text_parts:
             return ' '.join(text_parts)
         
-        # Handle trait elements specially - show name: value
+        # Handle trait elements specially - show only the resolved value
         if element.tag == 'trait':
-            name = element.attrib.get('name', '')
             value = element.attrib.get('value', '')
-            if name and value:
-                return f"{name}: {value}"
-            elif value:
+            if value:
                 return value
         
         # Handle relation elements specially - show type and headword (or ref if headword not available)
@@ -219,14 +324,13 @@ class HTMLBuilder:
             ref = element.attrib.get('ref', '')
             
             if rel_type and headword:
-                return f"{rel_type}: {headword}"
+                # Return type and headword - prefix/suffix will be added by config
+                return f"{rel_type} {headword}"
             elif rel_type and ref:
                 # Fallback to ref if headword not resolved
-                return f"{rel_type}: {ref}"
+                return f"{rel_type} {ref}"
             elif headword:
                 return headword
-            elif rel_type:
-                return rel_type
             elif ref:
                 return ref
         
@@ -247,6 +351,45 @@ class HTMLBuilder:
             return element.text.strip()
         
         return ""
+
+    def _check_filter(self, element: ET.Element, filter_str: str) -> bool:
+        """Check if element matches the filter configuration.
+        
+        Args:
+            element: The XML element to check
+            filter_str: The filter string configuration
+            
+        Returns:
+            True if element should be displayed, False otherwise
+        """
+        if not filter_str:
+            return True
+            
+        if element.tag == 'relation':
+            rel_type = element.attrib.get('type', '')
+            filters = [f.strip() for f in filter_str.split(',')]
+            
+            # Check for exclusions (starting with !)
+            exclusions = [f[1:] for f in filters if f.startswith('!')]
+            if exclusions and rel_type in exclusions:
+                return False
+                
+            # Check for inclusions (not starting with !)
+            inclusions = [f for f in filters if not f.startswith('!')]
+            if inclusions and rel_type not in inclusions:
+                return False
+                
+            return True
+            
+        elif element.tag == 'trait':
+            trait_name = element.attrib.get('name', '')
+            return trait_name == filter_str
+            
+        elif element.tag == 'field':
+            field_type = element.attrib.get('type', '')
+            return field_type == filter_str
+            
+        return True
 
 class LIFTToHTMLTransformer:
     """Transforms LIFT XML to HTML using display profile configurations."""
