@@ -325,6 +325,128 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Initialization Sequence ---
 
+    function initializeMergeSplitButtons() {
+        document.getElementById('merge-senses-btn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const entryId = document.querySelector('input[name="id"]')?.value;
+            openMergeSensesDialog(entryId);
+        });
+
+        document.getElementById('senses-container')?.addEventListener('click', function(e) {
+            const splitBtn = e.target.closest('.split-sense-btn');
+            if (splitBtn) {
+                e.preventDefault();
+                const senseId = splitBtn.dataset.senseId;
+                const entryId = document.querySelector('input[name="id"]')?.value;
+                openSplitEntryDialog(entryId, [senseId]);
+            }
+        });
+    }
+
+    function openMergeSensesDialog(entryId) {
+        const mergeSensesModalEl = document.getElementById('mergeSensesModal');
+        const mergeSensesModal = new bootstrap.Modal(mergeSensesModalEl);
+        const targetSenseSelect = mergeSensesModalEl.querySelector('#targetSenseSelect');
+        const sourceSensesList = mergeSensesModalEl.querySelector('#sourceSensesList');
+        
+        targetSenseSelect.innerHTML = '<option value="">Select target sense...</option>';
+        sourceSensesList.innerHTML = '';
+
+        const senseItems = document.querySelectorAll('#senses-container .sense-item');
+        const senses = Array.from(senseItems).map(item => {
+            const id = item.querySelector('input[name*=".id"]')?.value;
+            const gloss = item.querySelector('textarea[name*=".definition."]')?.value; // using definition as a stand-in for gloss
+            return { id, gloss: gloss ? gloss.substring(0, 50) + '...' : `Sense ${id}` };
+        });
+
+        if (senses.length < 2) {
+            alert('You need at least two senses to merge.');
+            return;
+        }
+
+        senses.forEach(sense => {
+            const option = document.createElement('option');
+            option.value = sense.id;
+            option.textContent = sense.gloss;
+            targetSenseSelect.appendChild(option);
+        });
+
+        targetSenseSelect.addEventListener('change', () => {
+            const targetId = targetSenseSelect.value;
+            sourceSensesList.innerHTML = '';
+            senses.forEach(sense => {
+                if (sense.id !== targetId) {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item';
+                    item.innerHTML = `
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="${sense.id}" id="merge-source-sense-${sense.id}">
+                            <label class="form-check-label" for="merge-source-sense-${sense.id}">
+                                ${sense.gloss}
+                            </label>
+                        </div>
+                    `;
+                    sourceSensesList.appendChild(item);
+                }
+            });
+        });
+
+        mergeSensesModal.show();
+    }
+
+    const confirmMergeSensesBtn = document.getElementById('confirmMergeSenses');
+    if (confirmMergeSensesBtn) {
+        confirmMergeSensesBtn.addEventListener('click', () => {
+            const mergeSensesModalEl = document.getElementById('mergeSensesModal');
+            const entryId = document.querySelector('input[name="id"]').value;
+            const targetSenseId = mergeSensesModalEl.querySelector('#targetSenseSelect').value;
+            const sourceSenseIds = Array.from(mergeSensesModalEl.querySelectorAll('#sourceSensesList input:checked')).map(input => input.value);
+            const mergeStrategy = mergeSensesModalEl.querySelector('input[name="mergeStrategy"]:checked').value;
+
+            if (!targetSenseId) {
+                alert('Please select a target sense.');
+                return;
+            }
+            if (sourceSenseIds.length === 0) {
+                alert('Please select at least one source sense.');
+                return;
+            }
+
+            const payload = {
+                source_sense_ids: sourceSenseIds,
+                merge_strategy: mergeStrategy
+            };
+
+            fetch(`/api/merge-split/entries/${entryId}/senses/${targetSenseId}/merge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Senses merged successfully!', 'success');
+                    const mergeSensesModal = bootstrap.Modal.getInstance(mergeSensesModalEl);
+                    mergeSensesModal.hide();
+                    location.reload(); // Easiest way to show the result
+                } else {
+                    alert(`Error merging senses: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error merging senses:', error);
+                alert('An error occurred while merging senses.');
+            });
+        });
+    }
+
+    function openSplitEntryDialog(entryId, senseIds) {
+        console.log(`Opening Split Entry Dialog for entry: ${entryId} with senses: ${senseIds}`);
+        const splitEntryModal = new bootstrap.Modal(document.getElementById('splitEntryModal'));
+        splitEntryModal.show();
+        document.getElementById('splitSourceEntry').textContent = entryId;
+    }
+
     // Expose the update function globally for other components that might add senses.
     window.updateGrammaticalCategoryInheritance = updateGrammaticalCategoryInheritance;
 
@@ -340,6 +462,8 @@ document.addEventListener('DOMContentLoaded', function() {
         updateGrammaticalCategoryInheritance();
     });
 
+    initializeMergeSplitButtons();
+
     // Initialize Select2 for any tag inputs.
     $('.select2-tags').select2({
         theme: 'bootstrap-5',
@@ -347,6 +471,8 @@ document.addEventListener('DOMContentLoaded', function() {
         tokenSeparators: [',', ' '],
         placeholder: 'Enter or select values...'
     });
+
+    // --- Main Event Handlers ---
 
     // --- Main Event Handlers ---
 
