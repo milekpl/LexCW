@@ -366,8 +366,6 @@ class XQueryBuilder:
 
         where_clause = " and ".join(conditions) if conditions else "true()"
 
-        where_clause = " and ".join(conditions) if conditions else "true()"
-
         query = f"""
         for $entry in collection('{db_name}')//{entry_path}
         where {where_clause}

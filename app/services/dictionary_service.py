@@ -336,7 +336,7 @@ class DictionaryService:
             )
 
             self.db_connector.execute_update(query)
-            
+
             # Return the entry ID
             return entry.id
 
@@ -621,7 +621,7 @@ class DictionaryService:
             # Add sort order
             if sort_order.lower() == "desc":
                 sort_expr += " descending"
-            
+
             # Handle empty value placement based on sort field type
             # For date fields, empty values should always go last (bottom)
             # For text fields, empty values go last for ascending, first for descending
@@ -673,6 +673,9 @@ class DictionaryService:
         fields: Optional[List[str]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        pos: Optional[str] = None,
+        exact_match: Optional[bool] = False,
+        case_sensitive: Optional[bool] = False,
     ) -> Tuple[List[Entry], int]:
         """
         Search for entries.
@@ -680,6 +683,11 @@ class DictionaryService:
         Args:
             query: Search query.
             fields: Fields to search in (default: lexical_unit, glosses, definitions).
+            limit: Maximum number of results to return.
+            offset: Number of results to skip for pagination.
+            pos: Part of speech to filter by (grammatical_info).
+            exact_match: Whether to perform exact match instead of partial match.
+            case_sensitive: Whether the search should be case-sensitive.
 
         Returns:
             Tuple of (list of Entry objects, total count).
@@ -702,7 +710,7 @@ class DictionaryService:
 
             # Build the search query conditions with namespace-aware paths
             conditions: List[str] = []
-            q_escaped = query.replace("'", "''")  # Escape single quotes for XQuery
+            q_escaped = self._query_builder.escape_xquery_string(query)  # Escape single quotes for XQuery
 
             if "lexical_unit" in fields:
                 # Use namespace-aware paths throughout
@@ -711,16 +719,53 @@ class DictionaryService:
                 )
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
-                conditions.append(
-                    f"(some $form in $entry/{lexical_unit_path}/{form_path}/{text_path} satisfies contains(lower-case($form), '{q_escaped.lower()}'))"
-                )
+
+                # Determine whether to use exact match or contains based on exact_match flag
+                if exact_match:
+                    if case_sensitive:
+                        # Case-sensitive exact match
+                        conditions.append(
+                            f"(some $form in $entry/{lexical_unit_path}/{form_path}/{text_path} satisfies $form = '{q_escaped}')"
+                        )
+                    else:
+                        # Case-insensitive exact match (using lower-case)
+                        conditions.append(
+                            f"(some $form in $entry/{lexical_unit_path}/{form_path}/{text_path} satisfies lower-case($form) = '{q_escaped.lower()}')"
+                        )
+                else:
+                    if case_sensitive:
+                        # Case-sensitive partial match
+                        conditions.append(
+                            f"(some $form in $entry/{lexical_unit_path}/{form_path}/{text_path} satisfies contains($form, '{q_escaped}'))"
+                        )
+                    else:
+                        # Case-insensitive partial match (default behavior)
+                        conditions.append(
+                            f"(some $form in $entry/{lexical_unit_path}/{form_path}/{text_path} satisfies contains(lower-case($form), '{q_escaped.lower()}'))"
+                        )
             if "glosses" in fields:
                 sense_path = self._query_builder.get_element_path("sense", has_ns)
                 gloss_path = self._query_builder.get_element_path("gloss", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
-                conditions.append(
-                    f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies contains(lower-case($gloss), '{q_escaped.lower()}'))"
-                )
+
+                if exact_match:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies $gloss = '{q_escaped}')"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies lower-case($gloss) = '{q_escaped.lower()}')"
+                        )
+                else:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies contains($gloss, '{q_escaped}'))"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies contains(lower-case($gloss), '{q_escaped.lower()}'))"
+                        )
             if "definitions" in fields or "definition" in fields:
                 sense_path = self._query_builder.get_element_path("sense", has_ns)
                 definition_path = self._query_builder.get_element_path(
@@ -728,26 +773,74 @@ class DictionaryService:
                 )
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
-                conditions.append(
-                    f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies contains(lower-case($def), '{q_escaped.lower()}'))"
-                )
+
+                if exact_match:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies $def = '{q_escaped}')"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies lower-case($def) = '{q_escaped.lower()}')"
+                        )
+                else:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies contains($def, '{q_escaped}'))"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies contains(lower-case($def), '{q_escaped.lower()}'))"
+                        )
             if "citation_form" in fields:
                 # Search in citation elements
                 citation_path = self._query_builder.get_element_path("citation", has_ns)
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
-                conditions.append(
-                    f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies contains(lower-case($citation), '{q_escaped.lower()}'))"
-                )
+
+                if exact_match:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies $citation = '{q_escaped}')"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies lower-case($citation) = '{q_escaped.lower()}')"
+                        )
+                else:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies contains($citation, '{q_escaped}'))"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies contains(lower-case($citation), '{q_escaped.lower()}'))"
+                        )
             if "example" in fields:
                 # Search in example elements
                 sense_path = self._query_builder.get_element_path("sense", has_ns)
                 example_path = self._query_builder.get_element_path("example", has_ns)
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
-                conditions.append(
-                    f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies contains(lower-case($example), '{q_escaped.lower()}'))"
-                )
+
+                if exact_match:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies $example = '{q_escaped}')"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies lower-case($example) = '{q_escaped.lower()}')"
+                        )
+                else:
+                    if case_sensitive:
+                        conditions.append(
+                            f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies contains($example, '{q_escaped}'))"
+                        )
+                    else:
+                        conditions.append(
+                            f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies contains(lower-case($example), '{q_escaped.lower()}'))"
+                        )
             if "note" in fields:
                 # Search in both entry-level and sense-level notes
                 note_path = self._query_builder.get_element_path("note", has_ns)
@@ -756,10 +849,28 @@ class DictionaryService:
                 sense_path = self._query_builder.get_element_path("sense", has_ns)
 
                 # Entry-level notes
-                entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
+                if exact_match:
+                    if case_sensitive:
+                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies $note = '{q_escaped}')"
+                    else:
+                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies lower-case($note) = '{q_escaped.lower()}')"
+                else:
+                    if case_sensitive:
+                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains($note, '{q_escaped}'))"
+                    else:
+                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
 
                 # Sense-level notes
-                sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
+                if exact_match:
+                    if case_sensitive:
+                        sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies $note = '{q_escaped}')"
+                    else:
+                        sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies lower-case($note) = '{q_escaped.lower()}')"
+                else:
+                    if case_sensitive:
+                        sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies contains($note, '{q_escaped}'))"
+                    else:
+                        sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
 
                 conditions.append(
                     f"({entry_notes_condition} or {sense_notes_condition})"
@@ -770,11 +881,17 @@ class DictionaryService:
                 self.logger.warning("No valid search fields provided: %s", fields)
                 return [], 0
 
-            search_condition = " or ".join(conditions)
+            # Add grammatical info (POS) condition if specified
+            if pos:
+                grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
+                pos_condition = f"($entry/{grammatical_info_path}[@value = '{pos}'] or $entry//sense/{grammatical_info_path}[@value = '{pos}'])"
+                # For POS filtering, we use 'and' to combine with other conditions
+                search_condition = f"({' or '.join(conditions)}) and {pos_condition}"
+            else:
+                search_condition = " or ".join(conditions)
 
             # Get the total count first
             count_query = f"{prologue} count(for $entry in collection('{db_name}')//{entry_path} where {search_condition} return $entry)"
-
             count_result = self.db_connector.execute_query(count_query)
             total_count = int(count_result) if count_result else 0
 
@@ -1363,7 +1480,7 @@ class DictionaryService:
             ranges_xml = self.db_connector.execute_query(
                 f"collection('{db_name}')//lift-ranges"
             )
-            
+
             if ranges_xml:
                 self.logger.debug("Found ranges document using collection() query")
             else:

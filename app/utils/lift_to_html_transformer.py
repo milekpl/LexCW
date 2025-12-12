@@ -146,7 +146,18 @@ class HTMLBuilder:
                     if same_type_texts:
                         joined_text = child_config.separator.join(same_type_texts)
                         tag = 'div' if child_config.display_mode == 'block' else 'span'
-                        html = f'<{tag} class="{child_config.css_class}">'
+
+                        # For trait elements, add the trait name as a data attribute for identification
+                        if child.tag == 'trait' and same_type_elements:
+                            # Use the name from the first trait element for the group
+                            first_trait_name = same_type_elements[0].attrib.get('name', '')
+                            if first_trait_name:
+                                html = f'<{tag} class="{child_config.css_class}" data-trait-name="{first_trait_name}">'
+                            else:
+                                html = f'<{tag} class="{child_config.css_class}">'
+                        else:
+                            html = f'<{tag} class="{child_config.css_class}">'
+
                         if child_config.prefix:
                             html += f'<span class="prefix">{child_config.prefix}</span>'
                         html += joined_text
@@ -245,7 +256,18 @@ class HTMLBuilder:
                 if same_type_texts:
                     joined_text = child_config.separator.join(same_type_texts)
                     tag = 'div' if child_config.display_mode == 'block' else 'span'
-                    html = f'<{tag} class="{child_config.css_class}">'
+
+                    # For trait elements, add the trait name as a data attribute for identification
+                    if child.tag == 'trait' and same_type_elements:
+                        # Use the name from the first trait element for the group
+                        first_trait_name = same_type_elements[0].attrib.get('name', '')
+                        if first_trait_name:
+                            html = f'<{tag} class="{child_config.css_class}" data-trait-name="{first_trait_name}">'
+                        else:
+                            html = f'<{tag} class="{child_config.css_class}">'
+                    else:
+                        html = f'<{tag} class="{child_config.css_class}">'
+
                     if child_config.prefix:
                         html += f'<span class="prefix">{child_config.prefix}</span>'
                     html += joined_text
@@ -322,7 +344,7 @@ class HTMLBuilder:
             # Prefer data-headword if available (resolved by CSS service)
             headword = element.attrib.get('data-headword', '')
             ref = element.attrib.get('ref', '')
-            
+
             if rel_type and headword:
                 # Return type and headword - prefix/suffix will be added by config
                 return f"{rel_type} {headword}"
@@ -333,6 +355,9 @@ class HTMLBuilder:
                 return headword
             elif ref:
                 return ref
+            elif rel_type:
+                # If only type is available, return just the type
+                return rel_type
         
         # Handle field elements - show type in brackets if no content
         if element.tag == 'field' and 'type' in element.attrib:

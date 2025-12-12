@@ -33,6 +33,18 @@ VALID_ENTRY_XML = f'''
 </entry>
 '''.strip()
 
+# Sample valid LIFT XML with namespace prefixes (for namespace-aware tests)
+VALID_ENTRY_XML_WITH_PREFIXES = f'''
+<lift:entry xmlns:lift="{LIFT_NS}" id="test_001" guid="test_guid_001" dateCreated="2024-01-01T12:00:00Z">
+    <lift:lexical-unit>
+        <lift:form lang="en"><lift:text>testword</lift:text></lift:form>
+    </lift:lexical-unit>
+    <lift:sense id="sense_001" order="0">
+        <lift:gloss lang="en"><lift:text>a test word</lift:text></lift:gloss>
+    </lift:sense>
+</lift:entry>
+'''.strip()
+
 INVALID_XML_NO_ID = f'''
 <entry xmlns="{LIFT_NS}">
     <lexical-unit>
@@ -72,6 +84,14 @@ def xml_service(mock_basex_session):
     with patch('app.services.xml_entry_service.BaseXClient.Session') as mock_session_class:
         # Always return the same mock session
         mock_session_class.return_value = mock_basex_session
+        
+        # Force namespace detection to work correctly in tests
+        # Set up the mock BEFORE creating the service so it can detect namespaces properly
+        detection_query_mock = MagicMock()
+        detection_query_mock.execute.return_value = 'true'
+        detection_query_mock.close.return_value = None
+        mock_basex_session.query.return_value = detection_query_mock
+        
         service = XMLEntryService()
         
         # Patch _get_session to always return our mock
@@ -201,7 +221,7 @@ class TestGetEntry:
     def test_get_entry_success(self, xml_service, mock_basex_session):
         """Test successful entry retrieval."""
         query_mock = mock_basex_session.query.return_value
-        query_mock.execute.return_value = VALID_ENTRY_XML
+        query_mock.execute.return_value = VALID_ENTRY_XML_WITH_PREFIXES
         
         result = xml_service.get_entry('test_001')
         
@@ -214,7 +234,7 @@ class TestGetEntry:
     def test_get_entry_not_found(self, xml_service, mock_basex_session):
         """Test retrieval of non-existent entry."""
         query_mock = mock_basex_session.query.return_value
-        query_mock.execute.return_value = '<error>Entry not found</error>'
+        query_mock.execute.return_value = ''  # Empty result means not found
         
         with pytest.raises(EntryNotFoundError):
             xml_service.get_entry('nonexistent')
@@ -235,8 +255,8 @@ class TestUpdateEntry:
         """Test successful entry update."""
         # Mock entry_exists to return True, then execute update checks
         query_mock = mock_basex_session.query.return_value
-        # Order: entry_exists(), count_before, replace, count_after
-        query_mock.execute.side_effect = ['true', '1', '', '1']
+        # Order: entry_exists(), delete, insert, flush
+        query_mock.execute.side_effect = ['true', '', '', '']
         
         updated_xml = VALID_ENTRY_XML.replace('testword', 'updatedword')
         result = xml_service.update_entry('test_001', updated_xml)
@@ -337,15 +357,14 @@ class TestSearchEntries:
     def test_search_entries_with_query(self, xml_service, mock_basex_session):
         """Test searching entries with query text."""
         search_results = '''
-        <search-results total="1" limit="50" offset="0">
-            <entry id="test_001">
-                <lexical-unit><text>testword</text></lexical-unit>
-            </entry>
-        </search-results>
+        <entry id="test_001">
+            <lexical-unit><text>testword</text></lexical-unit>
+        </entry>
         '''
         
         query_mock = mock_basex_session.query.return_value
-        query_mock.execute.return_value = search_results
+        # First call returns search results, second call returns count
+        query_mock.execute.side_effect = [search_results, '1']
         
         result = xml_service.search_entries(query_text='test', limit=50, offset=0)
         
@@ -359,18 +378,17 @@ class TestSearchEntries:
     def test_search_entries_without_query(self, xml_service, mock_basex_session):
         """Test searching all entries without query."""
         search_results = '''
-        <search-results total="2" limit="50" offset="0">
-            <entry id="test_001">
-                <lexical-unit><text>word1</text></lexical-unit>
-            </entry>
-            <entry id="test_002">
-                <lexical-unit><text>word2</text></lexical-unit>
-            </entry>
-        </search-results>
+        <entry id="test_001">
+            <lexical-unit><text>word1</text></lexical-unit>
+        </entry>
+        <entry id="test_002">
+            <lexical-unit><text>word2</text></lexical-unit>
+        </entry>
         '''
         
         query_mock = mock_basex_session.query.return_value
-        query_mock.execute.return_value = search_results
+        # First call returns search results, second call returns count
+        query_mock.execute.side_effect = [search_results, '2']
         
         result = xml_service.search_entries(query_text='', limit=50, offset=0)
         
@@ -381,15 +399,14 @@ class TestSearchEntries:
     def test_search_entries_with_pagination(self, xml_service, mock_basex_session):
         """Test search with pagination."""
         search_results = '''
-        <search-results total="100" limit="10" offset="20">
-            <entry id="test_021">
-                <lexical-unit><text>word21</text></lexical-unit>
-            </entry>
-        </search-results>
+        <entry id="test_021">
+            <lexical-unit><text>word21</text></lexical-unit>
+        </entry>
         '''
         
         query_mock = mock_basex_session.query.return_value
-        query_mock.execute.return_value = search_results
+        # First call returns search results, second call returns count
+        query_mock.execute.side_effect = [search_results, '100']
         
         result = xml_service.search_entries(query_text='word', limit=10, offset=20)
         
@@ -400,10 +417,11 @@ class TestSearchEntries:
     
     def test_search_entries_no_results(self, xml_service, mock_basex_session):
         """Test search with no results."""
-        search_results = '<search-results total="0" limit="50" offset="0"></search-results>'
+        search_results = ''  # Empty results
         
         query_mock = mock_basex_session.query.return_value
-        query_mock.execute.return_value = search_results
+        # First call returns empty search results, second call returns count of 0
+        query_mock.execute.side_effect = [search_results, '0']
         
         result = xml_service.search_entries(query_text='nonexistent')
         

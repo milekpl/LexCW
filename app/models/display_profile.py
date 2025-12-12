@@ -37,6 +37,7 @@ class DisplayProfile(db.Model):
     # Global display settings
     show_subentries: bool = Column(Boolean, default=False, nullable=False)
     number_senses: bool = Column(Boolean, default=True, nullable=False)  # Auto-number senses with CSS
+    number_senses_if_multiple: bool = Column(Boolean, default=False, nullable=False)  # Only number if multiple senses
     
     # Profile metadata
     is_default: bool = Column(Boolean, default=False, nullable=False)
@@ -68,6 +69,7 @@ class DisplayProfile(db.Model):
             'custom_css': self.custom_css,
             'show_subentries': self.show_subentries,
             'number_senses': self.number_senses,
+            'number_senses_if_multiple': self.number_senses_if_multiple,
             'is_default': self.is_default,
             'is_system': self.is_system,
             'created_at': self.created_at.isoformat() if self.created_at else None,

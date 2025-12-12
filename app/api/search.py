@@ -66,6 +66,24 @@ def search_entries():
         description: Comma-separated list of fields to search in
         default: "lexical_unit,glosses,definitions,note"
         example: "lexical_unit,pronunciations,senses,note"
+      - name: pos
+        in: query
+        type: string
+        required: false
+        description: Part of speech to filter by
+        example: "noun"
+      - name: exact_match
+        in: query
+        type: string
+        required: false
+        description: Whether to perform exact match (default: false)
+        example: "false"
+      - name: case_sensitive
+        in: query
+        type: string
+        required: false
+        description: Whether the search should be case-sensitive (default: false)
+        example: "false"
       - name: limit
         in: query
         type: integer
@@ -158,8 +176,16 @@ def search_entries():
         # Get query parameters
         query = request.args.get('q', '')
         fields_str = request.args.get('fields', 'lexical_unit,glosses,definitions,note,citation_form,example')
+        pos = request.args.get('pos')  # Part of speech filter
+        exact_match_raw = request.args.get('exact_match', 'false')
+        case_sensitive_raw = request.args.get('case_sensitive', 'false')
         limit_raw = request.args.get('limit', 100)
         offset_raw = request.args.get('offset', 0)
+
+        # Parse boolean parameters
+        exact_match = exact_match_raw.lower() in ['true', '1', 'yes', 'on']
+        case_sensitive = case_sensitive_raw.lower() in ['true', '1', 'yes', 'on']
+
         try:
             limit = int(limit_raw)
         except (ValueError, TypeError):
@@ -188,7 +214,10 @@ def search_entries():
             query=query,
             fields=fields,
             limit=limit,
-            offset=offset
+            offset=offset,
+            pos=pos,
+            exact_match=exact_match,
+            case_sensitive=case_sensitive
         )
 
         # Prepare response
@@ -199,6 +228,7 @@ def search_entries():
             'total': total_count,
             'limit': limit,
             'offset': offset,
+            'pos': pos,  # Include pos in response to show it was applied
         }
         return jsonify(response)
 
