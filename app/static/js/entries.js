@@ -109,20 +109,249 @@ function openMergeEntrySearch(entryId) {
 
 function openSplitEntryDialog(entryId) {
     console.log(`Opening Split Entry Dialog for entry: ${entryId}`);
-    // Here you would typically show the modal and populate data
-    // For now, just logging
-    const splitEntryModal = new bootstrap.Modal(document.getElementById('splitEntryModal'));
+    const splitEntryModalEl = document.getElementById('splitEntryModal');
+    const splitEntryModal = new bootstrap.Modal(splitEntryModalEl);
+
+    splitEntryModalEl.querySelector('#splitSourceEntry').textContent = entryId;
+
+    // Fetch senses for the source entry
+    fetch(`/api/entries/${entryId}`)
+        .then(response => response.json())
+        .then(entry => {
+            const senseList = splitEntryModalEl.querySelector('#splitSenseList');
+            senseList.innerHTML = '';
+            if (entry.senses && entry.senses.length > 0) {
+                entry.senses.forEach(sense => {
+                    const gloss = getMultilingualField(sense.glosses, 'en');
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item';
+                    item.innerHTML = `
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="${sense.id}" id="split-sense-${sense.id}">
+                            <label class="form-check-label" for="split-sense-${sense.id}">
+                                <strong>Sense ${sense.id}:</strong> ${gloss}
+                            </label>
+                        </div>
+                    `;
+                    senseList.appendChild(item);
+                });
+            } else {
+                senseList.innerHTML = '<div class="list-group-item text-muted">No senses found in this entry.</div>';
+            }
+        });
+
     splitEntryModal.show();
-    document.getElementById('splitSourceEntry').textContent = entryId; // Example
 }
 
-function openMergeSensesDialog(entryId) {
-    console.log(`Opening Merge Senses Dialog for entry: ${entryId}`);
-    // This function will be called from the entry detail view, not this page.
-    // For now, just logging
-    const mergeSensesModal = new bootstrap.Modal(document.getElementById('mergeSensesModal'));
-    mergeSensesModal.show();
+const confirmSplitBtn = document.getElementById('confirmSplitEntry');
+if (confirmSplitBtn) {
+    confirmSplitBtn.addEventListener('click', () => {
+        const splitEntryModalEl = document.getElementById('splitEntryModal');
+        const sourceEntryId = splitEntryModalEl.querySelector('#splitSourceEntry').textContent;
+        const newLexicalUnit = splitEntryModalEl.querySelector('#newEntryLexicalUnit').value;
+        const newPOS = splitEntryModalEl.querySelector('#newEntryPOS').value;
+        const selectedSenses = Array.from(splitEntryModalEl.querySelectorAll('#splitSenseList input:checked')).map(input => input.value);
+
+        if (!newLexicalUnit) {
+            alert('Please provide a lexical unit for the new entry.');
+            return;
+        }
+
+        if (selectedSenses.length === 0) {
+            alert('Please select at least one sense to split.');
+            return;
+        }
+
+        const payload = {
+            sense_ids: selectedSenses,
+            new_entry_data: {
+                lexical_unit: { [document.documentElement.lang || 'en']: newLexicalUnit },
+                grammatical_info: newPOS
+            }
+        };
+
+        fetch(`/api/merge-split/entries/${sourceEntryId}/split`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Entry split successfully!', 'success');
+                const splitEntryModal = bootstrap.Modal.getInstance(splitEntryModalEl);
+                splitEntryModal.hide();
+                loadEntries(); // Reload entries list
+            } else {
+                alert(`Error splitting entry: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error splitting entry:', error);
+            alert('An error occurred while splitting the entry.');
+        });
+    });
 }
+
+
+// Merge Entry Search Functionality
+const mergeEntrySearchModalEl = document.getElementById('mergeEntrySearchModal');
+if (mergeEntrySearchModalEl) {
+    const mergeEntrySearchModal = new bootstrap.Modal(mergeEntrySearchModalEl);
+    const searchInput = mergeEntrySearchModalEl.querySelector('#entrySearch');
+    const searchButton = mergeEntrySearchModalEl.querySelector('#searchButton');
+    const searchResults = mergeEntrySearchModalEl.querySelector('#searchResults');
+    const confirmMergeTargetBtn = mergeEntrySearchModalEl.querySelector('#confirmMergeTarget');
+    let sourceEntryId = null;
+    let targetEntryId = null;
+
+    // This is called from the main event listener
+    window.openMergeEntrySearch = (entryId) => {
+        sourceEntryId = entryId;
+        document.getElementById('sourceEntryName').textContent = entryId;
+        searchInput.value = '';
+        searchResults.innerHTML = '';
+        targetEntryId = null;
+        confirmMergeTargetBtn.disabled = true;
+        mergeEntrySearchModal.show();
+    };
+
+    searchResults.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('.list-group-item');
+        if (!target) return;
+
+        // Remove active class from all items
+        searchResults.querySelectorAll('.list-group-item').forEach(item => item.classList.remove('active'));
+        // Add active class to the clicked item
+        target.classList.add('active');
+
+        targetEntryId = target.dataset.entryId;
+        confirmMergeTargetBtn.disabled = false;
+    });
+
+    confirmMergeTargetBtn.addEventListener('click', () => {
+        if (!sourceEntryId || !targetEntryId) return;
+
+        // Fetch senses for the source entry
+        fetch(`/api/entries/${sourceEntryId}`)
+            .then(response => response.json())
+            .then(entry => {
+                const senseSelectionModalEl = document.getElementById('senseSelectionModal');
+                const senseList = senseSelectionModalEl.querySelector('#senseList');
+                senseList.innerHTML = '';
+                if (entry.senses && entry.senses.length > 0) {
+                    entry.senses.forEach(sense => {
+                        const gloss = getMultilingualField(sense.glosses, 'en');
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item';
+                        item.innerHTML = `
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="${sense.id}" id="sense-${sense.id}">
+                                <label class="form-check-label" for="sense-${sense.id}">
+                                    <strong>Sense ${sense.id}:</strong> ${gloss}
+                                </label>
+                            </div>
+                        `;
+                        senseList.appendChild(item);
+                    });
+                } else {
+                    senseList.innerHTML = '<div class="list-group-item text-muted">No senses found in source entry.</div>';
+                }
+
+                senseSelectionModalEl.querySelector('#sourceEntryDisplay').textContent = sourceEntryId;
+                senseSelectionModalEl.querySelector('#targetEntryDisplay').textContent = targetEntryId;
+
+                const senseSelectionModal = new bootstrap.Modal(senseSelectionModalEl);
+                senseSelectionModal.show();
+                mergeEntrySearchModal.hide();
+            });
+    });
+
+    const searchEntries = () => {
+        const query = searchInput.value;
+        if (query.length < 3) {
+            searchResults.innerHTML = '<div class="list-group-item text-muted">Please enter at least 3 characters.</div>';
+            return;
+        }
+
+        searchResults.innerHTML = '<div class="list-group-item text-muted">Searching...</div>';
+
+        fetch(`/api/entries?filter_text=${encodeURIComponent(query)}&limit=10`)
+            .then(response => response.json())
+            .then(data => {
+                searchResults.innerHTML = '';
+                if (data.entries && data.entries.length > 0) {
+                    data.entries.forEach(entry => {
+                        // Exclude the source entry from the results
+                        if (entry.id === sourceEntryId) return;
+                        
+                        const item = document.createElement('a');
+                        item.href = '#';
+                        item.className = 'list-group-item list-group-item-action';
+                        item.dataset.entryId = entry.id;
+                        item.innerHTML = `<strong>${getMultilingualField(entry.lexical_unit, 'en')}</strong><br><small class="text-muted">${entry.id}</small>`;
+                        searchResults.appendChild(item);
+                    });
+                } else {
+                    searchResults.innerHTML = '<div class="list-group-item text-muted">No entries found.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error searching entries:', error);
+                searchResults.innerHTML = '<div class="list-group-item text-danger">Error fetching results.</div>';
+            });
+    };
+
+    searchButton.addEventListener('click', searchEntries);
+    searchInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            searchEntries();
+        }
+    });
+
+    const confirmSenseSelectionBtn = document.getElementById('confirmSenseSelection');
+    confirmSenseSelectionBtn.addEventListener('click', () => {
+        const senseSelectionModalEl = document.getElementById('senseSelectionModal');
+        const selectedSenses = Array.from(senseSelectionModalEl.querySelectorAll('#senseList input:checked')).map(input => input.value);
+        const conflictResolution = senseSelectionModalEl.querySelector('input[name="conflictStrategy"]:checked').value;
+
+        if (selectedSenses.length === 0) {
+            alert('Please select at least one sense to merge.');
+            return;
+        }
+
+        const payload = {
+            source_entry_id: sourceEntryId,
+            sense_ids: selectedSenses,
+            conflict_resolution: {
+                duplicate_senses: conflictResolution
+            }
+        };
+
+        fetch(`/api/merge-split/entries/${targetEntryId}/merge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Entries merged successfully!', 'success');
+                const senseSelectionModal = bootstrap.Modal.getInstance(senseSelectionModalEl);
+                senseSelectionModal.hide();
+                loadEntries(); // Reload entries list
+            } else {
+                alert(`Error merging entries: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error merging entries:', error);
+            alert('An error occurred while merging entries.');
+        });
+    });
+}
+
 
 // --- Column Visibility ---
 function loadVisibleColumns() {
