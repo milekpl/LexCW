@@ -67,6 +67,61 @@ function setupEventListeners() {
             deleteModalInstance.hide();
         }
     });
+
+    initializeMergeSplitButtons();
+}
+
+function initializeMergeSplitButtons() {
+    // Add event listeners to all merge buttons
+    document.getElementById('entries-list').addEventListener('click', function(e) {
+        if (e.target.closest('.merge-btn')) {
+            e.preventDefault();
+            const entryId = e.target.closest('.merge-btn').dataset.entryId;
+            openMergeEntrySearch(entryId);
+        }
+        if (e.target.closest('.split-btn')) {
+            e.preventDefault();
+            const entryId = e.target.closest('.split-btn').dataset.entryId;
+            openSplitEntryDialog(entryId);
+        }
+    });
+
+    // Add event listeners to merge senses buttons (in entry detail view)
+    // This part is for the entry detail view, not entries list, but defining placeholder
+    // document.querySelectorAll('.merge-senses-btn').forEach(button => {
+    //     button.addEventListener('click', function(e) {
+    //         e.preventDefault();
+    //         const entryId = this.dataset.entryId;
+    //         openMergeSensesDialog(entryId);
+    //     });
+    // });
+}
+
+// Placeholder functions for modal opening
+function openMergeEntrySearch(entryId) {
+    console.log(`Opening Merge Entry Search for entry: ${entryId}`);
+    // Here you would typically show the modal and populate data
+    // For now, just logging
+    const mergeEntrySearchModal = new bootstrap.Modal(document.getElementById('mergeEntrySearchModal'));
+    mergeEntrySearchModal.show();
+    document.getElementById('sourceEntryName').textContent = entryId; // Example
+}
+
+function openSplitEntryDialog(entryId) {
+    console.log(`Opening Split Entry Dialog for entry: ${entryId}`);
+    // Here you would typically show the modal and populate data
+    // For now, just logging
+    const splitEntryModal = new bootstrap.Modal(document.getElementById('splitEntryModal'));
+    splitEntryModal.show();
+    document.getElementById('splitSourceEntry').textContent = entryId; // Example
+}
+
+function openMergeSensesDialog(entryId) {
+    console.log(`Opening Merge Senses Dialog for entry: ${entryId}`);
+    // This function will be called from the entry detail view, not this page.
+    // For now, just logging
+    const mergeSensesModal = new bootstrap.Modal(document.getElementById('mergeSensesModal'));
+    mergeSensesModal.show();
 }
 
 // --- Column Visibility ---
@@ -404,7 +459,8 @@ function renderTableBody(entries) {
                         td.innerHTML = `
                             <div class="btn-group btn-group-sm">
                                 <a href="/entries/${entry.id}/edit" class="btn btn-outline-primary edit-btn" title="Edit"><i class="fas fa-edit"></i></a>
-                                <a href="/entries/${entry.id}" class="btn btn-outline-info view-btn" title="View"><i class="fas fa-eye"></i></a>
+                                <button type="button" class="btn btn-outline-info merge-btn" title="Merge" data-entry-id="${entry.id}"><i class="fas fa-code-merge"></i></button>
+                                <button type="button" class="btn btn-outline-success split-btn" title="Split" data-entry-id="${entry.id}"><i class="fas fa-code-branch"></i></button>
                                 <button type="button" class="btn btn-outline-danger delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
                             </div>`;
                         if (colConfig.fixedWidth) td.style.width = colConfig.fixedWidth;

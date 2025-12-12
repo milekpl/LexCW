@@ -1,0 +1,191 @@
+<!-- app/templates/macros/merge_split_modals.html -->
+
+<!-- Entry Search Dialog -->
+<div class="modal fade" id="mergeEntrySearchModal" tabindex="-1" role="dialog" aria-labelledby="mergeEntrySearchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="mergeEntrySearchModalLabel">Select Target Entry for Merge</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="entrySearch" class="form-label">Search Entries</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="entrySearch" placeholder="Type to search...">
+            <button class="btn btn-outline-secondary" type="button" id="searchButton">
+              <i class="fas fa-search"></i>
+            </button>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Search Results</label>
+          <div class="list-group" id="searchResults" style="max-height: 300px; overflow-y: auto;">
+            <!-- Results will be populated by JavaScript -->
+          </div>
+        </div>
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i> Select the entry that will receive the senses from <strong id="sourceEntryName"></strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmMergeTarget">Continue to Sense Selection</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sense Selection Dialog -->
+<div class="modal fade" id="senseSelectionModal" tabindex="-1" role="dialog" aria-labelledby="senseSelectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="senseSelectionModalLabel">Select Senses to Merge/Split</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <p>Select which senses to transfer from <strong id="sourceEntryDisplay"></strong> to <strong id="targetEntryDisplay"></strong>:</p>
+        </div>
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="selectAllSenses">
+            <label class="form-check-label" for="selectAllSenses">Select All</label>
+          </div>
+        </div>
+        <div class="list-group" id="senseList">
+          <!-- Sense items will be populated by JavaScript -->
+          <div class="list-group-item">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="sense_001" value="sense_001">
+              <label class="form-check-label" for="sense_001">
+                <strong>Sense 1:</strong> Primary meaning of the word
+                <small class="text-muted d-block">Gloss: basic definition | Examples: 3</small>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4" id="conflictResolutionSection">
+          <h6>Conflict Resolution</h6>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="conflictStrategy" id="renameStrategy" value="rename" checked>
+            <label class="form-check-label" for="renameStrategy">
+              Rename conflicting senses (recommended)
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="conflictStrategy" id="skipStrategy" value="skip">
+            <label class="form-check-label" for="skipStrategy">
+              Skip conflicting senses
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="conflictStrategy" id="overwriteStrategy" value="overwrite">
+            <label class="form-check-label" for="overwriteStrategy">
+              Overwrite existing senses
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmSenseSelection">Merge Entries</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Split Entry Dialog -->
+<div class="modal fade" id="splitEntryModal" tabindex="-1" role="dialog" aria-labelledby="splitEntryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title" id="splitEntryModalLabel">Split Entry</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <p>Create a new entry by splitting senses from <strong id="splitSourceEntry"></strong>:</p>
+        </div>
+        <div class="mb-3">
+          <label for="newEntryLexicalUnit" class="form-label">New Entry Lexical Unit</label>
+          <input type="text" class="form-control" id="newEntryLexicalUnit" placeholder="Enter headword for new entry">
+        </div>
+        <div class="mb-3">
+          <label for="newEntryPOS" class="form-label">Part of Speech</label>
+          <select class="form-select" id="newEntryPOS">
+            <option value="">Select part of speech...</option>
+            <option value="noun">Noun</option>
+            <option value="verb">Verb</option>
+            <option value="adjective">Adjective</option>
+            <option value="adverb">Adverb</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="selectAllSensesForSplit">
+            <label class="form-check-label" for="selectAllSensesForSplit">Select All Senses</label>
+          </div>
+        </div>
+        <div class="list-group" id="splitSenseList">
+          <!-- Sense items will be populated by JavaScript -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="confirmSplitEntry">Split Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Merge Senses Dialog -->
+<div class="modal fade" id="mergeSensesModal" tabindex="-1" role="dialog" aria-labelledby="mergeSensesModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title" id="mergeSensesModalLabel">Merge Senses</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="targetSenseSelect" class="form-label">Target Sense</label>
+          <select class="form-select" id="targetSenseSelect">
+            <option value="">Select target sense...</option>
+            <!-- Options will be populated by JavaScript -->
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Source Senses</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="selectAllSourceSenses">
+            <label class="form-check-label" for="selectAllSourceSenses">Select All</label>
+          </div>
+          <div class="list-group" id="sourceSensesList">
+            <!-- Source sense items will be populated by JavaScript -->
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Merge Strategy</label>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mergeStrategy" id="combineAll" value="combine_all" checked>
+            <label class="form-check-label" for="combineAll">Combine all content</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mergeStrategy" id="keepTarget" value="keep_target">
+            <label class="form-check-label" for="keepTarget">Keep only target sense content</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mergeStrategy" id="keepSource" value="keep_source">
+            <label class="form-check-label" for="keepSource">Keep only source sense content</label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmMergeSenses">Merge Senses</button>
+      </div>
+    </div>
+  </div>
+</div>
