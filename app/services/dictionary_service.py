@@ -907,6 +907,9 @@ class DictionaryService:
 
             query_str = f"{prologue} (for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form[1]/text return $entry){pagination_expr}"
 
+            # Log the query for debugging
+            self.logger.debug(f"Executing search query: {query_str}")
+
             result = self.db_connector.execute_query(query_str)
 
             if not result:
@@ -915,6 +918,9 @@ class DictionaryService:
             # Use non-validating parser for search to avoid validation errors
             # This is critical to ensure invalid entries are included in search results
             non_validating_parser = LIFTParser(validate=False)
+
+            # Log the result for debugging
+            self.logger.debug(f"Search result XML: {result[:1000]}...")
 
             # The parser will handle wrapping the XML if needed
             entries = non_validating_parser.parse_string(result)
@@ -929,7 +935,9 @@ class DictionaryService:
             return entries, total_count
 
         except Exception as e:
+            import traceback
             self.logger.error("Error searching entries: %s", str(e))
+            self.logger.error("Traceback: %s", traceback.format_exc())
             raise DatabaseError(f"Failed to search entries: {str(e)}") from e
 
     def get_entry_count(self) -> int:

@@ -440,6 +440,13 @@ class Sense(BaseModel):
         """
         result = super().to_dict()
         
+        # Convert Example objects to dicts
+        if 'examples' in result and result['examples']:
+            result['examples'] = [
+                ex.to_dict() if hasattr(ex, 'to_dict') else ex 
+                for ex in result['examples']
+            ]
+        
         # Add computed properties for template compatibility
         result['definition'] = self.definition
         result['gloss'] = self.gloss

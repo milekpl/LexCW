@@ -231,7 +231,7 @@ function parseFieldPath(path) {
     // Keep parsing until we've consumed the entire path
     while (currentPath.length > 0) {
         parseStep++;
-        if (parseStep > 50) {
+        if (parseStep > 100) {
             console.error(`[FormSerializer] parseFieldPath: Too many parse steps for path '${path}'`);
             throw new Error(`parseFieldPath: Too many parse steps for path '${path}'`);
         }

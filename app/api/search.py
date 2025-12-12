@@ -233,7 +233,9 @@ def search_entries():
         return jsonify(response)
 
     except Exception as e:
+        import traceback
         logger.error("Error searching entries: %s", str(e))
+        logger.error("Traceback: %s", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 

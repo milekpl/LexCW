@@ -168,19 +168,20 @@ class TestLIFTRangesParserComprehensive:
         
         # Find Universe element (1)
         universe = next(v for v in semantic_range['values'] if v['id'] == '1')
-        assert universe['description']['en'] == 'Universe, creation'
+        # Description is not provided in sample; expect label instead
+        assert universe['labels']['en'] == 'Universe, creation'
         assert len(universe['children']) == 1
         
         # Check Sky (1.1)
         sky = universe['children'][0]
         assert sky['id'] == '1.1'
-        assert sky['description']['en'] == 'Sky'
+        assert sky['labels']['en'] == 'Sky'
         assert len(sky['children']) == 1
         
         # Check Sun (1.1.1)
         sun = sky['children'][0]
         assert sun['id'] == '1.1.1'
-        assert sun['description']['en'] == 'Sun'
+        assert sun['labels']['en'] == 'Sun'
 
     @pytest.mark.integration
     def test_parser_handles_guid_and_traits(self, ranges_parser: LIFTRangesParser, sample_ranges_xml: str):
@@ -267,4 +268,22 @@ class TestLIFTRangesParserComprehensive:
         
         ranges = ranges_parser.parse_string(namespaced_xml)
         assert 'test' in ranges
-        assert ranges['test']['values'][0]['description']['en'] == 'Test Item'
+        # Description not provided in namespaced XML; assert label is present instead
+        assert ranges['test']['values'][0]['labels']['en'] == 'Test Item'
+
+    @pytest.mark.integration
+    def test_parser_does_not_fallback_label_to_description(self, ranges_parser: LIFTRangesParser):
+        """Ensure parser does not copy labels into descriptions when description is absent."""
+        xml = '''<?xml version="1.0" encoding="UTF-8"?>
+        <lift-ranges>
+            <range id="no-desc-range">
+                <range-element id="no-desc">
+                    <label><form lang="en"><text>Only Label</text></form></label>
+                </range-element>
+            </range>
+        </lift-ranges>'''
+        ranges = ranges_parser.parse_string(xml)
+        element = ranges['no-desc-range']['values'][0]
+        assert element['labels']['en'] == 'Only Label'
+        # descriptions should not contain any languages if no description elements present
+        assert element['descriptions'] == {}

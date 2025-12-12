@@ -857,6 +857,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 addCustomFieldLanguage(addScientificNameBtn, 'scientific-name');
                 return;
             }
+
+            // --- Sense Relations Handlers ---
+            const addSenseRelationBtn = e.target.closest('.add-sense-relation-btn');
+            if (addSenseRelationBtn) {
+                const senseIndex = addSenseRelationBtn.dataset.senseIndex;
+                addSenseRelation(senseIndex);
+                // Remove placeholder if exists
+                const relationsContainer = document.querySelector(`.sense-relations-container[data-sense-index="${senseIndex}"]`);
+                relationsContainer?.querySelector('.no-sense-relations')?.remove();
+                return;
+            }
+
+            const removeSenseRelationBtn = e.target.closest('.remove-sense-relation-btn');
+            if (removeSenseRelationBtn) {
+                const relationItem = removeSenseRelationBtn.closest('.sense-relation-item');
+                const senseIndex = removeSenseRelationBtn.dataset.senseIndex;
+                const relationIndex = removeSenseRelationBtn.dataset.relationIndex;
+                if (relationItem && confirm('Are you sure you want to remove this sense relation?')) {
+                    const relationsContainer = relationItem.parentElement;
+                    relationItem.remove();
+                    reindexSenseRelations(senseIndex);
+
+                    // Show placeholder if no relations remain
+                    if (relationsContainer.children.length === 0) {
+                        relationsContainer.innerHTML = `
+                            <div class="no-sense-relations text-center text-muted py-2 border border-warning border-opacity-25 rounded">
+                                <p class="mb-2"><small>No sense relations yet. Add relations to link this sense to related meanings.</small></p>
+                            </div>`;
+                    }
+                }
+                return;
+            }
         });
     }
 
@@ -1291,6 +1323,149 @@ function addExample(senseIndex) {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = template;
     examplesContainer.appendChild(tempDiv.firstElementChild);
+}
+
+/**
+ * Adds a new sense relation field group to a specific sense.
+ * @param {number|string} senseIndex - The index of the parent sense.
+ */
+function addSenseRelation(senseIndex) {
+    const relationsContainer = document.querySelector(`.sense-relations-container[data-sense-index="${senseIndex}"]`);
+    if (!relationsContainer) return;
+
+    const newIndex = relationsContainer.querySelectorAll('.sense-relation-item').length;
+    const newNumber = newIndex + 1;
+
+    // Create new sense relation HTML dynamically since there's no template
+    const newRelationHTML = `
+        <div class="sense-relation-item card mb-3 border-warning" data-relation-index="${newIndex}">
+            <div class="card-header bg-warning bg-opacity-10">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-link"></i> Relation ${newNumber}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-sense-relation-btn"
+                            data-sense-index="${senseIndex}" data-relation-index="${newIndex}">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Relation Type</label>
+                        <select class="form-control sense-relation-type-select dynamic-lift-range"
+                                name="senses[${senseIndex}].relations[${newIndex}].type"
+                                data-range-id="lexical-relation"
+                                data-hierarchical="true"
+                                data-searchable="true"
+                                required>
+                            <option value="">Select type</option>
+                        </select>
+                        <div class="form-text">Type of semantic relation</div>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Target Sense</label>
+                        <div class="alert alert-light mb-2">
+                            <i class="fas fa-project-diagram me-2"></i>
+                            <strong>No target selected</strong>
+                        </div>
+                        <input type="hidden"
+                               class="sense-relation-ref-hidden"
+                               name="senses[${senseIndex}].relations[${newIndex}].ref"
+                               value="">
+                        <div class="input-group">
+                            <input type="text"
+                                   class="form-control sense-relation-search-input"
+                                   placeholder="Search to change target..."
+                                   data-sense-index="${senseIndex}"
+                                   data-relation-index="${newIndex}"
+                                   autocomplete="off">
+                            <button type="button"
+                                    class="btn btn-outline-secondary sense-relation-search-btn"
+                                    data-sense-index="${senseIndex}"
+                                    data-relation-index="${newIndex}">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                        <div class="form-text">Search by headword to change target entry/sense</div>
+                        <div class="sense-relation-search-results"
+                             id="sense-search-results-${senseIndex}-${newIndex}"
+                             style="display: none; position: relative; z-index: 1000;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    relationsContainer.insertAdjacentHTML('beforeend', newRelationHTML);
+
+    // Initialize the new relation's dropdown with range data
+    const newSelect = relationsContainer.querySelector(`.sense-relation-item[data-relation-index="${newIndex}"] .sense-relation-type-select`);
+    if (newSelect && window.rangesLoader) {
+        // Use rangesLoader to populate the select with proper range values
+        window.rangesLoader.populateSelect(newSelect, 'lexical-relation', {
+            emptyOption: 'Select type',
+            hierarchical: true,
+            searchable: true
+        }).catch(err => {
+            console.error(`[addSenseRelation] Failed to populate select via rangesLoader:`, err);
+        });
+    }
+
+    // Initialize the search functionality for the new relation if the sense-relation-search handler exists
+    if (window.senseRelationSearchHandler) {
+        // The event listeners are already in place to handle the new elements
+        console.log(`[addSenseRelation] New relation ${newIndex} added to sense ${senseIndex}`);
+    }
+}
+
+/**
+ * Re-indexes all sense relations for a specific sense after removal.
+ * @param {number|string} senseIndex - The index of the parent sense.
+ */
+function reindexSenseRelations(senseIndex) {
+    const relationsContainer = document.querySelector(`.sense-relations-container[data-sense-index="${senseIndex}"]`);
+    if (!relationsContainer) return;
+
+    const relationItems = relationsContainer.querySelectorAll('.sense-relation-item');
+    relationItems.forEach((relation, newIndex) => {
+        const oldIndex = relation.dataset.relationIndex;
+        if (oldIndex === newIndex.toString()) return;
+
+        // Update visual elements
+        relation.querySelector('.card-header span').innerHTML = `<i class="fas fa-link"></i> Relation ${newIndex + 1}`;
+
+        // Update data attribute
+        relation.dataset.relationIndex = newIndex;
+
+        // Update all name attributes
+        relation.querySelectorAll('[name]').forEach(input => {
+            const name = input.getAttribute('name');
+            const newName = name.replace(
+                new RegExp(`senses\\[${senseIndex}\\]\\.relations\\[${oldIndex}\\]`, 'g'),
+                `senses[${senseIndex}].relations[${newIndex}]`
+            );
+            input.setAttribute('name', newName);
+        });
+
+        // Update data-relation-index and other data attributes on buttons and other elements
+        relation.querySelectorAll('[data-relation-index]').forEach(btn => {
+            btn.dataset.relationIndex = newIndex;
+        });
+
+        // Update search input data attributes
+        relation.querySelectorAll('.sense-relation-search-input, .sense-relation-search-btn').forEach(el => {
+            el.dataset.relationIndex = newIndex;
+        });
+
+        // Update search results container ID
+        const oldResultsId = `sense-search-results-${senseIndex}-${oldIndex}`;
+        const newResultsId = `sense-search-results-${senseIndex}-${newIndex}`;
+        const resultsContainer = document.getElementById(oldResultsId);
+        if (resultsContainer) {
+            resultsContainer.id = newResultsId;
+        }
+    });
 }
 
 /**
