@@ -78,6 +78,26 @@ class MergeSplitOperation(BaseModel):
         result['metadata'] = self.metadata
         return result
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MergeSplitOperation":
+        """
+        Create a MergeSplitOperation instance from a dictionary.
+        """
+        # Extract positional arguments for __init__
+        operation_type = data.pop("operation_type")
+        source_id = data.pop("source_id")
+
+        # Convert timestamp from ISO format string to datetime object
+        if 'timestamp' in data and isinstance(data['timestamp'], str):
+            data['timestamp'] = datetime.fromisoformat(data['timestamp'])
+        
+        # Create instance
+        return cls(
+            operation_type=operation_type,
+            source_id=source_id,
+            **data
+        )
+
     def mark_completed(self) -> None:
         """Mark the operation as completed."""
         self.status = 'completed'
@@ -139,6 +159,28 @@ class SenseTransfer(BaseModel):
         result['transfer_date'] = self.transfer_date.isoformat()
         result['metadata'] = self.metadata
         return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SenseTransfer":
+        """
+        Create a SenseTransfer instance from a dictionary.
+        """
+        # Extract positional arguments for __init__
+        sense_id = data.pop("sense_id")
+        original_entry_id = data.pop("original_entry_id")
+        new_entry_id = data.pop("new_entry_id")
+
+        # Convert transfer_date from ISO format string to datetime object
+        if 'transfer_date' in data and isinstance(data['transfer_date'], str):
+            data['transfer_date'] = datetime.fromisoformat(data['transfer_date'])
+
+        # Create instance
+        return cls(
+            sense_id=sense_id,
+            original_entry_id=original_entry_id,
+            new_entry_id=new_entry_id,
+            **data
+        )
 
 class MergeSplitResult(BaseModel):
     """
