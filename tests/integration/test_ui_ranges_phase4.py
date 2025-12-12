@@ -433,8 +433,8 @@ class TestUIRangesSpecialEditors:
             if value.get('value') and str(value['value']).strip():
                 # Real data case: should have proper display info
                 has_display_text = (
-                    (value.get('description') and 
-                     isinstance(value.get('description'), dict) and 
+                    (value.get('description') and
+                     isinstance(value.get('description'), dict) and
                      any(len(str(desc)) > 0 for desc in value['description'].values())) or
                     (value.get('abbrev') and len(str(value['abbrev'])) > 0) or
                     (value.get('value') and len(str(value['value'])) > 0)

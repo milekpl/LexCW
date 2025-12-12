@@ -153,6 +153,16 @@ def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
 
 
 @pytest.fixture
+def app(mock_app: Flask) -> Flask:
+    """Flask app fixture for unit testing with mocked dependencies.
+    
+    This fixture delegates to mock_app to provide a simple 'app' fixture
+    that tests can use without needing to know about the mocked nature.
+    """
+    return mock_app
+
+
+@pytest.fixture
 def client(mock_app: Flask) -> FlaskClient:
     """Test client for unit testing with mocked dependencies."""
     return mock_app.test_client()

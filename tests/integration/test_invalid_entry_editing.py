@@ -175,9 +175,10 @@ class TestInvalidEntryEditing:
         """Test that POST updates also use non-validating method for existing entry retrieval."""
         with app.test_client() as client:
             with patch.object(DictionaryService, 'get_entry_for_editing') as mock_get_edit, \
-                 patch.object(DictionaryService, 'update_entry') as mock_update, \
+                 patch('app.services.xml_entry_service.XMLEntryService') as mock_xml_service_class, \
                  patch('app.views.merge_form_data_with_entry_data') as mock_merge, \
-                 patch('app.models.entry.Entry.from_dict') as mock_from_dict:
+                 patch('app.models.entry.Entry.from_dict') as mock_from_dict, \
+                 patch.object(DictionaryService, '_prepare_entry_xml') as mock_prepare_xml:
                 
                 # Setup mocks
                 mock_entry = Mock()
@@ -188,17 +189,37 @@ class TestInvalidEntryEditing:
                 mock_merge.return_value = mock_merged_data
                 
                 mock_new_entry = Mock()
+                mock_new_entry.id = "test_entry"
                 mock_from_dict.return_value = mock_new_entry
                 
+                # Setup XML preparation mock
+                mock_xml = "<entry id='test_entry'><lexical-unit><form lang='en'><text>updated</text></form></lexical-unit></entry>"
+                mock_prepare_xml.return_value = mock_xml
+                
+                # Setup XML service mock
+                mock_xml_service = Mock()
+                mock_xml_service_class.return_value = mock_xml_service
+                mock_xml_service.update_entry.return_value = {"id": "test_entry", "status": "updated"}
+                
+                # Setup db connector mock on the dictionary service instance
+                dict_service = app.injector.get(DictionaryService)
+                mock_db_connector = Mock()
+                mock_db_connector.database = "test_dict"
+                mock_db_connector.is_connected.return_value = True
+                dict_service.db_connector = mock_db_connector
+                
                 # Make POST request to edit endpoint
-                response = client.post('/entries/test_entry/edit', 
+                response = client.post('/entries/test_entry/edit',
                                      json={"lexical_unit": {"en": "updated"}})
                 
                 # Verify the non-validating method was called for existing entry
                 mock_get_edit.assert_called_once_with('test_entry')
                 
-                # Update should proceed
-                mock_update.assert_called_once()
+                # Verify XML preparation was called
+                mock_prepare_xml.assert_called_once_with(mock_new_entry)
+                
+                # Update should proceed via XMLEntryService
+                mock_xml_service.update_entry.assert_called_once_with('test_entry', mock_xml)
 
     @pytest.mark.integration
     def test_entry_not_found_still_raises_error(self, app):

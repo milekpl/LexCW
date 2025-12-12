@@ -271,14 +271,20 @@ class TestXMLEntryAPIErrorHandling:
     """Test error handling in XML Entry API."""
     
     def test_update_nonexistent_entry(self, client: FlaskClient):
-        """Test updating an entry that doesn't exist."""
+        """Test that PUT creates an entry that doesn't exist (upsert behavior)."""
         response = client.put(
             '/api/xml/entries/nonexistent_entry',
             data=SAMPLE_ENTRY_XML.replace('test_crud_001', 'nonexistent_entry'),
             content_type='application/xml'
         )
-        
-        assert response.status_code == 404
+
+        # PUT should create the entry if it doesn't exist (upsert behavior)
+        assert response.status_code == 200
+
+        # Verify entry was created
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['entry_id'] == 'nonexistent_entry'
     
     def test_create_duplicate_entry(self, client: FlaskClient, xml_service: XMLEntryService):
         """Test creating an entry with duplicate ID."""

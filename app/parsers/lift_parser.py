@@ -273,7 +273,7 @@ class LIFTParser:
             
             # Handle case where we have multiple entry elements without a root
             # This is common in test mocks and some database responses
-            if xml_string.startswith('<entry') and not xml_string.startswith('<entry>'):
+            if xml_string.count('<entry') > 1 and not xml_string.startswith('<lift>'):
                 # Multiple entries without a root - wrap them
                 xml_string = f"<lift>{xml_string}</lift>"
             
@@ -1907,16 +1907,23 @@ class LIFTParser:
             'guid': elem.get('guid', ''),
             'value': elem.get('value', '') or element_id,
             'abbrev': '',
-            'description': {},
+            'description': {},  # Add for consistency and backward compatibility
+            'abbrevs': {},
+            'labels': {},
+            'descriptions': {},
             'children': [],
             'traits': {},
             'reverse_labels': {},
             'reverse_abbrevs': {},
         }
-        
-        # Parse multilingual labels and descriptions
-        element_data['description'] = self._parse_multilingual_content(elem, ['label', 'description'])
-        
+
+        # Parse multilingual labels and descriptions separately
+        element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
+        element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
+
+        # Add backward compatibility: provide singular 'description' field from plural 'descriptions'
+        element_data['description'] = element_data['descriptions'].copy()
+
         # Parse abbreviation (handle LIFT form structure)
         abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
         if abbrev_elem is not None:
@@ -2307,7 +2314,9 @@ class LIFTRangesParser:
         element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
         element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
 
-        
+        # Add backward compatibility: provide singular 'description' field from plural 'descriptions'
+        element_data['description'] = element_data['descriptions'].copy()
+
         # Parse child elements (recursive, direct children only)
         for child_elem in self._find_elements(elem, './lift:range-element', './range-element'):
             child_data = self._parse_range_element(child_elem)

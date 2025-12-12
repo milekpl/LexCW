@@ -317,8 +317,8 @@ class TestLIFTToHTMLTransformer:
         transformer = LIFTToHTMLTransformer()
         result = transformer.transform(lift_xml, configs)
         
-        # Trait should show "name: value"
-        assert "morph-type: stem" in result
+        # Trait should show just its value (the transformer itself doesn't add data attributes)
+        assert "stem" in result
         # Field should show its content
         assert "REVIEW_ME" in result
 

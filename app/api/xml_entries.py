@@ -243,8 +243,13 @@ def update_entry(entry_id: str) -> Any:
         # Get XML entry service
         xml_service = get_xml_entry_service()
         
-        # Update entry
-        result = xml_service.update_entry(entry_id, xml_string)
+        # Try to update entry, if not found then create it
+        try:
+            result = xml_service.update_entry(entry_id, xml_string)
+        except EntryNotFoundError:
+            # If entry doesn't exist, create it instead
+            logger.info('[XML API] Entry %s not found, creating new entry', entry_id)
+            result = xml_service.create_entry(xml_string)
         
         logger.info('[XML API] Entry saved: %s', result['id'])
 

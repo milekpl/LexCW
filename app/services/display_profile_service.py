@@ -35,6 +35,7 @@ class DisplayProfileService:
         custom_css: Optional[str] = None,
         show_subentries: bool = False,
         number_senses: bool = True,
+        number_senses_if_multiple: bool = False,
         elements: Optional[List[Dict[str, Any]]] = None,
         is_default: bool = False,
         is_system: bool = False
@@ -47,13 +48,14 @@ class DisplayProfileService:
             custom_css: Optional custom CSS styles for this profile
             show_subentries: Whether to display subentries recursively
             number_senses: Whether to auto-number senses with CSS counters
+            number_senses_if_multiple: Whether to only number senses if there are multiple senses
             elements: List of element configurations
             is_default: Whether this is the default profile
             is_system: Whether this is a system profile (cannot be deleted)
-            
+        
         Returns:
             Created DisplayProfile instance
-            
+        
         Raises:
             ValueError: If profile with same name exists or validation fails
         """
@@ -73,7 +75,7 @@ class DisplayProfileService:
             custom_css=custom_css,
             show_subentries=show_subentries,
             number_senses=number_senses,
-
+            number_senses_if_multiple=number_senses_if_multiple,
             is_default=is_default,
             is_system=is_system
         )
@@ -155,7 +157,8 @@ class DisplayProfileService:
         elements: Optional[List[Dict[str, Any]]] = None,
         custom_css: Optional[str] = None,
         show_subentries: Optional[bool] = None,
-        number_senses: Optional[bool] = None
+        number_senses: Optional[bool] = None,
+        number_senses_if_multiple: Optional[bool] = None
     ) -> DisplayProfile:
         """Update an existing profile.
         
@@ -168,10 +171,11 @@ class DisplayProfileService:
             custom_css: Custom CSS for rendering
             show_subentries: Whether to show subentries globally
             number_senses: Whether to auto-number senses with CSS
-            
+            number_senses_if_multiple: Whether to only number senses if there are multiple senses
+
         Returns:
             Updated DisplayProfile instance
-            
+
         Raises:
             ValueError: If profile not found or validation fails
         """
@@ -211,7 +215,10 @@ class DisplayProfileService:
         
         if number_senses is not None:
             profile.number_senses = number_senses
-        
+
+        if number_senses_if_multiple is not None:
+            profile.number_senses_if_multiple = number_senses_if_multiple
+
         # Update elements if provided
         if elements is not None:
             # Remove existing elements
@@ -461,7 +468,8 @@ class DisplayProfileService:
                 elements=data.get('elements', []),
                 custom_css=data.get('custom_css'),
                 show_subentries=data.get('show_subentries'),
-                number_senses=data.get('number_senses')
+                number_senses=data.get('number_senses'),
+                number_senses_if_multiple=data.get('number_senses_if_multiple')
             )
         else:
             # Create new profile
@@ -473,5 +481,6 @@ class DisplayProfileService:
                 is_system=data.get('is_system', False),
                 custom_css=data.get('custom_css'),
                 show_subentries=data.get('show_subentries', False),
-                number_senses=data.get('number_senses', True)
+                number_senses=data.get('number_senses', True),
+                number_senses_if_multiple=data.get('number_senses_if_multiple', False)
             )
