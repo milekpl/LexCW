@@ -1003,6 +1003,12 @@ def ranges_editor():
     return render_template("ranges_editor.html")
 
 
+@main_bp.route('/setup', methods=['GET'])
+def setup_wizard():
+    """Render the initial setup wizard page."""
+    return render_template('setup.html')
+
+
 @main_bp.route("/activity-log")
 def activity_log():
     """

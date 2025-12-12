@@ -22,7 +22,7 @@
             console.log('[TEST] Found select element:', select);
             
             try {
-                await window.rangesLoader.populateSelectWithFallback(select, 'grammatical-info', {
+                await window.rangesLoader.populateSelect(select, 'grammatical-info', {
                     emptyOption: 'Select part of speech',
                     selectedValue: '',
                     valueField: 'value',

@@ -390,6 +390,20 @@ def get_semantic_domains_range() -> Union[Response, Tuple[Response, int]]:
     return get_specific_range('semantic-domains')
 
 
+@ranges_bp.route('/install_recommended', methods=['POST'])
+def install_recommended_ranges() -> Union[Response, Tuple[Response, int]]:
+    """
+    Install a minimal recommended set of ranges into the database.
+    Intended for initial project setup or when ranges are missing.
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        ranges = dict_service.install_recommended_ranges()
+        return jsonify({'success': True, 'data': ranges}), 201
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @ranges_bp.route('/etymology', methods=['GET'])
 def get_etymology_range() -> Union[Response, Tuple[Response, int]]:
     """

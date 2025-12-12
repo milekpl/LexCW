@@ -128,16 +128,12 @@ class TestUIRangesDynamicIntegration:
                 
                 content = response.data.decode('utf-8')
                 
-                # Should contain fallback mechanism or error handling
-                fallback_indicators = [
-                    'range-error-handling',
-                    'fallback-options',
-                    'ranges-unavailable',
-                    'default-options'
-                ]
-                
-                # At minimum, page should load and not crash
+                # Page should still load and not contain hardcoded fallback options
                 assert '<form' in content, "Form should still be present"
+                # Should not contain hardcoded lexical relation fallbacks
+                assert 'synonim' not in content and 'Antonim' not in content
+                # The selects should still be present and marked for dynamic loading
+                assert 'select[data-range-id' in content or 'dynamic-grammatical-info' in content
 
     @pytest.mark.integration
     def test_javascript_ranges_loader_functionality(self, client: FlaskClient) -> None:

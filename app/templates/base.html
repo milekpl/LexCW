@@ -118,5 +118,28 @@
     <!-- Common JS -->
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     {% block extra_js %}{% endblock %}
+    {% if FIRST_RUN_SETUP %}
+    <script>
+    // If first-run, display a small non-intrusive modal linking to setup wizard
+    document.addEventListener('DOMContentLoaded', function() {
+        if (localStorage.getItem('first_run_dismissed') === 'true') return;
+        // Show a transient banner and a button to open setup wizard
+        const banner = document.createElement('div');
+        banner.className = 'alert alert-info alert-dismissible fade show';
+        banner.style.position = 'fixed';
+        banner.style.right = '20px';
+        banner.style.top = '80px';
+        banner.style.zIndex = 1050;
+        banner.innerHTML = `<div><strong>Welcome!</strong> It looks like this project needs initial setup. <a href='/setup' class='alert-link'>Open Setup Wizard</a></div>`;
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'btn-close';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.addEventListener('click', () => { banner.remove(); localStorage.setItem('first_run_dismissed', 'true'); });
+        banner.appendChild(closeBtn);
+        document.body.appendChild(banner);
+    });
+    </script>
+    {% endif %}
 </body>
 </html>
