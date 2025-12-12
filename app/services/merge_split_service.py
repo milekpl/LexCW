@@ -11,6 +11,7 @@ from app.models.merge_split_operations import MergeSplitOperation, SenseTransfer
 from app.models.entry import Entry
 from app.models.sense import Sense
 from app.utils.exceptions import ValidationError, NotFoundError, DatabaseError
+from app.services.operation_history_service import OperationHistoryService
 
 class MergeSplitService:
     """
@@ -20,16 +21,16 @@ class MergeSplitService:
     while maintaining data integrity and handling conflicts.
     """
 
-    def __init__(self, dictionary_service):
+    def __init__(self, dictionary_service, history_service: OperationHistoryService = None):
         """
         Initialize the merge/split service.
 
         Args:
             dictionary_service: DictionaryService instance for database operations
+            history_service: Service for persisting operation history
         """
         self.dictionary_service = dictionary_service
-        self.operations: List[MergeSplitOperation] = []
-        self.transfers: List[SenseTransfer] = []
+        self.history_service = history_service or OperationHistoryService()
 
     def split_entry(
         self,
@@ -62,13 +63,13 @@ class MergeSplitService:
             sense_ids=sense_ids,
             user_id=user_id
         )
-        self.operations.append(operation)
-
+        
         try:
             # Get the source entry
             source_entry = self.dictionary_service.get_entry(source_entry_id)
             if not source_entry:
                 operation.mark_failed("Source entry not found")
+                self.history_service.save_operation(operation)
                 raise NotFoundError(f"Source entry {source_entry_id} not found")
 
             # Validate sense IDs
@@ -93,16 +94,18 @@ class MergeSplitService:
                     original_entry_id=source_entry_id,
                     new_entry_id=new_entry.id
                 )
-                self.transfers.append(transfer)
+                self.history_service.save_transfer(transfer)
 
             # Mark operation as completed
             operation.target_id = new_entry.id
             operation.mark_completed()
+            self.history_service.save_operation(operation)
 
             return operation
 
         except Exception as e:
             operation.mark_failed(str(e))
+            self.history_service.save_operation(operation)
             raise
 
     def merge_entries(
@@ -139,19 +142,19 @@ class MergeSplitService:
             sense_ids=sense_ids,
             user_id=user_id
         )
-        self.operations.append(operation)
 
         try:
             # Get both entries
             target_entry = self.dictionary_service.get_entry(target_entry_id)
-            source_entry = self.dictionary_service.get_entry(source_entry_id)
-
             if not target_entry:
                 operation.mark_failed("Target entry not found")
+                self.history_service.save_operation(operation)
                 raise NotFoundError(f"Target entry {target_entry_id} not found")
-
+            
+            source_entry = self.dictionary_service.get_entry(source_entry_id)
             if not source_entry:
                 operation.mark_failed("Source entry not found")
+                self.history_service.save_operation(operation)
                 raise NotFoundError(f"Source entry {source_entry_id} not found")
 
             # Validate sense IDs
@@ -172,7 +175,12 @@ class MergeSplitService:
 
             # Save changes to database
             self.dictionary_service.update_entry(target_entry)
-            self.dictionary_service.update_entry(source_entry)
+            
+            if source_entry.senses:
+                self.dictionary_service.update_entry(source_entry)
+            else:
+                self.dictionary_service.delete_entry(source_entry.id)
+
 
             # Record sense transfers
             for sense_id in sense_ids:
@@ -181,15 +189,17 @@ class MergeSplitService:
                     original_entry_id=source_entry_id,
                     new_entry_id=target_entry_id
                 )
-                self.transfers.append(transfer)
+                self.history_service.save_transfer(transfer)
 
             # Mark operation as completed
             operation.mark_completed()
+            self.history_service.save_operation(operation)
 
             return operation
 
         except Exception as e:
             operation.mark_failed(str(e))
+            self.history_service.save_operation(operation)
             raise
 
     def merge_senses(
@@ -226,13 +236,13 @@ class MergeSplitService:
             sense_ids=source_sense_ids,
             user_id=user_id
         )
-        self.operations.append(operation)
 
         try:
             # Get the entry
             entry = self.dictionary_service.get_entry(entry_id)
             if not entry:
                 operation.mark_failed("Entry not found")
+                self.history_service.save_operation(operation)
                 raise NotFoundError(f"Entry {entry_id} not found")
 
             # Validate all sense IDs exist in the entry
@@ -249,6 +259,7 @@ class MergeSplitService:
 
             if not target_sense:
                 operation.mark_failed("Target sense not found")
+                self.history_service.save_operation(operation)
                 raise ValidationError(f"Target sense {target_sense_id} not found in entry")
 
             # Merge source senses into target sense
@@ -262,11 +273,13 @@ class MergeSplitService:
 
             # Mark operation as completed
             operation.mark_completed()
+            self.history_service.save_operation(operation)
 
             return operation
 
         except Exception as e:
             operation.mark_failed(str(e))
+            self.history_service.save_operation(operation)
             raise
 
     def _validate_sense_ids(self, entry: Entry, sense_ids: List[str]) -> None:
@@ -439,7 +452,7 @@ class MergeSplitService:
         Returns:
             List of MergeSplitOperation objects
         """
-        return self.operations
+        return self.history_service.get_all_operations()
 
     def get_sense_transfer_history(self) -> List[SenseTransfer]:
         """
@@ -448,7 +461,7 @@ class MergeSplitService:
         Returns:
             List of SenseTransfer objects
         """
-        return self.transfers
+        return self.history_service.get_all_transfers()
 
     def get_operation_by_id(self, operation_id: str) -> Optional[MergeSplitOperation]:
         """
@@ -460,7 +473,8 @@ class MergeSplitService:
         Returns:
             MergeSplitOperation object if found, None otherwise
         """
-        for operation in self.operations:
+        operations = self.history_service.get_all_operations()
+        for operation in operations:
             if operation.id == operation_id:
                 return operation
         return None
@@ -475,7 +489,8 @@ class MergeSplitService:
         Returns:
             List of SenseTransfer objects
         """
-        return [transfer for transfer in self.transfers if transfer.sense_id == sense_id]
+        transfers = self.history_service.get_all_transfers()
+        return [transfer for transfer in transfers if transfer.sense_id == sense_id]
 
     def get_transfers_by_entry_id(self, entry_id: str) -> List[SenseTransfer]:
         """
@@ -487,7 +502,8 @@ class MergeSplitService:
         Returns:
             List of SenseTransfer objects
         """
+        transfers = self.history_service.get_all_transfers()
         return [
-            transfer for transfer in self.transfers
+            transfer for transfer in transfers
             if transfer.original_entry_id == entry_id or transfer.new_entry_id == entry_id
         ]
