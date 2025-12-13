@@ -905,12 +905,33 @@ class DictionaryService:
                 start = offset + 1
                 pagination_expr = f"[position() >= {start}]"
 
-            query_str = f"{prologue} (for $entry in collection('{db_name}')//{entry_path} where {search_condition} order by $entry/lexical-unit/form[1]/text return $entry){pagination_expr}"
+            lexical_unit_path_order = self._query_builder.get_element_path("lexical-unit", has_ns)
+            form_path_order = self._query_builder.get_element_path("form", has_ns)
+            text_path_order = self._query_builder.get_element_path("text", has_ns)
+
+            # Define scoring for ordering: 1 for exact match, 2 for partial.
+            # Use string() to ensure we compare atomic values.
+            score_expr = f"""let $score := if (some $form in $entry/{lexical_unit_path_order}/{form_path_order}/{text_path_order}
+                                        satisfies lower-case($form/string()) = '{q_escaped.lower()}')
+                                   then 1
+                                   else 2"""
+
+            # Order by score, then by the lexical unit itself for consistent sorting.
+            order_by_expr = f"order by $score, $entry/{lexical_unit_path_order}/{form_path_order}[1]/{text_path_order}[1]/string()"
+
+            query_str = f"""
+            {prologue}
+            (for $entry in collection('{db_name}')//{entry_path}
+            where {search_condition}
+            {score_expr}
+            {order_by_expr}
+            return $entry){pagination_expr}
+            """
 
             # Log the query for debugging
             self.logger.debug(f"Executing search query: {query_str}")
 
-            result = self.db_connector.execute_query(query_str)
+            result = self.db_connector.execute_query(query_str.strip())
 
             if not result:
                 return [], total_count
