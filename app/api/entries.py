@@ -30,136 +30,23 @@ def get_dictionary_service() -> DictionaryService:
 
 
 @entries_bp.route('/', methods=['GET'], strict_slashes=False)
+@swag_from({
+    'tags': ['Entries'],
+    'summary': 'List dictionary entries',
+    'description': 'List entries with pagination, filtering, and sorting',
+    'parameters': [
+        {'name': 'limit', 'in': 'query', 'type': 'integer', 'required': False, 'description': 'Maximum number of entries to return (default 100)', 'example': 20},
+        {'name': 'offset', 'in': 'query', 'type': 'integer', 'required': False, 'description': 'Number of entries to skip (default 0)', 'example': 0},
+        {'name': 'page', 'in': 'query', 'type': 'integer', 'required': False, 'description': 'Page number (alternative to offset/limit)', 'example': 1},
+        {'name': 'per_page', 'in': 'query', 'type': 'integer', 'required': False, 'description': 'Entries per page (alternative to offset/limit)', 'example': 20},
+        {'name': 'sort_by', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Field to sort by', 'default': 'lexical_unit'},
+        {'name': 'sort_order', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Sort order', 'default': 'asc'},
+        {'name': 'filter_text', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Text to filter entries by (searches in lexical_unit)'}
+    ],
+    'responses': {'200': {'description': 'List of entries'}}
+})
 def list_entries() -> Any:
-    """
-    List dictionary entries with pagination, filtering, and sorting
-    ---
-    tags:
-      - Entries
-    parameters:
-      - name: limit
-        in: query
-        type: integer
-        required: false
-        description: Maximum number of entries to return (default 100)
-        example: 20
-      - name: offset
-        in: query
-        type: integer
-        required: false
-        description: Number of entries to skip (default 0)
-        example: 0
-      - name: page
-        in: query
-        type: integer
-        required: false
-        description: Page number (alternative to offset/limit)
-        example: 1
-      - name: per_page
-        in: query
-        type: integer
-        required: false
-        description: Entries per page (alternative to offset/limit)
-        example: 20
-      - name: sort_by
-        in: query
-        type: string
-        required: false
-        description: Field to sort by
-        enum: [lexical_unit, id, date_created, date_modified, citation_form, part_of_speech, gloss, definition]
-        default: lexical_unit
-      - name: sort_order
-        in: query
-        type: string
-        required: false
-        description: Sort order
-        enum: [asc, desc]
-        default: asc
-      - name: filter_text
-        in: query
-        type: string
-        required: false
-        description: Text to filter entries by (searches in lexical_unit)
-        example: test
-    responses:
-      200:
-        description: List of entries
-        schema:
-          type: object
-          properties:
-            entries:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    description: Entry ID
-                  lexical_unit:
-                    type: object
-                    description: Lexical unit with language codes
-                  senses:
-                    type: array
-                    description: Array of sense objects
-                  notes:
-                    type: object
-                    description: |
-                      Entry notes, supporting both legacy string format and multilingual object format.
-                      Legacy format: {"general": "simple string note"}
-                      Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
-                    additionalProperties:
-                      oneOf:
-                        - type: string
-                          description: Legacy format - simple string note
-                        - type: object
-                          description: Multilingual format - notes by language code
-                          additionalProperties:
-                            type: string
-                  custom_fields:
-                    type: object
-                    description: Custom fields for the entry
-                    additionalProperties: true
-                  date_modified:
-                    type: string
-                    description: Last modification date
-                  date_created:
-                    type: string
-                    description: Creation date
-            total_count:
-              type: integer
-              description: Total number of entries
-            total:
-              type: integer
-              description: Total number of entries (backward compatibility)
-            limit:
-              type: integer
-              description: Applied limit
-            offset:
-              type: integer
-              description: Applied offset
-            page:
-              type: integer
-              description: Current page (if pagination used)
-            per_page:
-              type: integer
-              description: Entries per page (if pagination used)
-      400:
-        description: Bad request (invalid parameters)
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """List dictionary entries with pagination, filtering, and sorting"""
     try:
         # Get query parameters - support both offset/limit and page/per_page formats
         limit = request.args.get('limit', None, type=int)
@@ -197,47 +84,46 @@ def list_entries() -> Any:
             if cached:
                 logger.info(f"Returning cached entries for key: {cache_key}")
                 return jsonify(json.loads(cached))
-        # Get dictionary service
+
+        # Cache miss - query dictionary service
         dict_service = get_dictionary_service()
-        # List entries with all parameters
         entries, total_count = dict_service.list_entries(
-            limit=limit, 
-            offset=offset, 
+            limit=limit,
+            offset=offset,
             sort_by=sort_by,
             sort_order=sort_order,
             filter_text=filter_text
         )
 
-        # Removed debug print for entry dates
-        # Prepare response
-        try:
-            response_entries = []
-            for i, entry in enumerate(entries):
-                try:
-                    response_entries.append(entry.to_display_dict())
-                except AttributeError as e:
-                    logger.error(f"Entry at index {i} has wrong type: {type(entry)}. Error: {e}")
-                    raise e
-            response = {
-                'entries': response_entries,
-                'total_count': total_count,  # Use total_count for consistency with other APIs
-                'total': total_count,        # Keep total for backward compatibility
-                'limit': limit,
-                'offset': offset,
-            }
-        except Exception as e:
-            logger.error(f"Error preparing response: {e}")
-            raise e
-            
-        # Add page/per_page if they were provided in the request
+        # Prepare response entries
+        response_entries = []
+        for i, entry in enumerate(entries):
+            try:
+                response_entries.append(entry.to_display_dict())
+            except AttributeError as e:
+                logger.error(f"Entry at index {i} has wrong type: {type(entry)}. Error: {e}")
+                raise e
+
+        response = {
+            'entries': response_entries,
+            'total_count': total_count,
+            'total': total_count,
+            'limit': limit,
+            'offset': offset,
+        }
+
+        # Add page/per_page if provided
         if page is not None and per_page is not None:
             response['page'] = page
             response['per_page'] = per_page
-        # Cache the response for 3 minutes (180 seconds) for better user experience
+
+        # Cache the response for 3 minutes
         if cache.is_available():
             cache.set(cache_key, json.dumps(response), ttl=180)
             logger.info(f"Cached entries response for key: {cache_key}")
+
         return jsonify(response)
+
     except (ValidationError, ValueError) as e:
         logger.error("Error listing entries: %s", str(e))
         return jsonify({'error': str(e)}), 400
@@ -247,93 +133,37 @@ def list_entries() -> Any:
 
 
 @entries_bp.route('/<string:entry_id>', methods=['GET'])
+
+@swag_from({
+  'tags': ['Entries'],
+  'summary': 'Get a dictionary entry by ID',
+  'parameters': [
+    {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry to retrieve'}
+  ],
+  'responses': {'200': {'description': 'Entry data'}, '404': {'description': 'Entry not found'}}
+})
 def get_entry(entry_id: str) -> Any:
-    """
-    Get a dictionary entry by ID
-    ---
-    tags:
-      - Entries
-    parameters:
-      - name: entry_id
-        in: path
-        type: string
-        required: true
-        description: ID of the entry to retrieve
-        example: "test_entry_123"
-    responses:
-      200:
-        description: Entry data
-        schema:
-          type: object
-          properties:
-            id:
-              type: string
-              description: Entry ID
-            lexical_unit:
-              type: object
-              description: Lexical unit with language codes
-            senses:
-              type: array
-              description: Array of sense objects
-            notes:
-              type: object
-              description: |
-                Entry notes, supporting both legacy string format and multilingual object format.
-                Legacy format: {"general": "simple string note"}
-                Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
-              additionalProperties:
-                oneOf:
-                  - type: string
-                    description: Legacy format - simple string note
-                  - type: object
-                    description: Multilingual format - notes by language code
-                    additionalProperties:
-                      type: string
-              example: {
-                "general": {"en": "A general note in English", "pt": "Uma nota geral em português"},
-                "usage": "Simple usage note"
-              }
-            custom_fields:
-              type: object
-              description: Custom fields for the entry
-              additionalProperties: true
-            date_modified:
-              type: string
-              description: Last modification date
-            date_created:
-              type: string
-              description: Creation date
-      404:
-        description: Entry not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """Get a dictionary entry by ID"""
     try:
-        # Get dictionary service
+        # Prefer XML response if the entry exists as LIFT XML in the XML service
+        try:
+            from flask import Response
+            from app.api.xml_entries import get_xml_entry_service
+            xml_service = get_xml_entry_service()
+            entry_xml_data = xml_service.get_entry(entry_id)
+            # If xml exists and no explicit json request, return xml by default
+            # Allow `format=json` override
+            format_param = request.args.get('format', '').lower()
+            if format_param != 'json':
+                return Response(entry_xml_data['xml'], mimetype='application/xml')
+            # otherwise fall back to JSON representation
+        except Exception:
+            pass
         dict_service = get_dictionary_service()
-        
-        # Get entry
         entry = dict_service.get_entry(entry_id)
-        
-        # Check if entry was found
         if entry is None:
             return jsonify({'error': f'Entry with ID {entry_id} not found'}), 404
-            
-        # Return response
         return jsonify(entry.to_dict())
-        
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
@@ -342,146 +172,47 @@ def get_entry(entry_id: str) -> Any:
 
 
 @entries_bp.route('/', methods=['POST'], strict_slashes=False)
+@swag_from({
+    'tags': ['Entries'],
+    'summary': 'Create a new dictionary entry',
+    'parameters': [
+        {'name': 'body', 'in': 'body', 'required': True, 'description': 'Entry data to create'}
+    ],
+    'responses': {
+        '201': {'description': 'Entry created successfully'},
+        '400': {'description': 'Invalid input data'},
+        '500': {'description': 'Internal server error'}
+    }
+})
 def create_entry() -> Any:
-    """
-    Create a new dictionary entry
-    ---
-    tags:
-      - Entries
-    parameters:
-      - name: body
-        in: body
-        required: true
-        description: Entry data to create
-        schema:
-          type: object
-          required:
-            - id
-            - lexical_unit
-          properties:
-            id:
-              type: string
-              description: Unique entry identifier
-              example: "test_entry_123"
-            lexical_unit:
-              type: object
-              description: Lexical unit forms by language code
-              example: {"en": "test", "pl": "test"}
-            pronunciations:
-              type: object
-              description: Pronunciation forms by writing system (supports non-standard codes like 'seh-fonipa')
-              example: {"seh-fonipa": "/tɛstɛ/"}
-            grammatical_info:
-              type: string
-              description: Grammatical information
-              example: "noun"
-            senses:
-              type: array
-              description: Array of sense objects
-              items:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    description: Sense identifier (auto-generated if not provided)
-                  gloss:
-                    type: object
-                    description: Gloss by language code
-                  definition:
-                    type: object
-                    description: Definition by language code
-            etymologies:
-              type: array
-              description: Etymology information
-              items:
-                type: object
-                properties:
-                  type:
-                    type: string
-                  source:
-                    type: string
-                  form:
-                    type: object
-                  gloss:
-                    type: object
-            relations:
-              type: array
-              description: Semantic relations to other entries
-              items:
-                type: object
-                properties:
-                  type:
-                    type: string
-                    example: "synonym"
-                  ref:
-                    type: string
-                    example: "target_entry_id"
-            variants:
-              type: array
-              description: Variant forms
-              items:
-                type: object
-                properties:
-                  form:
-                    type: object
-                    description: Variant form by language
-            notes:
-              type: object
-              description: |
-                Entry notes, supporting both legacy string format and multilingual object format.
-                Legacy format: {"general": "simple string note"}
-                Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
-              additionalProperties:
-                oneOf:
-                  - type: string
-                    description: Legacy format - simple string note
-                    example: "This is a general note"
-                  - type: object
-                    description: Multilingual format - notes by language code
-                    additionalProperties:
-                      type: string
-                    example: {"en": "English note", "pt": "Portuguese note"}
-              example: {
-                "general": {"en": "A general note in English", "pt": "Uma nota geral em português"},
-                "usage": "Simple usage note",
-                "etymology": {"en": "From Latin etymologia"}
-              }
-            custom_fields:
-              type: object
-              description: Custom fields for the entry
-              additionalProperties: true
-              example: {"field1": "value1", "field2": {"subfield": "value"}}
-    responses:
-      201:
-        description: Entry created successfully
-        schema:
-          type: object
-          properties:
-            success:
-              type: boolean
-              example: true
-            entry_id:
-              type: string
-              description: ID of the created entry
-              example: "test_entry_123"
-      400:
-        description: Invalid input data
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """Create a new dictionary entry"""
     try:
+        # If XML is posted to /api/entries, delegate to XML entry service
+        content_type = request.content_type or ''
+        if 'xml' in content_type:
+            xml_string = request.get_data(as_text=True)
+            # Import inside the function to avoid circular imports
+            from app.api.xml_entries import get_xml_entry_service
+            xml_service = get_xml_entry_service()
+            try:
+                result = xml_service.create_entry(xml_string)
+            except Exception as e:
+                # Import specific XML service exceptions to return appropriate status codes
+                from app.services.xml_entry_service import DuplicateEntryError, InvalidXMLError, DatabaseConnectionError, XMLEntryServiceError
+                if isinstance(e, DuplicateEntryError):
+                    return jsonify({'error': str(e)}), 409
+                if isinstance(e, InvalidXMLError):
+                    return jsonify({'error': str(e)}), 400
+                if isinstance(e, DatabaseConnectionError) or isinstance(e, XMLEntryServiceError):
+                    logger.error(f"[XML API] Error creating XML entry via /api/entries: {e}")
+                    return jsonify({'error': str(e)}), 500
+                logger.error(f"[XML API] Unexpected error creating XML entry via /api/entries: {e}")
+                return jsonify({'error': str(e)}), 500
+            # Clear cache after creation
+            cache = CacheService()
+            if cache.is_available():
+                cache.clear_pattern('entries:*')
+            return jsonify({'success': True, 'entry_id': result.get('id', None)}), 201
         # Get request data
         try:
             data = request.get_json()
@@ -529,132 +260,22 @@ def create_entry() -> Any:
 
 
 @entries_bp.route('/<string:entry_id>', methods=['PUT'])
+@swag_from({
+    'tags': ['Entries'],
+    'summary': 'Update a dictionary entry',
+    'parameters': [
+        {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry to update'},
+        {'name': 'body', 'in': 'body', 'required': True, 'description': 'Updated entry data'}
+    ],
+    'responses': {
+        '200': {'description': 'Entry updated successfully'},
+        '400': {'description': 'Invalid data or validation errors'},
+        '404': {'description': 'Entry not found'},
+        '500': {'description': 'Internal server error'}
+    }
+})
 def update_entry(entry_id: str) -> Any:
-    """
-    Update a dictionary entry
-    ---
-    tags:
-      - Entries
-    parameters:
-      - name: entry_id
-        in: path
-        type: string
-        required: true
-        description: ID of the entry to update
-        example: "test_entry_123"
-      - name: body
-        in: body
-        required: true
-        description: Updated entry data
-        schema:
-          type: object
-          properties:
-            id:
-              type: string
-              description: Entry identifier (must match path parameter)
-              example: "test_entry_123"
-            lexical_unit:
-              type: object
-              description: Lexical unit forms by language code
-              example: {"en": "test", "pl": "test"}
-            pronunciations:
-              type: object
-              description: Pronunciation forms by writing system (supports non-standard codes like 'seh-fonipa')
-              example: {"seh-fonipa": "/tɛstɛ/"}
-            grammatical_info:
-              type: string
-              description: Grammatical information
-              example: "noun"
-            senses:
-              type: array
-              description: Array of sense objects
-              items:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    description: Sense identifier
-                  gloss:
-                    type: object
-                    description: Gloss by language code
-                  definition:
-                    type: object
-                    description: Definition by language code
-            etymologies:
-              type: array
-              description: Etymology information
-            relations:
-              type: array
-              description: Semantic relations to other entries
-            variants:
-              type: array
-              description: Variant forms
-              items:
-                type: object
-                properties:
-                  form:
-                    type: object
-                    description: Variant form by language
-            notes:
-              type: object
-              description: |
-                Entry notes, supporting both legacy string format and multilingual object format.
-                Legacy format: {"general": "simple string note"}
-                Multilingual format: {"general": {"en": "English note", "pt": "Portuguese note"}}
-              additionalProperties:
-                oneOf:
-                  - type: string
-                    description: Legacy format - simple string note
-                    example: "This is a general note"
-                  - type: object
-                    description: Multilingual format - notes by language code
-                    additionalProperties:
-                      type: string
-                    example: {"en": "English note", "pt": "Portuguese note"}
-              example: {
-                "general": {"en": "A general note in English", "pt": "Uma nota geral em português"},
-                "usage": "Simple usage note",
-                "etymology": {"en": "From Latin etymologia"}
-              }
-            custom_fields:
-              type: object
-              description: Custom fields for the entry
-              additionalProperties: true
-              example: {"field1": "value1", "field2": {"subfield": "value"}}
-    responses:
-      200:
-        description: Entry updated successfully
-        schema:
-          type: object
-          properties:
-            success:
-              type: boolean
-              example: true
-      400:
-        description: Invalid input data
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      404:
-        description: Entry not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """Update a dictionary entry"""
     try:
         # Get request data
         data = request.get_json()
@@ -755,19 +376,20 @@ def update_entry(entry_id: str) -> Any:
 
 
 @entries_bp.route('/<string:entry_id>', methods=['DELETE'])
+@swag_from({
+  'tags': ['Entries'],
+  'summary': 'Delete a dictionary entry',
+  'parameters': [
+    {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry to delete'}
+  ],
+  'responses': {
+    '200': {'description': 'Deletion successful'},
+    '404': {'description': 'Entry not found'},
+    '500': {'description': 'Internal server error'}
+  }
+})
 def delete_entry(entry_id: str) -> Any:
-    """
-    Delete a dictionary entry.
-    
-    Args:
-        entry_id: ID of the entry to delete.
-    
-    Returns:
-        JSON response with success status.
-    ---
-    tags:
-      - Entries
-    """
+    """Delete a dictionary entry."""
     try:
         # Get dictionary service
         dict_service = get_dictionary_service()
@@ -792,22 +414,17 @@ def delete_entry(entry_id: str) -> Any:
 
 
 @entries_bp.route('/<string:entry_id>/related', methods=['GET'])
+@swag_from({
+  'tags': ['Entries'],
+  'summary': 'Get entries related to the specified entry',
+  'parameters': [
+    {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry'},
+    {'name': 'relation_type', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Type of relation to filter by'}
+  ],
+  'responses': {'200': {'description': 'List of related entries'}}
+})
 def get_related_entries(entry_id: str) -> Any:
-    """
-    Get entries related to the specified entry.
-    
-    Args:
-        entry_id: ID of the entry.
-    
-    Query parameters:
-        relation_type: Type of relation to filter by.
-    
-    Returns:
-        JSON response with list of related entries.
-    ---
-    tags:
-      - Entries
-    """
+    """Get entries related to the specified entry."""
     try:
         # Get query parameters
         relation_type = request.args.get('relation_type')

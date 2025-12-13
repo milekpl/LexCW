@@ -179,8 +179,9 @@ class LIFTXMLSerializer {
         const senseMatches = xmlString.match(/<sense\s+/g);
         const actualSenseCount = senseMatches ? senseMatches.length : 0;
         console.log(`[FORM SUBMIT] Generated XML has ${actualSenseCount} <sense> elements`);
-        if (actualSenseCount !== formData.senses.length) {
-            console.warn(`[FORM SUBMIT] WARNING: Expected ${formData.senses.length} senses but XML has ${actualSenseCount}`);
+        const expectedSenseCount = (formData.senses && formData.senses.length) || 0;
+        if (actualSenseCount !== expectedSenseCount) {
+            console.warn(`[FORM SUBMIT] WARNING: Expected ${expectedSenseCount} senses but XML has ${actualSenseCount}`);
         }
 
         return xmlString;
@@ -230,25 +231,25 @@ class LIFTXMLSerializer {
             sense.appendChild(definition);
         }
 
-        // Add domain-type trait
+        // Add domain-type traits (supports multiple values)
         if (senseData.domainType || senseData.domain_type) {
             const domainType = senseData.domainType || senseData.domain_type;
-            const domainTrait = this.createTrait(doc, 'domain-type', domainType);
-            sense.appendChild(domainTrait);
+            const domainTraits = this.createTraitsFromValue(doc, 'domain-type', domainType);
+            domainTraits.forEach(trait => sense.appendChild(trait));
         }
 
-        // Add semantic domain trait
+        // Add semantic domain traits (supports multiple values)
         if (senseData.semanticDomain || senseData.semantic_domain) {
             const semDomain = senseData.semanticDomain || senseData.semantic_domain;
-            const semDomainTrait = this.createTrait(doc, 'semantic-domain-ddp4', semDomain);
-            sense.appendChild(semDomainTrait);
+            const semDomainTraits = this.createTraitsFromValue(doc, 'semantic-domain-ddp4', semDomain);
+            semDomainTraits.forEach(trait => sense.appendChild(trait));
         }
 
-        // Add usage type trait
+        // Add usage type traits (supports multiple values)
         if (senseData.usageType || senseData.usage_type) {
             const usageType = senseData.usageType || senseData.usage_type;
-            const usageTrait = this.createTrait(doc, 'usage-type', usageType);
-            sense.appendChild(usageTrait);
+            const usageTraits = this.createTraitsFromValue(doc, 'usage-type', usageType);
+            usageTraits.forEach(trait => sense.appendChild(trait));
         }
 
         // Add examples
@@ -355,23 +356,23 @@ class LIFTXMLSerializer {
             subsense.appendChild(definition);
         }
 
-        // Add traits (domain-type, semantic-domain, usage-type)
+        // Add traits (domain-type, semantic-domain, usage-type) - supports multiple values
         if (subsenseData.domainType || subsenseData.domain_type) {
             const domainType = subsenseData.domainType || subsenseData.domain_type;
-            const domainTrait = this.createTrait(doc, 'domain-type', domainType);
-            subsense.appendChild(domainTrait);
+            const domainTraits = this.createTraitsFromValue(doc, 'domain-type', domainType);
+            domainTraits.forEach(trait => subsense.appendChild(trait));
         }
 
         if (subsenseData.semanticDomain || subsenseData.semantic_domain) {
             const semDomain = subsenseData.semanticDomain || subsenseData.semantic_domain;
-            const semDomainTrait = this.createTrait(doc, 'semantic-domain-ddp4', semDomain);
-            subsense.appendChild(semDomainTrait);
+            const semDomainTraits = this.createTraitsFromValue(doc, 'semantic-domain-ddp4', semDomain);
+            semDomainTraits.forEach(trait => subsense.appendChild(trait));
         }
 
         if (subsenseData.usageType || subsenseData.usage_type) {
             const usageType = subsenseData.usageType || subsenseData.usage_type;
-            const usageTrait = this.createTrait(doc, 'usage-type', usageType);
-            subsense.appendChild(usageTrait);
+            const usageTraits = this.createTraitsFromValue(doc, 'usage-type', usageType);
+            usageTraits.forEach(trait => subsense.appendChild(trait));
         }
 
         // Add examples
@@ -670,6 +671,42 @@ class LIFTXMLSerializer {
         trait.setAttribute('name', name);
         trait.setAttribute('value', value);
         return trait;
+    }
+
+    /**
+     * Create trait elements for a value that may be a single string or an array.
+     * Returns an array of trait elements (one per value in the array, or one for a single value).
+     * This is used for fields like usage-type and domain-type that support multiple selections.
+     * 
+     * @param {Document} doc - XML document
+     * @param {string} name - Trait name
+     * @param {string|Array} value - Single value or array of values
+     * @returns {Array<Element>} Array of trait elements
+     */
+    createTraitsFromValue(doc, name, value) {
+        const traits = [];
+        
+        if (Array.isArray(value)) {
+            // Create a separate trait element for each value in the array
+            value.forEach(v => {
+                if (v && String(v).trim()) {
+                    traits.push(this.createTrait(doc, name, String(v).trim()));
+                }
+            });
+        } else if (value && String(value).trim()) {
+            // Handle semicolon-separated strings (legacy LIFT format)
+            const stringValue = String(value).trim();
+            if (stringValue.includes(';')) {
+                const values = stringValue.split(';').map(v => v.trim()).filter(v => v);
+                values.forEach(v => {
+                    traits.push(this.createTrait(doc, name, v));
+                });
+            } else {
+                traits.push(this.createTrait(doc, name, stringValue));
+            }
+        }
+        
+        return traits;
     }
 
     /**

@@ -94,20 +94,50 @@ function serializeFormToJSON(input, options = {}) {
     const result = {};
     let fieldCount = 0;
     let lastField = null;
-    // Process each form field
+    
+    // Track fields that appear multiple times (for <select multiple> etc.)
+    // We need to collect all values first, then merge duplicates into arrays
+    const multiValueFields = new Map(); // key -> array of values
+    
+    // First pass: collect all values and identify multi-value fields
     formData.forEach((value, key) => {
+        if (!multiValueFields.has(key)) {
+            multiValueFields.set(key, []);
+        }
+        multiValueFields.get(key).push(value);
+    });
+    
+    // Second pass: process each unique field, converting multi-value fields to arrays
+    multiValueFields.forEach((values, key) => {
         fieldCount++;
         lastField = key;
         if (fieldCount % 100 === 0) {
             console.debug(`[FormSerializer] Processed ${fieldCount} fields, last: ${key}`);
         }
+        
+        // Determine the value to set: single value or array
+        let processedValue;
+        if (values.length === 1) {
+            // Single value - use as-is
+            processedValue = values[0];
+        } else {
+            // Multiple values (e.g., from <select multiple>) - use array
+            processedValue = values;
+        }
+        
         // Skip empty values if configured to do so
-        if (!config.includeEmpty && value === '') {
+        if (!config.includeEmpty && processedValue === '') {
             return;
         }
 
         // Apply transform function if provided
-        const processedValue = config.transform ? config.transform(value, key) : value;
+        if (config.transform) {
+            if (Array.isArray(processedValue)) {
+                processedValue = processedValue.map(v => config.transform(v, key));
+            } else {
+                processedValue = config.transform(processedValue, key);
+            }
+        }
 
         try {
             // Defensive: try parsing the field path first to catch errors
@@ -118,9 +148,9 @@ function serializeFormToJSON(input, options = {}) {
             console.error(`[FormSerializer] Error setting value for field '${key}':`, e);
             // Log the problematic field name and value for diagnosis
             if (typeof window !== 'undefined' && window.FormSerializerProblemFields) {
-                window.FormSerializerProblemFields.push({ key, value, error: e.message });
+                window.FormSerializerProblemFields.push({ key, values, error: e.message });
             } else if (typeof window !== 'undefined') {
-                window.FormSerializerProblemFields = [{ key, value, error: e.message }];
+                window.FormSerializerProblemFields = [{ key, values, error: e.message }];
             }
             // Do not throw, just skip this field so the form can be saved
         }

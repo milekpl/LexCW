@@ -1,0 +1,17 @@
+{
+  "description": "Template configuration for this project. See https://www.codebuff.com/config for all options.",
+  "startupProcesses": [
+    {
+      "name": "docker-services",
+      "command": "docker-compose up -d",
+      "stdoutFile": "logs/docker-services.log"
+    },
+    {
+      "name": "flask",
+      "command": "python run.py",
+      "stdoutFile": "logs/flask.log"
+    }
+  ],
+  "fileChangeHooks": [],
+  "maxAgentSteps": 25
+}

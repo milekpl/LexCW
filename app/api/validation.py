@@ -3,6 +3,7 @@ API endpoints for entry and dictionary validation.
 """
 
 from flask import Blueprint, jsonify, request, current_app
+from flasgger import swag_from
 from app.models.entry import Entry
 from app.services.dictionary_service import DictionaryService
 from app.utils.exceptions import NotFoundError, ValidationError
@@ -10,33 +11,16 @@ from app.utils.exceptions import NotFoundError, ValidationError
 validation_bp = Blueprint('validation_bp', __name__)
 
 @validation_bp.route('/api/validation/entry/<string:entry_id>', methods=['GET'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Validate a single dictionary entry',
+    'parameters': [
+        {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'The ID of the entry to validate.'}
+    ],
+    'responses': {'200': {'description': 'Validation result.'}, '404': {'description': 'Entry not found.'}}
+})
 def validate_entry(entry_id: str):
-    """
-    Validate a single dictionary entry.
-    ---
-    tags:
-      - Validation
-    parameters:
-      - name: entry_id
-        in: path
-        type: string
-        required: true
-        description: The ID of the entry to validate.
-    responses:
-      200:
-        description: Validation result.
-        schema:
-          type: object
-          properties:
-            valid:
-              type: boolean
-            errors:
-              type: array
-              items:
-                type: string
-      404:
-        description: Entry not found.
-    """
+    """Validate a single dictionary entry."""
     dictionary_service = current_app.injector.get(DictionaryService)
     try:
         entry = dictionary_service.get_entry(entry_id)
@@ -51,32 +35,13 @@ def validate_entry(entry_id: str):
         return jsonify({'error': str(e)}), 500
 
 @validation_bp.route('/api/validation/dictionary', methods=['GET'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Validate the entire dictionary',
+    'responses': {'200': {'description': 'Validation result.'}}
+})
 def validate_dictionary():
-    """
-    Validate the entire dictionary.
-    ---
-    tags:
-      - Validation
-    responses:
-      200:
-        description: Validation result.
-        schema:
-          type: object
-          properties:
-            valid:
-              type: boolean
-            errors:
-              type: array
-              items:
-                type: object
-                properties:
-                  entry_id:
-                    type: string
-                  errors:
-                    type: array
-                    items:
-                      type: string
-    """
+    """Validate the entire dictionary."""
     dictionary_service = current_app.injector.get(DictionaryService)
     try:
         entries, _ = dictionary_service.list_entries(limit=None)
@@ -93,34 +58,14 @@ def validate_dictionary():
         return jsonify({'error': str(e)}), 500
 
 @validation_bp.route('/api/validation/check', methods=['POST'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Validate entry data provided in the request',
+    'parameters': [{'name': 'entry_data', 'in': 'body', 'required': True, 'description': 'Entry data to validate'}],
+    'responses': {'200': {'description': 'Validation result.'}, '400': {'description': 'Invalid request data.'}}
+})
 def check_entry_data():
-    """
-    Validate entry data provided in the request.
-    ---
-    tags:
-      - Validation
-    parameters:
-      - name: entry_data
-        in: body
-        description: Entry data to validate
-        required: true
-        schema:
-          type: object
-    responses:
-      200:
-        description: Validation result.
-        schema:
-          type: object
-          properties:
-            valid:
-              type: boolean
-            errors:
-              type: array
-              items:
-                type: string
-      400:
-        description: Invalid request data.
-    """
+    """Validate entry data provided in the request."""
     try:
         entry_data = request.get_json()
     except Exception:
@@ -157,39 +102,14 @@ def check_entry_data():
         }), 200  # Return 200 for validation results even if invalid
 
 @validation_bp.route('/api/validation/batch', methods=['POST'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Validate multiple entries in batch',
+    'parameters': [{'name': 'entries_data', 'in': 'body', 'required': True, 'description': 'Dictionary containing entries to validate'}],
+    'responses': {'200': {'description': 'Batch validation results.'}, '400': {'description': 'Invalid request data.'}}
+})
 def validate_batch():
-    """
-    Validate multiple entries in batch.
-    ---
-    tags:
-      - Validation
-    parameters:
-      - name: entries_data
-        in: body
-        description: Dictionary containing entries to validate
-        required: true
-        schema:
-          type: object
-          properties:
-            entries:
-              type: array
-              items:
-                type: object
-    responses:
-      200:
-        description: Batch validation results.
-        schema:
-          type: object
-          properties:
-            valid:
-              type: boolean
-            errors:
-              type: array
-              items:
-                type: object
-      400:
-        description: Invalid request data.
-    """
+    """Validate multiple entries in batch."""
     try:
         entries_data = request.get_json()
         if not entries_data:
@@ -227,18 +147,13 @@ def validate_batch():
 
 
 @validation_bp.route('/api/validation/schema', methods=['GET'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Get the JSON schema for entry validation',
+    'responses': {'200': {'description': 'Entry validation schema.'}}
+})
 def get_validation_schema():
-    """
-    Get the JSON schema for entry validation.
-    ---
-    tags:
-      - Validation
-    responses:
-      200:
-        description: Entry validation schema.
-        schema:
-          type: object
-    """
+    """Get the JSON schema for entry validation."""
     try:
         # Return a basic entry schema
         schema = {
@@ -266,18 +181,13 @@ def get_validation_schema():
 
 
 @validation_bp.route('/api/validation/rules', methods=['GET'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Get the validation rules for entries',
+    'responses': {'200': {'description': 'Entry validation rules.'}}
+})
 def get_validation_rules():
-    """
-    Get the validation rules for entries.
-    ---
-    tags:
-      - Validation
-    responses:
-      200:
-        description: Entry validation rules.
-        schema:
-          type: object
-    """
+    """Get the validation rules for entries."""
     try:
         rules = {
             "required_fields": ["id", "lexical_unit"],
@@ -297,13 +207,9 @@ def get_validation_rules():
         return jsonify({'error': str(e)}), 500
 
 @validation_bp.route('/validation/check', methods=['POST'])
+@swag_from({'tags': ['Validation'], 'summary': 'Check a single dictionary entry for validation issues'})
 def validation_check():
-    """
-    Checks a single dictionary entry for validation issues.
-    ---
-    tags:
-      - Validation
-    """
+    """Checks a single dictionary entry for validation issues."""
     data = request.get_json()
     if not data or 'entry' not in data:
         return jsonify({'error': 'Invalid JSON. "entry" field is required.'}), 400
@@ -318,13 +224,9 @@ def validation_check():
         return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
 
 @validation_bp.route('/validation/batch', methods=['POST'])
+@swag_from({'tags': ['Validation'], 'summary': 'Validate a batch of dictionary entries'})
 def validation_batch():
-    """
-    Validates a batch of dictionary entries.
-    ---
-    tags:
-      - Validation
-    """
+    """Validates a batch of dictionary entries."""
     data = request.get_json()
     if not data or 'entries' not in data:
         return jsonify({'error': 'Invalid JSON. "entries" field is required.'}), 400
@@ -337,13 +239,9 @@ def validation_batch():
         return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
 
 @validation_bp.route('/validation/schema', methods=['GET'])
+@swag_from({'tags': ['Validation'], 'summary': 'Return the validation schema for dictionary entries'})
 def validation_schema():
-    """
-    Returns the validation schema for dictionary entries.
-    ---
-    tags:
-      - Validation
-    """
+    """Returns the validation schema for dictionary entries."""
     try:
         dictionary_service = current_app.injector.get(DictionaryService)
         schema = dictionary_service.get_validation_schema()
@@ -352,13 +250,9 @@ def validation_schema():
         return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
 
 @validation_bp.route('/validation/rules', methods=['GET'])
+@swag_from({'tags': ['Validation'], 'summary': 'Return the validation rules for dictionary entries'})
 def validation_rules():
-    """
-    Returns the validation rules for dictionary entries.
-    ---
-    tags:
-      - Validation
-    """
+    """Returns the validation rules for dictionary entries."""
     try:
         dictionary_service = current_app.injector.get(DictionaryService)
         rules = dictionary_service.get_validation_rules()

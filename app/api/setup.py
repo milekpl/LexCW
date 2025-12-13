@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request, jsonify, current_app
 from typing import Union, Tuple
+from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.config_manager import ConfigManager
@@ -12,17 +13,23 @@ setup_bp = Blueprint('setup', __name__, url_prefix='/api/setup')
 
 
 @setup_bp.route('', methods=['POST'])
-def configure_project() -> Union[tuple, dict]:
-    """Configure basic project settings on first-run.
-
-    Expects JSON body like:
-    {
-      "project_name": "My Project",
-      "source_language": {"code":"en","name":"English"},
-      "target_languages": [{"code":"es","name":"Spanish"}],
-      "install_recommended_ranges": true
+@swag_from({
+    'tags': ['Setup'],
+    'summary': 'Configure project settings',
+    'description': 'Create or update the default project settings and optionally install recommended ranges.',
+    'parameters': [
+        {'name': 'project_name', 'in': 'body', 'required': False, 'type': 'string'},
+        {'name': 'source_language', 'in': 'body', 'required': False, 'type': 'object'},
+        {'name': 'target_languages', 'in': 'body', 'required': False, 'type': 'array'},
+        {'name': 'install_recommended_ranges', 'in': 'body', 'required': False, 'type': 'boolean'}
+    ],
+    'responses': {
+        '201': {'description': 'Project configured'},
+        '400': {'description': 'Bad request'},
+        '500': {'description': 'Server error'}
     }
-    """
+})
+def configure_project() -> Union[tuple, dict]:
     try:
         data = request.get_json() or {}
         project_name = data.get('project_name', 'Default Project')
