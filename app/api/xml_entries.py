@@ -53,64 +53,9 @@ def get_xml_entry_service() -> XMLEntryService:
 
 
 @xml_entries_bp.route('/entries', methods=['POST'], strict_slashes=False)
+@swag_from({'tags': ['XML Entries'], 'summary': 'Create a new dictionary entry from LIFT XML', 'consumes': ['application/xml'], 'parameters': [{'name': 'body', 'in': 'body', 'required': True, 'description': 'LIFT XML entry to create'}], 'responses': {'201': {'description': 'Entry created successfully'}, '400': {'description': 'Invalid XML or validation error'}, '500': {'description': 'Internal server error'}}})
 def create_entry() -> Any:
-    """
-    Create a new dictionary entry from LIFT XML
-    ---
-    tags:
-      - XML Entries
-    consumes:
-      - application/xml
-    parameters:
-      - name: body
-        in: body
-        required: true
-        description: LIFT XML entry to create
-        schema:
-          type: string
-          example: |
-            <entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="test_001">
-                <lexical-unit>
-                    <form lang="en"><text>test</text></form>
-                </lexical-unit>
-                <sense id="sense_001" order="0">
-                    <gloss lang="en"><text>a test word</text></gloss>
-                </sense>
-            </entry>
-    responses:
-      201:
-        description: Entry created successfully
-        schema:
-          type: object
-          properties:
-            success:
-              type: boolean
-              example: true
-            entry_id:
-              type: string
-              description: ID of the created entry
-              example: "test_001"
-            filename:
-              type: string
-              description: Filename used in database
-              example: "test_001_20241201_123456.xml"
-      400:
-        description: Invalid XML or validation error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """Create a new dictionary entry from LIFT XML"""
     try:
         # Get XML from request body
         xml_string = request.get_data(as_text=True)
@@ -162,74 +107,9 @@ def create_entry() -> Any:
 
 
 @xml_entries_bp.route('/entries/<string:entry_id>', methods=['PUT'])
+@swag_from({'tags': ['XML Entries'], 'summary': 'Update a dictionary entry from LIFT XML', 'consumes': ['application/xml'], 'parameters': [{'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry to update'}, {'name': 'body', 'in': 'body', 'required': True, 'description': 'LIFT XML entry (updated)'}], 'responses': {'200': {'description': 'Entry updated successfully'}, '400': {'description': 'Invalid XML or ID mismatch'}, '404': {'description': 'Entry not found'}}})
 def update_entry(entry_id: str) -> Any:
-    """
-    Update a dictionary entry from LIFT XML
-    ---
-    tags:
-      - XML Entries
-    consumes:
-      - application/xml
-    parameters:
-      - name: entry_id
-        in: path
-        type: string
-        required: true
-        description: ID of the entry to update
-        example: "test_001"
-      - name: body
-        in: body
-        required: true
-        description: LIFT XML entry (updated)
-        schema:
-          type: string
-          example: |
-            <entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="test_001">
-                <lexical-unit>
-                    <form lang="en"><text>test updated</text></form>
-                </lexical-unit>
-                <sense id="sense_001" order="0">
-                    <gloss lang="en"><text>an updated test word</text></gloss>
-                </sense>
-            </entry>
-    responses:
-      200:
-        description: Entry updated successfully
-        schema:
-          type: object
-          properties:
-            success:
-              type: boolean
-              example: true
-            entry_id:
-              type: string
-              description: ID of the updated entry
-              example: "test_001"
-      400:
-        description: Invalid XML or ID mismatch
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      404:
-        description: Entry not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """Update a dictionary entry from LIFT XML"""
     try:
         # Get XML from request body
         xml_string = request.get_data(as_text=True)
@@ -290,49 +170,9 @@ def update_entry(entry_id: str) -> Any:
 
 
 @xml_entries_bp.route('/entries/<string:entry_id>', methods=['DELETE'])
+@swag_from({'tags': ['XML Entries'], 'summary': 'Delete a dictionary entry by ID', 'parameters': [{'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry to delete'}], 'responses': {'200': {'description': 'Entry deleted successfully'}, '404': {'description': 'Entry not found'}, '500': {'description': 'Internal server error'}}})
 def delete_entry(entry_id: str) -> Any:
-    """
-    Delete a dictionary entry
-    ---
-    tags:
-      - XML Entries
-    parameters:
-      - name: entry_id
-        in: path
-        type: string
-        required: true
-        description: ID of the entry to delete
-        example: "test_001"
-    responses:
-      200:
-        description: Entry deleted successfully
-        schema:
-          type: object
-          properties:
-            success:
-              type: boolean
-              example: true
-            entry_id:
-              type: string
-              description: ID of the deleted entry
-              example: "test_001"
-      404:
-        description: Entry not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """Delete a dictionary entry"""
     try:
         logger.info('[XML API] Received DELETE request for entry: %s', entry_id)
         
@@ -366,6 +206,7 @@ def delete_entry(entry_id: str) -> Any:
 
 
 @xml_entries_bp.route('/entries/<string:entry_id>', methods=['GET'])
+@swag_from({'tags': ['XML Entries'], 'summary': 'Get an entry by its LIFT ID in XML format', 'parameters': [{'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry to retrieve'}], 'responses': {'200': {'description': 'Entry retrieved successfully'}, '404': {'description': 'Entry not found'}}})
 def get_entry(entry_id: str) -> Any:
     """
     Get a dictionary entry as LIFT XML

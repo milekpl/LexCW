@@ -285,8 +285,101 @@ describe('LIFTXMLSerializer', () => {
             };
 
             const xml = serializer.serializeEntry(formData);
-            
             expect(xml).toContain('<trait name="usage-type" value="technical"');
+        });
+
+        test('should serialize multiple usage-type values as separate traits', () => {
+            const formData = {
+                id: 'multi_usage_test',
+                lexicalUnit: { 'en': 'test' },
+                senses: [
+                    {
+                        id: 'sense_001',
+                        usage_type: ['formal', 'written', 'academic']
+                    }
+                ]
+            };
+
+            const xml = serializer.serializeEntry(formData);
+            expect(xml).toContain('<trait name="usage-type" value="formal"');
+            expect(xml).toContain('<trait name="usage-type" value="written"');
+            expect(xml).toContain('<trait name="usage-type" value="academic"');
+            // Verify they are separate traits, not a comma-separated value
+            expect(xml).not.toContain('formal,written');
+            expect(xml).not.toContain('formal;written');
+        });
+
+        test('should serialize multiple domain-type values as separate traits', () => {
+            const formData = {
+                id: 'multi_domain_test',
+                lexicalUnit: { 'en': 'test' },
+                senses: [
+                    {
+                        id: 'sense_001',
+                        domain_type: ['astronomy', 'physics', 'science']
+                    }
+                ]
+            };
+
+            const xml = serializer.serializeEntry(formData);
+            expect(xml).toContain('<trait name="domain-type" value="astronomy"');
+            expect(xml).toContain('<trait name="domain-type" value="physics"');
+            expect(xml).toContain('<trait name="domain-type" value="science"');
+        });
+
+        test('should handle semicolon-separated usage-type string', () => {
+            const formData = {
+                id: 'semicolon_usage_test',
+                lexicalUnit: { 'en': 'test' },
+                senses: [
+                    {
+                        id: 'sense_001',
+                        usage_type: 'formal;written;academic'
+                    }
+                ]
+            };
+
+            const xml = serializer.serializeEntry(formData);
+            expect(xml).toContain('<trait name="usage-type" value="formal"');
+            expect(xml).toContain('<trait name="usage-type" value="written"');
+            expect(xml).toContain('<trait name="usage-type" value="academic"');
+        });
+
+        test('should handle empty array for usage-type', () => {
+            const formData = {
+                id: 'empty_usage_test',
+                lexicalUnit: { 'en': 'test' },
+                senses: [
+                    {
+                        id: 'sense_001',
+                        usage_type: []
+                    }
+                ]
+            };
+
+            const xml = serializer.serializeEntry(formData);
+            expect(xml).not.toContain('usage-type');
+        });
+
+        test('should handle mixed empty and non-empty values in array', () => {
+            const formData = {
+                id: 'mixed_usage_test',
+                lexicalUnit: { 'en': 'test' },
+                senses: [
+                    {
+                        id: 'sense_001',
+                        usage_type: ['formal', '', 'written', null, 'academic']
+                    }
+                ]
+            };
+
+            const xml = serializer.serializeEntry(formData);
+            expect(xml).toContain('<trait name="usage-type" value="formal"');
+            expect(xml).toContain('<trait name="usage-type" value="written"');
+            expect(xml).toContain('<trait name="usage-type" value="academic"');
+            // Count occurrences - should be exactly 3
+            const matches = xml.match(/<trait name="usage-type"/g);
+            expect(matches).toHaveLength(3);
         });
     });
 

@@ -4,6 +4,7 @@ Optimized for single-user dictionary applications.
 """
 
 import logging
+import threading
 from typing import Any, Optional, Dict, List
 from contextlib import contextmanager
 
@@ -47,6 +48,7 @@ class BaseXConnector:
         self.database = database
         self.logger = logging.getLogger(__name__)
         self._session = None
+        self._lock = threading.RLock()
     
     def connect(self) -> bool:
         """
@@ -55,37 +57,48 @@ class BaseXConnector:
         Returns:
             True if connection successful, False otherwise.
         """
-        try:
-            if BaseXSession is None:
-                raise DatabaseError("BaseXClient module not found")
-            
-            self._session = BaseXSession(self.host, self.port, self.username, self.password)
-            
-            if self.database:
-                self._session.execute(f"OPEN {self.database}")
+        with self._lock:
+            try:
+                if BaseXSession is None:
+                    raise DatabaseError("BaseXClient module not found")
                 
-            self.logger.debug(f"Connected to BaseX server at {self.host}:{self.port}")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to connect to BaseX: {e}")
-            self._session = None
-            raise DatabaseError(f"Connection failed: {e}")
+                # If already connected, check if connection is alive
+                if self._session:
+                    try:
+                        self._session.execute("xquery 1")
+                        return True
+                    except:
+                        self._session = None
+
+                self._session = BaseXSession(self.host, self.port, self.username, self.password)
+                
+                if self.database:
+                    self._session.execute(f"OPEN {self.database}")
+                    
+                self.logger.debug(f"Connected to BaseX server at {self.host}:{self.port}")
+                return True
+                
+            except Exception as e:
+                self.logger.error(f"Failed to connect to BaseX: {e}")
+                self._session = None
+                raise DatabaseError(f"Connection failed: {e}")
     
     def disconnect(self) -> None:
         """Close the connection to BaseX server."""
-        if self._session:
-            try:
-                self._session.close()
-                self.logger.debug("Disconnected from BaseX server")
-            except Exception as e:
-                self.logger.warning(f"Error during disconnect: {e}")
-            finally:
-                self._session = None
+        with self._lock:
+            if self._session:
+                try:
+                    self._session.close()
+                    self.logger.debug("Disconnected from BaseX server")
+                except Exception as e:
+                    self.logger.warning(f"Error during disconnect: {e}")
+                finally:
+                    self._session = None
     
     def is_connected(self) -> bool:
         """Check if connection is active."""
-        return self._session is not None
+        with self._lock:
+            return self._session is not None
     
     def execute_query(self, query: str) -> str:
         """
@@ -96,30 +109,46 @@ class BaseXConnector:
         Returns:
             Query result as string.
         """
-        if not self._session:
-            self.connect()
+        with self._lock:
+            # print(f"Thread {threading.get_ident()} acquired lock")
+            if not self._session:
+                self.connect()
 
-        # Log the full query string for debugging
-        self.logger.info("Executing BaseX query:\n%s", query)
-        print("[BaseXConnector] Executing query:\n" + query)
+            # Log the full query string for debugging
+            self.logger.info("Executing BaseX query:\n%s", query)
+            # print("[BaseXConnector] Executing query:\n" + query)
 
-        q = None
-        try:
-            q = self._session.query(query)
-            result = q.execute()
-            self.logger.debug(f"Query executed successfully: {query[:100]}...")
-            return result
-        except Exception as e:
-            error_msg = f"Query execution failed: {e}\nQuery was:\n{query}"
-            self.logger.error(error_msg)
-            print("[BaseXConnector] Query execution failed:\n" + error_msg)
-            raise DatabaseError(error_msg)
-        finally:
-            if q:
-                try:
-                    q.close()
-                except:
-                    pass  # Ignore errors when closing
+            q = None
+            try:
+                q = self._session.query(query)
+                result = q.execute()
+                self.logger.debug(f"Query executed successfully: {query[:100]}...")
+                return result
+            except Exception as e:
+                error_msg = f"Query execution failed: {e}\nQuery was:\n{query}"
+                self.logger.error(error_msg)
+                # print("[BaseXConnector] Query execution failed:\n" + error_msg)
+                
+                # If error is related to connection/session, try to reconnect and retry once
+                if "Unknown Query ID" in str(e) or "Broken pipe" in str(e) or "Connection reset" in str(e):
+                    self.logger.warning("Connection issue detected, retrying query...")
+                    try:
+                        self.disconnect()
+                        self.connect()
+                        q = self._session.query(query)
+                        result = q.execute()
+                        return result
+                    except Exception as retry_e:
+                        self.logger.error(f"Retry failed: {retry_e}")
+                        raise DatabaseError(error_msg)
+                
+                raise DatabaseError(error_msg)
+            finally:
+                if q:
+                    try:
+                        q.close()
+                    except:
+                        pass  # Ignore errors when closing
     
     def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
         """
@@ -148,17 +177,18 @@ class BaseXConnector:
         Returns:
             Command result as string.
         """
-        if not self._session:
-            self.connect()
-        
-        try:
-            result = self._session.execute(command)
-            self.logger.debug(f"Command executed successfully: {command}")
-            return result
-        except Exception as e:
-            error_msg = f"Command execution failed: {e}"
-            self.logger.error(error_msg)
-            raise DatabaseError(error_msg)
+        with self._lock:
+            if not self._session:
+                self.connect()
+            
+            try:
+                result = self._session.execute(command)
+                self.logger.debug(f"Command executed successfully: {command}")
+                return result
+            except Exception as e:
+                error_msg = f"Command execution failed: {e}"
+                self.logger.error(error_msg)
+                raise DatabaseError(error_msg)
     
     def execute_update(self, query: str) -> None:
         """
@@ -167,39 +197,40 @@ class BaseXConnector:
         Args:
             query: XQuery update string to execute.
         """
-        if not self._session:
-            self.connect()
-        
-        q = None
-        try:
-            q = self._session.query(query)
-            result = q.execute()
-            self.logger.debug(f"Update executed successfully: {query[:100]}...")
-            
-        except Exception as e:
-            error_msg = f"Update execution failed: {e}"
-            self.logger.error(error_msg)
-            raise DatabaseError(error_msg)
-        finally:
-            if q:
-                try:
-                    q.close()
-                except:
-                    pass  # Ignore errors when closing
-            
-            # CRITICAL: Close and reopen connection to force persistence
-            # BaseX doesn't commit changes until the session is properly closed
-            try:
-                old_session = self._session
-                self._session = None
-                if old_session:
-                    old_session.close()
-                self.logger.debug("Closed session to persist changes")
-                # Reconnect for next operation
+        with self._lock:
+            if not self._session:
                 self.connect()
-                self.logger.debug("Reopened session after persist")
-            except Exception as reconnect_error:
-                self.logger.warning(f"Failed to reconnect after update: {reconnect_error}")
+            
+            q = None
+            try:
+                q = self._session.query(query)
+                result = q.execute()
+                self.logger.debug(f"Update executed successfully: {query[:100]}...")
+                
+            except Exception as e:
+                error_msg = f"Update execution failed: {e}"
+                self.logger.error(error_msg)
+                raise DatabaseError(error_msg)
+            finally:
+                if q:
+                    try:
+                        q.close()
+                    except:
+                        pass  # Ignore errors when closing
+                
+                # CRITICAL: Close and reopen connection to force persistence
+                # BaseX doesn't commit changes until the session is properly closed
+                try:
+                    old_session = self._session
+                    self._session = None
+                    if old_session:
+                        old_session.close()
+                    self.logger.debug("Closed session to persist changes")
+                    # Reconnect for next operation
+                    self.connect()
+                    self.logger.debug("Reopened session after persist")
+                except Exception as reconnect_error:
+                    self.logger.warning(f"Failed to reconnect after update: {reconnect_error}")
     
     def create_database(self, db_name: str, content: str = "") -> None:
         """

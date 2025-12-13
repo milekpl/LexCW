@@ -395,6 +395,16 @@ def install_recommended_ranges() -> Union[Response, Tuple[Response, int]]:
     """
     Install a minimal recommended set of ranges into the database.
     Intended for initial project setup or when ranges are missing.
+    ---
+    tags:
+      - Ranges
+    summary: Install recommended LIFT ranges
+    description: Add a minimal set of recommended ranges (for initial setup). Does not overwrite existing ranges.
+    responses:
+      201:
+        description: Ranges installed successfully
+      500:
+        description: Error installing ranges
     """
     try:
         dict_service = current_app.injector.get(DictionaryService)

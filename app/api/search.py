@@ -4,6 +4,7 @@ API endpoints for searching dictionary entries.
 
 import logging
 from flask import Blueprint, request, jsonify, current_app
+from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.database.connector_factory import create_database_connector
@@ -46,132 +47,25 @@ def get_dictionary_service():
 
 
 @search_bp.route('/', methods=['GET'], strict_slashes=False)
+@swag_from({
+        'tags': ['Search'],
+        'parameters': [
+                {'name': 'q', 'in': 'query', 'type': 'string', 'required': True, 'description': 'Search query string', 'example': 'test'},
+                {'name': 'fields', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Comma-separated list of fields to search in', 'default': 'lexical_unit,glosses,definitions,note', 'example': 'lexical_unit,pronunciations,senses,note'},
+                {'name': 'pos', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Part of speech to filter by', 'example': 'noun'},
+                {'name': 'exact_match', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Whether to perform exact match (default: false)', 'example': 'false'},
+                {'name': 'case_sensitive', 'in': 'query', 'type': 'string', 'required': False, 'description': 'Whether the search should be case-sensitive (default: false)', 'example': 'false'},
+                {'name': 'limit', 'in': 'query', 'type': 'integer', 'required': False, 'description': 'Maximum number of entries to return', 'default': 100, 'example': 20},
+                {'name': 'offset', 'in': 'query', 'type': 'integer', 'required': False, 'description': 'Number of entries to skip for pagination', 'default': 0, 'example': 0}
+        ],
+        'responses': {
+                '200': {'description': 'Search results'},
+                '400': {'description': 'Invalid request parameters'},
+                '500': {'description': 'Internal server error'}
+        }
+})
 def search_entries():
-    """
-    Search for dictionary entries using XQuery-based search
-    ---
-    tags:
-      - Search
-    parameters:
-      - name: q
-        in: query
-        type: string
-        required: true
-        description: Search query string
-        example: "test"
-      - name: fields
-        in: query
-        type: string
-        required: false
-        description: Comma-separated list of fields to search in
-        default: "lexical_unit,glosses,definitions,note"
-        example: "lexical_unit,pronunciations,senses,note"
-      - name: pos
-        in: query
-        type: string
-        required: false
-        description: Part of speech to filter by
-        example: "noun"
-      - name: exact_match
-        in: query
-        type: string
-        required: false
-        description: Whether to perform exact match (default: false)
-        example: "false"
-      - name: case_sensitive
-        in: query
-        type: string
-        required: false
-        description: Whether the search should be case-sensitive (default: false)
-        example: "false"
-      - name: limit
-        in: query
-        type: integer
-        required: false
-        description: Maximum number of entries to return
-        default: 100
-        example: 20
-      - name: offset
-        in: query
-        type: integer
-        required: false
-        description: Number of entries to skip for pagination
-        default: 0
-        example: 0
-    responses:
-      200:
-        description: Search results
-        schema:
-          type: object
-          properties:
-            query:
-              type: string
-              description: The search query used
-              example: "test"
-            fields:
-              type: array
-              items:
-                type: string
-              description: Fields that were searched
-              example: ["lexical_unit", "senses"]
-            entries:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    description: Entry ID
-                  lexical_unit:
-                    type: object
-                    description: Lexical unit with language codes
-                  pronunciations:
-                    type: object
-                    description: Pronunciation forms by writing system
-                  senses:
-                    type: array
-                    description: Array of sense objects
-                  grammatical_info:
-                    type: string
-                    description: Grammatical information
-                  etymologies:
-                    type: array
-                    description: Etymology information
-                  relations:
-                    type: array
-                    description: Semantic relations
-                  variants:
-                    type: array
-                    description: Variant forms
-            total:
-              type: integer
-              description: Total number of matching entries
-              example: 150
-            limit:
-              type: integer
-              description: Limit used for pagination
-              example: 20
-            offset:
-              type: integer
-              description: Offset used for pagination
-              example: 0
-      400:
-        description: Invalid request parameters
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-      500:
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    """
+    """Search for dictionary entries using XQuery-based search"""
     try:
         # Get query parameters
         query = request.args.get('q', '')

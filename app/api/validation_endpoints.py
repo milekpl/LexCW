@@ -12,6 +12,7 @@ Used by the frontend for immediate validation feedback.
 """
 
 from flask import Blueprint, request, jsonify
+from flasgger import swag_from
 import time
 from typing import Dict, Any
 
@@ -201,13 +202,9 @@ class ValidationEngine:
         }
 
 @validation_api.route('/field', methods=['POST'])
+@swag_from({'tags': ['Validation'], 'summary': 'Real-time field validation endpoint'})
 def validate_field():
-    """
-    Real-time field validation endpoint
-    ---
-    tags:
-        - Validation
-    """
+    """Real-time field validation endpoint"""
     try:
         data = request.get_json()
         
@@ -229,13 +226,9 @@ def validate_field():
         return jsonify({'error': str(e)}), 500
 
 @validation_api.route('/section', methods=['POST'])
+@swag_from({'tags': ['Validation'], 'summary': 'Real-time section validation endpoint'})
 def validate_section():
-    """
-    Real-time section validation endpoint
-    ---
-    tags:
-        - Validation
-    """
+    """Real-time section validation endpoint"""
     try:
         data = request.get_json()
         
@@ -257,13 +250,9 @@ def validate_section():
         return jsonify({'error': str(e)}), 500
 
 @validation_api.route('/form', methods=['POST'])
+@swag_from({'tags': ['Validation'], 'summary': 'Complete form validation endpoint'})
 def validate_form():
-    """
-    Complete form validation endpoint
-    ---
-    tags:
-        - Validation
-    """
+    """Complete form validation endpoint"""
     try:
         data = request.get_json()
         
@@ -281,13 +270,9 @@ def validate_form():
 
 # Health check endpoint
 @validation_api.route('/health', methods=['GET'])
+@swag_from({'tags': ['Validation'], 'summary': 'Health check for validation API'})
 def health_check():
-    """
-    Health check for validation API
-    ---
-    tags:
-        - Validation
-    """
+    """Health check for validation API"""
     return jsonify({
         'status': 'healthy',
         'timestamp': time.time(),

@@ -104,6 +104,14 @@
         </div>
     </div>
 
+    <div class="card mt-4">
+        <div class="card-header">Project Management</div>
+        <div class="card-body">
+            <p class="mb-3">Create and manage multiple projects for different datasets.</p>
+            <a class="btn btn-outline-primary" href="/settings/projects">Manage Projects</a>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -315,4 +323,95 @@
         }
     });
 </script>
+<div id="app-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+<script>
+function showAppToast(message, type='success', timeout=4000) {
+    const container = document.getElementById('app-toast-container');
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-bg-' + (type === 'error' ? 'danger' : 'success') + ' border-0';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+    container.appendChild(toastEl);
+    const bsToast = new bootstrap.Toast(toastEl, { delay: timeout });
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', function () { toastEl.remove(); });
+    return bsToast;
+}
+</script>
+{% if show_wizard %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+        // Show modal to edit current project's settings as wizard
+        const modalHtml = `
+        <div class="modal fade" id="projectSetupModalSettings" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Project Setup</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="settings-wizard-form">
+                            <div class="mb-3">
+                                <label class="form-label">Project Name</label>
+                                <input id="wizard_project_name" class="form-control" value="{{ project_query or current_settings.project_name }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Source Language Code</label>
+                                <input id="wizard_source_code" class="form-control" value="{{ current_settings.source_language.code }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Target Language Code</label>
+                                <input id="wizard_target_code" class="form-control" value="{{ current_settings.target_languages[0].code if current_settings.target_languages else '' }}">
+                            </div>
+                            <div class="form-check mb-3">
+                                <input type="checkbox" class="form-check-input" id="wizard_install_ranges">
+                                <label class="form-check-label" for="wizard_install_ranges">Install recommended ranges</label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" id="wizard_save_btn" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const bsModal = new bootstrap.Modal(document.getElementById('projectSetupModalSettings'));
+        bsModal.show();
+
+        document.getElementById('wizard_save_btn').addEventListener('click', async function(){
+                const name = document.getElementById('wizard_project_name').value;
+                const src = document.getElementById('wizard_source_code').value;
+                const tgt = document.getElementById('wizard_target_code').value;
+                const install = document.getElementById('wizard_install_ranges').checked;
+                try {
+                        // validate language codes quickly on client
+                        const codeRegex = /^[a-zA-Z]{2,3}(-[A-Za-z0-9]+)?$/;
+                        if (!codeRegex.test(src)) { showAppToast('Invalid source language code', 'error'); return; }
+                        const resp = await fetch('/settings/projects/create', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({project_name: name, source_language_code: src, target_language_code: tgt, install_recommended_ranges: install})
+                        });
+                        const data = await resp.json();
+                        if (resp.ok && data.success) {
+                            // Show small success notification and keep wizard open for further settings
+                            showAppToast('Project created successfully. You can continue with setup.', 'success');
+                        } else {
+                            showAppToast('Error: ' + (data.error || 'Unknown'), 'error');
+                        }
+                } catch(e) { alert('Error: ' + e); }
+        });
+});
+</script>
+{% endif %}
 {% endblock %}

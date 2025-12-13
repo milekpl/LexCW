@@ -16,6 +16,26 @@ def test_install_recommended_ranges_endpoint(app, client):
         assert resp.status_code == 201
         data = resp.get_json()
         assert data['success'] is True
+    @pytest.mark.integration
+    def test_create_project_and_wizard(client, app):
+        # Create a new project via API and ensure it gets created
+        payload = {
+            'project_name': 'Wizard Test',
+            'source_language_code': 'en',
+            'source_language_name': 'English',
+            'target_language_code': 'es',
+            'target_language_name': 'Spanish',
+            'install_recommended_ranges': False
+        }
+        resp = client.post('/settings/projects/create', json=payload)
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data['success'] is True
+
+        # Check projects page lists it
+        resp2 = client.get('/settings/projects')
+        html = resp2.data.decode('utf-8')
+        assert 'Wizard Test' in html
 
 
 @pytest.mark.integration
