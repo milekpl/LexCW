@@ -122,7 +122,7 @@
   },
   {
     "endpoint": "api.search.get_relation_types",
-    "url": "/api/search/ranges/relation-types",
+    "url": "/api/search/ranges/lexical-relation",
     "methods": [
       "GET"
     ],
@@ -364,7 +364,7 @@
   },
   {
     "endpoint": "ranges.get_relation_types_range",
-    "url": "/api/ranges/relation-types",
+    "url": "/api/ranges/lexical-relation",
     "methods": [
       "GET"
     ],
@@ -375,7 +375,7 @@
   },
   {
     "endpoint": "ranges.get_semantic_domains_range",
-    "url": "/api/ranges/semantic-domains",
+    "url": "/api/ranges/semantic-domain-ddp4",
     "methods": [
       "GET"
     ],
@@ -397,7 +397,7 @@
   },
   {
     "endpoint": "ranges.get_variant_types_from_traits",
-    "url": "/api/ranges/variant-types-from-traits",
+    "url": "/api/ranges/variant-types",
     "methods": [
       "GET"
     ],

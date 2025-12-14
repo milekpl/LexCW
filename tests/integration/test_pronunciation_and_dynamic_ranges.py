@@ -62,7 +62,7 @@ def test_dictionary_service_language_codes(client):
 def test_variant_types_from_traits(client):
     """Test that variant types are extracted from traits in LIFT data."""
     # Test via the API endpoint
-    response = client.get('/api/ranges/variant-types-from-traits')
+    response = client.get('/api/ranges/variant-types')
     assert response.status_code == 200
     
     data = response.get_json()
@@ -70,7 +70,7 @@ def test_variant_types_from_traits(client):
     
     # Get variant types from response
     variant_data = data['data']
-    assert variant_data['id'] == 'variant-types-from-traits'
+    assert variant_data['id'] == 'variant-types'
     variant_types = variant_data['values']
     
     # Verify that we got variant types (may be empty in test env)
@@ -86,7 +86,7 @@ def test_variant_types_from_traits(client):
 def test_api_endpoints_for_dynamic_ranges(client):
     """Test API endpoints for dynamic ranges."""
     # Test variant types from traits endpoint
-    response = client.get('/api/ranges/variant-types-from-traits')
+    response = client.get('/api/ranges/variant-types')
     assert response.status_code == 200
     data = response.json
     assert data['success'] is True

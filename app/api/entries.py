@@ -154,7 +154,9 @@ def get_entry(entry_id: str) -> Any:
             # If xml exists and no explicit json request, return xml by default
             # Allow `format=json` override
             format_param = request.args.get('format', '').lower()
-            if format_param != 'json':
+            accept_header = request.headers.get('Accept', '')
+            # Prefer JSON by default; only return XML if explicitly requested
+            if format_param == 'xml' or ('application/xml' in accept_header and 'application/json' not in accept_header):
                 return Response(entry_xml_data['xml'], mimetype='application/xml')
             # otherwise fall back to JSON representation
         except Exception:

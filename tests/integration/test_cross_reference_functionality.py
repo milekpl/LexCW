@@ -52,7 +52,8 @@ def test_worksets_api_endpoints(client: FlaskClient) -> None:
 def test_cross_reference_search_with_dynamic_types(client: FlaskClient) -> None:
     """Test that cross-reference search uses dynamic relation types."""
     # First verify relation types are available
-    response = client.get('/api/ranges/relation-types')
+    # Use canonical range ID 'lexical-relation' (no heuristic mappings allowed)
+    response = client.get('/api/ranges/lexical-relation')
     assert response.status_code == 200
     
     data = response.get_json()
@@ -154,7 +155,7 @@ def test_grammatical_info_search_with_dynamic_types(client: FlaskClient) -> None
 def test_workset_creation_with_complex_query(client: FlaskClient) -> None:
     """Test workset creation with a complex query using dynamic types."""
     # Get available types for building a complex query
-    relation_resp = client.get('/api/ranges/relation-types')
+    relation_resp = client.get('/api/ranges/lexical-relation')
     variant_resp = client.get('/api/ranges/variant-types')
     grammar_resp = client.get('/api/ranges/grammatical-info')
     

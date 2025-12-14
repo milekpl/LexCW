@@ -22,7 +22,6 @@
           <table class="table table-hover" id="rangesTable">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>Label</th>
                 <th>Elements</th>
                 <th>Actions</th>
@@ -135,6 +134,13 @@
           <div class="tab-pane fade show active" id="details" role="tabpanel">
             <form id="editRangeForm">
               <input type="hidden" id="editRangeGuid">
+              <div class="mb-3">
+                <label class="form-label">Range ID</label>
+                <div>
+                  <code id="editRangeOriginalId"></code>
+                  <span id="rangeSourceBadge" class="badge bg-secondary ms-2">LIFT</span>
+                </div>
+              </div>
               <div class="mb-3">
                 <label class="form-label">Labels</label>
                 <div id="editLabelsContainer"></div>

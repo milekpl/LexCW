@@ -5,7 +5,11 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request, current_app, Response
 from typing import Union, Tuple, Any
 
+import os
+import json
+
 from app.services.ranges_service import RangesService
+from app.services.ranges_service import reload_custom_ranges_config
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
 from flasgger import swag_from
 
@@ -52,6 +56,58 @@ def list_ranges() -> Union[Response, Tuple[Response, int]]:
         return jsonify({'success': True, 'data': ranges})
     except Exception as e:
         current_app.logger.error(f"Error listing ranges: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ranges_editor_bp.route('/config', methods=['GET'])
+def get_config_ranges() -> Union[Response, Tuple[Response, int]]:
+    """Return the custom_ranges.json content."""
+    try:
+        app_dir = os.path.dirname(os.path.dirname(__file__))
+        cfg_path = os.path.join(app_dir, 'config', 'custom_ranges.json')
+        if not os.path.exists(cfg_path):
+            return jsonify({'success': True, 'data': {}})
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        return jsonify({'success': True, 'data': cfg})
+    except Exception as e:
+        current_app.logger.error(f"Error reading custom_ranges config: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ranges_editor_bp.route('/config', methods=['POST'])
+def add_config_range() -> Union[Response, Tuple[Response, int]]:
+    """Add a new FieldWorks list to custom_ranges.json."""
+    try:
+        data = request.get_json(silent=True)
+        if not data or 'id' not in data or 'label' not in data:
+            return jsonify({'success': False, 'error': 'Missing id or label'}), 400
+
+        rid = data['id']
+        label = data['label']
+        desc = data.get('description', '')
+
+        app_dir = os.path.dirname(os.path.dirname(__file__))
+        cfg_path = os.path.join(app_dir, 'config', 'custom_ranges.json')
+        cfg = {}
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+
+        if rid in cfg:
+            return jsonify({'success': False, 'error': f"Range '{rid}' already exists in config"}), 400
+
+        cfg[rid] = {'label': label, 'description': desc}
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+        # reload into memory
+        reload_custom_ranges_config()
+
+        return jsonify({'success': True, 'message': f"Added '{rid}' to custom_ranges.json"}), 201
+
+    except Exception as e:
+        current_app.logger.error(f"Error adding custom range: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

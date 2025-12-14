@@ -1,13 +1,13 @@
 """
-Comprehensive integration tests for Academic Domains end-to-end form functionality.
+Comprehensive integration tests for Domains Types end-to-end form functionality.
 
-Tests that Academic Domains work correctly through the complete user workflow:
-- Form submission with academic domains
+Tests that Domain Types work correctly through the complete user workflow:
+- Form submission with domain types
 - Backend processing and validation
 - Database persistence and retrieval
 - UI display and editing
 
-These tests ensure academic domains are fully functional in the application.
+These tests ensure domain types are fully functional in the application.
 """
 
 from __future__ import annotations
@@ -21,45 +21,48 @@ from app.models.sense import Sense
 
 
 @pytest.mark.integration
-class TestAcademicDomainsFormIntegration:
-    """Integration tests for Academic Domains form integration."""
+class TestDomainTypesFormIntegration:
+    """Integration tests for Domain Types form integration."""
 
     @pytest.fixture
-    def test_entry_data_entry_level_academic_domain(self) -> dict:
-        """Test data for entry with sense-level academic domain."""
+    def test_entry_data_entry_level_domain_type(self) -> dict:
+        """Test data for entry with sense-level domain type."""
         return {
-            'lexical_unit.en': 'computer science',
-            'senses[0].id': 'sense1',
-            'senses[0].definition.en': 'The study of computers and computing',
-            'senses[0].gloss.en': 'computers field of study',
-            'senses[0].academic_domain': 'informatyka',
+            "lexical_unit.en": "computer science",
+            "senses[0].id": "sense1",
+            "senses[0].definition.en": "The study of computers and computing",
+            "senses[0].gloss.en": "computers field of study",
+            "senses[0].domain_type": "informatyka",
         }
 
     @pytest.fixture
     def test_entry_data_multiple_domains(self) -> dict:
-        """Test data for entry with different academic domains at sense level only."""
+        """Test data for entry with different domains types at sense level only."""
         return {
-            'lexical_unit.en': 'bank',  # Can mean both financial institution and river bank
-            'senses[0].id': 'sense1',
-            'senses[0].definition.en': 'Financial institution where money can be deposited',
-            'senses[0].gloss.en': 'financial institution',
-            'senses[0].academic_domain': 'finanse',  # Finance domain
-            'senses[1].id': 'sense2',
-            'senses[1].definition.en': 'Raised area of ground along river',
-            'senses[1].gloss.en': 'riverbank',
-            'senses[1].academic_domain': 'geografia',  # Geography domain
+            "lexical_unit.en": "bank",  # Can mean both financial institution and river bank
+            "senses[0].id": "sense1",
+            "senses[0].definition.en": "Financial institution where money can be deposited",
+            "senses[0].gloss.en": "financial institution",
+            "senses[0].domain_type": "finanse",  # Finance domain
+            "senses[1].id": "sense2",
+            "senses[1].definition.en": "Raised area of ground along river",
+            "senses[1].gloss.en": "riverbank",
+            "senses[1].domain_type": "geografia",  # Geography domain
         }
 
     @pytest.mark.integration
-    def test_form_submission_entry_level_academic_domain(
-        self, client: Client, basex_test_connector,
-        test_entry_data_entry_level_academic_domain: dict
+    def test_form_submission_entry_level_domain_type(
+        self,
+        client: Client,
+        basex_test_connector,
+        test_entry_data_entry_level_domain_type: dict,
     ) -> None:
-        """Test that sense-level academic domain can be submitted via form."""
+        """Test that sense-level domain type can be submitted via form."""
         import uuid
-        entry_id = f"test_academic_{uuid.uuid4().hex[:8]}"
-        
-        # Create entry via XML API with academic domain
+
+        entry_id = f"test_domain_{uuid.uuid4().hex[:8]}"
+
+        # Create entry via XML API with domain type
         entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>computer science</text></form>
@@ -72,35 +75,44 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>computers field of study</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.post('/api/xml/entries', data=entry_xml, 
-                              headers={'Content-Type': 'application/xml'})
+
+        response = client.post(
+            "/api/xml/entries",
+            data=entry_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 201, f"Failed to create entry: {response.data}"
-        
+
         # Verify via XML API
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f"/api/xml/entries/{entry_id}")
         assert response.status_code == 200
-        
-        # Parse and verify academic domain
+
+        # Parse and verify domain type
         from lxml import etree as ET
+
         LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
-        xml_data = response.data.decode('utf-8')
+        xml_data = response.data.decode("utf-8")
         root = ET.fromstring(xml_data)
-        
-        trait = root.find(f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
-        assert trait is not None, "Academic domain trait not found"
-        assert trait.get('value') == 'informatyka'
+
+        trait = root.find(
+            f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
+        assert trait is not None, "Domain type trait not found"
+        assert trait.get("value") == "informatyka"
 
     @pytest.mark.integration
-    def test_form_submission_multiple_academic_domains(
-        self, client: Client, basex_test_connector,
-        test_entry_data_multiple_domains: dict
+    def test_form_submission_multiple_domain_types(
+        self,
+        client: Client,
+        basex_test_connector,
+        test_entry_data_multiple_domains: dict,
     ) -> None:
-        """Test that entries can have different academic domains at different sense levels."""
+        """Test that entries can have different domain types at different sense levels."""
         import uuid
-        entry_id = f"test_academic_{uuid.uuid4().hex[:8]}"
-        
-        # Create entry via XML API with multiple academic domains
+
+        entry_id = f"test_domain_{uuid.uuid4().hex[:8]}"
+
+        # Create entry via XML API with multiple domain types
         entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>bank</text></form>
@@ -120,38 +132,47 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>riverbank</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.post('/api/xml/entries', data=entry_xml, 
-                              headers={'Content-Type': 'application/xml'})
+
+        response = client.post(
+            "/api/xml/entries",
+            data=entry_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 201
-        
+
         # Verify via XML API
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        response = client.get(f"/api/xml/entries/{entry_id}")
         assert response.status_code == 200
-        
+
         from lxml import etree as ET
+
         LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
-        xml_data = response.data.decode('utf-8')
+        xml_data = response.data.decode("utf-8")
         root = ET.fromstring(xml_data)
-        
-        # Verify both academic domains
-        sense1_trait = root.find(f'.//{LIFT_NS}sense[@id="sense1"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
+
+        # Verify both domains
+        sense1_trait = root.find(
+            f'.//{LIFT_NS}sense[@id="sense1"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
         assert sense1_trait is not None
-        assert sense1_trait.get('value') == 'finanse'
-        
-        sense2_trait = root.find(f'.//{LIFT_NS}sense[@id="sense2"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
+        assert sense1_trait.get("value") == "finanse"
+
+        sense2_trait = root.find(
+            f'.//{LIFT_NS}sense[@id="sense2"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
         assert sense2_trait is not None
-        assert sense2_trait.get('value') == 'geografia'
+        assert sense2_trait.get("value") == "geografia"
 
     @pytest.mark.integration
-    def test_form_edit_entry_remove_academic_domain(
+    def test_form_edit_entry_remove_domain_type(
         self, client: Client, basex_test_connector
     ) -> None:
-        """Test that academic domain can be removed via XML update."""
+        """Test that domains can be removed via XML update."""
         import uuid
+
         entry_id = f"test_edit_remove_{uuid.uuid4().hex[:8]}"
-        
-        # Create entry with academic domain via XML API
+
+        # Create entry with semantic domain via XML API
         entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>test word</text></form>
@@ -164,12 +185,15 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>word</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.post('/api/xml/entries', data=entry_xml,
-                              headers={'Content-Type': 'application/xml'})
+
+        response = client.post(
+            "/api/xml/entries",
+            data=entry_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 201
-        
-        # Update to remove academic domain
+
+        # Update to remove domain type
         updated_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>test word</text></form>
@@ -181,32 +205,39 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>word</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.put(f'/api/xml/entries/{entry_id}', data=updated_xml,
-                             headers={'Content-Type': 'application/xml'})
+
+        response = client.put(
+            f"/api/xml/entries/{entry_id}",
+            data=updated_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 200
-        
-        # Verify academic domain was removed
-        response = client.get(f'/api/xml/entries/{entry_id}')
+
+        # Verify that domain was removed
+        response = client.get(f"/api/xml/entries/{entry_id}")
         assert response.status_code == 200
-        
+
         from lxml import etree as ET
+
         LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
-        xml_data = response.data.decode('utf-8')
+        xml_data = response.data.decode("utf-8")
         root = ET.fromstring(xml_data)
-        
-        trait = root.find(f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
-        assert trait is None, "Academic domain should have been removed"
+
+        trait = root.find(
+            f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
+        assert trait is None, "Domain type should have been removed"
 
     @pytest.mark.integration
-    def test_form_edit_entry_add_academic_domain(
+    def test_form_edit_entry_add_domain_type(
         self, client: Client, basex_test_connector
     ) -> None:
-        """Test that academic domain can be added via XML update."""
+        """Test that domain type can be added via XML update."""
         import uuid
+
         entry_id = f"test_edit_add_{uuid.uuid4().hex[:8]}"
-        
-        # Create entry without academic domain
+
+        # Create entry without domain type
         entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>plain word</text></form>
@@ -218,12 +249,15 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>word</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.post('/api/xml/entries', data=entry_xml,
-                              headers={'Content-Type': 'application/xml'})
+
+        response = client.post(
+            "/api/xml/entries",
+            data=entry_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 201
-        
-        # Update to add academic domain
+
+        # Update to add domain type
         updated_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>plain word</text></form>
@@ -236,33 +270,40 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>word</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.put(f'/api/xml/entries/{entry_id}', data=updated_xml,
-                             headers={'Content-Type': 'application/xml'})
+
+        response = client.put(
+            f"/api/xml/entries/{entry_id}",
+            data=updated_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 200
-        
-        # Verify academic domain was added
-        response = client.get(f'/api/xml/entries/{entry_id}')
+
+        # Verify domain type was added
+        response = client.get(f"/api/xml/entries/{entry_id}")
         assert response.status_code == 200
-        
+
         from lxml import etree as ET
+
         LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
-        xml_data = response.data.decode('utf-8')
+        xml_data = response.data.decode("utf-8")
         root = ET.fromstring(xml_data)
-        
-        trait = root.find(f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
-        assert trait is not None, "Academic domain should have been added"
-        assert trait.get('value') == 'literatura'
+
+        trait = root.find(
+            f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
+        assert trait is not None, "Domain_type should have been added"
+        assert trait.get("value") == "literatura"
 
     @pytest.mark.integration
-    def test_form_validation_invalid_academic_domain(
+    def test_form_validation_invalid_domain_type(
         self, client: Client, basex_test_connector
     ) -> None:
-        """Test that form handles validation with academic domains."""
+        """Test that form handles validation with domain types."""
         import uuid
+
         entry_id = f"test_validation_{uuid.uuid4().hex[:8]}"
-        
-        # Create entry with valid academic domain via XML API
+
+        # Create entry with valid domain type via XML API
         entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>test validation word</text></form>
@@ -275,21 +316,27 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>test</text></gloss>
             </sense>
         </entry>'''
-        
+
         # Should succeed
-        response = client.post('/api/xml/entries', data=entry_xml,
-                              headers={'Content-Type': 'application/xml'})
-        assert response.status_code == 201, f"Valid entry creation failed: {response.data}"
+        response = client.post(
+            "/api/xml/entries",
+            data=entry_xml,
+            headers={"Content-Type": "application/xml"},
+        )
+        assert response.status_code == 201, (
+            f"Valid entry creation failed: {response.data}"
+        )
 
     @pytest.mark.integration
-    def test_academic_domain_view_display(
+    def test_domain_type_view_display(
         self, client: Client, basex_test_connector
     ) -> None:
-        """Test that academic domains persist in database and can be retrieved."""
+        """Test that domain types persist in database and can be retrieved."""
         import uuid
+
         entry_id = f"test_view_{uuid.uuid4().hex[:8]}"
-        
-        # Create entry with academic domains via XML API
+
+        # Create entry with domain types via XML API
         entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
                 <form lang="en"><text>multidisciplinary term</text></form>
@@ -310,37 +357,46 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>mathematical concept</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.post('/api/xml/entries', data=entry_xml,
-                              headers={'Content-Type': 'application/xml'})
+
+        response = client.post(
+            "/api/xml/entries",
+            data=entry_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 201
 
-        # Verify academic domains persist via XML API
-        response = client.get(f'/api/xml/entries/{entry_id}')
+        # Verify domain types persist via XML API
+        response = client.get(f"/api/xml/entries/{entry_id}")
         assert response.status_code == 200
 
         from lxml import etree as ET
+
         LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
-        xml_data = response.data.decode('utf-8')
+        xml_data = response.data.decode("utf-8")
         root = ET.fromstring(xml_data)
 
-        # Check that academic domains are present in XML
-        cs_trait = root.find(f'.//{LIFT_NS}sense[@id="sense_cs"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
+        # Check that domain types are present in XML
+        cs_trait = root.find(
+            f'.//{LIFT_NS}sense[@id="sense_cs"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
         assert cs_trait is not None
-        assert cs_trait.get('value') == 'informatyka'
-        
-        math_trait = root.find(f'.//{LIFT_NS}sense[@id="sense_math"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
+        assert cs_trait.get("value") == "informatyka"
+
+        math_trait = root.find(
+            f'.//{LIFT_NS}sense[@id="sense_math"]/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
         assert math_trait is not None
-        assert math_trait.get('value') == 'matematyka'
+        assert math_trait.get("value") == "matematyka"
 
     @pytest.mark.integration
-    def test_form_unicode_academic_domains(
+    def test_form_unicode_domain_types(
         self, client: Client, basex_test_connector
     ) -> None:
-        """Test that Unicode characters in academic domains work via XML API."""
+        """Test that Unicode characters in domain types work via XML API."""
         import uuid
+
         entry_id = f"test_unicode_{uuid.uuid4().hex[:8]}"
-        
+
         # Create entry with Polish domain names
         entry_xml = f'''<entry id="{entry_id}">
             <lexical-unit>
@@ -354,51 +410,58 @@ class TestAcademicDomainsFormIntegration:
                 <gloss lang="en"><text>computer term</text></gloss>
             </sense>
         </entry>'''
-        
-        response = client.post('/api/xml/entries', data=entry_xml,
-                              headers={'Content-Type': 'application/xml'})
+
+        response = client.post(
+            "/api/xml/entries",
+            data=entry_xml,
+            headers={"Content-Type": "application/xml"},
+        )
         assert response.status_code == 201
-        
-        # Verify Unicode academic domain persisted
-        response = client.get(f'/api/xml/entries/{entry_id}')
+
+        # Verify Unicode domain type persisted
+        response = client.get(f"/api/xml/entries/{entry_id}")
         assert response.status_code == 200
-        
+
         from lxml import etree as ET
+
         LIFT_NS = "{http://fieldworks.sil.org/schemas/lift/0.13}"
-        xml_data = response.data.decode('utf-8')
+        xml_data = response.data.decode("utf-8")
         root = ET.fromstring(xml_data)
-        
-        trait = root.find(f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]')
+
+        trait = root.find(
+            f'.//{LIFT_NS}sense/{LIFT_NS}trait[@name="semantic-domain-ddp4"]'
+        )
         assert trait is not None
-        assert trait.get('value') == 'języki'
+        assert trait.get("value") == "języki"
 
     @pytest.mark.integration
-    def test_academic_domain_form_field_visibility(
-        self, client: Client
-    ) -> None:
-        """Test that academic domain fields are visible at sense level in the form."""
+    def test_domain_type_form_field_visibility(self, client: Client) -> None:
+        """Test that domain type fields are visible at sense level in the form."""
         # Get the new entry form
-        response = client.get('/entries/add', follow_redirects=True)
+        response = client.get("/entries/add", follow_redirects=True)
         assert response.status_code == 200
 
         response_html = response.get_data(as_text=True)
 
-        # Check that academic domain fields are present
-        assert 'academic_domain' in response_html
-        assert 'data-range-id="academic-domain"' in response_html
+        # Check that domain type fields are present (use canonical range id)
+        assert "domain_type" in response_html
+        assert 'data-range-id="semantic-domain-ddp4"' in response_html
 
         # Check for sense-level fields in sense template
-        assert 'name="senses[INDEX].academic_domain"' in response_html
-        
+        assert 'name="senses[INDEX].domain_type"' in response_html
+
         # Verify NO entry-level field exists
-        assert 'name="academic_domain"' not in response_html or response_html.count('name="academic_domain"') == 0
+        assert (
+            'name="domain_type"' not in response_html
+            or response_html.count('name="domain_type"') == 0
+        )
 
     @pytest.mark.integration
-    def test_academic_domain_roundtrip_compatibility(
+    def test_domain_type_roundtrip_compatibility(
         self, client: Client, dict_service_with_db: DictionaryService
     ) -> None:
-        """Test that academic domains survive complete roundtrip: form → backend → form."""
-        # Create entry with sense-level academic domain programmatically first
+        """Test that domain types survive complete roundtrip: form → backend → form."""
+        # Create entry with sense-level domain types programmatically first
         original_entry = Entry(
             id_="test_roundtrip_compatibility",
             lexical_unit={"en": "roundtrip test"},
@@ -407,30 +470,32 @@ class TestAcademicDomainsFormIntegration:
                     id_="roundtrip_sense",
                     glosses={"en": "test"},
                     definitions={"en": "roundtrip test"},
-                    academic_domain="prawniczy"
+                    domain_type="prawniczy",
                 )
-            ]
+            ],
         )
         dict_service_with_db.create_entry(original_entry)
 
         # Retrieve via database and convert to form data that would be sent
         retrieved_entry = dict_service_with_db.get_entry("test_roundtrip_compatibility")
         form_data = {
-            'id': retrieved_entry.id,
-            'lexical_unit.en': retrieved_entry.lexical_unit['en'],
-            'senses[0].id': retrieved_entry.senses[0].id,
-            'senses[0].definition.en': retrieved_entry.senses[0].definitions['en'],
-            'senses[0].gloss.en': retrieved_entry.senses[0].glosses['en'],
-            'senses[0].academic_domain': retrieved_entry.senses[0].academic_domain,
+            "id": retrieved_entry.id,
+            "lexical_unit.en": retrieved_entry.lexical_unit["en"],
+            "senses[0].id": retrieved_entry.senses[0].id,
+            "senses[0].definition.en": retrieved_entry.senses[0].definitions["en"],
+            "senses[0].gloss.en": retrieved_entry.senses[0].glosses["en"],
+            "senses[0].domain_type": retrieved_entry.senses[0].domain_type,
         }
 
         # Submit back via form for editing
-        response = client.post(f'/entries/{retrieved_entry.id}/edit', data=form_data)
-        assert response.status_code in [200, 302], f"Roundtrip form submission failed: {response.get_data(as_text=True)}"
+        response = client.post(f"/entries/{retrieved_entry.id}/edit", data=form_data)
+        assert response.status_code in [200, 302], (
+            f"Roundtrip form submission failed: {response.get_data(as_text=True)}"
+        )
 
         # Verify final state
         final_entry = dict_service_with_db.get_entry("test_roundtrip_compatibility")
-        assert final_entry.senses[0].academic_domain == original_entry.senses[0].academic_domain
+        assert final_entry.senses[0].domain_type == original_entry.senses[0].domain_type
 
         # Clean up
         dict_service_with_db.delete_entry("test_roundtrip_compatibility")

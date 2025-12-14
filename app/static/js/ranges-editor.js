@@ -131,10 +131,12 @@ class RangesEditor {
             const row = document.createElement('tr');
             row.setAttribute('data-range-id', rangeId);
             row.innerHTML = `
-                <td>${this.escapeHtml(rangeId)}</td>
-                <td>${this.escapeHtml(this.getLabel(range))}</td>
+                <td>
+                    <strong>${this.escapeHtml(this.getLabel(range))}</strong>
+                </td>
                 <td>${range.values ? range.values.length : 0}</td>
                 <td>
+                    ${range.official ? '<span class="badge bg-secondary me-2">Official</span>' : '<span class="badge bg-warning text-dark me-2">Custom</span>'}
                     <button class="btn btn-sm btn-outline-primary" onclick="editor.editRange('${this.escapeHtml(rangeId)}')">
                         <i class="bi bi-pencil"></i>
                     </button>
@@ -162,14 +164,39 @@ class RangesEditor {
     }
     
     getLabel(range) {
-        // Get English label or first available
+        // Prefer explicit label field (set in LIFT or editor) when meaningful
+        if (range.label && range.label !== range.id) {
+            return range.label;
+        }
+
+        // Next, try multilingual labels from the range data
+        if (range.labels && range.labels.en) {
+            return range.labels.en;
+        }
+        if (range.labels) {
+            const first = Object.keys(range.labels)[0];
+            if (first) return range.labels[first];
+        }
+
+        // Descriptions can be used as a fallback
         if (range.description && range.description.en) {
             return range.description.en;
         }
         if (range.description) {
             const firstLang = Object.keys(range.description)[0];
-            return range.description[firstLang];
+            if (firstLang) return range.description[firstLang];
         }
+
+        // If provided by config (FieldWorks-only ranges), use that label if present
+        if (range.provided_by_config && range.label) {
+            return range.label;
+        }
+
+        // Final fallback: humanize the id (replace dashes/underscores and title-case)
+        if (range.id) {
+            return range.id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
         return '(No label)';
     }
     
@@ -279,14 +306,37 @@ class RangesEditor {
             // Populate form
             document.getElementById('editRangeId').textContent = rangeId;
             document.getElementById('editRangeGuid').value = range.guid || '';
-            
-            // Populate labels
+
+            // Show canonical ID and source badge
+            document.getElementById('editRangeOriginalId').textContent = range.id || rangeId;
+            const badge = document.getElementById('rangeSourceBadge');
+            if (range.provided_by_config) {
+                badge.textContent = 'FieldWorks (custom)';
+                badge.className = 'badge bg-info ms-2';
+            } else if (range.fieldworks_standard) {
+                // Range is a known FieldWorks standard (declared in metadata)
+                badge.textContent = 'FieldWorks (standard)';
+                badge.className = 'badge bg-secondary ms-2';
+            } else if (range.official) {
+                badge.textContent = 'LIFT';
+                badge.className = 'badge bg-secondary ms-2';
+            } else {
+                badge.textContent = 'Custom';
+                badge.className = 'badge bg-warning text-dark ms-2';
+            }
+
+            // Populate labels (use multilingual labels if present, otherwise use single 'label' fallback)
             const labelsContainer = document.getElementById('editLabelsContainer');
             labelsContainer.innerHTML = '';
-            if (range.description) {
-                for (const [lang, text] of Object.entries(range.description)) {
+            if (range.labels && Object.keys(range.labels).length > 0) {
+                for (const [lang, text] of Object.entries(range.labels)) {
                     this.addEditLanguageField('editLabelsContainer', 'labels', lang, text);
                 }
+            } else if (range.label && typeof range.label === 'string' && range.label !== range.id) {
+                this.addEditLanguageField('editLabelsContainer', 'labels', 'en', range.label);
+            } else {
+                // empty label field for user to add
+                this.addEditLanguageField('editLabelsContainer', 'labels');
             }
             
             // Load elements

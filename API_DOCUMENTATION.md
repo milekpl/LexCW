@@ -250,6 +250,9 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 - **Handler Function:** `get_all_ranges`
 - **Defined at:** `app/api/ranges.py:19-91`
 
+**Notes:**
+- The API returns only ranges defined in your project's LIFT data or custom ranges persisted in the SQL DB. There are no hardcoded fallback lists returned by default. If a range has no values, the UI will show a hint and administrators should add values via the Ranges Editor (Settings → Ranges). Recommended default ranges can be installed explicitly during project setup via the `install_recommended_ranges` action.
+
 ---
 
 ### `/api/ranges/<range_id>`
@@ -288,7 +291,7 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/ranges/relation-types`
+### `/api/ranges/lexical-relation`
 
 - **Endpoint Name:** `ranges.get_relation_types_range`
 - **HTTP Methods:** `GET`
@@ -297,7 +300,7 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/ranges/semantic-domains`
+### `/api/ranges/semantic-domain-ddp4`
 
 - **Endpoint Name:** `ranges.get_semantic_domains_range`
 - **HTTP Methods:** `GET`
@@ -315,7 +318,7 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/ranges/variant-types-from-traits`
+### `/api/ranges/variant-types`
 
 - **Endpoint Name:** `ranges.get_variant_types_from_traits`
 - **HTTP Methods:** `GET`
@@ -362,7 +365,7 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/search/ranges/relation-types`
+### `/api/search/ranges/lexical-relation`
 
 - **Endpoint Name:** `api.search.get_relation_types`
 - **HTTP Methods:** `GET`

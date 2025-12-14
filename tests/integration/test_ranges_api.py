@@ -91,7 +91,15 @@ class TestRangesAPI:
         mock_connector = MockDatabaseConnector()
         service = DictionaryService(mock_connector)
         service.ranges = {}
-        
+        # Ensure no custom ranges linger from other tests
+        try:
+            from app.models.custom_ranges import CustomRange, db as custom_db
+            if hasattr(custom_db, 'session'):
+                custom_db.session.query(CustomRange).delete()
+                custom_db.session.commit()
+        except Exception:
+            pass
+
         ranges = service.get_ranges()
         assert isinstance(ranges, dict)
         # With empty ranges and no database, service returns empty dict

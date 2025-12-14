@@ -20,7 +20,7 @@ class TestCSSFiltering:
             <relation type="synonym" ref="e3"/>
             <relation type="antonym" ref="e4"/>
             <sense>
-                <trait name="academic-domain" value="chemistry"/>
+                <trait name="domain-type" value="chemistry"/>
                 <trait name="semantic-domain" value="science"/>
                 <field type="usage">
                     <form lang="en"><text>slang</text></form>
@@ -67,13 +67,13 @@ class TestCSSFiltering:
         """Test filtering traits by name."""
         elements = [
             ProfileElement(lift_element="lexical-unit"),
-            ProfileElement(lift_element="trait", config={"filter": "academic-domain"})
+            ProfileElement(lift_element="trait", config={"filter": "domain-type"})
         ]
         profile = DisplayProfile(name="Trait Test", elements=elements)
         
         html = css_service.render_entry(entry_xml, profile)
         
-        assert "academic-domain" in html
+        assert "domain-type" in html
         assert "chemistry" in html
         # semantic-domain should be hidden
         assert "semantic-domain" not in html

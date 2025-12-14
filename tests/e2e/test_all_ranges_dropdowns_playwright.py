@@ -1,7 +1,7 @@
 """
 Comprehensive Playwright integration tests for ALL LIFT ranges dropdowns.
 
-Tests that all range-based dropdowns (grammatical-info, academic-domain, 
+Tests that all range-based dropdowns (grammatical-info, domain-type, 
 semantic-domain, usage-type) are populated correctly from the LIFT ranges in BaseX.
 
 This ensures the ranges-loader.js properly initializes ALL dynamic-lift-range elements.
@@ -44,43 +44,43 @@ class TestAllRangesDropdownsPlaywright:
         
         print(f"✅ Grammatical info: {len(options)} options loaded")
 
-    def test_academic_domain_dropdown_populated(self, page: Page, app_url, basex_test_connector):
-        """Test that academic domain dropdown is populated from domain-type range."""
+    def test_domain_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+        """Test that domain type dropdown is populated from domain-type range."""
         page.goto(f'{app_url}/entries/add')
         page.wait_for_load_state('networkidle')
         
         # Wait a bit for JavaScript to initialize dropdowns
         page.wait_for_timeout(2000)
         
-        # Find academic domain selects
-        academic_selects = page.locator('select[data-range-id="academic-domain"]')
+        # Find domain type selects
+        domain_types_selects = page.locator('select[data-range-id="domain-type"]')
         
         # Check count
-        count = academic_selects.count()
+        count = domain_types_selects.count()
         
         # Check if visible and has options
-        if count > 0 and academic_selects.first.is_visible():
+        if count > 0 and domain_types_selects.first.is_visible():
             # Get options
-            options = academic_selects.first.locator('option').all_text_contents()
+            options = domain_types_selects.first.locator('option').all_text_contents()
             
             # Should have more than just the empty option
-            assert len(options) > 1, f"Expected multiple academic domain options, got: {options}"
+            assert len(options) > 1, f"Expected multiple domain type options, got: {options}"
             
-            # Check for some expected academic domains from domain-type range
+            # Check for some expected domain types from domain-type range
             options_text = " ".join(options).lower()
             # Based on the LIFT file, we expect domains like: computer science, finance, legal, etc.
             expected_domains = ['computer', 'finance', 'legal', 'science', 'antiq', 'inform']
             has_domain = any(domain in options_text for domain in expected_domains)
-            assert has_domain, f"Expected at least one academic domain in: {options[:5]}"
+            assert has_domain, f"Expected at least one domain type in: {options[:5]}"
             
-            print(f"✅ Academic domain: {len(options)} options loaded")
+            print(f"✅ domain type: {len(options)} options loaded")
         else:
             # If not visible or doesn't exist, check via API that the range is accessible
-            page.goto(f'{app_url}/api/ranges/academic-domain')
+            page.goto(f'{app_url}/api/ranges/domain-type')
             content = page.content()
             assert '"success":true' in content or '"data"' in content, \
-                f"Academic domain range not accessible via API: {content[:200]}"
-            print("⚠️  Academic domain select not visible on page load, but range accessible via API")
+                f"domain type range not accessible via API: {content[:200]}"
+            print("⚠️  domain type select not visible on page load, but range accessible via API")
 
     def test_semantic_domain_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that semantic domain dropdown is populated from semantic-domain-ddp4 range."""
@@ -114,7 +114,7 @@ class TestAllRangesDropdownsPlaywright:
             print(f"✅ Semantic domain: {len(options)} options loaded")
         else:
             # Check via API
-            page.goto(f'{app_url}/api/ranges/semantic-domain')
+            page.goto(f'{app_url}/api/ranges/semantic-domain-ddp4')
             content = page.content()
             assert '"success":true' in content or '"data"' in content, \
                 f"Semantic domain range not accessible via API: {content[:200]}"
@@ -185,8 +185,8 @@ class TestAllRangesDropdownsPlaywright:
         
         required_ranges = [
             'grammatical-info',
-            'academic-domain',
-            'semantic-domain',
+            'domain-type',
+            'semantic-domain-ddp4',
             'usage-type'
         ]
         

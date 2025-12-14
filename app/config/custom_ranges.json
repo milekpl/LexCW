@@ -1,0 +1,22 @@
+{
+  "complex-form-type": {
+    "label": "Complex form types",
+    "description": "Relationship type for component/main entry in complex forms",
+    "type": "fieldworks"
+  },
+  "is-primary": {
+    "label": "Is primary (trait)",
+    "description": "Marks component lexemes that are primary for generating subentries",
+    "type": "fieldworks"
+  },
+  "hide-minor-entry": {
+    "label": "Hide minor entry (trait)",
+    "description": "Controls whether a minor/variant entry is hidden in Publications",
+    "type": "fieldworks"
+  },
+  "variant-type": {
+    "label": "Variant Entry Types",
+    "description": "Variant entry types",
+    "type": "fieldworks"
+  }
+}

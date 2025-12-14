@@ -358,6 +358,37 @@ class HTMLBuilder:
             elif rel_type:
                 # If only type is available, return just the type
                 return rel_type
+
+        # Handle illustration elements - render image tag with optional caption
+        if element.tag == 'illustration':
+            href = element.attrib.get('href', '').strip()
+            if not href:
+                return ''
+
+            # Prefer absolute URLs; otherwise assume static file under /static/
+            if '://' in href:
+                src = href
+            else:
+                src = '/' + '/'.join(['static', href.lstrip('/')])
+
+            # Try to extract a label/caption (prefer first available)
+            caption = ''
+            for label in element.findall('./label'):
+                for form in label.findall('./form'):
+                    for text_elem in form.findall('./text'):
+                        if text_elem.text and text_elem.text.strip():
+                            caption = text_elem.text.strip()
+                            break
+                    if caption:
+                        break
+                if caption:
+                    break
+
+            # Build image HTML; include caption if available
+            img_html = f'<img src="{src}" class="lift-illustration img-thumbnail" style="max-width:300px;max-height:200px;" alt="{caption or "Illustration"}"/>'
+            if caption:
+                return f'<figure class="illustration-figure">{img_html}<figcaption class="illustration-caption">{caption}</figcaption></figure>'
+            return img_html
         
         # Handle field elements - show type in brackets if no content
         if element.tag == 'field' and 'type' in element.attrib:
