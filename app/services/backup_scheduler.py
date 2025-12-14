@@ -1,0 +1,251 @@
+"""
+Service for scheduling cyclical backups of BaseX databases.
+"""
+
+import threading
+import time
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.job import Job
+
+from app.services.basex_backup_manager import BaseXBackupManager
+from app.models.backup_models import ScheduledBackup
+
+
+class BackupScheduler:
+    """
+    Service for scheduling cyclical backups of BaseX databases.
+    
+    This service uses APScheduler to manage recurring backup jobs based on configurable
+    intervals (hourly, daily, weekly). It supports different backup types and maintains
+    scheduling metadata.
+    """
+
+    def __init__(self, backup_manager: BaseXBackupManager):
+        """
+        Initialize the backup scheduler.
+
+        Args:
+            backup_manager: BaseXBackupManager instance to perform actual backups
+        """
+        self.backup_manager = backup_manager
+        # Defer scheduler initialization to `start()` so tests can patch
+        # BackgroundScheduler before it is instantiated in unit tests.
+        self.scheduler = None
+        self.logger = logging.getLogger(__name__)
+        self._scheduled_backup_jobs: Dict[str, Job] = {}
+        self._running = False
+
+    def start(self):
+        """Start the backup scheduler."""
+        if not self._running:
+            # Initialize scheduler lazily to allow test patches
+            if self.scheduler is None:
+                self.scheduler = BackgroundScheduler()
+            self.scheduler.start()
+            self._running = True
+            self.logger.info("Backup scheduler started")
+
+    def stop(self):
+        """Stop the backup scheduler."""
+        if self._running and self.scheduler is not None:
+            self.scheduler.shutdown()
+            self.scheduler = None
+            self._running = False
+            self.logger.info("Backup scheduler stopped")
+
+    def schedule_backup(self, scheduled_backup: ScheduledBackup) -> bool:
+        """
+        Schedule a recurring backup job based on the scheduled backup configuration.
+
+        Args:
+            scheduled_backup: ScheduledBackup model instance with scheduling config
+
+        Returns:
+            True if scheduling was successful, False otherwise
+        """
+        try:
+            # Define cron schedule based on interval
+            cron_schedule = self._get_cron_schedule(scheduled_backup.interval, scheduled_backup.time)
+            
+            # Create the backup job function
+            def backup_job():
+                self._execute_scheduled_backup(scheduled_backup)
+            
+            # Schedule the job using cron fields (avoid direct CronTrigger construction
+            # to increase testability when CronTrigger is patched in unit tests)
+            minute, hour, day, month, dow = cron_schedule.split()
+            job = self.scheduler.add_job(
+                func=backup_job,
+                trigger='cron',
+                minute=minute,
+                hour=hour,
+                day=day,
+                month=month,
+                day_of_week=dow,
+                id=f"backup_{scheduled_backup.id}",
+                name=f"Backup job for {scheduled_backup.db_name}",
+                replace_existing=True
+            )
+
+            # Store reference to the job
+            self._scheduled_backup_jobs[scheduled_backup.id] = job
+            # Record schedule id on the ScheduledBackup model for easy lookup
+            setattr(scheduled_backup, 'schedule_id', scheduled_backup.id)
+            
+            # Update the scheduled backup's next run time
+            scheduled_backup.next_run = job.next_run_time
+            
+            self.logger.info(f"Scheduled backup for {scheduled_backup.db_name} with interval {scheduled_backup.interval}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to schedule backup for {scheduled_backup.db_name}: {str(e)}")
+            return False
+
+    def _get_cron_schedule(self, interval: str, time_str: str) -> str:
+        """
+        Convert interval and time specification to cron format.
+        
+        Args:
+            interval: Backup interval ('hourly', 'daily', 'weekly')
+            time_str: Time specification in HH:MM format or cron format
+            
+        Returns:
+            Cron schedule string
+        """
+        if interval == 'hourly':
+            # If time_str is HH:MM format, use the minute; otherwise use 0
+            if ':' in time_str:
+                minute = time_str.split(':')[1].zfill(2)
+                return f"{minute} * * * *"
+            else:
+                return f"{time_str} * * * *"  # Assume it's already in cron format for minute
+        
+        elif interval == 'daily':
+            if ':' in time_str:
+                hour, minute = time_str.split(':')
+                return f"{minute.zfill(2)} {hour.zfill(2)} * * *"
+            else:
+                return time_str  # Assume it's already in cron format
+        
+        elif interval == 'weekly':
+            # Default to Sunday at specified time if no day specified
+            if ':' in time_str:
+                hour, minute = time_str.split(':')
+                # Assuming Sunday is day 0; you might want to extend this to support specific days
+                return f"{minute.zfill(2)} {hour.zfill(2)} * * 0"
+            else:
+                return time_str  # Assume it's already in cron format
+        
+        else:
+            raise ValueError(f"Unsupported interval: {interval}")
+
+    def _execute_scheduled_backup(self, scheduled_backup: ScheduledBackup):
+        """
+        Execute a scheduled backup job.
+        
+        Args:
+            scheduled_backup: ScheduledBackup model instance to execute
+        """
+        try:
+            # Update last run time
+            scheduled_backup.last_run = datetime.utcnow()
+            
+            # Perform the backup
+            backup_result = self.backup_manager.backup_database(
+                db_name=scheduled_backup.db_name,
+                backup_type=scheduled_backup.type,
+                description=f"Scheduled {scheduled_backup.interval} backup"
+            )
+            
+            # Update last status
+            scheduled_backup.last_status = 'success'
+            
+            self.logger.info(f"Scheduled backup completed for {scheduled_backup.db_name}")
+            
+        except Exception as e:
+            scheduled_backup.last_status = 'failed'
+            error_msg = f"Scheduled backup failed for {scheduled_backup.db_name}: {str(e)}"
+            self.logger.error(error_msg)
+
+    def cancel_backup(self, schedule_id: str) -> bool:
+        """
+        Cancel a scheduled backup job.
+
+        Args:
+            schedule_id: ID of the scheduled backup to cancel
+
+        Returns:
+            True if cancellation was successful, False otherwise
+        """
+        try:
+            if schedule_id in self._scheduled_backup_jobs:
+                job = self._scheduled_backup_jobs[schedule_id]
+                job.remove()
+                del self._scheduled_backup_jobs[schedule_id]
+
+                self.logger.info(f"Scheduled backup cancelled for ID: {schedule_id}")
+                return True
+            else:
+                self.logger.warning(f"No scheduled backup found with ID: {schedule_id}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Failed to cancel scheduled backup {schedule_id}: {str(e)}")
+            return False
+
+    def get_scheduled_backups(self) -> List[Dict[str, any]]:
+        """
+        Get information about all currently scheduled backups.
+
+        Returns:
+            List of scheduled backup information
+        """
+        scheduled_info = []
+        
+        for schedule_id, job in self._scheduled_backup_jobs.items():
+            info = {
+                'schedule_id': schedule_id,
+                'job_id': job.id,
+                'job_name': job.name,
+                'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None,
+                'trigger': str(job.trigger)
+            }
+            scheduled_info.append(info)
+        
+        return scheduled_info
+
+    def run_scheduled_backups(self):
+        """
+        Manually trigger all scheduled backups.
+        This is mainly for testing or on-demand execution.
+        """
+        self.logger.info("Manually triggering all scheduled backups")
+        
+        for schedule_id, job in self._scheduled_backup_jobs.items():
+            # Execute the job immediately
+            try:
+                job.func()  # Execute the backup function directly
+                self.logger.info(f"Manual backup executed for schedule ID: {schedule_id}")
+            except Exception as e:
+                self.logger.error(f"Manual backup failed for schedule ID {schedule_id}: {str(e)}")
+
+    def update_scheduled_backup(self, scheduled_backup: ScheduledBackup) -> bool:
+        """
+        Update an existing scheduled backup.
+
+        Args:
+            scheduled_backup: Updated ScheduledBackup model instance
+
+        Returns:
+            True if update was successful, False otherwise
+        """
+        # First cancel the existing job
+        self.cancel_backup(scheduled_backup.id)
+
+        # Then schedule the updated configuration
+        return self.schedule_backup(scheduled_backup)

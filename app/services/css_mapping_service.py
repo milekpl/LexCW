@@ -434,7 +434,7 @@ class CSSMappingService:
             # relation: type attribute (maps to lexical-relation or relation-type range)
             relation_map = (range_abbr_maps.get('lexical-relation') or 
                           range_abbr_maps.get('relation-type') or 
-                          range_abbr_maps.get('relation-types'))
+                          range_abbr_maps.get('lexical-relation'))
             if relation_map:
                 for elem in root.findall('.//relation'):
                     current_type = elem.attrib.get('type', '')
@@ -465,7 +465,7 @@ class CSSMappingService:
                         elem.attrib['type'] = range_abbr_maps['reversal-type'][current_type]
             
             # note: type attribute (maps to note-type range)
-            note_map = range_abbr_maps.get('note-type') or range_abbr_maps.get('note-types')
+            note_map = range_abbr_maps.get('note-type') or range_abbr_maps.get('note-type')
             if note_map:
                 for elem in root.findall('.//note'):
                     current_type = elem.attrib.get('type', '')
@@ -506,7 +506,7 @@ class CSSMappingService:
                     # But standard fields in LIFT hold text. 
                     # If the USER meant "usage-type" as a range, it is typically a TRAIT.
                     # If it is a field, it might be just text.
-                    # We'll assume traits cover the domains/usage-types requirements.
+                    # We'll assume traits cover the domains/usage-type requirements.
                     pass
             
             # Convert back to string

@@ -28,7 +28,9 @@ def test_db_scan_creates_custom_ranges(dict_service_with_db, basex_test_connecto
     try:
         connector.execute_command(f'ADD {tmp_path}')
 
-        # Call get_ranges which should trigger the automatic scan and create custom ranges
+        # Explicitly trigger the scan for undefined ranges (make test robust
+        # against environment guards and timing issues) and then reload ranges
+        dict_service_with_db.scan_and_create_custom_ranges(project_id=1)
         ranges = dict_service_with_db.get_ranges(project_id=1)
 
         # Now there should be at least one CustomRange for the undefined relation

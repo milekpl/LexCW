@@ -158,7 +158,7 @@ class TestPronunciationUnicodeDisplay:
         '''
         parser = LIFTParser()
         entries = parser.parse_string(lift_xml)
-        # Simulate /api/ranges/relation-types: collect all relation types
+        # Simulate /api/ranges/lexical-relation: collect all relation types
         relation_types = set()
         for entry in entries:
             if hasattr(entry, 'senses'):

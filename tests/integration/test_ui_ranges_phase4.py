@@ -59,7 +59,7 @@ class TestUIRangesDynamicIntegration:
         
         # Should contain dynamic loading for relation types
         dynamic_indicators = [
-            'data-range-type="relation-types"',
+            'data-range-type="lexical-relation"',
             'data-range-type="lexical-relation"',
             'loadRelationTypes',
             'ranges-loader.js'

@@ -141,6 +141,16 @@ def test_lift_ranges_service_fallback() -> None:
     mock_connector.execute_query.return_value = None  # No ranges found
     
     service = DictionaryService(mock_connector)
+    # Ensure no custom ranges persist from other tests
+    try:
+        from app.models.custom_ranges import CustomRange, db as custom_db
+        if hasattr(custom_db, 'session'):
+            custom_db.session.query(CustomRange).delete()
+            custom_db.session.commit()
+    except Exception:
+        # If custom ranges table doesn't exist, ignore cleanup
+        pass
+
     ranges = service.get_ranges()
     
     # Service should return empty dict when no ranges available

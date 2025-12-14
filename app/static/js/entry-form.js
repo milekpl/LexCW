@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return Promise.resolve(); // Return a resolved promise for selects without a rangeId
         });
 
-        // Initialize ALL dynamic-lift-range selects (academic-domain, semantic-domain, usage-type, etc.)
+        // Initialize ALL dynamic-lift-range selects (semantic-domain, usage-type, etc.)
         const allDynamicRanges = container.querySelectorAll('.dynamic-lift-range');
         
         const rangePromises = Array.from(allDynamicRanges).map(select => {
@@ -724,6 +724,142 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // --- Illustration Handlers (Add / Upload / Labels) ---
+            const addIllustrationBtn = e.target.closest('.add-illustration-btn');
+            if (addIllustrationBtn) {
+                const senseIndex = addIllustrationBtn.dataset.senseIndex;
+                const container = addIllustrationBtn.closest('.sense-item')?.querySelector('.illustrations-container');
+                if (!container) return;
+
+                const illustrationIndex = container.querySelectorAll('.illustration-item').length;
+                const card = document.createElement('div');
+                card.className = 'illustration-item card mb-3';
+                card.dataset.illustrationIndex = illustrationIndex;
+                card.innerHTML = `
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="fas fa-image"></i> Illustration ${illustrationIndex + 1}</h6>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-illustration-btn" title="Remove illustration">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Image Path/URL</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control illustration-href" name="senses[${senseIndex}].illustrations[${illustrationIndex}].href" placeholder="images/photo.jpg or https://example.com/image.jpg" readonly>
+                                <button class="btn btn-outline-secondary upload-illustration-btn" type="button" data-sense-index="${senseIndex}" data-illustration-index="${illustrationIndex}" title="Upload image file">
+                                    <i class="fas fa-upload"></i> Upload Image
+                                </button>
+                            </div>
+                            <div class="form-text">Relative path (e.g., images/photo.jpg) or absolute URL</div>
+                        </div>
+                        <div class="mb-3 image-preview-container" style="display:none;"></div>
+                        <div class="illustration-labels">
+                            <label class="form-label">Labels/Captions (Multilingual)</label>
+                            <div class="multilingual-forms illustration-label-forms"></div>
+                            <button type="button" class="btn btn-sm btn-outline-primary add-illustration-label-language-btn mt-1" data-sense-index="${senseIndex}" data-illustration-index="${illustrationIndex}" title="Add caption in another language">
+                                <i class="fas fa-plus"></i> Add Caption Language
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                const placeholder = container.querySelector('.no-illustrations');
+                if (placeholder) placeholder.remove();
+
+                container.appendChild(card);
+                return;
+            }
+
+            const uploadIllustrationBtn = e.target.closest('.upload-illustration-btn');
+            if (uploadIllustrationBtn) {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+
+                fileInput.onchange = async (ev) => {
+                    const file = ev.target.files[0];
+                    if (!file) return;
+                    const senseIndex = uploadIllustrationBtn.dataset.senseIndex;
+                    const illustrationIndex = uploadIllustrationBtn.dataset.illustrationIndex;
+
+                    const senseItem = uploadIllustrationBtn.closest('.sense-item');
+                    const hrefInput = senseItem.querySelector(`.illustration-item[data-illustration-index="${illustrationIndex}"] .illustration-href`);
+                    const previewContainer = senseItem.querySelector(`.illustration-item[data-illustration-index="${illustrationIndex}"] .image-preview-container`);
+
+                    // Upload image to server
+                    try {
+                        const form = new FormData();
+                        form.append('image_file', file);
+
+                        const resp = await fetch('/api/illustration/upload', {
+                            method: 'POST',
+                            body: form
+                        });
+
+                        const data = await resp.json();
+                        if (!resp.ok || !data.success) {
+                            showToast('Image upload failed: ' + (data.message || resp.statusText), 'error');
+                            return;
+                        }
+
+                        const filename = data.filename;
+                        const path = `images/${filename}`;
+
+                        if (hrefInput) hrefInput.value = path;
+
+                        if (previewContainer) {
+                            previewContainer.style.display = 'block';
+                            previewContainer.innerHTML = `<img src="/static/${path}" class="img-thumbnail illustration-preview" style="max-width:300px;max-height:200px;" alt="Illustration preview" onerror="this.style.display='none';">`;
+                        }
+
+                    } catch (err) {
+                        console.error('Image upload failed', err);
+                        showToast('Image upload failed', 'error');
+                    }
+                };
+
+                fileInput.click();
+                return;
+            }
+
+            const addIllustrationLabelBtn = e.target.closest('.add-illustration-label-language-btn');
+            if (addIllustrationLabelBtn) {
+                const senseIndex = addIllustrationLabelBtn.dataset.senseIndex;
+                const illustrationIndex = addIllustrationLabelBtn.dataset.illustrationIndex;
+                const container = addIllustrationLabelBtn.closest('.illustration-item')?.querySelector('.illustration-label-forms');
+                if (!container) return;
+
+                const languageOptions = Array.from(document.querySelectorAll('select.language-select option')).map(o => ({code: o.value, label: o.textContent}));
+                const existing = Array.from(container.querySelectorAll('.language-form-group')).map(g => g.dataset.lang);
+                const available = languageOptions.filter(l => !existing.includes(l.code));
+                const newLang = available.length ? available[0].code : 'en';
+
+                const div = document.createElement('div');
+                div.className = 'language-form-group mb-2 border rounded p-2';
+                div.dataset.lang = newLang;
+                div.innerHTML = `
+                    <div class="row align-items-center">
+                        <div class="col-md-3"><span class="badge bg-secondary">${newLang}</span></div>
+                        <div class="col-md-9">
+                            <div class="d-flex align-items-center">
+                                <input type="text" class="form-control form-control-sm illustration-label-text" name="senses[${senseIndex}].illustrations[${illustrationIndex}].label.${newLang}" placeholder="Caption in ${newLang}">
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-illustration-label-language-btn ms-2" title="Remove this language"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+                return;
+            }
+
+            const removeIllustrationLabelBtn = e.target.closest('.remove-illustration-label-language-btn');
+            if (removeIllustrationLabelBtn) {
+                const form = removeIllustrationLabelBtn.closest('.language-form-group');
+                if (form && confirm('Remove this caption language?')) form.remove();
+                return;
+            }
+            
             const addExampleBtn = e.target.closest('.add-example-btn');
             if (addExampleBtn) {
                 const senseIndex = addExampleBtn.dataset.senseIndex;

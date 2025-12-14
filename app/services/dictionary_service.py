@@ -1564,18 +1564,19 @@ class DictionaryService:
             ranges_service = RangesService(self.db_connector)
             custom_ranges = ranges_service._load_custom_ranges(project_id)
 
-            # If no custom ranges exist for this project, scan the LIFT data
-            # in the database to detect undefined relations/traits and create
-            # custom ranges automatically.
-            if not custom_ranges:
-                # Only run the automatic scan in non-testing environments to avoid
-                # extra BaseX queries during unit tests.
-                if not (os.getenv("TESTING") == "true" or "pytest" in sys.modules):
+            # If no ranges were parsed from LIFT and no custom ranges exist,
+            # scan the LIFT data in the database to detect undefined relations/traits
+            # and create custom ranges automatically. Avoid unnecessary DB
+            # queries when a ranges document already exists.
+            if not parsed_ranges and not custom_ranges:
+                # Only run the automatic scan when explicitly not in a TESTING
+                # environment.
+                if not (os.getenv("TESTING") == "true"):
                     try:
                         from app.parsers.undefined_ranges_parser import UndefinedRangesParser
                         from app.services.lift_import_service import LIFTImportService
 
-                        # Get LIFT entries and lists from DB for scanning
+                        # Get LIFT entries and lists XML for scanning
                         lift_entries_xml = self.db_connector.execute_query(
                             f"string-join((for $entry in collection('{db_name}')//entry return serialize($entry)), '')"
                         )
@@ -1608,17 +1609,6 @@ class DictionaryService:
                     }
                 # Add custom elements to the range
                 parsed_ranges[range_name]['values'].extend(elements)
-
-            # Ensure both singular and plural keys for all relevant types
-            for key in list(parsed_ranges.keys()):
-                if key == "relation-type" and "relation-types" not in parsed_ranges:
-                    parsed_ranges["relation-types"] = parsed_ranges[key]
-                if key == "relation-types" and "relation-type" not in parsed_ranges:
-                    parsed_ranges["relation-type"] = parsed_ranges[key]
-                if key == "variant-type" and "variant-types" not in parsed_ranges:
-                    parsed_ranges["variant-types"] = parsed_ranges[key]
-                if key == "variant-types" and "variant-type" not in parsed_ranges:
-                    parsed_ranges["variant-type"] = parsed_ranges[key]
 
             self.ranges = parsed_ranges
             return self.ranges
@@ -1731,10 +1721,6 @@ class DictionaryService:
             '<range id="semantic-domain">'
             '  <range-element id="sd-1"><label><form lang="en"><text>Semantic Domain 1</text></form></label></range-element>'
             '  <range-element id="sd-2"><label><form lang="en"><text>Semantic Domain 2</text></form></label></range-element>'
-            '</range>'
-            '<range id="academic-domain">'
-            '  <range-element id="academics"><label><form lang="en"><text>Academics</text></form></label></range-element>'
-            '  <range-element id="general"><label><form lang="en"><text>General</text></form></label></range-element>'
             '</range>'
             '</lift-ranges>'
         )

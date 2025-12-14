@@ -145,6 +145,35 @@
                         </p>
                     </div>
 
+                    <h2 id="ranges">Ranges & Custom Values</h2>
+                    <p>
+                        The application reads official LIFT ranges from a <code>lift-ranges</code> file stored in the project database. There are two types of ranges:
+                        <strong>official ranges</strong> defined in the LIFT ranges document and <strong>custom (undefined) ranges</strong> that are discovered when entries use values not present in the official ranges.
+                    </p>
+                    <p>
+                        Important: the system does <em>not</em> pretend that missing ranges exist. When a range has no values, the UI will show a hint and you should add the needed values using the <em>Ranges Editor</em>. During import the app may automatically create custom ranges for undefined values it finds, but it will not invent hardcoded fallback lists — recommended default values are only applied when you explicitly choose to install them during project setup.
+                    </p>
+                    <p>
+                        See <em>Ranges Editor</em> (Settings → Ranges) to add, edit, or remove range values. This ensures your dropdowns and validation reflect your actual data.
+                    </p>
+
+                    <h4>Official vs Custom ranges</h4>
+                    <p>
+                        In the Ranges Editor, you will see badges identifying whether a range is <strong>Official</strong> (defined in the project's <code>lift-ranges</code> file) or <strong>Custom</strong> (created/imported). Use the badges to guide whether values should be edited in the source LIFT ranges file or adjusted locally via the editor.
+                    </p>
+                    <p>
+                        Administrators can provide localized human-friendly labels and descriptions for FieldWorks-only ranges by adding or editing <code>app/config/custom_ranges.json</code>. The application will pick up that file on restart and surface those labels in the editor.
+                    </p>
+                    <h4>Important Traits</h4>
+                    <p>
+                        Certain LIFT traits are used to control complex-form and publication behavior. Notable ones:
+                    </p>
+                    <ul>
+                        <li><strong>is-primary</strong>: marks component lexemes that should be considered primary in complex forms; primary components drive subentry generation.</li>
+                        <li><strong>hide-minor-entry</strong>: integer flag controlling whether a variant or complex form entry is hidden in publication outputs (0 = show, 1 = hide).</li>
+                        <li><strong>complex-form-type</strong>: label shown in the editor as <em>Complex form types</em> to indicate how subentries relate to main entries.</li>
+                    </ul>
+
                     <h2 id="core-features">User Benefits</h2>
                     <ul class="feature-list">
                         <li>Self-service learning without external documentation</li>

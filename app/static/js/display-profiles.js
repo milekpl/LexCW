@@ -324,7 +324,7 @@
                 `<option value="usage">Usage</option><option value="note">Note</option>` : '';
 
             datalistHtml = `<datalist id="${datalistId}">${rangeOptions}${fieldOptions}</datalist>`;
-            placeholder = elementName === 'trait' ? 'Range ID (e.g. academic-domain)' : 'Field Type (e.g. usage)';
+            placeholder = elementName === 'trait' ? 'Range ID (e.g. domain-type)' : 'Field Type (e.g. usage)';
 
         } else if (elementName === 'relation') {
             datalistId = `list-relations-${index}`;

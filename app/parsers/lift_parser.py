@@ -651,11 +651,11 @@ class LIFTParser:
             sense = self._parse_sense(sense_elem, sense_id)
             senses.append(sense)  # Keep as Sense object, don't convert to dict
         
-        # Parse entry-level traits (like morph-type, academic-domain)
+        # Parse entry-level traits (like morph-type)
         # Day 31-32: General traits - collect all traits into traits dict
         # Use direct children only, not descendant search (.// would include sense-level traits)
         morph_type = None
-        academic_domain = None
+        domain_type = None
         traits = {}  # General traits dict (Day 31-32)
         for trait_elem in self._find_elements(entry_elem, 'lift:trait', 'trait'):
             trait_name = trait_elem.get('name')
@@ -666,8 +666,9 @@ class LIFTParser:
                 # Also store specific ones in dedicated fields for backward compatibility
                 if trait_name == 'morph-type':
                     morph_type = trait_value
-                elif trait_name == 'academic-domain':
-                    academic_domain = trait_value
+                # Recognize domain-like trait names at entry-level
+                if trait_name in ('domain-type', 'semantic-domain-ddp4'):
+                    domain_type = trait_value
         
         date_created = entry_elem.get('dateCreated')
         date_modified = entry_elem.get('dateModified')
@@ -695,11 +696,11 @@ class LIFTParser:
             variants=variants,
             grammatical_info=grammatical_info,
             morph_type=morph_type,  # Add morph_type
-            academic_domain=academic_domain,  # Add academic_domain
             traits=traits,  # Day 31-32: General traits
             relations=relations,
             etymologies=etymologies,
             notes=notes,
+            domain_type=domain_type,
             custom_fields=custom_fields,
             senses=senses,
             homograph_number=homograph_number,
@@ -774,12 +775,11 @@ class LIFTParser:
                     if trait_name and trait_value:
                         grammatical_traits[trait_name] = trait_value
         
-        # Parse sense-level traits (usage-type, domain-type, academic-domain)
+        # Parse sense-level traits (usage-type, domain-type)
         # Day 31-32: General traits - collect all traits into traits dict
         # Note: Grammatical traits are handled separately (nested in grammatical-info)
         usage_type = []
-        domain_type = []
-        academic_domain = None
+        domain_type: Optional[str] = None
         traits = {}  # General traits dict (Day 31-32)
         
         # First, collect trait elements that are within grammatical-info (already parsed above)
@@ -797,17 +797,22 @@ class LIFTParser:
             trait_name = trait_elem.get('name')
             trait_value = trait_elem.get('value')
             if trait_name and trait_value:
-                # Store in general traits dict (except special ones)
-                if trait_name not in ['usage-type', 'domain-type', 'academic-domain']:
+                # Recognize a few alternate trait names that serve the same
+                # semantic roles as 'usage-type' and 'domain-type' in LIFT
+                domain_like = {'domain-type', 'semantic-domain-ddp4', 'semantic-domain'}
+                usage_like = {'usage-type'}
+
+                # Store in general traits dict unless it's a special-case trait
+                if trait_name not in domain_like and trait_name not in usage_like:
                     traits[trait_name] = trait_value
-                
-                # Also handle special trait types
-                if trait_name == 'usage-type':
+
+                # Map alternate trait names into canonical fields
+                if trait_name in usage_like:
                     usage_type.append(trait_value)
-                elif trait_name == 'domain-type':
-                    domain_type.append(trait_value)
-                elif trait_name == 'academic-domain':
-                    academic_domain = trait_value
+                elif trait_name in domain_like:
+                    # Domain-type is treated as a single value; take the first if multiple present
+                    if domain_type is None:
+                        domain_type = trait_value
         
         # Parse notes
         notes = {}
@@ -937,7 +942,6 @@ class LIFTParser:
             grammatical_traits=grammatical_traits,
             usage_type=usage_type,
             domain_type=domain_type,
-            academic_domain=academic_domain,
             notes=notes,
             annotations=annotations,
             exemplar=exemplar,
@@ -1265,13 +1269,12 @@ class LIFTParser:
             trait_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}trait')
             trait_elem.set('name', 'morph-type')
             trait_elem.set('value', entry.morph_type)
-        
-        # Add academic-domain trait if present
-        if hasattr(entry, 'academic_domain') and entry.academic_domain:
+        # Add entry-level domain type if present (map to domain-type trait)
+        if hasattr(entry, 'domain_type') and entry.domain_type:
             trait_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}trait')
-            trait_elem.set('name', 'academic-domain')
-            trait_elem.set('value', entry.academic_domain)
-        
+            trait_elem.set('name', 'domain-type')
+            trait_elem.set('value', str(entry.domain_type))
+               
         # Day 31-32: Add general traits (excluding special ones already handled)
         if hasattr(entry, 'traits') and entry.traits:
             for trait_name, trait_value in entry.traits.items():
@@ -1436,23 +1439,23 @@ class LIFTParser:
             
             # Add sense-level traits (usage-type, domain-type)
             if sense.usage_type:
-                for usage_value in sense.usage_type:
+                usage_values = sense.usage_type if isinstance(sense.usage_type, list) else [sense.usage_type]
+                for usage_value in usage_values:
                     trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
                     trait_elem.set('name', 'usage-type')
                     trait_elem.set('value', usage_value)
-            
+
             if sense.domain_type:
-                for domain_value in sense.domain_type:
+                domain_values = []
+                if isinstance(sense.domain_type, list):
+                    domain_values = sense.domain_type
+                elif isinstance(sense.domain_type, str):
+                    domain_values = [sense.domain_type]
+                for domain_value in domain_values:
                     trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
                     trait_elem.set('name', 'domain-type')
                     trait_elem.set('value', domain_value)
-            
-            # Add sense-level academic-domain trait if present
-            if hasattr(sense, 'academic_domain') and sense.academic_domain:
-                trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
-                trait_elem.set('name', 'academic-domain')
-                trait_elem.set('value', sense.academic_domain)
-            
+                       
             # Day 31-32: Add general traits (excluding special ones already handled)
             if hasattr(sense, 'traits') and sense.traits:
                 for trait_name, trait_value in sense.traits.items():
@@ -1595,16 +1598,16 @@ class LIFTParser:
                 trait_elem.set('value', usage_value)
         
         if subsense.domain_type:
-            for domain_value in subsense.domain_type:
+            domain_values = []
+            if isinstance(subsense.domain_type, list):
+                domain_values = subsense.domain_type
+            elif isinstance(subsense.domain_type, str):
+                domain_values = [subsense.domain_type]
+            for domain_value in domain_values:
                 trait_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}trait')
                 trait_elem.set('name', 'domain-type')
                 trait_elem.set('value', domain_value)
-        
-        if hasattr(subsense, 'academic_domain') and subsense.academic_domain:
-            trait_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}trait')
-            trait_elem.set('name', 'academic-domain')
-            trait_elem.set('value', subsense.academic_domain)
-        
+                
         # Add examples
         for example_item in subsense.examples:
             if isinstance(example_item, dict):

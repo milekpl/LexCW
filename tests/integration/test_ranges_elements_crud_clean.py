@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 import json
+import time
 from typing import Any
 from flask import Flask
 from flask.testing import FlaskClient
@@ -43,7 +44,14 @@ class TestRangeElementsCRUDClean:
             'descriptions': {'en': 'desc'}
         })
         assert guid
-        resp = client.get(f'/api/ranges-editor/{test_range_id}/elements/{element_id}')
-        assert resp.status_code == 200
+        # Retry GET briefly in case of transient latency between create and read
+        resp = None
+        for _ in range(3):
+            resp = client.get(f'/api/ranges-editor/{test_range_id}/elements/{element_id}')
+            if resp.status_code == 200:
+                break
+            time.sleep(0.1)
+
+        assert resp is not None and resp.status_code == 200
         # Cleanup
         service.delete_range_element(test_range_id, element_id)

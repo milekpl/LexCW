@@ -159,6 +159,29 @@ def test_relation_form_submission_with_sense_target(client: FlaskClient):
 
 
 @pytest.mark.integration
+def test_edit_entry_with_space_in_id_loads(client: FlaskClient):
+    """Regression test reproducing edit loading error for acceptance entry id."""
+    entry_id = 'acceptance test_3a03ccc9-0475-4900-b96c-fe0ce2a8e89b'
+    xml_content = f'''<?xml version="1.0" encoding="utf-8"?>
+<entry id="{entry_id}">
+    <lexical-unit>
+        <form lang="en"><text>acceptance</text></form>
+    </lexical-unit>
+</entry>'''
+
+    # Create or overwrite entry
+    response = client.post('/api/xml/entries', data=xml_content, content_type='application/xml')
+    # Either created or conflict if already exists; both OK for load test
+    assert response.status_code in [201, 409]
+
+    # Try to GET edit page for this id (URL-encoding should be handled)
+    from urllib.parse import quote
+    url = f'/entries/{quote(entry_id)}/edit'
+    response = client.get(url)
+    assert response.status_code == 200, f"Edit page failed to load: {response.status_code}"
+
+
+@pytest.mark.integration
 def test_api_search_with_sense_filtering(client: FlaskClient):
     """Test API search that can filter and return sense information."""
     # Test searching for specific glosses that would help identify senses
@@ -180,3 +203,38 @@ def test_api_search_with_sense_filtering(client: FlaskClient):
 
     # Note: This test might not pass with current search implementation
     # but demonstrates the desired functionality
+
+
+@pytest.mark.integration
+def test_edit_page_handles_range_value_with_none_description(client: FlaskClient, monkeypatch):
+    """Regression test: ensure template tolerates range values whose description is None."""
+
+    # Patch DictionaryService.get_lift_ranges to return a malformed description
+    from app.services.dictionary_service import DictionaryService
+
+    def fake_get_lift_ranges(self):
+        return {
+            "lexical-relation": {
+                "values": [{"id": "r1", "description": None}]
+            }
+        }
+
+    monkeypatch.setattr(DictionaryService, "get_lift_ranges", fake_get_lift_ranges)
+
+    unique_id = f"entry_with_malformed_range_{uuid.uuid4().hex[:8]}"
+    xml_content = f'''<?xml version="1.0" encoding="utf-8"?>
+<entry id="{unique_id}">
+    <lexical-unit>
+        <form lang="en"><text>word</text></form>
+    </lexical-unit>
+</entry>'''
+
+    resp = client.post('/api/xml/entries', data=xml_content, content_type='application/xml')
+    assert resp.status_code in (201, 409)
+
+    # Request edit page - should not 500 even though description is None
+    edit_resp = client.get(f"/entries/{unique_id}/edit")
+    assert edit_resp.status_code == 200
+    html = edit_resp.get_data(as_text=True)
+    # The option label should fall back to the id 'r1'
+    assert 'r1' in html

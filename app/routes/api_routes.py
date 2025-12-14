@@ -107,7 +107,7 @@ def get_all_ranges():
 
 @api_bp.route('/ranges/<range_type>')
 def get_range_by_type(range_type: str):
-    """Get a specific range type (e.g., grammatical-info, relation-types)."""
+    """Get a specific range type (e.g., grammatical-info, lexical-relation)."""
     try:
         dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_lift_ranges()
@@ -120,46 +120,8 @@ def get_range_by_type(range_type: str):
             range_data = ranges[range_type]
             logger.info(f"[Ranges API] Found {range_type} directly in ranges")
         else:
-            # Try alternative mappings based on actual LIFT data
-            type_mappings = {
-                'grammatical-info': ['grammatical-info'],
-                'relation-type': ['lexical-relation'],
-                'relation-types': ['lexical-relation'],
-                'variant-types': ['variant-types', 'variants'],
-                'variant-types-from-traits': ['variant-types', 'variants'],
-                'semantic-domains': ['semantic-domain-ddp4'],
-                'semantic-domain': ['semantic-domain-ddp4'],
-                'academic-domain': ['domain-type'],
-                'academic-domains': ['domain-type'],
-                'usage-types': ['usage-type'],
-                'usage-type': ['usage-type'],
-                'status': ['status'],
-                'note-types': ['note-type'],
-                'note-type': ['note-type'],
-                'morph-type': ['morph-type'],
-                'domain-type': ['domain-type'],
-                'from-part-of-speech': ['from-part-of-speech'],
-                'anthro-code': ['anthro-code'],
-                'translation-type': ['translation-type'],
-                'inflection-feature': ['inflection-feature'],
-                'inflection-feature-type': ['inflection-feature-type'],
-                'paradigm': ['paradigm'],
-                'reversal-type': ['reversal-type'],
-                'users': ['users'],
-                'location': ['location'],
-                'num-feature-value': ['num-feature-value'],
-                'publications': ['Publications'],
-                'do-not-publish-in': ['do-not-publish-in'],
-            }
-            
-            logger.info(f"[Ranges API] Trying mappings for {range_type}: {type_mappings.get(range_type, [])}")
-            
-            for alt_key in type_mappings.get(range_type, []):
-                logger.info(f"[Ranges API] Checking if '{alt_key}' in ranges...")
-                if alt_key in ranges:
-                    range_data = ranges[alt_key]
-                    logger.info(f"[Ranges API] Found! Mapped {range_type} -> {alt_key}")
-                    break
+            # No alternative mappings - only canonical forms are supported
+            logger.info(f"[Ranges API] Range '{range_type}' not found in ranges")
         
         if not range_data:
             logger.warning(f"[Ranges API] Range '{range_type}' not found. Available: {list(ranges.keys())}")

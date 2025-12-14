@@ -170,41 +170,9 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_ranges()
 
-        # Define specific mappings for known problematic range names
-        range_mappings = {
-            'relation-type': 'lexical-relation',
-            'relation-types': 'lexical-relation', 
-            'etymology': 'etymology',
-            'variant-types-from-traits': 'variant-types',
-            'semantic-domains': 'semantic-domain-ddp4',
-            'semantic-domain': 'semantic-domain-ddp4',
-            'academic-domain': 'domain-type',
-            'academic-domains': 'domain-type',
-            'usage-types': 'usage-type',
-            'note-types': 'note-type',
-            'publications': 'Publications',
-        }
-
-        # First check direct mapping
-        lookup_id = range_mappings.get(range_id, range_id)
-        
-        # If direct mapping doesn't exist, try the original fallback logic
-        if lookup_id not in ranges:
-            # For relation-types, try different variations
-            if range_id == 'relation-types':
-                if 'relation-types' in ranges:
-                    lookup_id = 'relation-types'
-                elif 'relation-type' in ranges:
-                    lookup_id = 'relation-type'
-                elif 'lexical-relation' in ranges:
-                    lookup_id = 'lexical-relation'
-            else:
-                # Try singular/plural fallback for other ranges
-                if lookup_id.endswith('s') and lookup_id[:-1] in ranges:
-                    lookup_id = lookup_id[:-1]
-                elif lookup_id + 's' in ranges:
-                    lookup_id = lookup_id + 's'
-
+        # Use exact ID matching only. Do not attempt plural/singular
+        # or heuristic fallbacks here; callers should use canonical IDs.
+        lookup_id = range_id
         if lookup_id not in ranges:
             return jsonify({
                 'success': False,
@@ -272,67 +240,15 @@ def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
         # Get dictionary service using dependency injection
         dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_ranges()
-        
-        # Check if variant-types exists in LIFT ranges
-        if 'variant-types' in ranges:
-            return jsonify({
-                'success': True,
-                'data': ranges['variant-types']
-            })
-        
-        # If not found in LIFT ranges, provide fallback data
-        fallback_data = {
-            'id': 'variant-types',
-            'description': {},
-            'guid': '',
-            'values': [
-                {
-                    'id': 'dialectal',
-                    'value': 'dialectal',
-                    'abbrev': 'dial',
-                    'description': {'en': 'Dialectal variant'},
-                    'guid': '',
-                    'children': []
-                },
-                {
-                    'id': 'spelling',
-                    'value': 'spelling',
-                    'abbrev': 'sp',
-                    'description': {'en': 'Spelling variant'},
-                    'guid': '',
-                    'children': []
-                },
-                {
-                    'id': 'phonetic',
-                    'value': 'phonetic',
-                    'abbrev': 'phon',
-                    'description': {'en': 'Phonetic variant'},
-                    'guid': '',
-                    'children': []
-                },
-                {
-                    'id': 'formal',
-                    'value': 'formal',
-                    'abbrev': 'form',
-                    'description': {'en': 'Formal variant'},
-                    'guid': '',
-                    'children': []
-                },
-                {
-                    'id': 'informal',
-                    'value': 'informal',
-                    'abbrev': 'inf',
-                    'description': {'en': 'Informal variant'},
-                    'guid': '',
-                    'children': []
-                }
-            ]
-        }
-        
-        return jsonify({
-            'success': True,
-            'data': fallback_data
-        })
+
+        # Prefer a LIFT-provided `variant-types` range if present. If not,
+        # derive variant types from actual <trait name="variant-type"> values
+        if 'variant-types' in ranges and ranges['variant-types'].get('values'):
+            return jsonify({'success': True, 'data': ranges['variant-types']})
+
+        # Fallback: derive from trait values in LIFT (live data)
+        variant_types = dict_service.get_variant_types_from_traits()
+        return jsonify({'success': True, 'data': {'id': 'variant-types', 'values': variant_types}})
     except Exception as e:
         return jsonify({
             'success': False,
@@ -340,7 +256,7 @@ def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
         }), 500
 
 
-@ranges_bp.route('/relation-types', methods=['GET'])
+@ranges_bp.route('/lexical-relation', methods=['GET'])
 def get_relation_types_range() -> Union[Response, Tuple[Response, int]]:
     """
     Get relation types range.
@@ -362,10 +278,10 @@ def get_relation_types_range() -> Union[Response, Tuple[Response, int]]:
       500:
         description: Error retrieving range
     """
-    return get_specific_range('relation-types')
+    return get_specific_range('lexical-relation')
 
 
-@ranges_bp.route('/semantic-domains', methods=['GET'])
+@ranges_bp.route('/semantic-domain-ddp4', methods=['GET'])
 def get_semantic_domains_range() -> Union[Response, Tuple[Response, int]]:
     """
     Get semantic domains range.
@@ -387,7 +303,7 @@ def get_semantic_domains_range() -> Union[Response, Tuple[Response, int]]:
       500:
         description: Error retrieving range
     """
-    return get_specific_range('semantic-domains')
+    return get_specific_range('semantic-domain-ddp4')
 
 
 @ranges_bp.route('/install_recommended', methods=['POST'])
@@ -471,7 +387,7 @@ def get_etymology_range() -> Union[Response, Tuple[Response, int]]:
     return get_specific_range('etymology')
 
 
-@ranges_bp.route('/variant-types-from-traits', methods=['GET'])
+@ranges_bp.route('/variant-types', methods=['GET'])
 def get_variant_types_from_traits() -> Union[Response, Tuple[Response, int]]:
     """
     Get variant types extracted from traits in the LIFT data.
@@ -535,7 +451,7 @@ def get_variant_types_from_traits() -> Union[Response, Tuple[Response, int]]:
         return jsonify({
             'success': True,
             'data': {
-                'id': 'variant-types-from-traits',
+                'id': 'variant-types',
                 'values': variant_types
             }
         })

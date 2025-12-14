@@ -320,7 +320,7 @@ def test_lift_ranges_api_performance(client: FlaskClient) -> None:
     start_time = time.time()
     response = client.get('/api/ranges/semantic-domain-ddp4')
     if response.status_code == 404:
-        response = client.get('/api/ranges/semantic-domains')
+        response = client.get('/api/ranges/semantic-domain-ddp4')
     end_time = time.time()
     
     if response.status_code == 200:

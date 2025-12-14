@@ -216,11 +216,7 @@ def get_range_values(range_id):
         # Get all ranges
         ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
         
-        # Special case handling for renamed ranges
-        if range_id == 'relation-types' and 'relation-type' in ranges:
-            range_id = 'relation-type'
-        elif range_id == 'variant-types' and 'variant-type' in ranges:
-            range_id = 'variant-type'
+        # Canonical forms only - no backward compatibility mappings
         
         # Check if range exists
         if range_id not in ranges:
@@ -245,7 +241,7 @@ def get_range_values(range_id):
         }), 500
 
 
-@search_bp.route('/ranges/relation-types', methods=['GET'])
+@search_bp.route('/ranges/lexical-relation', methods=['GET'])
 def get_relation_types():
     """
     Get the relation types from ranges.
@@ -260,15 +256,11 @@ def get_relation_types():
         # Get all ranges
         ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
         
-        # Look for relation types in different formats
-        relation_types = None
-        if 'relation-types' in ranges:
-            relation_types = ranges['relation-types']
-        elif 'relation-type' in ranges:
-            relation_types = ranges['relation-type']
-        
-        if not relation_types:
+        # Look for relation types in canonical format only
+        if 'lexical-relation' not in ranges:
             raise NotFoundError("Relation types not found in ranges")
+
+        relation_types = ranges['lexical-relation']
         
         # Return response
         return jsonify({
@@ -304,15 +296,11 @@ def get_variant_types():
         # Get all ranges
         ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
         
-        # Look for variant types in different formats
-        variant_types = None
-        if 'variant-types' in ranges:
-            variant_types = ranges['variant-types']
-        elif 'variant-type' in ranges:
-            variant_types = ranges['variant-type']
-        
-        if not variant_types:
+        # Look for variant types in canonical format only
+        if 'variant-types' not in ranges:
             raise NotFoundError("Variant types not found in ranges")
+
+        variant_types = ranges['variant-types']
         
         # Return response
         return jsonify({

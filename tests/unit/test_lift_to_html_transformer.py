@@ -360,3 +360,32 @@ class TestLIFTToHTMLTransformer:
         # Count how many times "Noun" appears - should be 1 (entry-level) not 3 (entry + 2 senses)
         noun_count = result.count('Noun')
         assert noun_count == 1, f"Expected 1 occurrence of 'Noun', found {noun_count}"
+
+    def test_handles_illustration_elements(self):
+        """Test that illustration elements are rendered as images with captions."""
+        lift_xml = """
+        <entry id="test">
+            <sense>
+                <gloss lang="en"><text>sample</text></gloss>
+                <illustration href="images/test.jpg">
+                    <label>
+                        <form lang="en"><text>Test image</text></form>
+                    </label>
+                </illustration>
+                <illustration href="https://example.com/remote.jpg" />
+            </sense>
+        </entry>
+        """
+
+        configs = [
+            ElementConfig("sense", 10, "sense", visibility="if-content", display_mode="block"),
+            ElementConfig("illustration", 20, "illustration", visibility="if-content", display_mode="block"),
+        ]
+
+        transformer = LIFTToHTMLTransformer()
+        result = transformer.transform(lift_xml, configs)
+
+        assert '<img' in result
+        assert '/static/images/test.jpg' in result
+        assert 'https://example.com/remote.jpg' in result
+        assert 'Test image' in result

@@ -32,9 +32,10 @@ class TestSenseLevelFields:
             glosses={"en": "test"},
             domain_type=["1.1 Universe, creation", "1.2 World"]
         )
-        
-        assert sense.domain_type == ["1.1 Universe, creation", "1.2 World"]
-        assert isinstance(sense.domain_type, list)
+
+        # domain_type is now treated as a single value (first non-empty)
+        assert sense.domain_type == "1.1 Universe, creation"
+        assert isinstance(sense.domain_type, str)
 
     def test_sense_model_defaults_to_empty_lists(self) -> None:
         """Test that usage_type and domain_type default to empty lists."""
@@ -44,7 +45,7 @@ class TestSenseLevelFields:
         )
         
         assert sense.usage_type == []
-        assert sense.domain_type == []
+        assert sense.domain_type is None
 
     def test_form_processor_handles_usage_type_as_list(self) -> None:
         """Test that form processor handles usage_type as a list."""
@@ -73,8 +74,9 @@ class TestSenseLevelFields:
         
         assert len(senses) == 1
         assert 'domain_type' in senses[0]
-        assert senses[0]['domain_type'] == ['1.1', '1.2']
-        assert isinstance(senses[0]['domain_type'], list)
+        # domain_type is normalized to a single value (first non-empty)
+        assert senses[0]['domain_type'] == '1.1'
+        assert isinstance(senses[0]['domain_type'], str)
 
     def test_form_processor_handles_semicolon_separated_string(self) -> None:
         """Test that form processor handles semicolon-separated strings (LIFT format)."""
@@ -119,7 +121,8 @@ class TestSenseLevelFields:
         assert 'usage_type' in sense_dict
         assert 'domain_type' in sense_dict
         assert sense_dict['usage_type'] == ["formal"]
-        assert sense_dict['domain_type'] == ["1.1"]
+        # domain_type is represented as a single value in to_dict
+        assert sense_dict['domain_type'] == "1.1"
 
     def test_multiple_senses_with_different_values(self) -> None:
         """Test form processor with multiple senses having different usage_type values."""

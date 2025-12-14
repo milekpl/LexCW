@@ -5,10 +5,118 @@ import logging
 import uuid
 from typing import Dict, List, Any, Optional
 import xml.etree.ElementTree as ET
+import os
 
 from app.database.basex_connector import BaseXConnector
 from app.parsers.lift_parser import LIFTRangesParser
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
+
+# Human-friendly labels and descriptions for well-known standard ranges.
+# These are used in the Ranges Editor to present readable labels for
+# lexicographers (labels are not always present in the LIFT ranges file).
+STANDARD_RANGE_METADATA = {
+    'etymology': {'label': 'Etymology', 'description': 'Borrowed / proto origin types'},
+    'grammatical-info': {'label': 'Grammatical Info (Parts of Speech)', 'description': 'Parts of speech'},
+    'lexical-relation': {'label': 'Lexical Relations', 'description': 'Lexical reference types'},
+    'note-type': {'label': 'Note Types', 'description': 'Note categories (anthropology, bibliography, etc.)'},
+    'paradigm': {'label': 'Paradigm', 'description': 'Grammatical paradigm markers'},
+    'reversal-type': {'label': 'Reversal Types', 'description': 'Reversal index writing systems'},
+    'semantic-domain-ddp4': {'label': 'Semantic Domains', 'description': 'Semantic domain classifications'},
+    'status': {'label': 'Status', 'description': 'Entry status values'},
+    'users': {'label': 'Users (People)', 'description': 'People / researchers'},
+    'location': {'label': 'Locations', 'description': 'Location possibilities'},
+    'anthro-code': {'label': 'Anthropology Codes', 'description': 'Anthropological codes'},
+    'translation-type': {'label': 'Translation Types', 'description': 'Translation tag types'},
+    'exception-feature': {'label': 'Exception Features', 'description': 'Production restrictions'},
+    'inflection-feature': {'label': 'Inflection Features', 'description': 'Morphosyntactic features'},
+    'inflection-feature-type': {'label': 'Inflection Feature Types', 'description': 'Feature type structures'},
+    'from-part-of-speech': {'label': 'From Parts of Speech', 'description': 'Parts of speech for affixes'},
+    'morph-type': {'label': 'Morph Types', 'description': 'Morpheme type classifications'},
+    'feature-values': {'label': 'Feature Values', 'description': 'Values for closed features'},
+    'affix-categories': {'label': 'Affix Slots', 'description': 'Slot positions by part of speech'},
+    'infl-class': {'label': 'Inflection Classes', 'description': 'Inflection class hierarchies'},
+    'stem-names': {'label': 'Stem Names', 'description': 'Stem name definitions'},
+    'Publications': {'label': 'Publications', 'description': 'Publication types'},
+    'usage-type': {'label': 'Usage Types', 'description': 'Usage type list'},
+    'domain-type': {'label': 'Domain Types', 'description': 'Domain types'},
+}
+
+# Add labels for complex-form-type and important LIFT traits
+STANDARD_RANGE_METADATA.setdefault('complex-form-type', {'label': 'Complex form types', 'description': 'How component subentries relate to main entries'})
+STANDARD_RANGE_METADATA.setdefault('is-primary', {'label': 'Is primary (trait)', 'description': 'Marks a component as primary in complex forms'})
+STANDARD_RANGE_METADATA.setdefault('hide-minor-entry', {'label': 'Hide minor entry (trait)', 'description': 'Control publication visibility of minor entries'})
+STANDARD_RANGE_METADATA.setdefault('variant-type', {'label': 'Variant types', 'description': 'Variant type classifications'})
+
+# Optionally load localized/overriding metadata from `app/config/custom_ranges.json`.
+# Keys present in that file are usually FieldWorks-only lists (not stored in LIFT)
+# and are recorded in CONFIG_PROVIDED_RANGES so they can be marked when added.
+CONFIG_PROVIDED_RANGES = set()
+CONFIG_RANGE_TYPES: Dict[str, str] = {}
+# NOTE: keep the in-code STANDARD_RANGE_METADATA as the primary fallback
+# for friendly labels; the JSON file now only contains custom FieldWorks lists.
+try:
+    import json
+    _app_dir = os.path.dirname(os.path.dirname(__file__))
+    _cfg_path = os.path.join(_app_dir, 'config', 'custom_ranges.json')
+    if os.path.exists(_cfg_path):
+        with open(_cfg_path, 'r', encoding='utf-8') as _f:
+            _cfg = json.load(_f)
+            # Merge: allow config file to provide localized labels/descriptions
+            for _k, _v in _cfg.items():
+                if _k in STANDARD_RANGE_METADATA:
+                    # augment existing metadata
+                    STANDARD_RANGE_METADATA[_k].setdefault('label', STANDARD_RANGE_METADATA[_k]['label'])
+                    STANDARD_RANGE_METADATA[_k].setdefault('description', STANDARD_RANGE_METADATA[_k]['description'])
+                # record that this key was provided by the config file
+                CONFIG_PROVIDED_RANGES.add(_k)
+                # store optional type (fieldworks/custom)
+                CONFIG_RANGE_TYPES[_k] = _v.get('type', 'fieldworks')
+                # Normalize to simple dict with 'label' and 'description' strings
+                if isinstance(_v.get('label'), dict):
+                    # use English label if available
+                    STANDARD_RANGE_METADATA[_k] = {
+                        'label': _v['label'].get('en', next(iter(_v['label'].values()))),
+                        'description': _v.get('description', {}).get('en', '')
+                    }
+                else:
+                    STANDARD_RANGE_METADATA[_k] = {
+                        'label': _v.get('label') or STANDARD_RANGE_METADATA.get(_k, {}).get('label'),
+                        'description': _v.get('description') or STANDARD_RANGE_METADATA.get(_k, {}).get('description')
+                    }
+except Exception:
+    # Do not fail startup if config file missing or invalid
+    pass
+
+
+def reload_custom_ranges_config() -> None:
+    """Reload custom_ranges.json and update in-memory metadata sets."""
+    global CONFIG_PROVIDED_RANGES
+    try:
+        import json
+        _app_dir = os.path.dirname(os.path.dirname(__file__))
+        _cfg_path = os.path.join(_app_dir, 'config', 'custom_ranges.json')
+        if not os.path.exists(_cfg_path):
+            CONFIG_PROVIDED_RANGES = set()
+            return
+        with open(_cfg_path, 'r', encoding='utf-8') as f:
+            _cfg = json.load(f)
+        CONFIG_PROVIDED_RANGES.clear()
+        for _k, _v in _cfg.items():
+            CONFIG_PROVIDED_RANGES.add(_k)
+            CONFIG_RANGE_TYPES[_k] = _v.get('type', 'fieldworks')
+            if isinstance(_v.get('label'), dict):
+                label = _v['label'].get('en', next(iter(_v['label'].values())))
+                desc = _v.get('description', {}).get('en', '')
+            else:
+                label = _v.get('label')
+                desc = _v.get('description')
+            STANDARD_RANGE_METADATA[_k] = {
+                'label': label or STANDARD_RANGE_METADATA.get(_k, {}).get('label'),
+                'description': desc or STANDARD_RANGE_METADATA.get(_k, {}).get('description')
+            }
+    except Exception:
+        # ignore reload errors
+        pass
 
 
 class RangesService:
@@ -55,6 +163,12 @@ class RangesService:
                 }
             }
         """
+        # Ensure config-driven metadata is up-to-date (reload if the config file changed)
+        try:
+            reload_custom_ranges_config()
+        except Exception:
+            pass
+
         self._ensure_connection()
         db_name = self.db_connector.database
 
@@ -73,8 +187,65 @@ class RangesService:
         else:
             self.logger.warning("No ranges found in database")
 
+        # Annotate parsed ranges with helpful UI metadata: human-friendly
+        # label (preferred language 'en') and whether the range is a standard
+        # range (from our known list). Also normalize 'description' field
+        # to be a dict for compatibility with custom ranges.
+        for rid, rdata in list(ranges.items()):
+            # Normalize descriptions: parser provides 'descriptions'; keep it
+            descriptions = rdata.get('descriptions') or {}
+            labels = rdata.get('labels') or {}
+
+            # Normalize strings to dicts if parser returned simple strings
+            if isinstance(descriptions, str):
+                descriptions = {'en': descriptions}
+            if isinstance(labels, str):
+                labels = {'en': labels}
+
+            # Prefer label from labels, then from descriptions.
+            # If none present in LIFT, fall back to STANDARD_RANGE_METADATA label
+            label_str = labels.get('en') or next(iter(labels.values()), None) or descriptions.get('en') or next(iter(descriptions.values()), None)
+            if not label_str:
+                # Try exact id, then plural/singular counterpart
+                meta = STANDARD_RANGE_METADATA.get(rid)
+                if not meta and rid.endswith('s'):
+                    meta = STANDARD_RANGE_METADATA.get(rid[:-1])
+                if not meta:
+                    meta = STANDARD_RANGE_METADATA.get(rid + 's')
+                if isinstance(meta, dict) and meta.get('label'):
+                    label_str = meta.get('label')
+
+            # Description fallback from metadata (safe access)
+            if not descriptions:
+                meta = STANDARD_RANGE_METADATA.get(rid)
+                if isinstance(meta, dict) and meta.get('description'):
+                    descriptions = {'en': meta.get('description')}
+                else:
+                    # try plural/singular fallback for description
+                    other = rid[:-1] if rid.endswith('s') else rid + 's'
+                    meta2 = STANDARD_RANGE_METADATA.get(other)
+                    if isinstance(meta2, dict) and meta2.get('description'):
+                        descriptions = {'en': meta2.get('description')}
+            rdata['label'] = label_str or rid
+            rdata['description'] = descriptions
+            rdata['official'] = True
+            rdata['standard'] = rid in STANDARD_RANGE_METADATA
+            # For ranges parsed from LIFT, prefer LIFT as authoritative.
+            # Even if a config entry exists for the same standard, do not
+            # mark the parsed LIFT range as "provided_by_config" or
+            # as a FieldWorks-standard; those flags are only meaningful
+            # for ranges that are absent from LIFT and provided by the
+            # configuration file.
+            rdata['fieldworks_standard'] = False
+            rdata['provided_by_config'] = False
+
         # Load and merge custom ranges
         custom_ranges = self._load_custom_ranges(project_id)
+
+        # If there are no ranges in the database and no custom ranges, return empty
+        # dict to reflect an empty ranges state (avoid synthesizing standard metadata)
+        if not ranges and not custom_ranges:
+            return {}
 
         # Merge custom ranges into the main ranges dict
         for range_name, elements in custom_ranges.items():
@@ -87,6 +258,84 @@ class RangesService:
                 }
             # Add custom elements to the range
             ranges[range_name]['values'].extend(elements)
+
+        # Mark custom ranges as not official and ensure top-level label field
+        for rid, rdata in ranges.items():
+            if not rdata.get('official'):
+                # custom ranges (from DB) - provide a label if present on elements
+                values = rdata.get('values', [])
+                rdata['official'] = False
+                rdata['standard'] = rid in STANDARD_RANGE_METADATA
+                # if the metadata provides a label for a known standard, use it
+                if not rdata.get('label'):
+                    if rdata['standard']:
+                        # Use metadata label only when the range isn't present
+                        # in the LIFT data; but since we're iterating ranges
+                        # that do exist, prefer empty label (admin should set it).
+                        rdata['label'] = rdata.get('label') or rid
+                    else:
+                        rdata['label'] = rid
+
+        # Now ensure that any known standard ranges that are entirely absent
+        # from the parsed ranges are included for the editor (these are
+        # typically FieldWorks-related lists that cannot be stored in LIFT).
+        for std_id, meta in STANDARD_RANGE_METADATA.items():
+            if std_id not in ranges:
+                label = meta.get('label') if isinstance(meta, dict) else meta
+                desc = meta.get('description') if isinstance(meta, dict) else ''
+                ranges[std_id] = {
+                    'id': std_id,
+                    'guid': f'provided-{std_id}',
+                    'label': label or std_id,
+                    'description': {'en': desc} if desc else {},
+                    'values': [],
+                    'official': False,
+                    'standard': True,
+                    # Only mark provided_by_config when the config file actually
+                    # declared the FieldWorks-only list (custom_ranges.json)
+                    'provided_by_config': std_id in CONFIG_PROVIDED_RANGES,
+                    'fieldworks_standard': (CONFIG_RANGE_TYPES.get(std_id) == 'fieldworks'),
+                    'config_type': CONFIG_RANGE_TYPES.get(std_id)
+                }
+
+            # Coalesce singular/plural duplicates (e.g., 'variant-type' vs 'variant-types')
+            # Prefer the form with more values; merge values and metadata into the preferred key.
+            for key in list(ranges.keys()):
+                if key.endswith('s'):
+                    singular = key[:-1]
+                    plural = key
+                    if singular in ranges and plural in ranges and singular != plural:
+                        # choose preferred: one with more values, otherwise prefer plural
+                        sing_vals = ranges[singular].get('values', []) or []
+                        plur_vals = ranges[plural].get('values', []) or []
+                        if len(plur_vals) >= len(sing_vals):
+                            preferred = plural
+                            other = singular
+                        else:
+                            preferred = singular
+                            other = plural
+
+                        # Merge values (preserve order, dedupe by id)
+                        seen = set()
+                        merged_values = []
+                        for v in (ranges[preferred].get('values', []) + ranges[other].get('values', [])):
+                            vid = v.get('id') or v.get('value')
+                            if vid and vid not in seen:
+                                seen.add(vid)
+                                merged_values.append(v)
+
+                        ranges[preferred]['values'] = merged_values
+
+                        # Prefer label if set
+                        if not ranges[preferred].get('label') and ranges[other].get('label'):
+                            ranges[preferred]['label'] = ranges[other]['label']
+
+                        # official/standard flags: prefer True if any is True
+                        ranges[preferred]['official'] = bool(ranges[preferred].get('official') or ranges[other].get('official'))
+                        ranges[preferred]['standard'] = bool(ranges[preferred].get('standard') or ranges[other].get('standard'))
+
+                        # Remove the other key
+                        del ranges[other]
 
         return ranges
 
@@ -302,6 +551,17 @@ class RangesService:
         
         self.db_connector.execute_update(query)
         self.logger.info(f"Deleted range '{range_id}'")
+        # Also remove any custom range rows stored in the SQL database
+        try:
+            from app.models.custom_ranges import CustomRange, db as custom_db
+
+            deleted = CustomRange.query.filter_by(range_name=range_id).delete(synchronize_session=False)
+            if deleted:
+                custom_db.session.commit()
+                self.logger.info(f"Deleted {deleted} custom range rows for '{range_id}' from SQL DB")
+        except Exception as e:
+            # Log but do not fail deletion if SQL DB not available or table missing
+            self.logger.debug(f"Error deleting custom ranges from SQL DB for '{range_id}': {e}")
     
     # --- Range Element CRUD ---
     

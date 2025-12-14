@@ -54,7 +54,8 @@ def test_grammatical_info_has_full_lift_ranges(client: FlaskClient) -> None:
 @pytest.mark.integration
 def test_lexical_relation_types_available(client: FlaskClient) -> None:
     """Test that lexical relation types from LIFT ranges are available."""
-    response = client.get('/api/ranges/relation-types')
+    # Use canonical ID 'lexical-relation'
+    response = client.get('/api/ranges/lexical-relation')
     assert response.status_code == 200
     data = response.get_json()
     assert data['success'] is True

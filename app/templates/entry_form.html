@@ -1293,15 +1293,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="form-text">Grammatical category for this sense.</div>
                         </div>
 
-                        <!-- LIFT Ranges: Academic Domain (sense-level) -->
+                        <!-- LIFT Ranges: Domain Types (sense-level) -->
                         <div class="mb-3">
-                            <label class="form-label">Academic Domain</label>
-                            <select class="form-select dynamic-lift-range" name="senses[{{ loop.index0 }}].academic_domain"
-                                    data-range-id="academic-domain"
-                                    data-selected="{{ sense.academic_domain }}"
+                            <label class="form-label">Domain Type</label>
+                            <select class="form-select dynamic-lift-range" name="senses[{{ loop.index0 }}].domain_type"
+                                    data-range-id="domain-type"
+                                    data-selected="{{ sense.domain_type }}"
                                     data-hierarchical="true"
                                     data-searchable="true">
-                                <option value="">Select academic domain</option>
+                                <option value="">Select domain type</option>
                             </select>
                             <div class="form-text">Academic or disciplinary domain this sense belongs to.</div>
                         </div>
@@ -1310,11 +1310,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="mb-3">
                             <label class="form-label">Semantic Domain</label>
                             <select class="form-select dynamic-lift-range" 
-                                    name="senses[{{ loop.index0 }}].domain_type" 
+                                    name="senses[{{ loop.index0 }}].semantic_domain" 
                                     data-range-id="semantic-domain-ddp4" 
                                     data-hierarchical="true" 
                                     data-searchable="true"
-                                    data-selected="{{ sense.domain_type|join(';') if sense.domain_type else '' }}"
+                                    data-selected="{{ sense.semantic_domain|join(';') if sense.semantic_domain else '' }}"
                                     multiple>
                                 <option value="">Select semantic domain(s)</option>
                             </select>
@@ -1732,12 +1732,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                                                                 required>
                                                                             <option value="">Select type</option>
                                                                             {% set rel_type = relation.get('type', '') if relation is mapping else (relation.type or '') %}
-                                                                            {% if ranges and ranges.get('lexical-relation') and ranges['lexical-relation'].get('values') %}
-                                                                                {% for range_value in ranges['lexical-relation']['values'] %}
+                                                                            {% set lex_rel = ranges.get('lexical-relation') if ranges is mapping else None %}
+                                                                            {% if lex_rel and lex_rel.get('values') %}
+                                                                                {% for range_value in lex_rel['values'] %}
+                                                                                    {% set rv_desc = range_value.get('description') or {} %}
                                                                                     <option value="{{ range_value.id }}" {% if rel_type == range_value.id %}selected{% endif %}>
-                                                                                        {{ range_value.get('description', {}).get('pl', range_value.get('description', {}).get('en', range_value.get('id', range_value.id))) }}
-                                                                                        {% if range_value.get('description', {}).get('en') and range_value.get('description', {}).get('pl') and range_value.get('description', {}).get('en') != range_value.get('description', {}).get('pl') %}
-                                                                                            ({{ range_value.get('description', {}).get('en') }})
+                                                                                        {{ rv_desc.get('pl', rv_desc.get('en', range_value.get('id', range_value.id))) }}
+                                                                                        {% if rv_desc.get('en') and rv_desc.get('pl') and rv_desc.get('en') != rv_desc.get('pl') %}
+                                                                                            ({{ rv_desc.get('en') }})
                                                                                         {% endif %}
                                                                                     </option>
                                                                                 {% endfor %}
@@ -1749,16 +1751,18 @@ document.addEventListener('DOMContentLoaded', function() {
                                                                     </div>
                                                                     <div class="col-md-8">
                                                                         <label class="form-label">Target Sense</label>
-                                                                        {% if relation.get('ref_display_text') or relation.get('ref_gloss') %}
+                                                                        {% set ref_display = relation.get('ref_display_text') if relation is mapping else (relation.ref_display_text if relation.ref_display_text is defined else None) %}
+                                                                        {% set ref_gloss = relation.get('ref_gloss') if relation is mapping else (relation.ref_gloss if relation.ref_gloss is defined else None) %}
+                                                                        {% if ref_display or ref_gloss %}
                                                                         <!-- Show resolved target sense information -->
                                                                         <div class="alert alert-light mb-2">
                                                                             <i class="fas fa-project-diagram me-2"></i>
                                                                             <strong>Related to: </strong>
                                                                             <span class="fw-bold text-dark">
-                                                                                {{ relation.ref_display_text or 'Unknown' }}
+                                                                                {{ ref_display or 'Unknown' }}
                                                                             </span>
-                                                                            {% if relation.get('ref_gloss') %}
-                                                                            <span class="text-muted"> — {{ relation.ref_gloss }}</span>
+                                                                            {% if ref_gloss %}
+                                                                            <span class="text-muted"> — {{ ref_gloss }}</span>
                                                                             {% endif %}
                                                                         </div>
                                                                         {% else %}
@@ -2730,14 +2734,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 </select>
             </div>
 
-            <!-- LIFT Ranges: Academic Domain (sense-level) -->
+            <!-- LIFT Ranges: Domain type (sense-level) -->
             <div class="mb-3">
-                <label class="form-label">Academic Domain</label>
-                <select class="form-select dynamic-lift-range" name="senses[INDEX].academic_domain"
-                        data-range-id="academic-domain"
+                <label class="form-label">Domain type</label>
+                <select class="form-select dynamic-lift-range" name="senses[INDEX].domain_type"
+                        data-range-id="domain-type"
                         data-hierarchical="true"
                         data-searchable="true">
-                    <option value="">Select academic domain</option>
+                    <option value="">Select domain</option>
                 </select>
                 <div class="form-text">Academic or disciplinary domain this sense belongs to.</div>
             </div>

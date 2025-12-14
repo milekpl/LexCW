@@ -34,3 +34,5 @@ pytest-playwright==0.5.0
 beautifulsoup4==4.12.3
 # PostgreSQL database
 psycopg2-binary>=2.9.9
+# Scheduling library for backup scheduler
+APScheduler>=3.10.0

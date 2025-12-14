@@ -52,36 +52,30 @@ class Sense(BaseModel):
         else:
             self.literal_meaning: Optional[Dict[str, str]] = None
         
-        # LIFT-aligned fields: usage_type and domain_type (semantic/academic domains)
-        # These are stored as lists to support multiple values
-        # IMPORTANT: Coerce to list to prevent string-as-iterable bug
+        # LIFT-aligned fields: usage_type (list) and domain_type (single value)
+        # usage_type supports multiple values and is stored as a list
         usage_type_value = kwargs.pop('usage_type', [])
         if isinstance(usage_type_value, str):
-            # If it's a string, wrap it in a list (don't iterate over characters!)
-            self.usage_type: list[str] = [usage_type_value] if usage_type_value else []
+            # If it's a string, split semicolon-separated LIFT format into list
+            self.usage_type: list[str] = [v.strip() for v in usage_type_value.split(';') if v.strip()]
         elif isinstance(usage_type_value, list):
             self.usage_type: list[str] = usage_type_value
         else:
             self.usage_type: list[str] = []
-        
-        domain_type_value = kwargs.pop('domain_type', [])
-        if isinstance(domain_type_value, str):
-            # If it's a string, wrap it in a list (don't iterate over characters!)
-            self.domain_type: list[str] = [domain_type_value] if domain_type_value else []
-        elif isinstance(domain_type_value, list):
-            self.domain_type: list[str] = domain_type_value
-        else:
-            self.domain_type: list[str] = []
 
-        # Academic Domains - single string field (separate from semantic domains)
-        academic_domain_value = kwargs.pop('academic_domain', None)
-        if isinstance(academic_domain_value, str):
-            self.academic_domain: Optional[str] = academic_domain_value if academic_domain_value.strip() else None
-        elif academic_domain_value is None:
-            self.academic_domain: Optional[str] = None
+        # domain_type is a single optional string value (entry-level domain_type is handled on Entry)
+        domain_type_value = kwargs.pop('domain_type', None)
+        if isinstance(domain_type_value, str):
+            self.domain_type: Optional[str] = domain_type_value.strip() if domain_type_value.strip() else None
+        elif isinstance(domain_type_value, list):
+            # If provided as a list (legacy or parser output), take the first non-empty value
+            first = next((v for v in domain_type_value if isinstance(v, str) and v.strip()), None)
+            self.domain_type: Optional[str] = first.strip() if first else None
+        elif domain_type_value is None:
+            self.domain_type: Optional[str] = None
         else:
-            # Handle non-string values by converting to string
-            self.academic_domain: Optional[str] = str(academic_domain_value) if academic_domain_value else None
+            # Convert non-string values to string
+            self.domain_type = str(domain_type_value) if domain_type_value else None
 
         # Handle gloss and definition - LIFT flat format {lang: text}
         # Only accept dict format

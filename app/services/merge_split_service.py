@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import uuid
 import copy
+import json
 
 from app.models.merge_split_operations import MergeSplitOperation, SenseTransfer, MergeSplitResult
 from app.models.entry import Entry
@@ -56,6 +57,11 @@ class MergeSplitService:
             ValidationError: If sense IDs are invalid or operation fails validation
             DatabaseError: If database operations fail
         """
+        # Store original data for potential undo
+        original_source_entry = self.dictionary_service.get_entry(source_entry_id)
+        if not original_source_entry:
+            raise NotFoundError(f"Source entry {source_entry_id} not found")
+
         # Create operation record
         operation = MergeSplitOperation(
             operation_type="split_entry",
@@ -63,29 +69,23 @@ class MergeSplitService:
             sense_ids=sense_ids,
             user_id=user_id
         )
-        
-        try:
-            # Get the source entry
-            source_entry = self.dictionary_service.get_entry(source_entry_id)
-            if not source_entry:
-                operation.mark_failed("Source entry not found")
-                self.history_service.save_operation(operation)
-                raise NotFoundError(f"Source entry {source_entry_id} not found")
 
+        try:
             # Validate sense IDs
-            self._validate_sense_ids(source_entry, sense_ids)
+            self._validate_sense_ids(original_source_entry, sense_ids)
 
             # Create new entry with the specified senses
             new_entry = self._create_new_entry_from_senses(
-                source_entry, sense_ids, new_entry_data
+                original_source_entry, sense_ids, new_entry_data
             )
 
             # Remove senses from source entry
-            self._remove_senses_from_entry(source_entry, sense_ids)
+            modified_source_entry = copy.deepcopy(original_source_entry)
+            self._remove_senses_from_entry(modified_source_entry, sense_ids)
 
             # Save changes to database
             self.dictionary_service.create_entry(new_entry)
-            self.dictionary_service.update_entry(source_entry)
+            self.dictionary_service.update_entry(modified_source_entry)
 
             # Record sense transfers
             for sense_id in sense_ids:
@@ -94,18 +94,46 @@ class MergeSplitService:
                     original_entry_id=source_entry_id,
                     new_entry_id=new_entry.id
                 )
-                self.history_service.save_transfer(transfer)
+                self.history_service.record_transfer(transfer)
 
-            # Mark operation as completed
+            # Record the operation in the enhanced history system
+            operation_data = {
+                'operation_type': 'split_entry',
+                'source_entry_id': source_entry_id,
+                'new_entry_id': new_entry.id,
+                'sense_ids': sense_ids,
+                'original_source_entry': original_source_entry.to_dict() if hasattr(original_source_entry, 'to_dict') else {},
+                'new_entry_data': new_entry_data
+            }
+
+            self.history_service.record_operation(
+                operation_type='split',
+                data=operation_data,
+                entry_id=source_entry_id,
+                user_id=user_id
+            )
+
+            # Record the operation in the legacy system for backward compatibility
             operation.target_id = new_entry.id
             operation.mark_completed()
-            self.history_service.save_operation(operation)
+            self.history_service.record_merge_split_operation(operation)
 
             return operation
 
         except Exception as e:
             operation.mark_failed(str(e))
-            self.history_service.save_operation(operation)
+            operation_data = {
+                'operation_type': 'split_entry_failed',
+                'source_entry_id': source_entry_id,
+                'error': str(e)
+            }
+            self.history_service.record_operation(
+                operation_type='split_failed',
+                data=operation_data,
+                entry_id=source_entry_id,
+                user_id=user_id
+            )
+            self.history_service.record_merge_split_operation(operation)
             raise
 
     def merge_entries(
@@ -134,6 +162,15 @@ class MergeSplitService:
             ValidationError: If sense IDs are invalid or operation fails validation
             DatabaseError: If database operations fail
         """
+        # Store original data for potential undo
+        original_target_entry = self.dictionary_service.get_entry(target_entry_id)
+        original_source_entry = self.dictionary_service.get_entry(source_entry_id)
+
+        if not original_target_entry:
+            raise NotFoundError(f"Target entry {target_entry_id} not found")
+        if not original_source_entry:
+            raise NotFoundError(f"Source entry {source_entry_id} not found")
+
         # Create operation record
         operation = MergeSplitOperation(
             operation_type="merge_entries",
@@ -144,43 +181,33 @@ class MergeSplitService:
         )
 
         try:
-            # Get both entries
-            target_entry = self.dictionary_service.get_entry(target_entry_id)
-            if not target_entry:
-                operation.mark_failed("Target entry not found")
-                self.history_service.save_operation(operation)
-                raise NotFoundError(f"Target entry {target_entry_id} not found")
-            
-            source_entry = self.dictionary_service.get_entry(source_entry_id)
-            if not source_entry:
-                operation.mark_failed("Source entry not found")
-                self.history_service.save_operation(operation)
-                raise NotFoundError(f"Source entry {source_entry_id} not found")
-
             # Validate sense IDs
-            self._validate_sense_ids(source_entry, sense_ids)
+            self._validate_sense_ids(original_source_entry, sense_ids)
 
             # Get senses to transfer
             senses_to_transfer = []
             for sense_id in sense_ids:
-                sense = self._find_sense_by_id(source_entry, sense_id)
+                sense = self._find_sense_by_id(original_source_entry, sense_id)
                 if sense:
                     senses_to_transfer.append(sense)
 
+            # Clone entries to modify
+            modified_target_entry = copy.deepcopy(original_target_entry)
+            modified_source_entry = copy.deepcopy(original_source_entry)
+
             # Transfer senses to target entry
-            self._transfer_senses_to_entry(target_entry, senses_to_transfer, conflict_resolution)
+            self._transfer_senses_to_entry(modified_target_entry, senses_to_transfer, conflict_resolution)
 
             # Remove senses from source entry
-            self._remove_senses_from_entry(source_entry, sense_ids)
+            self._remove_senses_from_entry(modified_source_entry, sense_ids)
 
             # Save changes to database
-            self.dictionary_service.update_entry(target_entry)
-            
-            if source_entry.senses:
-                self.dictionary_service.update_entry(source_entry)
-            else:
-                self.dictionary_service.delete_entry(source_entry.id)
+            self.dictionary_service.update_entry(modified_target_entry)
 
+            if modified_source_entry.senses:
+                self.dictionary_service.update_entry(modified_source_entry)
+            else:
+                self.dictionary_service.delete_entry(modified_source_entry.id)
 
             # Record sense transfers
             for sense_id in sense_ids:
@@ -189,17 +216,47 @@ class MergeSplitService:
                     original_entry_id=source_entry_id,
                     new_entry_id=target_entry_id
                 )
-                self.history_service.save_transfer(transfer)
+                self.history_service.record_transfer(transfer)
 
-            # Mark operation as completed
+            # Record the operation in the enhanced history system
+            operation_data = {
+                'operation_type': 'merge_entries',
+                'target_entry_id': target_entry_id,
+                'source_entry_id': source_entry_id,
+                'sense_ids': sense_ids,
+                'original_target_entry': original_target_entry.to_dict() if hasattr(original_target_entry, 'to_dict') else {},
+                'original_source_entry': original_source_entry.to_dict() if hasattr(original_source_entry, 'to_dict') else {},
+                'conflict_resolution': conflict_resolution
+            }
+
+            self.history_service.record_operation(
+                operation_type='merge',
+                data=operation_data,
+                entry_id=target_entry_id,
+                user_id=user_id
+            )
+
+            # Record the operation in the legacy system for backward compatibility
             operation.mark_completed()
-            self.history_service.save_operation(operation)
+            self.history_service.record_merge_split_operation(operation)
 
             return operation
 
         except Exception as e:
             operation.mark_failed(str(e))
-            self.history_service.save_operation(operation)
+            operation_data = {
+                'operation_type': 'merge_entries_failed',
+                'target_entry_id': target_entry_id,
+                'source_entry_id': source_entry_id,
+                'error': str(e)
+            }
+            self.history_service.record_operation(
+                operation_type='merge_failed',
+                data=operation_data,
+                entry_id=target_entry_id,
+                user_id=user_id
+            )
+            self.history_service.record_merge_split_operation(operation)
             raise
 
     def merge_senses(
@@ -228,6 +285,11 @@ class MergeSplitService:
             ValidationError: If sense IDs are invalid or operation fails validation
             DatabaseError: If database operations fail
         """
+        # Store original data for potential undo
+        original_entry = self.dictionary_service.get_entry(entry_id)
+        if not original_entry:
+            raise NotFoundError(f"Entry {entry_id} not found")
+
         # Create operation record
         operation = MergeSplitOperation(
             operation_type="merge_senses",
@@ -238,48 +300,78 @@ class MergeSplitService:
         )
 
         try:
-            # Get the entry
-            entry = self.dictionary_service.get_entry(entry_id)
-            if not entry:
-                operation.mark_failed("Entry not found")
-                self.history_service.save_operation(operation)
-                raise NotFoundError(f"Entry {entry_id} not found")
-
             # Validate all sense IDs exist in the entry
             all_sense_ids = [target_sense_id] + source_sense_ids
-            self._validate_sense_ids(entry, all_sense_ids)
+            self._validate_sense_ids(original_entry, all_sense_ids)
 
             # Get target sense and source senses
-            target_sense = self._find_sense_by_id(entry, target_sense_id)
+            target_sense = self._find_sense_by_id(original_entry, target_sense_id)
             source_senses = []
             for sense_id in source_sense_ids:
-                sense = self._find_sense_by_id(entry, sense_id)
+                sense = self._find_sense_by_id(original_entry, sense_id)
                 if sense:
                     source_senses.append(sense)
 
             if not target_sense:
-                operation.mark_failed("Target sense not found")
-                self.history_service.save_operation(operation)
                 raise ValidationError(f"Target sense {target_sense_id} not found in entry")
 
+            # Clone the entry to modify
+            modified_entry = copy.deepcopy(original_entry)
+
+            # Find and get references to target and source senses in the cloned entry
+            modified_target_sense = self._find_sense_by_id(modified_entry, target_sense_id)
+            modified_source_senses = []
+            for sense_id in source_sense_ids:
+                sense = self._find_sense_by_id(modified_entry, sense_id)
+                if sense:
+                    modified_source_senses.append(sense)
+
             # Merge source senses into target sense
-            self._merge_senses_into_target(target_sense, source_senses, merge_strategy)
+            self._merge_senses_into_target(modified_target_sense, modified_source_senses, merge_strategy)
 
             # Remove source senses from entry
-            self._remove_senses_from_entry(entry, source_sense_ids)
+            self._remove_senses_from_entry(modified_entry, source_sense_ids)
 
             # Save changes to database
-            self.dictionary_service.update_entry(entry)
+            self.dictionary_service.update_entry(modified_entry)
 
-            # Mark operation as completed
+            # Record the operation in the enhanced history system
+            operation_data = {
+                'operation_type': 'merge_senses',
+                'entry_id': entry_id,
+                'target_sense_id': target_sense_id,
+                'source_sense_ids': source_sense_ids,
+                'original_entry': original_entry.to_dict() if hasattr(original_entry, 'to_dict') else {},
+                'merge_strategy': merge_strategy
+            }
+
+            self.history_service.record_operation(
+                operation_type='merge_senses',
+                data=operation_data,
+                entry_id=entry_id,
+                user_id=user_id
+            )
+
+            # Record the operation in the legacy system for backward compatibility
             operation.mark_completed()
-            self.history_service.save_operation(operation)
+            self.history_service.record_merge_split_operation(operation)
 
             return operation
 
         except Exception as e:
             operation.mark_failed(str(e))
-            self.history_service.save_operation(operation)
+            operation_data = {
+                'operation_type': 'merge_senses_failed',
+                'entry_id': entry_id,
+                'error': str(e)
+            }
+            self.history_service.record_operation(
+                operation_type='merge_senses_failed',
+                data=operation_data,
+                entry_id=entry_id,
+                user_id=user_id
+            )
+            self.history_service.record_merge_split_operation(operation)
             raise
 
     def _validate_sense_ids(self, entry: Entry, sense_ids: List[str]) -> None:
@@ -473,7 +565,7 @@ class MergeSplitService:
         Returns:
             MergeSplitOperation object if found, None otherwise
         """
-        operations = self.history_service.get_all_operations()
+        operations = self.history_service.get_all_merge_split_operations()
         for operation in operations:
             if operation.id == operation_id:
                 return operation
@@ -507,3 +599,49 @@ class MergeSplitService:
             transfer for transfer in transfers
             if transfer.original_entry_id == entry_id or transfer.new_entry_id == entry_id
         ]
+
+    def undo_last_operation(self, user_id: Optional[str] = None) -> bool:
+        """
+        Attempt to undo the last operation recorded in the history service.
+
+        Args:
+            user_id: ID of the user performing the undo operation
+
+        Returns:
+            True if undo was successful, False otherwise
+        """
+        try:
+            # Use the enhanced undo functionality from OperationHistoryService
+            result = self.history_service.undo_last_operation()
+
+            if result:
+                # If the undo was successful, we might want to update the data accordingly
+                # For now, we'll just return True to indicate the operation was marked as undone
+                return True
+            else:
+                return False
+        except Exception as e:
+            # Log the error or handle it as appropriate for your application
+            return False
+
+    def redo_last_operation(self, user_id: Optional[str] = None) -> bool:
+        """
+        Attempt to redo the last undone operation.
+
+        Args:
+            user_id: ID of the user performing the redo operation
+
+        Returns:
+            True if redo was successful, False otherwise
+        """
+        try:
+            # Use the enhanced redo functionality from OperationHistoryService
+            result = self.history_service.redo_last_operation()
+
+            if result:
+                return True
+            else:
+                return False
+        except Exception as e:
+            # Log the error or handle it as appropriate for your application
+            return False

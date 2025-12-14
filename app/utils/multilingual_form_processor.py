@@ -521,17 +521,27 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 senses_data[sense_index][field_name] = {'en': value.strip()}
                             else:
                                 senses_data[sense_index][field_name] = value
-                        # Handle list fields (usage_type, domain_type) - multiple selections from form
-                        elif field_name in ('usage_type', 'domain_type'):
-                            # If value is a list (multiple selections), use as-is after stripping each element
-                            # If value is a string, split by semicolon (LIFT format)
+                        # Handle list field for usage_type and single-value domain_type
+                        elif field_name == 'usage_type':
+                            # usage_type supports multiple values
                             if isinstance(value, list):
                                 senses_data[sense_index][field_name] = [v.strip() if isinstance(v, str) else v for v in value if v]
                             elif isinstance(value, str) and value.strip():
                                 senses_data[sense_index][field_name] = [v.strip() for v in value.split(';') if v.strip()]
                             else:
                                 senses_data[sense_index][field_name] = []
+                        elif field_name == 'domain_type':
+                            # domain_type is a single value; if list provided, take first non-empty
+                            if isinstance(value, list) and value:
+                                first = next((v for v in value if isinstance(v, str) and v.strip()), None)
+                                senses_data[sense_index][field_name] = first.strip() if first else None
+                            elif isinstance(value, str) and value.strip():
+                                # If semicolon-separated, take first part (LIFT multi-values shouldn't apply to domain_type)
+                                senses_data[sense_index][field_name] = value.split(';')[0].strip()
+                            else:
+                                senses_data[sense_index][field_name] = None
                         else:
+                            # Generic fallback for other fields
                             if isinstance(value, str):
                                 senses_data[sense_index][field_name] = value.strip()
                             else:
@@ -590,15 +600,6 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                             # Initialize relations list if not exists
                             if 'relations' not in senses_data[sense_index]:
                                 senses_data[sense_index]['relations'] = []
-                            
-                            # Extend relations list if needed
-                            while len(senses_data[sense_index]['relations']) <= relation_index:
-                                senses_data[sense_index]['relations'].append({})
-                            
-                            logger.debug(f"[SENSES DEBUG] Setting relation: senses[{sense_index}][relations][{relation_index}][{relation_field}] = {value}")
-                            # Store as string, don't strip if it's already stripped
-                            if isinstance(value, str):
-                                senses_data[sense_index]['relations'][relation_index][relation_field] = value.strip()
                             else:
                                 senses_data[sense_index]['relations'][relation_index][relation_field] = value
                         

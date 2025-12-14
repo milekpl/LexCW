@@ -225,15 +225,15 @@ class Entry(BaseModel):
             self.custom_fields: Dict[str, Any] = {}
         self.homograph_number: Optional[int] = kwargs.get('homograph_number')
         
-        # Academic Domains - single string field (separate from semantic domains)
-        academic_domain_raw = kwargs.get('academic_domain', None)
-        if isinstance(academic_domain_raw, str):
-            self.academic_domain: Optional[str] = academic_domain_raw if academic_domain_raw.strip() else None
-        elif academic_domain_raw is None:
-            self.academic_domain: Optional[str] = None
+        # Domain types - single string field (separate from semantic domains)
+        domain_type_raw = kwargs.get('domain_type', None)
+        if isinstance(domain_type_raw, str):
+            self.domain_type: Optional[str] = domain_type_raw if domain_type_raw.strip() else None
+        elif domain_type_raw is None:
+            self.domain_type: Optional[str] = None
         else:
             # Handle non-string values by converting to string
-            self.academic_domain: Optional[str] = str(academic_domain_raw) if academic_domain_raw else None
+            self.domain_type: Optional[str] = str(domain_type_raw) if domain_type_raw else None
 
         # Handle senses
         from app.models.sense import Sense

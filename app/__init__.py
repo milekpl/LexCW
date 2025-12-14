@@ -81,7 +81,12 @@ def create_app(config_name=None):
     
     # Create instance directories
     os.makedirs(os.path.join(app.instance_path, 'audio'), exist_ok=True)
+    os.makedirs(os.path.join(app.instance_path, 'images'), exist_ok=True)
     os.makedirs(os.path.join(app.instance_path, 'exports'), exist_ok=True)
+
+    # Ensure static subdirectories exist for uploads
+    os.makedirs(os.path.join(app.static_folder, 'audio'), exist_ok=True)
+    os.makedirs(os.path.join(app.static_folder, 'images'), exist_ok=True)
     
     # Register blueprints
     from app.api import api_bp
@@ -100,6 +105,9 @@ def create_app(config_name=None):
     
     from app.api.pronunciation import pronunciation_bp
     app.register_blueprint(pronunciation_bp)
+
+    from app.api.illustration import illustration_bp
+    app.register_blueprint(illustration_bp)
     
     from app.views import main_bp
     app.register_blueprint(main_bp)
@@ -159,6 +167,10 @@ def create_app(config_name=None):
     # Register merge/split operations API
     from app.api.merge_split import merge_split_bp
     app.register_blueprint(merge_split_bp)
+
+    # Register backup API
+    from app.api.backup_api import backup_api
+    app.register_blueprint(backup_api)
 
     # Create PostgreSQL connection pool and create tables
     app.pg_pool = None
@@ -310,6 +322,26 @@ def create_app(config_name=None):
         from app.services.merge_split_service import MergeSplitService
         merge_split_service = MergeSplitService(dictionary_service=dictionary_service)
         binder.bind(MergeSplitService, to=merge_split_service, scope=singleton)
+
+        # Initialize and bind backup-related services
+        from app.services.basex_backup_manager import BaseXBackupManager
+        from app.services.backup_scheduler import BackupScheduler
+        from app.services.operation_history_service import OperationHistoryService
+
+        # Create backup manager with the BaseX connector
+        backup_manager = BaseXBackupManager(basex_connector)
+        binder.bind(BaseXBackupManager, to=backup_manager, scope=singleton)
+
+        # Create operation history service
+        operation_history_service = OperationHistoryService()
+        binder.bind(OperationHistoryService, to=operation_history_service, scope=singleton)
+
+        # Create backup scheduler with backup manager
+        backup_scheduler = BackupScheduler(backup_manager)
+        binder.bind(BackupScheduler, to=backup_scheduler, scope=singleton)
+
+        # Start the backup scheduler
+        backup_scheduler.start()
 
     # After DI, set a flag if this is a first-run (no project settings configured)
     with app.app_context():

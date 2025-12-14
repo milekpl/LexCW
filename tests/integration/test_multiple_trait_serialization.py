@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 import xml.etree.ElementTree as ET
+import uuid
 
 
 LIFT_NS = '{http://fieldworks.sil.org/schemas/lift/0.13}'
@@ -34,6 +35,9 @@ class TestMultipleTraitSerialization:
             </sense>
         </entry>'''
 
+        # Ensure no previous entry exists to avoid 409 conflicts
+        client.delete('/api/entries/multi_usage_test')
+
         # Create the entry
         response = client.post(
             '/api/entries',
@@ -42,8 +46,8 @@ class TestMultipleTraitSerialization:
         )
         assert response.status_code in [200, 201], f"Failed to create entry: {response.data}"
 
-        # Retrieve the entry
-        response = client.get('/api/entries/multi_usage_test')
+        # Retrieve the entry as XML
+        response = client.get('/api/entries/multi_usage_test?format=xml')
         assert response.status_code == 200
 
         # Parse the response XML
@@ -76,6 +80,9 @@ class TestMultipleTraitSerialization:
             </sense>
         </entry>'''
 
+        # Ensure no previous entry exists to avoid 409 conflicts
+        client.delete('/api/entries/multi_domain_test')
+
         # Create the entry
         response = client.post(
             '/api/entries',
@@ -84,8 +91,8 @@ class TestMultipleTraitSerialization:
         )
         assert response.status_code in [200, 201], f"Failed to create entry: {response.data}"
 
-        # Retrieve the entry
-        response = client.get('/api/entries/multi_domain_test')
+        # Retrieve the entry as XML
+        response = client.get('/api/entries/multi_domain_test?format=xml')
         assert response.status_code == 200
 
         # Parse the response XML
@@ -121,6 +128,9 @@ class TestMultipleTraitSerialization:
             </sense>
         </entry>'''
 
+        # Ensure no previous entry exists to avoid 409 conflicts
+        client.delete('/api/entries/combined_traits_test')
+
         # Create the entry
         response = client.post(
             '/api/entries',
@@ -129,8 +139,8 @@ class TestMultipleTraitSerialization:
         )
         assert response.status_code in [200, 201], f"Failed to create entry: {response.data}"
 
-        # Retrieve the entry
-        response = client.get('/api/entries/combined_traits_test')
+        # Retrieve the entry as XML
+        response = client.get('/api/entries/combined_traits_test?format=xml')
         assert response.status_code == 200
 
         # Parse the response XML
@@ -159,6 +169,9 @@ class TestMultipleTraitSerialization:
             </sense>
         </entry>'''
 
+        # Ensure no previous entry exists to avoid 409 conflicts
+        client.delete('/api/entries/single_usage_test')
+
         # Create the entry
         response = client.post(
             '/api/entries',
@@ -167,8 +180,8 @@ class TestMultipleTraitSerialization:
         )
         assert response.status_code in [200, 201], f"Failed to create entry: {response.data}"
 
-        # Retrieve the entry
-        response = client.get('/api/entries/single_usage_test')
+        # Retrieve the entry as XML
+        response = client.get('/api/entries/single_usage_test?format=xml')
         assert response.status_code == 200
 
         # Parse the response XML
