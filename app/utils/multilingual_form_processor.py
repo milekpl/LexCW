@@ -96,8 +96,14 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
     logger = logging.getLogger(__name__)
     
     logger.debug(f"[MERGE DEBUG] Input form_data keys: {list(form_data.keys())}")
-    logger.debug(f"[MERGE DEBUG] Input entry_data keys: {list(entry_data.keys())}")
-    
+
+    # entry_data may be None when creating a new entry via the form
+    if entry_data is None:
+        logger.debug("[MERGE DEBUG] Input entry_data is None - treating as empty dict")
+        entry_data = {}
+    else:
+        logger.debug(f"[MERGE DEBUG] Input entry_data keys: {list(entry_data.keys())}")
+
     # Start with existing entry data
     merged_data = entry_data.copy()
     

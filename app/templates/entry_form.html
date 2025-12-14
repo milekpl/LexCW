@@ -734,15 +734,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">Variant Type</label>
-                                            <select class="form-control" 
-                                                    name="variant_relations[{{ loop.index0 }}].variant_type" required>
+                                            <select class="form-control dynamic-lift-range" 
+                                                    name="variant_relations[{{ loop.index0 }}].variant_type" required
+                                                    data-range-id="variant-type"
+                                                    data-selected="{{ variant.variant_type or '' }}">
                                                 <option value="">Select variant type</option>
-                                                <option value="Spelling Variant" {% if variant.variant_type == 'Spelling Variant' %}selected{% endif %}>Spelling Variant</option>
-                                                <option value="Dialectal Variant" {% if variant.variant_type == 'Dialectal Variant' %}selected{% endif %}>Dialectal Variant</option>
-                                                <option value="Unspecified Variant" {% if variant.variant_type == 'Unspecified Variant' %}selected{% endif %}>Unspecified Variant</option>
-                                                <option value="Stopień najwyższy" {% if variant.variant_type == 'Stopień najwyższy' %}selected{% endif %}>Stopień najwyższy</option>
-                                                <option value="Plural Form" {% if variant.variant_type == 'Plural Form' %}selected{% endif %}>Plural Form</option>
-                                                <option value="Past Tense" {% if variant.variant_type == 'Past Tense' %}selected{% endif %}>Past Tense</option>
+                                                <!-- Options will be populated dynamically from LIFT ranges -->
                                             </select>
                                             <div class="form-text">Type of variant relationship</div>
                                         </div>
@@ -867,11 +864,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="row">
                             <div class="col-md-4">
                                 <label class="form-label">Component Type</label>
-                                <select class="form-select component-type-select" id="new-component-type">
+                                <select class="form-select dynamic-lift-range component-type-select" id="new-component-type"
+                                    data-range-id="complex-form-type"
+                                        data-hierarchical="true"
+                                        data-searchable="true">
                                     <option value="">Select type...</option>
-                                    <option value="compound">Compound</option>
-                                    <option value="phrase">Phrase</option>
-                                    <option value="idiom">Idiom</option>
+                                    <!-- Options will be dynamically loaded from LIFT ranges -->
                                 </select>
                             </div>
                             <div class="col-md-8">

@@ -9,6 +9,7 @@ import sys
 import os
 import pytest
 from flask import Flask
+from flask.testing import FlaskClient
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -81,6 +82,17 @@ def client(app: Flask):
     """Create Flask test client (function-scoped for fresh context per test)."""
     with app.app_context():
         yield app.test_client()
+
+
+@pytest.fixture(autouse=True)
+def ensure_recommended_ranges(client: FlaskClient) -> None:
+    """Ensure recommended ranges are installed before each integration test."""
+    # Call the install endpoint to ensure ranges exist for tests that depend on them
+    try:
+        client.post('/api/ranges/install_recommended')
+    except Exception:
+        # If the endpoint is unavailable for some tests, ignore
+        pass
 
 
 @pytest.fixture(scope="function", autouse=True)
