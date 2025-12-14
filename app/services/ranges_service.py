@@ -37,10 +37,13 @@ class RangesService:
     
     # --- Range CRUD ---
     
-    def get_all_ranges(self) -> Dict[str, Any]:
+    def get_all_ranges(self, project_id: int = 1) -> Dict[str, Any]:
         """
-        Retrieve all ranges from database.
-        
+        Retrieve all ranges from database and custom ranges.
+
+        Args:
+            project_id: Project ID for custom ranges
+
         Returns:
             Dict mapping range IDs to range data with structure:
             {
@@ -54,20 +57,72 @@ class RangesService:
         """
         self._ensure_connection()
         db_name = self.db_connector.database
-        
+
         # Query ranges document
         query = f"collection('{db_name}')//lift-ranges"
         ranges_xml = self.db_connector.execute_query(query)
-        
-        if not ranges_xml or not ranges_xml.strip():
+
+        ranges = {}
+        if ranges_xml and ranges_xml.strip():
+            # Parse XML to dict
+            try:
+                ranges = self.ranges_parser.parse_string(ranges_xml)
+            except ET.ParseError as e:
+                self.logger.error(f"Error parsing ranges XML: {e}")
+                ranges = {}
+        else:
             self.logger.warning("No ranges found in database")
-            return {}
-        
-        # Parse XML to dict
-        ranges = self.ranges_parser.parse_string(ranges_xml)
+
+        # Load and merge custom ranges
+        custom_ranges = self._load_custom_ranges(project_id)
+
+        # Merge custom ranges into the main ranges dict
+        for range_name, elements in custom_ranges.items():
+            if range_name not in ranges:
+                ranges[range_name] = {
+                    'id': range_name,
+                    'guid': f'custom-{range_name}',
+                    'description': {},
+                    'values': []
+                }
+            # Add custom elements to the range
+            ranges[range_name]['values'].extend(elements)
+
         return ranges
-    
-    def get_range(self, range_id: str) -> Dict[str, Any]:
+
+    def _load_custom_ranges(self, project_id: int) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Load custom ranges from database.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Dict mapping range names to lists of range elements
+        """
+        from app.models.custom_ranges import CustomRange, CustomRangeValue
+
+        custom_ranges = {}
+
+        try:
+            ranges = CustomRange.query.filter_by(project_id=project_id).all()
+            for cr in ranges:
+                elements = []
+                for val in cr.values:
+                    elements.append({
+                        'id': val.value,
+                        'label': val.label or val.value,
+                        'description': val.description,
+                        'custom': True,
+                        'range_id': cr.id
+                    })
+                custom_ranges[cr.range_name] = elements
+        except Exception as e:
+            self.logger.error(f"Error loading custom ranges: {e}")
+
+        return custom_ranges
+
+    def get_range(self, range_id: str, project_id: int = 1) -> Dict[str, Any]:
         """
         Get single range by ID.
         
@@ -80,10 +135,26 @@ class RangesService:
         Raises:
             NotFoundError: If range not found.
         """
+        # Try parsing all ranges first
         ranges = self.get_all_ranges()
-        if range_id not in ranges:
+        if ranges and range_id in ranges:
+            return ranges[range_id]
+
+        # If not found, query for the specific range to avoid parsing whole doc
+        db_name = self.db_connector.database
+        query = f"for $range in collection('{db_name}')//range[@id='{range_id}'] return $range"
+        result_xml = self.db_connector.execute_query(query)
+        if not result_xml or not result_xml.strip():
             raise NotFoundError(f"Range '{range_id}' not found")
-        return ranges[range_id]
+        try:
+            parsed = self.ranges_parser.parse_string(result_xml)
+            if range_id in parsed:
+                return parsed[range_id]
+        except ET.ParseError:
+            # Log and raise NotFound to keep behavior consistent
+            self.logger.error(f"Error parsing specific range XML for {range_id}")
+            raise NotFoundError(f"Range '{range_id}' not found")
+        raise NotFoundError(f"Range '{range_id}' not found")
     
     def create_range(self, range_data: Dict[str, Any]) -> str:
         """
@@ -709,6 +780,9 @@ class RangesService:
         Raises:
             ValidationError: If operation is invalid.
         """
+        if operation not in ('replace', 'remove'):
+            raise ValidationError("operation must be 'replace' or 'remove'")
+
         if operation == 'replace' and not new_value:
             raise ValidationError("new_value required for 'replace' operation")
         

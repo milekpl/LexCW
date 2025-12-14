@@ -10,14 +10,12 @@ def client():
         yield client
 
 def test_tools_page(client):
-    with client.application.app_context():
-        response = client.get(url_for('main.tools'))
-        assert response.status_code == 200
-        assert b'<h1 class="mt-4">Tools</h1>' in response.data
-        assert b'<a href="/tools/clear-cache"' in response.data
+    response = client.get('/tools')
+    assert response.status_code == 200
+    assert b'<h1 class="mt-4">Tools</h1>' in response.data
+    assert b'<a href="/tools/clear-cache"' in response.data
 
 def test_clear_cache(client):
-    with client.application.app_context():
-        response = client.get(url_for('main.clear_cache'), follow_redirects=True)
-        assert response.status_code == 200
-        assert b'Cache cleared successfully.' in response.data
+    response = client.get('/tools/clear-cache', follow_redirects=True)
+    assert response.status_code == 200
+    assert b'Cache cleared successfully.' in response.data

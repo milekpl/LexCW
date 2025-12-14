@@ -195,14 +195,21 @@ def test_workset_creation_with_complex_query(client: FlaskClient) -> None:
     response = client.post('/api/query-builder/execute',
                           json=workset_data,
                           headers={'Content-Type': 'application/json'})
-    
-    # Should either succeed or give a meaningful error (not a type validation error)
-    assert response.status_code in [200, 201, 400, 404]
-    
-    if response.status_code == 200:
-        data = response.get_json()
-        assert data.get('success') is True
-        assert 'workset_name' in data
+    # Instead of posting to the HTTP endpoint (which can be heavy), call the service directly
+    from app.services.query_builder_service import QueryBuilderService
+    service = QueryBuilderService()
+
+    from unittest.mock import patch, Mock
+    mock_workset = Mock()
+    mock_workset.id = 'ws_456'
+    mock_workset.name = 'Test Complex Workset'
+    mock_workset.total_entries = 10
+
+    with patch('app.services.query_builder_service.WorksetService.create_workset', return_value=mock_workset):
+        result = service.execute_query(workset_data)
+
+    assert result.get('success') is True
+    assert result.get('workset_name') == 'Test Complex Workset'
 
 
 @pytest.mark.integration

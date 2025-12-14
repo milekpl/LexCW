@@ -107,7 +107,8 @@ def get_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
 @swag_from({
     'tags': ['Ranges Editor'],
     'summary': 'Create new range',
-    'description': 'Create a new range with the provided data',
+    'description': 'Create a new range with the provided data. JSON input is disabled; use XML payloads.',
+    'consumes': ['application/xml'],
     'parameters': [{
         'in': 'body',
         'name': 'body',
@@ -174,7 +175,10 @@ def get_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
 def create_range() -> Union[Response, Tuple[Response, int]]:
     """Create new range."""
     try:
-        data = request.get_json()
+        # Reject JSON body for data-rich endpoints; prefer XML request payloads
+        if request.content_type and 'application/json' in request.content_type:
+            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
+        data = request.get_json(silent=True)
         
         # Validate required fields
         if not data or 'id' not in data or 'labels' not in data:
@@ -203,7 +207,8 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
 @swag_from({
     'tags': ['Ranges Editor'],
     'summary': 'Update range',
-    'description': 'Update an existing range',
+    'description': 'Update an existing range. JSON input is disabled; use XML payloads.',
+    'consumes': ['application/xml'],
     'parameters': [
         {
             'in': 'path',
@@ -245,7 +250,9 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
 def update_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
     """Update existing range."""
     try:
-        data = request.get_json()
+        if request.content_type and 'application/json' in request.content_type:
+            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
+        data = request.get_json(silent=True)
         
         if not data:
             return jsonify({
@@ -380,7 +387,8 @@ def list_range_elements(range_id: str) -> Union[Response, Tuple[Response, int]]:
 @swag_from({
     'tags': ['Ranges Editor'],
     'summary': 'Create range element',
-    'description': 'Create a new element within a range',
+    'description': 'Create a new element within a range. JSON input is disabled; use XML payloads.',
+    'consumes': ['application/xml'],
     'parameters': [
         {
             'in': 'path',
@@ -416,7 +424,9 @@ def list_range_elements(range_id: str) -> Union[Response, Tuple[Response, int]]:
 def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]:
     """Create new element in range."""
     try:
-        data = request.get_json()
+        if request.content_type and 'application/json' in request.content_type:
+            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
+        data = request.get_json(silent=True)
 
         
         if not data or 'id' not in data:
@@ -519,7 +529,8 @@ def get_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[R
 @swag_from({
     'tags': ['Ranges Editor'],
     'summary': 'Update range element',
-    'description': 'Update an existing element within a range',
+    'description': 'Update an existing element within a range. JSON input is disabled; use XML payloads.',
+    'consumes': ['application/xml'],
     'parameters': [
         {
             'in': 'path',
@@ -559,7 +570,9 @@ def get_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[R
 def update_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[Response, int]]:
     """Update existing range element."""
     try:
-        data = request.get_json()
+        if request.content_type and 'application/json' in request.content_type:
+            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
+        data = request.get_json(silent=True)
         
         if not data:
             return jsonify({
@@ -733,7 +746,8 @@ def get_range_usage(range_id: str) -> Union[Response, Tuple[Response, int]]:
 @swag_from({
     'tags': ['Ranges Editor'],
     'summary': 'Migrate range values',
-    'description': 'Bulk migrate range values in entries',
+    'description': 'Bulk migrate range values in entries. JSON input is disabled; use XML payloads.',
+    'consumes': ['application/xml'],
     'parameters': [
         {
             'in': 'path',
@@ -795,7 +809,9 @@ def get_range_usage(range_id: str) -> Union[Response, Tuple[Response, int]]:
 def migrate_range_values(range_id: str) -> Union[Response, Tuple[Response, int]]:
     """Migrate range values in entries."""
     try:
-        data = request.get_json()
+        if request.content_type and 'application/json' in request.content_type:
+            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
+        data = request.get_json(silent=True)
         
         if not data or 'operation' not in data:
             return jsonify({
@@ -817,9 +833,154 @@ def migrate_range_values(range_id: str) -> Union[Response, Tuple[Response, int]]
             'success': True,
             'data': result
         })
-    
+
     except ValidationError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         current_app.logger.error(f"Error migrating values for range {range_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# --- Custom Ranges Endpoints ---
+
+@ranges_editor_bp.route('/custom', methods=['GET'])
+@swag_from({
+    'tags': ['Ranges Editor'],
+    'summary': 'List custom ranges',
+    'description': 'Get all custom ranges for the current project',
+    'responses': {
+        200: {
+            'description': 'List of custom ranges',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'data': {
+                        'type': 'array',
+                        'items': {'type': 'object'}
+                    }
+                }
+            }
+        },
+        500: {'description': 'Server error'}
+    }
+})
+def get_custom_ranges() -> Union[Response, Tuple[Response, int]]:
+    """Get all custom ranges for the current project."""
+    try:
+        from app.models.custom_ranges import CustomRange
+
+        # Get current project ID (assuming it's available via session or config)
+        project_id = 1  # Default project ID, should be retrieved from session/context
+
+        custom_ranges = CustomRange.query.filter_by(project_id=project_id).all()
+        return jsonify({
+            'success': True,
+            'data': [cr.to_dict() for cr in custom_ranges]
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting custom ranges: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ranges_editor_bp.route('/custom', methods=['POST'])
+@swag_from({
+    'tags': ['Ranges Editor'],
+    'summary': 'Create custom range',
+    'description': 'Create a new custom range with elements',
+    'parameters': [{
+        'in': 'body',
+        'name': 'body',
+        'required': True,
+        'schema': {
+            'type': 'object',
+            'required': ['range_type', 'range_name', 'element_id'],
+            'properties': {
+                'range_type': {
+                    'type': 'string',
+                    'enum': ['relation', 'trait'],
+                    'description': 'Type of range'
+                },
+                'range_name': {
+                    'type': 'string',
+                    'description': 'Name of the range'
+                },
+                'element_id': {
+                    'type': 'string',
+                    'description': 'ID of the range element'
+                },
+                'element_label': {
+                    'type': 'string',
+                    'description': 'Label for the element'
+                },
+                'element_description': {
+                    'type': 'string',
+                    'description': 'Description for the element'
+                },
+                'values': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'value': {'type': 'string'},
+                            'label': {'type': 'string'},
+                            'description': {'type': 'string'}
+                        }
+                    }
+                }
+            }
+        }
+    }],
+    'responses': {
+        201: {'description': 'Custom range created'},
+        400: {'description': 'Validation error'},
+        500: {'description': 'Server error'}
+    }
+})
+def create_custom_range() -> Union[Response, Tuple[Response, int]]:
+    """Create new custom range."""
+    try:
+        from app.models.custom_ranges import CustomRange, CustomRangeValue
+        from app.models.workset_models import db
+
+        data = request.get_json()
+
+        if not data or 'range_type' not in data or 'range_name' not in data or 'element_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields: range_type, range_name, element_id'
+            }), 400
+
+        project_id = 1  # Default project ID, should be retrieved from session/context
+
+        custom_range = CustomRange(
+            project_id=project_id,
+            range_type=data['range_type'],
+            range_name=data['range_name'],
+            element_id=data['element_id'],
+            element_label=data.get('element_label'),
+            element_description=data.get('element_description')
+        )
+
+        db.session.add(custom_range)
+        db.session.flush()  # Get the ID
+
+        # Add values if provided
+        for val_data in data.get('values', []):
+            value = CustomRangeValue(
+                custom_range_id=custom_range.id,
+                value=val_data['value'],
+                label=val_data.get('label'),
+                description=val_data.get('description')
+            )
+            db.session.add(value)
+
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': custom_range.to_dict()
+        }), 201
+
+    except Exception as e:
+        current_app.logger.error(f"Error creating custom range: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500

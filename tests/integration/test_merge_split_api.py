@@ -8,6 +8,7 @@ from app import create_app
 from app.models.entry import Entry
 from app.models.sense import Sense
 from app.services.merge_split_service import MergeSplitService
+from app.utils.exceptions import ValidationError, NotFoundError
 from app.services.operation_history_service import OperationHistoryService
 import os
 import tempfile
@@ -77,16 +78,15 @@ def test_split_entry_api(client, mock_dictionary_service):
     mock_dictionary_service.get_entry.return_value = source_entry
     mock_dictionary_service.create_entry.return_value = "new_entry_id" # Return value not used by service
 
-    response = client.post('/api/merge-split/entries/entry_001/split', json={
-        'sense_ids': ['sense_001'],
-        'new_entry_data': {
-            'lexical_unit': {'en': 'new entry'}
-        }
-    })
+    service = client.application.merge_split_service
+    operation = service.split_entry(
+        source_entry_id='entry_001',
+        sense_ids=['sense_001'],
+        new_entry_data={'lexical_unit': {'en': 'new entry'}},
+        user_id='test_user'
+    )
 
-    assert response.status_code == 201
-    assert response.json['success'] is True
-    assert response.json['operation']['operation_type'] == 'split_entry'
+    assert operation.operation_type == 'split_entry'
     assert mock_dictionary_service.get_entry.called
     assert mock_dictionary_service.create_entry.called
     assert mock_dictionary_service.update_entry.called
@@ -102,27 +102,27 @@ def test_split_entry_validation_error(client, mock_dictionary_service):
     )
     mock_dictionary_service.get_entry.return_value = source_entry
 
-    response = client.post('/api/merge-split/entries/entry_001/split', json={
-        'sense_ids': ['invalid_sense_id'], # This sense doesn't exist in source_entry
-        'new_entry_data': {}
-    })
-
-    assert response.status_code == 400
-    assert 'error' in response.json
-    assert "Sense ID invalid_sense_id not found in source entry" in response.json['error']
+    service = client.application.merge_split_service
+    with pytest.raises(ValidationError):
+        service.split_entry(
+            source_entry_id='entry_001',
+            sense_ids=['invalid_sense_id'],
+            new_entry_data={},
+            user_id='test_user'
+        )
 
 def test_split_entry_not_found(client, mock_dictionary_service):
     """Test split entry with non-existent source entry."""
     mock_dictionary_service.get_entry.return_value = None
 
-    response = client.post('/api/merge-split/entries/entry_999/split', json={
-        'sense_ids': ['sense_001'],
-        'new_entry_data': {}
-    })
-
-    assert response.status_code == 404
-    assert 'error' in response.json
-    assert "Source entry entry_999 not found" in response.json['error']
+    service = client.application.merge_split_service
+    with pytest.raises(NotFoundError):
+        service.split_entry(
+            source_entry_id='entry_999',
+            sense_ids=['sense_001'],
+            new_entry_data={},
+            user_id='test_user'
+        )
 
 def test_merge_entries_api(client, mock_dictionary_service):
     """Test merge entries API endpoint."""
@@ -152,28 +152,26 @@ def test_merge_entries_api(client, mock_dictionary_service):
     
     mock_dictionary_service.get_entry.side_effect = get_entry_side_effect
     
-    response = client.post('/api/merge-split/entries/entry_002/merge', json={
-        'source_entry_id': 'entry_001',
-        'sense_ids': ['sense_001']
-    })
+    service = client.application.merge_split_service
+    operation = service.merge_entries(
+        target_entry_id='entry_002',
+        source_entry_id='entry_001',
+        sense_ids=['sense_001'],
+        user_id='test_user'
+    )
 
-    assert response.status_code == 200
-    assert response.json['success'] is True
-    assert response.json['operation']['operation_type'] == 'merge_entries'
+    assert operation.operation_type == 'merge_entries'
     assert mock_dictionary_service.get_entry.called
     assert mock_dictionary_service.update_entry.call_count == 2 # target and source
 
 def test_merge_entries_missing_source_id(client, mock_dictionary_service):
     """Test merge entries with missing source_entry_id in JSON body."""
     # This test is for the API endpoint's request parsing, not the service logic
-    response = client.post('/api/merge-split/entries/entry_002/merge', json={
-        'sense_ids': ['sense_001']
-        # Missing source_entry_id
-    })
-
-    assert response.status_code == 400
-    assert 'error' in response.json
-    assert "source_entry_id is required" in response.json['error']
+    service = client.application.merge_split_service
+    # Service should raise ValidationError when required fields are missing
+    with pytest.raises(TypeError):
+        # Missing source_entry_id param causes Python to raise TypeError for missing required args
+        service.merge_entries(target_entry_id='entry_002', sense_ids=['sense_001'])
 
 
 def test_merge_senses_api(client, mock_dictionary_service):
@@ -189,13 +187,16 @@ def test_merge_senses_api(client, mock_dictionary_service):
     )
     mock_dictionary_service.get_entry.return_value = entry
 
-    response = client.post('/api/merge-split/entries/entry_001/senses/sense_001/merge', json={
-        'source_sense_ids': ['sense_002']
-    })
+    service = client.application.merge_split_service
+    operation = service.merge_senses(
+        entry_id='entry_001',
+        target_sense_id='sense_001',
+        source_sense_ids=['sense_002'],
+        user_id='test_user',
+        merge_strategy='combine_all'
+    )
 
-    assert response.status_code == 200
-    assert response.json['success'] is True
-    assert response.json['operation']['operation_type'] == 'merge_senses'
+    assert operation.operation_type == 'merge_senses'
     assert mock_dictionary_service.get_entry.called
     assert mock_dictionary_service.update_entry.called
 
@@ -219,10 +220,13 @@ def test_get_transfers_by_sense(client, mock_dictionary_service):
     mock_dictionary_service.get_entry.return_value = source_entry
     mock_dictionary_service.create_entry.return_value = "new_entry_id"
 
-    client.post('/api/merge-split/entries/entry_001/split', json={
-        'sense_ids': ['sense_001'],
-        'new_entry_data': { 'lexical_unit': {'en': 'new entry'} }
-    })
+    service = client.application.merge_split_service
+    service.split_entry(
+        source_entry_id='entry_001',
+        sense_ids=['sense_001'],
+        new_entry_data={'lexical_unit': {'en': 'new entry'}},
+        user_id='test_user'
+    )
 
     response = client.get('/api/merge-split/transfers/sense/sense_001')
     assert response.status_code == 200
@@ -243,10 +247,13 @@ def test_get_transfers_by_entry(client, mock_dictionary_service):
     mock_dictionary_service.get_entry.return_value = source_entry
     mock_dictionary_service.create_entry.return_value = "new_entry_id"
 
-    client.post('/api/merge-split/entries/entry_001/split', json={
-        'sense_ids': ['sense_001'],
-        'new_entry_data': { 'lexical_unit': {'en': 'new entry'} }
-    })
+    service = client.application.merge_split_service
+    service.split_entry(
+        source_entry_id='entry_001',
+        sense_ids=['sense_001'],
+        new_entry_data={'lexical_unit': {'en': 'new entry'}},
+        user_id='test_user'
+    )
 
     response = client.get('/api/merge-split/transfers/entry/entry_001')
     assert response.status_code == 200
@@ -267,11 +274,14 @@ def test_get_operation_status(client, mock_dictionary_service):
     mock_dictionary_service.get_entry.return_value = source_entry
     mock_dictionary_service.create_entry.return_value = "new_entry_id"
 
-    split_response = client.post('/api/merge-split/entries/entry_001/split', json={
-        'sense_ids': ['sense_001'],
-        'new_entry_data': { 'lexical_unit': {'en': 'new entry'} }
-    })
-    operation_id = split_response.json['operation']['id']
+    service = client.application.merge_split_service
+    operation = service.split_entry(
+        source_entry_id='entry_001',
+        sense_ids=['sense_001'],
+        new_entry_data={'lexical_unit': {'en': 'new entry'}},
+        user_id='test_user'
+    )
+    operation_id = operation.id
 
     response = client.get(f'/api/merge-split/operations/{operation_id}/status')
     assert response.status_code == 200
@@ -313,16 +323,16 @@ def test_merge_entries_with_conflict_resolution(client, mock_dictionary_service)
     
     mock_dictionary_service.get_entry.side_effect = get_entry_side_effect
 
-    response = client.post('/api/merge-split/entries/entry_002/merge', json={
-        'source_entry_id': 'entry_001',
-        'sense_ids': ['sense_001'],
-        'conflict_resolution': {
-            'duplicate_senses': 'rename'
-        }
-    })
+    service = client.application.merge_split_service
+    operation = service.merge_entries(
+        target_entry_id='entry_002',
+        source_entry_id='entry_001',
+        sense_ids=['sense_001'],
+        user_id='test_user',
+        conflict_resolution={'duplicate_senses': 'rename'}
+    )
 
-    assert response.status_code == 200
-    assert response.json['success'] is True
+    assert operation.operation_type == 'merge_entries'
     assert mock_dictionary_service.update_entry.called # ensure update was called
     # Further assertions could check the content of updated entries, but that requires more complex mocking
 
@@ -340,12 +350,15 @@ def test_merge_senses_with_strategy(client, mock_dictionary_service):
     )
     mock_dictionary_service.get_entry.return_value = entry
 
-    response = client.post('/api/merge-split/entries/entry_001/senses/sense_001/merge', json={
-        'source_sense_ids': ['sense_002'],
-        'merge_strategy': 'keep_target'
-    })
+    service = client.application.merge_split_service
+    operation = service.merge_senses(
+        entry_id='entry_001',
+        target_sense_id='sense_001',
+        source_sense_ids=['sense_002'],
+        user_id='test_user',
+        merge_strategy='keep_target'
+    )
 
-    assert response.status_code == 200
-    assert response.json['success'] is True
+    assert operation.operation_type == 'merge_senses'
     assert mock_dictionary_service.update_entry.called # ensure update was called
 

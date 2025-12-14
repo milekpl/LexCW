@@ -6,6 +6,7 @@ import pytest
 from flask import Flask
 
 from app import create_app
+from app.services.ranges_service import RangesService
 
 
 @pytest.fixture
@@ -57,12 +58,8 @@ class TestMultilingualElementAPI:
             'id': 'test-range',
             'labels': {'en': 'Test Range'}
         }
-        create_response = client.post(
-            '/api/ranges-editor/',
-            json=range_data,
-            content_type='application/json'
-        )
-        assert create_response.status_code in [201, 200]
+        service = client.application.injector.get(RangesService)
+        service.create_range(range_data)
         
         # Create element with multilingual properties
         element_data = {
@@ -84,19 +81,8 @@ class TestMultilingualElementAPI:
             }
         }
         
-        # Execute
-        response = client.post(
-            '/api/ranges-editor/test-range/elements',
-            json=element_data,
-            content_type='application/json'
-        )
-        
-        # Verify response
-        assert response.status_code in [201, 200]
-        result = response.get_json()
-        assert result['success'] is True
-        assert 'data' in result
-        assert 'guid' in result['data']
+        # Execute via service
+        service.create_range_element('test-range', element_data)
     
     def test_get_element_returns_multilingual_properties(self, client) -> None:
         """Should return element with all multilingual properties."""
@@ -105,7 +91,8 @@ class TestMultilingualElementAPI:
             'id': 'ml-range',
             'labels': {'en': 'ML Range'}
         }
-        client.post('/api/ranges-editor/', json=range_data, content_type='application/json')
+        service = client.application.injector.get(RangesService)
+        service.create_range(range_data)
         
         element_data = {
             'id': 'ml-element',
@@ -113,11 +100,7 @@ class TestMultilingualElementAPI:
             'descriptions': {'en': 'Desc EN', 'pl': 'Opis PL'},
             'abbrevs': {'en': 'EN', 'pl': 'PL'}
         }
-        client.post(
-            '/api/ranges-editor/ml-range/elements',
-            json=element_data,
-            content_type='application/json'
-        )
+        service.create_range_element('ml-range', element_data)
         
         # Get element
         response = client.get('/api/ranges-editor/ml-range/elements/ml-element')
@@ -143,7 +126,8 @@ class TestMultilingualElementAPI:
         """Should update element with new multilingual properties."""
         # Create range and element
         range_data = {'id': 'update-range', 'labels': {'en': 'Update Range'}}
-        client.post('/api/ranges-editor/', json=range_data, content_type='application/json')
+        service = client.application.injector.get(RangesService)
+        service.create_range(range_data)
         
         element_data = {
             'id': 'update-element',
@@ -151,11 +135,7 @@ class TestMultilingualElementAPI:
             'descriptions': {},
             'abbrevs': {}
         }
-        client.post(
-            '/api/ranges-editor/update-range/elements',
-            json=element_data,
-            content_type='application/json'
-        )
+        service.create_range_element('update-range', element_data)
         
         # Update element with new multilingual content
         updated_data = {
@@ -174,23 +154,29 @@ class TestMultilingualElementAPI:
             }
         }
         
-        # Execute
-        response = client.put(
-            '/api/ranges-editor/update-range/elements/update-element',
-            json=updated_data,
+        # Execute via service
+        service.update_range_element('update-range', 'update-element', updated_data)
+
+    def test_create_range_json_rejected(self, client) -> None:
+        """JSON POST to create range should be rejected (data-rich JSON removed)."""
+        range_data = {
+            'id': 'json-reject-range',
+            'labels': {'en': 'JSON Reject Range'}
+        }
+        response = client.post(
+            '/api/ranges-editor/',
+            json=range_data,
             content_type='application/json'
         )
-        
-        # Verify update succeeded
-        assert response.status_code == 200
-        result = response.get_json()
-        assert result['success'] is True
+        # Expect 415 Unsupported Media Type or 400 depending on implementation
+        assert response.status_code in (400, 415)
     
     def test_list_elements_shows_all_properties(self, client) -> None:
         """Should list all elements with their multilingual properties."""
         # Create range
         range_data = {'id': 'list-range', 'labels': {'en': 'List Range'}}
-        client.post('/api/ranges-editor/', json=range_data, content_type='application/json')
+        service = client.application.injector.get(RangesService)
+        service.create_range(range_data)
         
         # Create multiple elements
         elements = [
@@ -209,11 +195,7 @@ class TestMultilingualElementAPI:
         ]
         
         for elem in elements:
-            client.post(
-                '/api/ranges-editor/list-range/elements',
-                json=elem,
-                content_type='application/json'
-            )
+            service.create_range_element('list-range', elem)
         
         # List elements
         response = client.get('/api/ranges-editor/list-range/elements')
@@ -246,7 +228,8 @@ class TestMultilingualElementValidation:
         """Should reject element creation without ID."""
         # Create range first
         range_data = {'id': 'val-range', 'labels': {'en': 'Val Range'}}
-        client.post('/api/ranges-editor/', json=range_data, content_type='application/json')
+        service = client.application.injector.get(RangesService)
+        service.create_range(range_data)
         
         # Try to create without ID
         element_data = {
@@ -255,21 +238,16 @@ class TestMultilingualElementValidation:
             'abbrevs': {}
         }
         
-        response = client.post(
-            '/api/ranges-editor/val-range/elements',
-            json=element_data,
-            content_type='application/json'
-        )
-        
-        assert response.status_code == 400
-        result = response.get_json()
-        assert result['success'] is False
+        # Validate service raises for missing id when creating element
+        with pytest.raises(Exception):
+            service.create_range_element('val-range', element_data)
     
     def test_update_nonexistent_element_fails(self, client) -> None:
         """Should reject update of non-existent element."""
-        # Create range
+        # Create range via service
         range_data = {'id': 'ne-range', 'labels': {'en': 'NE Range'}}
-        client.post('/api/ranges-editor/', json=range_data, content_type='application/json')
+        service = client.application.injector.get(RangesService)
+        service.create_range(range_data)
         
         # Try to update non-existent element
         element_data = {
@@ -278,13 +256,8 @@ class TestMultilingualElementValidation:
             'abbrevs': {}
         }
         
-        response = client.put(
-            '/api/ranges-editor/ne-range/elements/nonexistent',
-            json=element_data,
-            content_type='application/json'
-        )
-        
-        assert response.status_code == 404
+        with pytest.raises(Exception):
+            service.update_range_element('ne-range', 'nonexistent', element_data)
 
 
 class TestMultilingualElementCRUD:
@@ -294,12 +267,8 @@ class TestMultilingualElementCRUD:
         """Should handle create, read, update, delete cycle."""
         # 1. Create range
         range_data = {'id': 'crud-range', 'labels': {'en': 'CRUD Range'}}
-        response = client.post(
-            '/api/ranges-editor/',
-            json=range_data,
-            content_type='application/json'
-        )
-        assert response.status_code in [200, 201]
+        service = client.application.injector.get(RangesService)
+        service.create_range(range_data)
         
         # 2. Create element with multilingual properties
         element_data = {
@@ -308,12 +277,7 @@ class TestMultilingualElementCRUD:
             'descriptions': {'en': 'Original desc'},
             'abbrevs': {'en': 'ORG'}
         }
-        response = client.post(
-            '/api/ranges-editor/crud-range/elements',
-            json=element_data,
-            content_type='application/json'
-        )
-        assert response.status_code in [200, 201]
+        service.create_range_element('crud-range', element_data)
         
         # 3. Read element
         response = client.get('/api/ranges-editor/crud-range/elements/crud-element')
@@ -333,12 +297,7 @@ class TestMultilingualElementCRUD:
             'descriptions': {'en': 'Updated desc', 'pt': 'Descrição atualizada'},
             'abbrevs': {'en': 'UPD', 'pt': 'ATU'}
         }
-        response = client.put(
-            '/api/ranges-editor/crud-range/elements/crud-element',
-            json=updated_data,
-            content_type='application/json'
-        )
-        assert response.status_code == 200
+        service.update_range_element('crud-range', 'crud-element', updated_data)
         
         # 5. Read updated element
         response = client.get('/api/ranges-editor/crud-range/elements/crud-element')

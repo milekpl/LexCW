@@ -17,6 +17,8 @@ from app.database.basex_connector import BaseXConnector
 from app.database.mock_connector import MockDatabaseConnector
 from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser, LIFTRangesParser
+from app.services.ranges_service import RangesService
+from app.services.lift_export_service import LIFTExportService
 from app.utils.exceptions import (
     NotFoundError,
     ValidationError,
@@ -1300,9 +1302,13 @@ class DictionaryService:
             self.logger.error("Error importing LIFT file: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to import LIFT file: {e}") from e
 
-    def export_lift(self) -> str:
+    def export_lift(self, project_id: int = 1) -> str:
         """
         Export all entries to LIFT format by dumping the database content.
+        Includes custom ranges in the export.
+
+        Args:
+            project_id: Project ID for custom ranges
 
         Returns:
             LIFT content as a string.
@@ -1328,6 +1334,38 @@ class DictionaryService:
                     "No LIFT document found in the database. Returning empty LIFT structure."
                 )
                 return self.lift_parser.generate_lift_string([])
+
+            # Export custom ranges if available (use module-level symbols so tests can patch them)
+            try:
+                ranges_service = RangesService(self.db_connector)
+                export_service = LIFTExportService(self.db_connector, ranges_service)
+
+                # Export ranges file with custom ranges included
+                import tempfile
+                import os
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
+                    temp_ranges_path = temp_file.name
+
+                try:
+                    export_service.export_ranges_file(project_id, temp_ranges_path)
+
+                    # Add the ranges file to the database if it doesn't exist
+                    ranges_filename = "ranges.xml"
+                    if not self.db_connector.execute_query(f"exists(collection('{db_name}')//{ranges_filename})"):
+                        self.db_connector.execute_command(f'ADD TO {ranges_filename} "{temp_ranges_path}"')
+                    else:
+                        # Replace existing ranges
+                        self.db_connector.execute_update(f"""
+                            delete node collection('{db_name}')//lift-ranges
+                        """)
+                        self.db_connector.execute_command(f'ADD TO {ranges_filename} "{temp_ranges_path}"')
+
+                finally:
+                    if os.path.exists(temp_ranges_path):
+                        os.unlink(temp_ranges_path)
+
+            except Exception as e:
+                self.logger.warning(f"Failed to export custom ranges: {e}")
 
             self.logger.info("Exported database content to LIFT format")
             return lift_xml
@@ -1488,9 +1526,9 @@ class DictionaryService:
             self.logger.error("Error exporting LIFT file: %s", str(e))
             raise ExportError(f"Failed to export LIFT file: {str(e)}") from e
 
-    def get_ranges(self) -> Dict[str, Any]:
+    def get_ranges(self, project_id: int = 1) -> Dict[str, Any]:
         """
-        Retrieves LIFT ranges data from the database.
+        Retrieves LIFT ranges data from the database and custom ranges.
         Caches the result for subsequent calls.
         Falls back to default ranges if database is unavailable.
         Ensures both singular and plural keys for all relevant range types.
@@ -1512,17 +1550,64 @@ class DictionaryService:
                 f"collection('{db_name}')//lift-ranges"
             )
 
+            parsed_ranges = {}
             if ranges_xml:
                 self.logger.debug("Found ranges document using collection() query")
+                self.logger.debug(f"Raw ranges XML from BaseX (first 500 chars): {ranges_xml[:500] if len(ranges_xml) > 500 else ranges_xml}")
+                parsed_ranges = self.ranges_parser.parse_string(ranges_xml)
             else:
                 self.logger.warning(
-                    "LIFT ranges not found in database. Returning empty ranges."
+                    "LIFT ranges not found in database. Using empty ranges."
                 )
-                self.ranges = {}
-                return {}
 
-            self.logger.debug(f"Raw ranges XML from BaseX (first 500 chars): {ranges_xml[:500] if len(ranges_xml) > 500 else ranges_xml}")
-            parsed_ranges = self.ranges_parser.parse_string(ranges_xml)
+            # Load and merge custom ranges
+            ranges_service = RangesService(self.db_connector)
+            custom_ranges = ranges_service._load_custom_ranges(project_id)
+
+            # If no custom ranges exist for this project, scan the LIFT data
+            # in the database to detect undefined relations/traits and create
+            # custom ranges automatically.
+            if not custom_ranges:
+                # Only run the automatic scan in non-testing environments to avoid
+                # extra BaseX queries during unit tests.
+                if not (os.getenv("TESTING") == "true" or "pytest" in sys.modules):
+                    try:
+                        from app.parsers.undefined_ranges_parser import UndefinedRangesParser
+                        from app.services.lift_import_service import LIFTImportService
+
+                        # Get LIFT entries and lists from DB for scanning
+                        lift_entries_xml = self.db_connector.execute_query(
+                            f"string-join((for $entry in collection('{db_name}')//entry return serialize($entry)), '')"
+                        )
+                        lists_xml = self.db_connector.execute_query(f"collection('{db_name}')//lists")
+
+                        parser = UndefinedRangesParser()
+                        undefined_relations, undefined_traits = set(), {}
+                        if lift_entries_xml and lift_entries_xml.strip():
+                            undefined_relations, undefined_traits = parser.identify_undefined_ranges(
+                                lift_entries_xml, ranges_xml or None, lists_xml or None
+                            )
+
+                        if undefined_relations or undefined_traits:
+                            import_service = LIFTImportService(self.db_connector)
+                            import_service.create_custom_ranges(project_id, undefined_relations, undefined_traits, lists_xml)
+                            # Reload custom ranges after creation
+                            custom_ranges = ranges_service._load_custom_ranges(project_id)
+                    except Exception:
+                        # Don't fail the whole ranges call if this background detection fails
+                        self.logger.exception("Automatic undefined-range detection failed")
+
+            # Merge custom ranges into the main ranges dict
+            for range_name, elements in custom_ranges.items():
+                if range_name not in parsed_ranges:
+                    parsed_ranges[range_name] = {
+                        'id': range_name,
+                        'guid': f'custom-{range_name}',
+                        'description': {},
+                        'values': []
+                    }
+                # Add custom elements to the range
+                parsed_ranges[range_name]['values'].extend(elements)
 
             # Ensure both singular and plural keys for all relevant types
             for key in list(parsed_ranges.keys()):
@@ -1544,6 +1629,60 @@ class DictionaryService:
             self.logger.info("Falling back to empty ranges.")
             self.ranges = {}
             return self.ranges
+
+    def scan_and_create_custom_ranges(self, project_id: int = 1) -> None:
+        """Scan LIFT data in the BaseX database for undefined relations/traits and create custom ranges.
+
+        This function is idempotent and safe to call on startup. Errors are logged and not raised.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                self.logger.warning("No BaseX database configured; skipping undefined-range scan")
+                return
+
+            # Get entries and lists XML for scanning
+            lift_entries_xml = self.db_connector.execute_query(
+                f"string-join((for $entry in collection('{db_name}')//entry return serialize($entry)), '')"
+            )
+            lists_xml = self.db_connector.execute_query(f"collection('{db_name}')//lists")
+            ranges_xml = self.db_connector.execute_query(f"collection('{db_name}')//lift-ranges")
+
+            if not lift_entries_xml or not lift_entries_xml.strip():
+                self.logger.debug("No LIFT entries found to scan for undefined ranges")
+                return
+
+            from app.parsers.undefined_ranges_parser import UndefinedRangesParser
+            parser = UndefinedRangesParser()
+
+            # The BaseX query above returns a concatenation of serialized <entry/>
+            # fragments which is not a single XML document. Wrap entries in a
+            # synthetic <lift> root and strip any XML declarations so that
+            # ElementTree can parse the combined content.
+            sanitized = lift_entries_xml
+            # Remove XML prolog fragments that may occur between serialized entries
+            import re
+            sanitized = re.sub(r'<\?xml[^>]*\?>', '', sanitized)
+            sanitized = f"<lift>{sanitized}</lift>"
+
+            undefined_relations, undefined_traits = parser.identify_undefined_ranges(
+                sanitized, ranges_xml or None, lists_xml or None
+            )
+
+            if not undefined_relations and not undefined_traits:
+                self.logger.debug("No undefined ranges detected during scan")
+                return
+
+            from app.services.lift_import_service import LIFTImportService
+            import_service = LIFTImportService(self.db_connector)
+            import_service.create_custom_ranges(project_id, undefined_relations, undefined_traits, lists_xml)
+
+            # Clear cached ranges so subsequent calls pick up new custom ranges
+            self.ranges = {}
+            self.logger.info("Automatic undefined-range detection created %d relation(s) and %d trait(s)",
+                             len(undefined_relations), len(undefined_traits))
+        except Exception:
+            self.logger.exception("Failed to scan and create custom ranges")
 
     def install_recommended_ranges(self) -> Dict[str, Any]:
         """
@@ -1584,20 +1723,49 @@ class DictionaryService:
             '  <range-element id="suffix"><label><form lang="en"><text>suffix</text></form></label></range-element>'
             '  <range-element id="phrase"><label><form lang="en"><text>phrase</text></form></label></range-element>'
             '</range>'
+            '<range id="usage-type">'
+            '  <range-element id="dialect"><label><form lang="en"><text>Dialect</text></form></label></range-element>'
+            '  <range-element id="register"><label><form lang="en"><text>Register</text></form></label></range-element>'
+            '  <range-element id="colloquial"><label><form lang="en"><text>Colloquial</text></form></label></range-element>'
+            '</range>'
+            '<range id="semantic-domain">'
+            '  <range-element id="sd-1"><label><form lang="en"><text>Semantic Domain 1</text></form></label></range-element>'
+            '  <range-element id="sd-2"><label><form lang="en"><text>Semantic Domain 2</text></form></label></range-element>'
+            '</range>'
+            '<range id="academic-domain">'
+            '  <range-element id="academics"><label><form lang="en"><text>Academics</text></form></label></range-element>'
+            '  <range-element id="general"><label><form lang="en"><text>General</text></form></label></range-element>'
+            '</range>'
             '</lift-ranges>'
         )
 
-        # Escape double quotes for command string
-        xml_escaped = minimal_ranges_xml.replace('"', '\\"')
+        # Do not escape quotes; wrap the XML in single quotes for the command
 
         try:
             db_name = self.db_connector.database
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Add a recommended ranges document; do not overwrite existing ranges files
-            cmd = f'ADD TO recommended-ranges.xml "{xml_escaped}"'
-            self.db_connector.execute_command(cmd)
+            # Add a recommended ranges document using a temp file to avoid shell
+            # escaping issues with quotes in XML attributes
+            import tempfile
+
+            tmp_file = None
+            try:
+                tmp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml")
+                tmp_file.write(minimal_ranges_xml)
+                tmp_file.flush()
+                tmp_file.close()
+                # Use ADD TO with a path to the temporary file
+                tmp_path = tmp_file.name.replace("\\", "/")
+                cmd = f'ADD TO recommended-ranges.xml "{tmp_path}"'
+                self.db_connector.execute_command(cmd)
+            finally:
+                if tmp_file:
+                    try:
+                        os.unlink(tmp_file.name)
+                    except Exception:
+                        pass
 
             # Clear cache and parse the newly added ranges
             self.ranges = {}

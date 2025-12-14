@@ -20,15 +20,37 @@ class RangesEditor {
         try {
             const response = await fetch('/api/ranges-editor/');
             const result = await response.json();
-            
+
             if (result.success) {
                 this.ranges = result.data;
+                // Load custom ranges and mark them
+                await this.loadCustomRanges();
             } else {
                 this.showError('Error loading ranges: ' + result.error);
             }
         } catch (error) {
             console.error('Failed to load ranges:', error);
             this.showError('Failed to load ranges');
+        }
+    }
+
+    async loadCustomRanges() {
+        try {
+            const response = await fetch('/api/ranges-editor/custom');
+            const result = await response.json();
+
+            if (result.success) {
+                // Mark custom ranges in the UI
+                result.data.forEach(customRange => {
+                    const rangeElement = document.querySelector(`tr[data-range-id="${customRange.element_id}"]`);
+                    if (rangeElement) {
+                        rangeElement.classList.add('custom-range');
+                        rangeElement.setAttribute('data-custom-id', customRange.id);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load custom ranges:', error);
         }
     }
     
@@ -104,9 +126,10 @@ class RangesEditor {
     renderTable() {
         const tbody = document.querySelector('#rangesTable tbody');
         tbody.innerHTML = '';
-        
+
         for (const [rangeId, range] of Object.entries(this.ranges)) {
             const row = document.createElement('tr');
+            row.setAttribute('data-range-id', rangeId);
             row.innerHTML = `
                 <td>${this.escapeHtml(rangeId)}</td>
                 <td>${this.escapeHtml(this.getLabel(range))}</td>

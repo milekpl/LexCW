@@ -71,7 +71,8 @@ def list_worksets() -> tuple[Dict[str, Any], int]:
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Create a new workset from query',
-    'description': 'Creates a filtered collection of entries based on query criteria',
+    'description': 'Creates a filtered collection of entries based on query criteria. JSON input disabled; use XML payloads',
+    'consumes': ['application/xml'],
     'parameters': [{
         'name': 'workset_data',
         'in': 'body',
@@ -112,9 +113,10 @@ def list_worksets() -> tuple[Dict[str, Any], int]:
 def create_workset() -> tuple[Dict[str, Any], int]:
     """Create a new workset from query criteria."""
     try:
-        data = request.get_json()
-        if not data:
-            return {'error': 'No JSON data provided'}, 400
+        # Reject JSON body for data-rich workset creation; use service or XML payloads
+        if request.content_type and 'application/json' in request.content_type:
+            return {'error': 'JSON input disabled; use XML or service-driven creation'}, 415
+        data = request.get_json(silent=True)
         
         # Validate required fields
         if 'name' not in data or 'query' not in data:
@@ -188,7 +190,8 @@ def get_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Update workset query',
-    'description': 'Update the query criteria for an existing workset',
+    'description': 'Update the query criteria for an existing workset. JSON input disabled; use XML payloads',
+    'consumes': ['application/xml'],
     'parameters': [
         {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True},
         {
@@ -223,9 +226,9 @@ def get_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
 def update_workset_query(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Update workset query criteria."""
     try:
-        data = request.get_json()
-        if not data:
-            return {'error': 'No JSON data provided'}, 400
+        if request.content_type and 'application/json' in request.content_type:
+            return {'error': 'JSON input disabled; use XML or service-driven update'}, 415
+        data = request.get_json(silent=True)
 
         workset_service = WorksetService()
         updated_count = workset_service.update_workset_query(
@@ -287,7 +290,8 @@ def delete_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
 @swag_from({
     'tags': ['Worksets'],
     'summary': 'Bulk update workset entries',
-    'description': 'Apply bulk operations to all entries in a workset',
+    'description': 'Apply bulk operations to all entries in a workset. JSON input disabled; use XML payloads',
+    'consumes': ['application/xml'],
     'parameters': [
         {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True},
         {
@@ -325,9 +329,9 @@ def delete_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
 def bulk_update_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Apply bulk updates to workset entries."""
     try:
-        data = request.get_json()
-        if not data:
-            return {'error': 'No JSON data provided'}, 400
+        if request.content_type and 'application/json' in request.content_type:
+            return {'error': 'JSON input disabled; use XML or service-driven bulk updates'}, 415
+        data = request.get_json(silent=True)
 
         if 'operation' not in data or 'field' not in data:
             return {'error': 'Missing required fields: operation, field'}, 400

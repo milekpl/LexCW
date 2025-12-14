@@ -287,6 +287,17 @@ def create_app(config_name=None):
         ranges_service = RangesService(db_connector=basex_connector)
         binder.bind(RangesService, to=ranges_service, scope=singleton)
 
+        # After services are configured, attempt an initial scan to populate
+        # custom ranges derived from LIFT data. Do this only when not in testing
+        # mode to avoid noise in unit tests.
+        try:
+            if not app.testing:
+                # Ensure application context is active for DB access during scan
+                with app.app_context():
+                    dictionary_service.scan_and_create_custom_ranges(project_id=1)
+        except Exception:
+            app.logger.exception("Initial scan for undefined ranges failed")
+
         # Initialize and bind CSSMappingService
         from app.services.css_mapping_service import CSSMappingService
         from pathlib import Path

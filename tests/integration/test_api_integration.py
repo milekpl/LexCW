@@ -89,7 +89,7 @@ class TestAPIIntegration:
         assert create_response.status_code == 201
         
         # Test API endpoint
-        response = client.get(f'/api/entries/{test_id}')
+        response = client.get(f'/api/entries/{test_id}?format=json')
         assert response.status_code == 200
         
         data = json.loads(response.data)
@@ -131,7 +131,7 @@ class TestAPIIntegration:
         assert data['entry_id'] == test_id
         
         # Verify entry was created by getting it back
-        get_response = client.get(f'/api/entries/{test_id}')
+        get_response = client.get(f'/api/entries/{test_id}?format=json')
         assert get_response.status_code == 200
         
     @pytest.mark.integration
@@ -179,7 +179,7 @@ class TestAPIIntegration:
         assert data['success'] is True
         
         # Verify update by getting the entry back
-        get_response = client.get(f'/api/entries/{test_id}')
+        get_response = client.get(f'/api/entries/{test_id}?format=json')
         assert get_response.status_code == 200
         
         updated_entry = json.loads(get_response.data)
@@ -206,7 +206,7 @@ class TestAPIIntegration:
         assert create_response.status_code == 201
         
         # Verify entry exists
-        get_response = client.get(f'/api/entries/{test_id}')
+        get_response = client.get(f'/api/entries/{test_id}?format=json')
         assert get_response.status_code == 200
         
         # Delete the entry
@@ -217,7 +217,7 @@ class TestAPIIntegration:
         assert data['success'] is True
         
         # Verify entry is deleted
-        get_response_after = client.get(f'/api/entries/{test_id}')
+        get_response_after = client.get(f'/api/entries/{test_id}?format=json')
         assert get_response_after.status_code == 404
         
     # @pytest.mark.skip(reason="Search functionality needs investigation - BaseX XQuery issue")

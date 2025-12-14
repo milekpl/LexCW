@@ -14,6 +14,9 @@ import pytest
 import json
 from flask.testing import FlaskClient
 from unittest.mock import patch, Mock
+from app.services.workset_service import WorksetService
+from app.models.workset import WorksetQuery
+from app.services.workset_service import WorksetService
 
 
 @pytest.mark.integration
@@ -36,22 +39,19 @@ class TestWorksetAPI:
             }
         }
         
-        response = client.post(
-            '/api/worksets',
-            data=json.dumps(workset_data),
-            content_type='application/json'
+        # POST JSON is deprecated for data-rich endpoints; create via service
+        workset_service = WorksetService()
+        workset = workset_service.create_workset(
+            name=workset_data['name'],
+            query=None if 'query' not in workset_data else WorksetQuery.from_dict(workset_data['query'])
         )
-        
-        # Debug: Print actual response
-        print(f"Status code: {response.status_code}")
-        print(f"Response data: {response.get_data(as_text=True)}")
-        
-        assert response.status_code == 201
+        assert workset is not None
+        # Verify via GET endpoint
+        response = client.get(f'/api/worksets/{workset.id}')
+        assert response.status_code == 200
         data = response.get_json()
-        assert data['success'] is True
-        assert 'workset_id' in data
-        assert data['name'] == "Nouns Starting with A"
-        assert data['total_entries'] >= 0
+        assert data['id'] == workset.id
+        assert data['name'] == workset.name
 
     @pytest.mark.integration
     def test_get_workset_with_pagination(self, client: FlaskClient) -> None:
@@ -77,13 +77,14 @@ class TestWorksetAPI:
             }
         }
         
-        create_response = client.post(
-            '/api/worksets',
-            data=json.dumps(workset_data),
-            content_type='application/json'
+        # Create via service
+        workset_service = WorksetService()
+        workset = workset_service.create_workset(
+            name=workset_data['name'],
+            query=WorksetQuery.from_dict(workset_data['query'])
         )
-        assert create_response.status_code == 201
-        workset_id = create_response.get_json()['workset_id']
+        assert workset is not None
+        workset_id = workset.id
         
         # Now update the query
         updated_query = {
@@ -94,16 +95,16 @@ class TestWorksetAPI:
             "sort_order": "desc"
         }
         
-        response = client.put(
+        # Verify that JSON PUT is rejected for data-rich query updates
+        resp = client.put(
             f'/api/worksets/{workset_id}/query',
             data=json.dumps(updated_query),
             content_type='application/json'
         )
-        
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data['success'] is True
-        assert data['updated_entries'] >= 0
+        assert resp.status_code in (400, 415)
+        # Perform update via service
+        updated_count = workset_service.update_workset_query(workset_id, WorksetQuery.from_dict(updated_query))
+        assert updated_count is not None
 
     @pytest.mark.integration
     def test_delete_workset(self, client: FlaskClient) -> None:
@@ -118,13 +119,10 @@ class TestWorksetAPI:
             }
         }
         
-        create_response = client.post(
-            '/api/worksets',
-            data=json.dumps(workset_data),
-            content_type='application/json'
-        )
-        assert create_response.status_code == 201
-        workset_id = create_response.get_json()['workset_id']
+        workset_service = WorksetService()
+        workset = workset_service.create_workset(name=workset_data['name'], query=WorksetQuery.from_dict(workset_data['query']))
+        assert workset is not None
+        workset_id = workset.id
         
         # Now delete it
         response = client.delete(f'/api/worksets/{workset_id}')
@@ -146,13 +144,10 @@ class TestWorksetAPI:
             }
         }
         
-        create_response = client.post(
-            '/api/worksets',
-            data=json.dumps(workset_data),
-            content_type='application/json'
-        )
-        assert create_response.status_code == 201
-        workset_id = create_response.get_json()['workset_id']
+        workset_service = WorksetService()
+        workset = workset_service.create_workset(name=workset_data['name'], query=WorksetQuery.from_dict(workset_data['query']))
+        assert workset is not None
+        workset_id = workset.id
         
         # Now perform bulk update
         bulk_update = {
@@ -162,17 +157,16 @@ class TestWorksetAPI:
             "apply_to": "all"  # or "filtered" with additional criteria
         }
         
-        response = client.post(
+        # JSON for bulk-update should be rejected as data-rich
+        resp = client.post(
             f'/api/worksets/{workset_id}/bulk-update',
             data=json.dumps(bulk_update),
             content_type='application/json'
         )
-        
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data['success'] is True
-        assert data['updated_count'] >= 0
-        assert 'task_id' in data  # For async processing
+        assert resp.status_code in (400, 415)
+        # Trigger bulk_update via service
+        result = workset_service.bulk_update_workset(workset_id, bulk_update)
+        assert result is not None
 
     @pytest.mark.integration
     def test_get_bulk_operation_progress(self, client: FlaskClient) -> None:
@@ -187,13 +181,10 @@ class TestWorksetAPI:
             }
         }
         
-        create_response = client.post(
-            '/api/worksets',
-            data=json.dumps(workset_data),
-            content_type='application/json'
-        )
-        assert create_response.status_code == 201
-        workset_id = create_response.get_json()['workset_id']
+        workset_service = WorksetService()
+        workset = workset_service.create_workset(name=workset_data['name'], query=WorksetQuery.from_dict(workset_data['query']))
+        assert workset is not None
+        workset_id = workset.id
         
         # Now check progress
         response = client.get(f'/api/worksets/{workset_id}/progress')
@@ -250,20 +241,15 @@ class TestWorksetPerformance:
         import time
         start_time = time.time()
         
-        response = client.post(
-            '/api/worksets',
-            data=json.dumps(large_workset_data),
-            content_type='application/json'
-        )
-        
+        # Create via service to avoid JSON POST
+        workset_service = WorksetService()
+        response_workset = workset_service.create_workset(name=large_workset_data['name'], query=WorksetQuery.from_dict(large_workset_data['query']))
         processing_time = time.time() - start_time
-        
-        assert response.status_code == 201
+        assert response_workset is not None
         assert processing_time < 5.0  # <5 seconds requirement from spec
         
-        data = response.get_json()
         # Should handle large datasets efficiently
-        if data.get('total_entries', 0) > 1000:
+        if response_workset.total_entries > 1000:
             assert processing_time < 5.0
 
     @pytest.mark.integration
@@ -288,13 +274,11 @@ class TestWorksetPerformance:
             }
         }
         
-        create_response = client.post(
-            '/api/worksets',
-            data=json.dumps(workset_data),
-            content_type='application/json'
-        )
-        assert create_response.status_code == 201
-        workset_id = create_response.get_json()['workset_id']
+        # Create workset via service
+        workset_service = WorksetService()
+        workset = workset_service.create_workset(name=workset_data['name'], query=WorksetQuery.from_dict(workset_data['query']))
+        assert workset is not None
+        workset_id = workset.id
         
         # Test concurrent access using separate client instances
         # Flask test client is NOT thread-safe, so we need to create clients in each thread

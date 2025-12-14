@@ -195,6 +195,23 @@ class VariantFormsManager {
     renderVariantRelation(variantRelation, index) {
         const variantHtml = this.createVariantRelationHtml(variantRelation, index);
         this.container.insertAdjacentHTML('beforeend', variantHtml);
+        // Populate dynamic selects within the newly added variant element
+        try {
+            const addedElem = this.container.querySelector(`[data-variant-index="${index}"]`);
+            if (addedElem && window.rangesLoader) {
+                const select = addedElem.querySelector('select.dynamic-lift-range');
+                if (select) {
+                    const rangeId = select.dataset.rangeId;
+                    const selectedValue = select.dataset.selected;
+                    window.rangesLoader.populateSelect(select, rangeId, {
+                        selectedValue: selectedValue,
+                        emptyOption: select.querySelector('option[value=""]')?.textContent || 'Select option'
+                    }).catch(err => console.error('[VariantFormsManager] Failed to populate variant select:', err));
+                }
+            }
+        } catch (e) {
+            console.warn('[VariantFormsManager] Error populating dynamic selects for variant:', e);
+        }
         
         // Initialize tooltips for the newly added content
         this.initializeTooltips();
@@ -273,15 +290,12 @@ class VariantFormsManager {
                                    data-bs-html="true"
                                    title="About Variant Types: Different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', or inflected forms like plurals and past tense forms."></i>
                             </label>
-                            <select class="form-control" 
-                                    name="variant_relations[${index}][variant_type]" required>
+                            <select class="form-control dynamic-lift-range" 
+                                    name="variant_relations[${index}][variant_type]" required
+                                    data-range-id="variant-type"
+                                    data-selected="${variantRelation.variant_type || ''}">
                                 <option value="">Select variant type</option>
-                                <option value="Spelling Variant" ${variantRelation.variant_type === 'Spelling Variant' ? 'selected' : ''}>Spelling Variant</option>
-                                <option value="Dialectal Variant" ${variantRelation.variant_type === 'Dialectal Variant' ? 'selected' : ''}>Dialectal Variant</option>
-                                <option value="Unspecified Variant" ${variantRelation.variant_type === 'Unspecified Variant' ? 'selected' : ''}>Unspecified Variant</option>
-                                <option value="Stopień najwyższy" ${variantRelation.variant_type === 'Stopień najwyższy' ? 'selected' : ''}>Stopień najwyższy</option>
-                                <option value="Plural Form" ${variantRelation.variant_type === 'Plural Form' ? 'selected' : ''}>Plural Form</option>
-                                <option value="Past Tense" ${variantRelation.variant_type === 'Past Tense' ? 'selected' : ''}>Past Tense</option>
+                                <!-- Options will be dynamically populated from LIFT ranges -->
                             </select>
                             <div class="form-text">Type of variant relationship</div>
                         </div>
