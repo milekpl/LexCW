@@ -70,6 +70,43 @@
                     {% endif %}
                 </fieldset>
 
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Backup Settings
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Configure automatic backups and backup storage options to protect your lexicographic data."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.backup_directory, class="form-control", placeholder="app/static/backup or /absolute/path") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.auto_backup_schedule, class="form-select") }}
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            {{ render_field(form.backup_retention, class="form-control", placeholder="10") }}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                {{ form.backup_compression(class="form-check-input") }}
+                                {{ form.backup_compression.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                {{ form.backup_include_media(class="form-check-input") }}
+                                {{ form.backup_include_media.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
                 <div class="mt-4">
                     {{ form.submit(class="btn btn-primary") }}
                     <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary ms-2">Cancel</a>
@@ -98,6 +135,51 @@
                         {% endfor %}
                     {% else %}
                         None configured
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Backup Directory:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.directory %}
+                        {{ current_settings.backup_settings.directory }}
+                    {% else %}
+                        Not configured
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Auto Backup Schedule:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.schedule %}
+                        {{ current_settings.backup_settings.schedule|title }}
+                    {% else %}
+                        Daily
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Backup Retention:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.retention %}
+                        {{ current_settings.backup_settings.retention }} backups
+                    {% else %}
+                        10 backups
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Backup Compression:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.compression %}
+                        Enabled
+                    {% else %}
+                        Disabled
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Include Media in Backups:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.include_media %}
+                        Enabled
+                    {% else %}
+                        Disabled
                     {% endif %}
                 </dd>
             </dl>

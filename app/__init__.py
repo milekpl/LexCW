@@ -68,6 +68,7 @@ def create_app(config_name=None):
     
     # Create database tables if they don't exist
     with app.app_context():
+        from app.models import custom_ranges as _custom_ranges  # noqa: F401
         db.create_all()
     
     # Configure logging
@@ -161,7 +162,7 @@ def create_app(config_name=None):
     app.register_blueprint(profiles_bp)
     
     # Register settings blueprint
-    from app.routes.settings_routes import settings_bp
+    from app.routes.settings_routes_clean import settings_bp
     app.register_blueprint(settings_bp)
 
     # Register merge/split operations API
@@ -171,6 +172,10 @@ def create_app(config_name=None):
     # Register backup API
     from app.api.backup_api import backup_api
     app.register_blueprint(backup_api)
+
+    # Register backup management routes
+    from app.routes.backup_routes import backup_bp
+    app.register_blueprint(backup_bp)
 
     # Create PostgreSQL connection pool and create tables
     app.pg_pool = None
@@ -328,8 +333,12 @@ def create_app(config_name=None):
         from app.services.backup_scheduler import BackupScheduler
         from app.services.operation_history_service import OperationHistoryService
 
-        # Create backup manager with the BaseX connector
-        backup_manager = BaseXBackupManager(basex_connector)
+        # Create backup manager with the BaseX connector and a backup directory path
+        backup_manager = BaseXBackupManager(
+            basex_connector,
+            config_manager=config_manager,
+            backup_directory=str(Path(app.root_path) / "instance" / "backups"),
+        )
         binder.bind(BaseXBackupManager, to=backup_manager, scope=singleton)
 
         # Create operation history service

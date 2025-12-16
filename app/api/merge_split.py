@@ -309,7 +309,7 @@ def get_operation_status(operation_id: str):
         "operation_id": operation.id,
         "status": operation.status,
         "type": operation.operation_type,
-        "timestamp": operation.timestamp.isoformat() if hasattr(operation, 'timestamp') else None,
+        "timestamp": operation.timestamp if isinstance(operation.timestamp, str) else operation.timestamp.isoformat() if hasattr(operation, 'timestamp') and operation.timestamp else None,
         "metadata": operation.metadata
     })
 

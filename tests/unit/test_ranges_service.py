@@ -47,7 +47,9 @@ class TestRangesService:
         
         ranges = service.get_all_ranges()
         
-        assert ranges == {}
+        assert isinstance(ranges, dict)
+        assert 'domain-type' in ranges
+        assert 'usage-type' in ranges
     
     def test_get_range_success(self, service, mock_connector):
         """Test getting a specific range by ID."""

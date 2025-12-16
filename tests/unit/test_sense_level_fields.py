@@ -33,7 +33,6 @@ class TestSenseLevelFields:
             domain_type=["1.1 Universe, creation", "1.2 World"]
         )
 
-        # domain_type is now treated as a single value (first non-empty)
         assert sense.domain_type == "1.1 Universe, creation"
         assert isinstance(sense.domain_type, str)
 
@@ -105,7 +104,7 @@ class TestSenseLevelFields:
         
         assert len(senses) == 1
         assert senses[0].get('usage_type', []) == []
-        assert senses[0].get('domain_type', []) == []
+        assert senses[0].get('domain_type') is None
 
     def test_sense_to_dict_includes_usage_type_and_domain_type(self) -> None:
         """Test that Sense.to_dict() includes usage_type and domain_type."""

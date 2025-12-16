@@ -1753,14 +1753,25 @@ document.addEventListener('DOMContentLoaded', function() {
                                                                         <label class="form-label">Target Sense</label>
                                                                         {% set ref_display = relation.get('ref_display_text') if relation is mapping else (relation.ref_display_text if relation.ref_display_text is defined else None) %}
                                                                         {% set ref_gloss = relation.get('ref_gloss') if relation is mapping else (relation.ref_gloss if relation.ref_gloss is defined else None) %}
+                                                                        {% set ref_id = relation.get('ref_entry_id') if relation.get('ref_entry_id') else (relation.get('ref') if relation is mapping else (relation.ref if relation.ref is defined else None)) %}
                                                                         {% if ref_display or ref_gloss %}
-                                                                        <!-- Show resolved target sense information -->
+                                                                        <!-- Show resolved target sense information with clickable link -->
                                                                         <div class="alert alert-light mb-2">
-                                                                            <i class="fas fa-project-diagram me-2"></i>
+                                                                            <i class="fas fa-external-link-alt me-2"></i>
                                                                             <strong>Related to: </strong>
+                                                                            {% if ref_id %}
+                                                                            <!-- Make target clickable if entry exists -->
+                                                                            <a href="{{ url_for('main.edit_entry', entry_id=ref_id) }}" 
+                                                                               class="text-decoration-none text-primary fw-bold"
+                                                                               title="Edit target entry">
+                                                                                {{ ref_display or 'Unknown' }}
+                                                                            </a>
+                                                                            {% else %}
+                                                                            <!-- Fallback for missing ref -->
                                                                             <span class="fw-bold text-dark">
                                                                                 {{ ref_display or 'Unknown' }}
                                                                             </span>
+                                                                            {% endif %}
                                                                             {% if ref_gloss %}
                                                                             <span class="text-muted"> — {{ ref_gloss }}</span>
                                                                             {% endif %}
@@ -1770,7 +1781,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                                         <div class="alert alert-warning mb-2">
                                                                             <i class="fas fa-exclamation-triangle me-2"></i>
                                                                             <strong>Target not found: </strong>
-                                                                            <code>{{ relation.ref }}</code>
+                                                                            <code>{{ ref_id or 'No reference ID' }}</code>
                                                                         </div>
                                                                         {% endif %}
                                                                         
@@ -2518,8 +2529,77 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
             
+            <!-- Submit Buttons Card -->
+            <div class="card mt-4 mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="btn-group" role="group" aria-label="Undo/Redo controls">
+                                <button type="button" id="undo-btn" class="btn btn-outline-secondary"
+                                        title="Undo last operation" disabled>
+                                    <i class="fas fa-undo"></i> Undo
+                                </button>
+                                <button type="button" id="redo-btn" class="btn btn-outline-secondary"
+                                        title="Redo last undone operation" disabled>
+                                    <i class="fas fa-redo"></i> Redo
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                                            id="operationHistoryDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-history"></i>
+                                    </button>
+                                    <ul class="dropdown-menu" aria-labelledby="operationHistoryDropdown" id="operation-history-list">
+                                        <li><a class="dropdown-item disabled">No operations yet</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="cancel-btn">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button type="button" class="btn btn-primary" id="validate-btn">
+                                <i class="fas fa-check-circle"></i> Validate
+                            </button>
+                            <button type="submit" class="btn btn-success" id="save-btn">
+                                <i class="fas fa-save"></i> Save Entry
+                            </button>
+                            <div class="form-check form-check-inline ms-2 mb-0">
+                                <input class="form-check-input" type="checkbox" id="skip-validation-checkbox">
+                                <label class="form-check-label" for="skip-validation-checkbox">
+                                    <small>Skip validation</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dictionary Preview (Using CSS Display API) -->
+            {% if css_html %}
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-palette"></i> Dictionary Preview (Saved State)</h5>
+                    <a href="{{ url_for('main.display_profiles') }}" class="btn btn-sm btn-light" target="_blank">
+                        <i class="fas fa-cog"></i> Configure Display
+                    </a>
+                </div>
+                <div class="card-body">
+                    {{ css_html|safe }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- XML Preview Toggle (Moved to bottom) -->
+            <div class="text-center mb-2">
+                <button type="button" class="btn btn-sm btn-link text-muted text-decoration-none" id="toggle-xml-preview-btn">
+                    <i class="fas fa-code"></i> Show/Hide XML Preview (Debug)
+                </button>
+            </div>
+
             <!-- XML Preview Panel (Debug Mode) -->
-            <div class="card mt-4 mb-3" id="xml-preview-panel" style="display: none;">
+            <div class="card mb-3" id="xml-preview-panel" style="display: none;">
                 <div class="card-header bg-info text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0"><i class="fas fa-code"></i> Generated LIFT XML</h6>
@@ -2533,34 +2613,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="card-footer">
                     <small class="text-muted">This is the XML that will be sent to the server</small>
-                </div>
-            </div>
-            
-            <div class="card mt-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary" id="cancel-btn">
-                            <i class="fas fa-times"></i> Cancel
-                        </button>
-                        
-                        <div>
-                            <button type="button" class="btn btn-outline-info me-2" id="toggle-xml-preview-btn" title="Show/Hide XML Preview">
-                                <i class="fas fa-code"></i> XML Preview
-                            </button>
-                            <button type="button" class="btn btn-primary" id="validate-btn">
-                                <i class="fas fa-check-circle"></i> Validate
-                            </button>
-                            <button type="submit" class="btn btn-success" id="save-btn">
-                                <i class="fas fa-save"></i> Save Entry
-                            </button>
-                            <div class="form-check form-check-inline ms-3">
-                                <input class="form-check-input" type="checkbox" id="skip-validation-checkbox">
-                                <label class="form-check-label" for="skip-validation-checkbox">
-                                    <small>Skip validation (save partial work)</small>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -3207,6 +3259,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="{{ url_for('static', filename='js/component-search.js') }}"></script>
 <!-- Reordering manager for multi-item lists -->
 <script src="{{ url_for('static', filename='js/reordering-manager.js') }}"></script>
+<!-- Undo/Redo functionality -->
+<script src="{{ url_for('static', filename='js/entry-form-undo-redo.js') }}"></script>
 <!-- Entry form functionality (must be last) -->
 <script src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
 

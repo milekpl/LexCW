@@ -75,6 +75,18 @@ class Backup(BaseModel):
         result['status'] = self.status
         result['restore_timestamp'] = self.restore_timestamp.isoformat() if self.restore_timestamp else None
         result['restore_status'] = self.restore_status
+        # Friendly display name: prefer description, else filename, else timestamp
+        try:
+            if self.description and str(self.description).strip():
+                result['display_name'] = str(self.description).strip()
+            else:
+                from pathlib import Path
+                if self.file_path:
+                    result['display_name'] = Path(self.file_path).name
+                else:
+                    result['display_name'] = result.get('timestamp') or ''
+        except Exception:
+            result['display_name'] = result.get('timestamp') or ''
         return result
 
     @classmethod

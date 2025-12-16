@@ -430,32 +430,49 @@ class VariantFormsManager {
             container.style.display = 'block';
             return;
         }
-        
+
         const resultsHtml = entries.map(entry => {
             // Extract display text from headword or lexical_unit (which may be an object)
             const displayText = this.getEntryDisplayText(entry);
             return `
-            <div class="search-result-item p-2 border-bottom cursor-pointer" 
-                 data-entry-id="${entry.id}" 
+            <div class="search-result-item p-2 border-bottom"
+                 data-entry-id="${entry.id}"
                  data-entry-headword="${displayText}"
                  data-variant-index="${variantIndex}">
-                <div class="fw-bold">${displayText}</div>
-                ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="fw-bold">${displayText}</div>
+                        ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
+                    </div>
+                    <i class="fas fa-plus-circle text-success" title="Select this entry" style="cursor: pointer;"></i>
+                </div>
             </div>
         `}).join('');
-        
+
         container.innerHTML = `
             <div class="border rounded bg-white shadow-sm">
                 ${resultsHtml}
             </div>
         `;
         container.style.display = 'block';
-        
-        // Add click handlers for search results
+
+        // Add click handlers for search results and selection icons
         container.querySelectorAll('.search-result-item').forEach(item => {
-            item.addEventListener('click', () => {
-                this.selectSearchResult(item);
+            // Click on the entire item selects the result
+            item.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('fa-plus-circle')) {
+                    this.selectSearchResult(item);
+                }
             });
+
+            // Click on the plus icon also selects the result
+            const plusIcon = item.querySelector('.fa-plus-circle');
+            if (plusIcon) {
+                plusIcon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectSearchResult(item);
+                });
+            }
         });
     }
     

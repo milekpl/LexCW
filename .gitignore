@@ -60,3 +60,8 @@ coverage.xml
 /.zencoder/docs
 /.history/*/*.*
 .history/app/views_20250623215605.py
+sample_2
+sample_3
+'/home/milek/backup_dir/**
+app/app/static/backup/**
+app/static/backup/**

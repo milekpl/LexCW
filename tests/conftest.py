@@ -151,13 +151,26 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
     finally:
         # Clean up test database
         try:
-            connector.execute_update(f"db:drop('{test_db_name}')")
+            try:
+                connector.disconnect()
+            except Exception:
+                pass
+
+            cleanup_connector = BaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin'),
+                database=None,
+            )
+            cleanup_connector.connect()
+            cleanup_connector.drop_database(test_db_name)
             logger.info(f"Dropped test database: {test_db_name}")
         except Exception as e:
             logger.warning(f"Failed to drop test database {test_db_name}: {e}")
         finally:
             try:
-                connector.disconnect()
+                cleanup_connector.disconnect()
             except Exception:
                 pass
 

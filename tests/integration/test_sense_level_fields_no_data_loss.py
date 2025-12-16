@@ -36,23 +36,26 @@ class TestSenseLevelFieldsNoDataLoss:
         assert isinstance(senses[0]['usage_type'], list)
         print(f"✓ usage_type preserved as list: {senses[0]['usage_type']}")
 
-    def test_domain_type_list_preserved_through_form_processing(self) -> None:
-        """Test that domain_type list values are preserved through form processing."""
+    def test_semantic_domains_list_preserved_through_form_processing(self) -> None:
+        """Test that semantic_domains list values are preserved through form processing."""
         form_data = {
             'id': 'test_entry',
             'lexical_unit': {'en': 'test'},
             'senses[0].id': 'sense1',
-            'senses[0].domain_type': ['1.1 Universe, creation', '1.2 World'],  # List from multiple select
+            'senses[0].semantic_domain_': ['1.1 Universe, creation', '1.2 World'],  # List from multiple select
             'senses[0].definition.en.text': 'A test definition'
         }
         
         senses = process_senses_form_data(form_data)
         
         assert len(senses) == 1
-        assert 'domain_type' in senses[0]
-        assert senses[0]['domain_type'] == ['1.1 Universe, creation', '1.2 World']
-        assert isinstance(senses[0]['domain_type'], list)
-        print(f"✓ domain_type preserved as list: {senses[0]['domain_type']}")
+        assert 'semantic_domains' in senses[0]
+        assert senses[0]['semantic_domains'] == ['1.1 Universe, creation', '1.2 World']
+        assert isinstance(senses[0]['semantic_domains'], list)
+        print(f"✓ semantic_domains preserved as list: {senses[0]['semantic_domains']}")
+
+    def test_domain_type_list_preserved_through_form_processing(self) -> None:
+        self.test_semantic_domains_list_preserved_through_form_processing()
 
     def test_semicolon_separated_string_converted_to_list(self) -> None:
         """Test that semicolon-separated strings (LIFT format) are converted to lists."""
@@ -85,7 +88,7 @@ class TestSenseLevelFieldsNoDataLoss:
         
         assert len(senses) == 1
         assert senses[0].get('usage_type', []) == []
-        assert senses[0].get('domain_type', []) == []
+        assert senses[0].get('domain_type') is None
         print("✓ Empty list fields handled correctly")
 
     @pytest.mark.integration
@@ -120,7 +123,7 @@ class TestSenseLevelFieldsNoDataLoss:
 
     @pytest.mark.integration
     def test_entry_with_domain_type_saved_and_retrieved(self, dict_service_with_db: DictionaryService) -> None:
-        """Integration test: Save entry with domain_type and verify it persists."""
+        """Integration test: Save entry with semantic domains and verify it persists."""
         entry = Entry(
             id_="test_domain_type_entry",
             lexical_unit={"en": "universe"},
@@ -129,23 +132,23 @@ class TestSenseLevelFieldsNoDataLoss:
                     id_="sense1",
                     glosses={"pl": "wszechświat"},
                     definitions={"en": "All existing matter and space"},
-                    domain_type=["1.1 Universe, creation", "1.2 World"]
+                    semantic_domains=["1.1 Universe, creation", "1.2 World"]  # These are semantic domains, not domain_type values
                 )
             ]
         )
-        
+
         # Save to database
         dict_service_with_db.create_entry(entry)
-        
+
         # Retrieve from database
         retrieved = dict_service_with_db.get_entry("test_domain_type_entry")
-        
-        # Verify domain_type was preserved
+
+        # Verify semantic domains were preserved in the correct field
         assert retrieved is not None
         assert len(retrieved.senses) == 1
-        assert hasattr(retrieved.senses[0], 'domain_type')
-        assert retrieved.senses[0].domain_type == ["1.1 Universe, creation", "1.2 World"]
-        # Entry successfully saved and retrieved with domain_type preserved
+        assert hasattr(retrieved.senses[0], 'semantic_domains')
+        assert retrieved.senses[0].semantic_domains == ["1.1 Universe, creation", "1.2 World"]
+        # Entry successfully saved and retrieved with semantic domains preserved correctly
 
     @pytest.mark.integration
     def test_form_submission_to_database_roundtrip(self, dict_service_with_db: DictionaryService) -> None:

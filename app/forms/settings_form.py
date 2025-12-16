@@ -8,8 +8,8 @@ including searchable dropdowns and dynamic target language selection.
 from __future__ import annotations
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, SelectField, SubmitField, validators
-from wtforms.validators import DataRequired, Length, Optional
+from wtforms import StringField, SelectField, SubmitField, BooleanField, IntegerField, validators
+from wtforms.validators import DataRequired, Length, Optional, NumberRange, Regexp
 from typing import Dict, Any, List, Union
 import json
 
@@ -57,6 +57,44 @@ class SettingsForm(FlaskForm):
     available_target_languages = SearchableLanguageMultiSelectField(
         'Target Languages',
         description='Languages used for definitions, translations, and cross-references'
+    )
+
+    # Backup settings
+    backup_directory = StringField(
+        'Backup Directory',
+        validators=[Optional(), Regexp(r'^(/[^/]*)+/?$|^[a-zA-Z0-9._/-]+$', message='Must be an absolute path starting with / or a relative path')],
+        description='Directory where backups will be stored (absolute path or relative to app directory)'
+    )
+
+    auto_backup_schedule = SelectField(
+        'Auto Backup Schedule',
+        choices=[
+            ('disabled', 'Disabled'),
+            ('hourly', 'Hourly'),
+            ('daily', 'Daily'),
+            ('weekly', 'Weekly')
+        ],
+        default='daily',
+        description='How often to automatically create backups'
+    )
+
+    backup_retention = IntegerField(
+        'Keep Backups',
+        default=10,
+        validators=[NumberRange(min=1, max=100)],
+        description='Number of backup files to keep before deleting old ones'
+    )
+
+    backup_compression = BooleanField(
+        'Compress Backups',
+        default=True,
+        description='Compress backup files to save disk space'
+    )
+
+    backup_include_media = BooleanField(
+        'Include Media in Backups',
+        default=False,
+        description='Include uploaded media files in backups when enabled'
     )
 
     # Submit button
@@ -114,6 +152,15 @@ class SettingsForm(FlaskForm):
                     elif isinstance(lang, str):
                         target_codes.append(lang)
                 self.available_target_languages.populate_from_codes(target_codes)
+            
+            # Populate backup settings
+            backup_settings = getattr(config, 'get_backup_settings', lambda: {})()
+            if isinstance(backup_settings, dict):
+                self.backup_directory.data = backup_settings.get('directory', '')
+                self.auto_backup_schedule.data = backup_settings.get('schedule', 'daily')
+                self.backup_retention.data = backup_settings.get('retention', 10)
+                self.backup_compression.data = backup_settings.get('compression', True)
+                self.backup_include_media.data = backup_settings.get('include_media', False)
         
         elif isinstance(config, dict):
             # Dictionary configuration
@@ -133,6 +180,15 @@ class SettingsForm(FlaskForm):
                     elif isinstance(lang, str):
                         target_codes.append(lang)
                 self.available_target_languages.populate_from_codes(target_codes)
+            
+            # Populate backup settings from dictionary
+            backup_settings = config.get('backup_settings', {})
+            if isinstance(backup_settings, dict):
+                self.backup_directory.data = backup_settings.get('directory', '')
+                self.auto_backup_schedule.data = backup_settings.get('schedule', 'daily')
+                self.backup_retention.data = backup_settings.get('retention', 10)
+                self.backup_compression.data = backup_settings.get('compression', True)
+                self.backup_include_media.data = backup_settings.get('include_media', False)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -178,7 +234,14 @@ class SettingsForm(FlaskForm):
         return {
             'project_name': self.project_name.data or '',
             'source_language': source_language,
-            'target_languages': target_languages
+            'target_languages': target_languages,
+            'backup_settings': {
+                'directory': self.backup_directory.data or '',
+                'schedule': self.auto_backup_schedule.data or 'daily',
+                'retention': self.backup_retention.data or 10,
+                'compression': self.backup_compression.data if self.backup_compression.data is not None else True,
+                'include_media': bool(self.backup_include_media.data)
+            }
         }
         
     def get_language_statistics(self) -> Dict[str, Any]:

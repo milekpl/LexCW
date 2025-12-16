@@ -241,10 +241,13 @@ class OperationHistoryService:
                 # Create a basic MergeSplitOperation from the stored data
                 # Note: This is a best-effort approach since the original format may differ
                 try:
+                    # Extract the ID and pass it as id_ parameter
+                    op_id = op.get('id')
                     merge_split_ops.append(MergeSplitOperation(
                         operation_type=op.get('operation_type', 'merge_split'),
                         source_id=op.get('source_id', ''),
                         target_id=op.get('target_id'),
+                        id_=op_id,  # Pass ID with underscore as expected by BaseModel
                         **{k: v for k, v in op.items() if k not in ['operation_type', 'source_id', 'target_id', 'id', 'type']}
                     ))
                 except:

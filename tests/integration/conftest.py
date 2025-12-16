@@ -105,6 +105,39 @@ def app_context(app: Flask):
         db.session.rollback()  # Clean up after test
 
 
+@pytest.fixture(scope="function", autouse=True)
+def reset_ranges_service_parser(app: Flask):
+    """Reset the singleton RangesService parser between tests.
+
+    Some integration tests monkeypatch RangesService.ranges_parser.parse_string
+    and expect the API layer to observe that patch. Because the app injector
+    is session-scoped, we must restore the parser after each test to avoid
+    cross-test contamination.
+    """
+    with app.app_context():
+        try:
+            from app.services.ranges_service import RangesService
+            from app.parsers.lift_parser import LIFTRangesParser
+
+            service = app.injector.get(RangesService)
+            original_parser = getattr(service, 'ranges_parser', None)
+            service.ranges_parser = LIFTRangesParser()
+        except Exception:
+            service = None
+            original_parser = None
+
+    yield
+
+    with app.app_context():
+        try:
+            if service is not None:
+                from app.parsers.lift_parser import LIFTRangesParser
+
+                service.ranges_parser = LIFTRangesParser()
+        except Exception:
+            pass
+
+
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_display_profiles():
     """Clean up display profile storage before and after test session."""
