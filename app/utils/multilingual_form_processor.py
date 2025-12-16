@@ -198,6 +198,17 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
             existing_relations = []
         # Append new component relations
         merged_data['relations'] = existing_relations + form_components
+
+    # Process variant relations from form data and add to relations
+    form_variant_relations = process_variant_relations_form_data(form_data)
+    if form_variant_relations:
+        logger.debug(f"[MERGE DEBUG] Adding {len(form_variant_relations)} new variant relations to relations")
+        # Get existing relations or initialize empty list
+        existing_relations = merged_data.get('relations', [])
+        if not isinstance(existing_relations, list):
+            existing_relations = []
+        # Append new variant relations
+        merged_data['relations'] = existing_relations + form_variant_relations
     
     # Process other form fields (excluding notes, multilingual fields, senses, and components)
     # Handle dot notation fields by converting them to nested structures
@@ -715,6 +726,83 @@ def process_components_form_data(form_data: Dict[str, Any]) -> List[Dict[str, An
         
         logger.debug(f"[COMPONENTS DEBUG] Component {component_index} -> relation: {relation_dict}")
         result.append(relation_dict)
-    
+
     logger.debug(f"[COMPONENTS DEBUG] Final result: {result}")
+    return result
+
+
+def process_variant_relations_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Process variant_relations[n].field form data into a list of variant relation dictionaries.
+    Variant relations are converted to _component-lexeme relations with variant-type traits.
+
+    Args:
+        form_data: Raw form data containing variant_relations[n].field entries
+
+    Returns:
+        List of variant relation dictionaries to be converted to Relation objects
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.debug(f"[VARIANT DEBUG] Starting variant relations form data processing")
+
+    variant_relations_data = {}
+
+    for key, value in form_data.items():
+        if key.startswith('variant_relations[') and '].' in key:
+            try:
+                # Extract index and field name: variant_relations[0].ref -> index=0, field=ref
+                index_end = key.index(']')
+                index_str = key[len('variant_relations['):index_end]
+                field = key[index_end + 2:]  # Skip '].''
+
+                variant_index = int(index_str)
+
+                if variant_index not in variant_relations_data:
+                    variant_relations_data[variant_index] = {}
+
+                # Store the field value
+                if value is not None and value != '':
+                    if isinstance(value, str):
+                        variant_relations_data[variant_index][field] = value.strip()
+                        logger.debug(f"[VARIANT DEBUG] variant_relations[{variant_index}][{field}] = {value.strip()}")
+                    else:
+                        variant_relations_data[variant_index][field] = value
+                        logger.debug(f"[VARIANT DEBUG] variant_relations[{variant_index}][{field}] = {value}")
+
+            except (ValueError, IndexError):
+                logger.debug(f"[VARIANT DEBUG] Invalid variant relation key: {key}")
+                continue
+
+    # Convert to list of relation dicts with _component-lexeme type and variant-type trait
+    result = []
+    for variant_index in sorted(variant_relations_data.keys()):
+        variant = variant_relations_data[variant_index]
+
+        # Skip if no ref provided
+        if 'ref' not in variant or not variant['ref']:
+            logger.debug(f"[VARIANT DEBUG] Skipping variant relation {variant_index} - no ref")
+            continue
+
+        # Convert to _component-lexeme relation format with variant-type trait
+        relation_dict = {
+            'type': variant.get('type', '_component-lexeme'),
+            'ref': variant['ref'],
+            'traits': {
+                'variant-type': variant.get('variant_type', 'Unspecified Variant')
+            }
+        }
+
+        # Add order if provided
+        if 'order' in variant:
+            try:
+                relation_dict['order'] = int(variant['order'])
+            except ValueError:
+                pass
+
+        logger.debug(f"[VARIANT DEBUG] Variant relation {variant_index} -> relation: {relation_dict}")
+        result.append(relation_dict)
+
+    logger.debug(f"[VARIANT DEBUG] Final result: {result}")
     return result

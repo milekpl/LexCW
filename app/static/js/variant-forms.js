@@ -290,7 +290,7 @@ class VariantFormsManager {
                                    data-bs-html="true"
                                    title="About Variant Types: Different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', or inflected forms like plurals and past tense forms."></i>
                             </label>
-                            <select class="form-control dynamic-lift-range" 
+                            <select class="form-control dynamic-lift-range"
                                     name="variant_relations[${index}][variant_type]" required
                                     data-range-id="variant-type"
                                     data-selected="${variantRelation.variant_type || ''}">

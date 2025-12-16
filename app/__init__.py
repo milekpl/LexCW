@@ -336,7 +336,6 @@ def create_app(config_name=None):
         # Create backup manager with the BaseX connector and a backup directory path
         backup_manager = BaseXBackupManager(
             basex_connector,
-            config_manager=config_manager,
             backup_directory=str(Path(app.root_path) / "instance" / "backups"),
         )
         binder.bind(BaseXBackupManager, to=backup_manager, scope=singleton)
