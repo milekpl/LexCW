@@ -18,6 +18,14 @@ document.addEventListener('DOMContentLoaded', function() {
             refreshDashboardStats();
         });
     }
+    
+    // Set up quick backup button
+    const quickBackupBtn = document.getElementById('quick-backup-btn');
+    if (quickBackupBtn) {
+        quickBackupBtn.addEventListener('click', function() {
+            createQuickBackup();
+        });
+    }
 });
 
 /**
@@ -82,6 +90,18 @@ function updateSystemStatus(systemStatus) {
     const backupBadge = document.getElementById('backup-status-badge');
     if (backupBadge) {
         backupBadge.textContent = systemStatus.last_backup || 'Never';
+    }
+    
+    // Update next scheduled backup
+    const nextBackupBadge = document.getElementById('next-backup-badge');
+    if (nextBackupBadge) {
+        nextBackupBadge.textContent = systemStatus.next_backup || 'Not scheduled';
+    }
+    
+    // Update backup count
+    const backupCountBadge = document.getElementById('backup-count-badge');
+    if (backupCountBadge) {
+        backupCountBadge.textContent = systemStatus.backup_count || 0;
     }
     
     // Update storage usage
@@ -243,4 +263,78 @@ function refreshDashboardStats() {
                 }, 1500);
             });
     }
+}
+
+/**
+ * Create a quick backup
+ */
+function createQuickBackup() {
+    const quickBackupBtn = document.getElementById('quick-backup-btn');
+    if (!quickBackupBtn) return;
+    
+    const originalText = quickBackupBtn.innerHTML;
+    const icon = quickBackupBtn.querySelector('i');
+    
+    // Show loading state
+    quickBackupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    quickBackupBtn.disabled = true;
+    quickBackupBtn.classList.remove('btn-success');
+    quickBackupBtn.classList.add('btn-warning');
+    
+    // Make API call to create backup
+    fetch('/api/backup/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            name: `Quick Backup ${new Date().toLocaleString()}`,
+            description: 'Quick backup created from dashboard'
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(result => {
+        if (result.success) {
+            // Show success
+            quickBackupBtn.innerHTML = '<i class="fas fa-check"></i> Success!';
+            quickBackupBtn.classList.remove('btn-warning');
+            quickBackupBtn.classList.add('btn-success');
+            
+            // Refresh dashboard data to show updated backup info
+            setTimeout(() => {
+                fetchDashboardData();
+            }, 500);
+            
+            // Reset button after 2 seconds
+            setTimeout(() => {
+                quickBackupBtn.innerHTML = originalText;
+                quickBackupBtn.classList.remove('btn-success');
+                quickBackupBtn.classList.add('btn-success');
+                quickBackupBtn.disabled = false;
+            }, 2000);
+        } else {
+            throw new Error(result.error || 'Unknown error');
+        }
+    })
+    .catch(error => {
+        console.error('Error creating backup:', error);
+        
+        // Show error
+        quickBackupBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+        quickBackupBtn.classList.remove('btn-warning');
+        quickBackupBtn.classList.add('btn-danger');
+        
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            quickBackupBtn.innerHTML = originalText;
+            quickBackupBtn.classList.remove('btn-danger');
+            quickBackupBtn.classList.add('btn-success');
+            quickBackupBtn.disabled = false;
+        }, 2000);
+    });
 }

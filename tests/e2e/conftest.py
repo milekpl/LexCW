@@ -9,6 +9,7 @@ import os
 import pytest
 import tempfile
 import logging
+import uuid
 from typing import Generator
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
 
@@ -38,7 +39,10 @@ def setup_e2e_test_database():
         database=None,
     )
     
-    test_db = 'dictionary_test'
+    test_db = os.environ.get('TEST_DB_NAME')
+    if not test_db:
+        test_db = f"dictionary_test_{uuid.uuid4().hex[:10]}"
+        os.environ['TEST_DB_NAME'] = test_db
     
     try:
         connector.connect()
@@ -248,13 +252,15 @@ def e2e_dict_service():
     """Create a DictionaryService that uses the E2E test database (dictionary_test)."""
     from app.database.basex_connector import BaseXConnector
     from app.services.dictionary_service import DictionaryService
-    
+
+    test_db = os.environ.get('TEST_DB_NAME', 'dictionary_test')
+
     connector = BaseXConnector(
         host=os.getenv('BASEX_HOST', 'localhost'),
         port=int(os.getenv('BASEX_PORT', '1984')),
         username=os.getenv('BASEX_USERNAME', 'admin'),
         password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database='dictionary_test',  # Use the E2E test database
+        database=test_db,  # Use the E2E test database
     )
     connector.connect()
     

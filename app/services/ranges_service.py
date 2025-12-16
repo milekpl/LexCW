@@ -39,18 +39,26 @@ STANDARD_RANGE_METADATA = {
     'Publications': {'label': 'Publications', 'description': 'Publication types'},
     'usage-type': {'label': 'Usage Types', 'description': 'Usage type list'},
     'domain-type': {'label': 'Domain Types', 'description': 'Domain types'},
-}
 
-# Add labels for complex-form-type and important LIFT traits
-STANDARD_RANGE_METADATA.setdefault('complex-form-type', {'label': 'Complex form types', 'description': 'How component subentries relate to main entries'})
-STANDARD_RANGE_METADATA.setdefault('is-primary', {'label': 'Is primary (trait)', 'description': 'Marks a component as primary in complex forms'})
-STANDARD_RANGE_METADATA.setdefault('hide-minor-entry', {'label': 'Hide minor entry (trait)', 'description': 'Control publication visibility of minor entries'})
-STANDARD_RANGE_METADATA.setdefault('variant-type', {'label': 'Variant types', 'description': 'Variant type classifications'})
+    'complex-form-type': {
+        'label': 'Complex form types',
+        'description': 'How component subentries relate to main entries',
+    },
+    'is-primary': {
+        'label': 'Is primary (trait)',
+        'description': 'Marks a component as primary in complex forms',
+    },
+    'hide-minor-entry': {
+        'label': 'Hide minor entry (trait)',
+        'description': 'Control publication visibility of minor entries',
+    },
+    'variant-type': {'label': 'Variant types', 'description': 'Variant type classifications'},
+}
 
 # Optionally load localized/overriding metadata from `app/config/custom_ranges.json`.
 # Keys present in that file are usually FieldWorks-only lists (not stored in LIFT)
 # and are recorded in CONFIG_PROVIDED_RANGES so they can be marked when added.
-CONFIG_PROVIDED_RANGES = set()
+CONFIG_PROVIDED_RANGES: set[str] = set()
 CONFIG_RANGE_TYPES: Dict[str, str] = {}
 # NOTE: keep the in-code STANDARD_RANGE_METADATA as the primary fallback
 # for friendly labels; the JSON file now only contains custom FieldWorks lists.
@@ -172,8 +180,9 @@ class RangesService:
         self._ensure_connection()
         db_name = self.db_connector.database
 
-        # Query ranges document
-        query = f"collection('{db_name}')//lift-ranges"
+        # Query ranges document. Must be namespace-insensitive because
+        # FieldWorks ranges typically use the ranges namespace.
+        query = f"collection('{db_name}')//*[local-name() = 'lift-ranges']"
         ranges_xml = self.db_connector.execute_query(query)
 
         ranges = {}
@@ -242,9 +251,11 @@ class RangesService:
         # Load and merge custom ranges
         custom_ranges = self._load_custom_ranges(project_id)
 
-        # If there are no ranges in the database and no custom ranges, return empty
-        # dict to reflect an empty ranges state (avoid synthesizing standard metadata)
-        if not ranges and not custom_ranges:
+        # If there are no ranges in the database, no custom ranges, and no
+        # config-provided ranges, return empty dict to reflect an empty ranges state.
+        # If config provides FieldWorks-only lists, still expose them so the editor
+        # can reflect those ranges even when LIFT has none.
+        if not ranges and not custom_ranges and not CONFIG_PROVIDED_RANGES:
             return {}
 
         # Merge custom ranges into the main ranges dict
@@ -366,8 +377,14 @@ class RangesService:
                         'range_id': cr.id
                     })
                 custom_ranges[cr.range_name] = elements
+        except RuntimeError as e:
+            # Unit tests may mock CustomRange.query without an application context.
+            # In production, SQLAlchemy access without app context raises this.
+            if "Working outside of application context" in str(e):
+                return {}
+            self.logger.error("Error loading custom ranges: %s", e)
         except Exception as e:
-            self.logger.error(f"Error loading custom ranges: {e}")
+            self.logger.error("Error loading custom ranges: %s", e)
 
         return custom_ranges
 

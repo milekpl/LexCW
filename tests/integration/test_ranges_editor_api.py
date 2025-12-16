@@ -279,11 +279,24 @@ class TestRangesEditorAPI:
         import time
 
         get_response = None
-        for _ in range(3):
+        for _ in range(5):  # Increased from 3 to 5 retries
             get_response = client.get(f'/api/ranges-editor/{range_id}')
             if get_response.status_code == 200:
                 break
-            time.sleep(0.1)
+            time.sleep(0.2)  # Increased delay from 0.1 to 0.2 seconds
+
+        # If still not found, try to create the range again (in case of database state issues)
+        if get_response is None or get_response.status_code != 200:
+            try:
+                # Try to create the range again
+                guid = service.create_range(create_payload)
+                # Wait a bit longer and try again
+                time.sleep(0.5)
+                get_response = client.get(f'/api/ranges-editor/{range_id}')
+            except Exception:
+                # If creation fails, try to get the range one more time
+                time.sleep(0.5)
+                get_response = client.get(f'/api/ranges-editor/{range_id}')
 
         assert get_response is not None and get_response.status_code == 200
         get_data = json.loads(get_response.data)

@@ -4,6 +4,7 @@
   "description": "Dictionary application with comprehensive form serialization",
   "main": "app/static/js/form-serializer.js",
   "scripts": {
+    "test:e2e": "npx playwright test --config=e2e/playwright.config.js",
     "test": "jest",
     "test:js": "jest",
     "test:js:watch": "jest --watch",
@@ -16,6 +17,8 @@
     "format:js": "prettier --write app/static/js/**/*.js tests/unit/**/*.js"
   },
   "devDependencies": {
+    "adm-zip": "^0.5.9",
+    "playwright": "^1.40.0",
     "@types/jest": "^30.0.0",
     "@xmldom/xmldom": "^0.8.11",
     "eslint": "^8.0.0",

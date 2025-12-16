@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Management - Lexicographic Curation Workbench{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4"><i class="fas fa-shield-alt"></i> Backup Management</h2>
+        </div>
+    </div>
+
+    <!-- Manual Backup Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Create Manual Backup</h5>
+                </div>
+                <div class="card-body">
+                    <form id="manual-backup-form">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="backup-description" class="form-label">Description (Optional)</label>
+                                <input type="text" class="form-control" id="backup-description"
+                                       placeholder="Describe this backup">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="backup-type" class="form-label">Backup Type</label>
+                                <select class="form-select" id="backup-type">
+                                    <option value="full">Full Backup</option>
+                                    <option value="incremental">Incremental Backup</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100" id="create-backup-btn">
+                                    <i class="fas fa-save"></i> Create Backup
+                                </button>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-center">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="backup-include-media">
+                                    <label class="form-check-label small" for="backup-include-media">
+                                        Include media
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="button" class="btn btn-outline-secondary w-100" id="refresh-backups">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup History Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history"></i> Backup History</h5>
+                    <div class="badge bg-light text-dark" id="backup-count">0 backups</div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="backup-history-table">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th><i class="fas fa-calendar"></i> Date</th>
+                                    <th><i class="fas fa-tag"></i> Type</th>
+                                    <th><i class="fas fa-weight"></i> Size</th>
+                                    <th><i class="fas fa-comment"></i> Description</th>
+                                    <th><i class="fas fa-info-circle"></i> Status</th>
+                                    <th><i class="fas fa-cogs"></i> Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="backup-history-body">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>Loading backup history...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inline Backup Details Panel (replaces modal dialogs) -->
+    <div id="backup-details-panel" class="card mt-4" style="display: none;">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-info-circle"></i> Backup Details</h5>
+        </div>
+        <div class="card-body" id="backup-details-content">
+            <!-- Populated by JavaScript -->
+        </div>
+        <div class="card-footer text-end">
+            <button type="button" class="btn btn-secondary" id="close-backup-details">Close</button>
+            <button type="button" class="btn btn-primary" id="restore-backup-btn" style="display: none;">
+                <i class="fas fa-undo"></i> Restore This Backup
+            </button>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-clock"></i> Scheduled Backups</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Scheduled backups are configured in <a href="/settings" class="alert-link">Settings</a>.
+                        Current schedule: <strong id="current-schedule">Loading...</strong>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Next Scheduled Backup</h6>
+                            <p class="text-muted" id="next-backup">Calculating...</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Backup Directory</h6>
+                            <p class="text-muted" id="backup-directory">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables for enhanced table functionality -->
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+
+<!-- Backup Manager JavaScript -->
+<script src="{{ url_for('static', filename='js/backup-manager.js') }}"></script>
+
+<script>
+    // Set global database name from server
+    window.CURRENT_DB_NAME = '{{ db_name }}';
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Bootstrap tooltips
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+    // Initialize backup manager
+    if (typeof BackupManager !== 'undefined') {
+        window.backupManager = new BackupManager();
+    }
+});
+</script>
+{% endblock %}

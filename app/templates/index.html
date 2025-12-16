@@ -123,8 +123,11 @@
         </div>
         
         <div class="card">
-            <div class="card-header bg-info text-white">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-tasks"></i> System Status</h5>
+                <a href="/backup/" class="btn btn-sm btn-outline-light" title="Manage Backups">
+                    <i class="fas fa-save"></i> Manage
+                </a>
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -139,12 +142,26 @@
                         <span id="backup-status-badge" class="badge bg-secondary rounded-pill">{{ system_status.last_backup if system_status.last_backup else 'Never' }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Next Scheduled Backup
+                        <span id="next-backup-badge" class="badge bg-info rounded-pill">{{ system_status.next_backup if system_status.next_backup else 'Not scheduled' }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Total Backups
+                        <span id="backup-count-badge" class="badge bg-primary rounded-pill">{{ system_status.backup_count if system_status.backup_count is not none else 0 }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
                         Storage Usage
                         <span id="storage-status-badge" class="badge bg-{{ 'success' if system_status.storage_percent < 80 else 'warning' }} rounded-pill">
                             {{ system_status.storage_percent if system_status.storage_percent is not none else 0 }}%
                         </span>
                     </li>
                 </ul>
+                
+                <div class="mt-3">
+                    <button id="quick-backup-btn" class="btn btn-success btn-sm w-100" title="Create a quick backup now">
+                        <i class="fas fa-save"></i> Quick Backup
+                    </button>
+                </div>
             </div>
         </div>
     </div>

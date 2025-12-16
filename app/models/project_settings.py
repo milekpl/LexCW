@@ -23,6 +23,7 @@ class ProjectSettings(db.Model):
     basex_db_name = Column(String(255), nullable=False)
     source_language = Column(JSON, nullable=False)
     target_languages = Column(JSON, nullable=False, default=list)
+    backup_settings = Column(JSON, nullable=True, default=dict)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -39,7 +40,8 @@ class ProjectSettings(db.Model):
         return {
             'project_name': self.project_name,
             'source_language': self.source_language,
-            'target_languages': self.target_languages
+            'target_languages': self.target_languages,
+            'backup_settings': self.backup_settings or {}
         }
 
 # TODO: Define User model for project ownership and membership

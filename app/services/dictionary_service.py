@@ -379,6 +379,9 @@ class DictionaryService:
             # Check if entry exists
             self.get_entry(entry.id)
 
+            # Handle bidirectional relations before saving
+            self._handle_bidirectional_relations(entry)
+
             entry_xml = self._prepare_entry_xml(entry)
 
             # Use namespace-aware query
@@ -394,6 +397,139 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Error updating entry %s: %s", entry.id, str(e))
             raise DatabaseError(f"Failed to update entry: {str(e)}") from e
+
+    def _handle_bidirectional_relations(self, entry: 'Entry') -> None:
+        """
+        Handle bidirectional relations by creating reverse relations for target entries.
+
+        When an entry has a bidirectional relation (e.g., 'synonim'), this method
+        creates the reverse relation in the target entry (e.g., if A is synonym of B,
+        then B should also have A as synonym in its relations).
+
+        Args:
+            entry: The entry being updated that may contain bidirectional relations
+        """
+        from app.utils.bidirectional_relations import is_relation_bidirectional, get_reverse_relation_type
+        from app.models.entry import Relation
+
+        # Process entry-level relations
+        for relation in entry.relations:
+            rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
+            rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
+
+            if is_relation_bidirectional(rel_type, self):  # Pass self (the dict_service) for dynamic range checking
+                try:
+                    # Get the target entry that should receive the reverse relation
+                    target_entry = self.get_entry(rel_ref)
+
+                    # Determine the reverse relation type
+                    reverse_rel_type = get_reverse_relation_type(rel_type, self)
+
+                    # Check if the reverse relation already exists to avoid duplication
+                    reverse_relation_exists = False
+                    for target_rel in target_entry.relations:
+                        target_rel_type = getattr(target_rel, 'type', target_rel.get('type', '') if isinstance(target_rel, dict) else '')
+                        target_rel_ref = getattr(target_rel, 'ref', target_rel.get('ref', '') if isinstance(target_rel, dict) else '')
+                        if target_rel_type == reverse_rel_type and target_rel_ref == entry.id:
+                            reverse_relation_exists = True
+                            break
+
+                    # Add reverse relation if it doesn't already exist
+                    if not reverse_relation_exists:
+                        reverse_relation = Relation(type=reverse_rel_type, ref=entry.id)
+                        target_entry.relations.append(reverse_relation)
+
+                        # Save the target entry with the new reverse relation
+                        self.update_entry(target_entry, skip_validation=True)  # Skip validation to avoid circular issues
+
+                        self.logger.info(f"Added reverse relation '{reverse_rel_type}' from '{rel_ref}' to '{entry.id}'")
+
+                except Exception as e:
+                    self.logger.warning(f"Could not create reverse relation for type '{rel_type}' from '{entry.id}' to '{rel_ref}': {str(e)}")
+
+        # Process sense-level relations
+        for sense_idx, sense in enumerate(entry.senses):
+            if hasattr(sense, 'relations') and sense.relations:
+                for relation in sense.relations:
+                    rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
+                    rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
+
+                    if is_relation_bidirectional(rel_type, self):  # Pass self (the dict_service) for dynamic range checking
+                        try:
+                            # For sense relations, the ref might be the target sense ID
+                            # We need to find which entry contains the target sense
+                            target_entry = self._find_entry_by_sense_id(rel_ref)
+
+                            if target_entry:
+                                # For sense-to-sense relations, we need to determine which sense in target entry this relates to
+                                # For now, we'll add it to the target entry as a general relation
+                                # In future refinement, this could be more sophisticated
+                                reverse_rel_type = get_reverse_relation_type(rel_type, self)
+
+                                # Check if reverse relation already exists (avoid duplication)
+                                reverse_relation_exists = False
+                                for target_rel in target_entry.relations:
+                                    target_rel_type = getattr(target_rel, 'type', target_rel.get('type', '') if isinstance(target_rel, dict) else '')
+                                    target_rel_ref = getattr(target_rel, 'ref', target_rel.get('ref', '') if isinstance(target_rel, dict) else '')
+                                    if target_rel_type == reverse_rel_type and target_rel_ref == entry.id:
+                                        reverse_relation_exists = True
+                                        break
+
+                                if not reverse_relation_exists:
+                                    reverse_relation = Relation(type=reverse_rel_type, ref=entry.id)
+                                    target_entry.relations.append(reverse_relation)
+
+                                    # Save the target entry
+                                    self.update_entry(target_entry, skip_validation=True)
+
+                                    self.logger.info(f"Added reverse sense relation '{reverse_rel_type}' to entry '{target_entry.id}' for sense relation from '{entry.id}'")
+
+                        except Exception as e:
+                            self.logger.warning(f"Could not create reverse sense relation for type '{rel_type}' from sense in '{entry.id}' to target '{rel_ref}': {str(e)}")
+
+    def _find_entry_by_sense_id(self, sense_id: str) -> 'Entry':
+        """
+        Find an entry that contains a specific sense ID.
+
+        Args:
+            sense_id: The ID of the sense to search for
+
+        Returns:
+            Entry object that contains the specified sense
+        """
+        # First, try the direct approach - if sense_id is in expected format entry_id_sense_guid
+        if '_' in sense_id:
+            # Could be entry_id_sense_id format, try to get entry by extracting entry part
+            parts = sense_id.split('_')
+            if len(parts) >= 2:
+                # Try to reconstruct possible entry ID formats
+                possible_entry_ids = [
+                    '_'.join(parts[:-1]),  # Everything before last underscore
+                ]
+
+                for possible_id in possible_entry_ids:
+                    try:
+                        entry = self.get_entry(possible_id)
+                        # Check if this entry contains the sense
+                        for sense in entry.senses:
+                            if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
+                                return entry
+                    except:
+                        continue
+
+        # If the simple approach didn't work, search all entries
+        # (this would be expensive but needed for exact match)
+        try:
+            all_entries, _ = self.list_entries(limit=None)
+            for entry in all_entries:
+                for sense in entry.senses:
+                    if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
+                        return entry
+        except:
+            pass
+
+        # If we still can't find it, raise an exception
+        raise NotFoundError(f"No entry found containing sense with ID: {sense_id}")
 
     def entry_exists(self, entry_id: str) -> bool:
         """

@@ -259,21 +259,20 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
     # Backward compatibility: convert empty/invalid citations list to dict
     if 'citations' in merged_data and not isinstance(merged_data['citations'], list):
         merged_data['citations'] = []
-    
-    return merged_data
 
+    return merged_data
 
 def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Intelligently merge sense data from form with existing sense data.
-    
+
     Preserves fields that are missing or empty in form data to prevent
     accidental clearing of important sense information.
-    
+
     Args:
         form_senses: Sense data from form submission
         existing_senses: Existing sense data from database
-        
+
     Returns:
         Merged sense data preserving missing/empty fields
     """
@@ -540,6 +539,16 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 senses_data[sense_index][field_name] = value.split(';')[0].strip()
                             else:
                                 senses_data[sense_index][field_name] = None
+                        elif field_name == 'semantic_domain_':
+                            # semantic_domain_ supports multiple values and maps to semantic_domains
+                            if isinstance(value, list):
+                                # Handle list of semantic domains from form
+                                senses_data[sense_index]['semantic_domains'] = [v.strip() for v in value if isinstance(v, str) and v.strip()]
+                            elif isinstance(value, str) and value.strip():
+                                # Single semantic domain value - convert to single-item list
+                                senses_data[sense_index]['semantic_domains'] = [value.strip()]
+                            else:
+                                senses_data[sense_index]['semantic_domains'] = []
                         else:
                             # Generic fallback for other fields
                             if isinstance(value, str):
@@ -600,6 +609,13 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                             # Initialize relations list if not exists
                             if 'relations' not in senses_data[sense_index]:
                                 senses_data[sense_index]['relations'] = []
+
+                            # Extend relations list if needed
+                            while len(senses_data[sense_index]['relations']) <= relation_index:
+                                senses_data[sense_index]['relations'].append({})
+
+                            if isinstance(value, str):
+                                senses_data[sense_index]['relations'][relation_index][relation_field] = value.strip()
                             else:
                                 senses_data[sense_index]['relations'][relation_index][relation_field] = value
                         

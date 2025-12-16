@@ -73,6 +73,9 @@ class ConfigManager:
         if 'basex_db_name' in new_values:
             settings.basex_db_name = new_values.pop('basex_db_name')
             
+        if 'backup_settings' in new_values:
+            settings.backup_settings = new_values.pop('backup_settings')
+            
         db.session.commit()
         return settings
 
@@ -143,4 +146,23 @@ class ConfigManager:
         source_lang = self.get_source_language()
         target_langs = self.get_target_languages()
         return [source_lang] + target_langs
+
+    def get_backup_settings(self) -> Dict[str, Any]:
+        """Get backup settings from the current project settings."""
+        settings = ProjectSettings.query.first()
+        if not settings:
+            return {
+                'directory': 'app/static/backup',
+                'schedule': 'daily',
+                'retention': 10,
+                'compression': True
+            }
+        
+        backup_settings = settings.backup_settings or {}
+        return {
+            'directory': backup_settings.get('directory', 'app/static/backup'),
+            'schedule': backup_settings.get('schedule', 'daily'),
+            'retention': backup_settings.get('retention', 10),
+            'compression': backup_settings.get('compression', True)
+        }
         

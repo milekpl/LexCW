@@ -4,12 +4,6 @@
 Test the Entry.from_dict method with grammatical_info that should be flattened
 """
 
-import os
-import sys
-
-# Add the current directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from app.models.entry import Entry
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 
@@ -35,19 +29,9 @@ entry_data = {
     'grammatical_info': ''
 }
 
-print("Testing the exact scenario that caused the error...")
-print(f"Form data contains grammatical_info.part_of_speech: {form_data.get('grammatical_info.part_of_speech')}")
 
-# This is what happens in the edit_entry view
-merged_data = merge_form_data_with_entry_data(form_data, entry_data)
-print(f"Merged data grammatical_info: {merged_data.get('grammatical_info')} ({type(merged_data.get('grammatical_info'))})")
-
-# This is where the error occurred
-try:
+def test_entry_from_dict_with_flattened_grammatical_info() -> None:
+    merged_data = merge_form_data_with_entry_data(form_data, entry_data)
+    assert isinstance(merged_data, dict)
     entry = Entry.from_dict(merged_data)
-    print("✅ Entry.from_dict succeeded!")
-    print(f"Entry grammatical_info: {entry.grammatical_info} ({type(entry.grammatical_info)})")
-except Exception as e:
-    print(f"❌ Entry.from_dict failed: {e}")
-    import traceback
-    traceback.print_exc()
+    assert entry is not None

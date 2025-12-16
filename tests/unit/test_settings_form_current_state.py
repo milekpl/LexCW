@@ -114,6 +114,19 @@ class TestCurrentSettingsFormProblems:
             assert form.project_name.data == "Test Project"
             assert form.source_language_code.data == "en"
 
+    def test_backup_include_media_field_present_and_serializes(self, app: Flask) -> None:
+        """Ensure the include_media checkbox exists and is serialized to backup_settings."""
+        with app.app_context():
+            form = SettingsForm()
+            # The field should exist
+            assert hasattr(form, 'backup_include_media')
+
+            # Toggle it and verify serialization
+            form.backup_include_media.data = True
+            d = form.to_dict()
+            assert 'backup_settings' in d
+            assert d['backup_settings'].get('include_media') is True
+
 
 class TestRequiredSettingsFormImprovements:
     """

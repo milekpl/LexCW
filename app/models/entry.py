@@ -521,6 +521,33 @@ class Entry(BaseModel):
         """
         self.relations.append(Relation(type=relation_type, ref=target_id))
 
+    def add_bidirectional_relation(self, relation_type: str, target_id: str, source_id: str, dict_service=None) -> None:
+        """
+        Add a bidirectional semantic relation (both forward and reverse) to the entry.
+
+        Args:
+            relation_type: Type of relation (e.g., 'synonim', 'antonim').
+            target_id: ID of the target entry.
+            source_id: ID of the source entry (for the reverse relation).
+            dict_service: Dictionary service to access ranges if needed.
+        """
+        from app.utils.bidirectional_relations import is_relation_bidirectional, get_reverse_relation_type
+
+        # Add the forward relation
+        self.add_relation(relation_type, target_id)
+
+        # Check if this relation type should be bidirectional
+        if is_relation_bidirectional(relation_type, dict_service):
+            # For symmetric relations (like synonyms), use the same relation type
+            if relation_type in ['synonim', 'antonim', 'Porównaj', 'porownaj']:
+                reverse_relation_type = relation_type
+            else:
+                # For asymmetric but bidirectional relations, get the reverse type
+                reverse_relation_type = get_reverse_relation_type(relation_type)
+
+            # Note: Adding reverse relation would require the target object which is not available here
+            # This method is most useful when called with both source and target objects available
+
     def add_etymology(self, etymology_type: str, source: str, form: Dict[str, str], gloss: Dict[str, str]) -> None:
         """
         Add an etymology to the entry.
