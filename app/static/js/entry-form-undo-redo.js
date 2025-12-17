@@ -23,7 +23,7 @@ class EntryFormUndoRedo {
         this.loadOperationHistory();
 
         // Set up periodic refresh of operation history
-        setInterval(() => this.loadOperationHistory(), 5000); // Refresh every 5 seconds
+        setInterval(() => this.loadOperationHistory(), 15000); // Refresh every 15 seconds to reduce server load
     }
 
     async loadOperationHistory() {

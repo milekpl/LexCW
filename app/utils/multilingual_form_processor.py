@@ -207,8 +207,16 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
         existing_relations = merged_data.get('relations', [])
         if not isinstance(existing_relations, list):
             existing_relations = []
-        # Append new variant relations
-        merged_data['relations'] = existing_relations + form_variant_relations
+
+        # Filter out existing relations that have variant-type traits (they will be replaced by form data)
+        non_variant_relations = [
+            rel for rel in existing_relations
+            if not (isinstance(rel, dict) and rel.get('type') == '_component-lexeme' and
+                   isinstance(rel.get('traits'), dict) and 'variant-type' in rel['traits'])
+        ]
+
+        # Add new variant relations from form data
+        merged_data['relations'] = non_variant_relations + form_variant_relations
     
     # Process other form fields (excluding notes, multilingual fields, senses, and components)
     # Handle dot notation fields by converting them to nested structures

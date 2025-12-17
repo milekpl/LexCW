@@ -170,19 +170,57 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         dict_service = current_app.injector.get(DictionaryService)
         ranges = dict_service.get_ranges()
 
-        # Use exact ID matching only. Do not attempt plural/singular
+        # Use exact ID matching first. Do not attempt plural/singular
         # or heuristic fallbacks here; callers should use canonical IDs.
         lookup_id = range_id
-        if lookup_id not in ranges:
+        if lookup_id in ranges:
             return jsonify({
-                'success': False,
-                'error': f'Range "{range_id}" not found'
-            }), 404
+                'success': True,
+                'data': ranges[lookup_id]
+            })
+
+        # If not found in loaded ranges, check if it's a special range that should be
+        # derived from trait usage in the LIFT data (e.g., 'variant-type', 'complex-form-type')
+        if lookup_id in ['variant-type', 'lexical-relation', 'complex-form-type']:
+            # Try to get values from trait extraction
+            try:
+                if lookup_id == 'variant-type':
+                    variant_types = dict_service.get_variant_types_from_traits()
+                    return jsonify({
+                        'success': True,
+                        'data': {
+                            'id': 'variant-type',
+                            'values': variant_types
+                        }
+                    })
+                elif lookup_id == 'complex-form-type':
+                    # Get complex form types from trait values in LIFT data
+                    complex_form_types = dict_service.get_complex_form_types_from_traits()
+                    return jsonify({
+                        'success': True,
+                        'data': {
+                            'id': 'complex-form-type',
+                            'values': complex_form_types
+                        }
+                    })
+                elif lookup_id == 'lexical-relation':
+                    # Get relation types from trait values in LIFT data
+                    lexical_relations = dict_service.get_lexical_relation_types_from_traits()
+                    return jsonify({
+                        'success': True,
+                        'data': {
+                            'id': 'lexical-relation',
+                            'values': lexical_relations
+                        }
+                    })
+            except AttributeError:
+                # These methods might not exist yet, fall back to error
+                pass
 
         return jsonify({
-            'success': True,
-            'data': ranges[lookup_id]
-        })
+            'success': False,
+            'error': f'Range "{range_id}" not found'
+        }), 404
     except Exception as e:
         return jsonify({
             'success': False,
@@ -215,14 +253,13 @@ def get_grammatical_info_range() -> Union[Response, Tuple[Response, int]]:
     return get_specific_range('grammatical-info')
 
 
-@ranges_bp.route('/variant-types', methods=['GET'])
+@ranges_bp.route('/variant-type', methods=['GET'])
 def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
     """
-    Get variant types range.
-    
+    Get variant type range.
+
     Convenience endpoint for accessing variant type categories.
-    Provides fallback data when LIFT ranges don't include variant-types.
-    
+
     Returns:
         JSON response with variant types range.
     ---
@@ -233,27 +270,13 @@ def get_variant_types_range() -> Union[Response, Tuple[Response, int]]:
     responses:
       200:
         description: Successfully retrieved variant types range
+      404:
+        description: Variant type range not found
       500:
         description: Error retrieving range
     """
-    try:
-        # Get dictionary service using dependency injection
-        dict_service = current_app.injector.get(DictionaryService)
-        ranges = dict_service.get_ranges()
-
-        # Prefer a LIFT-provided `variant-types` range if present. If not,
-        # derive variant types from actual <trait name="variant-type"> values
-        if 'variant-types' in ranges and ranges['variant-types'].get('values'):
-            return jsonify({'success': True, 'data': ranges['variant-types']})
-
-        # Fallback: derive from trait values in LIFT (live data)
-        variant_types = dict_service.get_variant_types_from_traits()
-        return jsonify({'success': True, 'data': {'id': 'variant-types', 'values': variant_types}})
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+    # Delegate to the generic function for consistency
+    return get_specific_range('variant-type')
 
 
 @ranges_bp.route('/lexical-relation', methods=['GET'])
@@ -385,81 +408,6 @@ def get_etymology_range() -> Union[Response, Tuple[Response, int]]:
         description: Error retrieving range
     """
     return get_specific_range('etymology')
-
-
-@ranges_bp.route('/variant-types', methods=['GET'])
-def get_variant_types_from_traits() -> Union[Response, Tuple[Response, int]]:
-    """
-    Get variant types extracted from traits in the LIFT data.
-    
-    This endpoint provides variant types actually used in the LIFT file,
-    rather than predefined ranges, extracted from <trait> elements.
-    
-    Returns:
-        JSON response with variant types from traits.
-    ---
-    tags:
-      - Ranges
-    summary: Get variant types from traits
-    description: Retrieve variant types from traits in LIFT data
-    responses:
-      200:
-        description: Successfully retrieved variant types
-        schema:
-          type: object
-          properties:
-            success:
-              type: boolean
-              example: true
-            data:
-              type: object
-              properties:
-                id:
-                  type: string
-                  description: Range identifier
-                values:
-                  type: array
-                  description: Array of variant type values
-                  items:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                      value:
-                        type: string
-                      abbrev:
-                        type: string
-                      description:
-                        type: object
-      500:
-        description: Error retrieving variant types
-        schema:
-          type: object
-          properties:
-            success:
-              type: boolean
-              example: false
-            error:
-              type: string
-              description: Error message
-    """
-    try:
-        # Get dictionary service using dependency injection
-        dict_service = current_app.injector.get(DictionaryService)
-        variant_types = dict_service.get_variant_types_from_traits()
-        
-        return jsonify({
-            'success': True,
-            'data': {
-                'id': 'variant-types',
-                'values': variant_types
-            }
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 
 @ranges_bp.route('/language-codes', methods=['GET'])

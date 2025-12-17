@@ -2116,6 +2116,152 @@ class DictionaryService:
             },
         ]
 
+    def get_complex_form_types_from_traits(self) -> List[Dict[str, Any]]:
+        """
+        Get all complex form types from traits in the LIFT file.
+
+        Returns:
+            List of complex form type objects extracted from the LIFT file
+        """
+        try:
+            # Get the LIFT XML from the database
+            db_name = self.db_connector.database
+            if not db_name:
+                self.logger.warning(
+                    "No database configured, returning empty complex form types"
+                )
+                return []
+
+            # Get relation elements that might have complex-form-type traits
+            query = (
+                f"string-join(("
+                f"  for $entry in collection('{db_name}')//entry "
+                f"  return for $relation in $entry//relation[@type='_component-lexeme'] "
+                f"  return serialize($relation)"
+                f"), '')"
+            )
+            lift_xml = self.db_connector.execute_query(query)
+
+            if not lift_xml.strip():
+                self.logger.debug(
+                    "Could not retrieve relation data for complex form type extraction"
+                )
+                return []
+
+            # Extract complex form types from trait elements in relations
+            from collections import OrderedDict
+            complex_form_types = OrderedDict()
+
+            # Import here to avoid parse errors
+            import xml.etree.ElementTree as ET
+
+            # Add XML wrapper if needed
+            xml_content = lift_xml.strip()
+            if not xml_content.startswith('<') or '<lift' not in xml_content:
+                xml_content = f'<lift>{xml_content}</lift>'
+
+            try:
+                root = ET.fromstring(xml_content)
+
+                # Find all trait elements with name="complex-form-type"
+                for elem in root.iter():
+                    # Handle both prefixed and unprefixed versions
+                    tag_name = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+                    if tag_name == 'trait' and elem.get('name') == 'complex-form-type':
+                        trait_value = elem.get('value', '').strip()
+                        if trait_value and trait_value not in complex_form_types:
+                            # Create a standard format for the complex form type
+                            complex_form_types[trait_value] = {
+                                'id': trait_value,
+                                'value': trait_value,
+                                'abbrev': trait_value[:3].lower()[:3],
+                                'description': {'en': f'{trait_value} complex form type'}
+                            }
+            except ET.ParseError as e:
+                self.logger.error(f"Error parsing relation XML for complex form types: {e}")
+                return []
+
+            return list(complex_form_types.values())
+
+        except Exception as e:
+            self.logger.error(
+                f"Error retrieving complex form types from traits: {str(e)}", exc_info=True
+            )
+            return []
+
+    def get_lexical_relation_types_from_traits(self) -> List[Dict[str, Any]]:
+        """
+        Get all lexical relation types from traits in the LIFT file.
+
+        Returns:
+            List of lexical relation type objects extracted from the LIFT file
+        """
+        try:
+            # Get the LIFT XML from the database
+            db_name = self.db_connector.database
+            if not db_name:
+                self.logger.warning(
+                    "No database configured, returning empty lexical relation types"
+                )
+                return []
+
+            # Get relation elements to extract relation types
+            query = (
+                f"string-join(("
+                f"  for $entry in collection('{db_name}')//entry "
+                f"  return for $relation in $entry//relation[@type != '_component-lexeme'] "
+                f"  return serialize($relation)"
+                f"), '')"
+            )
+            lift_xml = self.db_connector.execute_query(query)
+
+            if not lift_xml.strip():
+                self.logger.debug(
+                    "Could not retrieve relation data for lexical relation type extraction"
+                )
+                return []
+
+            # Extract relation types from relation type attributes and trait elements
+            from collections import OrderedDict
+            relation_types = OrderedDict()
+
+            import xml.etree.ElementTree as ET
+
+            # Add XML wrapper if needed
+            xml_content = lift_xml.strip()
+            if not xml_content.startswith('<') or '<lift' not in xml_content:
+                xml_content = f'<lift>{xml_content}</lift>'
+
+            try:
+                root = ET.fromstring(xml_content)
+
+                # Find all relation elements and their types
+                for relation_elem in root.iter():
+                    tag_name = relation_elem.tag.split('}')[-1] if '}' in relation_elem.tag else relation_elem.tag
+                    if tag_name == 'relation':
+                        rel_type = relation_elem.get('type')
+                        # Exclude _component-lexeme as that's for variants/components
+                        if rel_type and rel_type not in relation_types and rel_type != '_component-lexeme' and rel_type != 'variant-type':
+                            # Create a standard format for the relation type
+                            relation_types[rel_type] = {
+                                'id': rel_type,
+                                'value': rel_type,
+                                'abbrev': rel_type[:3].lower()[:3],
+                                'description': {'en': f'{rel_type} relation type'}
+                            }
+
+            except ET.ParseError as e:
+                self.logger.error(f"Error parsing relation XML for lexical relation types: {e}")
+                return []
+
+            return list(relation_types.values())
+
+        except Exception as e:
+            self.logger.error(
+                f"Error retrieving lexical relation types from traits: {str(e)}", exc_info=True
+            )
+            return []
+
     def get_entry_for_editing(self, entry_id: str) -> Entry:
         """
         Get an entry by ID for editing purposes.
