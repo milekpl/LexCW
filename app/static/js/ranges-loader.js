@@ -26,14 +26,15 @@ class RangesLoader {
         if (this.cache.has(rangeId)) {
             return this.cache.get(rangeId);
         }
-        
+
         try {
+            
             this.log(`Loading range: ${rangeId}`);
             const response = await fetch(`${this.baseUrl}/${rangeId}`);
-            
+
             if (response.ok) {
                 const result = await response.json();
-                
+
                 if (result.success && result.data) {
                     this.cache.set(rangeId, result.data);
                     this.log(`Successfully cached range ${rangeId} with ${result.data.values?.length || 0} values`);
@@ -47,9 +48,9 @@ class RangesLoader {
         } catch (error) {
             this.log(`Failed to load range ${rangeId}:`, error);
         }
-        
+
         // No fallback data allowed; return null if API fails
-        
+
         return null;
     }
     
@@ -370,4 +371,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }, 100);
     }
+
+
 });
