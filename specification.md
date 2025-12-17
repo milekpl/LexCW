@@ -1621,7 +1621,7 @@ Based on the existing codebase analysis, the following features have been implem
   - ✅ **COMPLETED**: **LIFT Ranges Integration** - Dynamic dropdowns with fallback support
     - ✅ REST API endpoints (/api/ranges/*) with comprehensive coverage
     - ✅ Fallback mechanism for development/testing environments
-    - ✅ Default ranges for variant-types, lexical-relation, grammatical-info, semantic-domain-ddp4
+    - ✅ Default ranges for variant-type, lexical-relation, grammatical-info, semantic-domain-ddp4
     - ✅ Fixed test_get_ranges to match fallback behavior
   - ✅ **COMPLETED**: Enhance pronunciation editing with language support for special IPA language (seh-fonipa)
   - 🔄 **NEXT**: Rebuild etymology editor with Form/Gloss objects (Medium Priority)

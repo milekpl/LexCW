@@ -1989,24 +1989,34 @@ class LIFTParser:
         self.logger.info("Extracting variant types from traits in LIFT file")
         try:
             root = ET.fromstring(lift_xml_string)
-            # Find all variant elements and extract their types
+            # Find all variant elements and relation trait elements and extract their types
             variant_types: set[str] = set()
-            
+
             # Use both namespaced and non-namespaced XPath for compatibility
             variant_elems = self._find_elements(root, './/lift:variant', './/variant')
-            
+
             for variant_elem in variant_elems:
                 # Extract the type attribute directly from variant element
                 variant_type = variant_elem.get('type')
                 if variant_type and variant_type.strip():
                     variant_types.add(variant_type.strip())
-                
+
                 # Also look for trait elements that might indicate variant types
                 for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
                     trait_name = trait_elem.get('name')
                     trait_value = trait_elem.get('value')
+                    # Historically variant types may appear as trait name='type'
                     if trait_name == 'type' and trait_value and trait_value.strip():
                         variant_types.add(trait_value.strip())
+
+            # Additionally, variant types are sometimes encoded as traits on relation elements
+            relation_elems = self._find_elements(root, './/lift:relation', './/relation')
+            for rel in relation_elems:
+                for trait_elem in self._find_elements(rel, './/lift:trait', './/trait'):
+                    if trait_elem.get('name') == 'variant-type':
+                        val = trait_elem.get('value')
+                        if val and val.strip():
+                            variant_types.add(val.strip())
             
             # Format the results as expected by the ranges API
             result: List[Dict[str, Any]] = []
@@ -2392,7 +2402,7 @@ class LIFTRangesParser:
             parent_id = value_elem.get('parent', '')
             
             # Normalize orthographic -> spelling for variant types
-            if range_id in ('variant-type', 'variant-types') and value_id == 'orthographic':
+            if range_id in ('variant-type', 'variant-type') and value_id == 'orthographic':
                 value_id = 'spelling'
                 
             value = self._parse_range_element_full(value_elem, value_id)
@@ -2458,7 +2468,7 @@ class LIFTRangesParser:
             value_id = value_elem.get('id', '')
             
             # Normalize orthographic -> spelling for variant types
-            if range_id in ('variant-type', 'variant-types') and value_id == 'orthographic':
+            if range_id in ('variant-type', 'variant-type') and value_id == 'orthographic':
                 value_id = 'spelling'
             
             # Parse the element and its children recursively

@@ -40,8 +40,8 @@ class TestRangesAPI:
                     }
                 ]
             },
-            "variant-types": {
-                "id": "variant-types",
+            "variant-type": {
+                "id": "variant-type",
                 "values": [
                     {
                         "id": "dialectal",
@@ -70,7 +70,7 @@ class TestRangesAPI:
         # Verify structure
         assert isinstance(ranges, dict)
         assert "grammatical-info" in ranges
-        assert "variant-types" in ranges
+        assert "variant-type" in ranges
         
         # Verify grammatical-info structure
         gram_info = ranges["grammatical-info"]
@@ -102,9 +102,11 @@ class TestRangesAPI:
 
         ranges = service.get_ranges()
         assert isinstance(ranges, dict)
-        # With empty ranges and no database, service returns empty dict
-        # (This is expected behavior - ranges must come from LIFT file or database)
-        assert len(ranges) == 0
+        # With the new implementation, standard ranges are injected even if DB is empty
+        # So we expect some ranges (like variant-type, grammatical-info, etc.)
+        assert len(ranges) > 0
+        assert "variant-type" in ranges
+        assert "grammatical-info" in ranges
 
     @pytest.mark.integration
     def test_get_ranges_caches_results(self) -> None:

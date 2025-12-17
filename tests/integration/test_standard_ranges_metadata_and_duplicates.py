@@ -12,10 +12,10 @@ def test_standard_ranges_config_does_not_duplicate_and_label_fallback(client, ap
     singular/plural ranges."""
     service: RangesService = client.application.injector.get(RangesService)
 
-    # Mock parsed ranges: LIFT has 'variant-types' present but without labels
+    # Mock parsed ranges: LIFT has 'variant-type' present but without labels
     service.ranges_parser.parse_string = lambda xml: {
-        'variant-types': {
-            'id': 'variant-types',
+        'variant-type': {
+            'id': 'variant-type',
             'values': [{'id': 'V1'}],
             'labels': {},
             'descriptions': {}
@@ -24,14 +24,14 @@ def test_standard_ranges_config_does_not_duplicate_and_label_fallback(client, ap
 
     ranges = service.get_all_ranges()
 
-    # There should be exactly one key for variant-types (no duplicate singular/plural)
-    assert ('variant-types' in ranges) and ('variant-type' not in ranges)
+    # There should be exactly one key for variant-type (no duplicate singular/plural)
+    assert ('variant-type' in ranges) and ('variant-type' not in ranges)
 
     # The label should be filled from metadata since LIFT had none
-    assert ranges['variant-types']['label'] in ('Variant Entry Types', 'variant-types')
+    assert ranges['variant-type']['label'] in ('Variant Entry Types', 'variant-type')
 
     # Provided_by_config should not be True for the same range when LIFT provides it
-    assert not ranges['variant-types'].get('provided_by_config', False)
+    assert not ranges['variant-type'].get('provided_by_config', False)
 
 
 def test_config_not_applied_when_lift_has_same_range(client, app):

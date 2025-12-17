@@ -309,7 +309,7 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/ranges/variant-types`
+### `/api/ranges/variant-type`
 
 - **Endpoint Name:** `ranges.get_variant_types_range`
 - **HTTP Methods:** `GET`
@@ -318,7 +318,7 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/ranges/variant-types`
+### `/api/ranges/variant-type`
 
 - **Endpoint Name:** `ranges.get_variant_types_from_traits`
 - **HTTP Methods:** `GET`
@@ -374,7 +374,7 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/search/ranges/variant-types`
+### `/api/search/ranges/variant-type`
 
 - **Endpoint Name:** `api.search.get_variant_types`
 - **HTTP Methods:** `GET`

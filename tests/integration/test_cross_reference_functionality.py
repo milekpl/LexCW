@@ -87,7 +87,7 @@ def test_cross_reference_search_with_dynamic_types(client: FlaskClient) -> None:
 def test_variant_search_with_dynamic_types(client: FlaskClient) -> None:
     """Test that variant search uses dynamic variant types."""
     # First verify variant types are available
-    response = client.get('/api/ranges/variant-types')
+    response = client.get('/api/ranges/variant-type')
     assert response.status_code == 200
     
     data = response.get_json()
@@ -156,7 +156,7 @@ def test_workset_creation_with_complex_query(client: FlaskClient) -> None:
     """Test workset creation with a complex query using dynamic types."""
     # Get available types for building a complex query
     relation_resp = client.get('/api/ranges/lexical-relation')
-    variant_resp = client.get('/api/ranges/variant-types')
+    variant_resp = client.get('/api/ranges/variant-type')
     grammar_resp = client.get('/api/ranges/grammatical-info')
     
     assert relation_resp.status_code == 200

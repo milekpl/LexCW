@@ -441,9 +441,8 @@ class CSSMappingService:
                     if current_type in relation_map:
                         elem.attrib['type'] = relation_map[current_type]
             
-            # variant: type attribute (maps to variant-type or variant-types range)
-            variant_map = (range_abbr_maps.get('variant-type') or 
-                         range_abbr_maps.get('variant-types'))
+            # variant: type attribute (maps to variant-type or variant-type range)
+            variant_map = range_abbr_maps.get('variant-type') 
             if variant_map:
                 for elem in root.findall('.//variant'):
                     current_type = elem.attrib.get('type', '')

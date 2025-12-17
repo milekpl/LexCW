@@ -18,8 +18,8 @@ class TestVariantTraitLabelsUI:
 
     @pytest.mark.integration
     def test_variant_types_from_traits_api_endpoint(self, client: FlaskClient) -> None:
-        """Test that the variant-types API endpoint works correctly."""
-        response = client.get('/api/ranges/variant-types')
+        """Test that the variant-type API endpoint works correctly."""
+        response = client.get('/api/ranges/variant-type')
         assert response.status_code == 200
         
         data = response.get_json()
@@ -73,7 +73,7 @@ class TestVariantTraitLabelsUI:
         html_content = response.get_data(as_text=True)
         
         # The JavaScript should load the variant-forms.js file which contains 
-        # the configuration for 'variant-types' range ID
+        # the configuration for 'variant-type' range ID
         assert 'variant-forms.js' in html_content
 
     @pytest.mark.integration

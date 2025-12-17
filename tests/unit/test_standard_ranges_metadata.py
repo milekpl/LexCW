@@ -11,6 +11,6 @@ def test_standard_metadata_has_complex_form_type_and_traits():
 
 
 def test_variant_type_label_resolution():
-    # Ensure configuration contains 'variant-types' entry
+    # Ensure configuration contains 'variant-type' entry
     from app.services.ranges_service import STANDARD_RANGE_METADATA
     assert 'variant-type' in STANDARD_RANGE_METADATA
