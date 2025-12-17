@@ -1746,6 +1746,17 @@ class DictionaryService:
                 # Add custom elements to the range
                 parsed_ranges[range_name]['values'].extend(elements)
 
+            # Add variant-type from traits if not already present
+            if 'variant-type' not in parsed_ranges:
+                variant_types = self.get_variant_types_from_traits()
+                if variant_types:
+                    parsed_ranges['variant-type'] = {
+                        'id': 'variant-type',
+                        'guid': 'variant-type-from-traits',
+                        'description': {'en': 'Variant types extracted from LIFT file traits'},
+                        'values': variant_types
+                    }
+
             self.ranges = parsed_ranges
             return self.ranges
         except Exception as e:
@@ -2054,9 +2065,9 @@ class DictionaryService:
             db_name = self.db_connector.database
             if not db_name:
                 self.logger.warning(
-                    "No database configured, using default variant types"
+                    "No database configured, returning empty variant types"
                 )
-                return self._get_default_variant_types()
+                return []
 
             # Get a sample of variants from the LIFT document
             lift_xml = self.db_connector.execute_query(
@@ -2067,17 +2078,17 @@ class DictionaryService:
                 self.logger.warning(
                     "Could not retrieve variant data for trait extraction"
                 )
-                return self._get_default_variant_types()
+                return []
 
             # Extract variant types from the LIFT XML
             variant_types = self.lift_parser.extract_variant_types_from_traits(lift_xml)
 
-            # If no variant types were found, use default types
+            # If no variant types were found, return empty list
             if not variant_types:
                 self.logger.warning(
-                    "No variant types found in LIFT file, using defaults"
+                    "No variant types found in LIFT file"
                 )
-                return self._get_default_variant_types()
+                return []
 
             return variant_types
 
@@ -2085,36 +2096,8 @@ class DictionaryService:
             self.logger.error(
                 f"Error retrieving variant types from traits: {str(e)}", exc_info=True
             )
-            # Return default variant types as fallback
-            return self._get_default_variant_types()
-
-    def _get_default_variant_types(self) -> List[Dict[str, Any]]:
-        """
-        Get default variant types when extraction fails.
-
-        Returns:
-            List of default variant type objects
-        """
-        return [
-            {
-                "id": "dialectal",
-                "value": "dialectal",
-                "abbrev": "dia",
-                "description": {"en": "Dialectal variant"},
-            },
-            {
-                "id": "spelling",
-                "value": "spelling",
-                "abbrev": "spe",
-                "description": {"en": "Spelling variant"},
-            },
-            {
-                "id": "morphological",
-                "value": "morphological",
-                "abbrev": "mor",
-                "description": {"en": "Morphological variant"},
-            },
-        ]
+            # Return empty list as fallback
+            return []
 
     def get_complex_form_types_from_traits(self) -> List[Dict[str, Any]]:
         """

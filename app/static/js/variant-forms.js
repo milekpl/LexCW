@@ -203,9 +203,12 @@ class VariantFormsManager {
                 if (select) {
                     const rangeId = select.dataset.rangeId;
                     const selectedValue = select.dataset.selected;
+                    console.log('[VariantFormsManager] Populating select', {rangeId, selectedValue, select});
                     window.rangesLoader.populateSelect(select, rangeId, {
                         selectedValue: selectedValue,
                         emptyOption: select.querySelector('option[value=""]')?.textContent || 'Select option'
+                    }).then(result => {
+                        console.log('[VariantFormsManager] populateSelect result', {rangeId, result, select});
                     }).catch(err => console.error('[VariantFormsManager] Failed to populate variant select:', err));
                 }
             }

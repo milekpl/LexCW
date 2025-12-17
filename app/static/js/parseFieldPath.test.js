@@ -18,8 +18,21 @@ describe('parseFieldPath', () => {
         ]);
     });
 
-    it('should throw on non-numeric array index', () => {
-        const badField = 'senses[1].gloss[en].lang';
-        expect(() => parseFieldPath(badField)).toThrow(/array index/i);
+    it('should parse field names with non-numeric bracket access', () => {
+        expect(parseFieldPath('senses[1].gloss[en].lang')).toEqual([
+            { key: 'senses', isArrayIndex: false },
+            { key: '1', isArrayIndex: true },
+            { key: 'gloss', isArrayIndex: false },
+            { key: 'en', isArrayIndex: false },
+            { key: 'lang', isArrayIndex: false }
+        ]);
+    });
+
+    it('should parse standalone bracket access', () => {
+        expect(parseFieldPath('variant_relations[0][ref]')).toEqual([
+            { key: 'variant_relations', isArrayIndex: false },
+            { key: '0', isArrayIndex: true },
+            { key: 'ref', isArrayIndex: false }
+        ]);
     });
 });

@@ -265,16 +265,26 @@ function parseFieldPath(path) {
             console.error(`[FormSerializer] parseFieldPath: Too many parse steps for path '${path}'`);
             throw new Error(`parseFieldPath: Too many parse steps for path '${path}'`);
         }
-        // Check for array notation first: name[index]
+        // Check for array notation first: name[index] or name[property]
         const arrayMatch = currentPath.match(/^([^.[]+)\[(.+?)\]/);
         if (arrayMatch) {
             const [fullMatch, arrayName, index] = arrayMatch;
-            if (!/^\d+$/.test(index)) {
-                // Not a numeric index, this is a malformed field name
-                throw new Error(`Invalid array index '[${index}]' in field path '${path}' (only numeric indices allowed)`);
-            }
             keys.push({ key: arrayName, isArrayIndex: false });
-            keys.push({ key: index, isArrayIndex: true });
+            keys.push({ key: index, isArrayIndex: /^\d+$/.test(index) });
+            currentPath = currentPath.substring(fullMatch.length);
+
+            // Check if there's more after the bracket (like ].property)
+            if (currentPath.startsWith('.')) {
+                currentPath = currentPath.substring(1); // Remove leading dot
+            }
+            continue;
+        }
+
+        // Check for standalone bracket notation: [property]
+        const bracketMatch = currentPath.match(/^\[(.+?)\]/);
+        if (bracketMatch) {
+            const [fullMatch, property] = bracketMatch;
+            keys.push({ key: property, isArrayIndex: /^\d+$/.test(property) });
             currentPath = currentPath.substring(fullMatch.length);
 
             // Check if there's more after the bracket (like ].property)
