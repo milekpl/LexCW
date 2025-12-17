@@ -132,6 +132,24 @@ class TestLIFTTraitsAndLanguageCodes:
             assert variant_types[0]["id"] == "dialectal"
             assert variant_types[1]["id"] == "spelling"
 
+    def test_extract_variant_types_from_relation_traits(self) -> None:
+        """Test extracting variant types when they appear as traits on relation elements."""
+        sample = """<?xml version="1.0" encoding="UTF-8" ?>
+        <lift>
+            <entry id="e1">
+                <lexical-unit><form lang="en"><text>foo</text></form></lexical-unit>
+                <relation type="derived">
+                    <ref>bar</ref>
+                    <trait name="variant-type" value="spelling"/>
+                </relation>
+            </entry>
+        </lift>
+        """
+
+        parser = LIFTParser()
+        variant_types = parser.extract_variant_types_from_traits(sample)
+        assert any(v["id"] == "spelling" for v in variant_types), "Expected to find 'spelling' from relation trait"
+
     def test_note_extraction_with_lang_forms(self, sample_lift_with_traits: str) -> None:
         """Test extraction of notes with language forms."""
         parser = LIFTParser(validate=False)
