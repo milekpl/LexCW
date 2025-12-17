@@ -2096,77 +2096,35 @@ class DictionaryService:
     
     def get_lexical_relation_types_from_traits(self) -> List[Dict[str, Any]]:
         """
-        Get all lexical relation types from traits in the LIFT file.
-
-        Returns:
-            List of lexical relation type objects extracted from the LIFT file
+        Get all lexical relation types from relation elements in the LIFT file.
         """
         try:
-            # Get the LIFT XML from the database
             db_name = self.db_connector.database
             if not db_name:
-                self.logger.warning(
-                    "No database configured, returning empty lexical relation types"
-                )
+                self.logger.warning("No database configured, returning empty lexical relation types")
                 return []
 
-            # Get relation elements to extract relation types
+            # ✅ FIXED: Well-formed XML with proper filtering
             query = (
-                f"string-join(("
-                f"  for $entry in collection('{db_name}')//entry "
-                f"  return for $relation in $entry//relation[@type != '_component-lexeme'] "
-                f"  return serialize($relation)"
-                f"), '')"
+                f"<relations>{{\n"
+                f"  for $relation in collection('{db_name}')//relation\n"
+                f"  where $relation/@type != '_component-lexeme'\n"
+                f"  return $relation\n"
+                f"}}</relations>"
             )
+            
             lift_xml = self.db_connector.execute_query(query)
-
-            if not lift_xml.strip():
-                self.logger.debug(
-                    "Could not retrieve relation data for lexical relation type extraction"
-                )
+            if not lift_xml or not lift_xml.strip():
+                self.logger.debug("No relation data retrieved")
                 return []
 
-            # Extract relation types from relation type attributes and trait elements
-            from collections import OrderedDict
-            relation_types = OrderedDict()
-
-            import xml.etree.ElementTree as ET
-
-            # Add XML wrapper if needed
-            xml_content = lift_xml.strip()
-            if not xml_content.startswith('<') or '<lift' not in xml_content:
-                xml_content = f'<lift>{xml_content}</lift>'
-
-            try:
-                root = ET.fromstring(xml_content)
-
-                # Find all relation elements and their types
-                for relation_elem in root.iter():
-                    tag_name = relation_elem.tag.split('}')[-1] if '}' in relation_elem.tag else relation_elem.tag
-                    if tag_name == 'relation':
-                        rel_type = relation_elem.get('type')
-                        # Exclude _component-lexeme as that's for variants/components
-                        if rel_type and rel_type not in relation_types and rel_type != '_component-lexeme' and rel_type != 'variant-type':
-                            # Create a standard format for the relation type
-                            relation_types[rel_type] = {
-                                'id': rel_type,
-                                'value': rel_type,
-                                'abbrev': rel_type[:3].lower()[:3],
-                                'description': {'en': f'{rel_type} relation type'}
-                            }
-
-            except ET.ParseError as e:
-                self.logger.error(f"Error parsing relation XML for lexical relation types: {e}")
-                return []
-
-            return list(relation_types.values())
-
+            # Extract types directly from relation attributes
+            return self.lift_parser.extract_relation_types(lift_xml)
+            
         except Exception as e:
-            self.logger.error(
-                f"Error retrieving lexical relation types from traits: {str(e)}", exc_info=True
-            )
+            self.logger.error(f"Error retrieving lexical relation types: {str(e)}", exc_info=True)
             return []
-
+        
     def get_entry_for_editing(self, entry_id: str) -> Entry:
         """
         Get an entry by ID for editing purposes.
