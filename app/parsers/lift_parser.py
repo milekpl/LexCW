@@ -2610,60 +2610,51 @@ class LIFTRangesParser:
                         element_data['reverse_abbrevs'][lang] = text_elem.text.strip()
         
         return element_data
-
-
-    def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
+    
+    def extract_trait_values_from_relations(self, xml_string: str, trait_name: str) -> List[Dict[str, Any]]:
         """
-        Extract all unique variant types from <trait> elements in variant forms.
-        
-        This extracts the 'type' traits from all variant elements in the LIFT file,
-        which represent the actual variant types used in the document rather than
-        using the standard ranges.
+        Extract trait values from relation elements. Works for any trait name.
         
         Args:
-            lift_xml_string: LIFT XML string
-            
-        Returns:
-            List of variant type objects in the format expected by the range API
+            xml_string: XML with <relations><relation>... structure
+            trait_name: Name of trait to extract (e.g., 'variant-type', 'complex-form-type')
         """
-        self.logger.info("Extracting variant types from traits in LIFT file")
         try:
-            root = ET.fromstring(lift_xml_string)
-            # Find all variant elements and extract their types
-            variant_types: set[str] = set()
+            # Parse the XML string into an ElementTree root element
+            root = ET.fromstring(xml_string)
+            # Initialize an empty set to store unique trait values
+            values: set[str] = set()
             
-            # Use both namespaced and non-namespaced XPath for compatibility
-            variant_elems = self._find_elements(root, './/lift:variant', './/variant')
+            # Find all relations (with/without namespace)
+            relations = self._find_elements(root, './/lift:relation', './/relation')
             
-            for variant_elem in variant_elems:
-                # Extract the type attribute directly from variant element
-                variant_type = variant_elem.get('type')
-                if variant_type and variant_type.strip():
-                    variant_types.add(variant_type.strip())
+            for relation in relations:
+                # Find target trait within each relation
+                traits = self._find_elements(relation, './/lift:trait', './/trait')
                 
-                # Also look for trait elements that might indicate variant types
-                for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
-                    trait_name = trait_elem.get('name')
-                    trait_value = trait_elem.get('value')
-                    if trait_name == 'type' and trait_value and trait_value.strip():
-                        variant_types.add(trait_value.strip())
+                for trait in traits:
+                    if trait.get('name') == trait_name:
+                        value = trait.get('value', '').strip()
+                        if value:
+                            values.add(value)
             
-            # Format the results as expected by the ranges API
-            result: List[Dict[str, Any]] = []
-            for variant_type in sorted(variant_types):
-                # Create a standardized structure for each variant type
+            # Format for ranges API
+            result = []
+            for value in sorted(values):
+                # Create human-readable label from trait name
+                label = trait_name.replace('-', ' ').title()
                 result.append({
-                    'id': variant_type,
-                    'value': variant_type,
-                    'abbrev': variant_type[:3].lower(),  # Simple abbreviation
-                    'description': {'en': f'{variant_type} variant'}
+                    'id': value,
+                    'value': value,
+                    'abbrev': value[:3].lower(),
+                    'description': {'en': f'{value} {label}'}
                 })
                 
-            self.logger.info(f"Extracted {len(result)} variant types from LIFT file")
+            self.logger.info(f"Extracted {len(result)} {trait_name} values")
             return result
             
         except Exception as e:
-            self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
+            self.logger.error(f"Error extracting {trait_name}: {e}", exc_info=True)
             return []
             
     def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
