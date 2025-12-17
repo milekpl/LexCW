@@ -685,6 +685,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <!-- Outgoing: This entry IS a variant of another (editable) -->
                                     <div class="row">
                                         <div class="col-md-8">
+                                            <label class="form-label fw-bold">Variant Type</label>
+                                            <select class="form-control dynamic-lift-range"
+                                                    name="variant_relations[{{ loop.index0 }}].variant_type" required
+                                                    data-range-id="variant-type"
+                                                    data-selected="{{ variant.variant_type or '' }}">
+                                                <option value="">Select variant type</option>
+                                                <!-- Options will be populated dynamically from LIFT ranges -->
+                                            </select>
+                                            <div class="form-text">Type of variant relationship</div>
+
+                                            
+                                        </div>
+                                        <div class="col-md-4">
                                             <label class="form-label fw-bold">Target Entry</label>
                                             {% if variant.ref_display_text %}
                                             <!-- Show clickable link to target entry -->
@@ -705,8 +718,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 The referenced entry could not be found in the dictionary.
                                                 <br><small>This may indicate a missing entry or an incorrect reference.</small>
                                             </div>
-                                            {% endif %}
-                                            
+                                            {% endif %}                                            
                                             <!-- Hidden input field for form submission (NO raw ID visible to user) -->
                                             <input type="hidden" 
                                                    name="variant_relations[{{ loop.index0 }}].ref"
@@ -730,18 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 </button>
                                             </div>
                                             <div class="form-text">Search for entries by headword or definition - no raw IDs needed</div>
-                                            <div class="search-results mt-2" id="variant-search-results-{{ loop.index0 }}" style="display: none;"></div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label fw-bold">Variant Type</label>
-                                            <select class="form-control dynamic-lift-range"
-                                                    name="variant_relations[{{ loop.index0 }}].variant_type" required
-                                                    data-range-id="variant-type"
-                                                    data-selected="{{ variant.variant_type or '' }}">
-                                                <option value="">Select variant type</option>
-                                                <!-- Options will be populated dynamically from LIFT ranges -->
-                                            </select>
-                                            <div class="form-text">Type of variant relationship</div>
+                                            <div class="search-results mt-2" id="variant-search-results-{{ loop.index0 }}" style="display: none;"></div>                                            
                                         </div>
                                     </div>
                                     

@@ -2053,125 +2053,47 @@ class DictionaryService:
             # Default language codes as fallback
             return ["en", "seh-fonipa"]
 
-    def get_variant_types_from_traits(self) -> List[Dict[str, Any]]:
+    def get_trait_values_from_relations(self, trait_name: str) -> List[Dict[str, Any]]:
         """
-        Get all variant types from traits in the LIFT file.
-
+        Generic extractor for any trait value from relation elements.
+         
+        Args:
+            trait_name: The trait name to extract (e.g., 'variant-type', 'complex-form-type')
+            
         Returns:
-            List of variant type objects extracted from the LIFT file
+            List of trait value objects for the ranges API
         """
         try:
-            # Get the LIFT XML from the database
             db_name = self.db_connector.database
             if not db_name:
-                self.logger.warning(
-                    "No database configured, returning empty variant types"
-                )
+                self.logger.warning(f"No database configured, returning empty {trait_name} values")
                 return []
 
-            # Get a sample of variants from the LIFT document
-            lift_xml = self.db_connector.execute_query(
-                f"string-join((for $variant in collection('{db_name}')//variant return serialize($variant)), '')"
+            # Universal query that works for ANY trait inside relation elements
+            query = (
+                f"<relations>{{\n"
+                f"  for $relation in collection('{db_name}')//relation[trait[@name='{trait_name}']]\n"
+                f"  return $relation\n"
+                f"}}</relations>"
             )
-
-            if not lift_xml:
-                self.logger.warning(
-                    "Could not retrieve variant data for trait extraction"
-                )
+             
+            xml_result = self.db_connector.execute_query(query)
+            if not xml_result or not xml_result.strip():
+                self.logger.debug(f"No relations with '{trait_name}' traits found")
                 return []
-
-            # Extract variant types from the LIFT XML
-            variant_types = self.lift_parser.extract_variant_types_from_traits(lift_xml)
-
-            # If no variant types were found, return empty list
-            if not variant_types:
-                self.logger.warning(
-                    "No variant types found in LIFT file"
-                )
-                return []
-
-            return variant_types
-
+            
+            return self.ranges_parser.extract_trait_values_from_relations(xml_result, trait_name)
+             
         except Exception as e:
-            self.logger.error(
-                f"Error retrieving variant types from traits: {str(e)}", exc_info=True
-            )
-            # Return empty list as fallback
+            self.logger.error(f"Error extracting {trait_name} values: {str(e)}", exc_info=True)
             return []
+
+    def get_variant_types_from_traits(self) -> List[Dict[str, Any]]:
+        return self.get_trait_values_from_relations('variant-type')
 
     def get_complex_form_types_from_traits(self) -> List[Dict[str, Any]]:
-        """
-        Get all complex form types from traits in the LIFT file.
-
-        Returns:
-            List of complex form type objects extracted from the LIFT file
-        """
-        try:
-            # Get the LIFT XML from the database
-            db_name = self.db_connector.database
-            if not db_name:
-                self.logger.warning(
-                    "No database configured, returning empty complex form types"
-                )
-                return []
-
-            # Get relation elements that might have complex-form-type traits
-            query = (
-                f"string-join(("
-                f"  for $entry in collection('{db_name}')//entry "
-                f"  return for $relation in $entry//relation[@type='_component-lexeme'] "
-                f"  return serialize($relation)"
-                f"), '')"
-            )
-            lift_xml = self.db_connector.execute_query(query)
-
-            if not lift_xml.strip():
-                self.logger.debug(
-                    "Could not retrieve relation data for complex form type extraction"
-                )
-                return []
-
-            # Extract complex form types from trait elements in relations
-            from collections import OrderedDict
-            complex_form_types = OrderedDict()
-
-            # Import here to avoid parse errors
-            import xml.etree.ElementTree as ET
-
-            # Add XML wrapper if needed
-            xml_content = lift_xml.strip()
-            if not xml_content.startswith('<') or '<lift' not in xml_content:
-                xml_content = f'<lift>{xml_content}</lift>'
-
-            try:
-                root = ET.fromstring(xml_content)
-
-                # Find all trait elements with name="complex-form-type"
-                for elem in root.iter():
-                    # Handle both prefixed and unprefixed versions
-                    tag_name = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
-                    if tag_name == 'trait' and elem.get('name') == 'complex-form-type':
-                        trait_value = elem.get('value', '').strip()
-                        if trait_value and trait_value not in complex_form_types:
-                            # Create a standard format for the complex form type
-                            complex_form_types[trait_value] = {
-                                'id': trait_value,
-                                'value': trait_value,
-                                'abbrev': trait_value[:3].lower()[:3],
-                                'description': {'en': f'{trait_value} complex form type'}
-                            }
-            except ET.ParseError as e:
-                self.logger.error(f"Error parsing relation XML for complex form types: {e}")
-                return []
-
-            return list(complex_form_types.values())
-
-        except Exception as e:
-            self.logger.error(
-                f"Error retrieving complex form types from traits: {str(e)}", exc_info=True
-            )
-            return []
-
+        return self.get_trait_values_from_relations('complex-form-type')
+    
     def get_lexical_relation_types_from_traits(self) -> List[Dict[str, Any]]:
         """
         Get all lexical relation types from traits in the LIFT file.
