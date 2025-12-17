@@ -2092,7 +2092,39 @@ class LIFTParser:
         except Exception as e:
             self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
             return []
+
+    def extract_relation_types(self, xml_string: str) -> List[Dict[str, Any]]:
+        """
+        Extract unique relation types from <relation type="..."> attributes.
+        """
+        try:
+            root = ET.fromstring(xml_string)
+            relation_types: set[str] = set()
             
+            # Find all relations (with/without namespace)
+            relations = self._find_elements(root, './/lift:relation', './/relation')
+            
+            for relation in relations:
+                rel_type = relation.get('type')
+                if rel_type and rel_type != '_component-lexeme':
+                    relation_types.add(rel_type)
+            
+            # Format for ranges API
+            result = []
+            for rel_type in sorted(relation_types):
+                result.append({
+                    'id': rel_type,
+                    'value': rel_type,
+                    'abbrev': rel_type[:3].lower(),
+                    'description': {'en': f'{rel_type} relation type'}
+                })
+                
+            self.logger.info(f"Extracted {len(result)} lexical relation types")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error parsing relation types: {e}", exc_info=True)
+            return []            
 
     def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
         """
