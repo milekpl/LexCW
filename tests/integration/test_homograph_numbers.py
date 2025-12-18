@@ -78,7 +78,7 @@ class TestHomographNumberLIFTParsing:
         </entry>
         '''
         
-        entry = self.parser.parse_entry(entry_xml.strip())
+        entry = self.parser.parse_string(entry_xml.strip())[0]
         
         assert entry.id == "bank_1"
         assert entry.homograph_number == 1
@@ -95,7 +95,7 @@ class TestHomographNumberLIFTParsing:
         </entry>
         '''
         
-        entry = self.parser.parse_entry(entry_xml.strip())
+        entry = self.parser.parse_string(entry_xml.strip())[0]
         
         assert entry.id == "bank_2"
         assert entry.homograph_number == 2
@@ -112,7 +112,7 @@ class TestHomographNumberLIFTParsing:
         </entry>
         '''
         
-        entry = self.parser.parse_entry(entry_xml.strip())
+        entry = self.parser.parse_string(entry_xml.strip())[0]
         
         assert entry.id == "river_1"
         assert entry.homograph_number is None
@@ -129,7 +129,7 @@ class TestHomographNumberLIFTParsing:
         </entry>
         '''
         
-        entry = self.parser.parse_entry(entry_xml.strip())
+        entry = self.parser.parse_string(entry_xml.strip())[0]
         
         assert entry.id == "test_1"
         assert entry.homograph_number is None  # Should be None due to invalid value
@@ -406,7 +406,7 @@ class TestHomographNumberRoundTrip:
         '''
         
         # Parse the original LIFT
-        entry = self.parser.parse_entry(original_lift.strip())
+        entry = self.parser.parse_string(original_lift.strip())[0]
         assert entry.homograph_number == 1
         
         # Generate LIFT from the entry

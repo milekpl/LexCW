@@ -20,7 +20,9 @@ def test_parse_entry_with_single_sense():
     </entry>
     '''
     parser = LIFTParser()
-    entry = parser.parse_entry(xml)
+    entries = parser.parse_string(xml)
+    assert len(entries) == 1
+    entry = entries[0]
     assert entry is not None
     assert hasattr(entry, 'senses')
     assert isinstance(entry.senses, list)

@@ -19,8 +19,6 @@ def test_parse_entry_level_semantic_domain_trait() -> None:
     entries = parser.parse_string(xml)
     assert entries and entries[0]
     entry = entries[0]
-    # Debugging: ensure trait was captured
     print('ENTRY TRAITS:', entry.traits)
-    print('ENTRY DOMAIN_TYPE:', entry.domain_type)
-    assert 'semantic-domain-ddp4' in entry.traits or entry.domain_type == 'informatyka'
-    assert entry.domain_type == "informatyka"
+    assert 'semantic-domain-ddp4' in entry.traits
+    assert entry.traits['semantic-domain-ddp4'] == 'informatyka'

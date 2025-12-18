@@ -119,10 +119,10 @@ class TestLIFTRangesParserComprehensive:
         
         # Check the values
         borrowed = next(v for v in etymology_range['values'] if v['id'] == 'borrowed')
-        assert borrowed['description']['en'] == 'The word is borrowed from another language'
+        assert borrowed['descriptions']['en'] == 'The word is borrowed from another language'
         
         proto = next(v for v in etymology_range['values'] if v['id'] == 'proto')
-        assert proto['description']['en'] == 'The proto form of the word in another language'
+        assert proto['descriptions']['en'] == 'The proto form of the word in another language'
 
     @pytest.mark.integration
     def test_parser_handles_hierarchical_ranges(self, ranges_parser: LIFTRangesParser, sample_ranges_xml: str):
@@ -155,8 +155,8 @@ class TestLIFTRangesParserComprehensive:
         synonym = lexical_range['values'][0]
         
         # Should have both English and Polish labels
-        assert synonym['description']['en'] == 'Words with the same meaning'
-        assert synonym['description']['pl'] == 'Słowa o tym samym znaczeniu'
+        assert synonym['descriptions']['en'] == 'Words with the same meaning'
+        assert synonym['descriptions']['pl'] == 'Słowa o tym samym znaczeniu'
 
     @pytest.mark.integration
     def test_parser_handles_deep_hierarchy(self, ranges_parser: LIFTRangesParser, sample_ranges_xml: str):

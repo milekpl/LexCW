@@ -52,7 +52,10 @@ def test_parse_entry_with_multiple_senses(lift_parser: LIFTParser):
     including nested examples and relations within a sense.
     '''
     # Act
-    entry: Entry = lift_parser.parse_entry(COMPLEX_LIFT_ENTRY_2)
+    entries = lift_parser.parse_string(COMPLEX_LIFT_ENTRY_2)
+    assert len(entries) == 1
+    entry = entries[0]
+
 
     # Assert
     assert entry is not None
@@ -87,7 +90,8 @@ def test_parse_minimal_entry(lift_parser: LIFTParser):
     '''
     # Act & Assert - should raise ValidationError due to missing senses
     with pytest.raises(ValidationError) as exc_info:
-        lift_parser.parse_entry(MINIMAL_LIFT_ENTRY)
+        lift_parser.parse_string(MINIMAL_LIFT_ENTRY)
+
     
     # Verify the specific validation error
     assert "At least one sense is required per entry" in str(exc_info.value)

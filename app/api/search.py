@@ -281,7 +281,7 @@ def get_relation_types():
         }), 500
 
 
-@search_bp.route('/ranges/variant-types', methods=['GET'])
+@search_bp.route('/ranges/variant-type', methods=['GET'])
 def get_variant_types():
     """
     Get the variant types from ranges.
@@ -297,10 +297,10 @@ def get_variant_types():
         ranges = dict_service.get_ranges() if hasattr(dict_service, 'get_ranges') else {}
         
         # Look for variant types in canonical format only
-        if 'variant-types' not in ranges:
+        if 'variant-type' not in ranges:
             raise NotFoundError("Variant types not found in ranges")
 
-        variant_types = ranges['variant-types']
+        variant_types = ranges['variant-type']
         
         # Return response
         return jsonify({

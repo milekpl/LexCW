@@ -25,7 +25,7 @@ def test_lift_parser_extracts_dates() -> None:
     </entry>'''
 
     parser = LIFTParser(validate=True)
-    entry = parser.parse_entry(test_lift)
+    entry = parser.parse_string(test_lift)[0]
     assert isinstance(entry, Entry)
     assert entry.date_created is not None, f"date_created is None: {entry}"
     assert entry.date_modified is not None, f"date_modified is None: {entry}"

@@ -168,6 +168,7 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
     try:
         # Get dictionary service using dependency injection
         dict_service = current_app.injector.get(DictionaryService)
+        print(f"\nDEBUG: get_range hit for {range_id}")
         ranges = dict_service.get_ranges()
 
         # Use exact ID matching first. Do not attempt plural/singular

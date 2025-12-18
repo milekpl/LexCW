@@ -94,7 +94,7 @@ class CompatibilityValidator:
     def test_parsing(self, entry_id: str, xml: str) -> bool:
         """Test if entry can be parsed by LIFTParser."""
         try:
-            entry = self.parser.parse_entry(xml)
+            entry = self.parser.parse_string(xml)[0]
             if entry and entry.id:
                 self.parsing_results['success'].append(entry_id)
                 return True

@@ -34,7 +34,7 @@ def test_update_entry_with_dict_field_logs_error(client, caplog):
     # Now try to update with invalid note structure
     # Parse the XML to get an Entry object
     parser = LIFTParser()
-    entry = parser.parse_entry(entry_xml)
+    entry = parser.parse_string(entry_xml)[0]
     
     # Intentionally break a field - note should be a string, not a dict
     entry.note = {"en": "This should be a string, not a dict"}

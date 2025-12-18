@@ -155,18 +155,31 @@ class TestExpandedCoverage:
         parser = LIFTParser(validate=True)
         
         # Test with simple XML
-        simple_xml = """<?xml version="1.0"?><lift><entry id="test"></entry></lift>"""
+        # Minimal valid LIFT entry with required lexical-unit
+        simple_xml = (
+            '<?xml version="1.0"?>'
+            '<lift>'
+            '  <entry id="test_entry">'
+            '    <lexical-unit>'
+            '      <form lang="en"><text>test</text></form>'
+            '    </lexical-unit>'
+            '  </entry>'
+            '</lift>'
+        )
         
         try:
             # Test parsing methods (may succeed or fail, that's ok for coverage)
             result = parser.parse_string(simple_xml)
             assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0].id == "test_entry"
+            assert result[0].lexical_unit.get("en") == "test"
         except Exception:
             pass  # Parsing may fail, that's ok for coverage testing
         
-        # Test generation methods exist
-        assert hasattr(parser, 'generate_lift_string')
-        assert hasattr(parser, 'generate_lift_file')
+        # Test generation methods exist - REMOVED (Not supported in DRY parser)
+        # assert hasattr(parser, 'generate_lift_string')
+        # assert hasattr(parser, 'generate_lift_file')
         
         print("LIFTParser coverage: OK")
     

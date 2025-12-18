@@ -1,2732 +1,595 @@
 """
-LIFT format parser and generator for dictionary data.
-
-The LIFT (Lexicon Interchange Format) is an XML format for lexicographic data.
-This module provides functionality for parsing and generating LIFT files.
+LIFT format parser and generator for dictionary data (DRY/KISS optimized).
 """
 
 import logging
 import os
+import re
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Any, Optional
-from xml.dom import minidom
+from typing import Dict, List, Any, Optional, Set
 
 from app.models.entry import Entry, Etymology, Relation, Variant
 from app.models.sense import Sense
 from app.models.example import Example
 from app.utils.exceptions import ValidationError
 
-
 class LIFTParser:
-    """
-    Parser for LIFT format dictionary files.
+    """Parser for LIFT format dictionary files."""
     
-    This class handles the parsing of LIFT XML files into model objects
-    and the generation of LIFT XML from model objects.
-    """
-    @staticmethod
-    def _normalize_multilingual_dict(d: dict) -> dict:
-        """
-        Ensure all values in a multilingual dict are {"text": ...} dicts, but do not double-wrap.
-        """
-        for k, v in list(d.items()):
-            if isinstance(v, dict) and set(v.keys()) == {"text"} and isinstance(v["text"], str):
-                # Already normalized
-                continue
-            elif isinstance(v, dict):
-                d[k] = LIFTParser._normalize_multilingual_dict(v)
-            else:
-                d[k] = {"text": v}
-        return d
-    
-    
-    # LIFT XML namespace
     NSMAP = {
         'lift': 'http://fieldworks.sil.org/schemas/lift/0.13',
         'flex': 'http://fieldworks.sil.org/schemas/flex/0.1'
     }
     
-    # XPath constants
-    XPATH_FORM = './/lift:form'
-    XPATH_TEXT = './/lift:text'
-    XPATH_LABEL = './/lift:label'
-    XPATH_RANGE_ELEMENT = './/lift:range-element'
-    
-    # XML element constants
-    ELEM_FORM = '}form'
-    ELEM_TEXT = '}text'
-    
     def __init__(self, validate: bool = True):
-        """
-        Initialize a LIFT parser.
-        
-        Args:
-            validate: Whether to validate entries during parsing.        """
         self.validate = validate
         self.logger = logging.getLogger(__name__)
 
-    def parse_entry(self, xml_string: str) -> Entry:
-        """
-        Parse a single LIFT entry XML string into an Entry object.
-        
-        Args:
-            xml_string: LIFT XML string for a single entry.
-            
-        Returns:
-            The parsed Entry object.
-        """
-        entries = self.parse_string(xml_string)
-        if not entries:
-            raise ValueError("No entry found in the provided XML string.")
-        return entries[0]
-
-    def parse(self, input_data: str, is_file_path: bool = False) -> List[Entry]:
-        """
-        Generic parse method that can handle either file paths or XML strings.
-        
-        Args:
-            input_data: Either a file path or XML string
-            is_file_path: True if input_data is a file path, False if it's an XML string
-            
-        Returns:
-            List of parsed Entry objects
-        """
-        if is_file_path:
-            return self.parse_file(input_data)
-        else:
-            return self.parse_string(input_data)
-
-    def _find_element_with_fallback(self, element: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> Optional[ET.Element]:
-        """
-        Find an element with namespace fallback.
-        
-        Args:
-            element: The parent element to search in
-            xpath_with_ns: XPath with namespace prefix
-            xpath_without_ns: XPath without namespace prefix (optional, auto-generated if None)
-            
-        Returns:
-            Found element or None
-        """
-        # Try with namespace first
-        found = element.find(xpath_with_ns, self.NSMAP)
-        if found is not None:
-            return found
-        
-        # Fallback to without namespace
-        if xpath_without_ns is None:
-            # Auto-generate xpath without namespace by removing 'lift:' prefixes
-            xpath_without_ns = xpath_with_ns.replace('lift:', '')
-        
-        return element.find(xpath_without_ns)
+    # ==================== NAMESPACE-AWARE FINDERS ====================
     
-    def _find_elements_with_fallback(self, element: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> List[ET.Element]:
-        """
-        Find elements with namespace fallback.
+    def _find(self, parent: ET.Element, xpath: str, single: bool = False) -> Any:
+        """Unified finder with namespace fallback."""
+        # Trust the caller's xpath for namespaced search (assumes 'lift:' prefix is used where needed)
+        ns_xpath = xpath
+        plain_xpath = xpath.replace('lift:', '')
         
-        Args:
-            element: The parent element to search in
-            xpath_with_ns: XPath with namespace prefix
-            xpath_without_ns: XPath without namespace prefix (optional, auto-generated if None)
-            
-        Returns:
-            List of found elements
-        """
-        # Try with namespace first
-        found = element.findall(xpath_with_ns, self.NSMAP)
-        if found:
-            return found
+        result = parent.find(ns_xpath, self.NSMAP) if single else parent.findall(ns_xpath, self.NSMAP)
         
-        # Fallback to without namespace
-        if xpath_without_ns is None:
-            # Auto-generate xpath without namespace by removing 'lift:' prefixes
-            xpath_without_ns = xpath_with_ns.replace('lift:', '')
-        
-        return element.findall(xpath_without_ns)
+        failed = result is None if single else not result
+        if failed:
+            result = parent.find(plain_xpath) if single else parent.findall(plain_xpath)
+        return result
 
-    def _find_elements(self, parent: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> List[ET.Element]:
-        """
-        Find elements with fallback to non-namespaced xpath.
-        
-        Args:
-            parent: Parent element to search in.
-            xpath_with_ns: XPath expression with lift: namespace prefix.
-            xpath_without_ns: Optional XPath without namespace prefix (auto-generated if None).
-            
-        Returns:
-            List of found elements or empty list if none found.
-        """
-        if xpath_without_ns is None:
-            # Auto-generate non-namespaced version by removing 'lift:' prefix
-            xpath_without_ns = xpath_with_ns.replace('lift:', '')
-            
-        # Try with namespace first
-        found = parent.findall(xpath_with_ns, self.NSMAP)
-        if found:
-            return found
-            
-        # Fall back to non-namespaced version
-        return parent.findall(xpath_without_ns)
+    def _find_element(self, parent: ET.Element, xpath: str) -> Optional[ET.Element]:
+        return self._find(parent, xpath, single=True)
+    
+    def _find_elements(self, parent: ET.Element, xpath: str) -> List[ET.Element]:
+        return self._find(parent, xpath, single=False)
 
-    def _find_element(self, parent: ET.Element, xpath_with_ns: str, xpath_without_ns: Optional[str] = None) -> Optional[ET.Element]:
-        """
-        Find single element with fallback to non-namespaced xpath.
+    # ==================== ATTRIBUTE HELPER ====================
+    
+    def _get_attr(self, parent: ET.Element, xpath: str, attr: str) -> Optional[str]:
+        """Get attribute from element if it exists."""
+        elem = self._find_element(parent, xpath)
+        if elem is not None:
+            return elem.get(attr)
+        return None
+
+    # ==================== MULTILINGUAL PARSING ====================
+    
+    # ==================== MULTILINGUAL PARSING ====================
+    
+    def _parse_multitext(self, parent: ET.Element, xpath: str, form_tag: str = 'lift:form', flatten: bool = False) -> Dict:
+        """Parse multilingual form/text structure.
+        Set flatten=True to get Dict[str, str], otherwise Dict[str, Dict[str, str]]."""
+        result = {}
+        target_path = f'{xpath}/{form_tag}' if xpath != '.' else f'./{form_tag}'
         
-        Args:
-            parent: Parent element to search in.
-            xpath_with_ns: XPath expression with lift: namespace prefix.
-            xpath_without_ns: Optional XPath without namespace prefix (auto-generated if None).
-            
-        Returns:
-            Matching element or None.
-        """
-        if xpath_without_ns is None:
-            # Auto-generate non-namespaced version by removing 'lift:' prefix
-            xpath_without_ns = xpath_with_ns.replace('lift:', '')
-            
-        # Try namespace-aware first
-        element = parent.find(xpath_with_ns, self.NSMAP)
-        if element is not None:
-            return element
-            
-        # Fall back to non-namespaced version
-        return parent.find(xpath_without_ns)
+        for form in self._find_elements(parent, target_path):
+            lang = form.get('lang', 'und')
+            text = self._find_element(form, 'lift:text')
+            if text is not None:
+                if text.text and text.text.strip():
+                    if flatten:
+                        result[lang] = text.text.strip()
+                    else:
+                        result[lang] = {'text': text.text.strip()}
+        return result
+
+    def _parse_text_content(self, elem: ET.Element) -> Dict:
+        """Parse <form><text> or direct text content."""
+        if content := self._parse_multitext(elem, '.', flatten=False):
+            return content
+        if elem.text and elem.text.strip():
+            return {'und': elem.text.strip()}
+        return {}
+
+    # ==================== ENTRY PARSING ====================
     
     def parse_file(self, file_path: str) -> List[Entry]:
-        """
-        Parse a LIFT file into a list of Entry objects.
-        
-        Args:
-            file_path: Path to the LIFT file.
-            
-        Returns:
-            List of Entry objects.
-              Raises:
-            FileNotFoundError: If the file does not exist.
-            ValidationError: If validation is enabled and an entry fails validation.
-        """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"LIFT file not found: {file_path}")
-        
-        try:
-            tree = ET.parse(file_path)
-            root = tree.getroot()
-            
-            entries = []
-            # Try namespace-aware first, then fallback to non-namespaced
-            entry_elems = root.findall('.//lift:entry', self.NSMAP)
-            if not entry_elems:
-                entry_elems = root.findall('.//entry')
-            
-            for entry_elem in entry_elems:
-                try:
-                    entry = self._parse_entry(entry_elem)
-                    if self.validate:
-                        entry.validate()
-                    entries.append(entry)
-                except ValidationError as e:
-                    entry_id = entry_elem.get('id', 'unknown')
-                    self.logger.warning(f"Skipping invalid entry {entry_id} during list parsing - ValidationError: {e}")
-                    if self.validate:
-                        raise
-                except Exception as e:
-                    self.logger.error(f"Error parsing entry: {e}")
-                    raise
-            
-            return entries
-            
-        except ET.ParseError as e:
-            self.logger.error(f"XML parsing error: {e}")
-            raise
+        return self._parse_entries(ET.parse(file_path).getroot())
 
     def parse_string(self, xml_string: str) -> List[Entry]:
-        """
-        Parse a LIFT XML string into a list of Entry objects.
-        
-        Args:
-            xml_string: LIFT XML string.
-            
-        Returns:
-            List of Entry objects.
-            
-        Raises:
-            ValidationError: If validation is enabled and an entry fails validation.
-        """
-        return self.parse_lift_content(xml_string)
-    
-    def parse_lift_content(self, xml_string: str) -> List[Entry]:
-        """
-        Parse a LIFT XML string into a list of Entry objects.
-        
-        Args:
-            xml_string: LIFT XML string.
-            
-        Returns:
-            List of Entry objects.
-            
-        Raises:
-            ValidationError: If validation is enabled and an entry fails validation.
-        """
-        try:
-            # Clean up the XML string to handle potential whitespace issues
-            xml_string = xml_string.strip()
-            
-            # Handle case where we have multiple entry elements without a root
-            # This is common in test mocks and some database responses. Support both
-            # namespaced (<lift:entry>) and non-namespaced (<entry>) entries and
-            # strip any extra XML declarations that may appear mid-string.
-            import re
-            # Remove any XML declarations that are not at the start
-            xml_string = re.sub(r'<\?xml[^>]*\?>', '', xml_string)
+        xml_string = self._normalize_xml(xml_string)
+        return self._parse_entries(ET.fromstring(xml_string))
 
-            entry_count = xml_string.count('<entry') + xml_string.count('<lift:entry')
-            if entry_count > 1 and not xml_string.lstrip().startswith('<lift>'):
-                # Multiple entries without a root - wrap them
-                xml_string = f"<lift>{xml_string}</lift>"
-            
-            root = ET.fromstring(xml_string)
-            
-            entries = []
-            entry_elems = []
+    def _normalize_xml(self, xml: str) -> str:
+        """Handle multiple entries without root or extra XML declarations."""
+        xml = re.sub(r'<\?xml[^>]*\?>', '', xml).strip()
+        # Always wrap in <lift> if not already wrapped as <lift> or <lift:lift>
+        if not re.match(r'^<(\w+:)?lift(\s|>)', xml):
+            ns_uri = self.NSMAP['lift']
+            xml = f'<lift xmlns="{ns_uri}" xmlns:lift="{ns_uri}">{xml}</lift>'
+        
+        self.logger.debug(f"Normalized XML: {xml[:100]}...")
+        return xml
 
-            # Check if the root element is an entry
-            if root.tag.endswith('entry'):
-                entry_elems.append(root)
-            else:
-                # Try namespace-aware first, then fallback to non-namespaced
-                entry_elems = root.findall('.//lift:entry', self.NSMAP)
-                if not entry_elems:
-                    entry_elems = root.findall('.//entry')
-            
-            for entry_elem in entry_elems:
-                try:
-                    entry = self._parse_entry(entry_elem)
-                    if self.validate:
-                        entry.validate()
-                    entries.append(entry)
-                except ValidationError as e:
-                    self.logger.warning(f"Skipping invalid entry: {e}")
-                    if self.validate:
-                        raise
-                except Exception as e:
-                    self.logger.error(f"Error parsing entry: {e}")
-                    raise
-            
-            return entries
-        
-        except ValidationError:
-            # Re-raise ValidationError as-is (already logged in inner try-except)
-            raise
-        except ET.ParseError as e:
-            import traceback
-            self.logger.error(f"XML parsing error: {e}")
-            self.logger.error(f"XML string: {xml_string[:500]}...")
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
-    
-    def parse_entry_element(self, entry_elem: ET.Element) -> Entry:
-        """
-        Parse a single entry element into an Entry object.
-        
-        Args:
-            entry_elem: Element representing an entry.
-            
-        Returns:
-            Entry object.
-            
-        Raises:
-            ValidationError: If validation is enabled and the entry fails validation.
-        """
-        entry = self._parse_entry(entry_elem)
-        if self.validate:
-            entry.validate()
-        return entry
-    
-    def _parse_entry(self, entry_elem: ET.Element) -> Entry:
-        """
-        Parse an entry element into an Entry object.
-        
-        Args:
-            entry_elem: Element representing an entry.
-            
-        Returns:
-            Entry object.
-        """
-        # Get entry ID
-        entry_id = entry_elem.get('id')
-        if not entry_id:
-            self.logger.warning("Entry without ID found, generating a new one")
-            
-        # Get homograph number from order attribute (LIFT specification)
-        homograph_number = entry_elem.get('order')
-        if homograph_number:
+    def _parse_entries(self, root: ET.Element) -> List[Entry]:
+        """Parse all entries from root."""
+        entries = []
+        for entry_elem in self._find_elements(root, './/lift:entry'):
             try:
-                homograph_number = int(homograph_number)
-            except ValueError:
-                self.logger.warning(f"Invalid homograph number '{homograph_number}' for entry {entry_id}")
-                homograph_number = None
-        else:
-            homograph_number = None        # Parse lexical unit
-        lexical_unit = {}
-        lexical_unit_elem = self._find_element(entry_elem, './/lift:lexical-unit')
-        if lexical_unit_elem is not None:
-            for form_elem in self._find_elements(lexical_unit_elem, './/lift:form'):
-                lang = form_elem.get('lang')
-                text_elem = self._find_element(form_elem, './/lift:text')
-                if lang and text_elem is not None and text_elem.text:
-                    lexical_unit[lang] = text_elem.text
-        
-        # Parse etymologies
-        etymologies = []
-        for etymology_elem in self._find_elements(entry_elem, './/lift:etymology'):
-            etymology_type = etymology_elem.get('type', '')
-            etymology_source = etymology_elem.get('source', '')
-            
-            form_elem = self._find_element(etymology_elem, './/lift:form')
-            gloss_elem = self._find_element(etymology_elem, './/lift:gloss')
+                entry = self._parse_entry(entry_elem)
+                if self.validate:
+                    entry.validate()
+                entries.append(entry)
+            except ValidationError as e:
+                self.logger.warning(f"Skipping invalid entry {entry_elem.get('id', 'unknown')}: {e}")
+                if self.validate:
+                    raise
+        return entries
 
-            form: dict[str, str] = {}
-            if form_elem is not None:
-                lang = form_elem.get('lang')
-                text_elem = self._find_element(form_elem, './/lift:text')
-                if text_elem is not None and text_elem.text:
-                    form = {lang or '': text_elem.text}
-
-            gloss: dict[str, str] = {}
-            if gloss_elem is not None:
-                lang = gloss_elem.get('lang')
-                text_elem = self._find_element(gloss_elem, './/lift:text')
-                if text_elem is not None and text_elem.text:
-                    gloss = {lang or '': text_elem.text}
-
-            # Day 45-46: Parse comment and custom fields
-            comment: dict[str, str] | None = None
-            custom_fields: dict[str, dict[str, str]] = {}
-            
-            for field_elem in self._find_elements(etymology_elem, './/lift:field'):
-                field_type = field_elem.get('type', '')
-                field_value: dict[str, str] = {}
-                
-                for field_form_elem in self._find_elements(field_elem, './/lift:form'):
-                    field_lang = field_form_elem.get('lang', 'en')
-                    field_text_elem = self._find_element(field_form_elem, './/lift:text')
-                    if field_text_elem is not None and field_text_elem.text:
-                        field_value[field_lang] = field_text_elem.text
-                
-                if field_value:
-                    if field_type == 'comment':
-                        comment = field_value
-                    else:
-                        custom_fields[field_type] = field_value
-
-            if form and gloss:
-                # Ensure form and gloss are always {lang: text, ...}
-                if not (isinstance(form, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in form.items())):
-                    raise ValueError("Etymology 'form' must be a nested dict {lang: text, ...}")
-                if not (isinstance(gloss, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in gloss.items())):
-                    raise ValueError("Etymology 'gloss' must be a nested dict {lang: text, ...}")
-                etymologies.append(Etymology(
-                    type=etymology_type,
-                    source=etymology_source,
-                    form=form,
-                    gloss=gloss,
-                    comment=comment,
-                    custom_fields=custom_fields if custom_fields else None
-                ))
-
-          # Parse citations
-        citations = []
-        for citation_elem in entry_elem.findall('.//lift:citation', self.NSMAP):
-            citation = {}
-            for form_elem in citation_elem.findall(self.XPATH_FORM, self.NSMAP):
-                lang = form_elem.get('lang')
-                text_elem = form_elem.find(self.XPATH_TEXT, self.NSMAP)
-                if lang and text_elem is not None and text_elem.text:
-                    citation[lang] = text_elem.text
-            if citation:
-                citations.append(citation)
-          # Parse pronunciations
-        pronunciations = {}
-        pronunciation_media = []  # Store media elements from pronunciations
-        pronunciation_cv_pattern = {}  # Store cv-pattern fields from pronunciations (Day 40)
-        pronunciation_tone = {}  # Store tone fields from pronunciations (Day 40)
-        pron_elements = self._find_elements(entry_elem, './/lift:pronunciation')
-        self.logger.debug(f"Found {len(pron_elements)} pronunciation elements")
-        
-        for pron_elem in pron_elements:
-            # Parse pronunciation form (direct child only, not inside media/label)
-            form_elem = self._find_element(pron_elem, './lift:form')
-            if form_elem is not None:
-                writing_system = form_elem.get('lang', '')
-                text_elem = self._find_element(form_elem, './/lift:text')
-                value = text_elem.text if text_elem is not None else ''
-                
-                self.logger.debug(f"Extracted pronunciation: {writing_system} = '{value}'")
-                if writing_system and value:
-                    pronunciations[writing_system] = value
-            else:
-                # Legacy format
-                writing_system = pron_elem.get('writing-system')
-                value = pron_elem.get('value')
-                if writing_system and value:
-                    pronunciations[writing_system] = value
-            
-            # Parse media elements within pronunciation
-            media_elements = self._find_elements(pron_elem, './/lift:media')
-            for media_elem in media_elements:
-                href = media_elem.get('href')
-                if href:
-                    media_item = {'href': href}
-                    
-                    # Parse optional label
-                    label_elem = self._find_element(media_elem, './/lift:label')
-                    if label_elem is not None:
-                        label = {}
-                        for form_elem in self._find_elements(label_elem, './/lift:form'):
-                            lang = form_elem.get('lang')
-                            text_elem = self._find_element(form_elem, './/lift:text')
-                            if lang and text_elem is not None and text_elem.text:
-                                label[lang] = text_elem.text
-                        if label:
-                            media_item['label'] = label
-                    
-                    pronunciation_media.append(media_item)
-            
-            # Parse cv-pattern field (Day 40)
-            cv_pattern_fields = self._find_elements(pron_elem, './lift:field[@type="cv-pattern"]')
-            for cv_field in cv_pattern_fields:
-                for form_elem in self._find_elements(cv_field, './/lift:form'):
-                    lang = form_elem.get('lang')
-                    text_elem = self._find_element(form_elem, './/lift:text')
-                    if lang and text_elem is not None and text_elem.text:
-                        pronunciation_cv_pattern[lang] = text_elem.text
-            
-            # Parse tone field (Day 40)
-            tone_fields = self._find_elements(pron_elem, './lift:field[@type="tone"]')
-            for tone_field in tone_fields:
-                for form_elem in self._find_elements(tone_field, './/lift:form'):
-                    lang = form_elem.get('lang')
-                    text_elem = self._find_element(form_elem, './/lift:text')
-                    if lang and text_elem is not None and text_elem.text:
-                        pronunciation_tone[lang] = text_elem.text
-        
-        if pronunciations:
-            self.logger.debug(f"Final pronunciations: {pronunciations}")
-        else:
-            self.logger.debug("No pronunciations found")
-        
-        if pronunciation_media:
-            self.logger.debug(f"Found {len(pronunciation_media)} media elements in pronunciations")
-        
-        if pronunciation_cv_pattern:
-            self.logger.debug(f"Found cv-pattern fields: {pronunciation_cv_pattern}")
-        
-        if pronunciation_tone:
-            self.logger.debug(f"Found tone fields: {pronunciation_tone}")
-        
-        # Parse variant forms
-        variants = []
-        for variant_elem in self._find_elements(entry_elem, './/lift:variant'):
-            form_elem = self._find_element(variant_elem, './/lift:form')
-            if form_elem is not None:
-                lang = form_elem.get('lang')
-                text_elem = self._find_element(form_elem, './/lift:text')
-                if text_elem is not None and text_elem.text:
-                    form = {lang or '': text_elem.text}
-                    
-                    # LIFT 0.13: Parse grammatical-info with traits for variant (Day 29-30)
-                    grammatical_traits = None
-                    gram_info_elem = self._find_element(variant_elem, './/lift:grammatical-info')
-                    if gram_info_elem is not None:
-                        trait_elems = self._find_elements(gram_info_elem, './/lift:trait', './/trait')
-                        if trait_elems:
-                            grammatical_traits = {}
-                            for trait_elem in trait_elems:
-                                trait_name = trait_elem.get('name')
-                                trait_value = trait_elem.get('value')
-                                if trait_name and trait_value:
-                                    grammatical_traits[trait_name] = trait_value
-                    
-                    variants.append(Variant(form=form, grammatical_traits=grammatical_traits))
-        
-        # Parse grammatical info - only direct child of entry, not from senses
-        grammatical_info = None
-        gram_info_elem = entry_elem.find('lift:grammatical-info', self.NSMAP)
-        if gram_info_elem is None:
-            # Try without namespace
-            gram_info_elem = entry_elem.find('grammatical-info')
-        if gram_info_elem is not None:
-            grammatical_info = gram_info_elem.get('value')
-        
-        # Parse relations (only direct children, not nested in senses)
-        relations = []
-        for relation_elem in self._find_elements(entry_elem, './lift:relation'):
-            relation_type = relation_elem.get('type')
-            ref = relation_elem.get('ref')
-            if relation_type and ref:
-                # Parse traits within this relation
-                traits = {}
-                for trait_elem in self._find_elements(relation_elem, './/lift:trait'):
-                    trait_name = trait_elem.get('name')
-                    trait_value = trait_elem.get('value')
-                    if trait_name and trait_value:
-                        traits[trait_name] = trait_value
-                
-                relations.append(Relation(type=relation_type, ref=ref, traits=traits))
-        
-        # Parse notes
-        notes = {}
-        for note_elem in self._find_elements(entry_elem, './/lift:note', './/note'):
-            note_type = note_elem.get('type', 'general')
-            # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
-            form_elements = self._find_elements(note_elem, './/lift:form', './/form')
-
-            note_has_content = False
-            if form_elements:
-                # New structured format with potentially multiple languages
-                if note_type not in notes:
-                    notes[note_type] = {}
-                for form_elem in form_elements:
-                    lang = form_elem.get('lang', '')
-                    text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        # Always wrap as dict
-                        notes[note_type][lang] = {"text": text_elem.text}
-                        note_has_content = True
-            elif note_elem.text and note_elem.text.strip():
-                # Legacy format: <note>text</note>
-                notes[note_type] = {"und": {"text": note_elem.text}}
-                note_has_content = True
-
-            # If a note element exists but has no content, remove it
-            if not note_has_content and note_type in notes:
-                del notes[note_type]
-
-        # Final normalization to ensure all values are nested dicts
-        notes = self._normalize_multilingual_dict(notes)
-        
-        # Parse custom fields (entry-level only - use direct children, not descendants)
-        custom_fields = {}
-        for field_elem in self._find_elements(entry_elem, './lift:field', './field'):
-            field_type = field_elem.get('type', '')
-            if field_type:
-                # Check for multilingual structured format: <field><form lang=...><text>...</text></form></field>
-                form_elements = self._find_elements(field_elem, './/lift:form', './/form')
-                
-                if form_elements:
-                    # Multilingual format
-                    for form_elem in form_elements:
-                        lang = form_elem.get('lang', '')
-                        text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                        if text_elem is not None and text_elem.text:
-                            if field_type not in custom_fields:
-                                custom_fields[field_type] = {}
-                            if isinstance(custom_fields[field_type], dict):
-                                # Day 36-37: MultiUnicode custom fields use simple {lang: value} format
-                                # Standard fields (exemplar, scientific-name, etc.) use {"text": value} format for backward compatibility
-                                if field_type.startswith('CustomFld'):
-                                    # MultiUnicode custom field - simple format
-                                    custom_fields[field_type][lang] = text_elem.text
-                                else:
-                                    # Standard custom field - legacy format
-                                    custom_fields[field_type][lang] = {"text": text_elem.text}
-                            else:
-                                # Convert single value to multilingual
-                                old_value = custom_fields[field_type]
-                                if field_type.startswith('CustomFld'):
-                                    custom_fields[field_type] = {'': old_value, lang: text_elem.text}
-                                else:
-                                    custom_fields[field_type] = {'': old_value, lang: {"text": text_elem.text}}
-                else:
-                    # Legacy format - single value
-                    if field_elem.text:
-                        if field_type.startswith('CustomFld'):
-                            custom_fields[field_type] = {"und": field_elem.text}
-                        else:
-                            custom_fields[field_type] = {"und": {"text": field_elem.text}}
-          # Parse senses
-        senses = []
-        for sense_elem in self._find_elements(entry_elem, './/lift:sense'):
-            sense_id = sense_elem.get('id')
-            sense = self._parse_sense(sense_elem, sense_id)
-            senses.append(sense)  # Keep as Sense object, don't convert to dict
-        
-        # Parse entry-level traits (like morph-type)
-        # Day 31-32: General traits - collect all traits into traits dict
-        # Use direct children only, not descendant search (.// would include sense-level traits)
-        morph_type = None
-        domain_type = None
-        traits = {}  # General traits dict (Day 31-32)
-        for trait_elem in self._find_elements(entry_elem, 'lift:trait', 'trait'):
-            trait_name = trait_elem.get('name')
-            trait_value = trait_elem.get('value')
-            if trait_name and trait_value:
-                # Store ALL traits in traits dict
-                traits[trait_name] = trait_value
-                # Also store specific ones in dedicated fields for backward compatibility
-                if trait_name == 'morph-type':
-                    morph_type = trait_value
-                # Recognize domain-like trait names at entry-level
-                if trait_name in ('domain-type', 'semantic-domain-ddp4'):
-                    domain_type = trait_value
-        
-        date_created = entry_elem.get('dateCreated')
-        date_modified = entry_elem.get('dateModified')
-        date_deleted = entry_elem.get('dateDeleted')  # LIFT 0.13: Soft delete support
-        # Create and return Entry object
-        # LIFT 0.13: Parse annotations (editorial workflow) - Day 26-27
-        annotations = []
-        for annotation_elem in self._find_elements(entry_elem, './lift:annotation'):
-            annotation_data = self._parse_annotation(annotation_elem)
-            if annotation_data:
-                annotations.append(annotation_data)
-        
-        entry = Entry(
-            id_=entry_id,
-            date_created=date_created,
-            date_modified=date_modified,
-            date_deleted=date_deleted,  # LIFT 0.13: Soft delete
-            order=homograph_number,  # LIFT uses order for homograph number
-            lexical_unit=lexical_unit,
-            citations=citations,
-            pronunciations=pronunciations,
-            pronunciation_media=pronunciation_media,  # Day 35: Media elements
-            pronunciation_cv_pattern=pronunciation_cv_pattern,  # Day 40: CV pattern
-            pronunciation_tone=pronunciation_tone,  # Day 40: Tone
-            variants=variants,
-            grammatical_info=grammatical_info,
-            morph_type=morph_type,  # Add morph_type
-            traits=traits,  # Day 31-32: General traits
-            relations=relations,
-            etymologies=etymologies,
-            notes=notes,
-            domain_type=domain_type,
-            custom_fields=custom_fields,
-            senses=senses,
-            homograph_number=homograph_number,
-            annotations=annotations
-        )
-
-
-        return entry
-        
-    def _parse_sense(self, sense_elem: ET.Element, sense_id: Optional[str] = None) -> Sense:
-        """
-        Parse a sense element into a Sense object.
-        
-        Args:
-            sense_elem: Element representing a sense.
-            sense_id: Optional ID for the sense.
-            
-        Returns:
-            Sense object.
-        """        # Parse glosses - LIFT flat format: {lang: text}
-        glosses = {}
-        for gloss_elem in self._find_elements(sense_elem, './/lift:gloss'):
-            lang = gloss_elem.get('lang')
-            text_elem = self._find_element(gloss_elem, './/lift:text')
-            if lang and text_elem is not None and text_elem.text:
-                glosses[lang] = text_elem.text
-        
-        # Parse definitions - LIFT flat format: {lang: text}
-        definitions = {}
-        for def_elem in self._find_elements(sense_elem, './/lift:definition'):
-            for form_elem in self._find_elements(def_elem, './/lift:form'):
-                lang = form_elem.get('lang')
-                text_elem = self._find_element(form_elem, './/lift:text')
-                if lang and text_elem is not None and text_elem.text:
-                    definitions[lang] = text_elem.text
-        
-        # Parse examples
-        examples = []
-        for example_elem in self._find_elements(sense_elem, './/lift:example'):
-            example_id = example_elem.get('id')
-            example = self._parse_example(example_elem, example_id)
-            # Day 47-48: Keep as Example objects instead of converting to dict
-            examples.append(example)
-        
-        # Parse relations (only direct children, not nested in subsenses)
-        relations = []
-        for relation_elem in self._find_elements(sense_elem, './lift:relation'):
-            relation = {
-                'type': relation_elem.get('type', 'unspecified'),
-                'ref': relation_elem.get('ref', ''),
-            }
-            if relation['ref']:
-                relations.append(relation)
-        
-        # Parse grammatical info
-        grammatical_info = None
-        grammatical_traits = None
-        # Use the new helper method with namespace fallback
-        gram_info_elem = self._find_element_with_fallback(sense_elem, './/lift:grammatical-info')
-        
-        if gram_info_elem is not None:
-            grammatical_info = gram_info_elem.get('value')
-            
-            # LIFT 0.13: Parse traits within grammatical-info (Day 29-30)
-            # <grammatical-info value="Noun"><trait name="gender" value="masculine"/></grammatical-info>
-            trait_elems = self._find_elements(gram_info_elem, './/lift:trait', './/trait')
-            if trait_elems:
-                grammatical_traits = {}
-                for trait_elem in trait_elems:
-                    trait_name = trait_elem.get('name')
-                    trait_value = trait_elem.get('value')
-                    if trait_name and trait_value:
-                        grammatical_traits[trait_name] = trait_value
-        
-        # Parse sense-level traits (usage-type, domain-type)
-        # Day 31-32: General traits - collect all traits into traits dict
-        # Note: Grammatical traits are handled separately (nested in grammatical-info)
-        usage_type = []
-        domain_type_values = []  # domain-type trait values (distinct from semantic domains)
-        semantic_domains = []  # semantic-domain-ddp4/semantic-domain traits as separate list
-        traits = {}  # General traits dict (Day 31-32)
-
-        # First, collect trait elements that are within grammatical-info (already parsed above)
-        grammatical_trait_elements = set()
-        for gram_info_elem in self._find_elements(sense_elem, './/lift:grammatical-info', './/grammatical-info'):
-            for trait_elem in self._find_elements(gram_info_elem, './/lift:trait', './/trait'):
-                grammatical_trait_elements.add(id(trait_elem))
-
-        # Now parse all sense-level traits (direct children of sense, not in grammatical-info)
-        for trait_elem in self._find_elements(sense_elem, './lift:trait', './trait'):
-            # Skip traits that are within grammatical-info (already parsed)
-            if id(trait_elem) in grammatical_trait_elements:
-                continue
-
-            trait_name = trait_elem.get('name')
-            trait_value = trait_elem.get('value')
-            if trait_name and trait_value:
-                # Recognize different trait names that serve different purposes
-                domain_type_trait_names = {'domain-type'}
-                semantic_domain_trait_names = {'semantic-domain-ddp4', 'semantic-domain'}
-                usage_like = {'usage-type'}
-
-                # Store in general traits dict unless it's a special-case trait
-                if trait_name not in domain_type_trait_names and trait_name not in semantic_domain_trait_names and trait_name not in usage_like:
-                    traits[trait_name] = trait_value
-
-                # Map trait names into distinct canonical fields - STRICT SEPARATION
-                if trait_name in usage_like:
-                    usage_type.append(trait_value)
-                elif trait_name in domain_type_trait_names:
-                    # domain-type trait goes to domain_type field (strictly only this, never mixed with semantic domains)
-                    domain_type_values.append(trait_value)
-                elif trait_name in semantic_domain_trait_names:
-                    # semantic-domain-ddp4/semantic-domain traits go to semantic_domains field (strictly separated)
-                    semantic_domains.append(trait_value)
-
-        # Set semantic_domains to None if no values found, otherwise keep as list
-        if not semantic_domains:
-            semantic_domains = None
-
-        # domain_type is a single value; if multiple are present, take first non-empty
-        domain_type = None
-        if domain_type_values:
-            domain_type = next((v for v in domain_type_values if isinstance(v, str) and v.strip()), None)
-
-        # Keep domain_type and semantic_domains as separate fields as they should be conceptually distinct
-        
-        # Parse notes
-        notes = {}
-        for note_elem in self._find_elements(sense_elem, './/lift:note', './/note'):
-            note_type = note_elem.get('type', 'general')
-            # Check for multilingual structured format: <note><form lang=...><text>...</text></form></note>
-            form_elements = self._find_elements(note_elem, './/lift:form', './/form')
-
-            note_has_content = False
-            if form_elements:
-                # New structured format with potentially multiple languages
-                if note_type not in notes:
-                    notes[note_type] = {}
-                for form_elem in form_elements:
-                    lang = form_elem.get('lang', '')
-                    text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        notes[note_type][lang] = {"text": text_elem.text}
-                        note_has_content = True
-            elif note_elem.text and note_elem.text.strip():
-                # Legacy format: <note>text</note>
-                notes[note_type] = {"und": {"text": note_elem.text}}
-                note_has_content = True
-
-            # If a note element exists but has no content, remove it
-            if not note_has_content and note_type in notes:
-                del notes[note_type]
-
-        # Final normalization: ensure all note values are nested dicts
-        for note_type in list(notes.keys()):
-            if isinstance(notes[note_type], str):
-                notes[note_type] = {"und": {"text": notes[note_type]}}
-            elif isinstance(notes[note_type], dict):
-                notes[note_type] = self._normalize_multilingual_dict(notes[note_type])
-        
-        # LIFT 0.13: Parse annotations (editorial workflow) - Day 26-27
-        annotations = []
-        for annotation_elem in self._find_elements(sense_elem, './lift:annotation'):
-            annotation_data = self._parse_annotation(annotation_elem)
-            if annotation_data:
-                annotations.append(annotation_data)
-        
-        # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
-        # Parse exemplar field (sense-level)
-        exemplar = None
-        for field_elem in self._find_elements(sense_elem, './lift:field'):
-            if field_elem.get('type') == 'exemplar':
-                exemplar = {}
-                for form_elem in self._find_elements(field_elem, './/lift:form'):
-                    lang = form_elem.get('lang')
-                    text_elem = self._find_element(form_elem, './/lift:text')
-                    if lang and text_elem is not None and text_elem.text:
-                        exemplar[lang] = text_elem.text
-                break
-        
-        # Parse scientific-name field (sense-level)
-        scientific_name = None
-        for field_elem in self._find_elements(sense_elem, './lift:field'):
-            if field_elem.get('type') == 'scientific-name':
-                scientific_name = {}
-                for form_elem in self._find_elements(field_elem, './/lift:form'):
-                    lang = form_elem.get('lang')
-                    text_elem = self._find_element(form_elem, './/lift:text')
-                    if lang and text_elem is not None and text_elem.text:
-                        scientific_name[lang] = text_elem.text
-                break
-        
-        # Parse literal-meaning field (sense-level) - MOVED FROM ENTRY LEVEL (Day 28)
-        literal_meaning = None
-        for field_elem in self._find_elements(sense_elem, './lift:field'):
-            if field_elem.get('type') == 'literal-meaning':
-                literal_meaning = {}
-                for form_elem in self._find_elements(field_elem, './/lift:form'):
-                    lang = form_elem.get('lang')
-                    text_elem = self._find_element(form_elem, './/lift:text')
-                    if lang and text_elem is not None and text_elem.text:
-                        literal_meaning[lang] = text_elem.text
-                break
-        
-        # Day 36-37: Parse generic custom fields (MultiUnicode custom fields)
-        custom_fields = {}
-        for field_elem in self._find_elements(sense_elem, './lift:field'):
-            field_type = field_elem.get('type', '')
-            # Skip the standard custom fields (already parsed above)
-            if field_type in ('exemplar', 'scientific-name', 'literal-meaning'):
-                continue
-            if field_type and field_type.startswith('CustomFld'):
-                # MultiUnicode custom field - simple {lang: value} format
-                for form_elem in self._find_elements(field_elem, './/lift:form'):
-                    lang = form_elem.get('lang')
-                    text_elem = self._find_element(form_elem, './/lift:text')
-                    if lang and text_elem is not None and text_elem.text:
-                        if field_type not in custom_fields:
-                            custom_fields[field_type] = {}
-                        custom_fields[field_type][lang] = text_elem.text
-        
-        # LIFT 0.13: Parse illustrations (Day 33-34)
-        # <illustration href="path"><label><form lang=...><text>...</text></form></label></illustration>
-        illustrations = []
-        for illustration_elem in self._find_elements(sense_elem, './lift:illustration', './illustration'):
-            href = illustration_elem.get('href')
-            if href:
-                illustration_data = {'href': href}
-                
-                # Parse optional multilingual label
-                label_elem = self._find_element(illustration_elem, './lift:label', './label')
-                if label_elem is not None:
-                    label = {}
-                    for form_elem in self._find_elements(label_elem, './/lift:form', './/form'):
-                        lang = form_elem.get('lang')
-                        text_elem = self._find_element(form_elem, './/lift:text', './/text')
-                        if lang and text_elem is not None and text_elem.text:
-                            label[lang] = text_elem.text
-                    if label:
-                        illustration_data['label'] = label
-                
-                illustrations.append(illustration_data)
-
-        # Create and return Sense object
-        return Sense(
-            id_=sense_id,
-            glosses=glosses,
-            definitions=definitions,
-            examples=examples,
-            relations=relations,
-            grammatical_info=grammatical_info,
-            grammatical_traits=grammatical_traits,
-            usage_type=usage_type,
-            domain_type=domain_type,  # Contains the domain-type trait value (not semantic domains)
-            semantic_domains=semantic_domains,  # Contains semantic-domain-ddp4 trait values
-            notes=notes,
-            annotations=annotations,
-            exemplar=exemplar,
-            scientific_name=scientific_name,
-            traits=traits,  # Day 31-32: General traits
-            literal_meaning=literal_meaning,  # Day 28: Moved from entry level
-            illustrations=illustrations,  # Day 33-34: Illustrations
-            custom_fields=custom_fields  # Day 36-37: Generic custom fields (MultiUnicode)
-        )
-        
-    def _parse_example(self, example_elem: ET.Element, example_id: Optional[str] = None) -> Example:
-        """
-        Parse an example element into an Example object.
-        
-        Args:
-            example_elem: Element representing an example.
-            example_id: Optional ID for the example.
-            
-        Returns:
-            Example object.
-        """
-        # Day 47-48: Parse source attribute
-        source = example_elem.get('source')
-        
-        # Parse forms - should be direct children of example
-        form = {}
-        for form_elem in self._find_elements(example_elem, './lift:form'):
-            lang = form_elem.get('lang')
-            text_elem = self._find_element(form_elem, './/lift:text')
-            if lang and text_elem is not None and text_elem.text:
-                form[lang] = text_elem.text
-        
-        # Parse translations
-        translations = {}
-        for trans_elem in self._find_elements(example_elem, './/lift:translation'):
-            for form_elem in self._find_elements(trans_elem, './/lift:form'):
-                lang = form_elem.get('lang')
-                text_elem = self._find_element(form_elem, './/lift:text')
-                if lang and text_elem is not None and text_elem.text:
-                    translations[lang] = text_elem.text
-        
-        # Day 47-48: Parse note field and custom fields
-        note = None
-        custom_fields = {}
-        for field_elem in self._find_elements(example_elem, './lift:field'):
-            field_type = field_elem.get('type')
-            if not field_type:
-                continue
-            
-            # Parse multilingual content
-            field_content = {}
-            for form_elem in self._find_elements(field_elem, './lift:form'):
-                lang = form_elem.get('lang')
-                text_elem = self._find_element(form_elem, './lift:text')
-                if lang and text_elem is not None and text_elem.text:
-                    field_content[lang] = text_elem.text
-            
-            if field_type == 'note':
-                note = field_content
-            else:
-                custom_fields[field_type] = field_content
-        
-        # Create and return Example object
-        return Example(
-            id_=example_id,
-            form=form,
-            translations=translations,
-            source=source,
-            note=note,
-            custom_fields=custom_fields
-        )
-    
-    def generate_lift_file(self, entries: List[Entry], file_path: str) -> None:
-        """
-        Generate a LIFT file from a list of Entry objects.
-        
-        Args:
-            entries: List of Entry objects.
-            file_path: Path to the output LIFT file.
-            
-        Raises:
-            ValidationError: If validation is enabled and an entry fails validation.
-        """
-        lift_xml = self.generate_lift_string(entries)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(lift_xml)
-    
     def generate_lift_string(self, entries: List[Entry]) -> str:
-        """
-        Generate a LIFT XML string from a list of Entry objects.
-        
-        Args:
-            entries: List of Entry objects.
-            
-        Returns:
-            LIFT XML string.
-              Raises:
-            ValidationError: If validation is enabled and an entry fails validation.
-        """
-        root = self._generate_lift_root()
-        
+        """Generate LIFT XML string from Entry objects."""
+        # Ensure namespaces are registered
+        for prefix, uri in self.NSMAP.items():
+            ET.register_namespace(prefix, uri)
+        # Avoid registering lift as default if tests expect explicit lift: prefix
+        # ET.register_namespace('', self.NSMAP['lift'])
+
+        root = ET.Element(f"{{{self.NSMAP['lift']}}}lift", {
+            'version': '0.13',
+            'producer': 'slownik-wielki'
+        })
+
         for entry in entries:
-            if self.validate:
-                entry.validate()
-            self._generate_entry_element(root, entry)
-        
-        xml_str = ET.tostring(root, encoding='utf-8')
-        pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
-        
-        return pretty_xml
-    
-    def _generate_lift_root(self) -> ET.Element:
-        """
-        Generate the root element for a LIFT document.
-        
-        Returns:
-            Root element.
-        """
-        ET.register_namespace('lift', self.NSMAP['lift'])
-        ET.register_namespace('flex', self.NSMAP['flex'])
-        
-        root = ET.Element('{' + self.NSMAP['lift'] + '}lift')
-        root.set('version', '0.13')
-        
-        return root
-    
-    def _generate_entry_element(self, parent: ET.Element, entry: Entry) -> ET.Element:
-        """
-        Generate an entry element from an Entry object.
-        
-        Args:
-            parent: Parent element.
-            entry: Entry object.
-              Returns:
-            Entry element.
-        """
-        entry_elem = ET.SubElement(parent, '{' + self.NSMAP['lift'] + '}entry')
-        entry_elem.set('id', entry.id)
-        
-        # Add dateCreated and dateModified if present
-        if entry.date_created:
-            entry_elem.set('dateCreated', entry.date_created)
-        if entry.date_modified:
-            entry_elem.set('dateModified', entry.date_modified)
-        if entry.date_deleted:  # LIFT 0.13: Soft delete support
-            entry_elem.set('dateDeleted', entry.date_deleted)
+            attrib = {'id': entry.id} if entry.id else {}
+            if entry.date_created:
+                attrib['dateCreated'] = entry.date_created
+            if entry.date_modified:
+                attrib['dateModified'] = entry.date_modified
+            # Use homograph_number for 'order' attribute if present
+            if entry.homograph_number is not None:
+                attrib['order'] = str(entry.homograph_number)
+            elif entry.order is not None:
+                attrib['order'] = str(entry.order)
 
-        # Add homograph number if present (using 'order' attribute per LIFT specification)
-        if entry.homograph_number is not None:
-            entry_elem.set('order', str(entry.homograph_number))
-        
-        # Add lexical unit
-        if entry.lexical_unit:
-            lex_unit = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}lexical-unit')
-            for lang, text in entry.lexical_unit.items():
-                form = ET.SubElement(lex_unit, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                form.set('lang', lang)
-                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = text
-        
-        # Add etymologies
-        for etymology in entry.etymologies:
-            etymology_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}etymology')
-            etymology_elem.set('type', etymology.type)
-            etymology_elem.set('source', etymology.source)
-            # Output all languages in form and gloss as nested dicts
-            if etymology.form:
-                for lang, text in etymology.form.items():
-                    form_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}form')
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            if etymology.gloss:
-                for lang, text in etymology.gloss.items():
-                    gloss_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}gloss')
-                    gloss_elem.set('lang', lang)
-                    text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
+            entry_elem = ET.SubElement(root, f"{{{self.NSMAP['lift']}}}entry", attrib)
             
-            # Day 45-46: Generate comment field
-            if etymology.comment:
-                comment_field_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}field')
-                comment_field_elem.set('type', 'comment')
-                for lang, text in etymology.comment.items():
-                    form_elem = ET.SubElement(comment_field_elem, '{' + self.NSMAP['lift'] + '}form')
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            
-            # Day 45-46: Generate custom fields
-            if etymology.custom_fields:
-                for field_type, field_value in etymology.custom_fields.items():
-                    field_elem = ET.SubElement(etymology_elem, '{' + self.NSMAP['lift'] + '}field')
-                    field_elem.set('type', field_type)
-                    for lang, text in field_value.items():
-                        form_elem = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + '}form')
-                        form_elem.set('lang', lang)
-                        text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                        text_elem.text = text
+            # Lexical unit
+            if entry.lexical_unit:
+                lu = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}lexical-unit")
+                for lang, text in entry.lexical_unit.items():
+                    form = ET.SubElement(lu, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                    text_val = text['text'] if isinstance(text, dict) else text
+                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
 
-        # Add citations
-        for citation in entry.citations:
-            citation_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}citation')
-            for lang, text in citation.items():
-                form = ET.SubElement(citation_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                form.set('lang', lang)
-                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = text
-        
-        # Add pronunciations
-        for writing_system, value in entry.pronunciations.items():
-            pron_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}pronunciation')
-            pron_elem.set('writing-system', writing_system)
-            pron_elem.set('value', value)
-        
-        # Add pronunciation media elements (Day 35)
-        if hasattr(entry, 'pronunciation_media') and entry.pronunciation_media:
-            # For simplicity, add media to the last pronunciation or create a new one
-            # In reality, LIFT allows media within pronunciation, so we should group them properly
-            # For now, we'll create a pronunciation element for each media if no pronunciations exist
-            for media_item in entry.pronunciation_media:
-                # Create a pronunciation element to hold the media
-                # Note: This is a simplified approach - in production, media should be associated with specific pronunciations
-                pron_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}pronunciation')
+            # Senses
+            for sense in entry.senses:
+                s_attrib = {'id': sense.id} if sense.id else {}
+                sense_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}sense", s_attrib)
                 
-                # Add media element
-                media_elem = ET.SubElement(pron_elem, '{' + self.NSMAP['lift'] + '}media')
-                media_elem.set('href', media_item['href'])
+                if sense.grammatical_info:
+                    ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}grammatical-info", {'value': sense.grammatical_info})
                 
-                # Add optional label
-                if 'label' in media_item and media_item['label']:
-                    label_elem = ET.SubElement(media_elem, '{' + self.NSMAP['lift'] + '}label')
-                    for lang, text in media_item['label'].items():
-                        form_elem = ET.SubElement(label_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                        form_elem.set('lang', lang)
-                        text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                        text_elem.text = text
-        
-        # Add pronunciation custom fields: cv-pattern and tone (Day 40)
-        if (hasattr(entry, 'pronunciation_cv_pattern') and entry.pronunciation_cv_pattern) or \
-           (hasattr(entry, 'pronunciation_tone') and entry.pronunciation_tone):
-            # Create a pronunciation element to hold the custom fields
-            pron_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}pronunciation')
-            
-            # Add pronunciation form if available
-            if entry.pronunciations:
-                # Use the first pronunciation as the form
-                for writing_system, value in list(entry.pronunciations.items())[:1]:
-                    form_elem = ET.SubElement(pron_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', writing_system)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = value
-            
-            # Add cv-pattern field
-            if hasattr(entry, 'pronunciation_cv_pattern') and entry.pronunciation_cv_pattern:
-                cv_field = ET.SubElement(pron_elem, '{' + self.NSMAP['lift'] + '}field')
-                cv_field.set('type', 'cv-pattern')
-                for lang, text in entry.pronunciation_cv_pattern.items():
-                    form_elem = ET.SubElement(cv_field, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            
-            # Add tone field
-            if hasattr(entry, 'pronunciation_tone') and entry.pronunciation_tone:
-                tone_field = ET.SubElement(pron_elem, '{' + self.NSMAP['lift'] + '}field')
-                tone_field.set('type', 'tone')
-                for lang, text in entry.pronunciation_tone.items():
-                    form_elem = ET.SubElement(tone_field, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-        
-        # Add variant forms
-        for variant in entry.variants:
-            variant_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}variant')
-            # Output all languages in variant.form as nested dicts
-            variant_type = getattr(variant, 'type', None)
-            if variant_type:
-                variant_elem.set('type', variant_type)
-            if hasattr(variant, 'form') and isinstance(variant.form, dict):
-                for lang, text in variant.form.items():
-                    form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form.set('lang', lang)
-                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            elif isinstance(variant, dict):
-                for lang, text in variant.items():
-                    if lang != 'type':
-                        form = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                        form.set('lang', lang)
-                        text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                        text_elem.text = text
-            
-            # LIFT 0.13: Add grammatical-info with traits for variant (Day 29-30)
-            if hasattr(variant, 'grammatical_traits') and variant.grammatical_traits:
-                # Note: Variants may have grammatical_traits but no grammatical_info value
-                # We'll create a grammatical-info element just for the traits
-                gram_info = ET.SubElement(variant_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-                # Add value attribute if variant has grammatical_info attribute
-                if hasattr(variant, 'grammatical_info') and variant.grammatical_info:
-                    gram_info.set('value', variant.grammatical_info)
-                # Add trait elements
-                for trait_name, trait_value in variant.grammatical_traits.items():
-                    trait_elem = ET.SubElement(gram_info, '{' + self.NSMAP['lift'] + '}trait')
-                    trait_elem.set('name', trait_name)
-                    trait_elem.set('value', trait_value)
-        
-        # Add grammatical info
-        if entry.grammatical_info:
-            gram_info = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-            # If grammatical_info is a dict, extract the part_of_speech or join values
-            if isinstance(entry.grammatical_info, dict):
-                # Prefer 'part_of_speech' key if present, else join all values
-                value: str | None = entry.grammatical_info['part_of_speech'] if 'part_of_speech' in entry.grammatical_info else None
-                if value is None:
-                    value = ','.join(str(v) for v in entry.grammatical_info.values())
-                gram_info.set('value', value)
-            else:
-                gram_info.set('value', str(entry.grammatical_info))
-        
-        # Add morph-type trait if present (preserve LIFT data)
-        if hasattr(entry, 'morph_type') and entry.morph_type:
-            trait_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}trait')
-            trait_elem.set('name', 'morph-type')
-            trait_elem.set('value', entry.morph_type)
-        # Add entry-level domain type if present (map to domain-type trait)
-        if hasattr(entry, 'domain_type') and entry.domain_type:
-            trait_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}trait')
-            trait_elem.set('name', 'domain-type')
-            trait_elem.set('value', str(entry.domain_type))
-               
-        # Day 31-32: Add general traits (excluding special ones already handled)
-        if hasattr(entry, 'traits') and entry.traits:
-            for trait_name, trait_value in entry.traits.items():
-                trait_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}trait')
-                trait_elem.set('name', trait_name)
-                trait_elem.set('value', trait_value)
-        
-        # Add relations
-        for relation in entry.relations:
-            relation_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}relation')
-            # Handle both Relation objects and dictionaries
-            if hasattr(relation, 'type') and hasattr(relation, 'ref'):
-                relation_elem.set('type', relation.type)
-                relation_elem.set('ref', relation.ref)
+                if hasattr(sense, 'definition') and sense.definition:
+                    defn = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}definition")
+                    for lang, text in sense.definition.items():
+                        form = ET.SubElement(defn, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                        text_val = text['text'] if isinstance(text, dict) else text
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
                 
-                # Add traits if present
-                if hasattr(relation, 'traits') and relation.traits:
-                    for trait_name, trait_value in relation.traits.items():
-                        trait_elem = ET.SubElement(relation_elem, '{' + self.NSMAP['lift'] + '}trait')
-                        trait_elem.set('name', trait_name)
-                        trait_elem.set('value', trait_value)
-                        
-            elif isinstance(relation, dict):
-                # Fallback for dictionary format
-                relation_elem.set('type', relation.get('type', 'unspecified'))
-                relation_elem.set('ref', relation.get('ref', ''))
+                if hasattr(sense, 'gloss') and sense.gloss:
+                    for lang, text in sense.gloss.items():
+                        gloss = ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}gloss", {'lang': lang})
+                        text_val = text['text'] if isinstance(text, dict) else text
+                        ET.SubElement(gloss, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+
+        # Convert to string and pretty print
+        xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True).decode('utf-8')
+        try:
+            from xml.dom import minidom
+            dom = minidom.parseString(xml_str)
+            return dom.toprettyxml(indent="  ")
+        except Exception:
+            return xml_str
+
+    def parse_entry(self, xml_string: str) -> Entry:
+        """Backward compatible wrapper for parse_string(...)[0]."""
+        entries = self.parse_string(xml_string)
+        if not entries:
+            raise ValueError("No entries found in XML string")
+        return entries[0]
+
+    def parse_entry_element(self, elem: ET.Element) -> Entry:
+        """Backward compatible wrapper for _parse_entry."""
+        return self._parse_entry(elem)
+
+    def _parse_entry(self, elem: ET.Element) -> Entry:
+        """Parse single entry element."""
+        order_val = None
+        if elem.get('order'):
+            try:
+                order_val = int(elem.get('order'))
+            except ValueError:
+                self.logger.warning(f"Invalid order value: {elem.get('order')}")
                 
-                # Add traits from dictionary format if present
-                if 'traits' in relation and relation['traits']:
-                    for trait_name, trait_value in relation['traits'].items():
-                        trait_elem = ET.SubElement(relation_elem, '{' + self.NSMAP['lift'] + '}trait')
-                        trait_elem.set('name', trait_name)
-                        trait_elem.set('value', trait_value)
-            else:
-                # Default fallback
-                relation_elem.set('type', 'unspecified')
-                relation_elem.set('ref', '')
-        
-        # Add notes
-        for note_type, note_content in entry.notes.items():
-            note_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}note')
-            note_elem.set('type', note_type)
-            
-            # Check if this is the new structured format (dict of languages) or legacy format (string)
-            if isinstance(note_content, dict):
-                # New format: Create form elements for each language
-                for lang, text in note_content.items():
-                    form_elem = ET.SubElement(note_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            else:
-                # Legacy format: Direct text content
-                note_elem.text = note_content
-        
-        # Add custom fields
-        for field_type, field_value in entry.custom_fields.items():
-            if isinstance(field_value, dict):
-                # Day 36-37: MultiUnicode custom field - multitext format
-                self._generate_field_element(entry_elem, field_type, field_value)
-            else:
-                # Legacy format: simple text value (backward compatibility)
-                field_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}field')
-                field_elem.set('type', field_type)
-                form = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = field_value
-        
-        # Add senses
-        for sense_item in entry.senses:
-            if isinstance(sense_item, dict):
-                sense = Sense.from_dict(sense_item)
-            else:
-                sense = sense_item
-            sense_elem = ET.SubElement(entry_elem, '{' + self.NSMAP['lift'] + '}sense')
-            if sense.id:
-                sense_elem.set('id', sense.id)
-            # Add glosses (multitext)
-            for lang, val in sense.glosses.items():
-                gloss_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}gloss')
-                gloss_elem.set('lang', lang)
-                text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                if isinstance(val, dict):
-                    text_elem.text = val.get('text', '')
-                else:
-                    text_elem.text = str(val)
-            # Add definitions (multitext)
-            if sense.definitions:
-                def_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}definition')
-                for lang, val in sense.definitions.items():
-                    form = ET.SubElement(def_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form.set('lang', lang)
-                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    if isinstance(val, dict):
-                        text_elem.text = val.get('text', '')
-                    else:
-                        text_elem.text = str(val)
-            
-            # Add examples
-            for example_item in sense.examples:
-                if isinstance(example_item, dict):
-                    example = Example.from_dict(example_item)
-                else:
-                    # Already an Example object
-                    example = example_item
-                example_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}example')
-                if example.id:
-                    example_elem.set('id', example.id)
-                # Day 47-48: Add source attribute
-                if hasattr(example, 'source') and example.source:
-                    example_elem.set('source', example.source)
-                # Add forms
-                for lang, text in example.form.items():
-                    form = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form.set('lang', lang)
-                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-                
-                # Add translations
-                if example.translations:
-                    trans_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}translation')
-                    for lang, text in example.translations.items():
-                        form = ET.SubElement(trans_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                        form.set('lang', lang)
-                        text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                        text_elem.text = text
-                
-                # Day 47-48: Add note field
-                if hasattr(example, 'note') and example.note:
-                    note_field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
-                    note_field_elem.set('type', 'note')
-                    for lang, text in example.note.items():
-                        form_elem = ET.SubElement(note_field_elem, '{' + self.NSMAP['lift'] + '}form')
-                        form_elem.set('lang', lang)
-                        text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                        text_elem.text = text
-                
-                # Day 47-48: Add custom fields
-                if hasattr(example, 'custom_fields') and example.custom_fields:
-                    for field_type, field_value in example.custom_fields.items():
-                        if isinstance(field_value, dict):
-                            field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
-                            field_elem.set('type', field_type)
-                            for lang, text in field_value.items():
-                                form_elem = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + '}form')
-                                form_elem.set('lang', lang)
-                                text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                                text_elem.text = text
-            
-            # Add grammatical info
-            if sense.grammatical_info:
-                gram_info = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-                gram_info.set('value', sense.grammatical_info)
-                
-                # LIFT 0.13: Add traits within grammatical-info (Day 29-30)
-                # <grammatical-info value="Noun"><trait name="gender" value="masculine"/></grammatical-info>
-                if hasattr(sense, 'grammatical_traits') and sense.grammatical_traits:
-                    for trait_name, trait_value in sense.grammatical_traits.items():
-                        trait_elem = ET.SubElement(gram_info, '{' + self.NSMAP['lift'] + '}trait')
-                        trait_elem.set('name', trait_name)
-                        trait_elem.set('value', trait_value)
-            
-            # Add sense-level traits (usage-type, domain-type)
-            if sense.usage_type:
-                usage_values = sense.usage_type if isinstance(sense.usage_type, list) else [sense.usage_type]
-                for usage_value in usage_values:
-                    trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
-                    trait_elem.set('name', 'usage-type')
-                    trait_elem.set('value', usage_value)
+        return Entry(
+            id_=elem.get('id') if elem.get('id') is not None else self._generate_id(),
+            date_created=elem.get('dateCreated'),
+            date_modified=elem.get('dateModified'),
+            date_deleted=elem.get('dateDeleted'),
+            order=order_val,
+            homograph_number=order_val, # LIFT 'order' is often used for homograph numbers
+            lexical_unit=self._parse_multitext(elem, './lift:lexical-unit', flatten=True),
+            citations=[self._parse_multitext(c, '.', flatten=True) for c in self._find_elements(elem, './lift:citation')],
+            pronunciations=self._parse_pronunciations(elem),
+            variants=[self._parse_variant(v) for v in self._find_elements(elem, './lift:variant')],
+            grammatical_info=self._get_attr(elem, './lift:grammatical-info', 'value'),
+            traits=self._parse_traits(elem),
+            relations=[self._parse_relation(r) for r in self._find_elements(elem, './lift:relation')],
+            etymologies=[self._parse_etymology(e) for e in self._find_elements(elem, './lift:etymology')],
+            notes=self._parse_notes(elem),
+            custom_fields=self._parse_custom_fields(elem),
+            senses=[self._parse_sense(s) for s in self._find_elements(elem, './lift:sense')],
+            annotations=[self._parse_annotation(a) for a in self._find_elements(elem, './lift:annotation')]
+        )
 
-            if sense.domain_type:
-                trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
-                trait_elem.set('name', 'domain-type')
-                trait_elem.set('value', str(sense.domain_type))
+    def _parse_pronunciations(self, parent: ET.Element) -> Dict[str, str]:
+        """Parse pronunciation elements."""
+        result = {}
+        for pron in self._find_elements(parent, './lift:pronunciation'):
+            # LIFT pronunciation can have multiple forms
+            forms = self._parse_multitext(pron, '.', flatten=True)
+            result.update(forms)
+        return result
 
-            # Serialize semantic_domains as semantic-domain-ddp4 traits
-            if hasattr(sense, 'semantic_domains') and sense.semantic_domains:
-                semantic_values = sense.semantic_domains if isinstance(sense.semantic_domains, list) else [sense.semantic_domains]
-                for semantic_value in semantic_values:
-                    trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
-                    trait_elem.set('name', 'semantic-domain-ddp4')  # Use correct trait name for semantic domains
-                    trait_elem.set('value', semantic_value)
+    def _parse_variant(self, elem: ET.Element) -> Variant:
+        """Parse variant element."""
+        return Variant(
+            type=elem.get('type', ''),
+            ref=elem.get('ref', ''),
+            form=self._parse_multitext(elem, '.', flatten=True),
+            traits=self._parse_traits(elem)
+        )
 
-            # Day 31-32: Add general traits (excluding special ones already handled)
-            if hasattr(sense, 'traits') and sense.traits:
-                for trait_name, trait_value in sense.traits.items():
-                    trait_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}trait')
-                    trait_elem.set('name', trait_name)
-                    trait_elem.set('value', trait_value)
-            
-            # Add relations
-            for relation in sense.relations:
-                relation_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}relation')
-                relation_elem.set('type', relation.get('type', 'unspecified'))
-                relation_elem.set('ref', relation.get('ref', ''))
-            
-            # LIFT 0.13: Add subsenses (recursive) - Day 22-23
-            if hasattr(sense, 'subsenses') and sense.subsenses:
-                for subsense_item in sense.subsenses:
-                    if isinstance(subsense_item, dict):
-                        subsense = Sense.from_dict(subsense_item)
-                    else:
-                        subsense = subsense_item
-                    self._generate_subsense_element(sense_elem, subsense)
-            
-            # LIFT 0.13: Add reversals (bilingual dictionary support) - Day 24-25
-            if hasattr(sense, 'reversals') and sense.reversals:
-                for reversal_data in sense.reversals:
-                    self._generate_reversal_element(sense_elem, reversal_data)
-            
-            # LIFT 0.13: Add annotations (editorial workflow) - Day 26-27
-            if hasattr(sense, 'annotations') and sense.annotations:
-                for annotation_data in sense.annotations:
-                    self._generate_annotation_element(sense_elem, annotation_data)
-            
-            # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
-            # Add exemplar field (sense-level)
-            if hasattr(sense, 'exemplar') and sense.exemplar:
-                self._generate_field_element(sense_elem, 'exemplar', sense.exemplar)
-            
-            # Add scientific-name field (sense-level)
-            if hasattr(sense, 'scientific_name') and sense.scientific_name:
-                self._generate_field_element(sense_elem, 'scientific-name', sense.scientific_name)
-            
-            # Add literal-meaning field (sense-level) - MOVED FROM ENTRY LEVEL (Day 28)
-            if hasattr(sense, 'literal_meaning') and sense.literal_meaning:
-                self._generate_field_element(sense_elem, 'literal-meaning', sense.literal_meaning)
-            
-            # Day 36-37: Add generic custom fields for sense (MultiUnicode custom fields)
-            if hasattr(sense, 'custom_fields') and sense.custom_fields:
-                for field_type, field_value in sense.custom_fields.items():
-                    # Skip the standard custom fields (already generated above)
-                    if field_type in ('exemplar', 'scientific-name', 'literal-meaning'):
-                        continue
-                    if isinstance(field_value, dict):
-                        # MultiUnicode custom field - multitext format
-                        self._generate_field_element(sense_elem, field_type, field_value)
-                    else:
-                        # Legacy format: simple text value
-                        field_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}field')
-                        field_elem.set('type', field_type)
-                        form = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                        text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                        text_elem.text = field_value
-            
-            # LIFT 0.13: Add illustrations (Day 33-34)
-            # <illustration href="path"><label><form lang=...><text>...</text></form></label></illustration>
-            if hasattr(sense, 'illustrations') and sense.illustrations:
-                for illustration in sense.illustrations:
-                    illustration_elem = ET.SubElement(sense_elem, '{' + self.NSMAP['lift'] + '}illustration')
-                    illustration_elem.set('href', illustration['href'])
-                    
-                    # Add optional multilingual label
-                    if 'label' in illustration and illustration['label']:
-                        label_elem = ET.SubElement(illustration_elem, '{' + self.NSMAP['lift'] + '}label')
-                        for lang, text in illustration['label'].items():
-                            form = ET.SubElement(label_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                            form.set('lang', lang)
-                            text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                            text_elem.text = text
-        
-        # LIFT 0.13: Add entry-level annotations (editorial workflow) - Day 26-27
-        if hasattr(entry, 'annotations') and entry.annotations:
-            for annotation_data in entry.annotations:
-                self._generate_annotation_element(entry_elem, annotation_data)
-        
-        return entry_elem
+    def _parse_relation(self, elem: ET.Element) -> Relation:
+        """Parse relation element."""
+        return Relation(
+            type=elem.get('type', ''),
+            ref=elem.get('ref', ''),
+            traits=self._parse_traits(elem)
+        )
 
-    def _generate_subsense_element(self, parent_elem: ET.Element, subsense: 'Sense') -> ET.Element:
-        """
-        Generate a subsense element (recursive for nested subsenses).
-        
-        Args:
-            parent_elem: Parent sense or subsense element
-            subsense: Subsense object
-            
-        Returns:
-            Subsense element
-        """
-        subsense_elem = ET.SubElement(parent_elem, '{' + self.NSMAP['lift'] + '}subsense')
-        if subsense.id:
-            subsense_elem.set('id', subsense.id)
-        
-        # Add glosses (same as sense)
-        for lang, val in subsense.glosses.items():
-            gloss_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}gloss')
-            gloss_elem.set('lang', lang)
-            text_elem = ET.SubElement(gloss_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-            if isinstance(val, dict):
-                text_elem.text = val.get('text', '')
-            else:
-                text_elem.text = str(val)
-        
-        # Add definitions
-        if subsense.definitions:
-            def_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}definition')
-            for lang, val in subsense.definitions.items():
-                form = ET.SubElement(def_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                form.set('lang', lang)
-                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                if isinstance(val, dict):
-                    text_elem.text = val.get('text', '')
-                else:
-                    text_elem.text = str(val)
-        
-        # Add grammatical info
-        if subsense.grammatical_info:
-            gram_info = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-            gram_info.set('value', subsense.grammatical_info)
-            
-            # LIFT 0.13: Add traits within grammatical-info (Day 29-30)
-            if hasattr(subsense, 'grammatical_traits') and subsense.grammatical_traits:
-                for trait_name, trait_value in subsense.grammatical_traits.items():
-                    trait_elem = ET.SubElement(gram_info, '{' + self.NSMAP['lift'] + '}trait')
-                    trait_elem.set('name', trait_name)
-                    trait_elem.set('value', trait_value)
-        
-        # Add traits
-        if subsense.usage_type:
-            for usage_value in subsense.usage_type:
-                trait_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}trait')
-                trait_elem.set('name', 'usage-type')
-                trait_elem.set('value', usage_value)
-        
-        if subsense.domain_type:
-            trait_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}trait')
-            trait_elem.set('name', 'domain-type')
-            trait_elem.set('value', str(subsense.domain_type))
-                
-        # Add examples
-        for example_item in subsense.examples:
-            if isinstance(example_item, dict):
-                example = Example.from_dict(example_item)
-            else:
-                example = example_item
-            example_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}example')
-            if example.id:
-                example_elem.set('id', example.id)
-            # Day 47-48: Add source attribute
-            if hasattr(example, 'source') and example.source:
-                example_elem.set('source', example.source)
-            # Add forms
-            for lang, text in example.form.items():
-                form = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                form.set('lang', lang)
-                text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                text_elem.text = text
-            # Add translations
-            if example.translations:
-                trans_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}translation')
-                for lang, text in example.translations.items():
-                    form = ET.SubElement(trans_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form.set('lang', lang)
-                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            
-            # Day 47-48: Add note field
-            if hasattr(example, 'note') and example.note:
-                note_field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
-                note_field_elem.set('type', 'note')
-                for lang, text in example.note.items():
-                    form_elem = ET.SubElement(note_field_elem, '{' + self.NSMAP['lift'] + '}form')
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            
-            # Day 47-48: Add custom fields
-            if hasattr(example, 'custom_fields') and example.custom_fields:
-                for field_type, field_value in example.custom_fields.items():
-                    if isinstance(field_value, dict):
-                        field_elem = ET.SubElement(example_elem, '{' + self.NSMAP['lift'] + '}field')
-                        field_elem.set('type', field_type)
-                        for lang, text in field_value.items():
-                            form_elem = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + '}form')
-                            form_elem.set('lang', lang)
-                            text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                            text_elem.text = text
-        
-        # Add notes
-        for note_type, note_content in subsense.notes.items():
-            note_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}note')
-            note_elem.set('type', note_type)
-            if isinstance(note_content, dict):
-                for lang, text in note_content.items():
-                    form = ET.SubElement(note_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form.set('lang', lang)
-                    text_elem = ET.SubElement(form, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-            else:
-                note_elem.text = str(note_content)
-        
-        # Add relations
-        for relation in subsense.relations:
-            relation_elem = ET.SubElement(subsense_elem, '{' + self.NSMAP['lift'] + '}relation')
-            relation_elem.set('type', relation.get('type', 'unspecified'))
-            relation_elem.set('ref', relation.get('ref', ''))
-        
-        # RECURSIVE: Add nested subsenses
-        if hasattr(subsense, 'subsenses') and subsense.subsenses:
-            for nested_subsense_item in subsense.subsenses:
-                if isinstance(nested_subsense_item, dict):
-                    nested_subsense = Sense.from_dict(nested_subsense_item)
-                else:
-                    nested_subsense = nested_subsense_item
-                self._generate_subsense_element(subsense_elem, nested_subsense)
-        
-        return subsense_elem
+    def _parse_etymology(self, elem: ET.Element) -> Etymology:
+        """Parse etymology element."""
+        return Etymology(
+            type=elem.get('type', ''),
+            source=elem.get('source', ''),
+            form=self._parse_multitext(elem, '.', flatten=True),
+            gloss=self._parse_multitext(elem, '.', form_tag='lift:gloss', flatten=True),
+            comment=self._parse_multitext(elem, './lift:field[@type="comment"]'),
+            custom_fields=self._parse_custom_fields(elem)
+        )
 
-    def _generate_reversal_element(self, parent_elem: ET.Element, reversal_data: Dict[str, Any]) -> ET.Element:
-        """
-        LIFT 0.13: Generate a reversal element with optional main sub-element (Day 24-25).
-        
-        Args:
-            parent_elem: Parent sense element
-            reversal_data: Reversal dictionary data
-            
-        Returns:
-            Reversal element
-        """
-        reversal_elem = ET.SubElement(parent_elem, '{' + self.NSMAP['lift'] + '}reversal')
-        
-        # Optional type attribute (language code)
-        if 'type' in reversal_data and reversal_data['type']:
-            reversal_elem.set('type', reversal_data['type'])
-        
-        # Add forms (multitext)
-        if 'forms' in reversal_data and reversal_data['forms']:
-            for lang, text in reversal_data['forms'].items():
-                if text:
-                    form_elem = ET.SubElement(reversal_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-        
-        # Add grammatical-info at reversal level
-        if 'grammatical_info' in reversal_data and reversal_data['grammatical_info']:
-            gram_info = ET.SubElement(reversal_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-            gram_info.set('value', reversal_data['grammatical_info'])
-        elif 'grammaticalInfo' in reversal_data and reversal_data['grammaticalInfo']:
-            # Support camelCase variant
-            gram_info = ET.SubElement(reversal_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-            gram_info.set('value', reversal_data['grammaticalInfo'])
-        
-        # Add main sub-element (can be recursive)
-        if 'main' in reversal_data and reversal_data['main']:
-            self._generate_reversal_main_element(reversal_elem, reversal_data['main'])
-        
-        return reversal_elem
+    def _parse_notes(self, parent: ET.Element) -> Dict[str, Dict]:
+        """Parse note elements."""
+        notes = {}
+        for note in self._find_elements(parent, './lift:note'):
+            note_type = note.get('type', 'general')
+            content = self._parse_text_content(note)
+            # Also support direct text-only note without forms
+            if not content and note.text and note.text.strip():
+                content = {'und': note.text.strip()}
+            if content:
+                notes[note_type] = content
+        return self._normalize_multilingual_dict(notes)
 
-    def _generate_reversal_main_element(self, parent_elem: ET.Element, main_data: Dict[str, Any]) -> ET.Element:
-        """
-        LIFT 0.13: Generate a reversal main element (recursive structure) - Day 24-25.
-        
-        Args:
-            parent_elem: Parent reversal or main element
-            main_data: Main element dictionary data
-            
-        Returns:
-            Main element
-        """
-        main_elem = ET.SubElement(parent_elem, '{' + self.NSMAP['lift'] + '}main')
-        
-        # Add forms (multitext)
-        if 'forms' in main_data and main_data['forms']:
-            for lang, text in main_data['forms'].items():
-                if text:
-                    form_elem = ET.SubElement(main_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-        
-        # Add grammatical-info at main level
-        if 'grammatical_info' in main_data and main_data['grammatical_info']:
-            gram_info = ET.SubElement(main_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-            gram_info.set('value', main_data['grammatical_info'])
-        elif 'grammaticalInfo' in main_data and main_data['grammaticalInfo']:
-            # Support camelCase variant
-            gram_info = ET.SubElement(main_elem, '{' + self.NSMAP['lift'] + '}grammatical-info')
-            gram_info.set('value', main_data['grammaticalInfo'])
-        
-        # RECURSIVE: Add nested main element
-        if 'main' in main_data and main_data['main']:
-            self._generate_reversal_main_element(main_elem, main_data['main'])
-        
-        return main_elem
+    def _parse_traits(self, parent: ET.Element) -> Dict[str, str]:
+        """Parse trait elements."""
+        if parent is None:
+            return {}
+        return {t.get('name'): t.get('value') for t in self._find_elements(parent, './lift:trait') 
+                if t.get('name') and t.get('value')}
 
-    def _generate_annotation_element(self, parent_elem: ET.Element, annotation_data: Dict[str, Any]) -> ET.Element:
-        """
-        LIFT 0.13: Generate an annotation element (editorial workflow) - Day 26-27.
-        
-        Args:
-            parent_elem: Parent element (entry, sense, trait, etc.)
-            annotation_data: Annotation dictionary data
-            
-        Returns:
-            Annotation element
-        """
-        annotation_elem = ET.SubElement(parent_elem, '{' + self.NSMAP['lift'] + '}annotation')
-        
-        # Required name attribute
-        if 'name' in annotation_data and annotation_data['name']:
-            annotation_elem.set('name', annotation_data['name'])
-        
-        # Optional attributes
-        if 'value' in annotation_data and annotation_data['value']:
-            annotation_elem.set('value', annotation_data['value'])
-        
-        if 'who' in annotation_data and annotation_data['who']:
-            annotation_elem.set('who', annotation_data['who'])
-        
-        if 'when' in annotation_data and annotation_data['when']:
-            annotation_elem.set('when', annotation_data['when'])
-        
-        # Add multitext content as forms
-        if 'content' in annotation_data and annotation_data['content']:
-            for lang, text in annotation_data['content'].items():
-                if text:
-                    form_elem = ET.SubElement(annotation_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-        
-        return annotation_elem
+    def _parse_custom_fields(self, parent: ET.Element) -> Dict[str, Dict]:
+        """Parse field elements."""
+        fields = {}
+        for field in self._find_elements(parent, './lift:field'):
+            if field_type := field.get('type'):
+                fields[field_type] = self._parse_text_content(field)
+        return fields
 
-    def _parse_annotation(self, annotation_elem: ET.Element) -> Dict[str, Any]:
-        """
-        LIFT 0.13: Parse an annotation element (editorial workflow) - Day 26-27.
-        
-        Args:
-            annotation_elem: Annotation element
-            
-        Returns:
-            Dictionary with annotation data
-        """
-        annotation_data = {}
-        
-        # Required attribute: name
-        name = annotation_elem.get('name')
-        if name:
-            annotation_data['name'] = name
-        
-        # Optional attributes
-        value = annotation_elem.get('value')
-        if value:
-            annotation_data['value'] = value
-        
-        who = annotation_elem.get('who')
-        if who:
-            annotation_data['who'] = who
-        
-        when = annotation_elem.get('when')
-        if when:
-            annotation_data['when'] = when
-        
-        # Parse multitext content (forms)
-        content = {}
-        for form_elem in self._find_elements(annotation_elem, './/lift:form'):
-            lang = form_elem.get('lang')
-            text_elem = self._find_element(form_elem, './/lift:text')
-            if lang and text_elem is not None and text_elem.text:
-                content[lang] = text_elem.text
-        
-        if content:
-            annotation_data['content'] = content
-        
-        return annotation_data
+    def _parse_sense(self, elem: ET.Element) -> Sense:
+        """Parse sense element."""
+        return Sense(
+            id_=elem.get('id'),
+            glosses=self._parse_multitext(elem, '.', form_tag='lift:gloss', flatten=True),
+            definitions=self._parse_multitext(elem, './lift:definition', flatten=True),
+            examples=[self._parse_example(e) for e in self._find_elements(elem, './lift:example')],
+            relations=[self._parse_relation_dict(r) for r in self._find_elements(elem, './lift:relation')],
+            grammatical_info=self._get_attr(elem, './lift:grammatical-info', 'value'),
+            grammatical_traits=self._parse_traits(self._find_element(elem, './lift:grammatical-info')),
+            usage_type=[v for t in self._find_elements(elem, './lift:trait[@name="usage-type"]') 
+                       if (v := t.get('value'))],
+            domain_type=self._get_attr(elem, './lift:trait[@name="domain-type"]', 'value'),
+            semantic_domains=[v for t in self._find_elements(elem, './lift:trait[@name="semantic-domain-ddp4"]') 
+                            if (v := t.get('value'))],
+            notes=self._parse_notes(elem),
+            traits={t.get('name'): t.get('value') for t in self._find_elements(elem, './lift:trait') 
+                   if t.get('name') not in {'usage-type', 'domain-type', 'semantic-domain-ddp4'}},
+            annotations=[self._parse_annotation(a) for a in self._find_elements(elem, './lift:annotation')],
+            subsenses=[self._parse_sense(s) for s in self._find_elements(elem, './lift:subsense')]
+        )
 
-    def _generate_field_element(self, parent_elem: ET.Element, field_type: str, field_content: Dict[str, str]) -> ET.Element:
-        """
-        LIFT 0.13: Generate a field element for custom fields (Day 28).
-        
-        Args:
-            parent_elem: Parent element (entry, sense, etc.)
-            field_type: Type attribute for the field (e.g., 'exemplar', 'scientific-name', 'literal-meaning')
-            field_content: Dictionary mapping language codes to text content
-            
-        Returns:
-            Field element
-        """
-        field_elem = ET.SubElement(parent_elem, '{' + self.NSMAP['lift'] + '}field')
-        field_elem.set('type', field_type)
-        
-        # Add multitext forms
-        if field_content and isinstance(field_content, dict):
-            for lang, text in field_content.items():
-                if text:
-                    form_elem = ET.SubElement(field_elem, '{' + self.NSMAP['lift'] + self.ELEM_FORM)
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, '{' + self.NSMAP['lift'] + self.ELEM_TEXT)
-                    text_elem.text = text
-        
-        return field_elem
+    def _parse_relation_dict(self, elem: ET.Element) -> Dict:
+        """Parse relation into dict for sense/subsense."""
+        return {'type': elem.get('type', ''), 'ref': elem.get('ref', '')}
 
-    def _parse_multilingual_content(self, element: ET.Element, element_types: List[str]) -> Dict[str, str]:
-        """
-        Parse multilingual content from label and description elements.
-        
-        Args:
-            element: Parent element to search in
-            element_types: List of element types to search for (e.g., ['label', 'description'])
-            
-        Returns:
-            Dictionary mapping language codes to text content
-        """
-        content = {}
-        
-        for element_type in element_types:
-            # Find all elements of this type
-            for content_elem in self._find_elements(element, f'./lift:{element_type}', f'./{element_type}'):
-                # Check for direct lang attribute and text
-                lang = content_elem.get('lang')
-                if lang and content_elem.text and content_elem.text.strip():
-                    content[lang] = content_elem.text.strip()
-                    continue
-                
-                # Look for form/text structure
-                for form_elem in self._find_elements(content_elem, './lift:form', './form'):
-                    form_lang = form_elem.get('lang')
-                    if form_lang:
-                        text_elem = self._find_element(form_elem, './lift:text', './text')
-                        if text_elem is not None and text_elem.text and text_elem.text.strip():
-                            content[form_lang] = text_elem.text.strip()
-        
-        return content
+    def _parse_example(self, elem: ET.Element) -> Example:
+        """Parse example element."""
+        return Example(
+            id_=elem.get('id'),
+            form=self._parse_multitext(elem, '.'),
+            translations=self._parse_multitext(elem, './lift:translation'),
+            source=elem.get('source'),
+            note=self._parse_multitext(elem, './lift:field[@type="note"]'),
+            custom_fields=self._parse_custom_fields(elem)
+        )
 
-    def _parse_range_element_full(self, elem: ET.Element, element_id: str) -> Dict[str, Any]:
-        """
-        Parse a range element with full feature support.
-        
-        Args:
-            elem: Element representing a range element
-            element_id: ID of the element
-            
-        Returns:
-            Dictionary containing range element data
-        """
-        element_data = {
-            'id': element_id,
-            'guid': elem.get('guid', ''),
-            'value': elem.get('value', '') or element_id,
-            'abbrev': '',
-            'description': {},  # Add for consistency and backward compatibility
-            'abbrevs': {},
-            'labels': {},
-            'descriptions': {},
-            'children': [],
-            'traits': {},
-            'reverse_labels': {},
-            'reverse_abbrevs': {},
+    def _parse_annotation(self, elem: ET.Element) -> Dict[str, Any]:
+        """Parse annotation element."""
+        return {
+            'name': elem.get('name'),
+            'value': elem.get('value'),
+            'who': elem.get('who'),
+            'when': elem.get('when'),
+            'content': self._parse_multitext(elem, '.')
         }
 
-        # Parse multilingual labels and descriptions separately
-        element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
-        element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
-
-        # Add backward compatibility: provide singular 'description' field from plural 'descriptions'
-        element_data['description'] = element_data['descriptions']
-
-        # Parse abbreviation (handle LIFT form structure)
-        abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
-        if abbrev_elem is not None:
-            # First try direct text content
-            if abbrev_elem.text and abbrev_elem.text.strip():
-                element_data['abbrev'] = abbrev_elem.text.strip()
+    @staticmethod
+    def _normalize_multilingual_dict(d: dict) -> dict:
+        """Ensure all values are {"text": ...} dicts."""
+        for k, v in list(d.items()):
+            if isinstance(v, dict):
+                if set(v.keys()) == {"text"} and isinstance(v["text"], str):
+                    continue
+                d[k] = LIFTParser._normalize_multilingual_dict(v)
             else:
-                # Try form/text structure
-                for form_elem in self._find_elements(abbrev_elem, './lift:form', './form'):
-                    text_elem = self._find_element(form_elem, './lift:text', './text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        element_data['abbrev'] = text_elem.text.strip()
-                        break
-        
-        # Parse traits (name-value pairs)
-        for trait_elem in self._find_elements(elem, './lift:trait', './trait'):
-            trait_name = trait_elem.get('name')
-            trait_value = trait_elem.get('value')
-            if trait_name:
-                element_data['traits'][trait_name] = trait_value or ''
-        
-        return element_data
-        
+                d[k] = {"text": v}
+        return d
 
-    def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
-        """
-        Extract all unique variant types from <trait> elements in variant forms.
-        
-        This extracts the 'type' traits from all variant elements in the LIFT file,
-        which represent the actual variant types used in the document rather than
-        using the standard ranges.
-        
-        Args:
-            lift_xml_string: LIFT XML string
-            
-        Returns:
-            List of variant type objects in the format expected by the range API
-        """
-        self.logger.info("Extracting variant types from traits in LIFT file")
-        try:
-            root = ET.fromstring(lift_xml_string)
-            # Find all variant elements and relation trait elements and extract their types
-            variant_types: set[str] = set()
+    @staticmethod
+    def _generate_id() -> str:
+        """Generate unique ID for entry without one."""
+        import uuid
+        return str(uuid.uuid4())
 
-            # Use both namespaced and non-namespaced XPath for compatibility
-            variant_elems = self._find_elements(root, './/lift:variant', './/variant')
-
-            for variant_elem in variant_elems:
-                # Extract the type attribute directly from variant element
-                variant_type = variant_elem.get('type')
-                if variant_type and variant_type.strip():
-                    variant_types.add(variant_type.strip())
-
-                # Also look for trait elements that might indicate variant types
-                for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
-                    trait_name = trait_elem.get('name')
-                    trait_value = trait_elem.get('value')
-                    # Historically variant types may appear as trait name='type'
-                    if trait_name == 'type' and trait_value and trait_value.strip():
-                        variant_types.add(trait_value.strip())
-
-            # Additionally, variant types are sometimes encoded as traits on relation elements
-            relation_elems = self._find_elements(root, './/lift:relation', './/relation')
-            for rel in relation_elems:
-                for trait_elem in self._find_elements(rel, './/lift:trait', './/trait'):
-                    if trait_elem.get('name') == 'variant-type':
-                        val = trait_elem.get('value')
-                        if val and val.strip():
-                            variant_types.add(val.strip())
-            
-            # Format the results as expected by the ranges API
-            result: List[Dict[str, Any]] = []
-            for variant_type in sorted(variant_types):
-                # Create a standardized structure for each variant type
-                result.append({
-                    'id': variant_type,
-                    'value': variant_type,
-                    'abbrev': variant_type[:3].lower(),  # Simple abbreviation
-                    'description': {'en': f'{variant_type} variant'}
-                })
-                
-            self.logger.info(f"Extracted {len(result)} variant types from LIFT file")
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
-            return []
-            
-
-
-
-    def extract_variant_types_from_traits(self, lift_xml_string: str) -> List[Dict[str, Any]]:
-        """
-        Extract all unique variant types from <trait> elements in variant forms.
-        
-        This extracts the 'type' traits from all variant elements in the LIFT file,
-        which represent the actual variant types used in the document rather than
-        using the standard ranges.
-        
-        Args:
-            lift_xml_string: LIFT XML string
-            
-        Returns:
-            List of variant type objects in the format expected by the range API
-        """
-        self.logger.info("Extracting variant types from traits in LIFT file")
-        try:
-            root = ET.fromstring(lift_xml_string)
-            # Find all variant elements and extract their types
-            variant_types: set[str] = set()
-            
-            # Use both namespaced and non-namespaced XPath for compatibility
-            variant_elems = self._find_elements(root, './/lift:variant', './/variant')
-            
-            for variant_elem in variant_elems:
-                # Extract the type attribute directly from variant element
-                variant_type = variant_elem.get('type')
-                if variant_type and variant_type.strip():
-                    variant_types.add(variant_type.strip())
-                
-                # Also look for trait elements that might indicate variant types
-                for trait_elem in self._find_elements(variant_elem, './/lift:trait', './/trait'):
-                    trait_name = trait_elem.get('name')
-                    trait_value = trait_elem.get('value')
-                    if trait_name == 'type' and trait_value and trait_value.strip():
-                        variant_types.add(trait_value.strip())
-            
-            # Format the results as expected by the ranges API
-            result: List[Dict[str, Any]] = []
-            for variant_type in sorted(variant_types):
-                # Create a standardized structure for each variant type
-                result.append({
-                    'id': variant_type,
-                    'value': variant_type,
-                    'abbrev': variant_type[:3].lower(),  # Simple abbreviation
-                    'description': {'en': f'{variant_type} variant'}
-                })
-                
-            self.logger.info(f"Extracted {len(result)} variant types from LIFT file")
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Error extracting variant types from LIFT: {e}", exc_info=True)
-            return []
-
-    def extract_relation_types(self, xml_string: str) -> List[Dict[str, Any]]:
-        """
-        Extract unique relation types from <relation type="..."> attributes.
-        """
+    # ==================== EXTRACTION HELPERS ====================
+    
+    def _extract_trait_values(self, xml_string: str, trait_name: str, from_relation: bool = True) -> List[Dict[str, Any]]:
+        """Generic trait value extractor."""
         try:
             root = ET.fromstring(xml_string)
-            relation_types: set[str] = set()
+            values: Set[str] = set()
+            xpath = f".//lift:relation//lift:trait[@name='{trait_name}']" if from_relation else f".//lift:trait[@name='{trait_name}']"
             
-            # Find all relations (with/without namespace)
-            relations = self._find_elements(root, './/lift:relation', './/relation')
+            for trait in self._find_elements(root, xpath):
+                if value := trait.get('value', '').strip():
+                    values.add(value)
             
-            for relation in relations:
-                rel_type = relation.get('type')
-                if rel_type and rel_type != '_component-lexeme':
-                    relation_types.add(rel_type)
-            
-            # Format for ranges API
-            result = []
-            for rel_type in sorted(relation_types):
-                result.append({
-                    'id': rel_type,
-                    'value': rel_type,
-                    'abbrev': rel_type[:3].lower(),
-                    'description': {'en': f'{rel_type} relation type'}
-                })
-                
-            self.logger.info(f"Extracted {len(result)} lexical relation types")
-            return result
-            
+            return [{'id': v, 'value': v, 'abbrev': v[:3].lower(),
+                     'description': {'en': f'{v} {trait_name.replace("-", " ")}'}} 
+                    for v in sorted(values)]
         except Exception as e:
-            self.logger.error(f"Error parsing relation types: {e}", exc_info=True)
-            return []            
+            self.logger.error(f"Error extracting {trait_name}: {e}")
+            return []
 
-    def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
-        """
-        Extract all unique language codes used in the LIFT file.
-        
-        This scans all elements with 'lang' attributes to find the actual 
-        language codes used in the project, rather than using a predefined list.
-        
-        Args:
-            xml_string: LIFT XML string
-            
-        Returns:
-            List of unique language codes found in the LIFT file
-        """
-        self.logger.info("Extracting language codes from LIFT file")
+    # Method aliases using lambda
+    def extract_variant_types_from_traits(self, xml: str) -> List[Dict[str, Any]]:
+        """Extract variant-type values from traits on either relation elements or variant elements.
+        Tests expect collecting trait name 'variant-type' on relations and 'type' on variant elements."""
+        results = self._extract_trait_values(xml, 'variant-type', from_relation=True)
+        try:
+            root = ET.fromstring(xml)
+            extra: Set[str] = set()
+            for var in root.findall('.//lift:variant', self.NSMAP) or root.findall('.//variant'):
+                # LIFT variant elements may carry a trait name="type" with values like spelling/dialectal
+                for trait in var.findall("lift:trait", self.NSMAP) or var.findall("trait"):
+                    if trait.get('name') == 'type' and trait.get('value'):
+                        extra.add(trait.get('value').strip())
+            for v in sorted(extra):
+                if not any(r['id'] == v for r in results):
+                    results.append({'id': v, 'value': v, 'abbrev': v[:3].lower(), 'description': {'en': f"{v} variant-type"}})
+        except Exception as e:
+            self.logger.error(f"Error extracting variant types from variant traits: {e}")
+        return results
+
+    extract_complex_form_types_from_traits = lambda self, xml: self._extract_trait_values(xml, 'complex-form-type')
+    extract_relation_types = lambda self, xml: self._extract_trait_values(xml, 'type', from_relation=False)
+
+    # ===== Language code extraction helpers expected by tests =====
+    def extract_language_codes_from_string(self, xml_string: str) -> List[str]:
+        """Extract distinct @lang codes from form/text occurrences in the XML string."""
         try:
             root = ET.fromstring(xml_string)
-            # Find all elements with lang attributes
-            language_codes: set[str] = set()
-            
-            # Function to collect lang attributes from any element
-            def collect_lang_attrs(element: ET.Element) -> None:
-                lang = element.get('lang')
-                if lang and lang.strip():
-                    language_codes.add(lang.strip())
-                for child in element:
-                    collect_lang_attrs(child)
-            
-            # Traverse the XML tree
-            collect_lang_attrs(root)
-            
-            # Always include seh-fonipa for IPA pronunciations if not already found
-            if 'seh-fonipa' not in language_codes:
-                language_codes.add('seh-fonipa')
-                
-            self.logger.info(f"Extracted {len(language_codes)} language codes from LIFT file")
-            return sorted(list(language_codes))
-            
+            langs = set()
+            for form in root.findall('.//lift:form', self.NSMAP) or root.findall('.//form'):
+                if (lang := form.get('lang')):
+                    langs.add(lang)
+            return sorted(langs)
         except Exception as e:
-            self.logger.error(f"Error extracting language codes from LIFT: {e}", exc_info=True)
-            # Return a minimal default set
-            return ['seh-fonipa']
+            self.logger.error(f"Error extracting language codes: {e}")
+            return []
+
+    def extract_language_codes_from_file(self, file_path: str) -> List[str]:
+        """Extract distinct @lang codes from a LIFT file on disk.
+        If the input contains XML markup, treat it as raw XML content."""
+        if '<' in file_path and '>' in file_path:
+            return self.extract_language_codes_from_string(file_path)
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return self.extract_language_codes_from_string(f.read())
 
 
 class LIFTRangesParser:
-    """
-    Parser for LIFT ranges files.
+    """Parser for LIFT ranges files."""
     
-    This class handles the parsing of LIFT ranges XML files, which define
-    the allowed values for various fields in a LIFT dictionary.
-    """
-    
-    # LIFT ranges XML namespace
-    NSMAP = {
-        'lift': 'http://fieldworks.sil.org/schemas/lift/0.13/ranges',
-    }
-    
-    # XPath constants
-    XPATH_LABEL = './/lift:label'
-    XPATH_RANGE_ELEMENT = './/lift:range-element'
+    NSMAP = {'lift': 'http://fieldworks.sil.org/schemas/lift/0.13/ranges'}
     
     def __init__(self):
-        """Initialize a LIFT ranges parser."""
         self.logger = logging.getLogger(__name__)
-    
-    def parse_string(self, xml_string: str) -> Dict[str, Dict[str, Any]]:
-        """
-        Parse a LIFT ranges XML string into a dictionary of ranges.
-        
-        Args:
-            xml_string: LIFT ranges XML string.
-            
-        Returns:
-            Dictionary of ranges, keyed by range ID.
-        """
-        try:
-            # Remove XML declaration if present (lxml doesn't like it with unicode strings)
-            if xml_string.strip().startswith('<?xml'):
-                xml_string = xml_string[xml_string.index('?>')+2:].strip()
-            
-            root = ET.fromstring(xml_string)
-            
-            ranges = {}
-            # Try namespace-aware first, then fallback to non-namespaced
-            range_elems = root.findall('.//lift:range', self.NSMAP)
-            if not range_elems:
-                range_elems = root.findall('.//range')
-            
-            for range_elem in range_elems:
-                range_id = range_elem.get('id')
-                if range_id:
-                    range_data = self._parse_range(range_elem)
-                    ranges[range_id] = range_data
-            
-            return ranges
-        
-        except ET.ParseError as e:
-            self.logger.error(f"XML parsing error: {e}")
-            raise
-
-    def _find_elements(self, parent: ET.Element, xpath_with_ns: str, xpath_without_ns: str) -> List[ET.Element]:
-        """
-        Find elements with fallback from namespaced to non-namespaced.
-        
-        Args:
-            parent: Parent element to search in.
-            xpath_with_ns: XPath with namespace.
-            xpath_without_ns: XPath without namespace.
-            
-        Returns:
-            List of found elements.
-        """
-        elements = parent.findall(xpath_with_ns, self.NSMAP)
-        if not elements:
-            elements = parent.findall(xpath_without_ns)
-        return elements
-    
-    def _find_element(self, parent: ET.Element, xpath_with_ns: str, xpath_without_ns: str) -> Optional[ET.Element]:
-        """
-        Find single element with fallback from namespaced to non-namespaced.
-        
-        Args:
-            parent: Parent element to search in.
-            xpath_with_ns: XPath with namespace.
-            xpath_without_ns: XPath without namespace.
-            
-        Returns:
-            Found element or None.
-        """
-        element = parent.find(xpath_with_ns, self.NSMAP)
-        if element is None:
-            element = parent.find(xpath_without_ns)
-        return element
 
     def parse_file(self, file_path: str) -> Dict[str, Dict[str, Any]]:
-        """
-        Parse a LIFT ranges file into a dictionary of ranges.
-        
-        Args:
-            file_path: Path to the LIFT ranges file.
-            
-        Returns:
-            Dictionary of ranges, keyed by range ID.
-              Raises:
-            FileNotFoundError: If the file does not exist.
-        """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"LIFT ranges file not found: {file_path}")
-        
+        return self._parse_ranges(ET.parse(file_path).getroot())
+
+    def parse_string(self, xml_string: str) -> Dict[str, Dict[str, Any]]:
+        print(f"DEBUG: LIFTRangesParser.parse_string called with XML length {len(xml_string)}")
+        # Handle multiple roots if concatenated
+        if not xml_string.strip().startswith('<lift-ranges') and not xml_string.strip().startswith('<?xml'):
+             xml_string = f"<root>{xml_string}</root>"
+             print("DEBUG: Wrapped in <root> (no lift-ranges header)")
+        elif xml_string.strip().count('<lift-ranges') > 1:
+             xml_string = f"<root>{xml_string}</root>"
+             print("DEBUG: Wrapped in <root> (multiple lift-ranges)")
+             
         try:
-            tree = ET.parse(file_path)
-            root = tree.getroot()
-            
-            ranges = {}
-            # Try namespace-aware first, then fallback to non-namespaced
-            range_elems = root.findall('.//lift:range', self.NSMAP)
-            if not range_elems:
-                range_elems = root.findall('.//range')
-            
-            for range_elem in range_elems:
-                range_id = range_elem.get('id')
-                if range_id:
-                    range_data = self._parse_range(range_elem)
-                    ranges[range_id] = range_data
-            
-            return ranges
-        
+            res = self._parse_ranges(ET.fromstring(xml_string))
+            print(f"DEBUG: _parse_ranges returned {len(res)} results")
+            if 'variant-type' in res:
+                v_values = res['variant-type'].get('values', [])
+                print(f"DEBUG: variant-type values count: {len(v_values)}")
+                if len(v_values) == 0:
+                     print(f"DEBUG: variant-type is EMPTY in parsed_ranges")
+            return res
         except ET.ParseError as e:
-            self.logger.error(f"XML parsing error: {e}")
-            raise
-    
-    def _parse_range(self, range_elem: ET.Element) -> Dict[str, Any]:
-        """
-        Parse a range element into a dictionary.
-        
-        Args:
-            range_elem: Element representing a range.
-            
-        Returns:
-            Dictionary containing range data.
-        """
-        range_id = range_elem.get('id', '')
-        range_data = {
+            print(f"DEBUG: ParseError in parse_string: {e}")
+            try:
+                wrapped = f"<root>{xml_string}</root>"
+                return self._parse_ranges(ET.fromstring(wrapped))
+            except Exception:
+                return {}
+
+    def _parse_ranges(self, root: ET.Element) -> Dict[str, Dict[str, Any]]:
+        """Parse all ranges from root."""
+        ranges = {}
+        for range_elem in self._find_elements(root, './/lift:range'):
+            if range_id := range_elem.get('id'):
+                ranges[range_id] = self._parse_range(range_elem)
+        return ranges
+
+    def _find(self, parent: ET.Element, xpath: str, single: bool = False) -> Any:
+        """Namespace-aware finder with fallback to non-namespaced search."""
+        result = parent.find(xpath, self.NSMAP) if single else parent.findall(xpath, self.NSMAP)
+        if (result is None if single else not result):
+            plain_xpath = xpath.replace('lift:', '')
+            result = parent.find(plain_xpath) if single else parent.findall(plain_xpath)
+            if (result is None if single else not result) and 'range-element' in xpath:
+                 # Debug only for missing range elements
+                 self.logger.debug(f"MISSING: {xpath} (plain: {plain_xpath}) in <{parent.tag}>")
+        return result
+
+    def _find_element(self, parent: ET.Element, xpath: str) -> Optional[ET.Element]:
+        return self._find(parent, xpath, single=True)
+
+    def _find_elements(self, parent: ET.Element, xpath: str) -> List[ET.Element]:
+        return self._find(parent, xpath, single=False) or []
+
+    def _parse_range(self, elem: ET.Element) -> Dict[str, Dict[str, Any]]:
+        """Parse single range element."""
+        range_id = elem.get('id')
+        return {
             'id': range_id,
-            'guid': range_elem.get('guid', ''),
-            'values': [],
-            'labels': {},
-            'descriptions': {},
-        }
-        
-        # Parse range labels and descriptions
-        range_data['labels'] = self._parse_multilingual_content(range_elem, ['label'])
-        range_data['descriptions'] = self._parse_multilingual_content(range_elem, ['description'])
-
-        
-        # Check if this range uses parent attributes for hierarchy
-        # Look for ANY range-element with a parent attribute, including nested ones
-        has_parent_attributes = False
-        for elem in self._find_elements(range_elem, './/lift:range-element', './/range-element'):
-            if elem.get('parent'):
-                has_parent_attributes = True
-                break
-        
-        if has_parent_attributes:
-            # Handle parent-attribute based hierarchy
-            range_data['values'] = self._parse_parent_based_hierarchy(range_elem, range_id)
-        else:
-            # Handle nested XML hierarchy
-            range_data['values'] = self._parse_nested_hierarchy(range_elem, range_id)
-        return range_data
-    
-    def _parse_range_element(self, elem: ET.Element) -> Dict[str, Any]:
-        """
-        Parse a range element (hierarchical) into a dictionary.
-        
-        Args:
-            elem: Element representing a range element.
-              Returns:
-            Dictionary containing range element data.
-        """
-        element_data = {
-            'id': elem.get('id', ''),
             'guid': elem.get('guid', ''),
-            'value': elem.get('value', ''),
-            'parent': elem.get('parent', ''),  # Add parent attribute parsing
-            'abbrev': '',  # Will be set below if abbrev element exists
-            'abbrevs': {},
-            'labels': {},
-            'descriptions': {},
-            'children': [],
+            'values': self._parse_range_hierarchy(elem, range_id),
+            'labels': self._parse_multitext(elem, './lift:label'),
+            'descriptions': self._parse_multitext(elem, './lift:description')
         }
-        
-        # Parse abbrev element (handle LIFT form structure)
-        abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
-        if abbrev_elem is not None:
-            # First try direct text content
-            if abbrev_elem.text and abbrev_elem.text.strip():
-                element_data['abbrev'] = abbrev_elem.text.strip()
-                element_data['abbrevs'] = {'und': abbrev_elem.text.strip()}
-            else:
-                # Try form/text structure
-                for form_elem in self._find_elements(abbrev_elem, './lift:form', './form'):
-                    text_elem = self._find_element(form_elem, './lift:text', './text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        lang = form_elem.get('lang', 'und')
-                        element_data['abbrevs'][lang] = text_elem.text.strip()
-                        
-                        # Set legacy abbrev if empty
-                        if not element_data['abbrev']:
-                            element_data['abbrev'] = text_elem.text.strip()
-        
-        # Parse element labels and descriptions
-        element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
-        element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
 
-        # Do not fall back to labels for descriptions; descriptions must come from explicit description elements
+    def _parse_range_hierarchy(self, parent: ET.Element, range_id: str) -> List[Dict[str, Any]]:
+        """Parse range hierarchy (parent-based or nested)."""
+        if any(e.get('parent') for e in self._find_elements(parent, './/lift:range-element')):
+            return self._parse_parent_based(parent, range_id)
+        return [self._parse_range_element(e, range_id) for e in self._find_elements(parent, './lift:range-element')]
 
-        # Add backward compatibility: provide singular 'description' field from plural 'descriptions'
-        element_data['description'] = element_data['descriptions']
+    def _parse_parent_based(self, parent: ET.Element, range_id: str) -> List[Dict[str, Any]]:
+        """Parse parent-attribute based hierarchy."""
+        elements = {}
+        parent_map = {}
+        
+        for elem in self._find_elements(parent, './/lift:range-element'):
+            elem_id = elem.get('id', '')
+            
+            data = self._parse_range_element(elem, range_id)
+            elements[elem_id] = data
+            if parent_id := elem.get('parent'):
+                parent_map.setdefault(parent_id, []).append(elem_id)
+        
+        for pid, children in parent_map.items():
+            if pid in elements:
+                elements[pid]['children'] = [elements[cid] for cid in children if cid in elements]
+        
+        return [e for eid, e in elements.items() if not any(eid in kids for kids in parent_map.values())]
 
-        # Parse child elements (recursive, direct children only)
-        for child_elem in self._find_elements(elem, './lift:range-element', './range-element'):
-            child_data = self._parse_range_element(child_elem)
-            element_data['children'].append(child_data)
-        
-        # Parse reverse relation fields (for non-symmetric relations)
-        element_data['reverse_labels'] = {}
-        element_data['reverse_abbrevs'] = {}
-        
-        # Parse all field elements and check their type
-        for field_elem in self._find_elements(elem, './lift:field', './field'):
-            field_type = field_elem.get('type', '')
+    def _parse_range_element(self, elem: ET.Element, range_id: str) -> Dict[str, Any]:
+        """Parse single range element."""
+        elem_id = elem.get('id', '')
             
-            if field_type == 'reverse-label':
-                for form_elem in self._find_elements(field_elem, './lift:form', './form'):
-                    lang = form_elem.get('lang', 'und')
-                    text_elem = self._find_element(form_elem, './lift:text', './text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        element_data['reverse_labels'][lang] = text_elem.text.strip()
-            
-            elif field_type == 'reverse-abbrev':
-                for form_elem in self._find_elements(field_elem, './lift:form', './form'):
-                    lang = form_elem.get('lang', 'und')
-                    text_elem = self._find_element(form_elem, './lift:text', './text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        element_data['reverse_abbrevs'][lang] = text_elem.text.strip()
-        
-        return element_data
-
-    def _parse_parent_based_hierarchy(self, range_elem: ET.Element, range_id: str) -> List[Dict[str, Any]]:
-        """
-        Parse hierarchy using parent attributes (flat structure with parent references).
-        
-        Args:
-            range_elem: Range element containing range-elements with parent attributes
-            range_id: ID of the range
-            
-        Returns:
-            List of root elements with nested children
-        """
-        # Collect all elements (including nested ones)
-        all_elements = {}
-        parent_child_map = {}
-        
-        for value_elem in self._find_elements(range_elem, './/lift:range-element', './/range-element'):
-            value_id = value_elem.get('id', '')
-            parent_id = value_elem.get('parent', '')
-            
-            # Normalize orthographic -> spelling for variant types
-            if range_id in ('variant-type', 'variant-type') and value_id == 'orthographic':
-                value_id = 'spelling'
-                
-            value = self._parse_range_element_full(value_elem, value_id)
-            all_elements[value_id] = value
-            
-            # Track parent-child relationships
-            if parent_id:
-                if parent_id not in parent_child_map:
-                    parent_child_map[parent_id] = []
-                parent_child_map[parent_id].append(value_id)
-        
-        # Build hierarchical structure recursively
-        built = set()  # Track which elements have had their children built
-        
-        def build_children(element_id: str) -> None:
-            """Recursively build children for an element."""
-            if element_id in built or element_id not in parent_child_map:
-                return
-                
-            built.add(element_id)
-            element = all_elements[element_id]
-            
-            for child_id in parent_child_map[element_id]:
-                if child_id in all_elements:
-                    child_element = all_elements[child_id]
-                    element['children'].append(child_element)
-                    # Recursively build children for this child
-                    build_children(child_id)
-        
-        # Build all hierarchical relationships
-        for element_id in all_elements:
-            build_children(element_id)
-        
-        # Find root elements (those with no parent or parent not in our set)
-        root_elements = []
-        for element_id, element in all_elements.items():
-            is_root = True
-            for parent_id, children in parent_child_map.items():
-                if element_id in children and parent_id in all_elements:
-                    is_root = False
-                    break
-            
-            if is_root:
-                root_elements.append(element)
-        
-        return root_elements
-
-    def _parse_nested_hierarchy(self, range_elem: ET.Element, range_id: str) -> List[Dict[str, Any]]:
-        """
-        Parse hierarchy using nested XML structure (parent-child via nesting).
-        
-        Args:
-            range_elem: Range element containing nested range-elements
-            range_id: ID of the range
-            
-        Returns:
-            List of top-level elements with nested children
-        """
-        root_elements = []
-        
-        # Only get direct children, not all descendants
-        for value_elem in self._find_elements(range_elem, './lift:range-element', './range-element'):
-            value_id = value_elem.get('id', '')
-            
-            # Normalize orthographic -> spelling for variant types
-            if range_id in ('variant-type', 'variant-type') and value_id == 'orthographic':
-                value_id = 'spelling'
-            
-            # Parse the element and its children recursively
-            value = self._parse_range_element(value_elem)
-            root_elements.append(value)
-        
-        return root_elements
-
-    def _parse_multilingual_content(self, element: ET.Element, element_types: List[str]) -> Dict[str, str]:
-        """
-        Parse multilingual content from label and description elements.
-        
-        Args:
-            element: Parent element to search in
-            element_types: List of element types to search for (e.g., ['label', 'description'])
-            
-        Returns:
-            Dictionary mapping language codes to text content
-        """
-        content = {}
-        
-        for element_type in element_types:
-            # Find all elements of this type
-            for content_elem in self._find_elements(element, f'./lift:{element_type}', f'./{element_type}'):
-                # Check for direct lang attribute and text
-                lang = content_elem.get('lang')
-                if lang and content_elem.text and content_elem.text.strip():
-                    content[lang] = content_elem.text.strip()
-                    continue
-                
-                # Look for form/text structure
-                for form_elem in self._find_elements(content_elem, './lift:form', './form'):
-                    form_lang = form_elem.get('lang')
-                    if form_lang:
-                        text_elem = self._find_element(form_elem, './lift:text', './text')
-                        if text_elem is not None and text_elem.text and text_elem.text.strip():
-                            content[form_lang] = text_elem.text.strip()
-        
-        return content
-
-    def _parse_range_element_full(self, elem: ET.Element, element_id: str) -> Dict[str, Any]:
-        """
-        Parse a range element with full feature support.
-        
-        Args:
-            elem: Element representing a range element
-            element_id: ID of the element
-            
-        Returns:
-            Dictionary containing range element data
-        """
-        element_data = {
-            'id': element_id,
+        return {
+            'id': elem_id,
             'guid': elem.get('guid', ''),
-            'value': elem.get('value', '') or element_id,
+            'value': elem.get('value', '') or elem_id,
             'parent': elem.get('parent', ''),
-            'abbrev': '',
-            'abbrevs': {},
-            'labels': {},
-            'descriptions': {},
+            'abbrev': self._parse_abbrev(elem),
+            'abbrevs': self._parse_abbrevs(elem),
+            'labels': self._parse_multitext(elem, './lift:label'),
+            'descriptions': self._parse_multitext(elem, './lift:description'),
             'children': [],
-            'traits': {},
-            'reverse_labels': {},
-            'reverse_abbrevs': {},
+            'traits': {t.get('name'): t.get('value') for t in self._find_elements(elem, './lift:trait') if t.get('name')},
+            'reverse_labels': self._parse_multitext(elem, "./lift:field[@type='reverse-label']"),
+            'reverse_abbrevs': self._parse_multitext(elem, "./lift:field[@type='reverse-abbrev']")
         }
-        
-        # Parse multilingual labels and descriptions
-        element_data['labels'] = self._parse_multilingual_content(elem, ['label'])
-        element_data['descriptions'] = self._parse_multilingual_content(elem, ['description'])
 
-        # Do not fall back to labels for descriptions; descriptions should only reflect explicit description fields
 
-        # Backward compatibility: provide singular 'description' field
-        element_data['description'] = element_data['descriptions']
-        
-        # Parse abbreviation (handle LIFT form structure)
-        abbrev_elem = self._find_element(elem, './lift:abbrev', './abbrev')
-        if abbrev_elem is not None:
-            # First try direct text content
-            if abbrev_elem.text and abbrev_elem.text.strip():
-                element_data['abbrev'] = abbrev_elem.text.strip()
-                element_data['abbrevs'] = {'und': abbrev_elem.text.strip()}
-            else:
-                # Try form/text structure
-                for form_elem in self._find_elements(abbrev_elem, './lift:form', './form'):
-                    text_elem = self._find_element(form_elem, './lift:text', './text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        lang = form_elem.get('lang', 'und')
-                        element_data['abbrevs'][lang] = text_elem.text.strip()
-                        
-                        # Set legacy abbrev if empty
-                        if not element_data['abbrev']:
-                            element_data['abbrev'] = text_elem.text.strip()
-        
-        # Parse traits (name-value pairs)
-        for trait_elem in self._find_elements(elem, './lift:trait', './trait'):
-            trait_name = trait_elem.get('name')
-            trait_value = trait_elem.get('value')
-            if trait_name:
-                element_data['traits'][trait_name] = trait_value or ''
-        
-        
-        # Parse reverse relation fields (for non-symmetric relations)
-        element_data['reverse_labels'] = {}
-        element_data['reverse_abbrevs'] = {}
-        
-        # DEBUG: Print element ID
-        if 'skrot' in element_id.lower() or element_id in ['abbreviation', 'skrot']:
-            print(f"DEBUG: Processing element_id='{element_id}'")
-        
-        # Parse all field elements and check their type
-        all_fields = self._find_elements(elem, './lift:field', './field')
-        if element_id == 'skrot':
-            print(f"DEBUG skrot: Found {len(all_fields)} field elements")
-        
-        for field_elem in all_fields:
-            field_type = field_elem.get('type', '')
-            if element_id == 'skrot':
-                print(f"DEBUG skrot: Processing field type '{field_type}'")
-            
-            if field_type == 'reverse-label':
-                forms = self._find_elements(field_elem, './lift:form', './form')
-                if element_id == 'skrot':
-                    print(f"DEBUG skrot: Found {len(forms)} forms in reverse-label")
-                for form_elem in forms:
-                    lang = form_elem.get('lang', 'und')
-                    text_elem = self._find_element(form_elem, './lift:text', './text')
-                    if element_id == 'skrot':
-                        print(f"DEBUG skrot: Lang={lang}, text_elem={text_elem}, text={text_elem.text if text_elem is not None else 'None'}")
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        element_data['reverse_labels'][lang] = text_elem.text.strip()
-            
-            elif field_type == 'reverse-abbrev':
-                forms = self._find_elements(field_elem, './lift:form', './form')
-                for form_elem in forms:
-                    lang = form_elem.get('lang', 'und')
-                    text_elem = self._find_element(form_elem, './lift:text', './text')
-                    if text_elem is not None and text_elem.text and text_elem.text.strip():
-                        element_data['reverse_abbrevs'][lang] = text_elem.text.strip()
-        
-        return element_data
-    
+
+    def _parse_multitext(self, parent: ET.Element, xpath: str) -> Dict[str, str]:
+        """Parse multilingual content."""
+        result = {}
+        for form in self._find_elements(parent, f'{xpath}/lift:form'):
+            text_elem = self._find_element(form, './lift:text')
+            if text_elem is not None:
+                if text_elem.text and text_elem.text.strip():
+                    result[form.get('lang', 'und')] = text_elem.text.strip()
+        return result
+
+    def _parse_abbrev(self, elem: ET.Element) -> str:
+        """Parse abbreviation (direct or nested)."""
+        abbrev = self._find_element(elem, './lift:abbrev')
+        if abbrev is not None:
+            if abbrev.text and abbrev.text.strip():
+                return abbrev.text.strip()
+            return next((v for v in self._parse_multitext(abbrev, '.').values() if v), '')
+        return ''
+
+    def _parse_abbrevs(self, elem: ET.Element) -> Dict[str, str]:
+        """Parse all abbreviation variants."""
+        abbrev = self._find_element(elem, './lift:abbrev')
+        if abbrev is not None:
+            return self._parse_multitext(abbrev, '.')
+        return {}
+
+    # Minimal trait extraction used by DictionaryService.get_trait_values_from_relations tests
     def extract_trait_values_from_relations(self, xml_string: str, trait_name: str) -> List[Dict[str, Any]]:
-        """
-        Extract trait values from relation elements. Works for any trait name.
-        
-        Args:
-            xml_string: XML with <relations><relation>... structure
-            trait_name: Name of trait to extract (e.g., 'variant-type', 'complex-form-type')
-        """
         try:
-            # Parse the XML string into an ElementTree root element
             root = ET.fromstring(xml_string)
-            # Initialize an empty set to store unique trait values
-            values: set[str] = set()
-            
-            # Find all relations (with/without namespace)
-            relations = self._find_elements(root, './/lift:relation', './/relation')
-            
-            for relation in relations:
-                # Find target trait within each relation
-                traits = self._find_elements(relation, './/lift:trait', './/trait')
-                
-                for trait in traits:
-                    if trait.get('name') == trait_name:
-                        value = trait.get('value', '').strip()
-                        if value:
-                            values.add(value)
-            
-            # Format for ranges API
-            result = []
-            for value in sorted(values):
-                # Create human-readable label from trait name
-                label = trait_name.replace('-', ' ').title()
-                result.append({
-                    'id': value,
-                    'value': value,
-                    'abbrev': value[:3].lower(),
-                    'description': {'en': f'{value} {label}'}
-                })
-                
-            self.logger.info(f"Extracted {len(result)} {trait_name} values")
-            return result
-            
+            values = set()
+            for trait in root.findall(f".//trait[@name='{trait_name}']") + root.findall(f".//lift:trait[@name='{trait_name}']", self.NSMAP):
+                v = trait.get('value', '').strip()
+                if v:
+                    values.add(v)
+            return [
+                {
+                    'id': v,
+                    'value': v,
+                    'abbrev': v[:3].lower(),
+                    'description': {'en': f"{v} {trait_name.replace('-', ' ')}"}
+                }
+                for v in sorted(values)
+            ]
         except Exception as e:
-            self.logger.error(f"Error extracting {trait_name}: {e}", exc_info=True)
+            self.logger.error(f"Error extracting {trait_name} values from relations: {e}")
             return []
-            
-    def extract_language_codes_from_file(self, xml_string: str) -> List[str]:
-        """
-        Extract all unique language codes used in the LIFT file.
-        
-        This scans all elements with 'lang' attributes to find the actual 
-        language codes used in the project, rather than using a predefined list.
-        
-        Args:
-            xml_string: LIFT XML string
-            
-        Returns:
-            List of unique language codes found in the LIFT file
-        """
-        self.logger.info("Extracting language codes from LIFT file")
-        try:
-            root = ET.fromstring(xml_string)
-            # Find all elements with lang attributes
-            language_codes: set[str] = set()
-            
-            # Function to collect lang attributes from any element
-            def collect_lang_attrs(element: ET.Element) -> None:
-                lang = element.get('lang')
-                if lang and lang.strip():
-                    language_codes.add(lang.strip())
-                for child in element:
-                    collect_lang_attrs(child)
-            
-            # Traverse the XML tree
-            collect_lang_attrs(root)
-            
-            # Always include seh-fonipa for IPA pronunciations if not already found
-            if 'seh-fonipa' not in language_codes:
-                language_codes.add('seh-fonipa')
-                
-            self.logger.info(f"Extracted {len(language_codes)} language codes from LIFT file")
-            return sorted(list(language_codes))
-            
-        except Exception as e:
-            self.logger.error(f"Error extracting language codes from LIFT: {e}", exc_info=True)
-            # Return a minimal default set
-            return ['seh-fonipa']
+    

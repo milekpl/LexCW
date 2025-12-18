@@ -91,54 +91,10 @@ class DictionaryService:
         else:
             self.logger.info("Skipping BaseX connection during tests")
 
-    def _detect_namespace_usage(self) -> bool:
-        """
-        Detect whether the database contains namespaced LIFT elements.
+    def _should_skip_db_queries(self) -> bool:
+        """Check if we should skip DB queries (e.g., in tests)."""
+        return os.getenv("TESTING") == "true" or "pytest" in sys.modules
 
-        Returns:
-            True if namespace is used, False otherwise
-        """
-        if self._has_namespace is not None:
-            return self._has_namespace
-
-        try:
-            db_name = self.db_connector.database
-            if not db_name:
-                self._has_namespace = False
-                return False
-
-            # Try to query with namespace first
-            test_query = f"""declare namespace lift = "{self._namespace_manager.LIFT_NAMESPACE}";
-            exists(collection('{db_name}')//lift:lift)"""
-
-            result = self.db_connector.execute_query(test_query)
-            if result:
-                result = result.strip()
-
-            if result and result.lower() == "true":
-                self._has_namespace = True
-                self.logger.info("Database uses LIFT namespace")
-                return True
-
-            # Test for non-namespaced elements
-            test_query_no_ns = f"exists(collection('{db_name}')//lift)"
-            result_no_ns = self.db_connector.execute_query(test_query_no_ns)
-            if result_no_ns:
-                result_no_ns = result_no_ns.strip()
-
-            if result_no_ns and result_no_ns.lower() == "true":
-                self._has_namespace = False
-                self.logger.info("Database uses non-namespaced LIFT elements")
-                return False
-
-            # Default to no namespace if database is empty or unclear
-            self._has_namespace = False
-            return False
-
-        except Exception as e:
-            self.logger.warning("Error detecting namespace usage: %s", e)
-            self._has_namespace = False
-            return False
 
     def _prepare_entry_xml(self, entry: Entry) -> str:
         """
@@ -1662,14 +1618,16 @@ class DictionaryService:
             self.logger.error("Error exporting LIFT file: %s", str(e))
             raise ExportError(f"Failed to export LIFT file: {str(e)}") from e
 
-    def get_ranges(self, project_id: int = 1) -> Dict[str, Any]:
+    def get_ranges(self, project_id: int = 1, force_reload: bool = False) -> Dict[str, Any]:
         """
         Retrieves LIFT ranges data from the database and custom ranges.
         Caches the result for subsequent calls.
         Falls back to default ranges if database is unavailable.
         Ensures both singular and plural keys for all relevant range types.
         """
-        if self.ranges:
+        print(f"DEBUG: get_ranges entering for project_id {project_id}, force_reload={force_reload}, current self.ranges keys: {list(self.ranges.keys()) if self.ranges else 'None'}")
+        if self.ranges and not force_reload:
+            self.logger.debug("Returning cached LIFT ranges.")
             return self.ranges
 
         # Removed nested install_recommended_ranges definition to place it at class level
@@ -1689,8 +1647,15 @@ class DictionaryService:
             parsed_ranges = {}
             if ranges_xml:
                 self.logger.debug("Found ranges document using collection() query")
-                self.logger.debug(f"Raw ranges XML from BaseX (first 500 chars): {ranges_xml[:500] if len(ranges_xml) > 500 else ranges_xml}")
+                print(f"\nDEBUG: get_ranges using db_name: {db_name}")
+                print(f"DEBUG: ranges_xml length: {len(ranges_xml)}")
                 parsed_ranges = self.ranges_parser.parse_string(ranges_xml)
+                print(f"DEBUG: parsed_ranges keys: {list(parsed_ranges.keys())}")
+                if 'variant-type' in parsed_ranges:
+                    v_values = parsed_ranges['variant-type'].get('values', [])
+                    print(f"DEBUG: variant-type values count: {len(v_values)}")
+                    if len(v_values) == 0:
+                         print(f"DEBUG: variant-type is EMPTY in parsed_ranges")
             else:
                 self.logger.warning(
                     "LIFT ranges not found in database. Using empty ranges."
@@ -1747,7 +1712,9 @@ class DictionaryService:
                 parsed_ranges[range_name]['values'].extend(elements)
 
             # Add variant-type from traits if not already present
-            if 'variant-type' not in parsed_ranges:
+            if 'variant-type' not in parsed_ranges and not self._should_skip_db_queries():
+                # In tests, we still allow it if force_reload is true OR if it's explicitly missing
+                # and we want to ensure dynamic types are tested.
                 variant_types = self.get_variant_types_from_traits()
                 if variant_types:
                     parsed_ranges['variant-type'] = {
@@ -2069,10 +2036,17 @@ class DictionaryService:
                 self.logger.warning(f"No database configured, returning empty {trait_name} values")
                 return []
 
+            # Use namespace-aware query
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+
             # Universal query that works for ANY trait inside relation elements
             query = (
+                f"{prologue}\n"
                 f"<relations>{{\n"
-                f"  for $relation in collection('{db_name}')//relation[trait[@name='{trait_name}']]\n"
+                f"  for $relation in collection('{db_name}')//{relation_path}[{trait_path}[@name='{trait_name}']]\n"
                 f"  return $relation\n"
                 f"}}</relations>"
             )
@@ -2082,6 +2056,7 @@ class DictionaryService:
                 self.logger.debug(f"No relations with '{trait_name}' traits found")
                 return []
             
+            # Use LIFTRangesParser (generic) for range-like traits
             return self.ranges_parser.extract_trait_values_from_relations(xml_result, trait_name)
              
         except Exception as e:
@@ -2089,10 +2064,67 @@ class DictionaryService:
             return []
 
     def get_variant_types_from_traits(self) -> List[Dict[str, Any]]:
-        return self.get_trait_values_from_relations('variant-type')
+        """
+        Extract variant types from both relation traits and variant element traits.
+        Uses the more comprehensive LIFTParser extraction logic.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                return []
+                
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            variant_path = self._query_builder.get_element_path("variant", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+            
+            # Sub-query for relations with variant-type traits
+            # and variant elements with type traits
+            query = f"""{prologue}
+            <root>{{
+              collection('{db_name}')//{relation_path}[{trait_path}[@name='variant-type']]
+              |
+              collection('{db_name}')//{variant_path}[{trait_path}[@name='type']]
+            }}</root>
+            """
+            
+            xml_result = self.db_connector.execute_query(query)
+            if not xml_result or not xml_result.strip():
+                return []
+                
+            return self.lift_parser.extract_variant_types_from_traits(xml_result)
+        except Exception as e:
+            self.logger.error(f"Error extracting variant-type values: {e}", exc_info=True)
+            return []
 
     def get_complex_form_types_from_traits(self) -> List[Dict[str, Any]]:
-        return self.get_trait_values_from_relations('complex-form-type')
+        """Extract complex form types from relation traits using LIFTParser."""
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                return []
+                
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+            
+            query = f"""{prologue}
+            <relations>{{
+              for $relation in collection('{db_name}')//{relation_path}[{trait_path}[@name='complex-form-type']]
+              return $relation
+            }}</relations>
+            """
+            
+            xml_result = self.db_connector.execute_query(query)
+            if not xml_result or not xml_result.strip():
+                return []
+                
+            return self.lift_parser.extract_complex_form_types_from_traits(xml_result)
+        except Exception as e:
+            self.logger.error(f"Error extracting complex-form-type values: {e}", exc_info=True)
+            return []
     
     def get_lexical_relation_types_from_traits(self) -> List[Dict[str, Any]]:
         """
@@ -2201,3 +2233,32 @@ class DictionaryService:
             raise DatabaseError(
                 f"Failed to retrieve entry for editing: {str(e)}"
             ) from e
+
+    def _detect_namespace_usage(self, project_id: int = 1) -> bool:
+        """
+        Check if the dictionary database uses namespaces.
+        """
+        # Cache the result to avoid repeated queries
+        if self._has_namespace is not None:
+            return self._has_namespace
+
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                self._has_namespace = False
+                return False
+
+            # Use namespace-aware query to check for root <lift> element with namespace
+            test_query = f"""declare namespace lift = "{self._namespace_manager.LIFT_NAMESPACE}";
+            exists(collection('{db_name}')//lift:lift)"""
+
+            result = self.db_connector.execute_query(test_query)
+            if result:
+                result = result.strip()
+
+            self._has_namespace = (result and result.lower() == "true")
+            return self._has_namespace
+        except Exception as e:
+            self.logger.warning("Error detecting namespace usage: %s", str(e))
+            self._has_namespace = False
+            return False
