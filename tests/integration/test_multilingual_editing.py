@@ -66,7 +66,7 @@ class TestMultilingualFieldEditing:
         
         # Use public method and assert entry_elem is not None
         assert entry_elem is not None
-        entry = parser.parse_entry_element(entry_elem)
+        entry = parser._parse_entry(entry_elem)
         
         # Check that multilingual notes are properly parsed
         assert 'general' in entry.notes
@@ -162,7 +162,7 @@ class TestMultilingualFieldEditing:
         
         # Use public method and assert entry_elem is not None
         assert entry_elem is not None
-        entry = parser.parse_entry_element(entry_elem)
+        entry = parser._parse_entry(entry_elem)
         
         # Check that sense has multilingual notes
         assert len(entry.senses) == 1

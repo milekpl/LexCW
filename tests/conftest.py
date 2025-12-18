@@ -92,6 +92,13 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
             </definition>
             <gloss lang="pl"><text>test</text></gloss>
         </sense>
+        <variant type="spelling">
+            <form lang="en"><text>teest</text></form>
+            <trait name="type" value="spelling"/>
+        </variant>
+        <relation type="_component-lexeme" ref="other">
+            <trait name="variant-type" value="dialectal"/>
+        </relation>
     </entry>
 </lift>'''
             f.write(sample_lift)
@@ -130,6 +137,10 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
     <range id="academic-domain">
         <range-element id="academics" label="Academics"/>
         <range-element id="general" label="General"/>
+    </range>
+    <range id="variant-type">
+        <range-element id="spelling" label="Spelling Variant"/>
+        <range-element id="dialectal" label="Dialectal Variant"/>
     </range>
 </lift-ranges>'''
             f.write(ranges_xml)

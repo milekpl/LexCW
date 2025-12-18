@@ -214,27 +214,16 @@ class RangesService:
             # Prefer label from labels, then from descriptions.
             # If none present in LIFT, fall back to STANDARD_RANGE_METADATA label
             label_str = labels.get('en') or next(iter(labels.values()), None) or descriptions.get('en') or next(iter(descriptions.values()), None)
-            if not label_str:
-                # Try exact id, then plural/singular counterpart
+            # Fallback for label/description from metadata
+            if not label_str or not descriptions:
                 meta = STANDARD_RANGE_METADATA.get(rid)
-                if not meta and rid.endswith('s'):
-                    meta = STANDARD_RANGE_METADATA.get(rid[:-1])
-                if not meta:
-                    meta = STANDARD_RANGE_METADATA.get(rid + 's')
-                if isinstance(meta, dict) and meta.get('label'):
-                    label_str = meta.get('label')
-
-            # Description fallback from metadata (safe access)
-            if not descriptions:
-                meta = STANDARD_RANGE_METADATA.get(rid)
-                if isinstance(meta, dict) and meta.get('description'):
-                    descriptions = {'en': meta.get('description')}
-                else:
-                    # try plural/singular fallback for description
-                    other = rid[:-1] if rid.endswith('s') else rid + 's'
-                    meta2 = STANDARD_RANGE_METADATA.get(other)
-                    if isinstance(meta2, dict) and meta2.get('description'):
-                        descriptions = {'en': meta2.get('description')}
+                if isinstance(meta, dict):
+                    if not label_str:
+                        label_str = meta.get('label')
+                    if not descriptions:
+                        desc = meta.get('description')
+                        if desc:
+                            descriptions = {'en': desc}
             rdata['label'] = label_str or rid
             rdata['description'] = descriptions
             rdata['official'] = True
@@ -309,44 +298,6 @@ class RangesService:
                     'config_type': CONFIG_RANGE_TYPES.get(std_id)
                 }
 
-            # Coalesce singular/plural duplicates (e.g., 'variant-type' vs 'variant-types')
-            # Prefer the form with more values; merge values and metadata into the preferred key.
-            for key in list(ranges.keys()):
-                if key.endswith('s'):
-                    singular = key[:-1]
-                    plural = key
-                    if singular in ranges and plural in ranges and singular != plural:
-                        # choose preferred: one with more values, otherwise prefer plural
-                        sing_vals = ranges[singular].get('values', []) or []
-                        plur_vals = ranges[plural].get('values', []) or []
-                        if len(plur_vals) >= len(sing_vals):
-                            preferred = plural
-                            other = singular
-                        else:
-                            preferred = singular
-                            other = plural
-
-                        # Merge values (preserve order, dedupe by id)
-                        seen = set()
-                        merged_values = []
-                        for v in (ranges[preferred].get('values', []) + ranges[other].get('values', [])):
-                            vid = v.get('id') or v.get('value')
-                            if vid and vid not in seen:
-                                seen.add(vid)
-                                merged_values.append(v)
-
-                        ranges[preferred]['values'] = merged_values
-
-                        # Prefer label if set
-                        if not ranges[preferred].get('label') and ranges[other].get('label'):
-                            ranges[preferred]['label'] = ranges[other]['label']
-
-                        # official/standard flags: prefer True if any is True
-                        ranges[preferred]['official'] = bool(ranges[preferred].get('official') or ranges[other].get('official'))
-                        ranges[preferred]['standard'] = bool(ranges[preferred].get('standard') or ranges[other].get('standard'))
-
-                        # Remove the other key
-                        del ranges[other]
 
         return ranges
 
@@ -878,7 +829,7 @@ class RangesService:
                 ]
                 return concat($entry/@id, '|||', string($entry/lexical-unit/form[1]/text[1]), '|||1')
                 """
-        elif range_id in ['lexical-relation', 'lexical-relations']:
+        elif range_id == 'lexical-relation':
             # Search in relation elements
             if element_id:
                 query = f"""
@@ -974,7 +925,7 @@ class RangesService:
               count(//entry[.//grammatical-info[@value = $value]])
             )
             """
-        elif range_id in ['lexical-relation', 'lexical-relations']:
+        elif range_id == 'lexical-relation':
             query = """
             for $type in distinct-values(//entry//relation/@type)
             return concat(

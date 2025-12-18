@@ -295,7 +295,10 @@ class ValidationEngine:
             
             # Parse LIFT XML to Entry object
             parser = LIFTParser(validate=False)  # Don't validate during parsing
-            entry = parser.parse_entry(xml_string)
+            entries = parser.parse_string(xml_string)
+            if not entries:
+                raise ValueError("No entries found in XML")
+            entry = entries[0]
             
             # Convert Entry to dictionary
             entry_dict = entry.to_dict()

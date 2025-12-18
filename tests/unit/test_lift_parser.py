@@ -36,27 +36,25 @@ def lift_parser() -> LIFTParser:
     return LIFTParser()
 
 
+
 def test_parse_entry_with_complex_structures(lift_parser: LIFTParser):
     """
     Tests that the LIFT parser correctly handles complex entry structures,
     including relations, etymologies, and variants.
     """
     # Act
-    entry: Entry = lift_parser.parse_entry(COMPLEX_LIFT_ENTRY)
+    entries = lift_parser.parse_string(COMPLEX_LIFT_ENTRY)
+    assert len(entries) == 1
+    entry = entries[0]
 
     # Assert
     assert entry is not None
 
     # Check dateCreated and dateModified
-    assert hasattr(entry, "date_created"), "Entry should have 'date_created' attribute"
-    assert hasattr(entry, "date_modified"), "Entry should have 'date_modified' attribute"
-    assert entry.date_created == "2020-01-01T12:00:00Z", f"Expected date_created to be '2020-01-01T12:00:00Z', got {entry.date_created}"
-    assert entry.date_modified == "2021-02-02T13:30:00Z", f"Expected date_modified to be '2021-02-02T13:30:00Z', got {entry.date_modified}"
+    assert entry.date_created == "2020-01-01T12:00:00Z"
+    assert entry.date_modified == "2021-02-02T13:30:00Z"
 
     # Check for etymology
-    assert hasattr(entry, "etymologies"), (
-        "Entry model should have 'etymologies' attribute"
-    )
     assert len(entry.etymologies) == 1
     etymology = entry.etymologies[0]
     assert etymology.type == "proto-language"
@@ -65,14 +63,13 @@ def test_parse_entry_with_complex_structures(lift_parser: LIFTParser):
     assert etymology.gloss["en"] == "original meaning"
 
     # Check for relations
-    assert hasattr(entry, "relations"), "Entry model should have 'relations' attribute"
     assert len(entry.relations) == 1
     relation = entry.relations[0]
     assert relation.type == "synonym"
     assert relation.ref == "other_id_456"
 
     # Check for variants
-    assert hasattr(entry, "variants"), "Entry model should have 'variants' attribute"
     assert len(entry.variants) == 1
     variant = entry.variants[0]
     assert variant.form["en"] == "test variant"
+
