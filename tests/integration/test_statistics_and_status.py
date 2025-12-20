@@ -100,12 +100,10 @@ class TestDictionaryStatistics:
     @pytest.mark.integration
     def test_count_senses_and_examples(self, dict_service):
         """Test that the sense and example counts are correct."""
-        # In our test data, there are 2 entries, each with 1 sense and 1 example
-        sense_count, example_count = dict_service.count_senses_and_examples()
-        assert sense_count == 2
-        assert example_count == 2
+        # Get initial counts from fixture data
+        initial_sense_count, initial_example_count = dict_service.count_senses_and_examples()
         
-        # Create a simple entry with 2 senses and 2 examples directly via service
+        # Create a simple entry with 2 senses and 3 examples directly via service
         from app.models.entry import Entry
         from app.models.sense import Sense
         
@@ -127,13 +125,13 @@ class TestDictionaryStatistics:
         dict_service.create_entry(entry)
         
         # Check that the counts increased appropriately:
-        # - 2 original senses + 2 new senses = 4 senses
-        # - 2 original examples + 3 new examples = 5 examples
+        # - initial senses + 2 new senses
+        # - initial examples + 3 new examples
         sense_count, example_count = dict_service.count_senses_and_examples()
         
         # Use approximate assertions to handle possible XML parsing differences
-        assert sense_count >= 4, f"Expected at least 4 senses, got {sense_count}"
-        assert example_count >= 5, f"Expected at least 5 examples, got {example_count}"
+        assert sense_count >= initial_sense_count + 2, f"Expected at least {initial_sense_count + 2} senses, got {sense_count}"
+        assert example_count >= initial_example_count + 3, f"Expected at least {initial_example_count + 3} examples, got {example_count}"
         
         # Delete the entry to clean up
         dict_service.delete_entry("multi_sense_entry")

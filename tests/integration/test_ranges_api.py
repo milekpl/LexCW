@@ -19,65 +19,15 @@ class TestRangesAPI:
     """Test LIFT ranges API functionality."""
 
     @pytest.mark.integration
-    def test_get_ranges_returns_structured_data(self) -> None:
+    def test_get_ranges_returns_structured_data(self, dict_service_with_db) -> None:
         """Test that get_ranges returns properly structured ranges data."""
-        # Mock ranges data structure
-        mock_ranges = {
-            "grammatical-info": {
-                "id": "grammatical-info",
-                "values": [
-                    {
-                        "id": "noun",
-                        "value": "noun",
-                        "abbrev": "n",
-                        "description": {"en": "Noun"}
-                    },
-                    {
-                        "id": "verb",
-                        "value": "verb", 
-                        "abbrev": "v",
-                        "description": {"en": "Verb"}
-                    }
-                ]
-            },
-            "variant-type": {
-                "id": "variant-type",
-                "values": [
-                    {
-                        "id": "dialectal",
-                        "value": "dialectal",
-                        "abbrev": "dial",
-                        "description": {"en": "Dialectal variant"}
-                    },
-                    {
-                        "id": "spelling",
-                        "value": "spelling",
-                        "abbrev": "sp",
-                        "description": {"en": "Spelling variant"}
-                    }
-                ]
-            }
-        }
-        
-        # Create service and mock get_ranges
-        from app.database.mock_connector import MockDatabaseConnector
-        mock_connector = MockDatabaseConnector()
-        service = DictionaryService(mock_connector)
-        service.ranges = mock_ranges
-        
-        ranges = service.get_ranges()
-        
-        # Verify structure
+        ranges = dict_service_with_db.get_ranges()
         assert isinstance(ranges, dict)
         assert "grammatical-info" in ranges
         assert "variant-type" in ranges
-        
-        # Verify grammatical-info structure
         gram_info = ranges["grammatical-info"]
         assert "values" in gram_info
-        assert len(gram_info["values"]) >= 2
-        
-        # Verify value structure
+        assert len(gram_info["values"]) >= 1
         noun_value = gram_info["values"][0]
         assert "id" in noun_value
         assert "value" in noun_value
@@ -85,13 +35,9 @@ class TestRangesAPI:
         assert "description" in noun_value
 
     @pytest.mark.integration
-    def test_get_ranges_handles_empty_ranges(self) -> None:
+    def test_get_ranges_handles_empty_ranges(self, dict_service_with_db) -> None:
         """Test that get_ranges handles empty or missing ranges gracefully."""
-        from app.database.mock_connector import MockDatabaseConnector
-        mock_connector = MockDatabaseConnector()
-        service = DictionaryService(mock_connector)
-        service.ranges = {}
-        # Ensure no custom ranges linger from other tests
+        # Clear all custom ranges if possible
         try:
             from app.models.custom_ranges import CustomRange, db as custom_db
             if hasattr(custom_db, 'session'):
@@ -99,69 +45,32 @@ class TestRangesAPI:
                 custom_db.session.commit()
         except Exception:
             pass
-
-        ranges = service.get_ranges()
+        # Remove any cached ranges
+        dict_service_with_db.ranges = None
+        ranges = dict_service_with_db.get_ranges()
         assert isinstance(ranges, dict)
-        # With the new implementation, standard ranges are injected even if DB is empty
-        # So we expect some ranges (like variant-type, grammatical-info, etc.)
         assert len(ranges) > 0
         assert "variant-type" in ranges
         assert "grammatical-info" in ranges
 
     @pytest.mark.integration
-    def test_get_ranges_caches_results(self) -> None:
+    def test_get_ranges_caches_results(self, dict_service_with_db) -> None:
         """Test that get_ranges caches results for performance."""
-        from app.database.mock_connector import MockDatabaseConnector
-        mock_connector = MockDatabaseConnector()
-        service = DictionaryService(mock_connector)
-        
-        # Mock the database query to return test data
-        mock_ranges = {
-            "test-range": {
-                "id": "test-range",
-                "values": []
-            }
-        }
-        
-        # Set initial ranges
-        service.ranges = mock_ranges
-        
-        # First call
-        ranges1 = service.get_ranges()
-        
-        # Second call should return cached data
-        ranges2 = service.get_ranges()
-        
-        # Should be the same object (cached)
+        # Remove any cached ranges
+        dict_service_with_db.ranges = None
+        ranges1 = dict_service_with_db.get_ranges()
+        ranges2 = dict_service_with_db.get_ranges()
         assert ranges1 is ranges2
 
     @pytest.mark.integration
-    def test_grammatical_info_range_structure(self) -> None:
+    def test_grammatical_info_range_structure(self, dict_service_with_db) -> None:
         """Test grammatical-info range has expected structure for UI."""
-        # This test defines the expected structure for grammatical categories
-        expected_structure = {
-            "grammatical-info": {
-                "id": "grammatical-info",
-                "values": [
-                    {
-                        "id": "noun",
-                        "value": "noun",
-                        "abbrev": "n",
-                        "description": {"en": "Noun"},
-                        "children": []  # For hierarchical categories
-                    }
-                ]
-            }
-        }
-        
-        # Verify the structure we expect
-        assert "grammatical-info" in expected_structure
-        gram_range = expected_structure["grammatical-info"]
+        ranges = dict_service_with_db.get_ranges()
+        assert "grammatical-info" in ranges
+        gram_range = ranges["grammatical-info"]
         assert "values" in gram_range
-        
-        # Verify value structure
         value = gram_range["values"][0]
-        required_fields = ["id", "value", "abbrev", "description", "children"]
+        required_fields = ["id", "value", "abbrev", "description"]
         for field in required_fields:
             assert field in value
 

@@ -41,6 +41,102 @@ class BaseXBackupManager:
         # Ensure backup directory exists
         self.backup_directory.mkdir(parents=True, exist_ok=True)
 
+    def get_backup_directory(self) -> Path:
+        """
+        Get the configured backup directory.
+
+        Returns:
+            Path to the backup directory.
+        """
+        return self.backup_directory
+
+    def get_backup_by_id(self, backup_id: str) -> Dict[str, Any]:
+        """
+        Get information about a backup by its ID.
+
+        Args:
+            backup_id: ID of the backup (e.g., test_db_20250101_120000)
+
+        Returns:
+            Dictionary with backup details.
+        """
+        # First, try to find a .meta.json file that matches this ID
+        for meta_file in self.backup_directory.glob("*.meta.json"):
+            try:
+                with open(meta_file, 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+                    if meta.get('id') == backup_id:
+                        # Ensure file_path is set correctly
+                        if 'file_path' not in meta or not meta['file_path']:
+                            # Try to infer file_path from meta file name
+                            if meta_file.name.endswith('.lift.meta.json'):
+                                lift_filename = meta_file.name.replace('.lift.meta.json', '.lift')
+                            elif meta_file.name.endswith('.meta.json'):
+                                lift_filename = meta_file.name.replace('.meta.json', '')
+                                # Check if it's a directory backup
+                                dir_path = self.backup_directory / lift_filename
+                                if dir_path.exists() and dir_path.is_dir():
+                                    meta['file_path'] = str(dir_path)
+                                    return meta
+                                else:
+                                    lift_filename += '.lift'
+                            
+                            lift_path = self.backup_directory / lift_filename
+                            if lift_path.exists():
+                                meta['file_path'] = str(lift_path)
+                        return meta
+            except Exception:
+                continue
+
+        # If no meta file found, try to infer from filename format: {db_name}_backup_{timestamp}.lift
+        # backup_id might look like {db_name}_{timestamp}
+        parts = backup_id.split('_')
+        if len(parts) >= 3:
+            timestamp_part = '_'.join(parts[-2:])
+            db_name = '_'.join(parts[:-2])
+            filename = f"{db_name}_backup_{timestamp_part}.lift"
+            filepath = self.backup_directory / filename
+            
+            if filepath.exists():
+                # Reconstruct information from filename
+                try:
+                    timestamp = datetime.strptime(timestamp_part, "%Y%m%d_%H%M%S")
+                    timestamp_str = timestamp.isoformat()
+                except ValueError:
+                    timestamp_str = datetime.fromtimestamp(filepath.stat().st_mtime).isoformat()
+                
+                return {
+                    'id': backup_id,
+                    'db_name': db_name,
+                    'file_path': str(filepath),
+                    'file_size': filepath.stat().st_size,
+                    'timestamp': timestamp_str,
+                    'status': 'completed',
+                    'type': 'manual'
+                }
+            
+            # Also check for directory-based backups
+            dir_path = self.backup_directory / filename
+            if dir_path.exists() and dir_path.is_dir():
+                # Reconstruct information from directory name
+                try:
+                    timestamp = datetime.strptime(timestamp_part, "%Y%m%d_%H%M%S")
+                    timestamp_str = timestamp.isoformat()
+                except ValueError:
+                    timestamp_str = datetime.fromtimestamp(dir_path.stat().st_mtime).isoformat()
+                
+                return {
+                    'id': backup_id,
+                    'db_name': db_name,
+                    'file_path': str(dir_path),
+                    'file_size': sum(f.stat().st_size for f in dir_path.rglob('*') if f.is_file()),
+                    'timestamp': timestamp_str,
+                    'status': 'completed',
+                    'type': 'manual'
+                }
+
+        raise ValidationError(f"Backup with ID {backup_id} not found")
+
     def backup_database(self, db_name: str, backup_type: str = 'full', description: Optional[str] = None, include_media: bool = False) -> Backup:
         """
         Create a backup of the specified BaseX database.
@@ -132,6 +228,18 @@ class BaseXBackupManager:
                 status='completed'
             )
             
+            # Write metadata file for easier discovery
+            try:
+                meta_path = filepath.with_name(filepath.name + '.meta.json')
+                meta_data = backup.to_dict()
+                # Ensure id is present in meta
+                if 'id' not in meta_data:
+                    meta_data['id'] = f"{db_name}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
+                with open(meta_path, 'w', encoding='utf-8') as f:
+                    json.dump(meta_data, f, ensure_ascii=False, indent=2)
+            except Exception as meta_e:
+                self.logger.warning(f"Failed to write metadata for backup {filepath}: {meta_e}")
+
             self.logger.info(f"Database '{db_name}' backed up successfully to {filepath}")
             return backup
             
@@ -153,7 +261,7 @@ class BaseXBackupManager:
 
     def restore_database(self, db_name: str, backup_id: str, backup_file_path: str) -> bool:
         """
-        Restore a database from a backup file.
+        Restore a database from a backup file, including supplementary artifacts.
 
         Args:
             db_name: Name of the database to restore
@@ -167,40 +275,97 @@ class BaseXBackupManager:
         if not backup_path.exists():
             raise ValidationError(f"Backup file does not exist: {backup_path}")
 
+        # Check for invalid validation rules before doing anything
+        vr_path = backup_path.with_name(backup_path.name + '.validation_rules.json')
+        if vr_path.exists():
+            try:
+                content = vr_path.read_text(encoding='utf-8')
+                json.loads(content)
+            except json.JSONDecodeError as e:
+                self.logger.error(f"Invalid validation rules in backup: {e}")
+                raise ValidationError(f"Invalid validation rules in backup: {e}")
+
         try:
             # First, drop the existing database
             try:
-                result_func = BaseXConnector.execute_command
-                try:
-                    from unittest.mock import Mock
-                    if isinstance(result_func, Mock):
-                        result = result_func(f"DROP DB {db_name}")
-                    else:
-                        result = result_func(self.basex_connector, f"DROP DB {db_name}")
-                except Exception:
-                    result = result_func(self.basex_connector, f"DROP DB {db_name}")
-            except DatabaseError:
+                # Use the connector's execute_command if available, fallback to class method for tests
+                if hasattr(self.basex_connector, 'execute_command'):
+                    self.basex_connector.execute_command(f"DROP DB {db_name}")
+                else:
+                    BaseXConnector.execute_command(self.basex_connector, f"DROP DB {db_name}")
+            except Exception as e:
                 # Database might not exist, which is fine
-                pass
+                self.logger.debug(f"DROP DB failed (expected if DB doesn't exist): {e}")
 
             # Import the backup file back into BaseX
             import_command = f"CREATE DB {db_name} {backup_path}"
-            result_func = BaseXConnector.execute_command
-            try:
-                from unittest.mock import Mock
-                if isinstance(result_func, Mock):
-                    result = result_func(import_command)
-                else:
-                    result = result_func(self.basex_connector, import_command)
-            except Exception:
-                result = result_func(self.basex_connector, import_command)
+            if hasattr(self.basex_connector, 'execute_command'):
+                self.basex_connector.execute_command(import_command)
+            else:
+                BaseXConnector.execute_command(self.basex_connector, import_command)
             
+            # Restore supplementary files
+            try:
+                from flask import current_app
+                instance_path = Path(current_app.instance_path)
+            except RuntimeError:
+                # Working outside of application context (e.g., in unit tests)
+                # Skip supplementary file restoration
+                self.logger.warning("Cannot restore supplementary files outside of application context")
+                return True
+
+            # 1. Settings
+            settings_path = backup_path.with_name(backup_path.name + '.settings.json')
+            if settings_path.exists():
+                try:
+                    settings_data = json.loads(settings_path.read_text(encoding='utf-8'))
+                    if hasattr(current_app, 'config_manager') and current_app.config_manager:
+                        # Assuming settings_data is a list of projects or a single project dict
+                        if isinstance(settings_data, list) and len(settings_data) > 0:
+                            current_app.config_manager.update_current_settings(settings_data[0])
+                        elif isinstance(settings_data, dict):
+                            current_app.config_manager.update_current_settings(settings_data)
+                        self.logger.info("Restored project settings from backup")
+                except Exception as se:
+                    self.logger.warning(f"Failed to restore settings: {se}")
+
+            # 2. Display Profiles
+            dp_backup = backup_path.with_name(backup_path.name + '.display_profiles.json')
+            if dp_backup.exists():
+                try:
+                    shutil.copy2(dp_backup, instance_path / 'display_profiles.json')
+                    self.logger.info("Restored display profiles from backup")
+                except Exception as dpe:
+                    self.logger.warning(f"Failed to restore display profiles: {dpe}")
+
+            # 3. Validation Rules
+            if vr_path.exists():
+                try:
+                    shutil.copy2(vr_path, instance_path / 'validation_rules.json')
+                    self.logger.info("Restored validation rules from backup")
+                except Exception as vre:
+                    self.logger.warning(f"Failed to restore validation rules: {vre}")
+
+            # 4. Media
+            media_backup = backup_path.with_name(backup_path.name + '.media')
+            if media_backup.exists() and media_backup.is_dir():
+                try:
+                    uploads_dir = instance_path / 'uploads'
+                    uploads_dir.mkdir(parents=True, exist_ok=True)
+                    # Use copytree with dirs_exist_ok=True
+                    shutil.copytree(media_backup, uploads_dir, dirs_exist_ok=True)
+                    self.logger.info("Restored media files from backup")
+                except Exception as me:
+                    self.logger.warning(f"Failed to restore media files: {me}")
+
             self.logger.info(f"Database '{db_name}' restored successfully from {backup_path}")
             return True
             
         except Exception as e:
             error_msg = f"Failed to restore database '{db_name}' from {backup_path}: {str(e)}"
             self.logger.error(error_msg)
+            if isinstance(e, ValidationError):
+                raise
             raise DatabaseError(error_msg) from e
 
     def validate_backup(self, backup_file_path: str) -> Dict[str, Any]:
@@ -294,12 +459,79 @@ class BaseXBackupManager:
             List of backup dictionaries
         """
         backups = []
+        found_ids = set()
+
+        # Phase 1: Scan for .meta.json files
+        for meta_file in self.backup_directory.glob("*.lift.meta.json"):
+            try:
+                with open(meta_file, 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+                    
+                    # Extract info
+                    extracted_db_name = meta.get('db_name')
+                    if db_name and extracted_db_name != db_name:
+                        continue
+                    
+                    # Try to find the associated lift file
+                    # 1. From meta content
+                    file_path = None
+                    if 'file_path' in meta:
+                        file_path = Path(meta['file_path'])
+                        if not file_path.exists():
+                            # Maybe it was moved, check current directory
+                            file_path = self.backup_directory / file_path.name
+                    
+                    # 2. From meta filename (meta_file is {filename}.meta.json)
+                    if not file_path or not file_path.exists():
+                        filename = meta_file.name.replace('.meta.json', '')
+                        file_path = self.backup_directory / filename
+                    
+                    if not file_path.exists():
+                        continue
+                        
+                    # Update meta with current values
+                    meta['file_path'] = str(file_path)
+                    meta['filename'] = file_path.name
+                    
+                    # Ensure timestamp exists
+                    if 'timestamp' not in meta:
+                        timestamp_str = None
+                        # Try to extract from filename
+                        if '_backup_' in file_path.name:
+                            try:
+                                ts_part = file_path.name.split('_backup_')[1].replace('.lift', '')
+                                timestamp_str = datetime.strptime(ts_part, "%Y%m%d_%H%M%S").isoformat()
+                            except:
+                                pass
+                        if not timestamp_str:
+                            timestamp_str = datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
+                        meta['timestamp'] = timestamp_str
+
+                    # Add is_valid flag
+                    if 'is_valid' not in meta:
+                        validation = self.validate_backup(str(file_path))
+                        meta['is_valid'] = validation['is_valid']
+
+                    # Ensure display_name is set (similar to Backup.to_dict() logic)
+                    if 'display_name' not in meta or not meta['display_name']:
+                        if meta.get('description') and str(meta['description']).strip():
+                            meta['display_name'] = str(meta['description']).strip()
+                        elif file_path.name:
+                            meta['display_name'] = file_path.name
+                        else:
+                            meta['display_name'] = meta.get('timestamp') or ''
+
+                    backups.append(meta)
+                    found_ids.add(meta.get('id'))
+            except Exception:
+                continue
+
+        # Phase 2: Scan for .lift files not covered by meta
         for file_path in self.backup_directory.glob("*.lift"):
-            # Extract database name and timestamp from filename
             filename = file_path.name
             # Expected format: {db_name}_backup_{timestamp}.lift
-            if filename.endswith("_backup_") or not "_" in filename:
-                continue  # Skip if doesn't match expected pattern
+            if "_backup_" not in filename:
+                continue
                 
             parts = filename.split("_backup_")
             if len(parts) != 2:
@@ -307,7 +539,11 @@ class BaseXBackupManager:
                 
             extracted_db_name = parts[0]
             timestamp_part = parts[1].replace(".lift", "")
+            backup_id = f"{extracted_db_name}_{timestamp_part}"
             
+            if backup_id in found_ids:
+                continue
+                
             # If filtering by database name, skip if it doesn't match
             if db_name and extracted_db_name != db_name:
                 continue
@@ -325,19 +561,25 @@ class BaseXBackupManager:
             # Validate backup
             validation = self.validate_backup(str(file_path))
             
+            # Skip empty files (size 0) without metadata
+            if file_path.stat().st_size == 0:
+                continue
+            
             backup_info = {
-                'id': f"{extracted_db_name}_{timestamp_part}",
+                'id': backup_id,
                 'db_name': extracted_db_name,
                 'file_path': str(file_path),
-                'file_size': file_path.stat().st_size if file_path.exists() else 0,
+                'file_size': file_path.stat().st_size,
                 'timestamp': timestamp_str,
                 'is_valid': validation['is_valid'],
-                'filename': filename
+                'filename': filename,
+                'status': 'completed',
+                'type': 'manual'
             }
             backups.append(backup_info)
         
         # Sort by timestamp, newest first
-        backups.sort(key=lambda x: x['timestamp'], reverse=True)
+        backups.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
         return backups
 
     def cleanup_old_backups(self, db_name: str, keep_count: int = 10) -> int:
@@ -379,6 +621,9 @@ class BaseXBackupManager:
         else:
             canonical = lift_path.parent / 'lift-ranges'
 
+        # Specific lift-ranges file for this backup to avoid collision
+        specific_ranges = lift_path.with_name(lift_path.name + '.lift-ranges')
+
         # Also create legacy .ranges.xml for test compatibility
         legacy_xml = Path(str(lift_path) + '.ranges.xml')
 
@@ -401,20 +646,30 @@ class BaseXBackupManager:
 
         # Generate ranges using real data from database or sample file
         try:
+            # We don't want to change the global database state of the connector permanently
+            # but we need it for this operation
+            original_db = self.basex_connector.database
             self.basex_connector.database = db_name
-            self.basex_connector.execute_command(f"OPEN {db_name}")
+            try:
+                self.basex_connector.execute_command(f"OPEN {db_name}")
+            except Exception:
+                pass
             
             # Try to get ranges from database
             from app.services.ranges_service import RangesService
             ranges_service = RangesService(self.basex_connector)
             ranges_data = ranges_service.get_all_ranges()
             
+            # Restore original db name
+            self.basex_connector.database = original_db
+
             if ranges_data:
                 # Use real ranges from database
                 from app.services.lift_export_service import LIFTExportService
                 export_service = LIFTExportService(self.basex_connector, ranges_service)
+                # Write to all formats
                 export_service._write_ranges_xml(ranges_data, str(canonical))
-                # Also create legacy XML for test compatibility
+                export_service._write_ranges_xml(ranges_data, str(specific_ranges))
                 export_service._write_ranges_xml(ranges_data, str(legacy_xml))
                 self.logger.info(f"Exported {len(ranges_data)} real ranges from database")
                 return
@@ -426,6 +681,7 @@ class BaseXBackupManager:
             sample_ranges = Path(__file__).parent.parent / 'sample-lift-file' / 'sample-lift-file.lift-ranges'
             if sample_ranges.exists():
                 shutil.copy2(sample_ranges, canonical)
+                shutil.copy2(sample_ranges, specific_ranges)
                 shutil.copy2(sample_ranges, legacy_xml)
                 self.logger.info("Used sample ranges file as fallback")
                 return
@@ -433,10 +689,11 @@ class BaseXBackupManager:
             self.logger.warning(f"Failed to copy sample ranges: {e}")
 
         # Final fallback - generate minimal but real ranges
-        self._generate_minimal_ranges(canonical)
-        # Also copy to legacy location for test compatibility
-        if canonical.exists():
-            shutil.copy2(canonical, legacy_xml)
+        self._generate_minimal_ranges(specific_ranges)
+        # Also copy to other locations
+        if specific_ranges.exists():
+            shutil.copy2(specific_ranges, canonical)
+            shutil.copy2(specific_ranges, legacy_xml)
 
     def _generate_minimal_ranges(self, output_path: Path) -> None:
         """Generate minimal but meaningful ranges when no data is available."""
@@ -764,11 +1021,11 @@ class BaseXBackupManager:
             # Remove sidecar files
             sidecars = [
                 Path(str(file_path) + '.ranges.xml'),
+                Path(str(file_path) + '.lift-ranges'),
                 Path(str(file_path) + '.display_profiles.json'),
                 Path(str(file_path) + '.validation_rules.json'),
                 Path(str(file_path) + '.settings.json'),
-                Path(str(file_path) + '.meta.json'),
-                self.backup_directory / 'lift-ranges'
+                Path(str(file_path) + '.meta.json')
             ]
             
             for sidecar in sidecars:
@@ -781,6 +1038,9 @@ class BaseXBackupManager:
                         deleted_any = True
                 except Exception:
                     pass
+            
+            # Note: We do NOT delete the shared 'self.backup_directory / "lift-ranges"' 
+            # as it might be used by other backups or the system.
                     
             return deleted_any
         except Exception:

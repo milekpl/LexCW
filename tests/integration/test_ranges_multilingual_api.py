@@ -69,7 +69,7 @@ class TestMultilingualElementAPI:
                 'pl': 'Etykieta Polska',
                 'pt': 'Rótulo Português'
             },
-            'descriptions': {
+            'description': {
                 'en': 'English description',
                 'pl': 'Polski opis',
                 'pt': 'Descrição em português'
@@ -97,7 +97,7 @@ class TestMultilingualElementAPI:
         element_data = {
             'id': 'ml-element',
             'labels': {'en': 'English', 'pl': 'Polski'},
-            'descriptions': {'en': 'Desc EN', 'pl': 'Opis PL'},
+            'description': {'en': 'Desc EN', 'pl': 'Opis PL'},
             'abbrevs': {'en': 'EN', 'pl': 'PL'}
         }
         service.create_range_element('ml-range', element_data)
@@ -115,9 +115,9 @@ class TestMultilingualElementAPI:
         assert 'labels' in element
         assert element['labels'].get('en') == 'English'
         assert element['labels'].get('pl') == 'Polski'
-        assert 'descriptions' in element
-        assert element['descriptions'].get('en') == 'Desc EN'
-        assert element['descriptions'].get('pl') == 'Opis PL'
+        assert 'description' in element
+        assert element['description'].get('en') == 'Desc EN'
+        assert element['description'].get('pl') == 'Opis PL'
         assert 'abbrevs' in element
         assert element['abbrevs'].get('en') == 'EN'
         assert element['abbrevs'].get('pl') == 'PL'
@@ -132,7 +132,7 @@ class TestMultilingualElementAPI:
         element_data = {
             'id': 'update-element',
             'labels': {'en': 'Old EN'},
-            'descriptions': {},
+            'description': {},
             'abbrevs': {}
         }
         service.create_range_element('update-range', element_data)
@@ -144,7 +144,7 @@ class TestMultilingualElementAPI:
                 'pl': 'Nowy Polski',
                 'fr': 'Nouveau Français'
             },
-            'descriptions': {
+            'description': {
                 'en': 'Updated description',
                 'pl': 'Zaktualizowany opis'
             },
@@ -183,13 +183,13 @@ class TestMultilingualElementAPI:
             {
                 'id': 'elem-1',
                 'labels': {'en': 'First', 'pl': 'Pierwszy'},
-                'descriptions': {'en': 'First desc'},
+                'description': {'en': 'First desc'},
                 'abbrevs': {'en': 'F1'}
             },
             {
                 'id': 'elem-2',
                 'labels': {'en': 'Second', 'pl': 'Drugi'},
-                'descriptions': {'en': 'Second desc'},
+                'description': {'en': 'Second desc'},
                 'abbrevs': {'en': 'F2'}
             }
         ]
@@ -215,7 +215,7 @@ class TestMultilingualElementAPI:
         for elem in data:
             if elem['id'] == 'elem-1':
                 assert 'labels' in elem
-                assert 'descriptions' in elem
+                assert 'description' in elem
                 assert 'abbrevs' in elem
                 assert elem['labels'].get('en') == 'First'
                 assert elem['labels'].get('pl') == 'Pierwszy'

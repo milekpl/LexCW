@@ -186,20 +186,11 @@ class TestBackupAPI:
         with app.app_context():
             from flask import current_app
             from pathlib import Path
+            from app.services.basex_backup_manager import BaseXBackupManager
 
-            # Determine the active backup directory from config if possible, otherwise use instance/backups
-            try:
-                bcfg = current_app.config_manager.get_backup_settings() if hasattr(current_app, 'config_manager') else {}
-                dir_setting = bcfg.get('directory', '') if isinstance(bcfg, dict) else ''
-                if dir_setting:
-                    if dir_setting.startswith('/'):
-                        backup_dir = Path(dir_setting)
-                    else:
-                        backup_dir = Path(current_app.root_path) / dir_setting
-                else:
-                    backup_dir = Path(current_app.root_path) / 'instance' / 'backups'
-            except Exception:
-                backup_dir = Path(current_app.root_path) / 'instance' / 'backups'
+            # Use the same backup directory that BaseXBackupManager is configured with
+            backup_manager = current_app.injector.get(BaseXBackupManager)
+            backup_dir = backup_manager.get_backup_directory()
             backup_dir.mkdir(parents=True, exist_ok=True)
 
             # Create a single .lift backup and supplementary files

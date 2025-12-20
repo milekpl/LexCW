@@ -21,7 +21,7 @@ def test_backup_zip_contains_all_artifacts(page: Page, app_url: str, app) -> Non
     sample_media.write_text('media', encoding='utf-8')
 
     # Navigate to the backup page and create a backup
-    page.goto(f"{app_url}/backup/")
+    page.goto(f"{app_url}/backup/management")
     page.wait_for_selector('#create-backup-btn', state='visible', timeout=10000)
     page.fill('#backup-description', 'e2e backup test')
     # Check include media if present

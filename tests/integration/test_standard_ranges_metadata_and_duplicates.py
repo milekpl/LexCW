@@ -18,14 +18,15 @@ def test_standard_ranges_config_does_not_duplicate_and_label_fallback(client, ap
             'id': 'variant-type',
             'values': [{'id': 'V1'}],
             'labels': {},
-            'descriptions': {}
+            'description': {}
         }
     }
 
     ranges = service.get_all_ranges()
 
     # There should be exactly one key for variant-type (no duplicate singular/plural)
-    assert ('variant-type' in ranges) and ('variant-type' not in ranges)
+    assert 'variant-type' in ranges
+    assert 'variant_types' not in ranges  # No plural duplicate
 
     # The label should be filled from metadata since LIFT had none
     assert ranges['variant-type']['label'] in ('Variant Entry Types', 'variant-type')
@@ -44,7 +45,7 @@ def test_config_not_applied_when_lift_has_same_range(client, app):
             'id': 'complex-form-type',
             'values': [{'id': 'X'}],
             'labels': {},
-            'descriptions': {}
+            'description': {}
         }
     }
 

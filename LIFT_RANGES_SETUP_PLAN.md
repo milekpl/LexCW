@@ -1,3 +1,13 @@
+## Note on Variant-Types and Complex-Form-Types
+
+According to the LIFT 0.13 standard, variant-types and complex-form-types are not defined in the `.lift-ranges` XML file. Instead, they are represented as traits on lexical relations or variants, and their values are discovered dynamically from the data or set up per project (often via a custom editor or database insert).
+
+**Best Practice:**
+- Maintain a recommended set of variant-types and complex-form-types (e.g., dialect, register, compound, reduplicated) in a separate JSON or YAML file for easy editing and installation.
+- Enhance the install procedure for new projects to read these sets and insert them into the database or expose them via the editor/API, ensuring lexicographers have access to best-practice values from the start.
+- Document these recommended sets alongside the `.lift-ranges` file for clarity and future customization.
+
+This approach keeps the project setup minimal, standards-compliant, and easily extensible for future needs.
 # LIFT Ranges Setup & Best Practice Implementation Plan
 
 ## Objective

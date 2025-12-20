@@ -112,8 +112,8 @@ class TestBaseXBackupManager:
         assert backup.file_path == backup_file
         assert backup.file_size > 0
         
-        # Verify the command was executed
-        self.mock_basex_connector.execute_command.assert_called_once()
+        # Verify the command was executed (may be called multiple times for ranges)
+        self.mock_basex_connector.execute_command.assert_called()
 
         # display_name should prefer the description
         assert backup.to_dict().get('display_name') == 'Test backup'

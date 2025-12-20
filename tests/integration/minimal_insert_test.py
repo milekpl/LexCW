@@ -3,6 +3,15 @@ from app.utils.xquery_builder import XQueryBuilder
 
 @pytest.mark.integration
 def test_minimal_insert(dict_service_with_db):
+    # First, create the complex_entry that the test will modify
+    from app.models.entry import Entry
+    entry = Entry(
+        id_="complex_entry",
+        lexical_unit={"en": "complex"},
+        senses=[{"id": "initial_sense", "definition": {"en": "initial definition"}}]
+    )
+    dict_service_with_db.create_entry(entry)
+    
     db_name = dict_service_with_db.db_connector.database
     prologue = f'''
     declare namespace lift = "{XQueryBuilder.LIFT_NAMESPACE}";

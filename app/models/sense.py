@@ -95,44 +95,50 @@ class Sense(BaseModel):
                 self.semantic_domains = None
 
         # Handle domain_type - conceptually distinct from semantic domains.
-        # Single-value field. If a list is provided, take the first non-empty string.
+        # Can be a list of values (LIFT standard) or a single value.
         domain_type_value = kwargs.pop('domain_type', None)
         if isinstance(domain_type_value, list):
-            first = next(
-                (v.strip() for v in domain_type_value if isinstance(v, str) and v.strip()),
-                None,
-            )
-            self._domain_type_value = first
+            # Filter out empty values and strip whitespace
+            self._domain_type_value = [v.strip() for v in domain_type_value if isinstance(v, str) and v.strip()]
         elif isinstance(domain_type_value, str):
             val = domain_type_value.strip()
-            self._domain_type_value = val if val else None
+            self._domain_type_value = [val] if val else []
         elif domain_type_value is None:
-            self._domain_type_value = None
+            self._domain_type_value = []
         else:
             str_value = str(domain_type_value).strip()
-            self._domain_type_value = str_value if str_value else None
+            self._domain_type_value = [str_value] if str_value else []
 
         # Now call super() with remaining kwargs (after handling our custom params)
         super().__init__(id_, **kwargs)
 
     @property
-    def domain_type(self) -> Optional[str]:
-        """Return the domain-type value (distinct from semantic domains)."""
-        return self._domain_type_value
+    def domain_type(self) -> Union[str, List[str]]:
+        """Return the domain-type value(s) (distinct from semantic domains).
+        
+        For backward compatibility, returns a single string if only one value,
+        otherwise returns a list.
+        """
+        if len(self._domain_type_value) == 1:
+            return self._domain_type_value[0]
+        elif len(self._domain_type_value) > 1:
+            return self._domain_type_value
+        else:
+            return ""
 
     @domain_type.setter
     def domain_type(self, value: Optional[Union[str, List[str]]]):
         if value is None:
-            self._domain_type_value = None
+            self._domain_type_value = []
         elif isinstance(value, list):
-            first = next((v.strip() for v in value if isinstance(v, str) and v.strip()), None)
-            self._domain_type_value = first
+            # Filter out empty values and strip whitespace
+            self._domain_type_value = [v.strip() for v in value if isinstance(v, str) and v.strip()]
         elif isinstance(value, str):
-            v = value.strip()
-            self._domain_type_value = v if v else None
+            val = value.strip()
+            self._domain_type_value = [val] if val else []
         else:
-            v = str(value).strip()
-            self._domain_type_value = v if v else None
+            str_value = str(value).strip()
+            self._domain_type_value = [str_value] if str_value else []
 
     @property
     def semantic_domains(self) -> Optional[List[str]]:

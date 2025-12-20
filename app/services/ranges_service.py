@@ -129,7 +129,41 @@ def reload_custom_ranges_config() -> None:
 
 class RangesService:
     """Service for CRUD operations on LIFT ranges."""
-    
+
+    def save_custom_ranges(self, custom_ranges: Dict[str, List[Dict[str, Any]]]) -> None:
+        """
+        Save custom trait-based ranges to config/custom_ranges.json, merging with any existing values.
+        Args:
+            custom_ranges: Dict mapping range names to lists of range elements (id, label, definition)
+        """
+        import json
+        _app_dir = os.path.dirname(os.path.dirname(__file__))
+        _cfg_path = os.path.join(_app_dir, 'config', 'custom_ranges.json')
+        # Load existing custom_ranges.json if present
+        if os.path.exists(_cfg_path):
+            with open(_cfg_path, 'r', encoding='utf-8') as f:
+                existing = json.load(f)
+        else:
+            existing = {}
+        # Merge new custom_ranges into existing
+        for range_name, elements in custom_ranges.items():
+            # Format for each element: id, label, definition
+            formatted = [
+                {
+                    'id': e['id'],
+                    'label': e.get('label', e['id']),
+                    'description': e.get('definition', '')
+                } for e in elements
+            ]
+            existing[range_name] = {
+                'type': 'custom',
+                'values': formatted
+            }
+        # Save merged result
+        with open(_cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+        self.logger.info(f"Saved custom trait ranges to {os.path.relpath(_cfg_path)}: {list(custom_ranges.keys())}")
+
     def __init__(self, db_connector: BaseXConnector):
         """
         Initialize RangesService.
@@ -201,8 +235,8 @@ class RangesService:
         # range (from our known list). Also normalize 'description' field
         # to be a dict for compatibility with custom ranges.
         for rid, rdata in list(ranges.items()):
-            # Normalize descriptions: parser provides 'descriptions'; keep it
-            descriptions = rdata.get('descriptions') or {}
+            # Normalize descriptions: parser provides 'description'; keep it
+            descriptions = rdata.get('description') or {}
             labels = rdata.get('labels') or {}
 
             # Normalize strings to dicts if parser returned simple strings
@@ -381,7 +415,7 @@ class RangesService:
             range_data: {
                 'id': str (required),
                 'labels': Dict[str, str],  # lang -> text
-                'descriptions': Dict[str, str]  # optional
+                'description': Dict[str, str]  # optional
             }
         
         Returns:
@@ -403,7 +437,7 @@ class RangesService:
         
         # Build XML
         labels_xml = self._build_multilingual_xml('label', range_data.get('labels', {}))
-        descriptions_xml = self._build_multilingual_xml('description', range_data.get('descriptions', {}))
+        descriptions_xml = self._build_multilingual_xml('description', range_data.get('description', {}))
         
         # Execute XQuery insert
         db_name = self.db_connector.database
@@ -447,7 +481,7 @@ class RangesService:
         # Create updated range
         guid = range_data.get('guid', str(uuid.uuid4()))
         labels_xml = self._build_multilingual_xml('label', range_data.get('labels', {}))
-        descriptions_xml = self._build_multilingual_xml('description', range_data.get('descriptions', {}))
+        descriptions_xml = self._build_multilingual_xml('description', range_data.get('description', {}))
         
         # Reconstruct range with existing elements if any
         elements_xml = ""

@@ -194,20 +194,21 @@ def create_backup() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
                 current_app.logger.debug('Creating synthetic backup for testing mode')
                 from pathlib import Path
                 ts = datetime.utcnow()
-                filename = f"{db_name}_backup_{ts.strftime('%Y%m%d_%H%M%S')}.lift"
+                timestamp_str = ts.strftime('%Y%m%d_%H%M%S')
+                filename = f"{db_name}_backup_{timestamp_str}.lift"
                 backup_dir = backup_manager.get_backup_directory()
                 filepath = backup_dir / filename
                 # Write a substantive LIFT file with at least one entry (tests expect real contents)
                 filepath.parent.mkdir(parents=True, exist_ok=True)
-                lift_content = '''<?xml version="1.0" encoding="UTF-8"?>
+                lift_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13">
-  <entry id="test_entry_1">
+  <entry id="test_entry_{uuid.uuid4().hex[:8]}">
     <lexical-unit>
       <form lang="en"><text>test</text></form>
     </lexical-unit>
     <sense id="sense1">
       <definition>
-        <form lang="en"><text>Test definition</text></form>
+        <form lang="en"><text>Test {description}</text></form>
       </definition>
     </sense>
   </entry>
@@ -215,22 +216,24 @@ def create_backup() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
                 with open(filepath, 'w', encoding='utf-8') as fh:
                     fh.write(lift_content)
 
-                # Write metadata
-                meta = {
-                    'id': f"{db_name}_{ts.strftime('%Y%m%d_%H%M%S')}",
-                    'db_name': db_name,
-                    'file_path': str(filepath),
-                    'file_size': filepath.stat().st_size,
-                    'timestamp': ts.isoformat(),
-                    'description': description,
-                    'display_name': description or filename,
-                    'type': backup_type,
-                    'status': 'completed'
-                }
+                # Create backup object to use its to_dict
+                backup = Backup(
+                    db_name=db_name,
+                    type_=backup_type,
+                    file_path=str(filepath),
+                    file_size=filepath.stat().st_size,
+                    description=description,
+                    status='completed'
+                )
+                meta = backup.to_dict()
+                # Ensure id is consistent with filename for later retrieval
+                meta['id'] = f"{db_name}_{timestamp_str}"
+                meta['display_name'] = description or filename
+                
+                # Write metadata file
                 meta_path = Path(str(filepath) + '.meta.json')
                 with open(meta_path, 'w', encoding='utf-8') as mf:
-                    json.dump(meta, mf)
-                current_app.logger.debug('Wrote meta to %s', meta_path)
+                    json.dump(meta, mf, ensure_ascii=False, indent=2)
 
                 # Supplementary artifacts via the same codepaths as real backups
                 backup_manager._write_settings_sidecar(filepath)
@@ -239,20 +242,16 @@ def create_backup() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
                 backup_manager._write_ranges_sidecar(filepath, db_name=db_name)
 
                 # Include media if requested
-                try:
-                    if include_media:
-                        from pathlib import Path as _P
+                if include_media:
+                    try:
                         uploads = Path(current_app.instance_path) / 'uploads'
                         if uploads.exists() and uploads.is_dir():
                             tgt = Path(str(filepath) + '.media')
                             import shutil
                             shutil.copytree(uploads, tgt, dirs_exist_ok=True)
-                            current_app.logger.debug('Copied media to %s', tgt)
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
 
-                current_app.logger.debug('Synthetic backup created successfully at %s', filepath)
-                # mark operation as done with the produced metadata
                 current_app.backup_ops[op_id] = {'status': 'done', 'backup_meta': meta}
                 return jsonify({'success': True, 'data': meta, 'op_id': op_id, 'message': f'Backup created successfully for {db_name}'}), 200
 
@@ -612,15 +611,22 @@ def download_backup(backup_id: str):
             if candidate.exists() and candidate.is_file():
                 sup_files.append(candidate)
 
+        # Look for ranges in parent (shared) or backup-specific location
         canonical_lift_ranges = p.parent / 'lift-ranges'
-        include_lift_ranges = canonical_lift_ranges.exists() and canonical_lift_ranges.is_file()
+        specific_lift_ranges = p.with_name(p.name + '.lift-ranges')
+        
+        ranges_to_include = None
+        if specific_lift_ranges.exists() and specific_lift_ranges.is_file():
+            ranges_to_include = specific_lift_ranges
+        elif canonical_lift_ranges.exists() and canonical_lift_ranges.is_file():
+            ranges_to_include = canonical_lift_ranges
 
         # Include media directory if present (file-based backing)
         media_dir = p.with_name(p.name + '.media')
         include_media_dir = media_dir.exists() and media_dir.is_dir()
 
         # If there are supplementary files or media, bundle into a zip (in-memory to avoid truncation)
-        if sup_files or include_media_dir or include_lift_ranges:
+        if sup_files or include_media_dir or ranges_to_include:
             import io
             import zipfile
 
@@ -629,8 +635,8 @@ def download_backup(backup_id: str):
                 z.write(p, arcname=p.name)
                 for f in sup_files:
                     z.write(f, arcname=f.name)
-                if include_lift_ranges:
-                    z.write(canonical_lift_ranges, arcname='lift-ranges')
+                if ranges_to_include:
+                    z.write(ranges_to_include, arcname='lift-ranges')
                 if include_media_dir:
                     for mf in media_dir.rglob('*'):
                         if mf.is_file():

@@ -28,7 +28,7 @@ def test_update_entry_with_dict_field_logs_error(client, caplog):
     assert create_response.status_code == 201
     
     # Get the entry to verify it exists
-    get_response = client.get(f'/api/entries/{test_id}')
+    get_response = client.get(f'/api/xml/entries/{test_id}')
     assert get_response.status_code == 200
     
     # Now try to update with invalid note structure

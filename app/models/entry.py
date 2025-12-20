@@ -83,6 +83,7 @@ class Variant(BaseModel):
     def __init__(self, form: Dict[str, str], **kwargs: Any):
         super().__init__(**kwargs)
         self.form: Dict[str, str] = form
+        self.grammatical_info: str | None = kwargs.pop('grammatical_info', None)
         self.grammatical_traits: Dict[str, str] | None = kwargs.pop('grammatical_traits', None)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -201,7 +202,12 @@ class Entry(BaseModel):
         self.grammatical_info: Optional[str] = kwargs.get('grammatical_info')
         
         # Handle morphological type with auto-classification if not provided
-        self.morph_type: Optional[str] = self._get_or_classify_morph_type(kwargs.get('morph_type'))
+        existing_morph_type = kwargs.get('morph_type') or self.traits.get('morph-type')
+        self.morph_type: Optional[str] = self._get_or_classify_morph_type(existing_morph_type)
+        
+        # Ensure morph_type is also in traits for XML serialization
+        if self.morph_type and 'morph-type' not in self.traits:
+            self.traits['morph-type'] = self.morph_type
         
         # Handle notes - ensure it's a dictionary and preserve nested dicts
         notes_raw = kwargs.get('notes', {})

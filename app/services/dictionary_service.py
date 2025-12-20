@@ -38,14 +38,24 @@ class DictionaryService:
     as well as more complex operations like searching and batch processing.
     """
 
-    def __init__(self, db_connector: Union[BaseXConnector, MockDatabaseConnector]):
+    def __init__(self, 
+                 db_connector: Union[BaseXConnector, MockDatabaseConnector], 
+                 history_service: Optional['OperationHistoryService'] = None,
+                 backup_manager: Optional['BaseXBackupManager'] = None,
+                 backup_scheduler: Optional['BackupScheduler'] = None):
         """
         Initialize a dictionary service.
 
         Args:
             db_connector: Database connector for accessing the BaseX database.
+            history_service: Optional service for recording operation history.
+            backup_manager: Optional service for managing database backups.
+            backup_scheduler: Optional service for scheduling backups.
         """
         self.db_connector = db_connector
+        self.history_service = history_service
+        self.backup_manager = backup_manager
+        self.backup_scheduler = backup_scheduler
         self.logger = logging.getLogger(__name__)
         # Don't validate when loading entries - only validate on save
         self.lift_parser = LIFTParser(validate=False)
@@ -295,6 +305,15 @@ class DictionaryService:
 
             self.db_connector.execute_update(query)
 
+            # Record operation in history
+            if self.history_service:
+                self.history_service.record_operation(
+                    operation_type='create',
+                    data={'id': entry.id, 'lexical_unit': entry.lexical_unit},
+                    entry_id=entry.id,
+                    db_name=self.db_connector.database
+                )
+
             # Return the entry ID
             return entry.id
 
@@ -347,6 +366,15 @@ class DictionaryService:
             )
 
             self.db_connector.execute_update(query)
+
+            # Record operation in history
+            if self.history_service:
+                self.history_service.record_operation(
+                    operation_type='update',
+                    data={'id': entry.id, 'lexical_unit': entry.lexical_unit},
+                    entry_id=entry.id,
+                    db_name=self.db_connector.database
+                )
 
         except (NotFoundError, ValidationError):
             raise
@@ -544,6 +572,15 @@ class DictionaryService:
             )
 
             self.db_connector.execute_update(query)
+
+            # Record operation in history
+            if self.history_service:
+                self.history_service.record_operation(
+                    operation_type='delete',
+                    data={'id': entry_id},
+                    entry_id=entry_id,
+                    db_name=self.db_connector.database
+                )
             return True
 
         except NotFoundError:
@@ -1310,14 +1347,15 @@ class DictionaryService:
 
             # Use namespace-aware queries
             has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
             sense_path = self._query_builder.get_element_path("sense", has_ns)
             example_path = self._query_builder.get_element_path("example", has_ns)
 
-            sense_query = f"count(collection('{db_name}')//{sense_path})"
+            sense_query = f"{prologue} count(collection('{db_name}')//{sense_path})"
             sense_result = self.db_connector.execute_query(sense_query)
             sense_count = int(sense_result) if sense_result else 0
 
-            example_query = f"count(collection('{db_name}')//{example_path})"
+            example_query = f"{prologue} count(collection('{db_name}')//{example_path})"
             example_result = self.db_connector.execute_query(example_query)
             example_count = int(example_result) if example_result else 0
 
@@ -1790,82 +1828,65 @@ class DictionaryService:
 
     def install_recommended_ranges(self) -> Dict[str, Any]:
         """
-        Install a minimal recommended set of LIFT ranges into the database.
+        Install minimal LIFT ranges and recommended trait values from config files.
 
-        This is intended for initial project setup (wizard) or when ranges
-        are missing. It will not overwrite existing ranges; if ranges are
-        present, it will raise a DatabaseError.
+        Loads config/minimal.lift-ranges (LIFT XML) and config/recommended_traits.yaml (YAML)
+        and seeds both LIFT-based and trait-based values into the database.
+        Will not overwrite existing ranges; raises DatabaseError if ranges exist.
         """
-        # If ranges already exist, do not overwrite
-        existing = self.get_ranges()
-        if existing:
-            raise DatabaseError("Ranges already exist in the database")
-
-        minimal_ranges_xml = (
-            '<lift-ranges>'
-            '<range id="grammatical-info">'
-            '  <range-element id="Noun"><label><form lang="en"><text>Noun</text></form></label></range-element>'
-            '  <range-element id="Verb"><label><form lang="en"><text>Verb</text></form></label></range-element>'
-            '  <range-element id="Adjective"><label><form lang="en"><text>Adjective</text></form></label></range-element>'
-            '  <range-element id="Adverb"><label><form lang="en"><text>Adverb</text></form></label></range-element>'
-            '</range>'
-            '<range id="lexical-relation">'
-            '  <range-element id="synonym"><label><form lang="en"><text>Synonym</text></form></label></range-element>'
-            '  <range-element id="antonym"><label><form lang="en"><text>Antonym</text></form></label></range-element>'
-            '</range>'
-            '<range id="status">'
-            '  <range-element id="Proposed"><label><form lang="en"><text>Proposed</text></form></label></range-element>'
-            '  <range-element id="Published"><label><form lang="en"><text>Published</text></form></label></range-element>'
-            '</range>'
-            '<range id="etymology">'
-            '  <range-element id="borrowed"><label><form lang="en"><text>borrowed</text></form></label></range-element>'
-            '  <range-element id="native"><label><form lang="en"><text>native</text></form></label></range-element>'
-            '</range>'
-            '<range id="morph-type">'
-            '  <range-element id="stem"><label><form lang="en"><text>stem</text></form></label></range-element>'
-            '  <range-element id="prefix"><label><form lang="en"><text>prefix</text></form></label></range-element>'
-            '  <range-element id="suffix"><label><form lang="en"><text>suffix</text></form></label></range-element>'
-            '  <range-element id="phrase"><label><form lang="en"><text>phrase</text></form></label></range-element>'
-            '</range>'
-            '<range id="usage-type">'
-            '  <range-element id="dialect"><label><form lang="en"><text>Dialect</text></form></label></range-element>'
-            '  <range-element id="register"><label><form lang="en"><text>Register</text></form></label></range-element>'
-            '  <range-element id="colloquial"><label><form lang="en"><text>Colloquial</text></form></label></range-element>'
-            '</range>'
-            '<range id="semantic-domain">'
-            '  <range-element id="sd-1"><label><form lang="en"><text>Semantic Domain 1</text></form></label></range-element>'
-            '  <range-element id="sd-2"><label><form lang="en"><text>Semantic Domain 2</text></form></label></range-element>'
-            '</range>'
-            '</lift-ranges>'
-        )
-
-        # Do not escape quotes; wrap the XML in single quotes for the command
-
+        import yaml
         try:
             db_name = self.db_connector.database
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Add a recommended ranges document using a temp file to avoid shell
-            # escaping issues with quotes in XML attributes
-            import tempfile
+            # If ranges already exist, do not overwrite
+            existing = self.get_ranges()
+            if existing:
+                raise DatabaseError("Ranges already exist in the database")
 
-            tmp_file = None
-            try:
-                tmp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml")
-                tmp_file.write(minimal_ranges_xml)
-                tmp_file.flush()
-                tmp_file.close()
-                # Use ADD TO with a path to the temporary file
-                tmp_path = tmp_file.name.replace("\\", "/")
-                cmd = f'ADD TO recommended-ranges.xml "{tmp_path}"'
-                self.db_connector.execute_command(cmd)
-            finally:
-                if tmp_file:
-                    try:
-                        os.unlink(tmp_file.name)
-                    except Exception:
-                        pass
+            # --- Load minimal.lift-ranges and add to DB ---
+            minimal_ranges_path = os.path.join(os.path.dirname(__file__), '../../config/minimal.lift-ranges')
+            minimal_ranges_path = os.path.abspath(minimal_ranges_path)
+            if not os.path.exists(minimal_ranges_path):
+                raise FileNotFoundError(f"minimal.lift-ranges not found: {minimal_ranges_path}")
+            self.logger.info(f"Adding minimal.lift-ranges to database: {minimal_ranges_path}")
+            
+            minimal_ranges_path = os.path.abspath(minimal_ranges_path)
+            minimal_ranges_path = minimal_ranges_path.replace("\\", "/")
+            self.db_connector.execute_command(f'ADD "{minimal_ranges_path}"')
+            
+            # --- Load recommended_traits.yaml and seed trait values ---
+            traits_path = os.path.join(os.path.dirname(__file__), '../../config/recommended_traits.yaml')
+            traits_path = os.path.abspath(traits_path)
+            if not os.path.exists(traits_path):
+                raise FileNotFoundError(f"recommended_traits.yaml not found: {traits_path}")
+            with open(traits_path, 'r', encoding='utf-8') as f:
+                traits_data = yaml.safe_load(f)
+
+            # Seed trait values (variant-types, complex-form-types) as custom ranges
+            # Use RangesService to create/update custom_ranges.json
+            ranges_service = RangesService(self.db_connector)
+            custom_ranges = {}
+            if 'variant-types' in traits_data:
+                custom_ranges['variant-type'] = [
+                    {
+                        'id': v['id'],
+                        'label': v.get('label', v['id']),
+                        'definition': v.get('definition', '')
+                    } for v in traits_data['variant-types']
+                ]
+            if 'complex-form-types' in traits_data:
+                custom_ranges['complex-form-type'] = [
+                    {
+                        'id': v['id'],
+                        'label': v.get('label', v['id']),
+                        'definition': v.get('definition', '')
+                    } for v in traits_data['complex-form-types']
+                ]
+            if custom_ranges:
+                ranges_service.save_custom_ranges(custom_ranges)
+                self.logger.info(f"Seeded custom trait ranges: {list(custom_ranges.keys())}")
 
             # Clear cache and parse the newly added ranges
             self.ranges = {}
@@ -1901,42 +1922,132 @@ class DictionaryService:
                     # Fallback if we can't get size info
                     storage_percent = 25
 
-            # Get last backup time (using current time as a placeholder)
-            last_backup = datetime.now().strftime("%Y-%m-%d %H:%M")
+            # Get backup info if services available
+            last_backup = "Never"
+            next_backup = "Not scheduled"
+            total_backups = 0
+
+            if self.backup_manager:
+                backups = self.backup_manager.list_backups(self.db_connector.database)
+                total_backups = len(backups)
+                if backups:
+                    # list_backups returns newest first
+                    last_backup_time = backups[0].get('timestamp')
+                    if last_backup_time:
+                        try:
+                            dt = datetime.fromisoformat(last_backup_time)
+                            last_backup = dt.strftime("%Y-%m-%d %H:%M")
+                        except ValueError:
+                            last_backup = last_backup_time
+
+            if self.backup_scheduler:
+                scheduled = self.backup_scheduler.get_scheduled_backups()
+                if scheduled:
+                    # Find soonest next run
+                    soonest = None
+                    for s in scheduled:
+                        next_run_str = s.get('next_run_time')
+                        if next_run_str:
+                            next_run = datetime.fromisoformat(next_run_str)
+                            if soonest is None or next_run < soonest:
+                                soonest = next_run
+                    
+                    if soonest:
+                        next_backup = soonest.strftime("%Y-%m-%d %H:%M")
 
             return {
                 "db_connected": db_connected,
                 "last_backup": last_backup,
+                "next_backup": next_backup,
+                "total_backups": total_backups,
+                "backup_count": total_backups,
                 "storage_percent": storage_percent,
             }
         except Exception as e:
             self.logger.error("Error getting system status: %s", str(e), exc_info=True)
-            return {"db_connected": False, "last_backup": "Never", "storage_percent": 0}
+            return {
+                "db_connected": False, 
+                "last_backup": "Never", 
+                "next_backup": "Error",
+                "total_backups": 0,
+                "storage_percent": 0
+            }
 
-    def get_recent_activity(self, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_recent_activity(self, limit: int = 5, offset: int = 0) -> List[Dict[str, Any]]:
         """
         Get recent activity in the dictionary.
 
         Args:
             limit: Maximum number of activities to return.
+            offset: Number of activities to skip.
 
         Returns:
-            List of activity dictionaries with timestamp, action, and description.
+            List of activity dictionaries with timestamp, action, description, and entry_id.
         """
-        # In a real implementation, this would retrieve actual activity from a log or database
-        # For now, returning dummy data
-        return [
-            {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "action": "Entry Created",
-                "description": 'Added new entry "example"',
-            },
-            {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "action": "Entry Updated",
-                "description": 'Updated entry "test"',
-            },
-        ][:limit]
+        if self.history_service:
+            history = self.history_service.get_operation_history()
+            
+            # Filter by database
+            current_db = self.db_connector.database
+            history = [op for op in history if op.get('db_name') == current_db]
+            
+            activities = []
+            
+            # Apply pagination to history
+            paginated_history = history[offset:offset+limit] if limit > 0 else history[offset:]
+            
+            for op in paginated_history:
+                # Map operation type to UI action name
+                action_map = {
+                    'create': 'Entry Created',
+                    'update': 'Entry Updated',
+                    'delete': 'Entry Deleted',
+                    'merge': 'Entries Merged',
+                    'split': 'Entry Split',
+                    'undo': 'Operation Undone',
+                    'redo': 'Operation Redone'
+                }
+                
+                # Try to get a nice description
+                description = f"Operation on entry {op.get('entry_id')}"
+                if op.get('type') == 'create' or op.get('type') == 'update':
+                    data = op.get('data', {})
+                    if isinstance(data, str):
+                        try:
+                            data = json.loads(data)
+                        except:
+                            pass
+                    
+                    if isinstance(data, dict) and 'lexical_unit' in data:
+                        lu = data['lexical_unit']
+                        lu_str = list(lu.values())[0] if isinstance(lu, dict) and lu else str(lu)
+                        description = f"Entry \"{lu_str}\" ({op.get('entry_id')})"
+                
+                activities.append({
+                    "timestamp": op.get('timestamp'),
+                    "action": action_map.get(op.get('type'), op.get('type').capitalize() if op.get('type') else 'Unknown'),
+                    "description": description,
+                    "entry_id": op.get('entry_id'),
+                    "id": op.get('id')
+                })
+            return activities
+
+        return []
+
+    def get_activity_count(self) -> int:
+        """
+        Get the total number of recorded activities.
+
+        Returns:
+            Integer count of activities.
+        """
+        if self.history_service:
+            history = self.history_service.get_operation_history()
+            # Filter by database
+            current_db = self.db_connector.database
+            history = [op for op in history if op.get('db_name') == current_db]
+            return len(history)
+        return 0
 
     def _count_entries_with_filter(self, filter_text: str) -> int:
         """

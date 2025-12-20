@@ -34,20 +34,46 @@ class OperationHistoryService:
                 }, f)
 
     def _read_history(self):
-        with open(self.history_file_path, 'r') as f:
-            data = json.load(f)
-        # Ensure backward-compatible keys exist
-        data.setdefault('operations', [])
-        data.setdefault('transfers', [])
-        data.setdefault('undo_stack', [])
-        data.setdefault('redo_stack', [])
+        try:
+            with open(self.history_file_path, 'r') as f:
+                content = f.read().strip()
+                if not content:
+                    return {
+                        'operations': [],
+                        'transfers': [],
+                        'undo_stack': [],
+                        'redo_stack': []
+                    }
+                data = json.loads(content)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {
+                'operations': [],
+                'transfers': [],
+                'undo_stack': [],
+                'redo_stack': []
+            }
+
+        if isinstance(data, list):
+            # Convert legacy list format to dictionary
+            data = {
+                'operations': data,
+                'transfers': [],
+                'undo_stack': [],
+                'redo_stack': []
+            }
+        
+        # Ensure all required keys exist
+        for key in ['operations', 'transfers', 'undo_stack', 'redo_stack']:
+            if key not in data:
+                data[key] = []
+                
         return data
 
     def _write_history(self, data):
         with open(self.history_file_path, 'w') as f:
             json.dump(data, f, indent=4)
 
-    def record_operation(self, operation_type: str, data: Dict[str, Any], entry_id: Optional[str] = None, user_id: Optional[str] = None):
+    def record_operation(self, operation_type: str, data: Dict[str, Any], entry_id: Optional[str] = None, user_id: Optional[str] = None, db_name: Optional[str] = None):
         """
         Record an operation in the history for potential undo/redo.
 
@@ -56,6 +82,7 @@ class OperationHistoryService:
             data: Dictionary containing operation details needed for undo/redo
             entry_id: ID of the affected entry (if applicable)
             user_id: ID of the user who performed the operation
+            db_name: Name of the database where operation was performed
         """
         history = self._read_history()
 
@@ -64,7 +91,8 @@ class OperationHistoryService:
             type_=operation_type,
             data=json.dumps(data),
             entry_id=entry_id,
-            user_id=user_id
+            user_id=user_id,
+            db_name=db_name
         )
 
         # Add to operations list
