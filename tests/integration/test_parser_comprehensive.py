@@ -418,7 +418,7 @@ class TestEnhancedLiftParserComprehensive:
         """Compare enhanced parser with basic parser."""
         try:
             basic_parser = LIFTParser()
-            enhanced_parser = EnhancedLiftParser()
+            enhanced_parser = EnhancedLiftParser(normalize_namespaces=False)
             
             with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False, encoding='utf-8') as f:
                 f.write(sample_lift_xml)

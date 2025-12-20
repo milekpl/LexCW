@@ -82,14 +82,14 @@ class TestCompleteFilteringAndRefresh:
         assert create_response.status_code == 201
         
         # Test API call with filter
-        response = client.get('/api/entries/?filter_text=app&limit=20&offset=0&sort_by=lexical_unit&sort_order=asc')
+        response = client.get('/api/xml/entries?q=app&limit=20&offset=0')
         assert response.status_code == 200
         data = response.get_json()
         assert 'entries' in data
-        assert 'total_count' in data
+        assert 'total' in data
         # Check that our test entry is included in the filtered results
         entries = data['entries']
-        assert any(test_id == entry['id'] or 'app' in entry['lexical_unit'].get('en', '').lower() for entry in entries)
+        assert any(test_id == entry['id'] or any('app' in lu.lower() for lu in entry.get('lexical_units', [])) for entry in entries)
 
     @pytest.mark.integration
     def test_dashboard_cache_clear_endpoint(self, client: FlaskClient) -> None:

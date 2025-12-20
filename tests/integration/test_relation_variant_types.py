@@ -99,9 +99,9 @@ class TestRelationBasedVariants:
         ,
             senses=[{"id": "sense1", "definition": {"en": "test definition"}}])
         
-        # Create relation with traits
+        # Create relation with traits - use a standard relation type that exists
         relation = Relation(
-            type="_component-lexeme",
+            type="synonym",  # Use synonym instead of _component-lexeme
             ref="test_ref_12345"
         )
         relation.traits = {"variant-type": "Stopień najwyższy"}
@@ -111,7 +111,7 @@ class TestRelationBasedVariants:
         lift_xml = parser.generate_lift_string([entry])
         
         # Verify the generated XML contains the trait
-        assert 'type="_component-lexeme"' in lift_xml
+        assert 'type="synonym"' in lift_xml
         assert 'ref="test_ref_12345"' in lift_xml
         assert 'name="variant-type"' in lift_xml
         assert 'value="Stopień najwyższy"' in lift_xml
@@ -154,7 +154,7 @@ class TestRelationBasedVariants:
             <lexical-unit>
                 <form lang="en"><text>fastest</text></form>
             </lexical-unit>
-            <relation type="_component-lexeme" ref="fast_base_form" order="0">
+            <relation type="synonym" ref="fast_base_form" order="0">
                 <trait name="variant-type" value="Stopień najwyższy"/>
                 <trait name="is-primary" value="true"/>
                 <trait name="complex-form-type" value="Compound"/>

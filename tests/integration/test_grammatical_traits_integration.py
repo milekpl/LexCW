@@ -215,6 +215,7 @@ class TestGrammaticalTraitsXMLGeneration:
         
         variant = Variant(
             form={"en": "better"},
+            grammatical_info="Adjective",
             grammatical_traits={"degree": "comparative"}
         )
         

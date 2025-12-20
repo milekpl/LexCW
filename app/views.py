@@ -1079,11 +1079,32 @@ def setup_wizard():
 @main_bp.route("/activity-log")
 def activity_log():
     """
-    Render the activity log page.
+    Render the activity log page with pagination.
     """
-    # To be implemented
-    flash("Activity log is not yet implemented.", "info")
-    return redirect(url_for("main.index"))
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        offset = (page - 1) * per_page
+        
+        activities = dict_service.get_recent_activity(limit=per_page, offset=offset)
+        total_activities = dict_service.get_activity_count()
+        
+        total_pages = (total_activities + per_page - 1) // per_page if total_activities > 0 else 1
+        
+        return render_template(
+            "activity_log.html",
+            activities=activities,
+            total_activities=total_activities,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages
+        )
+    except Exception as e:
+        logger.error(f"Error loading activity log: {e}")
+        flash(f"Error loading activity log: {str(e)}", "danger")
+        return redirect(url_for("main.index"))
 
 
 @main_bp.route("/audio/<filename>")

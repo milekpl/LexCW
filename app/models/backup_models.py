@@ -211,6 +211,7 @@ class OperationHistory(BaseModel):
         data: str,
         entry_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        db_name: Optional[str] = None,
         status: str = 'completed',
         **kwargs: Any
     ):
@@ -231,6 +232,7 @@ class OperationHistory(BaseModel):
         self.data = data
         self.entry_id = entry_id
         self.user_id = user_id
+        self.db_name = db_name
         self.timestamp = kwargs.get('timestamp', datetime.utcnow())
         self.status = status
 
@@ -241,6 +243,7 @@ class OperationHistory(BaseModel):
         result['data'] = self.data
         result['entry_id'] = self.entry_id
         result['user_id'] = self.user_id
+        result['db_name'] = self.db_name
         result['timestamp'] = self.timestamp.isoformat() if self.timestamp else None
         result['status'] = self.status
         return result

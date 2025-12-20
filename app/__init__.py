@@ -6,6 +6,7 @@ This module initializes the Flask application and registers all blueprints.
 
 import os
 import logging
+from pathlib import Path
 from flask import Flask
 from flasgger import Swagger
 from injector import Injector, singleton
@@ -278,8 +279,29 @@ def create_app(config_name=None):
             except Exception as e:
                 app.logger.error(f"Failed to connect to BaseX server on startup: {e}")
 
+        # Initialize and bind OperationHistoryService
+        from app.services.operation_history_service import OperationHistoryService
+        history_path = os.path.join(app.instance_path, 'operation_history_test.json') if app.testing else os.path.join(app.instance_path, 'operation_history.json')
+        operation_history_service = OperationHistoryService(history_file_path=history_path)
+        binder.bind(OperationHistoryService, to=operation_history_service, scope=singleton)
+
+        # Initialize backup-related services first for DictionaryService
+        from app.services.basex_backup_manager import BaseXBackupManager
+        from app.services.backup_scheduler import BackupScheduler
+        
+        backup_manager = BaseXBackupManager(
+            basex_connector,
+            backup_directory=os.path.join(app.instance_path, "backups"),
+        )
+        backup_scheduler = BackupScheduler(backup_manager)
+
         # Create and bind DictionaryService
-        dictionary_service = DictionaryService(db_connector=basex_connector)
+        dictionary_service = DictionaryService(
+            db_connector=basex_connector,
+            history_service=operation_history_service,
+            backup_manager=backup_manager,
+            backup_scheduler=backup_scheduler
+        )
         
         # Initialize and bind ConfigManager
         config_manager = ConfigManager(app.instance_path)
@@ -293,6 +315,8 @@ def create_app(config_name=None):
         binder.bind(BaseXConnector, to=basex_connector, scope=singleton)
         binder.bind(DictionaryService, to=dictionary_service, scope=singleton)
         binder.bind(ConfigManager, to=config_manager, scope=singleton)
+        binder.bind(BaseXBackupManager, to=backup_manager, scope=singleton)
+        binder.bind(BackupScheduler, to=backup_scheduler, scope=singleton)
         
         # Initialize and bind CacheService
         from app.services.cache_service import CacheService
@@ -317,7 +341,6 @@ def create_app(config_name=None):
 
         # Initialize and bind CSSMappingService
         from app.services.css_mapping_service import CSSMappingService
-        from pathlib import Path
         # Use instance path for display profiles storage
         storage_path = Path(app.instance_path) / "display_profiles.json"
         css_mapping_service = CSSMappingService(storage_path=storage_path)
@@ -325,28 +348,11 @@ def create_app(config_name=None):
 
         # Initialize and bind MergeSplitService
         from app.services.merge_split_service import MergeSplitService
-        merge_split_service = MergeSplitService(dictionary_service=dictionary_service)
-        binder.bind(MergeSplitService, to=merge_split_service, scope=singleton)
-
-        # Initialize and bind backup-related services
-        from app.services.basex_backup_manager import BaseXBackupManager
-        from app.services.backup_scheduler import BackupScheduler
-        from app.services.operation_history_service import OperationHistoryService
-
-        # Create backup manager with the BaseX connector and a backup directory path
-        backup_manager = BaseXBackupManager(
-            basex_connector,
-            backup_directory=str(Path(app.root_path) / "instance" / "backups"),
+        merge_split_service = MergeSplitService(
+            dictionary_service=dictionary_service,
+            history_service=operation_history_service
         )
-        binder.bind(BaseXBackupManager, to=backup_manager, scope=singleton)
-
-        # Create operation history service
-        operation_history_service = OperationHistoryService()
-        binder.bind(OperationHistoryService, to=operation_history_service, scope=singleton)
-
-        # Create backup scheduler with backup manager
-        backup_scheduler = BackupScheduler(backup_manager)
-        binder.bind(BackupScheduler, to=backup_scheduler, scope=singleton)
+        binder.bind(MergeSplitService, to=merge_split_service, scope=singleton)
 
         # Start the backup scheduler
         backup_scheduler.start()

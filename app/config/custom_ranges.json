@@ -1,8 +1,38 @@
 {
   "complex-form-type": {
-    "label": "Complex form types",
-    "description": "Relationship type for component/main entry in complex forms",
-    "type": "fieldworks"
+    "type": "custom",
+    "values": [
+      {
+        "id": "compound",
+        "label": "Compound",
+        "description": "A word formed from two or more stems."
+      },
+      {
+        "id": "derivative",
+        "label": "Derivative",
+        "description": "A stem that is made up of a root plus an affix that adds a non-inflectional component of meaning."
+      },
+      {
+        "id": "idiom",
+        "label": "Idiom",
+        "description": "A multi-word expression that is recognized as a semantic unit."
+      },
+      {
+        "id": "phrasal-verb",
+        "label": "Phrasal Verb",
+        "description": "A combination of a lexical verb and a verbal particle that forms a single semantic and syntactic unit."
+      },
+      {
+        "id": "contraction",
+        "label": "Contraction",
+        "description": "A combination of two lexemes that are phonologically reduced."
+      },
+      {
+        "id": "saying",
+        "label": "Saying",
+        "description": "Any pithy phrasal expression of wisdom or truth; esp., an adage, proverb, or maxim."
+      }
+    ]
   },
   "is-primary": {
     "label": "Is primary (trait)",
@@ -15,8 +45,28 @@
     "type": "fieldworks"
   },
   "variant-type": {
-    "label": "Variant Entry Types",
-    "description": "Variant entry types",
-    "type": "fieldworks"
+    "type": "custom",
+    "values": [
+      {
+        "id": "dialectal",
+        "label": "Dialectal Variant",
+        "description": "A regional or social variety of a language."
+      },
+      {
+        "id": "free",
+        "label": "Free Variant",
+        "description": "Interchangeable forms used by the same speaker without discernible conditioning."
+      },
+      {
+        "id": "irregular",
+        "label": "Irregularly Inflected Form",
+        "description": "Forms that deviate from standard rules, such as 'men' for the plural of 'man'."
+      },
+      {
+        "id": "spelling",
+        "label": "Spelling Variant",
+        "description": "Purely orthographic differences (e.g., color vs. colour)."
+      }
+    ]
   }
 }
