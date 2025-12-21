@@ -164,11 +164,26 @@ class CSSMappingService:
         
         - If aspect == 'label' or 'full', range_map should be id->label mapping.
         - If aspect == 'abbr', range_map should be id->abbrev mapping.
+        If a label mapping is requested but missing, fall back to a humanized label
+        by capitalizing the type ID (e.g., 'antonym' -> 'Antonym').
         """
         current_type = elem.attrib.get('type', '')
+        if not current_type:
+            return
+
         if current_type in range_map:
             elem.attrib['type'] = range_map[current_type]
+            return
 
+        # If we requested a label/full and there's no mapping, create a fallback
+        if aspect in ('label', 'full'):
+            # Humanize type: replace dashes with spaces and title-case each word
+            human_label = ' '.join([w.capitalize() for w in current_type.replace('-', ' ').split()])
+            elem.attrib['type'] = human_label
+            return
+
+        # Otherwise leave it unchanged (abbr or unknown aspect)
+        return
     def _apply_grammatical_display_aspect(self, elem: ET.Element, aspect: str, range_map: Dict[str, str]) -> None:
         """Apply display aspect to a grammatical-info element."""
         current_value = elem.attrib.get('value', '')
@@ -269,10 +284,12 @@ class CSSMappingService:
                 else:
                     rel_map = abbr_maps.get('lexical-relation') or abbr_maps.get('relation-type')
 
-                if rel_map:
-                    for elem in root.findall('.//relation'):
-                        self._apply_relation_display_aspect(elem, aspect or 'abbr', rel_map)
-                    handled_elements.add('relation')
+                # Apply relation display aspect for all relation elements. If no mapping exists
+                # we'll still call the helper which can fall back to a humanized label when
+                # a 'label'/'full' aspect is requested.
+                for elem in root.findall('.//relation'):
+                    self._apply_relation_display_aspect(elem, aspect or 'abbr', rel_map or {})
+                handled_elements.add('relation')
 
             # Grammatical info handling
             if lift_elem == 'grammatical-info':
@@ -487,7 +504,7 @@ class CSSMappingService:
             self._logger.debug(f"Could not extract entry-level PoS: {e}")
             return None
             
-    def _replace_grammatical_info_with_abbr(self, entry_xml: str, lang: str = 'en') -> str:
+    def _replace_grammatical_info_with_abbr(self, entry_xml: str, lang: str = 'en', skip_elements: Optional[set] = None) -> str:
         """Replace range element values with abbreviations from ranges.
         
         This replaces values in elements like grammatical-info, relation type attributes,
@@ -504,6 +521,9 @@ class CSSMappingService:
         import re
         
         try:
+            if skip_elements is None:
+                skip_elements = set()
+
             # Get ranges from dictionary service
             from flask import current_app
             from app.services.dictionary_service import DictionaryService
@@ -555,7 +575,7 @@ class CSSMappingService:
             
             # Replace values in range-based elements
             # grammatical-info: value attribute
-            if 'grammatical-info' in range_abbr_maps:
+            if 'grammatical-info' in range_abbr_maps and 'grammatical-info' not in skip_elements:
                 for elem in root.findall('.//grammatical-info'):
                     current_value = elem.attrib.get('value', '')
                     if current_value in range_abbr_maps['grammatical-info']:
@@ -565,7 +585,7 @@ class CSSMappingService:
             relation_map = (range_abbr_maps.get('lexical-relation') or 
                           range_abbr_maps.get('relation-type') or 
                           range_abbr_maps.get('lexical-relation'))
-            if relation_map:
+            if 'relation' not in skip_elements and relation_map:
                 for elem in root.findall('.//relation'):
                     current_type = elem.attrib.get('type', '')
                     if current_type in relation_map:
@@ -573,21 +593,21 @@ class CSSMappingService:
             
             # variant: type attribute (maps to variant-type or variant-type range)
             variant_map = range_abbr_maps.get('variant-type') 
-            if variant_map:
+            if 'variant' not in skip_elements and variant_map:
                 for elem in root.findall('.//variant'):
                     current_type = elem.attrib.get('type', '')
                     if current_type in variant_map:
                         elem.attrib['type'] = variant_map[current_type]
             
             # etymology: type attribute
-            if 'etymology' in range_abbr_maps:
+            if 'etymology' in range_abbr_maps and 'etymology' not in skip_elements:
                 for elem in root.findall('.//etymology'):
                     current_type = elem.attrib.get('type', '')
                     if current_type in range_abbr_maps['etymology']:
                         elem.attrib['type'] = range_abbr_maps['etymology'][current_type]
             
             # reversal: type attribute (if reversal-type range exists)
-            if 'reversal-type' in range_abbr_maps:
+            if 'reversal-type' in range_abbr_maps and 'reversal' not in skip_elements:
                 for elem in root.findall('.//reversal'):
                     current_type = elem.attrib.get('type', '')
                     if current_type in range_abbr_maps['reversal-type']:
@@ -595,7 +615,7 @@ class CSSMappingService:
             
             # note: type attribute (maps to note-type range)
             note_map = range_abbr_maps.get('note-type') or range_abbr_maps.get('note-type')
-            if note_map:
+            if note_map and 'note' not in skip_elements:
                 for elem in root.findall('.//note'):
                     current_type = elem.attrib.get('type', '')
                     if current_type in note_map:
@@ -603,19 +623,20 @@ class CSSMappingService:
 
             # trait: value attribute (maps to range with same name as trait "name")
             # This handles semantic-domain, academic-domain, usage-type etc. if they are traits
-            for elem in root.findall('.//trait'):
-                trait_name = elem.attrib.get('name', '')
-                current_value = elem.attrib.get('value', '')
-                
-                # Check if we have a range map for this trait name
-                if trait_name and current_value:
-                    # Try exact match or plural/singular variations
-                    range_map = (range_abbr_maps.get(trait_name) or 
-                               range_abbr_maps.get(f"{trait_name}s") or
-                               range_abbr_maps.get(trait_name.rstrip('s')))
-                               
-                    if range_map and current_value in range_map:
-                        elem.attrib['value'] = range_map[current_value]
+            if 'trait' not in skip_elements:
+                for elem in root.findall('.//trait'):
+                    trait_name = elem.attrib.get('name', '')
+                    current_value = elem.attrib.get('value', '')
+                    
+                    # Check if we have a range map for this trait name
+                    if trait_name and current_value:
+                        # Try exact match or plural/singular variations
+                        range_map = (range_abbr_maps.get(trait_name) or 
+                                   range_abbr_maps.get(f"{trait_name}s") or
+                                   range_abbr_maps.get(trait_name.rstrip('s')))
+                                    
+                        if range_map and current_value in range_map:
+                            elem.attrib['value'] = range_map[current_value]
             
             # field: type attribute (maps to range with same name as field "type")
             for elem in root.findall('.//field'):
