@@ -113,18 +113,18 @@ class Sense(BaseModel):
         super().__init__(id_, **kwargs)
 
     @property
-    def domain_type(self) -> Union[str, List[str]]:
+    def domain_type(self) -> Union[str, List[str], None]:
         """Return the domain-type value(s) (distinct from semantic domains).
         
         For backward compatibility, returns a single string if only one value,
-        otherwise returns a list.
+        otherwise returns a list. Returns None when no value is present.
         """
         if len(self._domain_type_value) == 1:
             return self._domain_type_value[0]
         elif len(self._domain_type_value) > 1:
             return self._domain_type_value
         else:
-            return ""
+            return None
 
     @domain_type.setter
     def domain_type(self, value: Optional[Union[str, List[str]]]):

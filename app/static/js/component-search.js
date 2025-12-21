@@ -4,8 +4,8 @@
  */
 
 class ComponentSearchHandler {
-    constructor() {
-        this.selectedComponents = [];
+    constructor(existingComponents = []) {
+        this.selectedComponents = existingComponents || [];
         this.currentEntryId = null;
         this.init();
     }
@@ -236,5 +236,37 @@ class ComponentSearchHandler {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    window.componentSearchHandler = new ComponentSearchHandler();
+    // Try to get existing components from global scope
+    let existingComponents = [];
+    
+    // Check if component relations are available in the global scope
+    if (typeof window.componentRelations !== 'undefined' && Array.isArray(window.componentRelations)) {
+        existingComponents = window.componentRelations;
+    }
+    
+    // Check if entry data is available
+    if (typeof entryData !== 'undefined' && entryData.component_relations) {
+        existingComponents = entryData.component_relations;
+    }
+    
+    // Check if window.entry is available
+    if (typeof window.entry !== 'undefined' && window.entry.component_relations) {
+        existingComponents = window.entry.component_relations;
+    }
+    
+    // Convert component relations to the format expected by the search handler
+    const componentsForHandler = existingComponents.map(comp => ({
+        id: comp.ref,
+        headword: comp.ref_display_text || comp.ref_lexical_unit || comp.ref,
+        type: '_component-lexeme',  // Always use _component-lexeme for component relations
+        complex_form_type: comp.complex_form_type || 'Compound',
+        order: comp.order || 0
+    }));
+    
+    window.componentSearchHandler = new ComponentSearchHandler(componentsForHandler);
+    
+    // If there are existing components, show them in the UI
+    if (componentsForHandler.length > 0) {
+        window.componentSearchHandler.updateSelectedComponentsDisplay();
+    }
 });

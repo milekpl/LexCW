@@ -53,13 +53,16 @@ def test_entry_form_shows_ranges_missing_banner(app, client):
 
 
 def test_install_recommended_when_ranges_exist(app, client):
-    # Ensure installer doesn't overwrite existing ranges
+    # Ensure installer is idempotent: when ranges already exist, the endpoint
+    # should return success and the existing ranges rather than erroring.
     with patch('app.services.dictionary_service.DictionaryService.get_lift_ranges') as mock_get_ranges:
         mock_get_ranges.return_value = {'grammatical-info': {'id': 'grammatical-info', 'values': []}}
         resp = client.post('/api/ranges/install_recommended')
-        assert resp.status_code == 500
+        assert resp.status_code == 201
         data = resp.get_json()
-        assert data['success'] is False
+        assert data['success'] is True
+        assert 'data' in data
+        assert 'grammatical-info' in data['data']
 
 
 @pytest.mark.integration

@@ -196,8 +196,16 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
         existing_relations = merged_data.get('relations', [])
         if not isinstance(existing_relations, list):
             existing_relations = []
-        # Append new component relations
-        merged_data['relations'] = existing_relations + form_components
+        
+        # Filter out existing relations that have complex-form-type traits (they will be replaced by form data)
+        non_component_relations = [
+            rel for rel in existing_relations
+            if not (isinstance(rel, dict) and rel.get('type') == '_component-lexeme' and
+                   isinstance(rel.get('traits'), dict) and 'complex-form-type' in rel['traits'])
+        ]
+        
+        # Add new component relations from form data
+        merged_data['relations'] = non_component_relations + form_components
 
     # Process variant relations from form data and add to relations
     form_variant_relations = process_variant_relations_form_data(form_data)

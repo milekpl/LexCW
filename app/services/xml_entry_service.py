@@ -75,7 +75,7 @@ class XMLEntryService:
         port: int = 1984,
         username: str = 'admin',
         password: str = 'admin',
-        database: str = 'dictionary'
+        database: str | None = None
     ) -> None:
         """
         Initialize XML Entry Service.
@@ -85,13 +85,31 @@ class XMLEntryService:
             port: BaseX server port
             username: BaseX username
             password: BaseX password
-            database: BaseX database name
+            database: BaseX database name (if None, will use TEST_DB_NAME or BASEX_DATABASE env var)
         """
+        import os
+
         self.host = host
         self.port = port
         self.username = username
         self.password = password
-        self.database = database
+        # Prefer explicit database, then Flask app config (if in app context), then TEST_DB_NAME (set by tests),
+        # then BASEX_DATABASE env, then default
+        db_from_flask = None
+        try:
+            from flask import has_app_context, current_app
+            if has_app_context():
+                db_from_flask = current_app.config.get('BASEX_DATABASE')
+        except Exception:
+            db_from_flask = None
+
+        self.database = (
+            database
+            or db_from_flask
+            or os.environ.get('TEST_DB_NAME')
+            or os.environ.get('BASEX_DATABASE')
+            or 'dictionary'
+        )
         
         # Initialize namespace manager and query builder
         self._detect_namespace_usage()
@@ -274,6 +292,7 @@ class XMLEntryService:
             )
             
             logger.debug(f"Executing insert query for entry {entry_id}")
+            logger.debug(f"Insert query:\n{query}")
             q = session.query(query)
             q.execute()
             q.close()
@@ -335,12 +354,26 @@ class XMLEntryService:
             try:
                 root = ET.fromstring(result)
             except ET.ParseError:
-                # Try wrapping in lift element if it's a bare entry
-                if not result.strip().startswith('<lift'):
-                    result = f'<lift>{result}</lift>'
-                    root = ET.fromstring(result).find('.//entry')
-                else:
+                # Defensive parsing: wrap the result in a single root element and find the first <entry>
+                wrapped = f"<wrapper>{result}</wrapper>"
+                try:
+                    wrapper_root = ET.fromstring(wrapped)
+                except ET.ParseError as wrap_exc:
+                    # If wrapping didn't help, re-raise original parse error
                     raise
+
+                # Try to find namespaced entry first, then non-namespaced
+                entry_elem = wrapper_root.find('.//{http://fieldworks.sil.org/schemas/lift/0.13}entry')
+                if entry_elem is None:
+                    entry_elem = wrapper_root.find('.//entry')
+
+                if entry_elem is None:
+                    raise ET.ParseError("No <entry> element found in query result")
+
+                # Use the first entry element as the root
+                root = entry_elem
+                # Also narrow the returned xml to the single entry string for consistency
+                result = ET.tostring(root, encoding='unicode')
             
             # Extract basic information
             entry_data = {

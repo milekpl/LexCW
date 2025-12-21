@@ -63,6 +63,27 @@ def create_app(config_name=None):
     # Load instance config if it exists
     app.config.from_pyfile('config.py', silent=True)
 
+    # === Ensure TEST_DB_NAME / BASEX_DATABASE are synchronized ===
+    # This helps when tests or modules instantiate the app before test fixtures
+    # set environment variables. Prefer explicit env var if present, otherwise
+    # propagate app config value into the environment so other modules see it.
+    try:
+        env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
+        cfg_db = app.config.get('BASEX_DATABASE')
+        if env_db and cfg_db and env_db != cfg_db:
+            app.logger.warning("TEST_DB_NAME '%s' differs from app BASEX_DATABASE '%s' - sync to TEST_DB_NAME", env_db, cfg_db)
+            app.config['BASEX_DATABASE'] = env_db
+        elif env_db and not cfg_db:
+            app.logger.info("Setting app BASEX_DATABASE from TEST_DB_NAME env: '%s'", env_db)
+            app.config['BASEX_DATABASE'] = env_db
+        elif not env_db and cfg_db:
+            # Export config value to environment so other imports see it
+            os.environ['TEST_DB_NAME'] = cfg_db
+            os.environ['BASEX_DATABASE'] = cfg_db
+            app.logger.info("Exported BASEX_DATABASE '%s' to TEST_DB_NAME env vars", cfg_db)
+    except Exception as e:
+        app.logger.debug(f"Error during TEST_DB_NAME sync: {e}")
+
     # Ensure SQLAlchemy is registered with the Flask app after config is loaded
     from app.models.project_settings import db
     db.init_app(app)
@@ -239,6 +260,20 @@ def create_app(config_name=None):
     def server_error(_error):
         """Handle 500 errors."""
         return {'error': 'Server error'}, 500
+
+    # In testing mode, log redirects to help triage UI auth/redirect issues
+    if app.config.get('TESTING'):
+        from flask import request
+
+        @app.after_request
+        def log_redirects(response):
+            try:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    loc = response.headers.get('Location')
+                    app.logger.warning("Redirect detected: %s %s -> %s", response.status_code, request.path, loc)
+            except Exception:
+                app.logger.exception("Failed to log redirect")
+            return response
     
     # Create simple index route
     @app.route('/')
@@ -260,9 +295,11 @@ def create_app(config_name=None):
     def configure_dependencies(binder):
         """Configure dependencies for the application."""
         # Create a singleton instance of BaseXConnector
-        # Use TEST_DB_NAME from environment ONLY during testing
-        test_db_name = os.environ.get('TEST_DB_NAME') if app.testing else None
-        basex_database = test_db_name if test_db_name else app.config.get('BASEX_DATABASE', 'dictionary')
+        # Prefer any explicit TEST_DB_NAME / BASEX_DATABASE env var if present so
+        # that connectors use the DB created by test fixtures; fall back to app
+        # config otherwise.
+        env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
+        basex_database = env_db or app.config.get('BASEX_DATABASE', 'dictionary')
         basex_connector = BaseXConnector(
             host=app.config.get('BASEX_HOST', 'localhost'),
             port=app.config.get('BASEX_PORT', 1984),

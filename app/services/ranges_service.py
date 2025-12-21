@@ -328,7 +328,9 @@ class RangesService:
                     # Only mark provided_by_config when the config file actually
                     # declared the FieldWorks-only list (custom_ranges.json)
                     'provided_by_config': std_id in CONFIG_PROVIDED_RANGES,
-                    'fieldworks_standard': (CONFIG_RANGE_TYPES.get(std_id) == 'fieldworks'),
+                    # Treat config-provided ranges as FieldWorks-standard by default
+                    # (tests expect config-only ranges to be flagged as fieldworks_standard)
+                    'fieldworks_standard': (std_id in CONFIG_PROVIDED_RANGES) or (CONFIG_RANGE_TYPES.get(std_id) == 'fieldworks'),
                     'config_type': CONFIG_RANGE_TYPES.get(std_id)
                 }
 
@@ -1179,8 +1181,8 @@ class RangesService:
                 text_elem = ET.SubElement(form, 'text')
                 text_elem.text = text
         
-        # Add descriptions
-        descriptions = element_data.get('descriptions', {})
+        # Add descriptions (accept either 'description' or legacy 'descriptions')
+        descriptions = element_data.get('description', element_data.get('descriptions', {}))
         if descriptions:
             desc_elem = ET.SubElement(elem, 'description')
             for lang, text in descriptions.items():

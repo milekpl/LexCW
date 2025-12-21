@@ -28,7 +28,10 @@ class TestEntryTraits:
             id_="test2",
             lexical_unit={"en": "word"}
         )
-        assert entry.traits == {}
+        # Note: Entry model now automatically classifies morph-type based on lexical unit
+        # So traits will contain the auto-classified morph-type
+        assert "morph-type" in entry.traits
+        assert entry.traits["morph-type"] == "stem"  # "word" is a regular word, so classified as stem
     
     def test_entry_supports_multiple_traits(self) -> None:
         """Test that entry can have multiple traits."""

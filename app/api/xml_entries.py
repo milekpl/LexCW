@@ -6,6 +6,7 @@ using the XMLEntryService to interact directly with BaseX.
 """
 
 import logging
+import os
 from typing import Any
 from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
@@ -36,12 +37,15 @@ def get_xml_entry_service() -> XMLEntryService:
     """
     # Get BaseX configuration from app config
     config = current_app.config
-    database = config.get('BASEX_DATABASE', 'dictionary')
-    
+
+    # Prefer the explicit TEST_DB_NAME env var during testing (set by fixtures)
+    env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
+    database = env_db or config.get('BASEX_DATABASE', 'dictionary')
+
     # Important: Use the same database configuration as Dictionary Service
     # to ensure both services see the same data
     logger.debug(f'[XML API] Creating XMLEntryService with database: {database}')
-    
+
     return XMLEntryService(
         host=config.get('BASEX_HOST', 'localhost'),
         port=config.get('BASEX_PORT', 1984),

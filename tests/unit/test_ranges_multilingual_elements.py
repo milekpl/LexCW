@@ -69,7 +69,7 @@ class TestMultilingualElementCreation:
                 'pl': 'Etykieta Polska',
                 'pt': 'Rótulo Português'
             },
-            'descriptions': {},
+            'description': {},
             'abbrevs': {},
             'parent': '',
             'traits': {}
@@ -118,7 +118,7 @@ class TestMultilingualElementCreation:
         element_data: Dict[str, Any] = {
             'id': 'ml-test-element-2',
             'labels': {'en': 'Test'},
-            'descriptions': {
+            'description': {
                 'en': 'English description',
                 'pl': 'Polski opis',
                 'pt': 'Descrição em português'
@@ -170,7 +170,7 @@ class TestMultilingualElementCreation:
         element_data: Dict[str, Any] = {
             'id': 'ml-test-element-3',
             'labels': {'en': 'Test'},
-            'descriptions': {},
+            'description': {},
             'abbrevs': {
                 'en': 'TST',
                 'pl': 'TEST',
@@ -224,7 +224,7 @@ class TestMultilingualElementCreation:
                 'en': 'Comprehensive Label',
                 'pl': 'Kompleksowa Etykieta'
             },
-            'descriptions': {
+            'description': {
                 'en': 'A comprehensive test',
                 'pl': 'Kompleksowy test'
             },
@@ -278,7 +278,7 @@ class TestMultilingualElementUpdate:
                     'id': 'test-element',
                     'guid': 'elem-guid',
                     'labels': {'en': 'Old Label'},
-                    'descriptions': {},
+                    'description': {},
                     'abbrevs': {}
                 }]
             }
@@ -291,7 +291,7 @@ class TestMultilingualElementUpdate:
                 'en': 'Updated Label',
                 'pl': 'Zaktualizowana Etykieta'
             },
-            'descriptions': {},
+            'description': {},
             'abbrevs': {},
             'parent': '',
             'traits': {}
@@ -330,7 +330,7 @@ class TestMultilingualElementUpdate:
                     'id': 'test-element',
                     'guid': 'elem-guid',
                     'labels': {'en': 'Old'},
-                    'descriptions': {},
+                    'description': {},
                     'abbrevs': {}
                 }]
             }
@@ -343,7 +343,7 @@ class TestMultilingualElementUpdate:
                 'en': 'New Label EN',
                 'pl': 'Nowa Etykieta PL'
             },
-            'descriptions': {
+            'description': {
                 'en': 'New Description EN',
                 'pl': 'Nowy Opis PL'
             },
@@ -394,7 +394,7 @@ class TestMultilingualElementValidation:
         
         element_data: Dict[str, Any] = {
             'labels': {'en': 'Test'},
-            'descriptions': {},
+            'description': {},
             'abbrevs': {}
         }
         
@@ -424,7 +424,7 @@ class TestMultilingualElementValidation:
                 'values': [{
                     'id': 'duplicate-id',
                     'labels': {'en': 'Existing'},
-                    'descriptions': {},
+                    'description': {},
                     'abbrevs': {}
                 }]
             }
@@ -433,7 +433,7 @@ class TestMultilingualElementValidation:
         element_data: Dict[str, Any] = {
             'id': 'duplicate-id',
             'labels': {'en': 'New'},
-            'descriptions': {},
+            'description': {},
             'abbrevs': {},
             'parent': '',
             'traits': {}
@@ -458,7 +458,7 @@ class TestMultilingualElementXMLGeneration:
                 'en': 'English',
                 'pl': 'Polski'
             },
-            'descriptions': {},
+            'description': {},
             'abbrevs': {},
             'parent': '',
             'traits': {}
@@ -485,7 +485,7 @@ class TestMultilingualElementXMLGeneration:
             'id': 'test',
             'guid': 'test-guid',
             'labels': {},
-            'descriptions': {},
+            'description': {},
             'abbrevs': {
                 'en': 'ENG',
                 'pl': 'POL'
@@ -512,7 +512,7 @@ class TestMultilingualElementXMLGeneration:
             'id': 'complete',
             'guid': 'complete-guid',
             'labels': {'en': 'Label', 'pl': 'Etykieta'},
-            'descriptions': {'en': 'Desc', 'pl': 'Opis'},
+            'description': {'en': 'Desc', 'pl': 'Opis'},
             'abbrevs': {'en': 'LBL', 'pl': 'ETY'},
             'parent': 'parent-id',
             'traits': {'color': 'red'}

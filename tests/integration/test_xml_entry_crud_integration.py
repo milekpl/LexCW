@@ -53,7 +53,9 @@ def client(app: Flask) -> FlaskClient:
 @pytest.fixture(scope='module')
 def xml_service():
     """Create XML Entry Service instance connected to test database."""
-    return XMLEntryService(database='dictionary_test')
+    import os
+    db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE') or 'dictionary_test'
+    return XMLEntryService(database=db)
 
 
 @pytest.fixture(autouse=True)

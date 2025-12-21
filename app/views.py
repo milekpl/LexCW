@@ -464,11 +464,14 @@ def edit_entry(entry_id):
         # Explicitly extract enriched variant_relations for template (with display text and error markers)
         variant_relations_data = []
         component_relations_data = []
+        forward_component_relations_data = []
         subentries_data = []
         if entry:
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
             # Extract enriched component_relations for template (with display text for main entries)
             component_relations_data = entry.get_component_relations(dict_service)
+            # Extract forward component relations (where this entry HAS components)
+            forward_component_relations_data = entry.get_forward_component_relations(dict_service)
             # Extract subentries (reverse component relations)
             subentries_data = entry.get_subentries(dict_service)
             
@@ -552,6 +555,7 @@ def edit_entry(entry_id):
             ranges=ranges,
             variant_relations=variant_relations_data,
             component_relations=component_relations_data,
+            forward_component_relations=forward_component_relations_data,
             subentries=subentries_data,
             validation_result=validation_result,
             project_languages=languages,

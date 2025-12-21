@@ -11,6 +11,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # Set testing config by default so create_app() uses in-memory SQLite and test DB
 os.environ.setdefault('FLASK_CONFIG', 'testing')
 
+# Ensure TEST_DB_NAME is set at import time for any tests that call create_app()
+# at module import time. This avoids race conditions where some test modules
+# instantiate the Flask app before session fixtures run.
+if os.environ.get('TEST_DB_NAME') is None:
+    try:
+        import uuid
+        from tests.basex_test_utils import create_test_db
+
+        test_db = f"test_{uuid.uuid4().hex[:8]}"
+        os.environ['TEST_DB_NAME'] = test_db
+        # Also set BASEX_DATABASE so create_app('testing') picks the same name
+        os.environ['BASEX_DATABASE'] = test_db
+
+        # Try to create the DB (best-effort)
+        create_test_db(test_db)
+    except Exception:
+        # If BaseX isn't available now, continue; the fixtures will skip tests that require it
+        pass
+
 from app.models.entry import Entry
 from app.models.sense import Sense
 from app.models.example import Example
