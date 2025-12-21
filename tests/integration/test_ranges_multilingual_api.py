@@ -234,7 +234,7 @@ class TestMultilingualElementValidation:
         # Try to create without ID
         element_data = {
             'labels': {'en': 'No ID'},
-            'descriptions': {},
+            'description': {},
             'abbrevs': {}
         }
         
@@ -252,7 +252,7 @@ class TestMultilingualElementValidation:
         # Try to update non-existent element
         element_data = {
             'labels': {'en': 'Test'},
-            'descriptions': {},
+            'description': {},
             'abbrevs': {}
         }
         
@@ -274,7 +274,7 @@ class TestMultilingualElementCRUD:
         element_data = {
             'id': 'crud-element',
             'labels': {'en': 'Original', 'pl': 'Oryginał'},
-            'descriptions': {'en': 'Original desc'},
+            'description': {'en': 'Original desc'},
             'abbrevs': {'en': 'ORG'}
         }
         service.create_range_element('crud-range', element_data)
@@ -294,7 +294,7 @@ class TestMultilingualElementCRUD:
                 'pl': 'Zaktualizowany',
                 'pt': 'Atualizado'
             },
-            'descriptions': {'en': 'Updated desc', 'pt': 'Descrição atualizada'},
+            'description': {'en': 'Updated desc', 'pt': 'Descrição atualizada'},
             'abbrevs': {'en': 'UPD', 'pt': 'ATU'}
         }
         service.update_range_element('crud-range', 'crud-element', updated_data)
@@ -306,7 +306,7 @@ class TestMultilingualElementCRUD:
         element = result['data']
         assert element['labels']['en'] == 'Updated'
         assert element['labels']['pt'] == 'Atualizado'
-        assert element['descriptions']['pt'] == 'Descrição atualizada'
+        assert element['description']['pt'] == 'Descrição atualizada'
         assert element['abbrevs']['pt'] == 'ATU'
         
         # 6. Delete element

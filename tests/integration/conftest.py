@@ -31,11 +31,116 @@ basex_test_connector = parent_conftest.basex_test_connector
 dict_service_with_db = parent_conftest.dict_service_with_db
 flask_test_server = parent_conftest.flask_test_server
 
+# Ensure TEST_DB_NAME is set early (at import time) so tests that call
+# create_app('testing') at module import get the correct DB. This mirrors
+# the behavior of the session-scoped fixture but runs earlier to cover
+# test modules that instantiate the app at import time.
+if os.environ.get('TEST_DB_NAME') is None:
+    try:
+        import uuid
+        from tests.basex_test_utils import create_test_db
+
+        test_db = f"test_{uuid.uuid4().hex[:8]}"
+        os.environ['TEST_DB_NAME'] = test_db
+        os.environ['BASEX_DATABASE'] = test_db
+
+        # Try to create the DB (best-effort)
+        create_test_db(test_db)
+    except Exception:
+        # If BaseX isn't available here, don't fail import; the session fixture
+        # will skip tests or attempt to create a DB later.
+        pass
+
 
 @pytest.fixture(scope="session")
 def postgres_available() -> bool:
     """Check if PostgreSQL server is configured (not if it's available locally)."""
     return bool(os.getenv('POSTGRES_HOST'))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_basex_test_database() -> None:
+    """Ensure a single BaseX test database exists for the integration session.
+
+    Uses the shared utilities to create and drop the DB. Sets both
+    `TEST_DB_NAME` and `BASEX_DATABASE` environment variables so the Flask
+    app and the DB utilities use the same name consistently.
+    """
+    import uuid
+    from tests.basex_test_utils import create_test_db, drop_test_db
+
+    # Check BaseX availability by attempting a short connection
+    from app.database.basex_connector import BaseXConnector
+    try:
+        admin_check = BaseXConnector(
+            host=os.getenv('BASEX_HOST', 'localhost'),
+            port=int(os.getenv('BASEX_PORT', '1984')),
+            username=os.getenv('BASEX_USERNAME', 'admin'),
+            password=os.getenv('BASEX_PASSWORD', 'admin'),
+            database=None
+        )
+        admin_check.connect()
+        admin_check.disconnect()
+    except Exception as e:
+        pytest.skip(f"BaseX server not available: {e}")
+
+    # Use provided TEST_DB_NAME if present (useful for CI), otherwise generate one
+    test_db = os.environ.get('TEST_DB_NAME') or f"test_{uuid.uuid4().hex[:8]}"
+
+    # Set env vars so app and utilities see the same DB
+    os.environ['TEST_DB_NAME'] = test_db
+    os.environ['BASEX_DATABASE'] = test_db
+
+    # Create the DB using helper (best-effort, logs failures)
+    create_test_db(test_db)
+
+    yield
+
+    # Teardown: drop test DB (best-effort)
+    drop_test_db(test_db)
+
+
+@pytest.fixture(autouse=True)
+def check_db_config_matches_env(app: Flask):
+    """Ensure that the Flask app config BASEX_DATABASE matches TEST_DB_NAME env var.
+
+    This catches cases where parts of the app are still using the default 'dictionary'
+    database and helps surface misconfiguration early.
+    """
+    db_from_app = app.config.get('BASEX_DATABASE')
+    env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
+    # If the environment DB differs from app config, synchronize the app config.
+    # Some tests may change TEST_DB_NAME mid-session for specific scenarios; ensure
+    # the Flask app uses the same database name.
+    if db_from_app and env_db and db_from_app != env_db:
+        import logging
+        logging.getLogger(__name__).warning(
+            "App BASEX_DATABASE '%s' does not match TEST_DB_NAME '%s' - synchronizing app config",
+            db_from_app, env_db
+        )
+        app.config['BASEX_DATABASE'] = env_db
+
+        # Also update any already-created connector instances so they use the
+        # correct database. This prevents singleton connectors created earlier
+        # (before env var was set) from continuing to point at the wrong DB.
+        try:
+            from app.services.dictionary_service import DictionaryService
+            dict_service: DictionaryService = app.injector.get(DictionaryService)
+            if hasattr(dict_service, 'db_connector') and getattr(dict_service, 'db_connector') is not None:
+                dict_service.db_connector.database = env_db
+                # force reconnection on next operation
+                try:
+                    dict_service.db_connector.disconnect()
+                except Exception:
+                    pass
+        except Exception:
+            # If injector isn't ready or dictionary service isn't bound yet,
+            # that's OK; the change above to app.config is sufficient for later
+            # connector creations.
+            pass
+
+    yield
+
 
 
 @pytest.fixture(scope="session")
@@ -92,6 +197,24 @@ def ensure_recommended_ranges(client: FlaskClient) -> None:
         client.post('/api/ranges/install_recommended')
     except Exception:
         # If the endpoint is unavailable for some tests, ignore
+        pass
+
+
+@pytest.fixture(scope="function", autouse=True)
+def ensure_clean_basex_db() -> None:
+    """Ensure a clean (empty) LIFT dataset exists in TEST_DB_NAME before each test.
+
+    Uses the same delete-and-add logic from tests/basex_test_utils to keep the
+    behavior DRY and safe (avoids DROP/CREATE races).
+    """
+    from tests.basex_test_utils import delete_all_lift_entries
+
+    db_name = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE') or 'dictionary_test'
+
+    try:
+        delete_all_lift_entries(db_name)
+    except Exception:
+        # If BaseX isn't available, skip resetting the DB; tests will skip later if needed
         pass
 
 

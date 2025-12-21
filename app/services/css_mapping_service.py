@@ -104,11 +104,11 @@ class CSSMappingService:
             return True
         return False
     def _build_range_lookup(self, lang: str = 'en') -> Dict[str, Dict[str, str]]:
-        """Build lookup maps for all ranges.
+        """Build lookup maps for all ranges (abbreviations).
         
         Args:
             lang: Language code for abbreviations
-            
+        
         Returns:
             Dictionary mapping range ID to a map of {value_id: abbreviation}
         """
@@ -124,27 +124,35 @@ class CSSMappingService:
             
             range_abbr_maps = {}
             
-            def add_to_map(values_list, target_map):
+            def add_to_map(values_list, target_map, use_abbrev: bool = True):
                 for val in values_list:
                     val_id = val.get('id')
-                    abbrev = val.get('abbrev')
-                    if val_id and abbrev:
-                        if isinstance(abbrev, dict):
-                            abbr_text = abbrev.get(lang, abbrev.get('en', val_id))
+                    if use_abbrev:
+                        abbrev = val.get('abbrev')
+                        if val_id and abbrev:
+                            if isinstance(abbrev, dict):
+                                abbr_text = abbrev.get(lang, abbrev.get('en', val_id))
+                            else:
+                                abbr_text = abbrev
+                            target_map[val_id] = abbr_text
+                    else:
+                        label = val.get('label') or val.get('id')
+                        if isinstance(label, dict):
+                            label_text = label.get(lang, label.get('en', val_id))
                         else:
-                            abbr_text = abbrev
-                        target_map[val_id] = abbr_text
+                            label_text = label
+                        if val_id and label_text:
+                            target_map[val_id] = label_text
                     
                     children = val.get('children', [])
                     if children:
-                        add_to_map(children, target_map)
+                        add_to_map(children, target_map, use_abbrev)
             
             for range_id, range_data in ranges.items():
                 if range_data and range_data.get('values'):
                     abbr_map = {}
-                    add_to_map(range_data.get('values', []), abbr_map)
-                    if abbr_map:
-                        range_abbr_maps[range_id] = abbr_map
+                    add_to_map(range_data.get('values', []), abbr_map, use_abbrev=True)
+                    range_abbr_maps[range_id] = abbr_map
                         
             return range_abbr_maps
         except Exception as e:
@@ -152,44 +160,161 @@ class CSSMappingService:
             return {}
 
     def _apply_relation_display_aspect(self, elem: ET.Element, aspect: str, range_map: Dict[str, str]) -> None:
-        """Apply display aspect to a relation element."""
-        # This is a placeholder for more complex aspect logic
-        # Currently we just do the replacement if it matches map
+        """Apply display aspect to a relation element.
+        
+        - If aspect == 'label' or 'full', range_map should be id->label mapping.
+        - If aspect == 'abbr', range_map should be id->abbrev mapping.
+        """
         current_type = elem.attrib.get('type', '')
         if current_type in range_map:
-            # If aspect is 'label' we might want full label, but map has abbr?
-            # For now, consistent behavior with existing implementation
             elem.attrib['type'] = range_map[current_type]
 
     def _apply_grammatical_display_aspect(self, elem: ET.Element, aspect: str, range_map: Dict[str, str]) -> None:
         """Apply display aspect to a grammatical-info element."""
-        # Placeholder
         current_value = elem.attrib.get('value', '')
         if current_value in range_map:
             elem.attrib['value'] = range_map[current_value]
 
-    def apply_display_aspects(self, entry_xml: str, profile: DisplayProfile) -> str:
-        """Apply display aspects to the entry XML.
-        
-        This method modifies the XML to reflect display configurations like
-        'full', 'abbr', or 'label' for various elements.
-        
-        Args:
-            entry_xml: The LIFT entry XML
-            profile: DisplayProfile containing configuration
-            
-        Returns:
-            Modified XML
+    def _build_range_label_lookup(self, lang: str = 'en') -> Dict[str, Dict[str, str]]:
+        """Build lookup maps for ranges using labels instead of abbreviations.
+
+        Returns mapping: range_id -> { value_id -> label }
         """
-        # For now, we largely rely on _replace_grammatical_info_with_abbr which handles generic range replacement
-        # But we can add specific logic here if needed. 
-        # Since _replace_grammatical_info_with_abbr is called in render_entry, this might be redundant 
-        # unless we move logic here. For safety/compatibility with existing tests, we keep _replace...
-        # and just ensure this method exists and does something useful or pass-through.
-        
-        # If we really want to support 'aspect' we would inspect profile.elements here
-        # and match them to XML nodes.
-        return self._replace_grammatical_info_with_abbr(entry_xml)
+        try:
+            from flask import current_app
+            from app.services.dictionary_service import DictionaryService
+
+            dict_service = current_app.injector.get(DictionaryService)
+            ranges = dict_service.get_ranges()
+
+            if not ranges:
+                return {}
+
+            range_label_maps: Dict[str, Dict[str, str]] = {}
+
+            def add_to_map(values_list, target_map):
+                for val in values_list:
+                    val_id = val.get('id')
+                    label = val.get('label') or val.get('id')
+                    if isinstance(label, dict):
+                        label_text = label.get(lang, label.get('en', val_id))
+                    else:
+                        label_text = label
+                    if val_id and label_text:
+                        target_map[val_id] = label_text
+
+                    children = val.get('children', [])
+                    if children:
+                        add_to_map(children, target_map)
+
+            for range_id, range_data in ranges.items():
+                if range_data and range_data.get('values'):
+                    lbl_map: Dict[str, str] = {}
+                    add_to_map(range_data.get('values', []), lbl_map)
+                    if lbl_map:
+                        range_label_maps[range_id] = lbl_map
+
+            return range_label_maps
+        except Exception as e:
+            self._logger.debug(f"Could not build range label lookup: {e}")
+            return {}
+    def apply_display_aspects(self, entry_xml: str, profile: DisplayProfile) -> (str, set):
+        """Apply display aspects from the profile to the entry XML.
+
+        This inspects the profile elements' display aspects (e.g., 'label', 'abbr')
+        and applies appropriate mappings to matching XML nodes. It returns the
+        modified XML and a set of element tag names that were handled explicitly
+        (so callers can avoid overwriting those with generic abbreviation replacement).
+        """
+        import xml.etree.ElementTree as ET
+        import re
+
+        handled_elements = set()
+
+        # Build mapping tables
+        abbr_maps = self._build_range_lookup()
+        label_maps = self._build_range_label_lookup()
+
+        # Parse XML (light namespace cleanup)
+        clean_xml = re.sub(r'\sxmlns(:[^=]+)?="[^"]+"', '', entry_xml)
+        clean_xml = re.sub(r'<([a-z]+):', r'<\1', clean_xml)
+        clean_xml = re.sub(r'</([a-z]+):', r'</\1', clean_xml)
+
+        try:
+            root = ET.fromstring(clean_xml)
+        except Exception:
+            # If parsing fails, return original
+            return entry_xml, handled_elements
+
+        # Inspect profile elements to determine how to render specific lift elements
+        for pe in profile.elements:
+            aspect = None
+            try:
+                aspect = pe.get_display_aspect()
+            except Exception:
+                aspect = None
+
+            lift_elem = pe.lift_element
+            if not lift_elem:
+                continue
+
+            # Relation-specific handling
+            if lift_elem == 'relation':
+                # Choose label map for 'label' or 'full' aspects; abbrev map for 'abbr'
+                use_label = aspect in ('label', 'full')
+                # Prefer standardized range ids
+                rel_map = None
+                if use_label:
+                    rel_map = label_maps.get('lexical-relation') or label_maps.get('relation-type')
+                else:
+                    rel_map = abbr_maps.get('lexical-relation') or abbr_maps.get('relation-type')
+
+                if rel_map:
+                    for elem in root.findall('.//relation'):
+                        self._apply_relation_display_aspect(elem, aspect or 'abbr', rel_map)
+                    handled_elements.add('relation')
+
+            # Grammatical info handling
+            if lift_elem == 'grammatical-info':
+                # If the profile asks for 'label' or 'full', use label map; otherwise use abbr
+                use_label = aspect in ('label', 'full')
+                gram_map = label_maps.get('grammatical-info') if use_label else abbr_maps.get('grammatical-info')
+                if gram_map:
+                    for elem in root.findall('.//grammatical-info'):
+                        self._apply_grammatical_display_aspect(elem, aspect or 'abbr', gram_map)
+                    handled_elements.add('grammatical-info')
+
+            # Variant handling
+            if lift_elem == 'variant':
+                use_label = aspect in ('label', 'full')
+                var_map = label_maps.get('variant-type') if use_label else abbr_maps.get('variant-type')
+                if var_map:
+                    for elem in root.findall('.//variant'):
+                        current_type = elem.attrib.get('type', '')
+                        if current_type in var_map:
+                            elem.attrib['type'] = var_map[current_type]
+                    handled_elements.add('variant')
+
+            # Traits are a bit generic; apply if profile requested
+            if lift_elem == 'trait':
+                # For simplicity, apply abbreviation replacement if no aspect
+                use_label = aspect in ('label', 'full')
+                for elem in root.findall('.//trait'):
+                    trait_name = elem.attrib.get('name', '')
+                    value = elem.attrib.get('value', '')
+                    if not trait_name or not value:
+                        continue
+                    # Resolve correct map for this trait name
+                    if use_label:
+                        val_map = label_maps.get(trait_name) or label_maps.get(f"{trait_name}s") or label_maps.get(trait_name.rstrip('s'))
+                    else:
+                        val_map = abbr_maps.get(trait_name) or abbr_maps.get(f"{trait_name}s") or abbr_maps.get(trait_name.rstrip('s'))
+                    if val_map and value in val_map:
+                        elem.attrib['value'] = val_map[value]
+                        handled_elements.add('trait')
+
+        # Convert tree back to string and return with handled set
+        return ET.tostring(root, encoding='unicode'), handled_elements
 
     def render_entry(self, entry_xml: str, profile: DisplayProfile, dict_service=None) -> str:
         """Render an entry XML with the given display profile.
@@ -234,8 +359,13 @@ class CSSMappingService:
             # Use transformer to generate HTML
             transformer = LIFTToHTMLTransformer()
             
-            # Replace grammatical-info IDs with abbreviations from ranges
-            entry_xml_with_abbr = self._replace_grammatical_info_with_abbr(entry_xml)
+            # First apply display aspects indicated by the profile. This returns modified
+            # XML plus a set of element tag names handled explicitly by the profile (so we
+            # can avoid overwriting them with the generic abbreviation pass).
+            entry_xml_with_profile_aspects, handled = self.apply_display_aspects(entry_xml, profile)
+
+            # Now do a general abbreviation replacement for remaining elements we didn't handle
+            entry_xml_with_abbr = self._replace_grammatical_info_with_abbr(entry_xml_with_profile_aspects, skip_elements=handled)
             
             # Resolve relation references to show headwords instead of IDs
             entry_xml_with_relations = self._resolve_relation_references(entry_xml_with_abbr, dict_service)

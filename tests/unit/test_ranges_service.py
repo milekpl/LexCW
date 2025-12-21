@@ -111,7 +111,7 @@ class TestRangesService:
         range_data = {
             'id': 'custom-range',
             'labels': {'en': 'Custom Range'},
-            'descriptions': {'en': 'A custom range for testing'}
+            'description': {'en': 'A custom range for testing'}
         }
         
         guid = service.create_range(range_data)
@@ -163,7 +163,7 @@ class TestRangesService:
             'id': 'test-range',
             'guid': '12345',
             'labels': {'en': 'Updated Range'},
-            'descriptions': {'en': 'Updated description'}
+            'description': {'en': 'Updated description'}
         }
         
         service.update_range('test-range', range_data)
@@ -316,7 +316,7 @@ class TestRangesService:
         element_data = {
             'id': 'new-element',
             'labels': {'en': 'New Element'},
-            'descriptions': {'en': 'A new element'}
+            'description': {'en': 'A new element'}
         }
         
         guid = service.create_range_element('test-range', element_data)
@@ -475,7 +475,7 @@ class TestRangesService:
             'guid': '12345',
             'parent': 'parent-element',
             'labels': {'en': 'Test Element'},
-            'descriptions': {'en': 'Description'},
+            'description': {'en': 'Description'},
             'abbrevs': {'en': 'TE'},
             'traits': {'trait1': 'value1'}
         }

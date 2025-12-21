@@ -1,0 +1,204 @@
+{% macro multilingual_field(name_prefix, field_data, project_languages, label="Field", placeholder="", required=false, show_remove_button=true) %}
+    <div class="multilingual-forms {{ name_prefix }}-forms">
+        {% set project_lang_codes = project_languages|map(attribute=0)|list %}
+        {% set data_langs = field_data.keys()|list if field_data is mapping else [] %}
+        {% set all_langs = (project_lang_codes + data_langs)|unique %}
+        
+        {% for lang in all_langs %}
+            {# Handle both flat format {lang: text} and nested form format {lang: {text: "..."}} #}
+            {% if lang in field_data %}
+                {% set lang_value = field_data[lang] %}
+                {% if lang_value is mapping and 'text' in lang_value %}
+                    {% set text = lang_value['text'] %}
+                {% elif lang_value is string %}
+                    {% set text = lang_value %}
+                {% else %}
+                    {% set text = '' %}
+                {% endif %}
+            {% else %}
+                {% set text = '' %}
+            {% endif %}
+            
+            <div class="mb-3 language-form" data-language="{{ lang }}">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Language</label>
+                        <select class="form-select language-select"
+                                name="{{ name_prefix }}.{{ lang }}.lang"
+                                data-field-name="{{ name_prefix }}.{{ lang }}">
+                            {% if lang not in project_lang_codes %}
+                                <option value="{{ lang }}" selected>{{ lang }} (original)</option>
+                            {% endif %}
+                            {% for code, label in project_languages %}
+                                <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">{{ label }}</label>
+                        <textarea class="form-control {{ name_prefix }}-text" 
+                                  name="{{ name_prefix }}.{{ lang }}.text" 
+                                  rows="2" 
+                                  {% if required and loop.first %}required{% endif %}
+                                  placeholder="{{ placeholder }}">{{ text }}</textarea>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        {% if show_remove_button and not loop.first %}
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
+                                title="Remove language">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    <div class="mt-2">
+        <button type="button" class="btn btn-sm btn-outline-primary add-language-btn" 
+                title="Add another language">
+            <i class="fas fa-plus"></i> Add Language
+        </button>
+    </div>
+{% endmacro %}
+
+{% macro note_item(note_type, note_content, project_languages, index=0) %}
+    <div class="note-item mb-4 border rounded p-3" data-note-type="{{ note_type }}">
+        <div class="row align-items-center mb-2">
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Note Type</label>
+                <select class="form-select note-type-select" name="notes.{{ note_type }}.type">
+                    <option value="general" {% if note_type == 'general' %}selected{% endif %}>General</option>
+                    <option value="usage" {% if note_type == 'usage' %}selected{% endif %}>Usage</option>
+                    <option value="semantic" {% if note_type == 'semantic' %}selected{% endif %}>Semantic</option>
+                    <option value="etymology" {% if note_type == 'etymology' %}selected{% endif %}>Etymology</option>
+                    <option value="cultural" {% if note_type == 'cultural' %}selected{% endif %}>Cultural</option>
+                    <option value="anthropology" {% if note_type == 'anthropology' %}selected{% endif %}>Anthropology</option>
+                    <option value="discourse" {% if note_type == 'discourse' %}selected{% endif %}>Discourse</option>
+                    <option value="phonology" {% if note_type == 'phonology' %}selected{% endif %}>Phonology</option>
+                    <option value="sociolinguistics" {% if note_type == 'sociolinguistics' %}selected{% endif %}>Sociolinguistics</option>
+                    <option value="bibliography" {% if note_type == 'bibliography' %}selected{% endif %}>Bibliography</option>
+                </select>
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-sm btn-outline-danger remove-note-btn" 
+                        title="Remove note">
+                    <i class="fas fa-trash"></i> Remove Note
+                </button>
+            </div>
+        </div>
+        
+        <div class="multilingual-forms">
+            {% for lang, text in note_content.items() %}
+            <div class="mb-3 language-form" data-language="{{ lang }}">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Language</label>
+                        <select class="form-select language-select" name="notes.{{ note_type }}.{{ lang }}.lang">
+                            {% set project_lang_codes = project_languages|map(attribute=0)|list %}
+                            {% if lang not in project_lang_codes %}
+                                <option value="{{ lang }}" selected>{{ lang }} (original)</option>
+                            {% endif %}
+                            {% for code, label in project_languages %}
+                                <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Note Text</label>
+                        <textarea class="form-control note-text" 
+                                  name="notes.{{ note_type }}.{{ lang }}.text" 
+                                  rows="2" 
+                                  placeholder="Enter note text in {{ lang }}">{{ text }}</textarea>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" 
+                                title="Remove language">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="mt-3">
+            <button type="button" class="btn btn-sm btn-outline-primary add-language-btn" 
+                    title="Add another language">
+                <i class="fas fa-plus"></i> Add Language
+            </button>
+        </div>
+    </div>
+{% endmacro %}
+
+{% macro relation_item(relation, relation_index, project_languages, ranges, available_languages) %}
+    <div class="relation-item card mb-3" data-relation-index="{{ relation_index }}">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-link me-2"></i>
+                    Relation: {{ relation.type or 'Unknown Type' }}
+                </h6>
+                <button type="button" class="btn btn-sm btn-light remove-relation-btn" 
+                        data-index="{{ relation_index }}" title="Remove relation">
+                    <i class="fas fa-trash text-danger"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">
+                        Relation Type
+                        <i class="fas fa-info-circle ms-1 form-tooltip" 
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top"
+                           data-bs-html="true"
+                           title="<strong>Semantic Relationship:</strong><br>This entry has a '{{ relation.type }}' relationship with {% if relation.ref_display_text %}'<strong>{{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}</strong>'.{% else %}the target entry.{% endif %}"></i>
+                    </label>
+                    <select class="form-control relation-type-select" 
+                            name="relations[{{ relation_index }}].type" 
+                            data-range-id="lexical-relation"
+                            data-hierarchical="true"
+                            data-searchable="true"
+                            data-selected-value="{{ relation.type or '' }}"
+                            required>
+                        <option value="">Select type</option>
+                        <!-- Options will be populated dynamically from LIFT ranges -->
+                    </select>
+                    <div class="form-text">Type of semantic relation</div>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-bold">Target Entry</label>
+                    {% if relation.ref_display_text %}
+                    <div class="alert alert-light mb-2">
+                        <i class="fas fa-external-link-alt me-2"></i>
+                        <strong>Related to: </strong>
+                        <a href="{{ url_for('main.edit_entry', entry_id=relation.ref) }}" 
+                           class="text-decoration-none text-primary fw-bold"
+                           title="Edit target entry">
+                            {{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    <input type="hidden" 
+                           name="relations[{{ relation_index }}].ref"
+                           value="{{ relation.ref or '' }}">
+                    
+                    <div class="input-group">
+                        <input type="text" class="form-control relation-search-input" 
+                               placeholder="Search for entry to relate to..."
+                               data-relation-index="{{ relation_index }}">
+                        <button type="button" class="btn btn-outline-secondary relation-search-btn" 
+                                data-relation-index="{{ relation_index }}">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
+                    <div class="form-text">Search for entries by headword or definition - no raw IDs needed</div>
+                    <div class="search-results mt-2" id="search-results-{{ relation_index }}" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endmacro %}

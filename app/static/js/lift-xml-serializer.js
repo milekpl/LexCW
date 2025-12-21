@@ -126,6 +126,44 @@ class LIFTXMLSerializer {
 
         // Add relations
         const entryRelations = this.normalizeRelationArray(formData.relations);
+        
+        // Handle variant_relations: convert to relations with variant-type traits
+        const variantRelations = this.normalizeRelationArray(formData.variant_relations);
+        if (variantRelations.length > 0) {
+            variantRelations.forEach(variantData => {
+                // Convert variant relation to regular relation with variant-type trait
+                const relationData = {
+                    type: variantData.type || '_component-lexeme',
+                    ref: variantData.ref,
+                    order: variantData.order,
+                    traits: {
+                        'variant-type': variantData.variant_type || 'Unspecified Variant'
+                    }
+                };
+                const relation = this.createRelation(doc, relationData);
+                entry.appendChild(relation);
+            });
+        }
+        
+        // Handle components: convert to relations with complex-form-type traits
+        const components = this.normalizeRelationArray(formData.components);
+        if (components.length > 0) {
+            components.forEach(componentData => {
+                // Convert component to _component-lexeme relation with complex-form-type trait
+                const relationData = {
+                    type: componentData.type || '_component-lexeme',
+                    ref: componentData.ref,
+                    order: componentData.order,
+                    traits: {
+                        'complex-form-type': componentData.type || 'Compound'
+                    }
+                };
+                const relation = this.createRelation(doc, relationData);
+                entry.appendChild(relation);
+            });
+        }
+        
+        // Add regular relations
         if (entryRelations.length > 0) {
             entryRelations.forEach(relData => {
                 const relation = this.createRelation(doc, relData);

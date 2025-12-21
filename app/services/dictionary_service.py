@@ -323,7 +323,7 @@ class DictionaryService:
             self.logger.error("Error creating entry: %s", str(e))
             raise DatabaseError(f"Failed to create entry: {str(e)}") from e
 
-    def update_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False) -> None:
+    def update_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, skip_bidirectional: bool = False) -> None:
         """
         Update an existing entry.
 
@@ -331,6 +331,7 @@ class DictionaryService:
             entry: Entry object to update.
             draft: If True, use draft validation mode (allows saving incomplete entries).
             skip_validation: If True, skip validation entirely (allows saving partial work).
+            skip_bidirectional: If True, do not process bidirectional relation creation for this update.
 
         Raises:
             NotFoundError: If the entry does not exist.
@@ -338,7 +339,7 @@ class DictionaryService:
             DatabaseError: If there is an error updating the entry.
         """
         try:
-            self.logger.info(f"[UPDATE_ENTRY] Received skip_validation={skip_validation}, draft={draft}")
+            self.logger.info(f"[UPDATE_ENTRY] Received skip_validation={skip_validation}, draft={draft}, skip_bidirectional={skip_bidirectional}")
             if not skip_validation:
                 self.logger.info(f"[UPDATE_ENTRY] Running validation in mode: {'draft' if draft else 'save'}")
                 validation_mode = "draft" if draft else "save"
@@ -354,8 +355,9 @@ class DictionaryService:
             # Check if entry exists
             self.get_entry(entry.id)
 
-            # Handle bidirectional relations before saving
-            self._handle_bidirectional_relations(entry)
+            # Handle bidirectional relations before saving (unless explicitly skipped)
+            if not skip_bidirectional:
+                self._handle_bidirectional_relations(entry)
 
             entry_xml = self._prepare_entry_xml(entry)
 
@@ -424,7 +426,8 @@ class DictionaryService:
                         target_entry.relations.append(reverse_relation)
 
                         # Save the target entry with the new reverse relation
-                        self.update_entry(target_entry, skip_validation=True)  # Skip validation to avoid circular issues
+                        # Skip validation and skip bidirectional processing to avoid recursion
+                        self.update_entry(target_entry, skip_validation=True, skip_bidirectional=True)
 
                         self.logger.info(f"Added reverse relation '{reverse_rel_type}' from '{rel_ref}' to '{entry.id}'")
 
@@ -1762,6 +1765,30 @@ class DictionaryService:
                         'values': variant_types
                     }
 
+            # Ensure known standard ranges that are missing are included so the UI
+            # and callers like /api/ranges always see a consistent set of core ranges
+            try:
+                from app.services.ranges_service import STANDARD_RANGE_METADATA, CONFIG_PROVIDED_RANGES, CONFIG_RANGE_TYPES
+                for std_id, meta in STANDARD_RANGE_METADATA.items():
+                    if std_id not in parsed_ranges:
+                        label = meta.get('label') if isinstance(meta, dict) else meta
+                        desc = meta.get('description') if isinstance(meta, dict) else ''
+                        parsed_ranges[std_id] = {
+                            'id': std_id,
+                            'guid': f'provided-{std_id}',
+                            'label': label or std_id,
+                            'description': {'en': desc} if desc else {},
+                            'values': [],
+                            'official': False,
+                            'standard': True,
+                            'provided_by_config': std_id in CONFIG_PROVIDED_RANGES,
+                            'fieldworks_standard': (CONFIG_RANGE_TYPES.get(std_id) == 'fieldworks'),
+                            'config_type': CONFIG_RANGE_TYPES.get(std_id)
+                        }
+            except Exception:
+                # If anything goes wrong while adding standard fallbacks, log and continue
+                self.logger.exception("Failed to add standard range fallbacks")
+
             self.ranges = parsed_ranges
             return self.ranges
         except Exception as e:
@@ -1840,10 +1867,20 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # If ranges already exist, do not overwrite
+            # If ranges already exist with non-empty values, return them (idempotent call).
+            # If existing ranges are only placeholder standard fallbacks with empty 'values',
+            # proceed to seed the minimal ranges file.
             existing = self.get_ranges()
+            has_values = False
             if existing:
-                raise DatabaseError("Ranges already exist in the database")
+                for r in existing.values():
+                    if r.get('values'):
+                        has_values = True
+                        break
+            if existing and has_values:
+                self.logger.info("Recommended ranges already installed; returning existing ranges")
+                return existing
+            # Otherwise, fall through and add minimal ranges to the DB
 
             # --- Load minimal.lift-ranges and add to DB ---
             minimal_ranges_path = os.path.join(os.path.dirname(__file__), '../../config/minimal.lift-ranges')

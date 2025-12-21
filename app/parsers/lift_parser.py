@@ -764,8 +764,8 @@ class LIFTParser:
         
         return Example(
             id_=elem.get('id'),
-            form=self._parse_multitext(elem, '.'),
-            translations=self._parse_multitext(elem, './lift:translation'),
+            form=self._parse_multitext(elem, '.', flatten=True),
+            translations=self._parse_multitext(elem, './lift:translation', flatten=True),
             source=elem.get('source'),
             note=note,
             custom_fields=custom_fields

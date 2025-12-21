@@ -877,6 +877,85 @@ class Entry(BaseModel):
         """
         return self.get_component_relations()
 
+    def get_forward_component_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+        """
+        Extract forward component information from _component-lexeme relations with complex-form-type traits.
+        These represent relationships where this entry HAS components (is a complex form).
+        
+        Args:
+            dict_service: DictionaryService instance for enriching component data
+            
+        Returns:
+            List of dictionaries containing component information extracted from relations.
+            Each dictionary contains:
+            - ref: Reference to the component entry
+            - complex_form_type: The complex form type (Compound, Phrase, etc.)
+            - type: The relation type
+            - order: The relation order (if present)
+            - ref_lexical_unit: Human-readable text from component entry (if found)
+            - ref_display_text: Display text from component entry (if found)
+        """
+        forward_components = []
+        
+        for relation in self.relations:
+            try:
+                # Check for _component-lexeme relations with complex-form-type traits
+                if (hasattr(relation, 'type') and relation.type == '_component-lexeme' and
+                    hasattr(relation, 'traits') and relation.traits and 
+                    isinstance(relation.traits, dict) and 'complex-form-type' in relation.traits and
+                    hasattr(relation, 'ref') and relation.ref):
+                    
+                    component_info = {
+                        'ref': str(relation.ref),  # Ensure string
+                        'complex_form_type': str(relation.traits['complex-form-type']),  # Ensure string
+                        'type': str(relation.type),  # Ensure string
+                    }
+                    
+                    # Include order if available and valid
+                    if (hasattr(relation, 'order') and relation.order is not None and 
+                        isinstance(relation.order, (int, str))):
+                        try:
+                            component_info['order'] = int(relation.order)
+                        except (ValueError, TypeError):
+                            # Skip invalid order values
+                            pass
+                    
+                    # Enrich with component entry information if dict_service is available
+                    if dict_service:
+                        try:
+                            component_entry = dict_service.get_entry(component_info['ref'])
+                            if component_entry:
+                                # Extract lexical unit for display
+                                if hasattr(component_entry, 'lexical_unit'):
+                                    if isinstance(component_entry.lexical_unit, dict):
+                                        # Multi-language lexical unit - extract first available
+                                        for lang in ['en', 'pl', 'cs', 'sk']:
+                                            if lang in component_entry.lexical_unit:
+                                                component_info['ref_lexical_unit'] = component_entry.lexical_unit[lang]
+                                                break
+                                        if 'ref_lexical_unit' not in component_info:
+                                            first_key = list(component_entry.lexical_unit.keys())[0]
+                                            component_info['ref_lexical_unit'] = component_entry.lexical_unit[first_key]
+                                    else:
+                                        component_info['ref_lexical_unit'] = str(component_entry.lexical_unit)
+                                
+                                # Create display text with homograph number as subscript if present
+                                display_text = component_info.get('ref_lexical_unit', component_info['ref'])
+                                if hasattr(component_entry, 'homograph_number') and component_entry.homograph_number:
+                                    # Use HTML subscript for consistency with other parts of the UI
+                                    display_text += f'<sub style="font-size: 0.8em; color: #6c757d;">{component_entry.homograph_number}</sub>'
+                                component_info['ref_display_text'] = display_text
+                        except Exception:
+                            # Log but don't fail - continue without enrichment
+                            pass
+                    
+                    forward_components.append(component_info)
+            except Exception:
+                # Skip malformed relations
+                continue
+        
+        return forward_components
+
     def get_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
         """
         Extract variant information from relations with variant-type traits.

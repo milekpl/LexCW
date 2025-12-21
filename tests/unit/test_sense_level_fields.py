@@ -33,8 +33,8 @@ class TestSenseLevelFields:
             domain_type=["1.1 Universe, creation", "1.2 World"]
         )
 
-        assert sense.domain_type == "1.1 Universe, creation"
-        assert isinstance(sense.domain_type, str)
+        assert sense.domain_type == ["1.1 Universe, creation", "1.2 World"]
+        assert isinstance(sense.domain_type, list)
 
     def test_sense_model_defaults_to_empty_lists(self) -> None:
         """Test that usage_type and domain_type default to empty lists."""

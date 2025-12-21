@@ -291,8 +291,8 @@ class TestMultilingualFieldEditing:
         assert isinstance(source_field, dict)
         assert 'en' in source_field
         assert 'pt' in source_field
-        assert source_field['en']['text'] == "Wilson (1995)"
-        assert source_field['pt']['text'] == "Wilson (1995)"
+        assert source_field['en'] == "Wilson (1995)"
+        assert source_field['pt'] == "Wilson (1995)"
         
         # Cultural note field
         cultural_note = entry.custom_fields['cultural_note']
@@ -300,9 +300,9 @@ class TestMultilingualFieldEditing:
         assert 'en' in cultural_note
         assert 'pt' in cultural_note
         assert 'pl' in cultural_note
-        assert cultural_note['en']['text'] == "Sacred tree in traditional ceremonies"
-        assert cultural_note['pt']['text'] == "Árvore sagrada em cerimônias tradicionais"
-        assert cultural_note['pl']['text'] == "Chikwa chakudedza pamicaso yakale"
+        assert cultural_note['en'] == "Sacred tree in traditional ceremonies"
+        assert cultural_note['pt'] == "Árvore sagrada em cerimônias tradicionais"
+        assert cultural_note['pl'] == "Chikwa chakudedza pamicaso yakale"
 
     def _process_multilingual_note_form_data(self, form_data: Dict[str, str]) -> Dict[str, Dict[str, dict]]:
         """

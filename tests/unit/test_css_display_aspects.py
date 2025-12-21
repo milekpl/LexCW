@@ -322,3 +322,38 @@ class TestProfileElementIntegration:
             assert retrieved_elem is not None
             assert retrieved_elem.get_display_aspect() == 'abbr'
             assert retrieved_elem.get_display_language() == 'en'
+
+    def test_relation_label_aspect_renders_full_label(self, db_app: Flask) -> None:
+        """When a relation element is configured with display_aspect 'label',
+        rendering should use the full label from ranges rather than the abbreviation.
+        """
+        with db_app.app_context():
+            # Create a simple display profile with a relation element set to 'label'
+            profile = DisplayProfile()
+            profile.name = "Relation Label Profile"
+            db.session.add(profile)
+            db.session.commit()
+
+            rel_elem = ProfileElement()
+            rel_elem.profile_id = profile.id
+            rel_elem.lift_element = 'relation'
+            rel_elem.css_class = 'relation'
+            rel_elem.set_display_aspect('label')
+            db.session.add(rel_elem)
+            db.session.commit()
+
+            # Sample entry with a relation of type 'antonym'
+            lift_xml = '''
+            <entry id="test_entry">
+                <sense id="sense1">
+                    <relation type="antonym" ref="uuid-target-2" data-headword="slow"/>
+                </sense>
+            </entry>
+            '''
+
+            service = CSSMappingService()
+            html = service.render_entry(lift_xml, profile)
+
+            # Expect the full label 'Antonym' rather than abbreviation 'ant'
+            assert 'Antonym' in html
+            assert 'ant ' not in html or ' ant<' not in html

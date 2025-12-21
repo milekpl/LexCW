@@ -17,14 +17,15 @@
     "format:js": "prettier --write app/static/js/**/*.js tests/unit/**/*.js"
   },
   "devDependencies": {
-    "adm-zip": "^0.5.9",
-    "playwright": "^1.40.0",
+    "@playwright/test": "^1.57.0",
     "@types/jest": "^30.0.0",
     "@xmldom/xmldom": "^0.8.11",
+    "adm-zip": "^0.5.9",
     "eslint": "^8.0.0",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "nodemon": "^2.0.0",
+    "playwright": "^1.40.0",
     "prettier": "^2.0.0"
   },
   "keywords": [

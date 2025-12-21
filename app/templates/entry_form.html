@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% import "macros/form_macros.html" as form_macros %}
+
 {% block title %}{% if entry.id %}Edit Entry: {{ entry.lexical_unit.values()|join(', ') }}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% else %}Add New Entry{% endif %}{% endblock %}
 
 {% block extra_css %}
@@ -797,13 +799,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% if component_relations and component_relations|length > 0 %}
+                    {% if forward_component_relations and forward_component_relations|length > 0 %}
                         <div class="alert alert-success mb-3">
                             <i class="fas fa-info-circle me-2"></i>
                             <strong>This entry is a complex form</strong> composed of the following main entries:
                         </div>
                         
-                        {% for component in component_relations %}
+                        {% for component in forward_component_relations %}
                         <div class="component-item card mb-3">
                             <div class="card-header bg-light">
                                 <h6 class="mb-0">
@@ -823,7 +825,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <a href="{{ url_for('main.edit_entry', entry_id=component.ref) }}" 
                                        class="text-decoration-none text-primary fw-bold"
                                        title="Edit main entry">
-                                        {{ component.ref_display_text|safe }}
+                                        {{ component.ref_display_text|safe if component.ref_display_text else component.ref }}
                                     </a>
                                     <br>
                                     <small class="text-muted">
@@ -995,8 +997,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         {% if entry.relations %}
                             {% set filtered_relations = [] %}
                             {% for relation in entry.relations %}
-                                {# Filter out _component-lexeme relations with variant-type or complex-form-type traits #}
-                                {% if not (relation.type == '_component-lexeme' and relation.traits and ('variant-type' in relation.traits or 'complex-form-type' in relation.traits)) %}
+                                {# Filter out ALL _component-lexeme relations - they should be in Variants or Complex Form Components sections #}
+                                {% if relation.type != '_component-lexeme' %}
                                     {% set _ = filtered_relations.append(relation) %}
                                 {% endif %}
                             {% endfor %}
@@ -3268,6 +3270,9 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 // Make ranges data available to JavaScript
 window.rangesData = {{ ranges | tojson | safe }};
+
+// Make component relations available to JavaScript
+window.componentRelations = {{ (forward_component_relations | default([])) | tojson | safe }};
 
 document.addEventListener('DOMContentLoaded', async function() {
      // Initialize Bootstrap tooltips
