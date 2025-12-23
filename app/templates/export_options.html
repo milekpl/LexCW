@@ -21,9 +21,23 @@
                     </ul>
                 </div>
                 <div class="card-footer">
-                    <a href="{{ url_for('main.export_lift') }}" class="btn btn-primary">
-                        <i class="fa fa-file-export"></i> Export to LIFT
-                    </a>
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('main.export_lift') }}" class="btn btn-primary">
+                            <i class="fa fa-file-export"></i> Export to LIFT
+                        </a>
+                        <div class="dropdown">
+                            <button class="btn btn-secondary dropdown-toggle" type="button" id="liftExportOptions" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa fa-cog"></i>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="liftExportOptions">
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('main.export_lift') }}">
+                                        <i class="fa fa-files-o"></i> Export to LIFT (Dual Files)
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

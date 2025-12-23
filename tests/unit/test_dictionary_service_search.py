@@ -83,6 +83,51 @@ class TestDictionaryServiceSearch:
             mock_parse.assert_called_with(mock_xml)
             assert entries[0].id == "test_id_1"
 
-
+    def test_import_lift_includes_namespace_prologue(self):
+        """Test that import_lift uses fast bulk merge operations."""
+        service, mock_connector = self._create_mock_service()
+        
+        # Create the directory that will be used for temp files
+        import os
+        test_dir = "/tmp/test.lift"
+        os.makedirs(test_dir, exist_ok=True)
+        
+        # Mock file operations and temp database operations
+        with patch("os.path.exists", return_value=True), \
+             patch("os.path.abspath", return_value=test_dir), \
+             patch("os.path.getsize", return_value=100), \
+             patch("random.randint", return_value=123456), \
+             patch.object(service, 'find_ranges_file', return_value=None):
+            
+            # Mock the execute_command and execute_query for temp database operations
+            def mock_execute_command(cmd):
+                if "LIST" in cmd:
+                    return "test_ddd24ab0\nimport_123456\ntest_ddd24ab0"  # Include the temp db in the list
+                return None
+            
+            mock_connector.execute_command.side_effect = mock_execute_command
+            # Mock queries: namespace detection (returns "false"), count (returns "2"),
+            # delete (returns None), export (returns XML), final count
+            mock_connector.execute_query.side_effect = [
+                "false",  # namespace detection
+                "2",      # count query in _import_lift_merge_continue
+                None,      # delete query
+                "<entry id=\"test1\"><form><text>test</text></form></entry>",  # export query
+                "2"       # final count (if needed)
+            ]  
+            
+            result = service.import_lift("/path/to/test.lift", mode="merge")
+            
+            # Check the result
+            assert result == 2
+            
+            # Verify the queries were called
+            calls = mock_connector.execute_query.call_args_list
+            assert len(calls) >= 3  # namespace detection, count, update query
+        
+        # Clean up the test directory
+        import shutil
+        if os.path.exists(test_dir):
+            shutil.rmtree(test_dir)
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

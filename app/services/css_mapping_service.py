@@ -280,9 +280,10 @@ class CSSMappingService:
                 # Prefer standardized range ids
                 rel_map = None
                 if use_label:
-                    rel_map = label_maps.get('lexical-relation') or label_maps.get('relation-type')
+                    # Prefer standardized lexical-relation mapping only
+                    rel_map = label_maps.get('lexical-relation')
                 else:
-                    rel_map = abbr_maps.get('lexical-relation') or abbr_maps.get('relation-type')
+                    rel_map = abbr_maps.get('lexical-relation')
 
                 # Apply relation display aspect for all relation elements. If no mapping exists
                 # we'll still call the helper which can fall back to a humanized label when
@@ -335,16 +336,16 @@ class CSSMappingService:
 
     def render_entry(self, entry_xml: str, profile: DisplayProfile, dict_service=None) -> str:
         """Render an entry XML with the given display profile.
-
-        Args:
-            entry_xml: The LIFT entry XML to render
-            profile: The display profile to use
-            dict_service: Optional DictionaryService instance for relation resolution.
-                         If not provided, will try to get from current_app.
-
-        Returns:
-            HTML representation of the entry with embedded custom CSS
+        
+        Enhanced with debugging for live preview issues.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"[CSS Service] Rendering entry, XML length: {len(entry_xml)}")
+        logger.info(f"[CSS Service] Profile: {profile.name if profile else 'None'}")
+        logger.info(f"[CSS Service] Dict service available: {dict_service is not None}")
+        
         try:
             from app.utils.lift_to_html_transformer import (
                 LIFTToHTMLTransformer,
@@ -392,6 +393,8 @@ class CSSMappingService:
             entry_level_pos = self._extract_entry_level_pos(entry_xml_with_relations)
             
             html_content = transformer.transform(entry_xml_with_relations, element_configs, entry_level_pos=entry_level_pos)
+            
+            logger.info(f"[CSS Service] Transformer output length: {len(html_content) if html_content else 0}")
 
             # Wrap in profile-specific container with sanitized class name
             profile_class = self._sanitize_class_name(profile.name)
@@ -418,39 +421,38 @@ class CSSMappingService:
             if should_number_senses and (not profile.custom_css or 'sense::before' not in profile.custom_css):
                 # If we have entry-level PoS, adjust sense numbering to account for it
                 if entry_level_pos:
-                    css_parts.append("""
-                        .lift-entry-rendered { counter-reset: sense-counter; }
-                        .entry-pos { 
-                            font-weight: bold; 
-                            font-style: italic;
-                            margin-right: 0.5em;
-                        }
-                        .sense::before { 
-                            counter-increment: sense-counter; 
-                            content: counter(sense-counter) ". "; 
-                            font-weight: bold; 
-                        }
-                    """)
+                    css_parts.append(
+                        ".lift-entry-rendered { counter-reset: sense-counter; }\n"
+                        ".entry-pos { \n"
+                        "    font-weight: bold; \n"
+                        "    font-style: italic;\n"
+                        "    margin-right: 0.5em;\n"
+                        "}\n"
+                        ".sense::before { \n"
+                        "    counter-increment: sense-counter; \n"
+                        "    content: counter(sense-counter) \". \"; \n"
+                        "    font-weight: bold; \n"
+                        "}\n"
+                    )
                 else:
-                    css_parts.append("""
-                        .lift-entry-rendered { counter-reset: sense-counter; }
-                        .sense::before { 
-                            counter-increment: sense-counter; 
-                            content: counter(sense-counter) ". "; 
-                            font-weight: bold; 
-                        }
-                    """)
+                    css_parts.append(
+                        ".lift-entry-rendered { counter-reset: sense-counter; }\n"
+                        ".sense::before { \n"
+                        "    counter-increment: sense-counter; \n"
+                        "    content: counter(sense-counter) \". \"; \n"
+                        "    font-weight: bold; \n"
+                        "}\n"
+                    )
             
             # Add subentry indentation CSS if enabled (but only if not already in custom CSS)
             if profile.show_subentries and (not profile.custom_css or 'subentry' not in profile.custom_css):
-                css_parts.append("""
-                    .subentry { 
-                        margin-left: 2em; 
-                        padding-left: 1em; 
-                        border-left: 2px solid #ddd; 
-                    }
-                """)
-            
+                css_parts.append(
+                    ".subentry { \n"
+                    "    margin-left: 2em; \n"
+                    "    padding-left: 1em; \n"
+                    "    border-left: 2px solid #ddd; \n"
+                    "}\n"
+                )
             # Add custom CSS if provided
             if profile.custom_css:
                 css_parts.append(profile.custom_css)
@@ -581,10 +583,8 @@ class CSSMappingService:
                     if current_value in range_abbr_maps['grammatical-info']:
                         elem.attrib['value'] = range_abbr_maps['grammatical-info'][current_value]
             
-            # relation: type attribute (maps to lexical-relation or relation-type range)
-            relation_map = (range_abbr_maps.get('lexical-relation') or 
-                          range_abbr_maps.get('relation-type') or 
-                          range_abbr_maps.get('lexical-relation'))
+            # relation: type attribute (maps to lexical-relation range)
+            relation_map = range_abbr_maps.get('lexical-relation')
             if 'relation' not in skip_elements and relation_map:
                 for elem in root.findall('.//relation'):
                     current_type = elem.attrib.get('type', '')

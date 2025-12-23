@@ -1,0 +1,187 @@
+<div class="card mb-4 variants-section">
+    <div class="card-header bg-success text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-code-branch"></i> Variants
+                <i class="fas fa-info-circle ms-2 form-tooltip" 
+                   data-bs-toggle="tooltip" 
+                   data-bs-placement="top"
+                   data-bs-html="true"
+                   title="<strong>About Variants:</strong><br>Variants represent different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', 'Protestant ethic' vs 'Protestant work ethic', or inflected forms like plurals and past tense forms."></i>
+            </h5>
+            <button type="button" class="btn btn-sm btn-light" id="add-variant-btn">
+                <i class="fas fa-plus"></i> Add Variant
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="variants-container">
+            <!-- Server-side rendered variant items -->
+            {% if variant_relations %}
+                {% for variant in variant_relations %}
+                <div class="variant-item card mb-3" data-variant-index="{{ loop.index0 }}" data-direction="{{ variant.direction or 'outgoing' }}">
+                    <div class="card-header {% if variant.direction == 'incoming' %}bg-info{% else %}bg-success{% endif %} text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas {% if variant.direction == 'incoming' %}fa-arrow-left{% else %}fa-arrow-right{% endif %} me-2"></i>
+                                {% if variant.direction == 'incoming' %}
+                                    Has Variant: {{ variant.variant_type or 'Unknown Type' }}
+                                {% else %}
+                                    Is a Variant: {{ variant.variant_type or 'Unknown Type' }}
+                                {% endif %}
+                            </h6>
+                            {% if variant.direction != 'incoming' %}
+                            <button type="button" class="btn btn-sm btn-light remove-variant-btn" 
+                                    data-index="{{ loop.index0 }}" title="Remove variant">
+                                <i class="fas fa-trash text-danger"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if variant.direction == 'incoming' %}
+                        <!-- Incoming: Other entries ARE variants of this entry (display only) -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Entry that is a variant of this one</label>
+                                {% if variant.ref_display_text %}
+                                <div class="alert alert-light">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>
+                                        <a href="{{ url_for('main.edit_entry', entry_id=variant.ref) }}" 
+                                           class="text-decoration-none text-primary fw-bold"
+                                           title="Edit this entry">
+                                            {{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}
+                                        </a>
+                                    </strong>
+                                </div>
+                                {% elif variant.ref %}
+                                <!-- Show error marker for missing target entry -->
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Entry Not Found: </strong>
+                                    The entry ID "<code>{{ variant.ref }}</code>" could not be found in the dictionary.
+                                    <br><small>This may indicate a missing entry or an incorrect reference.</small>
+                                </div>
+                                {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-question-circle me-2"></i>
+                                    <strong>No Entry Referenced</strong>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">
+                                    Variant Type                                <i class="fas fa-info-circle ms-1 form-tooltip" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       title="<strong>Reverse Relationship:</strong><br>{% if variant.ref_display_text %}The entry '<strong>{{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}</strong>' is marked as a {{ variant.variant_type }} of this entry.{% elif variant.ref %}An entry with ID '{{ variant.ref }}' is marked as a {{ variant.variant_type }} of this entry, but the entry could not be found.{% else %}An unknown entry is marked as a {{ variant.variant_type }} of this entry.{% endif %} This relationship is defined in the other entry's data."></i>
+                                </label>
+                                <div class="form-control-plaintext">
+                                    <span class="badge bg-info fs-6">{{ variant.variant_type }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Outgoing: This entry IS a variant of another (editable) -->
+                        <div class="row">
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Variant Type</label>
+                                <select class="form-control dynamic-lift-range"
+                                        name="variant_relations[{{ loop.index0 }}].variant_type" required
+                                        data-range-id="variant-type"
+                                        data-selected="{{ variant.variant_type or '' }}">
+                                    <option value="">Select variant type</option>
+                                    <!-- Options will be populated dynamically from LIFT ranges -->
+                                </select>
+                                <div class="form-text">Type of variant relationship</div>
+
+                                
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Target Entry</label>
+                                {% if variant.ref_display_text %}
+                                <!-- Show clickable link to target entry -->
+                                <div class="alert alert-light mb-2">
+                                    <i class="fas fa-external-link-alt me-2"></i>
+                                    <strong>This entry is a variant of: </strong>
+                                    <a href="{{ url_for('main.edit_entry', entry_id=variant.ref) }}" 
+                                       class="text-decoration-none text-primary fw-bold"
+                                       title="Edit target entry">
+                                        {{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}
+                                    </a>
+                                </div>
+                                {% elif variant.ref %}
+                                <!-- Show error marker for missing target entry -->
+                                <div class="alert alert-danger mb-2">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Target Entry Not Found: </strong>
+                                    The referenced entry could not be found in the dictionary.
+                                    <br><small>This may indicate a missing entry or an incorrect reference.</small>
+                                </div>
+                                {% endif %}                                            
+                                <!-- Hidden input field for form submission (NO raw ID visible to user) -->
+                                <input type="hidden" 
+                                       name="variant_relations[{{ loop.index0 }}].ref"
+                                       value="{{ variant.ref or '' }}">
+                                <!-- Hidden technical fields -->
+                                <input type="hidden" 
+                                       name="variant_relations[{{ loop.index0 }}].type"
+                                       value="{{ variant.type or '_component-lexeme' }}">
+                                <input type="hidden" 
+                                       name="variant_relations[{{ loop.index0 }}].order"
+                                       value="{{ variant.order or loop.index0 }}">
+                                
+                                <!-- Search interface for adding/changing variant targets -->
+                                <div class="input-group">
+                                    <input type="text" class="form-control variant-search-input" 
+                                           placeholder="Search for entry to create variant relationship with..."
+                                           data-variant-index="{{ loop.index0 }}">
+                                    <button type="button" class="btn btn-outline-secondary variant-search-btn" 
+                                            data-variant-index="{{ loop.index0 }}">
+                                        <i class="fas fa-search"></i> Search
+                                    </button>
+                                </div>
+                                <div class="form-text">Search for entries by headword or definition - no raw IDs needed</div>
+                                <div class="search-results mt-2" id="variant-search-results-{{ loop.index0 }}" style="display: none;"></div>                                            
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">
+                                    Status
+                                    <i class="fas fa-info-circle ms-1 form-tooltip" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top"
+                                       data-bs-html="true"
+                                       title="<strong>Variant Relationship:</strong><br>This entry is a variant of {% if variant.ref_display_text %}'<strong>{{ variant.ref_display_text or variant.ref_lexical_unit or variant.ref }}</strong>'.{% elif variant.ref %}a target entry that could not be found.{% else %}an unspecified entry.{% endif %}"></i>
+                                </label>
+                                <div class="mt-2">
+                                    <span class="badge bg-success fs-6">
+                                        <i class="fas fa-check-circle me-1"></i>Active Variant
+                                    </span>
+                                    <div class="form-text">This variant will be saved to the dictionary</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <!-- Empty state when no variants exist -->
+            <div class="empty-state text-center py-4">
+                <i class="fas fa-code-branch fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Variant Relations</h5>
+                <p class="text-muted">This entry does not have any variant relations defined.</p>
+                <p class="text-muted">
+                    <strong>What are variants?</strong> Variants are different forms or spellings of the same lexical item, 
+                    such as "protestor" vs "protester", or "Protestant ethic" vs "Protestant work ethic".
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

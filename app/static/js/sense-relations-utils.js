@@ -30,7 +30,7 @@
 
             const relations = [];
             senseEl.querySelectorAll('.sense-relation-item').forEach((relEl, relIdx) => {
-                const typeEl = relEl.querySelector('.sense-relation-type-select');
+                const typeEl = relEl.querySelector('.sense-lexical-relation-select');
                 const refEl = relEl.querySelector('.sense-relation-ref-hidden');
                 const type = typeEl ? (typeEl.value || '').trim() : '';
                 const ref = refEl ? (refEl.value || '').trim() : '';

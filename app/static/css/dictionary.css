@@ -273,7 +273,7 @@
     font-size: 0.9rem;
 }
 
-.relation-type {
+.lexical-relation {
     font-weight: 600;
     color: #3498db;
     margin-right: 0.5rem;
@@ -291,10 +291,10 @@
 }
 
 /* Specific relation types */
-.relation.synonym .relation-type { color: #27ae60; }
-.relation.antonym .relation-type { color: #e74c3c; }
-.relation.hypernym .relation-type { color: #9b59b6; }
-.relation.hyponym .relation-type { color: #16a085; }
+.relation.synonym .lexical-relation { color: #27ae60; }
+.relation.antonym .lexical-relation { color: #e74c3c; }
+.relation.hypernym .lexical-relation { color: #9b59b6; }
+.relation.hyponym .lexical-relation { color: #16a085; }
 
 /* =================================================================
    Reversal Styles

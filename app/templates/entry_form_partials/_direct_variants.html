@@ -1,0 +1,139 @@
+<div class="card mb-4 direct-variants-section">
+    <div class="card-header bg-warning text-dark">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-copy"></i> Direct Variants (Allomorphs)
+                <i class="fas fa-info-circle ms-2 form-tooltip"
+                   data-bs-toggle="tooltip"
+                   data-bs-placement="top"
+                   data-bs-html="true"
+                   title="<strong>About Direct Variants (Allomorphs):</strong><br>These represent direct variant forms with traits, like LIFT &lt;variant&gt; elements containing &lt;form&gt; and &lt;trait&gt; elements. They are different from variant relations which connect to other entries. Examples include 'grass roots' with morph-type='stem'."></i>
+            </h5>
+            <button type="button" class="btn btn-sm btn-light" id="add-direct-variant-btn">
+                <i class="fas fa-plus"></i> Add Direct Variant
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="direct-variants-container">
+            <!-- Server-side rendered direct variant items -->
+            {% if entry.variants %}
+                {% for variant in entry.variants %}
+                <div class="direct-variant-item card mb-3" data-variant-index="{{ loop.index0 }}">
+                    <div class="card-header bg-warning text-dark">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-copy me-2"></i>
+                                Direct Variant {{ loop.index }}
+                            </h6>
+                            <button type="button" class="btn btn-sm btn-light remove-direct-variant-btn"
+                                    data-index="{{ loop.index0 }}" title="Remove direct variant">
+                                <i class="fas fa-trash text-danger"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <!-- Variant form -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Variant Form</label>
+                                    <div class="variant-form-languages">
+                                        {% if variant.form %}
+                                            {% for lang, text in variant.form.items() %}
+                                            <div class="input-group mb-2">
+                                                <span class="input-group-text">{{ lang }}</span>
+                                                <input type="text" class="form-control"
+                                                       name="variants[{{ loop.index0 }}].form.{{ lang }}"
+                                                       value="{{ text }}"
+                                                       placeholder="Variant form in {{ lang }}">
+                                            </div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="input-group mb-2">
+                                                <span class="input-group-text">en</span>
+                                                <input type="text" class="form-control"
+                                                       name="variants[{{ loop.index0 }}].form.en"
+                                                       value=""
+                                                       placeholder="Variant form in English">
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary add-variant-language-btn">
+                                        <i class="fas fa-plus"></i> Add Language
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <!-- Variant traits -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Variant Traits</label>
+                                    <div class="variant-traits">
+                                        {% if variant.traits %}
+                                            {% for trait_name, trait_value in variant.traits.items() %}
+                                            <div class="input-group mb-2">
+                                                <input type="text" class="form-control trait-name-input"
+                                                       name="variants[{{ loop.index0 }}].traits.{{ trait_name }}"
+                                                       value="{{ trait_value }}"
+                                                       placeholder="{{ trait_name }}">
+                                            </div>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary add-variant-trait-btn">
+                                        <i class="fas fa-plus"></i> Add Trait
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Grammatical info and traits -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Grammatical Info</label>
+                                    <input type="text" class="form-control"
+                                           name="variants[{{ loop.index0 }}].grammatical_info"
+                                           value="{{ variant.grammatical_info if variant.grammatical_info else '' }}"
+                                           placeholder="Grammatical information">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Grammatical Traits</label>
+                                    <div class="variant-grammatical-traits">
+                                        {% if variant.grammatical_traits %}
+                                            {% for trait_name, trait_value in variant.grammatical_traits.items() %}
+                                            <div class="input-group mb-2">
+                                                <input type="text" class="form-control grammatical-trait-input"
+                                                       name="variants[{{ loop.index0 }}].grammatical_traits.{{ trait_name }}"
+                                                       value="{{ trait_value }}"
+                                                       placeholder="{{ trait_name }}={{ trait_value }}">
+                                            </div>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary add-grammatical-trait-btn">
+                                        <i class="fas fa-plus"></i> Add Grammatical Trait
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <!-- Empty state when no direct variants exist -->
+            <div class="empty-state text-center py-4">
+                <i class="fas fa-copy fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Direct Variants</h5>
+                <p class="text-muted">This entry does not have any direct variant forms defined.</p>
+                <p class="text-muted">
+                    <strong>What are direct variants?</strong> Direct variants (allomorphs) are variant forms with their own traits,
+                    like "grass roots" with morph-type="stem", separate from variant relations that connect to other entries.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

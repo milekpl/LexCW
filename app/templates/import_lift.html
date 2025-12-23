@@ -25,6 +25,26 @@
                                 Upload a LIFT (Lexicon Interchange FormaT) XML file to import dictionary entries.
                             </div>
                         </div>
+                         
+                        <div class="mb-3">
+                            <label for="ranges_file" class="form-label">
+                                Select Ranges File <span class="text-warning">(Highly Recommended)</span>
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="ranges_file" 
+                                   name="ranges_file" 
+                                   accept=".lift-ranges,.xml">
+                            <div class="form-text">
+                                Upload a .lift-ranges file for semantic domains and grammatical information. 
+                                <strong>This is highly recommended</strong> as the application relies on ranges for proper functionality. 
+                                If not provided, the system will try to find a matching ranges file automatically.
+                                <a href="/help#ranges-editor" 
+                                   class="text-decoration-none">
+                                    <i class="fas fa-question-circle me-1"></i> Learn more about ranges
+                                </a>
+                            </div>
+                        </div>
                         
                         <div class="mb-3">
                             <div class="form-check">
@@ -62,9 +82,21 @@
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-upload me-2"></i>Import LIFT File
                             </button>
+                            <a href="{{ url_for('backup.backup_management') }}" 
+                               class="btn btn-outline-success" 
+                               target="_blank" 
+                               title="Go to backup management to create a backup">
+                                <i class="fas fa-hdd me-2"></i>Backup First
+                            </a>
                             <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
                                 <i class="fas fa-arrow-left me-2"></i>Cancel
                             </a>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Recommended: Create a backup before importing. Clicking this button will open the backup management page in a new tab.
+                            </small>
                         </div>
                     </form>
                 </div>
@@ -80,6 +112,7 @@
                         <li>LIFT (Lexicon Interchange FormaT) XML files</li>
                         <li>Files with .lift or .xml extensions</li>
                         <li>UTF-8 encoded files are recommended</li>
+                        <li>.lift-ranges files for semantic domains and grammatical information (highly recommended)</li>
                     </ul>
                     
                     <h6>Entry Structure</h6>
@@ -97,6 +130,14 @@
                         <li>Import statistics will be displayed upon completion</li>
                         <li>Any errors or warnings will be logged and reported</li>
                     </ul>
+                    
+                    <h6>Need Help?</h6>
+                    <p>
+                        <a href="/help" 
+                           class="text-decoration-none">
+                            <i class="fas fa-book me-1"></i> View Import/Export Help
+                        </a>
+                    </p>
                 </div>
             </div>
         </div>

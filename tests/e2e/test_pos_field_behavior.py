@@ -12,7 +12,7 @@ from playwright.sync_api import Page
 
 
 @pytest.mark.integration
-def test_pos_field_in_add_form(page: Page, app_url: str) -> None:
+def test_pos_field_in_add_form(page: Page, app_url: str, ensure_sense) -> None:
     """Test that POS field is accessible in add entry form."""
     page.goto(f"{app_url}/entries/add")
     
@@ -31,8 +31,9 @@ def test_pos_field_in_add_form(page: Page, app_url: str) -> None:
         selected_value = pos_field.input_value()
         assert selected_value == 'Noun', f"POS should be set to Noun, got: {selected_value}"
     
-    # Fill in definition
-    page.fill('textarea[name*="definition"]', 'Test definition')
+    # Ensure a sense exists and fill definition
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('Test definition')
     
     # Submit should work
     page.click('button[type="submit"]')
@@ -42,7 +43,7 @@ def test_pos_field_in_add_form(page: Page, app_url: str) -> None:
 
 
 @pytest.mark.integration
-def test_edit_form_loads_with_pos_data(page: Page, app_url: str) -> None:
+def test_edit_form_loads_with_pos_data(page: Page, app_url: str, ensure_sense) -> None:
     """Test that edit form loads correctly and displays POS data."""
     # Create an entry with POS
     page.goto(f"{app_url}/entries/add")
@@ -56,7 +57,9 @@ def test_edit_form_loads_with_pos_data(page: Page, app_url: str) -> None:
     if pos_field.count() > 0:
         pos_field.select_option('Verb')
     
-    page.fill('textarea[name*="definition"]', 'Test verb definition')
+    # Ensure a sense exists
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('Test verb definition')
     page.click('button[type="submit"]')
     page.wait_for_timeout(2000)
     
@@ -88,14 +91,15 @@ def test_edit_form_loads_with_pos_data(page: Page, app_url: str) -> None:
 
 
 @pytest.mark.integration  
-def test_entry_without_pos_can_be_saved(page: Page, app_url: str) -> None:
+def test_entry_without_pos_can_be_saved(page: Page, app_url: str, ensure_sense) -> None:
     """Test that entries can be saved without POS (for phrases)."""
     page.goto(f"{app_url}/entries/add")
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
     
     # Fill in only required fields, skip POS
     page.fill('input.lexical-unit-text', 'test_phrase_no_pos')
-    page.fill('textarea[name*="definition"]', 'A phrase without part of speech')
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('A phrase without part of speech')
     
     # Submit form
     page.click('button[type="submit"]')
@@ -107,7 +111,7 @@ def test_entry_without_pos_can_be_saved(page: Page, app_url: str) -> None:
 
 
 @pytest.mark.integration
-def test_sense_pos_field_behavior(page: Page, app_url: str) -> None:
+def test_sense_pos_field_behavior(page: Page, app_url: str, ensure_sense) -> None:
     """Test that sense-level POS fields work correctly."""
     page.goto(f"{app_url}/entries/add")
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
@@ -115,8 +119,9 @@ def test_sense_pos_field_behavior(page: Page, app_url: str) -> None:
     # Fill in basic entry
     page.fill('input.lexical-unit-text', 'test_sense_pos')
     
-    # Fill in first sense definition
-    page.fill('textarea[name*="definition"]', 'First sense definition')
+    # Ensure a sense exists and fill in first sense definition
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('First sense definition')
     
     # Try to set sense-level grammatical info if available
     sense_pos_fields = page.locator('.sense-item .dynamic-grammatical-info')

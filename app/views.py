@@ -15,6 +15,7 @@ from flask import (
     jsonify,
     current_app,
     send_from_directory,
+    Response,
 )
 
 from app.services.dictionary_service import DictionaryService
@@ -22,7 +23,7 @@ from app.services.cache_service import CacheService
 from app.models.entry import Entry
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
-from app.utils.language_utils import get_project_languages
+from app.utils.language_utils import get_project_languages, get_language_choices_for_forms
 
 # Create blueprints
 main_bp = Blueprint("main", __name__)
@@ -482,6 +483,21 @@ def edit_entry(entry_id):
 
         # Get project languages for multilingual fields
         languages = get_project_languages()
+        available_languages = get_language_choices_for_forms()
+
+        # Define note types for the dropdown
+        note_types = [
+            ('general', 'General'),
+            ('usage', 'Usage'),
+            ('semantic', 'Semantic'),
+            ('etymology', 'Etymology'),
+            ('cultural', 'Cultural'),
+            ('anthropology', 'Anthropology'),
+            ('discourse', 'Discourse'),
+            ('phonology', 'Phonology'),
+            ('sociolinguistics', 'Sociolinguistics'),
+            ('bibliography', 'Bibliography')
+        ]
 
         # Get CSS-rendered HTML for the entry using default profile
         css_html = None
@@ -559,6 +575,8 @@ def edit_entry(entry_id):
             subentries=subentries_data,
             validation_result=validation_result,
             project_languages=languages,
+            available_languages=available_languages,
+            note_types=note_types,
             css_html=css_html,
         )
     except NotFoundError as e:
@@ -701,7 +719,22 @@ def add_entry():
 
         # Get project languages for multilingual fields
         languages = get_project_languages()
+        available_languages = get_language_choices_for_forms()
         configured_languages_codes = [lang[0] for lang in languages]
+
+        # Define note types for the dropdown
+        note_types = [
+            ('general', 'General'),
+            ('usage', 'Usage'),
+            ('semantic', 'Semantic'),
+            ('etymology', 'Etymology'),
+            ('cultural', 'Cultural'),
+            ('anthropology', 'Anthropology'),
+            ('discourse', 'Discourse'),
+            ('phonology', 'Phonology'),
+            ('sociolinguistics', 'Sociolinguistics'),
+            ('bibliography', 'Bibliography')
+        ]
             
         return render_template("entry_form.html", 
                               entry=entry, 
@@ -709,6 +742,8 @@ def add_entry():
                               variant_relations=[],
                               component_relations=[],
                               project_languages=languages,
+                              available_languages=available_languages,
+                              note_types=note_types,
                               configured_languages_codes=configured_languages_codes)
 
     except ValidationError as e:
@@ -771,37 +806,52 @@ def search():
 @main_bp.route("/import/lift", methods=["GET", "POST"])
 def import_lift():
     """
-    Render the LIFT import page.
+    Render the LIFT import page and handle LIFT file uploads.
+    Supports uploading both LIFT file and optional ranges file.
     """
     if request.method == "POST":
-        # Check if a file was uploaded
+        # Check if a LIFT file was uploaded
         if "lift_file" not in request.files:
-            flash("No file selected", "danger")
+            flash("No LIFT file selected", "danger")
             return redirect(request.url)
 
-        file = request.files["lift_file"]
+        lift_file = request.files["lift_file"]
 
-        # Check if file is empty
-        if file.filename == "":
-            flash("No file selected", "danger")
+        # Check if LIFT file is empty
+        if lift_file.filename == "":
+            flash("No LIFT file selected", "danger")
             return redirect(request.url)
 
-        # Check file extension
-        if not file.filename.lower().endswith(".lift"):
+        # Check LIFT file extension
+        if not lift_file.filename.lower().endswith(".lift"):
             flash("Invalid file type. Please upload a .lift file.", "danger")
             return redirect(request.url)
 
+        # Handle optional ranges file
+        ranges_file = None
+        ranges_temp_path = None
+        if "ranges_file" in request.files and request.files["ranges_file"].filename:
+            ranges_file = request.files["ranges_file"]
+            if not ranges_file.filename.lower().endswith(".lift-ranges"):
+                flash("Invalid ranges file type. Please upload a .lift-ranges file or leave empty.", "warning")
+                ranges_file = None
+
         try:
-            # Save the file temporarily
-            filepath = os.path.join(current_app.instance_path, "uploads", file.filename)
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            file.save(filepath)
+            # Save the LIFT file temporarily
+            lift_filepath = os.path.join(current_app.instance_path, "uploads", lift_file.filename)
+            os.makedirs(os.path.dirname(lift_filepath), exist_ok=True)
+            lift_file.save(lift_filepath)
+
+            # Save the ranges file temporarily if provided
+            if ranges_file:
+                ranges_temp_path = os.path.join(current_app.instance_path, "uploads", ranges_file.filename)
+                ranges_file.save(ranges_temp_path)
 
             # Get dictionary service
             dict_service = current_app.injector.get(DictionaryService)
 
-            # Import the LIFT file
-            entry_count = dict_service.import_lift(filepath)
+            # Import the LIFT file with optional ranges file
+            entry_count = dict_service.import_lift(lift_filepath, ranges_path=ranges_temp_path)
 
             flash(
                 f"Successfully imported {entry_count} entries from LIFT file.",
@@ -814,6 +864,16 @@ def import_lift():
             flash(f"Error importing LIFT file: {str(e)}", "danger")
             return redirect(request.url)
 
+        finally:
+            # Clean up temporary files
+            try:
+                if os.path.exists(lift_filepath):
+                    os.unlink(lift_filepath)
+                if ranges_temp_path and os.path.exists(ranges_temp_path):
+                    os.unlink(ranges_temp_path)
+            except Exception:
+                pass
+
     return render_template("import_lift.html")
 
 
@@ -821,36 +881,71 @@ def import_lift():
 def export_lift():
     """
     Export the dictionary to a LIFT file.
+    
+    Always exports as dual files (main + ranges) in a ZIP archive.
+    This ensures better data integrity and easier management of ranges.
     """
     try:
         # Get dictionary service
         dict_service = current_app.injector.get(DictionaryService)
 
-        # Generate the LIFT file
-        lift_content = dict_service.export_lift()
-
         # Create a unique filename
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"dictionary_export_{timestamp}.lift"
-
-        # Save the file
-        filepath = os.path.join(current_app.instance_path, "exports", filename)
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(lift_content)
-
-        # Send the file as a download
-        return send_from_directory(
-            os.path.join(current_app.instance_path, "exports"),
-            filename,
-            as_attachment=True,
-        )
+        base_filename = f"dictionary_export_{timestamp}"
+        
+        # Always export as dual files for better data integrity
+        return _export_dual_file_lift_ui(dict_service, base_filename)
 
     except Exception as e:
         logger.error(f"Error exporting LIFT file: {e}")
         flash(f"Error exporting LIFT file: {str(e)}", "danger")
         return redirect(url_for("main.index"))
+
+
+# [Removed _export_single_file_lift_ui - no longer needed as we always use dual-file export]
+
+
+def _export_dual_file_lift_ui(dict_service, base_filename):
+    """Export LIFT as dual files (main + ranges) in a ZIP archive for UI."""
+    import zipfile
+    import io
+    
+    # Generate filenames
+    lift_filename = f"{base_filename}.lift"
+    ranges_filename = f"{base_filename}.lift-ranges"
+    zip_filename = f"{base_filename}.zip"
+    
+    # Create in-memory ZIP file
+    zip_buffer = io.BytesIO()
+    
+    try:
+        # Export main LIFT file with range references
+        lift_content = dict_service.export_lift(dual_file=True)
+        
+        # Export ranges file
+        ranges_content = dict_service.export_lift_ranges()
+        
+        # Create ZIP archive with both files
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add main LIFT file
+            zipf.writestr(lift_filename, lift_content)
+            
+            # Add ranges file
+            zipf.writestr(ranges_filename, ranges_content)
+        
+        # Return ZIP file as download
+        return Response(
+            zip_buffer.getvalue(),
+            content_type='application/zip',
+            headers={
+                'Content-Disposition': f'attachment; filename="{zip_filename}"'
+            }
+        )
+        
+    except Exception as e:
+        # If any error occurs, log it and re-raise
+        logger.error(f"Error in dual-file export: {e}")
+        raise
 
 
 @main_bp.route("/export/kindle")
@@ -1344,3 +1439,184 @@ def clear_cache():
 def help_page():
     """Render the comprehensive help page about LIFT and application features."""
     return render_template("help.html")
+
+
+@main_bp.route("/api/live-preview", methods=["POST"])
+def live_preview():
+    """
+    Generate a live preview of an entry from form data.
+    
+    Accepts form data, serializes it to LIFT XML, and returns CSS-rendered HTML.
+    Used for live preview functionality in the entry form.
+    """
+    try:
+        from app.services.css_mapping_service import CSSMappingService
+        from app.services.display_profile_service import DisplayProfileService
+        from app.utils.lift_to_html_transformer import LIFTToHTMLTransformer
+        
+        logger.info("Live preview request received")
+        
+        # Get form data
+        form_data = request.get_json()
+        logger.info(f"Raw form data received: {form_data}")
+        
+        # Debug: Log the structure of form data
+        if form_data:
+            logger.info(f"Form data keys: {list(form_data.keys())}")
+            if 'lexical_unit' in form_data:
+                logger.info(f"Lexical unit: {form_data['lexical_unit']}")
+            if 'senses' in form_data:
+                logger.info(f"Number of senses: {len(form_data['senses']) if form_data['senses'] else 0}")
+                if form_data['senses']:
+                    logger.info(f"First sense keys: {list(form_data['senses'][0].keys()) if form_data['senses'] else 'None'}")
+        
+        if not form_data:
+            logger.warning("No form data provided in live preview request")
+            return jsonify({
+                "success": False,
+                "error": "No form data provided",
+                "debug": {
+                    "form_data": None,
+                    "request_method": request.method,
+                    "content_type": request.content_type,
+                    "headers": dict(request.headers)
+                }
+            }), 400
+            
+        # Get services
+        css_service = CSSMappingService()
+        profile_service = DisplayProfileService()
+        
+        # Get default profile or create one
+        default_profile = profile_service.get_default_profile()
+        if not default_profile:
+            default_profile = profile_service.create_from_registry_default(
+                name="Default Display Profile",
+                description="Auto-created default profile"
+            )
+            profile_service.set_default_profile(default_profile.id)
+        
+        # Serialize form data to LIFT XML using the same serializer as the frontend
+        # We'll use the LIFTToHTMLTransformer to generate XML from form data
+        transformer = LIFTToHTMLTransformer()
+        
+        # Generate LIFT XML from form data
+        # For now, we'll create a simple XML structure - this should be enhanced
+        # to match the full LIFTXMLSerializer functionality
+        try:
+            entry_xml = transformer.generate_lift_xml_from_form_data(form_data)
+            logger.info(f"Generated LIFT XML: {entry_xml[:500]}...")
+            
+            if not entry_xml:
+                logger.error("Empty XML generated from form data")
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to generate LIFT XML from form data",
+                    "debug": {
+                        "form_data_keys": list(form_data.keys()) if form_data else None,
+                        "form_data_sample": {k: v for k, v in list(form_data.items())[:5]} if form_data else None,
+                        "lexical_unit": form_data.get('lexical_unit') if form_data else None
+                    }
+                }), 400
+            
+            # Debug: Log the generated XML
+            logger.info(f"Generated XML length: {len(entry_xml)}")
+            logger.info(f"Generated XML preview: {entry_xml[:500]}")
+            
+            # Check if XML contains expected elements
+            if '<lexical-unit>' not in entry_xml:
+                logger.error("Generated XML missing lexical-unit element")
+            if '<form' not in entry_xml:
+                logger.error("Generated XML missing form element")
+        except Exception as e:
+            logger.error(f"Error generating LIFT XML: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": f"Error generating LIFT XML: {str(e)}",
+                "debug": {
+                    "form_data": form_data,
+                    "error_type": type(e).__name__
+                }
+            }), 500
+            
+        # Render the entry with CSS using the EXACT same method as the regular preview
+        logger.info("Rendering entry with CSS")
+        try:
+            # Get dict_service from the application context, same as static view
+            dict_service = current_app.injector.get(DictionaryService) if hasattr(current_app, 'injector') else None
+            logger.info(f"Using dict_service: {dict_service is not None}")
+            
+            logger.info("Calling css_service.render_entry...")
+            logger.info(f"Input XML length: {len(entry_xml)}")
+            
+            # Check if input XML has the lexical unit
+            if '<lexical-unit>' in entry_xml and '<form' in entry_xml:
+                logger.info("Input XML contains lexical-unit with form")
+            else:
+                logger.error("Input XML missing lexical-unit or form - this is the root cause!")
+            
+            css_html = css_service.render_entry(
+                entry_xml,
+                profile=default_profile,
+                dict_service=dict_service
+            )
+            logger.info(f"CSS rendering completed, length: {len(css_html) if css_html else 0}")
+            
+            # Debug: Check if CSS HTML contains expected elements
+            if css_html:
+                if '<span class="headword"' in css_html or '<span class="lexical-unit"' in css_html:
+                    logger.info("CSS HTML contains headword/lexical-unit")
+                else:
+                    logger.error("CSS HTML missing headword/lexical-unit elements")
+                
+                if '<div class="sense"' in css_html:
+                    logger.info("CSS HTML contains senses")
+                else:
+                    logger.error("CSS HTML missing sense elements")
+            else:
+                logger.error("CSS rendering returned empty HTML")
+            
+            # The CSS service should already handle the rendering properly
+            # Don't manipulate the HTML - let the CSS service do its job
+            if css_html:
+                # Just return the HTML as-is from the CSS service
+                # It should already be properly formatted
+                pass
+            
+            logger.info("Live preview generated successfully")
+            
+            # Debug: Check final response
+            if css_html:
+                logger.info(f"Final HTML length: {len(css_html)}")
+                if '<span class="headword"' in css_html or '<span class="lexical-unit"' in css_html:
+                    logger.info("Final response contains headword")
+                else:
+                    logger.error("Final response missing headword - this is the issue!")
+            
+            return jsonify({
+                "success": True,
+                "html": css_html,
+                "xml": entry_xml,  # Return XML for debugging
+                "debug": {
+                    "has_headword": '<span class="headword"' in css_html if css_html else False,
+                    "has_lexical_unit": '<span class="lexical-unit"' in css_html if css_html else False,
+                    "html_length": len(css_html) if css_html else 0
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error rendering CSS: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "error": f"CSS rendering error: {str(e)}",
+                "debug": {
+                    "entry_xml": entry_xml[:500] if entry_xml else None,
+                    "error_type": type(e).__name__
+                }
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error generating live preview: {e}", exc_info=True)
+        return jsonify({
+            "error": f"Failed to generate preview: {str(e)}",
+            "details": str(e)
+        }), 500

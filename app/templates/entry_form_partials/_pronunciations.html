@@ -1,0 +1,164 @@
+<div class="card mb-4 pronunciation-section">
+    <div class="card-header bg-info text-white">
+        <h5><i class="fas fa-microphone"></i> Pronunciation</h5>
+    </div>
+    <div class="card-body">
+        <div id="pronunciation-container">
+            <!-- Server-side rendered pronunciation items -->
+            {% if entry.pronunciations %}
+                {% for ws, pronunciation in entry.pronunciations.items() %}
+                <div class="pronunciation-item mb-3 border-bottom pb-3" data-index="{{ loop.index0 }}">
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="form-label">IPA</label>
+                            <input type="text" class="form-control ipa-input" 
+                                   name="pronunciations[{{ loop.index0 }}].value" 
+                                   value="{{ pronunciation }}" 
+                                   placeholder="IPA transcription">
+                            <input type="hidden" name="pronunciations[{{ loop.index0 }}].type" value="{{ ws }}">
+                            <div class="form-text">International Phonetic Alphabet (IPA)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-2 mb-2">
+                        <label class="form-label">Audio File</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="pronunciations[{{ loop.index0 }}].audio_path" 
+                                   value="{{ pronunciation.audio_path if pronunciation.audio_path else '' }}" readonly 
+                                   title="Audio file path" placeholder="No audio file">
+                            <button class="btn btn-outline-secondary upload-audio-btn" type="button" 
+                                    data-index="{{ loop.index0 }}" title="Upload audio file">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                            <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
+                                    data-index="{{ loop.index0 }}" title="Generate audio from IPA">
+                                <i class="fas fa-magic"></i> Generate
+                            </button>
+                        </div>
+                        
+                        <!-- Show existing audio preview if audio file exists -->
+                        {% if pronunciation.audio_path %}
+                        <div class="audio-preview mt-2">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-grow-1">
+                                    <small class="text-muted d-block">Audio file: {{ pronunciation.audio_path }}</small>
+                                    <audio controls class="w-100 mt-1" preload="metadata">
+                                        <source src="{{ url_for('static', filename='audio/' + pronunciation.audio_path) }}">
+                                        Your browser does not support the audio element.
+                                    </audio>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-audio-btn" 
+                                        title="Remove audio file">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- LIFT 0.13: CV Pattern (Day 40) -->
+                    <div class="mt-3 mb-2">
+                        <label class="form-label">
+                            CV Pattern
+                            <i class="fas fa-info-circle ms-1 form-tooltip" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top"
+                               data-bs-html="true"
+                               title="<strong>About CV Pattern:</strong><br>Consonant-Vowel syllable structure pattern (e.g., CV, CVC, CVCC). Useful for phonological analysis."></i>
+                        </label>
+                        <div class="multilingual-forms cv-pattern-forms" data-pron-index="{{ loop.index0 }}">
+                            {% if entry.pronunciation_cv_pattern %}
+                                {% for lang, text in entry.pronunciation_cv_pattern.items() %}
+                                    <div class="language-form-group mb-2 border rounded p-2" data-lang="{{ lang }}">
+                                        {{ new_macros.render_multilingual_item(
+                                            'pronunciations[' ~ loop.index0 ~ '].cv_pattern.' ~ lang,
+                                            lang,
+                                            text,
+                                            available_languages,
+                                            'Pattern',
+                                            field_type='input',
+                                            removable=true,
+                                            placeholder_lang=lang
+                                        ) }}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary add-cv-pattern-language-btn" 
+                                data-pron-index="{{ loop.index0 }}"
+                                title="Add CV pattern in another language">
+                            <i class="fas fa-plus"></i> Add Language
+                        </button>
+                        <div class="form-text small">Syllable structure pattern (Consonant-Vowel notation).</div>
+                    </div>
+                    
+                    <!-- LIFT 0.13: Tone (Day 40) -->
+                    <div class="mt-3 mb-2">
+                        <label class="form-label">
+                            Tone
+                            <i class="fas fa-info-circle ms-1 form-tooltip" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top"
+                               data-bs-html="true"
+                               title="<strong>About Tone:</strong><br>Tone information for tone languages (e.g., High, Low, Rising, Falling, or numeric notation like 35, 51)."></i>
+                        </label>
+                        <div class="multilingual-forms tone-forms" data-pron-index="{{ loop.index0 }}">
+                            {% if entry.pronunciation_tone %}
+                                {% for lang, text in entry.pronunciation_tone.items() %}
+                                    <div class="language-form-group mb-2 border rounded p-2" data-lang="{{ lang }}">
+                                        {{ new_macros.render_multilingual_item(
+                                            'pronunciations[' ~ loop.index0 ~ '].tone.' ~ lang,
+                                            lang,
+                                            text,
+                                            available_languages,
+                                            'Tone',
+                                            field_type='input',
+                                            removable=true,
+                                            placeholder_lang=lang
+                                        ) }}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary add-tone-language-btn" 
+                                data-pron-index="{{ loop.index0 }}"
+                                title="Add tone in another language">
+                            <i class="fas fa-plus"></i> Add Language
+                        </button>
+                        <div class="form-text small">Tone marking for tone languages.</div>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1" 
+                               id="pron-default-{{ loop.index0 }}" name="pronunciations[{{ loop.index0 }}].is_default"
+                               {% if loop.index0 == 0 %}checked{% endif %}>
+                        <label class="form-check-label" for="pron-default-{{ loop.index0 }}">
+                            Default pronunciation
+                        </label>
+                    </div>
+                    
+                    {% if loop.index0 > 0 %}
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-pronunciation-btn" 
+                                data-index="{{ loop.index0 }}" title="Remove pronunciation">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            <!-- Fallback message if no pronunciations exist -->
+            {% if not entry.pronunciations %}
+            <div class="text-muted mb-3" id="no-pronunciations-message">
+                No pronunciations added yet. Click "Add Pronunciation" to get started.
+            </div>
+            {% endif %}
+        </div>
+        
+        <button type="button" class="btn btn-sm btn-primary" id="add-pronunciation-btn">
+            <i class="fas fa-plus"></i> Add Pronunciation
+        </button>
+    </div>
+</div>

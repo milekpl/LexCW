@@ -50,7 +50,9 @@
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="importExportDropdown">
                             <li><a class="dropdown-item" href="{{ url_for('main.import_lift') }}">Import LIFT</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.export_lift') }}">Export LIFT</a></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('main.export_lift') }}">Export to LIFT (Dual Files)</a>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('main.export_kindle') }}">Export for Kindle</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('main.export_sqlite') }}">Export for Mobile App</a></li>
@@ -71,7 +73,7 @@
                             <li><a class="dropdown-item" href="{{ url_for('main.display_profiles') }}"><i class="fas fa-palette"></i> Display Profiles</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('main.settings') }}">Settings</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/backup/"><i class="fas fa-save"></i> Backup Management</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('backup.backup_management') }}"><i class="fas fa-save"></i> Backup Management</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">

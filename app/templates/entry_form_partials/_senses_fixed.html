@@ -1,0 +1,499 @@
+<div class="card senses-section">
+    <div class="card-header bg-primary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Senses</h5>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-light me-2" id="merge-senses-btn" title="Merge senses within this entry">
+                    <i class="fas fa-layer-group"></i> Merge Senses
+                </button>
+                <button type="button" class="btn btn-sm btn-light" id="add-sense-btn">
+                    <i class="fas fa-plus"></i> Add Sense
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div id="senses-container">
+            {% if entry.senses %}
+                {% for sense in entry.senses %}
+                    {% set sense_index = loop.index0 %}
+                    <div class="sense-item card mb-4" data-sense-index="{{ sense_index }}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="drag-handle me-2" title="Drag to reorder" style="cursor: grab;">
+                            <i class="fas fa-grip-vertical text-muted"></i>
+                        </div>
+                        <span>Sense {{ loop.index }}</span>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-secondary move-sense-up" title="Move Up">↑</button>
+                        <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>
+                        <button type="button" class="btn btn-sm btn-outline-success split-sense-btn" title="Split Sense to New Entry" data-sense-id="{{ sense.id }}">
+                            <i class="fas fa-code-branch"></i> Split
+                        </button>
+                        {% if entry.senses|length > 1 %}
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-sense-btn"
+                                    data-index="{{ sense_index }}">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        {% endif %}
+                    </div>
+                    </div>
+                        <div class="card-body">
+                            <!-- Hidden field for sense ID -->
+                            <input type="hidden" name="senses[{{ sense_index }}].id" value="{{ sense.id }}">
+
+                            <div class="mb-3">
+                                <label class="form-label">Definition <span class="text-danger">*</span></label>
+                                <div class="multilingual-forms definition-forms">
+                                    {% set project_lang_codes = project_languages|map(attribute=0)|list %}
+                                    {% set data_langs = sense.definitions.keys()|list %}
+                                    {% set all_langs = (project_lang_codes + data_langs)|unique %}
+                                    {% for lang in all_langs %}
+                                        {# Handle both flat LIFT format {lang: text} and nested form format {lang: {text: "..."}} #}
+                                        {% if lang in sense.definitions %}
+                                            {% set lang_value = sense.definitions[lang] %}
+                                            {% if lang_value is mapping and 'text' in lang_value %}
+                                                {% set text = lang_value['text'] %}
+                                            {% elif lang_value is string %}
+                                                {% set text = lang_value %}
+                                            {% else %}
+                                                {% set text = '' %}
+                                            {% endif %}
+                                        {% else %}
+                                            {% set text = '' %}
+                                        {% endif %}
+                                        <div class="mb-3 language-form" data-language="{{ lang }}">
+                                        {{ new_macros.render_multilingual_item(
+                                            'senses[' ~ sense_index ~ '].definition.' ~ lang,
+                                            lang,
+                                            text,
+                                            project_languages,
+                                            'Definition Text',
+                                            removable=not loop.first,
+                                            is_required=loop.first,
+                                            placeholder_lang=lang
+                                        ) }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn"
+                                            data-sense-index="{{ loop.index0 }}"
+                                            title="Add another language">
+                                        <i class="fas fa-plus"></i> Add Language
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Gloss</label>
+                                <div class="multilingual-forms gloss-forms">
+                                    {% for lang, gloss_text in sense.glosses.items() %}
+                                    <div class="mb-3 language-form" data-language="{{ lang }}">
+                                        {{ new_macros.render_multilingual_item(
+                                            'senses[' ~ sense_index ~ '].gloss.' ~ lang,
+                                            lang,
+                                            gloss_text,
+                                            project_languages,
+                                            'Gloss Text',
+                                            field_type='input',
+                                            removable=not loop.first,
+                                            placeholder_lang=lang
+                                        ) }}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-gloss-language-btn"
+                                            data-sense-index="{{ sense_index }}"
+                                            title="Add another language">
+                                        <i class="fas fa-plus"></i> Add Language
+                                    </button>
+                                </div>
+                                <div class="form-text">A short equivalent in another language.</div>
+                            </div>
+
+            {{ new_macros.render_dynamic_select(
+                                name='senses[' ~ loop.index0 ~ '].grammatical_info',
+                                range_id='grammatical-info',
+                                label='Part of Speech',
+                                selected_value=sense.grammatical_info,
+                                custom_classes='dynamic-grammatical-info',
+                                placeholder='Select part of speech'
+                            ) }}
+                            <div class="form-text">Grammatical category for this sense.</div>
+
+                            <!-- LIFT Ranges: Domain Types (sense-level) -->
+                            {{ new_macros.render_dynamic_select(
+                                name='senses[' ~ loop.index0 ~ '].domain_type',
+                                range_id='domain-type',
+                                label='Domain Type',
+                                selected_value=sense.domain_type,
+                                is_hierarchical=true,
+                                placeholder='Select domain type'
+                            ) }}
+                            <div class="form-text">Academic or disciplinary domain this sense belongs to.</div>
+
+                            <!-- LIFT Ranges: Semantic Domain (sense-level) -->
+                            {{ new_macros.render_dynamic_select(
+                                name='senses[' ~ loop.index0 ~ '].semantic_domain',
+                                range_id='semantic-domain-ddp4',
+                                label='Semantic Domain',
+                                selected_value=sense.semantic_domain,
+                                is_multiple=true,
+                                is_hierarchical=true,
+                                placeholder='Select semantic domain(s)'
+                            ) }}
+                            <div class="form-text">Semantic categorization for this sense (can select multiple).</div>
+
+                            <!-- LIFT Ranges: Usage Type (sense-level) -->
+                            {{ new_macros.render_dynamic_select(
+                                name='senses[' ~ loop.index0 ~ '].usage_type',
+                                range_id='usage-type',
+                                label='Usage Type',
+                                selected_value=sense.usage_type,
+                                is_multiple=true,
+                                is_hierarchical=true,
+                                placeholder='Select usage type(s)'
+                            ) }}
+                            <div class="form-text">Usage classification for this sense (can select multiple).</div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Sense Note</label>
+                                <textarea class="form-control" name="senses[{{ loop.index0 }}].note"
+                                          rows="2">{{ sense.note }}</textarea>
+                            </div>
+
+                            <!-- LIFT 0.13: Exemplar (Sense-Level Custom Field - Day 28) -->
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Exemplar
+                                    <i class="fas fa-info-circle ms-1 form-tooltip"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="top"
+                                       data-bs-html="true"
+                                       title="<strong>About Exemplar:</strong><br>Shows the specific inflected form that this sense applies to. Particularly useful when different inflections of a headword have distinct meanings (common in Philippine/Austronesian languages). For example, a plural form might be used idiomatically but doesn't warrant a separate subentry or variant. This is 'vernacular content at the beginning of a sense' that clarifies which inflection the definition describes."></i>
+                                </label>
+                                <div class="multilingual-forms exemplar-forms">
+                                    {% if sense.exemplar %}
+                                        {% for lang, text in sense.exemplar.items() %}
+                                            <div class="language-form-group mb-3 border rounded p-3" data-lang="{{ lang }}">
+                                                {{ new_macros.render_multilingual_item(
+                                                    'senses[' ~ sense_index ~ '].exemplar.' ~ lang,
+                                                    lang,
+                                                    text,
+                                                    available_languages,
+                                                    'Exemplar Text',
+                                                    removable=true,
+                                                    placeholder_lang=lang
+                                                ) }}
+                                            </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-exemplar-language-btn"
+                                            data-sense-index="{{ sense_index }}"
+                                            title="Add another language">
+                                        <i class="fas fa-plus"></i> Add Language
+                                    </button>
+                                </div>
+                                <div class="form-text">Specific inflected form this sense applies to (e.g., plural form with distinct meaning).</div>
+                            </div>
+
+                            <!-- LIFT 0.13: Scientific Name (Sense-Level Custom Field - Day 28) -->
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Scientific Name
+                                    <i class="fas fa-info-circle ms-1 form-tooltip"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="top"
+                                       data-bs-html="true"
+                                       title="<strong>About Scientific Name:</strong><br>The scientific (Latin/binomial) name for biological terms. For example, the scientific name for 'sunflower' is 'Helianthus annuus'."></i>
+                                </label>
+                                <div class="multilingual-forms scientific-name-forms">
+                                    {% if sense.scientific_name %}
+                                        {% for lang, text in sense.scientific_name.items() %}
+                                            <div class="language-form-group mb-3 border rounded p-3" data-lang="{{ lang }}">
+                                                {{ new_macros.render_multilingual_item(
+                                                    'senses[' ~ sense_index ~ '].scientific_name.' ~ lang,
+                                                    lang,
+                                                    text,
+                                                    available_languages,
+                                                    'Scientific Name',
+                                                    removable=true,
+                                                    placeholder_lang=lang
+                                                ) }}
+                                            </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-scientific-name-language-btn"
+                                            data-sense-index="{{ sense_index }}"
+                                            title="Add another language">
+                                        <i class="fas fa-plus"></i> Add Language
+                                    </button>
+                                </div>
+                                <div class="form-text">Scientific/Latin name for biological or taxonomic terms.</div>
+                            </div>
+
+                            <!-- LIFT 0.13: Literal Meaning (Sense-Level Custom Field - Day 28 - MOVED FROM ENTRY LEVEL) -->
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Literal Meaning
+                                    <i class="fas fa-info-circle ms-1 form-tooltip"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="top"
+                                       data-bs-html="true"
+                                       title="<strong>About Literal Meaning:</strong><br>The literal meaning of compounds or idioms. For example, 'sunflower' literally means 'sun-flower', or 'kick the bucket' literally means 'strike a pail with your foot'."></i>
+                                </label>
+                                <div class="multilingual-forms literal-meaning-forms">
+                                    {% if sense.literal_meaning %}
+                                        {% for lang, text in sense.literal_meaning.items() %}
+                                            <div class="language-form-group mb-3 border rounded p-3" data-lang="{{ lang }}">
+                                                {{ new_macros.render_multilingual_item(
+                                                    'senses[' ~ sense_index ~ '].literal_meaning.' ~ lang,
+                                                    lang,
+                                                    text,
+                                                    available_languages,
+                                                    'Literal Meaning Text',
+                                                    removable=true,
+                                                    placeholder_lang=lang
+                                                ) }}
+                                            </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-literal-meaning-language-btn"
+                                            data-sense-index="{{ sense_index }}"
+                                            title="Add another language">
+                                        <i class="fas fa-plus"></i> Add Language
+                                    </button>
+                                </div>
+                                <div class="form-text">The literal/compositional meaning of idioms or compound words.</div>
+                            </div>
+
+                            <!-- LIFT 0.13: Illustrations (Day 33-34) -->
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Illustrations
+                                    <i class="fas fa-info-circle ms-1 form-tooltip"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="top"
+                                       data-bs-html="true"
+                                       title="<strong>About Illustrations:</strong><br>Add images to help illustrate this sense. You can provide image paths or URLs, and add multilingual labels/captions for each image."></i>
+                                </label>
+                                <div class="illustrations-container" data-sense-index="{{ sense_index }}">
+                                    {% if sense.illustrations %}
+                                        {% for illustration in sense.illustrations %}
+                                            <div class="illustration-item card mb-3" data-illustration-index="{{ loop.index0 }}">
+                                                <div class="card-body">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <h6 class="mb-0"><i class="fas fa-image"></i> Illustration {{ loop.index }}</h6>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger remove-illustration-btn"
+                                                                data-sense-index="{{ sense_index }}"
+                                                                data-illustration-index="{{ loop.index0 }}"
+                                                                title="Remove illustration">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+
+                                                    <!-- Image Path/URL -->
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Image Path/URL</label>
+                                                        <div class="input-group">
+                                                            <input type="text"
+                                                                   class="form-control illustration-href"
+                                                                   name="senses[{{ sense_index }}].illustrations[{{ loop.index0 }}].href"
+                                                                   value="{{ illustration.href }}"
+                                                                   placeholder="images/photo.jpg or https://example.com/image.jpg"
+                                                                   readonly>
+                                                            <button class="btn btn-outline-secondary upload-illustration-btn"
+                                                                    type="button"
+                                                                    data-sense-index="{{ sense_index }}"
+                                                                    data-illustration-index="{{ loop.index0 }}"
+                                                                    title="Upload image file">
+                                                                <i class="fas fa-upload"></i> Upload Image
+                                                            </button>
+                                                        </div>
+                                                        <div class="form-text">Relative path (e.g., images/photo.jpg) or absolute URL</div>
+                                                    </div>
+
+                                                    <!-- Image Preview -->
+                                                    {% if illustration.href %}
+                                                    <div class="mb-3 image-preview-container">
+                                                        <img src="{{ illustration.href if illustration.href.startswith('http') else url_for('static', filename=illustration.href) }}"
+                                                             class="img-thumbnail illustration-preview"
+                                                             style="max-width: 300px; max-height: 200px;"
+                                                             alt="Illustration preview"
+                                                             onerror="this.style.display='none';">
+                                                    </div>
+                                                    {% endif %}
+
+                                                    <!-- Multilingual Labels -->
+                                                    <div class="illustration-labels">
+                                                        <label class="form-label">Labels/Captions (Multilingual)</label>
+                                                        <div class="multilingual-forms illustration-label-forms">
+                                                            {% if illustration.label %}
+                                                                {% for lang, text in illustration.label.items() %}
+                                                                    <div class="language-form-group mb-2 border rounded p-2" data-lang="{{ lang }}">
+                                                                        <div class="row align-items-center">
+                                                                            <div class="col-md-3">
+                                                                                <span class="badge bg-secondary">{{ lang }}</span>
+                                                                            </div>
+                                                                            <div class="col-md-9">
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <input type="text"
+                                                                                           class="form-control form-control-sm illustration-label-text"
+                                                                                           name="senses[{{ sense_index }}].illustrations[{{ loop.index0 }}].label.{{ lang }}"
+                                                                                           value="{{ text }}"
+                                                                                           placeholder="Caption in {{ lang }}">
+                                                                                    <button type="button"
+                                                                                            class="btn btn-sm btn-outline-danger remove-illustration-label-language-btn ms-2"
+                                                                                            data-sense-index="{{ sense_index }}"
+                                                                                            data-illustration-index="{{ loop.index0 }}"
+                                                                                            title="Remove this language">
+                                                                                        <i class="fas fa-times"></i>
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                {% endfor %}
+                                                            {% endif %}
+                                                        </div>
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-primary add-illustration-label-language-btn mt-1"
+                                                                data-sense-index="{{ sense_index }}"
+                                                                data-illustration-index="{{ loop.index0 }}"
+                                                                title="Add caption in another language">
+                                                            <i class="fas fa-plus"></i> Add Caption Language
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="no-illustrations text-center text-muted py-3 border rounded">
+                                            <p class="mb-2"><i class="fas fa-image fa-2x"></i></p>
+                                            <p>No illustrations added yet</p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary add-illustration-btn mt-2"
+                                        data-sense-index="{{ sense_index }}"
+                                        title="Add an illustration">
+                                    <i class="fas fa-plus"></i> Add Illustration
+                                </button>
+                                <div class="form-text">Add images with optional multilingual captions to illustrate this sense.</div>
+                            </div>
+
+                                            <div class="examples-section mt-4">
+                                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                                    <h6><i class="fas fa-quote-left"></i> Examples</h6>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary add-example-btn"
+                                                            data-sense-index="{{ loop.index0 }}">
+                                                        <i class="fas fa-plus"></i> Add Example
+                                                    </button>
+                                                </div>
+
+                                                <div class="examples-container">
+                                                    {% if sense.examples %}
+                                                    {% for example in sense.examples %}
+                                                        <div class="example-item card mb-3" data-example-index="{{ loop.index0 }}">
+                                                            <div class="card-body">
+                                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                    <h6 class="mb-0">Example {{ loop.index }}</h6>
+                                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-example-btn"
+                                                                            data-sense-index="0" data-example-index="{{ loop.index0 }}">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Example Sentence</label>
+                                                                    <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].sentence"
+                                                                              rows="2">{{ example.sentence }}</textarea>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Translation</label>
+                                                                    <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation"
+                                                                              rows="2">{{ example.translation }}</textarea>
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Translation Type
+                                                                        <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                                                                            <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top"
+                                                                               title="Specify the type of translation: 'literal' for word-for-word translation, 'free' for natural/idiomatic translation, or other types as defined in your project."></i>
+                                                                        </span>
+                                                                    </label>
+                                                                    <select class="form-select dynamic-lift-range"
+                                                                            name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation_type"
+                                                                            data-range-id="translation-type"
+                                                                            data-hierarchical="false"
+                                                                            data-searchable="true">
+                                                                        <option value="">Select translation type</option>
+                                                                        <option value="literal" {% if example.translation_type == 'literal' %}selected{% endif %}>Literal</option>
+                                                                        <option value="free" {% if example.translation_type == 'free' %}selected{% endif %}>Free/Idiomatic</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    {% endfor %}
+                                                    {% else %}
+                                                        <div class="no-examples text-center text-muted py-3 border rounded">
+                                                            <p>No examples added yet</p>
+                                                            <button type="button" class="btn btn-sm btn-outline-primary add-example-btn"
+                                                                    data-sense-index="{{ loop.index0 }}">
+                                                                <i class="fas fa-plus"></i> Add Example
+                                                            </button>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+
+                                            <!-- LIFT 0.13: Sense Relations Section (Day 42) -->
+                                            <div class="sense-relations-section mt-4">
+                                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                                    <h6>
+                                                        <i class="fas fa-project-diagram"></i> Sense Relations
+                                                        <i class="fas fa-info-circle ms-2 form-tooltip"
+                                                           data-bs-toggle="tooltip"
+                                                           data-bs-placement="top"
+                                                           data-bs-html="true"
+                                                           title="<strong>About Sense Relations:</strong><br>Sense-level semantic relationships link this specific meaning to other senses. Examples: synonyms (similar meanings), antonyms (opposite meanings), hyponyms (more specific), hypernyms (more general). These are distinct from entry-level relations which link entire words."></i>
+                                                    </h6>
+                                                    <button type="button" class="btn btn-sm btn-outline-warning add-sense-relation-btn"
+                                                            data-sense-index="{{ loop.index0 }}"
+                                                            title="Add a semantic relation for this sense">
+                                                        <i class="fas fa-plus"></i> Add Sense Relation
+                                                    </button>
+                                                </div>
+
+                                                <div class="sense-relations-container ms-3" data-sense-index="{{ loop.index0 }}">
+                                                    {% if sense.relations %}
+                                                        {% for relation in sense.relations %}
+                                                            <div class="sense-relation-item card mb-3 border-warning" data-relation-index="{{ loop.index0 }}">
+                                                                <div class="card-header bg-warning bg-opacity-10">
+                                                                    <div class="d-flex justify-content-between align-items-center">
+                                                                        <span><i class="fas fa-link"></i> Relation: {{ relation.get('type', relation['type'] if relation['type'] else 'unspecified') if relation is mapping else (relation.type or 'unspecified') }}</span>
+                                                                        <button type="button" class="btn btn-sm btn-outline-danger remove-sense-relation-btn"
+                                                                                data-sense-index="{{ sense_index }}" data-relation-index="{{ loop.index0 }}">
+                                                                            <i class="fas fa-trash"></i> Remove
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="card-body">
+                                                                    <div class="row">
+                                                                        <div class="col-md-4">
+                                                                            <label class="form-label">Relation Type</label>
+                                                                            <select class="form-control sense-lexical-relation-select"
+                                                                                    name="senses[{{ sense_index }}].relations[{{ loop.index0 }}].type"
+                                                                                    required>
+                                                                                <option value="">Select type</option>
+                                                                                {% set rel_type = relation.get('type', '') if relation is mapping else (relation.type or '') %}
+                                                                                {% set lex_rel = ranges.get('lexical-relation') if ranges is mapping else None %}

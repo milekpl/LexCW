@@ -10,7 +10,7 @@ describe('applySenseRelationsFromDom', () => {
                 <div id="senses-container">
                     <div class="sense-item" data-sense-index="0">
                         <div class="sense-relation-item">
-                            <select class="sense-relation-type-select">
+                            <select class="sense-lexical-relation-select">
                                 <option value="synonym" selected>Synonym</option>
                             </select>
                             <input class="sense-relation-ref-hidden" value="new_ref" />

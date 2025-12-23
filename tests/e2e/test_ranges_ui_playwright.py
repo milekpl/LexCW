@@ -1,7 +1,7 @@
 """
 Playwright integration test for LIFT ranges loading in UI dropdowns.
 
-Tests that grammatical-info, relation-type, and variant-type dropdowns
+Tests that grammatical-info, lexical-relation, and variant-type dropdowns
 are populated correctly from the LIFT ranges in BaseX.
 """
 
@@ -61,7 +61,7 @@ class TestRangesUIPlaywright:
             page.wait_for_timeout(500)  # Wait for relation form to appear
         
         # Find relation type dropdown
-        relation_type_select = page.locator('select.relation-type-select, select[name*="relation"][name*="type"]')
+        relation_type_select = page.locator('select.lexical-relation-select, select[name*="relation"][name*="type"]')
         
         if relation_type_select.count() > 0:
             # Wait for it to be visible
@@ -131,7 +131,7 @@ class TestRangesUIPlaywright:
         content = page.content()
         
         # Should contain ranges data (not an error page)
-        assert 'grammatical-info' in content or 'relation-type' in content or 'semantic-domain' in content, \
+        assert 'grammatical-info' in content or 'lexical-relation' in content or 'semantic-domain' in content, \
             f"Expected ranges data in API response, got: {content[:500]}"
         
         # Should not be an error

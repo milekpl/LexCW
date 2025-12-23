@@ -53,7 +53,7 @@ def test_tooltip_icon_consistency(page: Page, app_url: str) -> None:
 
 
 @pytest.mark.integration
-def test_edit_form_homograph_behavior(page: Page, app_url: str) -> None:
+def test_edit_form_homograph_behavior(page: Page, app_url: str, ensure_sense) -> None:
     """Test homograph field behavior in edit forms for existing entries."""
     # First, create a test entry
     page.goto(f"{app_url}/entries/add")
@@ -61,7 +61,8 @@ def test_edit_form_homograph_behavior(page: Page, app_url: str) -> None:
     
     # Fill in minimal required fields
     page.fill('input.lexical-unit-text', 'homograph_test_word')
-    page.fill('textarea[name*="definition"]', 'Test definition')
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('Test definition')
     
     # Submit form
     page.click('button[type="submit"]')
@@ -86,7 +87,7 @@ def test_edit_form_homograph_behavior(page: Page, app_url: str) -> None:
 
 
 @pytest.mark.integration
-def test_form_is_functional(page: Page, app_url: str) -> None:
+def test_form_is_functional(page: Page, app_url: str, ensure_sense) -> None:
     """Test that entry forms are functional despite non-critical errors."""
     # Load add form
     page.goto(f"{app_url}/entries/add")
@@ -98,7 +99,8 @@ def test_form_is_functional(page: Page, app_url: str) -> None:
     lexical_value = page.input_value('input.lexical-unit-text')
     assert lexical_value == 'test', "Form should be interactive"
     
-    # Verify form can accept definition
-    page.fill('textarea[name*="definition"]', 'test definition')
-    definition_value = page.locator('textarea[name*="definition"]').first.input_value()
+    # Ensure sense exists and verify form can accept definition
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('test definition')
+    definition_value = page.locator('textarea[name*="definition"]:visible').first.input_value()
     assert 'test definition' in definition_value, "Form should accept definition input"

@@ -84,9 +84,23 @@
                         </a>
                     </div>
                     <div class="col-md-6">
-                        <a href="{{ url_for('main.export_lift') }}" class="btn btn-warning btn-lg w-100 mb-3">
-                            <i class="fas fa-file-export"></i> Export LIFT
-                        </a>
+                        <div class="dropdown">
+                            <button class="btn btn-warning btn-lg w-100 mb-3 dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-file-export"></i> Export LIFT
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('main.export_lift') }}">
+                                        <i class="fas fa-file"></i> Single File (Standard)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('main.export_lift') }}">
+                                        <i class="fas fa-files-o"></i> Export to LIFT (Dual Files)
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
                 <div class="row">
@@ -125,7 +139,7 @@
         <div class="card">
             <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-tasks"></i> System Status</h5>
-                <a href="/backup/" class="btn btn-sm btn-outline-light" title="Manage Backups">
+                <a href="{{ url_for('backup.backup_management') }}" class="btn btn-sm btn-outline-light" title="Manage Backups">
                     <i class="fas fa-save"></i> Manage
                 </a>
             </div>

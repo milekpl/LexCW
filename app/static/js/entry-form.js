@@ -81,7 +81,7 @@ const applySenseRelationsFromDom = window.applySenseRelationsFromDom || function
 
         const relations = [];
         senseEl.querySelectorAll('.sense-relation-item').forEach((relEl, relIdx) => {
-            const typeEl = relEl.querySelector('.sense-relation-type-select');
+            const typeEl = relEl.querySelector('.sense-lexical-relation-select');
             const refEl = relEl.querySelector('.sense-relation-ref-hidden');
             const type = typeEl ? (typeEl.value || '').trim() : '';
             const ref = refEl ? (refEl.value || '').trim() : '';
@@ -1488,7 +1488,7 @@ function addSenseRelation(senseIndex) {
                 <div class="row">
                     <div class="col-md-4">
                         <label class="form-label">Relation Type</label>
-                        <select class="form-control sense-relation-type-select dynamic-lift-range"
+                        <select class="form-control sense-lexical-relation-select dynamic-lift-range"
                                 name="senses[${senseIndex}].relations[${newIndex}].type"
                                 data-range-id="lexical-relation"
                                 data-hierarchical="true"
@@ -1536,7 +1536,7 @@ function addSenseRelation(senseIndex) {
     relationsContainer.insertAdjacentHTML('beforeend', newRelationHTML);
 
     // Initialize the new relation's dropdown with range data
-    const newSelect = relationsContainer.querySelector(`.sense-relation-item[data-relation-index="${newIndex}"] .sense-relation-type-select`);
+    const newSelect = relationsContainer.querySelector(`.sense-relation-item[data-relation-index="${newIndex}"] .sense-lexical-relation-select`);
     if (newSelect && window.rangesLoader) {
         // Use rangesLoader to populate the select with proper range values
         window.rangesLoader.populateSelect(newSelect, 'lexical-relation', {

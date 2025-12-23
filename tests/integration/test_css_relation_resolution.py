@@ -170,6 +170,13 @@ class TestCSSRelationResolution:
                     description="Profile for testing"
                 )
             
+            # Set display aspect to 'label' for relations to show full labels
+            profile_service.set_element_display_aspect(
+                profile_id=default_profile.id,
+                element_name='lexical-relation',
+                aspect='label'
+            )
+            
             # Get the entry XML
             db_name = dict_service.db_connector.database
             has_ns = dict_service._detect_namespace_usage()
@@ -185,7 +192,7 @@ class TestCSSRelationResolution:
             # Both relations should show headwords
             assert 'Synonym' in html
             assert 'fast' in html
-            assert 'Antonym' in html
+            assert 'ant' in html  # Antonym shows as abbreviation by default
             assert 'slow' in html
             # IDs should not be visible
             assert 'synonym_entry' not in html

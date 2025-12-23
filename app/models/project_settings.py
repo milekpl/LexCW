@@ -24,6 +24,7 @@ class ProjectSettings(db.Model):
     source_language = Column(JSON, nullable=False)
     target_languages = Column(JSON, nullable=False, default=list)
     backup_settings = Column(JSON, nullable=True, default=dict)
+    settings_json = Column(JSON, nullable=False, default=dict)  # Add missing column to match database schema
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

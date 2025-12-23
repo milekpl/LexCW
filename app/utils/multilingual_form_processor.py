@@ -207,6 +207,18 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
         # Add new component relations from form data
         merged_data['relations'] = non_component_relations + form_components
 
+    # Process direct variant forms (allomorphs) from form data
+    form_variant_forms = process_variant_forms_data(form_data)
+    if form_variant_forms:
+        logger.debug(f"[MERGE DEBUG] Adding {len(form_variant_forms)} direct variant forms to entry variants")
+        # Get existing variants or initialize empty list
+        existing_variants = merged_data.get('variants', [])
+        if not isinstance(existing_variants, list):
+            existing_variants = []
+
+        # Add new variant forms from form data
+        merged_data['variants'] = existing_variants + form_variant_forms
+
     # Process variant relations from form data and add to relations
     form_variant_relations = process_variant_relations_form_data(form_data)
     if form_variant_relations:
@@ -744,6 +756,91 @@ def process_components_form_data(form_data: Dict[str, Any]) -> List[Dict[str, An
         result.append(relation_dict)
 
     logger.debug(f"[COMPONENTS DEBUG] Final result: {result}")
+    return result
+
+
+def process_variant_forms_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Process direct variant forms with traits from form data.
+    These are LIFT <variant> elements with <form> and <trait> elements directly inside.
+
+    Args:
+        form_data: Raw form data containing variant forms data
+
+    Returns:
+        List of variant dictionaries to be converted to Variant objects
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.debug(f"[VARIANT FORMS DEBUG] Starting direct variant forms processing")
+
+    variants_data = []
+
+    # Process direct variant forms (not relations) - these are variants with forms and traits
+    for key, value in form_data.items():
+        if key.startswith('variants[') and '].' in key:
+            try:
+                # Extract index and field name: variants[0].form.en -> index=0, field=form.en
+                index_end = key.index(']')
+                index_str = key[len('variants['):index_end]
+                field_path = key[index_end + 2:]  # Skip '].'
+
+                variant_index = int(index_str)
+
+                # Ensure we have enough space in the list
+                while len(variants_data) <= variant_index:
+                    variants_data.append({
+                        'form': {},
+                        'traits': {},
+                        'grammatical_info': None,
+                        'grammatical_traits': None
+                    })
+
+                # Process the field path (e.g., form.en, traits.morph-type)
+                if field_path.startswith('form.'):
+                    # This is a form field like form.en
+                    lang = field_path[5:]  # Get language after 'form.'
+                    if value and isinstance(value, str):
+                        variants_data[variant_index]['form'][lang] = value.strip()
+                        logger.debug(f"[VARIANT FORMS DEBUG] variants[{variant_index}].form.{lang} = {value.strip()}")
+
+                elif field_path.startswith('traits.'):
+                    # This is a trait field like traits.morph-type
+                    trait_name = field_path[7:]  # Get trait name after 'traits.' (length is 7)
+                    if value and isinstance(value, str):
+                        variants_data[variant_index]['traits'][trait_name] = value.strip()
+                        logger.debug(f"[VARIANT FORMS DEBUG] variants[{variant_index}].traits.{trait_name} = {value.strip()}")
+
+                elif field_path == 'grammatical_info':
+                    # This is grammatical_info
+                    if value and isinstance(value, str):
+                        variants_data[variant_index]['grammatical_info'] = value.strip()
+                        logger.debug(f"[VARIANT FORMS DEBUG] variants[{variant_index}].grammatical_info = {value.strip()}")
+
+                elif field_path.startswith('grammatical_traits.'):
+                    # This is a grammatical trait field like grammatical_traits.number
+                    trait_name = field_path[19:]  # Get trait name after 'grammatical_traits.' (length is 19)
+                    if value and isinstance(value, str):
+                        if variants_data[variant_index]['grammatical_traits'] is None:
+                            variants_data[variant_index]['grammatical_traits'] = {}
+                        # Only add if trait_name is not empty (to avoid issues with malformed keys)
+                        if trait_name:
+                            variants_data[variant_index]['grammatical_traits'][trait_name] = value.strip()
+                        logger.debug(f"[VARIANT FORMS DEBUG] variants[{variant_index}].grammatical_traits.{trait_name} = {value.strip()}")
+
+            except (ValueError, IndexError):
+                logger.debug(f"[VARIANT FORMS DEBUG] Invalid variant form key: {key}")
+                continue
+
+    # Filter out empty variants
+    result = []
+    for variant_data in variants_data:
+        # Only include variants that have at least a form or traits
+        if variant_data.get('form') or variant_data.get('traits'):
+            result.append(variant_data)
+
+    logger.debug(f"[VARIANT FORMS DEBUG] Final result: {result}")
     return result
 
 

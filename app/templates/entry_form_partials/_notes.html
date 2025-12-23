@@ -1,0 +1,67 @@
+<div class="card mb-4 notes-section">
+    <div class="card-header bg-secondary text-white">
+        <h5><i class="fas fa-sticky-note"></i> Entry Notes</h5>
+    </div>
+    <div class="card-body">
+        <div id="notes-container">
+            <!-- Server-side rendered note items -->
+            {% if entry.notes %}
+                {% for note_type, note_content in entry.notes.items() %}
+                <div class="note-item mb-4 border rounded p-3" data-note-type="{{ note_type }}">
+                    <div class="row align-items-center mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Note Type</label>
+                            <select class="form-select note-type-select" name="notes.{{ note_type }}.type">
+                                {% for value, label in note_types %}
+                                <option value="{{ value }}" {% if note_type == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-note-btn" 
+                                    title="Remove note">
+                                <i class="fas fa-trash"></i> Remove Note
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="multilingual-forms">
+                        <!-- Multilingual note (always dict format) -->
+                        {% for lang, text in note_content.items() %}
+                        <div class="mb-3 language-form" data-language="{{ lang }}">
+                            {{ new_macros.render_multilingual_item(
+                                'notes.' ~ note_type ~ '.' ~ lang,
+                                lang,
+                                text,
+                                project_languages,
+                                'Note Text',
+                                removable=true,
+                                placeholder_lang=lang
+                            ) }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-primary add-language-btn" 
+                                title="Add another language">
+                            <i class="fas fa-plus"></i> Add Language
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            <!-- Fallback message if no notes exist -->
+            {% if not entry.notes %}
+            <div class="text-muted mb-3" id="no-notes-message">
+                No notes added yet. Click "Add Note" to get started.
+            </div>
+            {% endif %}
+        </div>
+        
+        <button type="button" class="btn btn-sm btn-primary" id="add-note-btn">
+            <i class="fas fa-plus"></i> Add Note
+        </button>
+    </div>
+</div>

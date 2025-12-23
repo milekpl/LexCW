@@ -15,6 +15,9 @@
 		"python.testing.pytestArgs": [
 			"tests",
 			"-v"
-		]
+		],
+		"yaml.schemaStore.enable": false,
+		"Codegeex.RepoIndex": true,
+		"Codegeex.CommitMessageStyle": "Default"
 	}
 }

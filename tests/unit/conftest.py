@@ -116,6 +116,8 @@ def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     from app.api.query_builder import query_builder_bp
     from app.api.ranges import ranges_bp
     from app.views import workbench_bp
+    from app.api.backup_api import backup_api
+    from app.routes.backup_routes import backup_bp
     
     app.register_blueprint(api_bp)
     app.register_blueprint(validation_bp)
@@ -125,6 +127,8 @@ def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     app.register_blueprint(query_builder_bp)
     app.register_blueprint(ranges_bp)
     app.register_blueprint(workbench_bp)
+    app.register_blueprint(backup_api)
+    app.register_blueprint(backup_bp)
     
     # Mock dependency injection
     from unittest.mock import Mock

@@ -60,7 +60,7 @@ class RelationsManager {
     
     initializeExistingRelationDropdowns() {
         // Initialize any existing relation type dropdowns that were server-side rendered
-        const relationSelects = this.container.querySelectorAll('.relation-type-select');
+        const relationSelects = this.container.querySelectorAll('.lexical-relation-select');
         
         relationSelects.forEach((select, index) => {
             this.populateRelationTypeSelect(select);
@@ -135,7 +135,7 @@ class RelationsManager {
         
         // Handle relation type changes (to update XML preview)
         this.container.addEventListener('change', (e) => {
-            if (e.target.classList.contains('relation-type-select')) {
+            if (e.target.classList.contains('lexical-relation-select')) {
                 // Trigger XML preview update when relation type changes
                 if (window.updateXmlPreview) {
                     window.updateXmlPreview();
@@ -167,7 +167,7 @@ class RelationsManager {
         this.container.insertAdjacentHTML('beforeend', relationHtml);
 
         // Initialize the new relation's dropdown with range data
-        const newSelect = this.container.querySelector(`.relation-item[data-relation-index="${newIndex}"] .relation-type-select`);
+        const newSelect = this.container.querySelector(`.relation-item[data-relation-index="${newIndex}"] .lexical-relation-select`);
         if (newSelect) {
             // Populate with loaded relation types or use rangesLoader if available
             if (this.relationTypes && this.relationTypes.length > 0) {
@@ -255,7 +255,7 @@ class RelationsManager {
                     <div class="row">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Relation Type</label>
-                            <select class="form-control relation-type-select"
+                            <select class="form-control lexical-relation-select"
                                     name="relations[${index}].type"
                                     data-range-id="${this.rangeId}"
                                     data-hierarchical="true"

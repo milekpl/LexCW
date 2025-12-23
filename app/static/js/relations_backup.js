@@ -60,7 +60,7 @@ class RelationsManager {
     
     initializeExistingRelationDropdowns() {
         // Initialize any existing relation type dropdowns that were server-side rendered
-        const relationSelects = this.container.querySelectorAll('.relation-type-select');
+        const relationSelects = this.container.querySelectorAll('.lexical-relation-select');
         
         relationSelects.forEach((select, index) => {
             this.populateRelationTypeSelect(select);
@@ -150,7 +150,7 @@ class RelationsManager {
         this.container.insertAdjacentHTML('beforeend', relationHtml);
         
         // Initialize the new relation's dropdown
-        const newSelect = this.container.querySelector(`.relation-item[data-relation-index="${newIndex}"] .relation-type-select`);
+        const newSelect = this.container.querySelector(`.relation-item[data-relation-index="${newIndex}"] .lexical-relation-select`);
         if (newSelect) {
             this.populateRelationTypeSelect(newSelect);
         }
@@ -228,7 +228,7 @@ class RelationsManager {
                     <div class="row">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Relation Type</label>
-                            <select class="form-control relation-type-select" 
+                            <select class="form-control lexical-relation-select" 
                                     name="relations[${index}][type]" 
                                     data-range-id="${this.rangeId}"
                                     data-hierarchical="true"
@@ -436,7 +436,7 @@ window.RelationsManager = RelationsManager;
         
         // Initialize the relation type dropdown using the ranges loader
         if (window.rangesLoader) {
-            const typeSelect = this.container.querySelector(`.relation-item[data-relation-index="${index}"] .relation-type-select`);
+            const typeSelect = this.container.querySelector(`.relation-item[data-relation-index="${index}"] .lexical-relation-select`);
             if (typeSelect) {
                 window.rangesLoader.populateSelect(typeSelect, this.rangeId, {
                     selectedValue: relation.type || '',
@@ -469,7 +469,7 @@ window.RelationsManager = RelationsManager;
                     <div class="row">
                         <div class="col-md-4">
                             <label class="form-label">Relation Type</label>
-                            <select class="form-select relation-type-select" 
+                            <select class="form-select lexical-relation-select" 
                                     name="relations[${index}].type" 
                                     data-range-id="${this.rangeId}"
                                     data-selected="${relation.type || ''}"
