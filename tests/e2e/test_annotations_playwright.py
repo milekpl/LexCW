@@ -114,22 +114,17 @@ class TestAnnotationsPlaywright:
         # Annotation should be removed
         expect(annotation_item).not_to_be_visible()
 
-    def test_add_sense_level_annotation(self, page: Page, app_url: str) -> None:
+    def test_add_sense_level_annotation(self, page: Page, app_url: str, ensure_sense) -> None:
         """Test adding an annotation at sense level."""
-        # Check if a sense exists, if not add one
-        sense_item = page.locator('.sense-item').first
-        if not sense_item.is_visible():
-            add_sense_btn = page.locator('.add-sense-btn, button:has-text("Add Another Sense")')
-            if add_sense_btn.is_visible():
-                add_sense_btn.click()
-                page.wait_for_timeout(500)
-        
-        sense_item = page.locator('.sense-item').first
+        # Ensure there is a real sense present (fixture handles add if necessary)
+        ensure_sense(page)
+
+        sense_item = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template):visible').first
         expect(sense_item).to_be_visible()
-        
+
         # Scroll to sense item to ensure it's in viewport
         sense_item.scroll_into_view_if_needed()
-        
+
         # Click the Add Annotation button for sense
         add_btn = sense_item.locator('.add-annotation-btn').first
         expect(add_btn).to_be_visible()
@@ -157,36 +152,31 @@ class TestAnnotationsPlaywright:
         expect(when_input).to_have_attribute('readonly', '')
         expect(when_input).not_to_have_value('')
 
-    def test_remove_sense_level_annotation(self, page: Page, app_url: str) -> None:
+    def test_remove_sense_level_annotation(self, page: Page, app_url: str, ensure_sense) -> None:
         """Test removing an annotation at sense level."""
-        # Ensure we have a sense
-        sense_item = page.locator('.sense-item').first
-        if not sense_item.is_visible():
-            add_sense_btn = page.locator('.add-sense-btn, button:has-text("Add Another Sense")')
-            if add_sense_btn.is_visible():
-                add_sense_btn.click()
-                page.wait_for_timeout(500)
-        
-        sense_item = page.locator('.sense-item').first
+        # Ensure there is a real sense present
+        ensure_sense(page)
+
+        sense_item = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template):visible').first
         expect(sense_item).to_be_visible()
         sense_item.scroll_into_view_if_needed()
-        
+
         # Add an annotation first
         add_btn = sense_item.locator('.add-annotation-btn').first
         add_btn.click()
-        
+
         # Verify it was added
         annotation_item = sense_item.locator('.annotation-item').first
         expect(annotation_item).to_be_visible()
-        
+
         # Click remove button
         remove_btn = annotation_item.locator('.remove-annotation-btn')
         expect(remove_btn).to_be_visible()
-        
+
         # Handle confirmation dialog
         page.on('dialog', lambda dialog: dialog.accept())
         remove_btn.click()
-        
+
         # Annotation should be removed
         expect(annotation_item).not_to_be_visible()
 

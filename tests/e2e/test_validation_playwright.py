@@ -7,7 +7,7 @@ from playwright.sync_api import Page, expect
 
 
 @pytest.mark.integration
-def test_validation_respects_project_settings(page: Page, app_url: str):
+def test_validation_respects_project_settings(page: Page, app_url: str, ensure_sense):
     """Test that validation uses project-configured source/target languages."""
     # Navigate to entry form
     page.goto(f"{app_url}/entries/add")
@@ -28,9 +28,12 @@ def test_validation_respects_project_settings(page: Page, app_url: str):
     
     # Fill in required fields using new multilingual format
     page.fill('input.lexical-unit-text', 'test word')
+
+    # Ensure a sense exists (may be created by clicking the Add First Sense button)
+    ensure_sense(page)
     
     # Fill in the default template sense definition (in default sense template)
-    page.fill('textarea[name*="definition"]', 'English definition')
+    page.locator('textarea[name*="definition"]:visible').first.fill('English definition')
     
     # Try to save - should validate
     page.click('button[type="submit"]')
@@ -42,7 +45,7 @@ def test_validation_respects_project_settings(page: Page, app_url: str):
 
 
 @pytest.mark.integration
-def test_empty_source_language_definition_allowed(page: Page, app_url: str):
+def test_empty_source_language_definition_allowed(page: Page, app_url: str, ensure_sense):
     """Test that empty source language definitions are allowed."""
     page.goto(f"{app_url}/entries/add")
     
@@ -53,8 +56,9 @@ def test_empty_source_language_definition_allowed(page: Page, app_url: str):
     # Fill in basic entry info using new multilingual format
     page.fill('input.lexical-unit-text', 'facal')  # Scots Gaelic
     
-    # Fill in the template definition (it will be created as first sense)
-    page.fill('textarea[name*="definition"]', 'word')  # Target language definition
+    # Ensure a sense and fill in the template definition (it will be created as first sense)
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('word')  # Target language definition
     
     # Save - should succeed
     page.click('button[type="submit"]')
@@ -66,7 +70,7 @@ def test_empty_source_language_definition_allowed(page: Page, app_url: str):
 
 
 @pytest.mark.integration
-def test_ipa_character_validation(page: Page, app_url: str):
+def test_ipa_character_validation(page: Page, app_url: str, ensure_sense):
     """Test that IPA character validation works in browser."""
     page.goto(f"{app_url}/entries/add")
     
@@ -86,8 +90,9 @@ def test_ipa_character_validation(page: Page, app_url: str):
         if ipa_input.count() > 0:
             ipa_input.fill('invalid@#$')
     
-    # Add a valid sense definition
-    page.fill('textarea[name*="definition"]', 'test definition')
+    # Ensure a sense exists and add a valid sense definition
+    ensure_sense(page)
+    page.locator('textarea[name*="definition"]:visible').first.fill('test definition')
     
     # Try to save
     page.click('button[type="submit"]')

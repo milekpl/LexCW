@@ -113,7 +113,10 @@ class TestXMLEntryServiceInit:
             assert service.port == 1984
             assert service.username == 'admin'
             assert service.password == 'admin'
-            assert service.database == 'dictionary'
+            # Should use TEST_DB_NAME if set, otherwise 'dictionary'
+            import os
+            expected_db = os.environ.get('TEST_DB_NAME') or 'dictionary'
+            assert service.database == expected_db
     
     def test_init_with_custom_params(self, mock_basex_session):
         """Test initialization with custom parameters."""

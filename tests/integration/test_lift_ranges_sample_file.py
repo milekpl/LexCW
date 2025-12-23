@@ -153,7 +153,8 @@ def test_lift_ranges_service_fallback() -> None:
 
     ranges = service.get_ranges()
     
-    # Service should return empty dict when no ranges available
-    # (Ranges must come from LIFT file loaded into database)
+    # Service should return only lexical-relation when no ranges available
+    # (lexical-relation has special handling as it's critical for relation types)
     assert isinstance(ranges, dict), "Should return a dict"
-    assert len(ranges) == 0, "Should be empty when no ranges in database"
+    assert len(ranges) == 1, "Should contain only lexical-relation when no ranges in database"
+    assert 'lexical-relation' in ranges, "lexical-relation should be present due to special handling"

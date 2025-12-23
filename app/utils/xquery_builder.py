@@ -404,7 +404,7 @@ class XQueryBuilder:
 
     @staticmethod
     def build_range_query(
-        range_name: str, db_name: str, has_namespace: bool = True
+        range_name: str, db_name: str, has_namespace: bool = True, ranges_filename: str = 'ranges.lift-ranges'
     ) -> str:
         """
         Build query to retrieve range definitions.
@@ -419,7 +419,7 @@ class XQueryBuilder:
         """
         # Note: Ranges are typically stored in a separate document
         return f"""
-        for $range in doc('{db_name}/ranges.xml')//range[@id="{range_name}"]
+        for $range in doc('{db_name}/{ranges_filename}')//range[@id=\"{range_name}\"]
         return $range
         """
 

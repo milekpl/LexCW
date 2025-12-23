@@ -15,7 +15,6 @@ TESTS=(
     "test_custom_fields_playwright.py"
     "test_delete_entry.py"
     "test_settings_page_functionality.py"
-    "test_sense_deletion_fixed.py"
     "test_sense_deletion.py"
     "test_sorting_and_editing.py"
     "test_validation_playwright.py"

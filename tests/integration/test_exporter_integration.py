@@ -550,6 +550,20 @@ class TestExporterIntegration:
                 connector.close()
             except Exception:
                 pass
+            
+            # Clean up test database
+            try:
+                cleanup_connector = BaseXConnector(
+                    host=os.getenv('BASEX_HOST', 'localhost'),
+                    port=int(os.getenv('BASEX_PORT', '1984')),
+                    username=os.getenv('BASEX_USERNAME', 'admin'),
+                    password=os.getenv('BASEX_PASSWORD', 'admin')
+                )
+                cleanup_connector.connect()
+                cleanup_connector.drop_database(db_name)
+                cleanup_connector.disconnect()
+            except Exception:
+                pass  # Ignore cleanup failures
             # Drop the test database to ensure proper teardown
             from app.database.basex_connector import BaseXConnector as AdminBaseXConnector
             admin_connector = AdminBaseXConnector(

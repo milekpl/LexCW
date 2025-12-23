@@ -11,19 +11,21 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # Set testing config by default so create_app() uses in-memory SQLite and test DB
 os.environ.setdefault('FLASK_CONFIG', 'testing')
 
+# Import safety utilities
+from tests.test_db_safety_utils import generate_safe_db_name, is_safe_database_name
+
 # Ensure TEST_DB_NAME is set at import time for any tests that call create_app()
 # at module import time. This avoids race conditions where some test modules
 # instantiate the Flask app before session fixtures run.
 if os.environ.get('TEST_DB_NAME') is None:
     try:
-        import uuid
-        from tests.basex_test_utils import create_test_db
-
-        test_db = f"test_{uuid.uuid4().hex[:8]}"
+        # Generate a safe database name instead of a random one
+        test_db = generate_safe_db_name('session')
         os.environ['TEST_DB_NAME'] = test_db
         # Also set BASEX_DATABASE so create_app('testing') picks the same name
         os.environ['BASEX_DATABASE'] = test_db
 
+        from tests.basex_test_utils import create_test_db
         # Try to create the DB (best-effort)
         create_test_db(test_db)
     except Exception:
@@ -67,7 +69,33 @@ def basex_available() -> bool:
 @pytest.fixture(scope="function")
 def test_db_name() -> str:
     """Generate a unique test database name."""
-    return f"test_{uuid.uuid4().hex[:8]}"
+    return generate_safe_db_name('unit')
+
+
+@pytest.fixture(scope="function")
+def safe_test_db_name(request) -> str:
+    """
+    Generate a safe, unique test database name.
+    
+    Determines test type from the request path and generates
+    an appropriate safe database name.
+    """
+    # Determine test type from request
+    test_path = str(request.fspath).replace('\\', '/')  # Normalize path separators
+    if "e2e" in test_path:
+        test_type = "e2e"
+    elif "integration" in test_path:
+        test_type = "integration"
+    else:
+        test_type = "unit"
+    
+    db_name = generate_safe_db_name(test_type)
+    
+    # Validate safety
+    if not is_safe_database_name(db_name):
+        pytest.fail(f"Generated unsafe database name: {db_name}")
+    
+    return db_name
 
 
 @pytest.fixture(scope="function")
@@ -206,6 +234,150 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
 
 
 @pytest.fixture(scope="function")
+def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, request) -> Generator[BaseXConnector, None, None]:
+    """
+    Create a completely isolated BaseX connector with safe cleanup.
+    
+    This fixture provides stronger isolation guarantees than basex_test_connector:
+    - Uses safe database naming with timestamp and test type
+    - Validates database name safety before creation
+    - Restores original environment variables after test
+    - Performs atomic cleanup with verification
+    - Prevents environment variable leakage between tests
+    """
+    if not basex_available:
+        pytest.skip("BaseX server not available")
+    
+    # Store original environment variables for restoration
+    original_test_db = os.environ.get('TEST_DB_NAME')
+    original_basex_db = os.environ.get('BASEX_DATABASE')
+    
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=None,
+    )
+    
+    try:
+        # Set isolated environment for this test only
+        os.environ['TEST_DB_NAME'] = safe_test_db_name
+        os.environ['BASEX_DATABASE'] = safe_test_db_name
+        
+        # Connect and create database
+        connector.connect()
+        connector.create_database(safe_test_db_name)
+        connector.database = safe_test_db_name
+        connector.disconnect()
+        connector.connect()  # Reconnect with database
+        
+        logger.info(f"Created isolated test database: {safe_test_db_name}")
+        
+        # Add sample LIFT content
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+    <entry id="test_entry_1">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="test_sense_1">
+            <definition>
+                <form lang="en"><text>A test entry</text></form>
+            </definition>
+            <gloss lang="pl"><text>test</text></gloss>
+        </sense>
+    </entry>
+</lift>'''
+            f.write(sample_lift)
+            temp_file = f.name
+        
+        try:
+            connector.execute_command(f"ADD {temp_file}")
+            logger.info("Added LIFT data to isolated test database")
+        except Exception as e:
+            logger.warning(f"Failed to add data to isolated database: {e}")
+        finally:
+            try:
+                os.unlink(temp_file)
+            except OSError:
+                pass
+        
+        # Add minimal ranges.xml
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift-ranges>
+    <range id="grammatical-info">
+        <range-element id="Noun" label="Noun" abbrev="n"/>
+        <range-element id="Verb" label="Verb" abbrev="v"/>
+    </range>
+</lift-ranges>'''
+            f.write(ranges_xml)
+            temp_file = f.name
+        
+        try:
+            connector.execute_command(f"ADD {temp_file}")
+            logger.info("Added ranges.xml to isolated test database")
+        except Exception as e:
+            logger.warning(f"Failed to add ranges.xml to isolated database: {e}")
+        finally:
+            try:
+                os.unlink(temp_file)
+            except OSError:
+                pass
+        
+        yield connector
+        
+    finally:
+        # Safe cleanup with environment restoration
+        try:
+            # Restore original environment variables
+            if original_test_db:
+                os.environ['TEST_DB_NAME'] = original_test_db
+            elif 'TEST_DB_NAME' in os.environ:
+                del os.environ['TEST_DB_NAME']
+                
+            if original_basex_db:
+                os.environ['BASEX_DATABASE'] = original_basex_db
+            elif 'BASEX_DATABASE' in os.environ:
+                del os.environ['BASEX_DATABASE']
+            
+            # Atomic cleanup with verification
+            cleanup_connector = BaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin'),
+                database=None,
+            )
+            
+            try:
+                cleanup_connector.connect()
+                # Verify database exists before dropping
+                try:
+                    result = cleanup_connector.execute_query("xquery db:list()")
+                    if safe_test_db_name in result:
+                        cleanup_connector.execute_command(f"DROP DB {safe_test_db_name}")
+                        logger.info(f"Successfully dropped isolated test database: {safe_test_db_name}")
+                    else:
+                        logger.warning(f"Isolated test database {safe_test_db_name} not found during cleanup")
+                except Exception as e:
+                    logger.warning(f"Could not verify database existence before cleanup: {e}")
+                
+            finally:
+                try:
+                    cleanup_connector.disconnect()
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"Failed to clean up isolated test database {safe_test_db_name}: {e}")
+            # Even if cleanup fails, we've restored the environment variables
+            raise
+
+
+@pytest.fixture(scope="function")
 def dict_service_with_db(basex_test_connector: BaseXConnector) -> DictionaryService:
     """Create dictionary service with real test database."""
     return DictionaryService(db_connector=basex_test_connector)
@@ -214,56 +386,67 @@ def dict_service_with_db(basex_test_connector: BaseXConnector) -> DictionaryServ
 # --- Flask live server fixture for Selenium integration tests ---
 @pytest.fixture(scope="function")
 def flask_test_server():
-    """Start the Flask app in a subprocess on a free port, yield the base URL, and stop after test."""
+    """Start the Flask app in-process on a free port using Werkzeug's WSGI server.
+
+    This avoids subprocess env var races and ensures the Flask app uses the
+    same TEST_DB_NAME / BASEX_DATABASE that test fixtures set, preventing e2e
+    tests from accidentally operating on production databases.
+    """
+    from werkzeug.serving import make_server
+    from app import create_app
+
     # Find a free port
     sock = socket.socket()
     sock.bind(("localhost", 0))
     port = sock.getsockname()[1]
     sock.close()
 
-    env = os.environ.copy()
-    env["FLASK_CONFIG"] = "testing"
-    env["TESTING"] = "true"
-    # Pass the test DB name to the Flask app if set by the test fixture
-    if "TEST_DB_NAME" in os.environ:
-        env["TEST_DB_NAME"] = os.environ["TEST_DB_NAME"]
+    # Create the app with testing config and ensure BASEX_DATABASE matches TEST_DB_NAME
+    app = create_app(os.getenv('FLASK_CONFIG') or 'testing')
+    app.config['TESTING'] = True
 
-    # Use sys.executable to get the current Python interpreter
-    python_exe = sys.executable
-    
-    # Start the Flask app using run.py
-    proc = subprocess.Popen([
-        python_exe, "run.py"
-    ], env={**env, "FLASK_RUN_PORT": str(port)}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    # Wait for the server to be ready
-    base_url = f"http://localhost:{port}"
-
-    for _ in range(30):
-        try:
-            import urllib.request
-            with urllib.request.urlopen(base_url) as resp:
-                if resp.status == 200 or resp.status == 404:
-                    break
-        except Exception:
-            time.sleep(0.3)
+    # Prefer explicit TEST_DB_NAME if present
+    env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
+    if env_db:
+        app.config['BASEX_DATABASE'] = env_db
     else:
-        proc.terminate()
-        try:
-            out, err = proc.communicate(timeout=5)
-        except Exception:
-            out, err = b'', b''
-        print("\n[flask_test_server] Flask server failed to start.\nSTDOUT:\n", out.decode(errors='replace'))
-        print("\nSTDERR:\n", err.decode(errors='replace'))
-        raise RuntimeError(f"Flask test server did not start on {base_url}")
+        # If not provided, ensure tests don't accidentally use production db
+        app.config['BASEX_DATABASE'] = app.config.get('BASEX_DATABASE', 'dictionary_test')
 
-    yield base_url
+    # Export to environment so other services/readers see the same value
+    os.environ['BASEX_DATABASE'] = app.config['BASEX_DATABASE']
+    os.environ['TEST_DB_NAME'] = app.config['BASEX_DATABASE']
 
-    proc.terminate()
+    server = make_server('localhost', port, app)
+    thread = None
     try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
+        import threading
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        base_url = f"http://localhost:{port}"
+
+        # Wait for server to be ready (simple health check)
+        import urllib.request
+        for _ in range(30):
+            try:
+                with urllib.request.urlopen(base_url) as resp:
+                    if resp.status in (200, 404):
+                        break
+            except Exception:
+                time.sleep(0.1)
+        else:
+            raise RuntimeError(f"Flask test server did not start on {base_url}")
+
+        yield base_url
+
+    finally:
+        try:
+            server.shutdown()
+        except Exception:
+            pass
+        if thread and thread.is_alive():
+            thread.join(timeout=1)
 
 
 

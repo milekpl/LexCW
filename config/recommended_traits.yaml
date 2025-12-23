@@ -3,7 +3,7 @@
 # automatically created as custom ranges when encountered in LIFT entries.
 # It can be loaded by the install procedure to seed the database with common values.
 
-variant-types:
+variant-type:
   - id: dialectal
     label: Dialectal Variant
     definition: "A regional or social variety of a language."
@@ -17,7 +17,7 @@ variant-types:
     label: Spelling Variant
     definition: "Purely orthographic differences (e.g., color vs. colour)."
 
-complex-form-types:
+complex-form-type:
   - id: compound
     label: Compound
     definition: "A word formed from two or more stems."

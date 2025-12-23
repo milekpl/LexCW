@@ -53,10 +53,13 @@ class BaseXConnector:
     
     def connect(self) -> bool:
         """
-        Establish connection to BaseX server.
+        Establish connection to BaseX server with safety checks.
         
         Returns:
             True if connection successful, False otherwise.
+            
+        Raises:
+            DatabaseError: If connection fails or safety checks fail
         """
         with self._lock:
             try:
@@ -74,6 +77,10 @@ class BaseXConnector:
                 self._session = BaseXSession(self.host, self.port, self.username, self.password)
                 
                 if self.database:
+                    # Safety check: Prevent connecting to production databases in test mode
+                    if self._is_test_mode() and not self._is_safe_database_name(self.database):
+                        raise DatabaseError(f"Refusing to connect to potentially unsafe database in test mode: {self.database}")
+                    
                     self.logger.info(f"Opening BaseX database: {self.database}")
                     self._session.execute(f"OPEN {self.database}")
                 else:
@@ -86,6 +93,45 @@ class BaseXConnector:
                 self.logger.error(f"Failed to connect to BaseX: {e}")
                 self._session = None
                 raise DatabaseError(f"Connection failed: {e}")
+    
+    def _is_test_mode(self) -> bool:
+        """
+        Check if we're running in test mode.
+        
+        Returns:
+            True if running in test mode, False otherwise
+        """
+        import os
+        return os.environ.get('FLASK_CONFIG') == 'testing' or os.environ.get('TESTING') == 'true'
+    
+    def _is_safe_database_name(self, db_name: str) -> bool:
+        """
+        Validate that a database name is safe for testing.
+        
+        Args:
+            db_name: The database name to validate
+            
+        Returns:
+            True if the database name is safe for testing, False otherwise
+        """
+        if not db_name:
+            return False
+            
+        # Must start with 'test_'
+        if not db_name.startswith('test_'):
+            return False
+        
+        # Must not contain protected patterns
+        protected_patterns = {'dictionary', 'production', 'backup', 'main', 'dev', 'staging'}
+        db_name_lower = db_name.lower()
+        for protected in protected_patterns:
+            if protected in db_name_lower:
+                return False
+                
+        # Must match our naming pattern: test_YYYYMMDD_HHMM_<type>_<random>
+        import re
+        pattern = r'test_\d{8}_\d{4}_[a-z]+_[a-f0-9]{6}'
+        return bool(re.match(pattern, db_name))
     
     def disconnect(self) -> None:
         """Close the connection to BaseX server."""

@@ -185,7 +185,7 @@ class TestRelationsVariantsUIPlaywright:
         expect(relation_items.first).to_be_visible()
         
         # Verify that the form contains user-friendly fields
-        relation_type_selects = page.locator("select.relation-type-select")
+        relation_type_selects = page.locator("select.lexical-relation-select")
         expect(relation_type_selects.first).to_be_visible()
         
         # Verify that search functionality is available

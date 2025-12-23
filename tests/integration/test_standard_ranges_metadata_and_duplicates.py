@@ -29,7 +29,7 @@ def test_standard_ranges_config_does_not_duplicate_and_label_fallback(client, ap
     assert 'variant_types' not in ranges  # No plural duplicate
 
     # The label should be filled from metadata since LIFT had none
-    assert ranges['variant-type']['label'] in ('Variant Entry Types', 'variant-type')
+    assert ranges['variant-type']['label'] in ('Variant types', 'variant-type')
 
     # Provided_by_config should not be True for the same range when LIFT provides it
     assert not ranges['variant-type'].get('provided_by_config', False)

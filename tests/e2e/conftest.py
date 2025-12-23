@@ -16,6 +16,9 @@ from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
 # Add parent directory to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+# Import safety utilities
+from tests.test_db_safety_utils import generate_safe_db_name, is_safe_database_name
+
 # Import fixtures from parent conftest
 from tests.conftest import flask_test_server
 
@@ -25,12 +28,29 @@ logger = logging.getLogger(__name__)
 @pytest.fixture(scope="session", autouse=True)
 def setup_e2e_test_database():
     """
-    Set up a persistent test database for E2E tests.
-    This ensures the flask_test_server subprocess can access test data.
+    Set up a safe, isolated test database for E2E tests.
+    
+    This fixture provides stronger isolation guarantees:
+    - Uses safe database naming with timestamp and test type
+    - Validates database name safety before creation
+    - Restores original environment variables after tests
+    - Performs atomic cleanup with verification
+    - Prevents environment variable leakage
     """
     from app.database.basex_connector import BaseXConnector
     
-    # Create connector to manage test database
+    # Store original environment variables for restoration
+    original_test_db = os.environ.get('TEST_DB_NAME')
+    original_basex_db = os.environ.get('BASEX_DATABASE')
+    
+    # Generate safe database name
+    test_db = os.environ.get('TEST_DB_NAME')
+    if not test_db:
+        test_db = generate_safe_db_name('e2e')
+        # Validate the generated name
+        if not is_safe_database_name(test_db):
+            pytest.fail(f"Generated unsafe E2E database name: {test_db}")
+    
     connector = BaseXConnector(
         host=os.getenv('BASEX_HOST', 'localhost'),
         port=int(os.getenv('BASEX_PORT', '1984')),
@@ -39,18 +59,17 @@ def setup_e2e_test_database():
         database=None,
     )
     
-    test_db = os.environ.get('TEST_DB_NAME')
-    if not test_db:
-        test_db = f"dictionary_test_{uuid.uuid4().hex[:10]}"
-        os.environ['TEST_DB_NAME'] = test_db
-    
     try:
+        # Set isolated environment for E2E tests
+        os.environ['TEST_DB_NAME'] = test_db
+        os.environ['BASEX_DATABASE'] = test_db
+        
         connector.connect()
         
         # Drop existing test database if it exists
         try:
-            connector.execute_update(f"db:drop('{test_db}')")
-            logger.info(f"Dropped existing test database: {test_db}")
+            connector.execute_command(f"DROP DB {test_db}")
+            logger.info(f"Dropped existing E2E test database: {test_db}")
         except Exception:
             pass  # Database doesn't exist
         
@@ -59,6 +78,8 @@ def setup_e2e_test_database():
         connector.database = test_db
         connector.disconnect()
         connector.connect()
+        
+        logger.info(f"Created safe E2E test database: {test_db}")
         
         # Add sample LIFT content with dateCreated and dateModified
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
@@ -75,13 +96,35 @@ def setup_e2e_test_database():
             <gloss lang="pl"><text>test</text></gloss>
         </sense>
     </entry>
+    <entry id="test_entry_2" dateCreated="2024-01-16T11:30:00Z" dateModified="2024-03-21T15:45:00Z">
+        <lexical-unit>
+            <form lang="en"><text>component</text></form>
+        </lexical-unit>
+        <sense id="test_sense_2">
+            <definition>
+                <form lang="en"><text>A component entry</text></form>
+            </definition>
+            <gloss lang="pl"><text>komponent</text></gloss>
+        </sense>
+    </entry>
+    <entry id="test_entry_3" dateCreated="2024-01-17T12:30:00Z" dateModified="2024-03-22T16:45:00Z">
+        <lexical-unit>
+            <form lang="en"><text>variant</text></form>
+        </lexical-unit>
+        <sense id="test_sense_3">
+            <definition>
+                <form lang="en"><text>A variant entry</text></form>
+            </definition>
+            <gloss lang="pl"><text>wariant</text></gloss>
+        </sense>
+    </entry>
 </lift>'''
             f.write(sample_lift)
             temp_file = f.name
         
         try:
             connector.execute_command(f"ADD {temp_file}")
-            logger.info("Added LIFT data to E2E test database")
+            logger.info("Added LIFT data to safe E2E test database")
         finally:
             try:
                 os.unlink(temp_file)
@@ -178,8 +221,8 @@ def setup_e2e_test_database():
             temp_file = f.name
         
         try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info("Added comprehensive ranges.xml to E2E test database")
+            connector.execute_command(f"ADD TO ranges.xml {temp_file}")
+            logger.info("Added comprehensive ranges.xml to safe E2E test database")
         finally:
             try:
                 os.unlink(temp_file)
@@ -197,20 +240,51 @@ def setup_e2e_test_database():
         yield
         
     finally:
-        # Clean up test database after all tests
+        # Safe cleanup with environment restoration
         try:
-            # Reconnect if needed for cleanup
-            if not connector.is_connected():
-                connector.connect()
-            connector.execute_update(f"db:drop('{test_db}')")
-            logger.info(f"Dropped E2E test database: {test_db}")
-        except Exception as e:
-            logger.warning(f"Failed to drop E2E test database: {e}")
-        finally:
+            # Restore original environment variables
+            if original_test_db:
+                os.environ['TEST_DB_NAME'] = original_test_db
+            elif 'TEST_DB_NAME' in os.environ:
+                del os.environ['TEST_DB_NAME']
+                
+            if original_basex_db:
+                os.environ['BASEX_DATABASE'] = original_basex_db
+            elif 'BASEX_DATABASE' in os.environ:
+                del os.environ['BASEX_DATABASE']
+            
+            # Atomic cleanup with verification
+            cleanup_connector = BaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin'),
+                database=None,
+            )
+            
             try:
-                connector.disconnect()
-            except Exception:
-                pass
+                cleanup_connector.connect()
+                # Verify database exists before dropping
+                try:
+                    result = cleanup_connector.execute_query("xquery db:list()")
+                    if test_db in result:
+                        cleanup_connector.execute_command(f"DROP DB {test_db}")
+                        logger.info(f"Successfully dropped safe E2E test database: {test_db}")
+                    else:
+                        logger.warning(f"E2E test database {test_db} not found during cleanup")
+                except Exception as e:
+                    logger.warning(f"Could not verify E2E database existence before cleanup: {e}")
+                
+            finally:
+                try:
+                    cleanup_connector.disconnect()
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"Failed to clean up E2E test database {test_db}: {e}")
+            # Even if cleanup fails, we've restored the environment variables
+            raise
 
 
 @pytest.fixture(scope="session")
@@ -289,6 +363,7 @@ def app():
     return app
 
 
+
 __all__ = [
     'browser',
     'context',
@@ -298,3 +373,50 @@ __all__ = [
     'app',
     'setup_e2e_test_database',
 ]
+
+
+@pytest.fixture(autouse=True)
+def shorten_playwright_timeouts(page):
+    """Reduce Playwright default timeouts for faster failures in E2E.
+
+    Many tests previously waited the default 30s for fills/selectors which
+    makes the whole suite slow when elements are not present. This fixture
+    shortens timeouts so failures surface quickly and tests run faster.
+    """
+    # 5 seconds is a reasonable balance between flakiness and speed
+    page.set_default_timeout(5000)
+    page.set_default_navigation_timeout(5000)
+    yield
+
+@pytest.fixture
+def ensure_sense():
+    """Helper that ensures the entry form has at least one real sense (not the template).
+
+    Usage: call ensure_sense(page) in tests before filling sense-level fields.
+    """
+    def _ensure(page):
+        # If a VISIBLE definition textarea is present, we assume a sense exists
+        if page.locator('textarea[name*="definition"]:visible').count() == 0:
+            # Try the explicit first-sense button first
+            if page.locator('#add-first-sense-btn').count() > 0 and page.locator('#add-first-sense-btn').first.is_visible():
+                page.click('#add-first-sense-btn')
+            # Fallback to generic add-sense button
+            elif page.locator('#add-sense-btn').count() > 0 and page.locator('#add-sense-btn').first.is_visible():
+                page.click('#add-sense-btn')
+            else:
+                # Try some generic selectors used in older UIs
+                generic = page.locator('.add-sense-btn, button:has-text("Add Another Sense"), button:has-text("Add Sense")')
+                if generic.count() > 0 and generic.first.is_visible():
+                    generic.first.click()
+                else:
+                    raise RuntimeError('Could not find any Add Sense button on page to create a sense')
+
+            # Wait for a VISIBLE definition textarea to appear
+            for _ in range(50):
+                if page.locator('textarea[name*="definition"]:visible').count() > 0:
+                    break
+                page.wait_for_timeout(100)
+            else:
+                raise RuntimeError('Timed out waiting for visible definition textarea to appear')
+
+    return _ensure

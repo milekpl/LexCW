@@ -24,6 +24,24 @@ class LIFTParser:
     def __init__(self, validate: bool = True):
         self.validate = validate
         self.logger = logging.getLogger(__name__)
+        # Cache for common parsing results if needed, but currently not used
+        self._cached_parsers = {}  # Placeholder for future caching
+
+    # ==================== COMMON PARSING HELPERS ====================
+    
+    def _parse_common_fields(self, elem: ET.Element) -> Dict[str, Any]:
+        """
+        Parse common fields present in entries and senses: traits, notes, custom_fields, annotations.
+        
+        Returns:
+            Dict with 'traits', 'notes', 'custom_fields', 'annotations' keys.
+        """
+        return {
+            'traits': self._parse_traits(elem),
+            'notes': self._parse_notes(elem),
+            'custom_fields': self._parse_custom_fields(elem),
+            'annotations': [self._parse_annotation(a) for a in self._find_elements(elem, './lift:annotation')]
+        }
 
     def parse(self, input_data: str, is_file_path: bool = False) -> List[Entry]:
         """
@@ -138,10 +156,17 @@ class LIFTParser:
 
     def _parse_entries(self, root: ET.Element) -> List[Entry]:
         """Parse all entries from root."""
+        # Parse header information if present
+        header_info = self._parse_header(root)
+
         entries = []
         for entry_elem in self._find_elements(root, './/lift:entry'):
             try:
+                # Pass header_info to each entry if needed
                 entry = self._parse_entry(entry_elem)
+                # Store header_info in entry if it's not None
+                if header_info:
+                    entry.header_info = header_info
                 if self.validate:
                     entry.validate()
                 entries.append(entry)
@@ -164,6 +189,10 @@ class LIFTParser:
             'producer': 'slownik-wielki'
         })
 
+        # Add header information if any entry has header_info
+        if entries and hasattr(entries[0], 'header_info') and entries[0].header_info:
+            self._add_header_to_root(root, entries[0].header_info)
+
         for entry in entries:
             attrib = {'id': entry.id} if entry.id else {}
             if entry.date_created:
@@ -180,12 +209,12 @@ class LIFTParser:
 
             entry_elem = ET.SubElement(root, f"{{{self.NSMAP['lift']}}}entry", attrib)
             
-            # Lexical unit
+            # Lexical unit - follows LIFT standard format with forms inside lexical-unit
             if entry.lexical_unit:
                 lu = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}lexical-unit")
                 for lang, text in entry.lexical_unit.items():
                     form = ET.SubElement(lu, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                    text_val = text['text'] if isinstance(text, dict) else text
+                    text_val = text['text'] if isinstance(text, dict) and 'text' in text else text
                     ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
 
             # Entry-level traits
@@ -445,21 +474,29 @@ class LIFTParser:
         # Variants
         for variant in entry.variants:
             variant_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}variant")
-            
+
             # Add variant form
             if variant.form:
                 for lang, text in variant.form.items():
                     form = ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
                     text_val = text['text'] if isinstance(text, dict) else text
                     ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
-            
+
+            # Add direct traits if present
+            if hasattr(variant, 'traits') and variant.traits:
+                for trait_name, trait_value in variant.traits.items():
+                    ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                        'name': trait_name,
+                        'value': trait_value
+                    })
+
             # Add grammatical-info with traits if present
             if hasattr(variant, 'grammatical_info') and variant.grammatical_info:
                 gram_info = ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}grammatical-info", {'value': variant.grammatical_info})
                 if hasattr(variant, 'grammatical_traits') and variant.grammatical_traits:
                     for trait_name, trait_value in variant.grammatical_traits.items():
                         ET.SubElement(gram_info, f"{{{self.NSMAP['lift']}}}trait", {
-                            'name': trait_name, 
+                            'name': trait_name,
                             'value': trait_value
                         })
 
@@ -552,6 +589,9 @@ class LIFTParser:
         morph_type = traits.get('morph-type') if traits else None
         domain_type = traits.get('domain-type') if traits else None
         
+        # Parse common fields
+        common = self._parse_common_fields(elem)
+        
         return Entry(
             id_=elem.get('id') if elem.get('id') is not None else self._generate_id(),
             date_created=elem.get('dateCreated'),
@@ -570,10 +610,10 @@ class LIFTParser:
             traits=traits,
             relations=[self._parse_relation(r) for r in self._find_elements(elem, './lift:relation')],
             etymologies=[self._parse_etymology(e) for e in self._find_elements(elem, './lift:etymology')],
-            notes=self._parse_notes(elem),
-            custom_fields=self._parse_custom_fields(elem),
+            notes=common['notes'],
+            custom_fields=common['custom_fields'],
             senses=[self._parse_sense(s) for s in self._find_elements(elem, './lift:sense')],
-            annotations=[self._parse_annotation(a) for a in self._find_elements(elem, './lift:annotation')]
+            annotations=common['annotations']
         )
 
     def _parse_pronunciations(self, parent: ET.Element) -> Dict[str, str]:
@@ -602,30 +642,66 @@ class LIFTParser:
                 media_list.append(media_data)
         return media_list
 
+    def _parse_lexical_unit(self, parent: ET.Element) -> Dict[str, str]:
+        """Parse lexical unit elements from entry."""
+        # Use the multitext parser with the form-based approach (standard LIFT format)
+        # Format: <lexical-unit><form lang="en"><text>content</text></form></lexical-unit>
+        result = {}
+
+        # First, try the standard LIFT format with forms inside lexical-unit
+        for lu_elem in self._find_elements(parent, './lift:lexical-unit'):
+            for form_elem in self._find_elements(lu_elem, './lift:form'):
+                lang = form_elem.get('lang', 'und')
+                text_elem = self._find_element(form_elem, './lift:text')
+                if text_elem is not None and text_elem.text and text_elem.text.strip():
+                    result[lang] = text_elem.text.strip()
+
+        # If no results from form-based approach, try direct text (fallback)
+        if not result:
+            for lu_elem in self._find_elements(parent, './lift:lexical-unit'):
+                lang = lu_elem.get('lang', 'und')
+                # Get text directly from the lexical-unit element
+                text_elem = self._find_element(lu_elem, './lift:text')
+                if text_elem is not None and text_elem.text and text_elem.text.strip():
+                    result[lang] = text_elem.text.strip()
+
+        return result
+
     def _parse_illustrations(self, parent: ET.Element) -> List[Dict[str, Any]]:
         """Parse illustration elements within sense elements."""
         illustrations_list = []
         for illustration in self._find_elements(parent, './lift:illustration'):
             illustration_data = {'href': illustration.get('href', '')}
-            
+
             # Parse label if present
             label_elem = self._find_element(illustration, './lift:label')
             if label_elem:
                 label_texts = self._parse_multitext(label_elem, '.', flatten=True)
                 if label_texts:
                     illustration_data['label'] = label_texts
-            
+
             illustrations_list.append(illustration_data)
         return illustrations_list
 
     def _parse_variant(self, elem: ET.Element) -> Variant:
         """Parse variant element."""
+        # Parse direct trait elements within the variant element
+        direct_traits = {}
+        # Use the existing _find_elements method which handles namespace fallback
+        for trait_elem in self._find_elements(elem, './lift:trait'):
+            trait_name = trait_elem.get('name')
+            trait_value = trait_elem.get('value')
+            if trait_name and trait_value:
+                # Add to variant traits, not just grammatical_traits
+                direct_traits[trait_name] = trait_value
+
         return Variant(
             type=elem.get('type', ''),
             ref=elem.get('ref', ''),
             form=self._parse_multitext(elem, '.', flatten=True),
             grammatical_info=self._get_attr(elem, './lift:grammatical-info', 'value'),
-            grammatical_traits=self._parse_traits(self._find_element(elem, './lift:grammatical-info'))
+            grammatical_traits=self._parse_traits(self._find_element(elem, './lift:grammatical-info')),
+            traits=direct_traits if direct_traits else None
         )
 
     def _parse_relation(self, elem: ET.Element) -> Relation:
@@ -650,6 +726,78 @@ class LIFTParser:
             comment=comment,
             custom_fields=self._parse_etymology_custom_fields(elem)
         )
+
+    def _parse_header(self, lift_root: ET.Element) -> Dict[str, Any]:
+        """Parse header information from LIFT file."""
+        header_elem = self._find_element(lift_root, './lift:header')
+        if header_elem is None:
+            return {}
+
+        header_data = {}
+
+        # Parse description
+        description = {}
+        for desc_elem in self._find_elements(header_elem, './lift:description'):
+            lang = desc_elem.get('lang')
+            # First try to get text from <text> sub-element
+            text_elem = self._find_element(desc_elem, './lift:text')
+            if text_elem is not None and text_elem.text:
+                description[lang] = text_elem.text
+            # If no <text> sub-element, try direct text content
+            elif desc_elem.text:
+                description[lang] = desc_elem.text.strip()
+        header_data['description'] = description if description else {}
+
+        # Parse ranges reference (just the href to external range files)
+        ranges_elem = self._find_element(header_elem, './lift:ranges')
+        if ranges_elem is not None:
+            href = ranges_elem.get('href')
+            if href:
+                header_data['ranges_href'] = href
+
+        # Parse fields
+        fields_elem = self._find_element(header_elem, './lift:fields')
+        if fields_elem is not None:
+            fields = []
+            for field_elem in self._find_elements(fields_elem, './lift:field'):
+                field_type = field_elem.get('type')
+                if field_type:
+                    field_data = {'type': field_type}
+                    # Parse field description, etc.
+                    fields.append(field_data)
+            header_data['fields'] = fields
+
+        return header_data
+
+    def _add_header_to_root(self, root: ET.Element, header_info: Dict[str, Any]) -> None:
+        """Add header information to the root element."""
+        if not header_info:
+            return
+
+        # Create header element
+        header_elem = ET.SubElement(root, f"{{{self.NSMAP['lift']}}}header")
+
+        # Add description if present
+        if 'description' in header_info and header_info['description']:
+            for lang, text in header_info['description'].items():
+                desc_elem = ET.SubElement(header_elem, f"{{{self.NSMAP['lift']}}}description", {'lang': lang})
+                text_elem = ET.SubElement(desc_elem, f"{{{self.NSMAP['lift']}}}text")
+                text_elem.text = str(text)
+
+        # Add ranges if present
+        if 'ranges_href' in header_info and header_info['ranges_href']:
+            ranges_elem = ET.SubElement(header_elem, f"{{{self.NSMAP['lift']}}}ranges", {
+                'href': header_info['ranges_href']
+            })
+
+        # Add fields if present
+        if 'fields' in header_info and header_info['fields']:
+            fields_elem = ET.SubElement(header_elem, f"{{{self.NSMAP['lift']}}}fields")
+            for field_data in header_info['fields']:
+                if 'type' in field_data:
+                    field_elem = ET.SubElement(fields_elem, f"{{{self.NSMAP['lift']}}}field", {
+                        'type': field_data['type']
+                    })
 
     def _parse_etymology_custom_fields(self, parent: ET.Element) -> Dict[str, Dict]:
         """Parse custom field elements in etymology, excluding 'comment' which is handled separately."""
@@ -714,6 +862,9 @@ class LIFTParser:
         scientific_name_field = self._parse_specific_field(elem, 'scientific-name')
         literal_meaning_field = self._parse_specific_field(elem, 'literal-meaning')
         
+        # Parse common fields
+        common_fields = self._parse_common_fields(elem)
+        
         return Sense(
             id_=elem.get('id'),
             glosses=self._parse_multitext(elem, '.', form_tag='lift:gloss', flatten=True),
@@ -726,12 +877,12 @@ class LIFTParser:
             domain_type=self._get_attr(elem, './lift:trait[@name="domain-type"]', 'value'),
             semantic_domains=[v for t in self._find_elements(elem, './lift:trait[@name="semantic-domain-ddp4"]') 
                             if (v := t.get('value'))],
-            notes=self._parse_notes(elem),
-            custom_fields=self._parse_custom_fields(elem),
+            notes=common_fields['notes'],
+            custom_fields=common_fields['custom_fields'],
             illustrations=self._parse_illustrations(elem),
             traits={t.get('name'): t.get('value') for t in self._find_elements(elem, './lift:trait') 
                    if t.get('name') not in {'usage-type', 'domain-type', 'semantic-domain-ddp4'}},
-            annotations=[self._parse_annotation(a) for a in self._find_elements(elem, './lift:annotation')],
+            annotations=common_fields['annotations'],
             subsenses=[self._parse_sense(s) for s in self._find_elements(elem, './lift:subsense')],
             exemplar=exemplar_field,
             scientific_name=scientific_name_field,

@@ -35,7 +35,7 @@ class TestRangesLoading:
             <label><form lang="en"><text>Verb</text></form></label>
         </range-element>
     </range>
-    <range id="lexica-relation">
+    <range id="lexical-relation">
         <range-element id="synonym">
             <label><form lang="en"><text>Synonym</text></form></label>
         </range-element>
@@ -69,19 +69,20 @@ class TestRangesLoading:
         # Verify ranges were parsed correctly
         assert ranges is not None
         assert 'grammatical-info' in ranges
-        assert 'relation-type' in ranges or 'lexical-relation' in ranges or 'lexica-relation' in ranges
-        
+        # Should contain the canonical lexical relation range
+        assert 'lexical-relation' in ranges
+
         # Verify range structure (parser returns nested dict with 'values' list)
         assert 'values' in ranges['grammatical-info']
         assert len(ranges['grammatical-info']['values']) == 2
-        
+
         # Verify range element IDs
         grammatical_ids = [v['id'] for v in ranges['grammatical-info']['values']]
         assert 'Noun' in grammatical_ids
         assert 'Verb' in grammatical_ids
-        
-        # Find relation range key (accept legacy or normalized forms)
-        relation_keys = ['relation-type', 'lexical-relation', 'lexica-relation']
+
+        # Find relation range key (accept only canonical form)
+        relation_keys = ['lexical-relation']
         relation_key = next((k for k in relation_keys if k in ranges), None)
         assert relation_key is not None
         relation_ids = [v['id'] for v in ranges[relation_key]['values']]
@@ -119,7 +120,7 @@ class TestRangesLoading:
         assert ranges1 is ranges2
 
     def test_get_ranges_returns_empty_dict_when_not_found(self):
-        """Test that get_ranges() returns empty dict when ranges not found."""
+        """Test that get_ranges() returns standard ranges when ranges not found in database."""
         mock_connector = Mock()
         mock_connector.database = "test_db"
         mock_connector.execute_command.return_value = "test_db"
@@ -131,8 +132,12 @@ class TestRangesLoading:
         
         ranges = service.get_ranges()
         
-        # Should return empty dict, not raise exception
-        assert ranges == {}
+        # Should return a dict and not raise exception
+        assert isinstance(ranges, dict)
+        assert len(ranges) > 0
+        # Since we only auto-provide lexical-relation as a guaranteed default,
+        # ensure that it's present when no ranges are found in DB
+        assert 'lexical-relation' in ranges
 
     def test_get_ranges_handles_malformed_xml(self):
         """Test that get_ranges() handles malformed XML gracefully."""
@@ -180,15 +185,15 @@ class TestRangesLoading:
         noun_ids = [v['id'] for v in ranges['grammatical-info']['values']]
         assert 'Noun' in noun_ids
 
-    def test_get_ranges_ensures_plural_keys(self):
-        """Test that get_ranges() ensures both singular and plural keys exist."""
+    def test_get_ranges_no_plural_keys_and_no_relation_type_alias(self):
+        """Test that get_ranges() does not produce plural duplicate keys and no 'relation-type' alias."""
         mock_connector = Mock()
         mock_connector.database = "test_db"
         mock_connector.execute_command.return_value = "test_db"
         
         sample_ranges_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <lift-ranges>
-    <range id="relation-type">
+    <range id="lexical-relation">
         <range-element id="synonym">
             <label><form lang="en"><text>Synonym</text></form></label>
         </range-element>
@@ -201,8 +206,9 @@ class TestRangesLoading:
         
         ranges = service.get_ranges()
         
-        # Only the canonical form should exist (the one that's actually in the data)
-        # Accept either canonical 'relation-type' or the normalized
-        # 'lexical-relation' used by the ranges metadata mapping.
-        assert 'relation-type' in ranges or 'lexical-relation' in ranges
-        # Note: 'lexical-relation' is not automatically added as an alias anymore
+        # The legacy 'relation-type' alias should not be present; we expect the canonical
+        # 'lexical-relation' instead, and no plural duplicate keys.
+        assert 'relation-type' not in ranges
+        assert 'lexical-relation' in ranges
+        # Ensure no plural form keys exist
+        assert all(not k.endswith('s') for k in ranges.keys())

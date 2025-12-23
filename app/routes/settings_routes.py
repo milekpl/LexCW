@@ -860,6 +860,41 @@ def delete_project(project_id: int):
         logger.error(f"Error deleting project: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@settings_bp.route('/drop-database', methods=['POST'])
+@swag_from({
+    'summary': 'Drop Database Content',
+    'description': 'Drop all content from the dictionary database. This action cannot be undone.',
+    'tags': ['Settings', 'Database'],
+    'responses': {
+        '200': {'description': 'Database content dropped successfully.'},
+        '500': {'description': 'Error dropping database content.'}
+    }
+})
+def drop_database():
+    """Drop all content from the dictionary database."""
+    try:
+        dict_svc = getattr(current_app, 'dict_service', None)
+        if dict_svc is None and hasattr(current_app, 'injector'):
+            try:
+                dict_svc = current_app.injector.get(DictionaryService)
+            except Exception:
+                dict_svc = None
+        
+        if not dict_svc:
+            return jsonify({'success': False, 'error': 'Dictionary service not available'}), 500
+        
+        # Drop the database content
+        dict_svc.drop_database_content()
+        
+        logger.info('Database content dropped successfully')
+        return jsonify({'success': True, 'message': 'Database content dropped successfully'})
+    
+    except Exception as e:
+        logger.error('Error dropping database content: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 def register_blueprints(app):
     """Registers the settings blueprint with the Flask app."""
     app.register_blueprint(settings_bp)

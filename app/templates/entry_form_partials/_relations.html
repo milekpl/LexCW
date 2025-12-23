@@ -1,0 +1,122 @@
+<div class="card mb-4 relations-section">
+    <div class="card-header bg-primary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-link"></i> Relations
+                <i class="fas fa-info-circle ms-2 form-tooltip" 
+                   data-bs-toggle="tooltip" 
+                   data-bs-placement="top"
+                   data-bs-html="true"
+                   title="<strong>About Relations:</strong><br>Relations represent semantic connections between different lexical entries. Examples include synonyms (words with similar meanings), antonyms (opposite meanings), hyponyms (specific instances of a general term), and hypernyms (general terms for specific instances). These are distinct from variants that represent different forms of the same lexical item."></i>
+            </h5>
+            <button type="button" class="btn btn-sm btn-light" id="add-relation-btn">
+                <i class="fas fa-plus"></i> Add Relation
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="relations-container">
+            <!-- Server-side rendered relation items -->
+            {% if entry.relations %}
+                {% set filtered_relations = [] %}
+                {% for relation in entry.relations %}
+                    {# Filter out ALL relations that are component/variant related: _component-lexeme or have complex-form-type/variant-type traits #}
+                    {% if relation.type != '_component-lexeme' and not (relation.traits and ('complex-form-type' in relation.traits or 'variant-type' in relation.traits)) %}
+                        {% set _ = filtered_relations.append(relation) %}
+                    {% endif %}
+                {% endfor %}
+                
+                {% if filtered_relations %}
+                    {% for relation in filtered_relations %}
+                    <div class="relation-item card mb-3" data-relation-index="{{ loop.index0 }}">
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-link me-2"></i>
+                                    Relation: {{ relation.type or 'Unknown Type' }}
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-light remove-relation-btn" 
+                                        data-index="{{ loop.index0 }}" title="Remove relation">
+                                    <i class="fas fa-trash text-danger"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Relation Type
+                                        <i class="fas fa-info-circle ms-1 form-tooltip" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top"
+                                           data-bs-html="true"
+                                           title="<strong>Semantic Relationship:</strong><br>This entry has a '{{ relation.type }}' relationship with {% if relation.ref_display_text %}'<strong>{{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}</strong>'.{% else %}the target entry.{% endif %}"></i>
+                                    </label>
+                                    <select class="form-control lexical-relation-select" 
+                                            name="relations[{{ loop.index0 }}].type" 
+                                            data-range-id="lexical-relation"
+                                            data-hierarchical="true"
+                                            data-searchable="true"
+                                            data-selected-value="{{ relation.type or '' }}"
+                                            required>
+                                        <option value="">Select type</option>
+                                        <!-- Options will be populated dynamically from LIFT ranges -->
+                                    </select>
+                                    <div class="form-text">Type of semantic relation</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label fw-bold">Target Entry</label>
+                                    {% if relation.ref_display_text %}
+                                    <!-- Show clickable link to target entry -->
+                                    <div class="alert alert-light mb-2">
+                                        <i class="fas fa-external-link-alt me-2"></i>
+                                        <strong>Related to: </strong>
+                                        <a href="{{ url_for('main.edit_entry', entry_id=relation.ref) }}" 
+                                           class="text-decoration-none text-primary fw-bold"
+                                           title="Edit target entry">
+                                            {{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Hidden input field for form submission (NO raw ID visible to user) -->
+                                    <input type="hidden" 
+                                           name="relations[{{ loop.index0 }}].ref"
+                                           value="{{ relation.ref or '' }}">
+                                    
+                                    <!-- Search interface for adding/changing relations -->
+                                    <div class="input-group">
+                                        <input type="text" class="form-control relation-search-input" 
+                                               placeholder="Search for entry to relate to..."
+                                               data-relation-index="{{ loop.index0 }}">
+                                        <button type="button" class="btn btn-outline-secondary relation-search-btn" 
+                                                data-relation-index="{{ loop.index0 }}">
+                                            <i class="fas fa-search"></i> Search
+                                        </button>
+                                    </div>
+                                    <div class="form-text">Search for entries by headword or definition - no raw IDs needed</div>
+                                    <div class="search-results mt-2" id="search-results-{{ loop.index0 }}" style="display: none;"></div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <!-- Empty state when no non-variant relations exist -->
+                <div class="empty-state text-center py-4">
+                    <i class="fas fa-link fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Semantic Relations</h5>
+                </div>
+                {% endif %}
+            {% else %}
+            <!-- Empty state when no relations exist at all -->
+            <div class="empty-state text-center py-4">
+                <i class="fas fa-link fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Semantic Relations</h5>
+            </div>
+            {% endif %}
+        </div>
+        
+    </div>
+</div>

@@ -19,12 +19,17 @@ HOST = "localhost"
 PORT = 1984
 USERNAME = "admin"
 PASSWORD = "admin"
-TEST_DB = "test_dict_service"
+TEST_DB_BASE = "test_dict_service"
+
+import uuid
 
 
 @pytest.fixture(scope="function")
 def dict_service():
     """Create a DictionaryService with test database for each test."""
+    # Generate a unique database name for this test run
+    TEST_DB = f"{TEST_DB_BASE}_{uuid.uuid4().hex[:8]}"
+    
     # Create an admin connector (no database specified)
     admin_connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD)
     admin_connector.connect()

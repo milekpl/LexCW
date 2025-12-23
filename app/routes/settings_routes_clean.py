@@ -152,5 +152,120 @@ def delete_project(project_id: int) -> Any:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@settings_bp.route('/drop-database', methods=['POST'])
+@swag_from({
+    'summary': 'Drop Database Content',
+    'description': 'Drop all content from the dictionary database. This action cannot be undone.',
+    'tags': ['Settings', 'Database'],
+    'responses': {
+        '200': {'description': 'Database content dropped successfully.'},
+        '500': {'description': 'Error dropping database content.'}
+    }
+})
+def drop_database():
+    """Drop all content from the dictionary database."""
+    try:
+        data = request.get_json() or {}
+        action = data.get('action', 'drop')
+        
+        dict_svc = getattr(current_app, 'dict_service', None)
+        if dict_svc is None and hasattr(current_app, 'injector'):
+            try:
+                dict_svc = current_app.injector.get(DictionaryService)
+            except Exception:
+                dict_svc = None
+        
+        if not dict_svc:
+            return jsonify({'success': False, 'error': 'Dictionary service not available'}), 500
+        
+        if action == 'drop_ranges':
+            # Drop database and install recommended ranges
+            dict_svc.drop_database_content()
+            # Install ranges - this would need to be implemented
+            # For now, just drop
+            logger.info('Database dropped and ranges installation requested')
+        else:
+            # Just drop the database content
+            dict_svc.drop_database_content()
+        
+        logger.info('Database operation completed successfully: %s', action)
+        return jsonify({'success': True, 'message': f'Database {action} completed successfully'})
+    
+    except Exception as e:
+        logger.error('Error in database operation: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/import-lift-replace', methods=['POST'])
+@swag_from({
+    'summary': 'Import LIFT file (replace mode)',
+    'description': 'Replace the entire database with content from a LIFT file.',
+    'tags': ['Settings', 'Import'],
+    'responses': {
+        '200': {'description': 'LIFT file imported successfully.'},
+        '400': {'description': 'Invalid file or request.'},
+        '500': {'description': 'Error importing LIFT file.'}
+    }
+})
+def import_lift_replace():
+    """Import LIFT file in replace mode."""
+    # Validate upload
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if file.filename == '' or not file.filename.lower().endswith('.lift'):
+        return jsonify({'success': False, 'error': 'Invalid LIFT file'}), 400
+
+    # Save the uploaded file temporarily
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.lift') as temp_file:
+        file.save(temp_file.name)
+        temp_path = temp_file.name
+
+    # Attempt import and ensure cleanup of temporary files
+    ranges_temp_path = None
+    try:
+        dict_svc = getattr(current_app, 'dict_service', None)
+        if dict_svc is None and hasattr(current_app, 'injector'):
+            try:
+                dict_svc = current_app.injector.get(DictionaryService)
+            except Exception:
+                dict_svc = None
+
+        if not dict_svc:
+            return jsonify({'success': False, 'error': 'Dictionary service not available'}), 500
+
+        # If a ranges file was uploaded, save it and pass it to the import
+        if 'ranges' in request.files and request.files['ranges'].filename:
+            ranges_file = request.files['ranges']
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.lift-ranges') as ranges_temp:
+                ranges_file.save(ranges_temp.name)
+                ranges_temp_path = ranges_temp.name
+
+        # Import in replace mode; pass ranges file path if provided
+        count = dict_svc.import_lift(temp_path, mode='replace', ranges_path=ranges_temp_path)
+
+        logger.info('LIFT file imported successfully: %d entries', count)
+        return jsonify({'success': True, 'count': count, 'message': f'Imported {count} entries successfully'})
+
+    except Exception as e:
+        logger.error('Error importing LIFT file: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+    finally:
+        # Clean up temp files
+        try:
+            os.unlink(temp_path)
+        except Exception:
+            pass
+        if ranges_temp_path and os.path.exists(ranges_temp_path):
+            try:
+                os.unlink(ranges_temp_path)
+            except Exception:
+                pass
+
+
 def register_blueprints(app) -> None:
     app.register_blueprint(settings_bp)

@@ -156,7 +156,7 @@
                            data-bs-html="true"
                            title="<strong>Semantic Relationship:</strong><br>This entry has a '{{ relation.type }}' relationship with {% if relation.ref_display_text %}'<strong>{{ relation.ref_display_text or relation.ref_lexical_unit or relation.ref }}</strong>'.{% else %}the target entry.{% endif %}"></i>
                     </label>
-                    <select class="form-control relation-type-select" 
+                    <select class="form-control lexical-relation-select" 
                             name="relations[{{ relation_index }}].type" 
                             data-range-id="lexical-relation"
                             data-hierarchical="true"

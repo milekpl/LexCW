@@ -50,7 +50,7 @@ class SenseRelationSearchHandler {
         
         // Add event delegation for relation type select changes (to update XML preview)
         document.addEventListener('change', (e) => {
-            if (e.target.classList.contains('sense-relation-type-select')) {
+            if (e.target.classList.contains('sense-lexical-relation-select')) {
                 // Trigger XML preview update when relation type changes
                 if (window.updateXmlPreview) {
                     window.updateXmlPreview();

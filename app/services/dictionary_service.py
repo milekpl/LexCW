@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 import random
+import tempfile
 from typing import Dict, List, Any, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -158,43 +159,461 @@ class DictionaryService:
                 "Initializing database '%s' from LIFT file: %s", db_name, lift_path
             )
 
-            # Drop the database if it exists, to ensure a clean start
-            if db_name in (self.db_connector.execute_command("LIST") or ""):
-                self.logger.info("Dropping existing database: %s", db_name)
-                self.db_connector.execute_command(f"DROP DB {db_name}")
+            # Use admin connector to check if database exists and drop it
+            # This avoids connection issues with the main connector
+            admin_connector = BaseXConnector(
+                host=self.db_connector.host,
+                port=self.db_connector.port,
+                username=self.db_connector.username,
+                password=self.db_connector.password,
+                database=None  # No specific database for admin operations
+            )
+            admin_connector.connect()
+            
+            try:
+                # Drop the database if it exists, to ensure a clean start
+                if db_name in (admin_connector.execute_command("LIST") or ""):
+                    self.logger.info("Dropping existing database: %s", db_name)
+                    # Ensure database is closed before dropping it
+                    try:
+                        admin_connector.execute_command(f"OPEN {db_name}")
+                        admin_connector.execute_command("CLOSE")
+                    except:
+                        pass  # Database might not be open, that's fine
 
+                    # Retry DROP if another process has the DB open
+                    import time
+                    max_retries = 5
+                    for attempt in range(1, max_retries + 1):
+                        try:
+                            admin_connector.execute_command(f"DROP DB {db_name}")
+                            break
+                        except Exception as e:
+                            errstr = str(e).lower()
+                            if "opened by another process" in errstr and attempt < max_retries:
+                                self.logger.warning(
+                                    "DROP DB '%s' failed because DB is open in another process (attempt %d/%d), retrying...",
+                                    db_name,
+                                    attempt,
+                                    max_retries,
+                                )
+                                time.sleep(1)
+                                continue
+                            self.logger.error("Failed to DROP DB %s: %s", db_name, e)
+                            raise
+
+            finally:
+                admin_connector.disconnect()
+            
             # Create the database from the LIFT file
             self.logger.info("Creating new database '%s' from %s", db_name, lift_path)
             # Use forward slashes for paths in BaseX commands
             lift_path_basex = os.path.abspath(lift_path).replace("\\", "/")
             self.logger.info("Using absolute path: %s", lift_path_basex)
-            self.db_connector.execute_command(
-                f'CREATE DB {db_name} "{lift_path_basex}"'
-            )
+            
+            # Use admin connector to create the database
+            admin_connector.connect()
+            try:
+                admin_connector.execute_command(
+                    f'CREATE DB {db_name} "{lift_path_basex}"'
+                )
+            finally:
+                admin_connector.disconnect()
 
             # Now open the newly created database for subsequent operations
-            self.db_connector.execute_command(f"OPEN {db_name}")
+            # Use admin connector to avoid connection issues
+            admin_connector.connect()
+            try:
+                admin_connector.execute_command(f"OPEN {db_name}")
 
-            # Load ranges file if provided and add it to the db
-            if ranges_path and os.path.exists(ranges_path):
-                self.logger.info("Adding LIFT ranges file to database: %s", ranges_path)
-                ranges_path_basex = os.path.abspath(ranges_path).replace("\\", "/")
-                self.logger.info(
-                    "Using absolute path for ranges: %s", ranges_path_basex
-                )
-                self.db_connector.execute_command(f'ADD "{ranges_path_basex}"')
-                self.logger.info("LIFT ranges file added")
-            else:
-                self.logger.warning(
-                    "No LIFT ranges file provided. Creating empty ranges document."
-                )
-                self.db_connector.execute_command('ADD TO ranges.xml "<lift-ranges/>"')
+                # Load ranges file if provided and add it to the db
+                # Use helper method to find ranges file if not explicitly provided
+                if ranges_path is None:
+                    ranges_path = self.find_ranges_file(lift_path)
+                
+                if ranges_path and os.path.exists(ranges_path):
+                    try:
+                        try:
+                            size = os.path.getsize(ranges_path)
+                        except Exception:
+                            size = None
+
+                        self.logger.info("Adding LIFT ranges file to database: %s (size=%s bytes)", ranges_path, size)
+                        ranges_path_basex = os.path.abspath(ranges_path).replace("\\", "/")
+                        self.logger.info(
+                            "Using absolute path for ranges: %s", ranges_path_basex
+                        )
+                        admin_connector.execute_command(f'ADD "{ranges_path_basex}"')
+                        self.logger.info("LIFT ranges file added successfully via admin connector")
+
+                        # Verify it was added
+                        try:
+                            exists_res = admin_connector.execute_query(f"xquery exists(collection('{db_name}')//lift-ranges)")
+                            if str(exists_res).lower() in ('true', '1'):
+                                self.logger.info("Verified ranges document present after initialization")
+                            else:
+                                self.logger.warning("Ranges document not detected after initialization ADD")
+                        except Exception as verify_e:
+                            self.logger.warning("Failed to verify ranges after initialization: %s", verify_e)
+
+                    except Exception as e:
+                        self.logger.error(f"Failed to add ranges file: {e}")
+                        # Fallback: Try to load from config
+                        try:
+                            config_ranges = os.path.join('config', 'recommended_ranges.lift-ranges')
+                            if os.path.exists(config_ranges):
+                                path_clean = os.path.abspath(config_ranges).replace('\\', '/')
+                                admin_connector.execute_command(f'ADD "{path_clean}"')
+                                self.logger.info("Fallback: Used recommended ranges")
+                        except Exception as e2:
+                            self.logger.error(f"Failed to load fallback ranges: {e2}")
+                else:
+                    self.logger.warning(
+                        "No LIFT ranges file found. Creating empty ranges document."
+                    )
+                    admin_connector.execute_command('ADD TO ranges.lift-ranges "<lift-ranges/>"')
+            finally:
+                admin_connector.disconnect()
+                
+            self.logger.info("Database initialization complete")
 
             self.logger.info("Database initialization complete")
 
         except Exception as e:
             self.logger.error("Error initializing database: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to initialize database: {e}") from e
+
+    def find_ranges_file(self, lift_path: str) -> Optional[str]:
+        """
+        Find the associated ranges file using multiple strategies.
+        
+        Args:
+            lift_path: Path to the LIFT file
+            
+        Returns:
+            Path to the ranges file if found, None otherwise
+        """
+        # Strategy 1a: Handle file:/// URIs (Windows file URIs) first so we return a normalized local path
+        if lift_path.startswith('file:///'):
+            # Convert file:///C:/path/file.lift -> C:/path/file.lift-ranges
+            windows_simple = lift_path[8:].replace('.lift', '.lift-ranges')
+            if os.path.exists(windows_simple):
+                self.logger.debug("Found ranges file from file:/// path: %s", windows_simple)
+                return windows_simple
+
+        # Strategy 1: Simple replacement (current approach)
+        simple_path = lift_path.replace('.lift', '.lift-ranges')
+        if os.path.exists(simple_path):
+            self.logger.debug("Found ranges file by simple replacement: %s", simple_path)
+            return simple_path
+
+        # Strategy 1b: Inspect LIFT header for explicit hrefs to ranges files
+        try:
+            with open(lift_path, 'r', encoding='utf-8') as lf:
+                header_sample = lf.read(4096)
+                import re
+                m = re.search(r'<ranges[\s\S]*?>[\s\S]*?<range[^>]+href="([^"]+)"', header_sample, re.IGNORECASE)
+                if m:
+                    href = m.group(1)
+                    self.logger.debug("Found href in LIFT header: %s", href)
+                    normalized = self._normalize_ranges_href(href, lift_path)
+                    if normalized and os.path.exists(normalized):
+                        self.logger.debug("Found ranges file from header href: %s -> %s", href, normalized)
+                        return normalized
+        except Exception:
+            # Ignore header parsing errors and continue other strategies
+            pass
+
+        # Strategy 2: Handle absolute paths from Fieldworks (Windows style in file URIs)
+        if lift_path.startswith('file:///'):
+            # Convert file:///C:/path to C:/path
+            windows_path = lift_path[8:]  # Remove 'file:///'
+            ranges_path = windows_path.replace('.lift', '.lift-ranges')
+            if os.path.exists(ranges_path):
+                self.logger.debug("Found ranges file from file:/// path: %s", ranges_path)
+                return ranges_path
+
+        # Strategy 3: Look in same directory for common names and extensions
+        dir_path = os.path.dirname(lift_path)
+        base_name = os.path.basename(lift_path).replace('.lift', '.lift-ranges')
+        same_dir_path = os.path.join(dir_path, base_name)
+        if os.path.exists(same_dir_path):
+            self.logger.debug("Found ranges file by same-name: %s", same_dir_path)
+            return same_dir_path
+
+        # Strategy 3b: Look for any .lift-ranges or ranges.* files in the same directory
+        try:
+            for fname in os.listdir(dir_path or '.'):
+                if fname.endswith('.lift-ranges') or 'ranges' in fname.lower():
+                    candidate = os.path.join(dir_path, fname)
+                    if os.path.exists(candidate):
+                        self.logger.debug("Found ranges file by scanning directory: %s", candidate)
+                        return candidate
+        except Exception:
+            # If listing fails, ignore and continue
+            pass
+
+        # Strategy 4: Look in config directory
+        config_ranges = os.path.join('config', 'recommended_ranges.lift-ranges')
+        if os.path.exists(config_ranges):
+            self.logger.debug("Using recommended ranges from config: %s", config_ranges)
+            return config_ranges
+
+        self.logger.debug("No ranges file found for LIFT path: %s", lift_path)
+        return None
+
+    def _verify_ranges_in_db(self, connector, db_name: str) -> bool:
+        """
+        Verify whether a lift-ranges document is present in the given database.
+        Tries multiple XQuery forms for robustness across BaseX versions.
+        Returns True if found, False otherwise.
+        """
+        # Try several verification strategies
+        queries = [
+            f"exists(collection('{db_name}')//lift-ranges)",
+            f"exists(collection('{db_name}')//*[local-name() = 'lift-ranges'])",
+            f"exists(doc('ranges.lift-ranges')//lift-ranges)",
+            f"exists(doc('ranges.lift-ranges')//*[local-name() = 'lift-ranges'])",
+        ]
+
+        for q in queries:
+            try:
+                res = connector.execute_query(q)
+                if isinstance(res, (str,)) and str(res).lower() in ('true', '1'):
+                    self.logger.debug("Verification query succeeded: %s -> %s", q, res)
+                    return True
+            except Exception as e:
+                self.logger.debug("Verification query failed (%s): %s", q, e)
+                # Try next query
+                continue
+
+        return False
+
+    def _get_ranges_source_documents(self, connector, db_name: str, has_namespace: bool) -> list:
+        """
+        Attempt to find the source document URIs or filenames that contain the lift-ranges element.
+        Returns a list of document URIs or simple filenames.
+        """
+        try:
+            lift_ranges_path = self._query_builder.get_element_path("lift-ranges", has_namespace)
+            # Try to get document-uri for each ranges node
+            q = f"for $r in collection('{db_name}')//{lift_ranges_path} return string(document-uri($r))"
+            res = connector.execute_query(q)
+            if res:
+                # BaseX may return multiple URIs concatenated; split on whitespace/newlines
+                parts = [p for p in [s.strip() for s in res.replace('\r', '\n').split('\n')] if p]
+                # Normalize to filenames if possible
+                filenames = []
+                for p in parts:
+                    fname = p.split('/')[-1] if '/' in p else p
+                    filenames.append(fname)
+                return filenames
+        except Exception as e:
+            self.logger.debug("Failed to query document-uri for ranges: %s", e)
+
+        # Fallback: check for a dedicated ranges document using '.lift-ranges'
+        try:
+            if connector.execute_query(f"exists(doc('ranges.lift-ranges')//lift-ranges)"):
+                return ['ranges.lift-ranges']
+        except Exception:
+            pass
+
+        return []
+
+    def _normalize_ranges_href(self, href: str, lift_path: str) -> Optional[str]:
+        """
+        Normalize a ranges href found in a LIFT header to a local filesystem path when possible.
+        Supports plain filenames, relative paths, and file:// URIs (Windows and POSIX).
+        """
+        from urllib.parse import urlparse, unquote
+
+        if not href:
+            return None
+
+        # If it's a file URI, try to extract a local path
+        try:
+            parsed = urlparse(href)
+            if parsed.scheme == 'file':
+                # On Windows the path may be like /D:/path or D:/path
+                path = unquote(parsed.path or parsed.netloc)
+                # Remove a leading slash before drive letter if present
+                if path.startswith('/') and len(path) > 2 and path[2] == ':':
+                    path = path[1:]
+                return path
+        except Exception:
+            pass
+
+        # If it's an absolute path, return it
+        if os.path.isabs(href):
+            return href
+
+        # Otherwise treat it as relative to the LIFT file's directory
+        try:
+            return os.path.join(os.path.dirname(lift_path), href)
+        except Exception:
+            return None
+
+    def _verify_ranges_file(self, connector, db_name: str, filename: str) -> bool:
+        """
+        Verify whether a specific ranges file exists in the database and contains lift-ranges.
+        Returns True if found, False otherwise.
+        """
+        queries = [
+            f"exists(doc('{db_name}/{filename}')//lift-ranges)",
+            f"exists(doc('{filename}')//lift-ranges)",
+            f"exists(collection('{db_name}')//lift-ranges and exists(doc('{filename}')//lift-ranges))",
+        ]
+        for q in queries:
+            try:
+                res = connector.execute_query(q)
+                if isinstance(res, str) and str(res).lower() in ('true', '1'):
+                    self.logger.debug("File-specific verification succeeded: %s -> %s", q, res)
+                    return True
+            except Exception as e:
+                self.logger.debug("File-specific verification failed (%s): %s", q, e)
+                continue
+        return False
+    def drop_database_content(self) -> None:
+        """
+        Drop all content from the dictionary database by dropping and recreating it empty.
+        This provides a clean slate for subsequent imports.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                raise DatabaseError("No database configured")
+            
+            self.logger.info("Dropping and recreating database: %s", db_name)
+            
+            # Use admin connector to avoid session conflicts
+            admin_connector = BaseXConnector(
+                host=self.db_connector.host,
+                port=self.db_connector.port,
+                username=self.db_connector.username,
+                password=self.db_connector.password,
+                database=None  # No specific database for admin operations
+            )
+            admin_connector.connect()
+            
+            try:
+                # First, try to close any open database sessions
+                try:
+                    # CLOSE command closes the current database session
+                    admin_connector.execute_command("CLOSE")
+                    self.logger.info("Closed current database session")
+                except Exception:
+                    # Ignore errors from CLOSE - database might not be open
+                    pass
+                
+                # BaseX doesn't support CLOSE {db_name} or CLOSE ALL
+                # We need to work around the "opened by another process" issue differently
+                
+                # Check if database exists and drop it with retry logic
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        if db_name in (admin_connector.execute_command("LIST") or ""):
+                            self.logger.info("Attempt %d: Dropping database: %s", attempt + 1, db_name)
+                            admin_connector.execute_command(f"DROP DB {db_name}")
+                            self.logger.info("Successfully dropped database")
+                            break
+                        else:
+                            self.logger.info("Database does not exist, no need to drop")
+                            break
+                    except Exception as drop_error:
+                        # If another session has the DB open, try to surface session info and retry
+                        if "opened by another process" in str(drop_error):
+                            try:
+                                self.logger.warning("Database is opened by another process, querying sessions...")
+                                sessions = admin_connector.execute_command("SHOW SESSIONS")
+                                self.logger.warning("Found sessions: %s", sessions)
+                                # Optionally try to parse session ids and attempt kill commands if supported
+                                # e.g., parse 'id: 1234' and try 'KILL 1234' or 'KILL SESSION 1234'
+                                import re
+                                ids = re.findall(r'id:\s*(\d+)', str(sessions))
+                                for sid in ids:
+                                    for kill_cmd in (f'KILL {sid}', f'KILL SESSION {sid}'):
+                                        try:
+                                            self.logger.info("Attempting to kill session %s with command: %s", sid, kill_cmd)
+                                            admin_connector.execute_command(kill_cmd)
+                                            self.logger.info("Kill command executed: %s", kill_cmd)
+                                        except Exception as kill_err:
+                                            # Ignore unsupported kill commands, but log for debugging
+                                            self.logger.debug("Kill command failed (%s): %s", kill_cmd, kill_err)
+                            except Exception as session_err:
+                                self.logger.debug("Could not retrieve sessions: %s", session_err)
+
+                            # If we have more retries left, wait a bit and try again
+                            if attempt < max_retries - 1:
+                                self.logger.warning("Retrying drop after session check (attempt %d)", attempt + 1)
+                                import time
+                                time.sleep(0.5)
+                                continue
+
+                        if attempt == max_retries - 1:
+                            # On final attempt, try alternative approaches
+                            self.logger.warning("Final attempt: Trying alternative drop strategies")
+                            
+                            # Strategy 1: Try to create a new admin session
+                            try:
+                                # Disconnect and reconnect to get a fresh session
+                                admin_connector.disconnect()
+                                admin_connector.connect()
+                                
+                                # Try dropping again with fresh session
+                                if db_name in (admin_connector.execute_command("LIST") or ""):
+                                    admin_connector.execute_command(f"DROP DB {db_name}")
+                                    self.logger.info("Successfully dropped database with fresh session")
+                                    break
+                            except Exception as fresh_session_error:
+                                self.logger.warning("Fresh session approach failed: %s", fresh_session_error)
+                            
+                            # Strategy 2: Try to use a different admin connector
+                            try:
+                                # Create a completely new admin connector
+                                new_admin = BaseXConnector(
+                                    host=admin_connector.host,
+                                    port=admin_connector.port,
+                                    username=admin_connector.username,
+                                    password=admin_connector.password,
+                                    database=None
+                                )
+                                new_admin.connect()
+                                
+                                try:
+                                    if db_name in (new_admin.execute_command("LIST") or ""):
+                                        new_admin.execute_command(f"DROP DB {db_name}")
+                                        self.logger.info("Successfully dropped database with new connector")
+                                        break
+                                finally:
+                                    new_admin.disconnect()
+                            except Exception as new_connector_error:
+                                self.logger.error("All drop strategies failed: %s", new_connector_error)
+                                raise drop_error from new_connector_error
+                        else:
+                            raise
+                
+                # Create empty database
+                admin_connector.execute_command(f"CREATE DB {db_name}")
+                self.logger.info("Successfully created empty database")
+                
+                # Reset namespace cache
+                self._has_namespace = None
+                
+                # Reconnect the main connector to the new database
+                try:
+                    self.db_connector.disconnect()
+                except:
+                    pass  # Ignore disconnect errors
+                
+                self.logger.info("Successfully recreated empty database")
+                
+            finally:
+                admin_connector.disconnect()
+            
+        except Exception as e:
+            self.logger.error("Error dropping database content: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to drop database content: {e}") from e
 
     def get_entry(self, entry_id: str) -> Entry:
         """
@@ -636,10 +1055,26 @@ class DictionaryService:
                 self.ranges = {}
                 return {}
 
-            self.logger.debug("Parsing LIFT ranges XML.")
+            # Attempt to determine source document(s) for better diagnostics
+            try:
+                sources = self._get_ranges_source_documents(self.db_connector, db_name, has_ns)
+            except Exception as e:
+                self.logger.debug("Failed to determine ranges source documents: %s", e)
+                sources = []
+
+            self.logger.debug("Parsing LIFT ranges XML (source=%s, length=%d).", sources, len(ranges_xml) if ranges_xml else 0)
             self.ranges = self.ranges_parser.parse_string(ranges_xml)
+
+            # If parsing yielded no ranges, log a truncated sample of the XML at DEBUG
+            if not self.ranges:
+                try:
+                    sample = ranges_xml.strip().replace('\n', '\\n')[:500]
+                except Exception:
+                    sample = '<unavailable>'
+                self.logger.debug("Ranges XML sample (truncated, %d chars): %s", len(sample), sample)
+
             self.logger.info(
-                f"Successfully loaded and parsed {len(self.ranges.keys()) if self.ranges else 0} LIFT ranges."
+                f"Successfully loaded and parsed {len(self.ranges.keys()) if self.ranges else 0} LIFT ranges (source={sources})"
             )
             return self.ranges
 
@@ -1370,13 +1805,14 @@ class DictionaryService:
             )
             raise DatabaseError(f"Failed to count senses and examples: {e}") from e
 
-    def import_lift(self, lift_path: str) -> int:
+    def import_lift(self, lift_path: str, mode: str = "merge", ranges_path: Optional[str] = None) -> int:
         """
-        Import entries from a LIFT file into the existing database.
-        This will update existing entries and add new ones.
+        Import entries from a LIFT file into the database.
 
         Args:
             lift_path: Path to the LIFT file.
+            mode: Import mode - 'replace' to replace entire database, 'merge' to merge with existing.
+            ranges_path: Optional path to an accompanying .lift-ranges file provided by the user.
 
         Returns:
             Number of entries imported/updated.
@@ -1384,64 +1820,506 @@ class DictionaryService:
         Raises:
             FileNotFoundError: If the LIFT file does not exist.
             DatabaseError: If there is an error importing the data.
+            ValueError: If mode is invalid.
         """
+        if mode not in ["replace", "merge"]:
+            raise ValueError("Mode must be 'replace' or 'merge'")
+            
+        if mode == "replace":
+            return self._import_lift_replace(lift_path, ranges_path=ranges_path)
+        else:
+            return self._import_lift_merge(lift_path)
+
+    def _import_lift_with_ranges(self, lift_path: str, mode: str, ranges_path: Optional[str] = None) -> int:
+        """
+        Unified method to handle LIFT import with ranges file support for both merge and replace modes.
+        
+        Args:
+            lift_path: Path to the LIFT file.
+            mode: Import mode - 'replace' or 'merge'.
+            ranges_path: Optional path to an accompanying .lift-ranges file provided by the user.
+            
+        Returns:
+            Number of entries imported/updated.
+            
+        Raises:
+            FileNotFoundError: If the LIFT file does not exist.
+            DatabaseError: If there is an error importing the data.
+        """
+        if not os.path.exists(lift_path):
+            raise FileNotFoundError(f"LIFT file not found: {lift_path}")
+            
+        # Use absolute path and forward slashes for BaseX commands
+        lift_path_basex = os.path.abspath(lift_path).replace("\\", "/")
+        self.logger.info("Importing LIFT file (%s mode): %s", mode, lift_path_basex)
+        
+        # Handle ranges file - prefer explicitly provided ranges_path over auto-detection
+        final_ranges_path = None
+        if ranges_path and os.path.exists(ranges_path):
+            self.logger.debug("Using user-provided ranges file: %s", ranges_path)
+            final_ranges_path = ranges_path
+        else:
+            # Auto-detect ranges file if not explicitly provided
+            final_ranges_path = self.find_ranges_file(lift_path)
+            if final_ranges_path:
+                self.logger.debug("Auto-detected ranges file: %s", final_ranges_path)
+        
+        if mode == "replace":
+            return self._import_lift_replace_with_ranges(lift_path, lift_path_basex, final_ranges_path)
+        else:  # merge
+            return self._import_lift_merge_with_ranges(lift_path, lift_path_basex, final_ranges_path)
+
+    def _import_lift_merge(self, lift_path: str) -> int:
+        """
+        Merge entries from a LIFT file into the existing database.
+        This is a wrapper that calls the unified import method.
+        """
+        return self._import_lift_with_ranges(lift_path, "merge")
+
+    def _import_lift_replace(self, lift_path: str, ranges_path: Optional[str] = None) -> int:
+        """
+        Replace all entries in the database with entries from a LIFT file.
+        This is a wrapper that calls the unified import method.
+        """
+        return self._import_lift_with_ranges(lift_path, "replace", ranges_path)
+    
+    # [Original implementation removed - now using unified _import_lift_with_ranges method]
+        """
+        Unified method to handle LIFT import with ranges file support for both merge and replace modes.
+        
+        Args:
+            lift_path: Path to the LIFT file.
+            mode: Import mode - 'replace' or 'merge'.
+            ranges_path: Optional path to an accompanying .lift-ranges file provided by the user.
+            
+        Returns:
+            Number of entries imported/updated.
+            
+        Raises:
+            FileNotFoundError: If the LIFT file does not exist.
+            DatabaseError: If there is an error importing the data.
+        """
+        if not os.path.exists(lift_path):
+            raise FileNotFoundError(f"LIFT file not found: {lift_path}")
+            
+        # Use absolute path and forward slashes for BaseX commands
+        lift_path_basex = os.path.abspath(lift_path).replace("\\", "/")
+        self.logger.info("Importing LIFT file (%s mode): %s", mode, lift_path_basex)
+        
+        # Handle ranges file - prefer explicitly provided ranges_path over auto-detection
+        final_ranges_path = None
+        if ranges_path and os.path.exists(ranges_path):
+            self.logger.debug("Using user-provided ranges file: %s", ranges_path)
+            final_ranges_path = ranges_path
+        else:
+            # Auto-detect ranges file if not explicitly provided
+            final_ranges_path = self.find_ranges_file(lift_path)
+            if final_ranges_path:
+                self.logger.debug("Auto-detected ranges file: %s", final_ranges_path)
+        
+        if mode == "replace":
+            return self._import_lift_replace_with_ranges(lift_path, lift_path_basex, final_ranges_path)
+        else:  # merge
+            return self._import_lift_merge_with_ranges(lift_path, lift_path_basex, final_ranges_path)
+
+    def _import_lift_replace_with_ranges(self, lift_path: str, lift_path_basex: str, ranges_path: Optional[str]) -> int:
+        """
+        Replace all entries in the database with entries from a LIFT file, with ranges support.
+        """
+        try:
+            db_name = self.db_connector.database
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+                
+            # Use a separate admin connector to drop and recreate the database
+            admin_connector = BaseXConnector(
+                host=self.db_connector.host,
+                port=self.db_connector.port,
+                username=self.db_connector.username,
+                password=self.db_connector.password,
+                database=None  # No specific database for admin operations
+            )
+
+            try:
+                admin_connector.connect()
+
+                # Ensure main connector isn't holding the database open so DROP can succeed
+                try:
+                    self.logger.info("Disconnecting main connector before DROP to release database handles")
+                    self.db_connector.disconnect()
+                except Exception:
+                    self.logger.debug("Main connector disconnect failed or was already disconnected; proceeding")
+
+                # Drop the existing database to ensure a clean start. Retry if another process has it open.
+                if db_name in (admin_connector.execute_command("LIST") or ""):
+                    self.logger.info("Dropping existing database: %s", db_name)
+                    import time
+
+                    max_retries = 8
+                    backoff = 1.0
+                    for attempt in range(1, max_retries + 1):
+                        try:
+                            admin_connector.execute_command(f"DROP DB {db_name}")
+                            break
+                        except Exception as e:
+                            errstr = str(e).lower()
+                            if "opened by another process" in errstr and attempt < max_retries:
+                                self.logger.warning(
+                                    "DROP DB '%s' failed because DB is open in another process (attempt %d/%d), retrying after %.1fs...",
+                                    db_name,
+                                    attempt,
+                                    max_retries,
+                                    backoff,
+                                )
+
+                                # Attempt to gather session info to aid debugging
+                                try:
+                                    sessions_info = None
+                                    for cmd in ("SHOW SESSIONS", "SESSIONS", "SHOW SESSIONS FULL", "LIST SESSIONS"):
+                                        try:
+                                            info = admin_connector.execute_command(cmd)
+                                            if info and 'session' in info.lower() or 'conn' in info.lower() or 'id' in info.lower():
+                                                sessions_info = info
+                                                break
+                                        except Exception:
+                                            continue
+                                    if sessions_info:
+                                        self.logger.warning("Found sessions that may hold DB open: %s", sessions_info)
+                                except Exception as sess_e:
+                                    self.logger.debug("Failed to fetch sessions info: %s", sess_e)
+
+                                time.sleep(backoff)
+                                backoff = min(backoff * 2, 8)
+                                continue
+                            self.logger.error("Failed to DROP DB %s: %s", db_name, e)
+                            raise
+
+                # Create new database from the LIFT file
+                self.logger.info("Creating new database '%s' from %s", db_name, lift_path_basex)
+                admin_connector.execute_command(f'CREATE DB {db_name} "{lift_path_basex}"')
+
+                # Re-open the main connector to the new database
+                self.db_connector.connect()
+
+                # Add ranges file if available
+                if ranges_path and os.path.exists(ranges_path):
+                    return self._add_ranges_file_to_database(admin_connector, db_name, ranges_path)
+                else:
+                    self.logger.info("No ranges file found or provided for import")
+                    # Count entries in the new database
+                    count_query = "count(collection('" + db_name + "')//entry)"
+                    total_count = int(self.db_connector.execute_query(count_query) or 0)
+                    self.logger.info("Imported %d entries (no ranges)", total_count)
+                    return total_count
+
+            finally:
+                try:
+                    admin_connector.disconnect()
+                except Exception:
+                    pass
+
+        except Exception as e:
+            self.logger.error("Error in replace import: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to replace database with LIFT file: {e}") from e
+
+    def _import_lift_merge_with_ranges(self, lift_path: str, lift_path_basex: str, ranges_path: Optional[str]) -> int:
+        """
+        Merge entries from a LIFT file into the existing database, with ranges support.
+        """
+        try:
+            # Create temp database from LIFT file
+            temp_db_name = f"import_{random.randint(100000, 999999)}"
+
+            try:
+                self.logger.info("Creating temp database: %s", temp_db_name)
+                self.db_connector.execute_command(f'CREATE DB {temp_db_name} "{lift_path_basex}"')
+
+                # Add ranges file to temp database if available
+                if ranges_path and os.path.exists(ranges_path):
+                    self._add_ranges_file_to_database(self.db_connector, temp_db_name, ranges_path)
+
+                # Rest of the merge logic (namespace detection, counting, etc.)
+                return self._import_lift_merge_continue(temp_db_name)
+
+            finally:
+                # Clean up temp database
+                try:
+                    if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
+                        self.db_connector.execute_command(f"CLOSE {temp_db_name}")
+                        self.db_connector.execute_command(f"DROP DB {temp_db_name}")
+                        self.logger.info("Temp database cleaned up: %s", temp_db_name)
+                except Exception as e:
+                    self.logger.warning("Error cleaning up temp database %s: %s", temp_db_name, e)
+
+        except Exception as e:
+            self.logger.error("Error in merge import: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to merge LIFT file: {e}") from e
+
+    def _add_ranges_file_to_database(self, connector, db_name: str, ranges_path: str) -> int:
+        """
+        Add a ranges file to a database with proper filename handling.
+        
+        Args:
+            connector: Database connector to use
+            db_name: Name of the database
+            ranges_path: Path to the ranges file
+            
+        Returns:
+            Number of entries in the database after adding ranges
+        """
+        ranges_path_basex = os.path.abspath(ranges_path).replace("\\", "/")
+        
+        try:
+            size = os.path.getsize(ranges_path)
+        except Exception:
+            size = None
+
+        self.logger.info(
+            "Adding ranges file to database (path=%s, size=%s bytes)", ranges_path_basex, size
+        )
+
+        try:
+            # Use the filename (basename) when adding to the DB instead of hardcoded ranges.xml
+            ranges_filename = os.path.basename(ranges_path)
+            if not ranges_filename.lower().endswith('.lift-ranges'):
+                ranges_filename = ranges_filename + '.lift-ranges'
+
+            connector.execute_command(f'OPEN {db_name}')
+            connector.execute_command(f'ADD TO {ranges_filename} "{ranges_path_basex}"')
+            self.logger.info("Ranges file added to database as %s", ranges_filename)
+
+            # Verify ranges document exists in the DB
+            try:
+                if self._verify_ranges_in_db(connector, db_name):
+                    self.logger.info("Verified ranges document present in DB after ADD")
+                else:
+                    self.logger.warning("Ranges document not detected in DB after ADD")
+            except Exception as verify_e:
+                self.logger.warning("Failed to verify ranges in DB after ADD: %s", verify_e)
+
+            # Count entries in the database
+            count_query = "count(collection('" + db_name + "')//entry)"
+            total_count = 0
+            try:
+                # Prefer admin connector's query if present, but fall back to main connector
+                if hasattr(connector, 'execute_query'):
+                    res = connector.execute_query(count_query)
+                    if res and str(res).strip():
+                        total_count = int(res)
+                    elif hasattr(self.db_connector, 'execute_query'):
+                        # fallback to main connector result
+                        main_res = self.db_connector.execute_query(count_query)
+                        total_count = int(main_res or 0)
+                elif hasattr(self.db_connector, 'execute_query'):
+                    total_count = int(self.db_connector.execute_query(count_query) or 0)
+            except Exception as cnt_e:
+                self.logger.warning("Failed to count entries after adding ranges: %s", cnt_e)
+                total_count = 0
+
+            self.logger.info("Imported %d entries with ranges", total_count)
+            return total_count
+
+        except Exception as e:
+            self.logger.error("Failed to add ranges file to database: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to add ranges file: {e}") from e
+
+    def _import_lift_merge_continue(self, temp_db_name: str) -> int:
+        """
+        Continue the merge process after temp database creation and ranges addition.
+        This contains the original merge logic from _import_lift_merge.
+        """
+        # Detect namespace usage in both databases
+        temp_has_ns = self._detect_namespace_usage_in_db(temp_db_name)
+        main_has_ns = self._detect_namespace_usage()
+        
+        temp_entry_path = self._query_builder.get_element_path("entry", temp_has_ns)
+        main_entry_path = self._query_builder.get_element_path("entry", main_has_ns)
+        
+        # Use combined prologue for both namespaces
+        prologue = self._query_builder.get_namespace_prologue(temp_has_ns or main_has_ns)
+        
+        # Count entries in temp database
+        count_query = f"{prologue} count(collection('{temp_db_name}')//{temp_entry_path})"
+        total_count = int(self.db_connector.execute_query(count_query) or 0)
+        self.logger.info("Found %d entries in LIFT file", total_count)
+        
+        if total_count == 0:
+            self.logger.warning("No entries found in LIFT file")
+            return 0
+        
+        # Perform bulk merge operation using a safer approach
+        # Instead of inserting nodes, we'll use a two-step process:
+        # 1. Delete existing entries that match
+        # 2. Add all entries from the temp database
+        
+        # Step 1: Delete entries that exist in both databases (will be replaced)
+        delete_query = f"""
+        {prologue}
+        let $source_entries := collection('{temp_db_name}')//{temp_entry_path}
+        for $source_entry in $source_entries
+        let $entry_id := $source_entry/@id/string()
+        let $target_entry := collection('{self.db_connector.database}')//{main_entry_path}[@id = $entry_id]
+        where exists($target_entry)
+        return delete node $target_entry
+        """
+        self.db_connector.execute_query(delete_query)
+        
+        # Step 2: Get all entries from temp database and add them to main database
+        # Use BaseX's db:add operation instead of XQuery insert nodes
+        # This is safer and avoids recursion issues
+        
+        # Export temp database entries to a string
+        export_query = f"{prologue} serialize(collection('{temp_db_name}')//{temp_entry_path}, map {{ 'method': 'xml', 'indent': true() }})"
+        entries_xml = self.db_connector.execute_query(export_query)
+        
+        # Add the entries to the main database using BaseX's ADD command
+        # First, create a temporary file with the entries
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
+            temp_file.write(f'<entries>{entries_xml}</entries>')
+            temp_entries_path = temp_file.name
+        
+        try:
+            # Add the entries to the main database
+            temp_entries_path_basex = os.path.abspath(temp_entries_path).replace("\\", "/")
+            self.db_connector.execute_command(f'OPEN {self.db_connector.database}')
+            self.db_connector.execute_command(f'ADD "{temp_entries_path_basex}"')
+            
+            self.logger.info("Merged %d entries from LIFT file", total_count)
+            return total_count
+            
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_entries_path)
+            except:
+                pass
         try:
             if not os.path.exists(lift_path):
                 raise FileNotFoundError(f"LIFT file not found: {lift_path}")
 
             # Use absolute path and forward slashes for BaseX commands
             lift_path_basex = os.path.abspath(lift_path).replace("\\", "/")
-            self.logger.info("Using absolute path: %s", lift_path_basex)
-            temp_db_name = f"import_{os.path.basename(lift_path).replace('.', '_')}_{random.randint(1000, 9999)}"
-
+            self.logger.info("Merging LIFT file: %s", lift_path_basex)
+            
+            # Create temp database from LIFT file
+            temp_db_name = f"import_{random.randint(100000, 999999)}"
+            
             try:
-                self.db_connector.execute_command(
-                    f'CREATE DB {temp_db_name} "{lift_path_basex}"'
-                )
+                self.logger.info("Creating temp database: %s", temp_db_name)
+                self.db_connector.execute_command(f'CREATE DB {temp_db_name} "{lift_path_basex}"')
+                
+                # Check for and add associated .lift-ranges file if it exists
+                ranges_path = lift_path.replace('.lift', '.lift-ranges')
+                if os.path.exists(ranges_path):
+                    ranges_path_basex = os.path.abspath(ranges_path).replace("\\", "/")
+                    try:
+                        size = os.path.getsize(ranges_path)
+                    except Exception:
+                        size = None
+                    self.logger.info("Adding ranges file to temp database: %s (size=%s bytes)", ranges_path_basex, size)
+                    self.db_connector.execute_command(f'OPEN {temp_db_name}')
+                    ranges_filename = os.path.basename(ranges_path)
+                    if not ranges_filename.lower().endswith('.lift-ranges'):
+                        ranges_filename = ranges_filename + '.lift-ranges'
+                    self.db_connector.execute_command(f'ADD TO {ranges_filename} "{ranges_path_basex}"')
 
-                # Use namespace-aware queries
-                has_ns = self._detect_namespace_usage()
-                entry_path = self._query_builder.get_element_path("entry", has_ns)
-                lift_path_elem = self._query_builder.get_element_path("lift", has_ns)
-
-                total_in_file_query = (
-                    f"count(collection('{temp_db_name}')//{entry_path})"
-                )
-                total_count = int(
-                    self.db_connector.execute_query(total_in_file_query) or 0
-                )
-
-                update_query = f"""
-                let $source_entries := collection('{temp_db_name}')//{entry_path}
+                    # Verify ranges added to temp DB
+                    try:
+                        if self._verify_ranges_in_db(self.db_connector, temp_db_name):
+                            self.logger.info("Verified ranges document present in temp DB after ADD")
+                        else:
+                            self.logger.warning("Ranges document not detected in temp DB after ADD")
+                    except Exception as verify_e:
+                        self.logger.warning("Failed to verify ranges in temp DB after ADD: %s", verify_e)
+                
+                # Detect namespace usage in both databases
+                temp_has_ns = self._detect_namespace_usage_in_db(temp_db_name)
+                main_has_ns = self._detect_namespace_usage()
+                
+                temp_entry_path = self._query_builder.get_element_path("entry", temp_has_ns)
+                main_entry_path = self._query_builder.get_element_path("entry", main_has_ns)
+                
+                # Use combined prologue for both namespaces
+                prologue = self._query_builder.get_namespace_prologue(temp_has_ns or main_has_ns)
+                
+                # Count entries in temp database
+                count_query = f"{prologue} count(collection('{temp_db_name}')//{temp_entry_path})"
+                total_count = int(self.db_connector.execute_query(count_query) or 0)
+                self.logger.info("Found %d entries in LIFT file", total_count)
+                
+                if total_count == 0:
+                    self.logger.warning("No entries found in LIFT file")
+                    return 0
+                
+                # Perform bulk merge operation using a safer approach
+                # Instead of inserting nodes, we'll use a two-step process:
+                # 1. Delete existing entries that match
+                # 2. Add all entries from the temp database
+                
+                # Step 1: Delete entries that exist in both databases (will be replaced)
+                delete_query = f"""
+                {prologue}
+                let $source_entries := collection('{temp_db_name}')//{temp_entry_path}
                 for $source_entry in $source_entries
                 let $entry_id := $source_entry/@id/string()
-                let $target_entry := collection('{self.db_connector.database}')//{entry_path}[@id = $entry_id]
-                return if (exists($target_entry))
-                then replace node $target_entry with $source_entry
-                else insert node $source_entry into collection('{self.db_connector.database}')//{lift_path_elem}
+                let $target_entry := collection('{self.db_connector.database}')//{main_entry_path}[@id = $entry_id]
+                where exists($target_entry)
+                return delete node $target_entry
                 """
-                self.db_connector.execute_query(update_query)
-
-                self.logger.info(
-                    "Imported/updated %d entries from LIFT file", total_count
-                )
-                return total_count
+                self.db_connector.execute_query(delete_query)
+                
+                # Step 2: Get all entries from temp database and add them to main database
+                # Use BaseX's db:add operation instead of XQuery insert nodes
+                # This is safer and avoids recursion issues
+                
+                # Export temp database entries to a string
+                export_query = f"{prologue} serialize(collection('{temp_db_name}')//{temp_entry_path}, map {{ 'method': 'xml', 'indent': true() }})"
+                entries_xml = self.db_connector.execute_query(export_query)
+                
+                # Add the entries to the main database using BaseX's ADD command
+                # First, create a temporary file with the entries
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
+                    temp_file.write(f'<entries>{entries_xml}</entries>')
+                    temp_entries_path = temp_file.name
+                
+                try:
+                    # Add the entries to the main database
+                    temp_entries_path_basex = os.path.abspath(temp_entries_path).replace("\\", "/")
+                    self.db_connector.execute_command(f'OPEN {self.db_connector.database}')
+                    self.db_connector.execute_command(f'ADD "{temp_entries_path_basex}"')
+                    
+                    self.logger.info("Merged %d entries from LIFT file", total_count)
+                    return total_count
+                    
+                finally:
+                    # Clean up temporary file
+                    try:
+                        os.unlink(temp_entries_path)
+                    except:
+                        pass
 
             finally:
-                if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
-                    self.db_connector.execute_command(f"DROP DB {temp_db_name}")
+                # Clean up temp database
+                try:
+                    if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
+                        self.db_connector.execute_command(f"CLOSE {temp_db_name}")
+                        self.db_connector.execute_command(f"DROP DB {temp_db_name}")
+                        self.logger.info("Temp database cleaned up: %s", temp_db_name)
+                except Exception as e:
+                    self.logger.warning("Error cleaning up temp database %s: %s", temp_db_name, e)
 
         except Exception as e:
-            self.logger.error("Error importing LIFT file: %s", str(e), exc_info=True)
-            raise DatabaseError(f"Failed to import LIFT file: {e}") from e
+            self.logger.error("Error merging LIFT file: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to merge LIFT file: {e}") from e
 
-    def export_lift(self, project_id: int = 1) -> str:
+    def export_lift(self, project_id: int = 1, dual_file: bool = False) -> str:
         """
         Export all entries to LIFT format by dumping the database content.
-        Includes custom ranges in the export.
+        Can export as single file (with inline ranges) or dual files (main + ranges).
 
         Args:
             project_id: Project ID for custom ranges
+            dual_file: If True, returns main LIFT file with range references
 
         Returns:
             LIFT content as a string.
@@ -1474,20 +2352,21 @@ class DictionaryService:
                 export_service = LIFTExportService(self.db_connector, ranges_service)
 
                 # Export ranges file with custom ranges included
-                import tempfile
-                import os
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
                     temp_ranges_path = temp_file.name
 
                 try:
                     export_service.export_ranges_file(project_id, temp_ranges_path)
 
-                    # Add the ranges file to the database if it doesn't exist
-                    ranges_filename = "ranges.xml"
-                    if not self.db_connector.execute_query(f"exists(collection('{db_name}')//{ranges_filename})"):
+                    # Determine the filename to store ranges under in DB (prefer existing filename from DB)
+                    sources = self._get_ranges_source_documents(self.db_connector, db_name, has_ns)
+                    ranges_filename = sources[0] if sources else 'ranges.lift-ranges'
+
+                    # If ranges file does not appear to exist or is different, add/replace it
+                    if not self._verify_ranges_file(self.db_connector, db_name, ranges_filename):
                         self.db_connector.execute_command(f'ADD TO {ranges_filename} "{temp_ranges_path}"')
                     else:
-                        # Replace existing ranges
+                        # Replace existing ranges contents
                         self.db_connector.execute_update(f"""
                             delete node collection('{db_name}')//lift-ranges
                         """)
@@ -1501,6 +2380,11 @@ class DictionaryService:
                 self.logger.warning(f"Failed to export custom ranges: {e}")
 
             self.logger.info("Exported database content to LIFT format")
+            
+            # If dual_file mode, modify the LIFT XML to use range references instead of inline ranges
+            if dual_file:
+                lift_xml = self._convert_to_dual_file_format(lift_xml)
+            
             return lift_xml
 
         except Exception as e:
@@ -1508,6 +2392,107 @@ class DictionaryService:
                 "Error exporting to LIFT format: %s", str(e), exc_info=True
             )
             raise ExportError(f"Failed to export to LIFT format: {str(e)}") from e
+
+    def _convert_to_dual_file_format(self, lift_xml: str) -> str:
+        """
+        Convert LIFT XML from inline ranges format to dual-file format with range references.
+        
+        Args:
+            lift_xml: LIFT XML content with inline ranges
+            
+        Returns:
+            LIFT XML content with range references instead of inline ranges
+        """
+        try:
+            import xml.etree.ElementTree as ET
+            
+            # Parse the XML
+            try:
+                root = ET.fromstring(lift_xml)
+            except ET.ParseError:
+                # If parsing fails, return original XML
+                self.logger.warning("Failed to parse LIFT XML for dual-file conversion")
+                return lift_xml
+            
+            # Find the ranges element in the header
+            header = root.find('header')
+            if header is None:
+                return lift_xml
+            
+            ranges_elem = header.find('ranges')
+            if ranges_elem is None:
+                return lift_xml
+            
+            # Replace inline range definitions with references
+            # We'll create a new ranges element with references
+            new_ranges_elem = ET.Element('ranges')
+            
+            # Get all range elements
+            for range_elem in ranges_elem.findall('range'):
+                range_id = range_elem.get('id')
+                if range_id:
+                    # Create a new range element with href reference
+                    new_range_elem = ET.SubElement(new_ranges_elem, 'range')
+                    new_range_elem.set('id', range_id)
+                    # Use a placeholder filename - this will be replaced with actual filename
+                    new_range_elem.set('href', 'ranges.lift-ranges')
+            
+            # Replace the old ranges element with the new one
+            header.remove(ranges_elem)
+            header.append(new_ranges_elem)
+            
+            # Convert back to XML string
+            xml_str = ET.tostring(root, encoding='unicode')
+            return xml_str
+            
+        except Exception as e:
+            self.logger.error(f"Error converting to dual-file format: {e}")
+            return lift_xml
+
+    def export_lift_ranges(self, project_id: int = 1) -> str:
+        """
+        Export ranges to a separate LIFT ranges file.
+        
+        Args:
+            project_id: Project ID for custom ranges
+            
+        Returns:
+            LIFT ranges content as a string.
+            
+        Raises:
+            ExportError: If there is an error exporting the ranges.
+        """
+        try:
+            # Create ranges service and export service
+            ranges_service = RangesService(self.db_connector)
+            export_service = LIFTExportService(self.db_connector, ranges_service)
+            
+            # Export ranges to a temporary file
+            import tempfile
+            import os
+            
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
+                temp_ranges_path = temp_file.name
+            
+            try:
+                # Export ranges file
+                export_service.export_ranges_file(project_id, temp_ranges_path)
+                
+                # Read the exported ranges file
+                with open(temp_ranges_path, 'r', encoding='utf-8') as f:
+                    ranges_content = f.read()
+                
+                return ranges_content
+                
+            finally:
+                if os.path.exists(temp_ranges_path):
+                    os.unlink(temp_ranges_path)
+                    
+        except Exception as e:
+            self.logger.error(
+                "Error exporting LIFT ranges: %s", str(e), exc_info=True
+            )
+            raise ExportError(f"Failed to export LIFT ranges: {str(e)}") from e
 
     def export_to_kindle(
         self,
@@ -1697,6 +2682,7 @@ class DictionaryService:
                     print(f"DEBUG: variant-type values count: {len(v_values)}")
                     if len(v_values) == 0:
                          print(f"DEBUG: variant-type is EMPTY in parsed_ranges")
+
             else:
                 self.logger.warning(
                     "LIFT ranges not found in database. Using empty ranges."
@@ -1765,29 +2751,46 @@ class DictionaryService:
                         'values': variant_types
                     }
 
-            # Ensure known standard ranges that are missing are included so the UI
-            # and callers like /api/ranges always see a consistent set of core ranges
-            try:
-                from app.services.ranges_service import STANDARD_RANGE_METADATA, CONFIG_PROVIDED_RANGES, CONFIG_RANGE_TYPES
-                for std_id, meta in STANDARD_RANGE_METADATA.items():
-                    if std_id not in parsed_ranges:
-                        label = meta.get('label') if isinstance(meta, dict) else meta
-                        desc = meta.get('description') if isinstance(meta, dict) else ''
-                        parsed_ranges[std_id] = {
-                            'id': std_id,
-                            'guid': f'provided-{std_id}',
-                            'label': label or std_id,
-                            'description': {'en': desc} if desc else {},
-                            'values': [],
-                            'official': False,
-                            'standard': True,
-                            'provided_by_config': std_id in CONFIG_PROVIDED_RANGES,
-                            'fieldworks_standard': (CONFIG_RANGE_TYPES.get(std_id) == 'fieldworks'),
-                            'config_type': CONFIG_RANGE_TYPES.get(std_id)
-                        }
-            except Exception:
-                # If anything goes wrong while adding standard fallbacks, log and continue
-                self.logger.exception("Failed to add standard range fallbacks")
+            # NOTE: Standard ranges are no longer automatically added as fallbacks.
+            # This ensures that ranges only come from actual LIFT data or explicit configuration.
+            # If standard ranges are needed, they should be explicitly loaded or requested.
+
+            # Special handling for lexical-relation to ensure it's always available
+            # This is critical for relation types to work properly
+            if 'lexical-relation' not in parsed_ranges:
+                self.logger.warning("lexical-relation not found in parsed ranges, adding default")
+                parsed_ranges['lexical-relation'] = {
+                    'id': 'lexical-relation',
+                    'guid': 'lexical-relation-default',
+                    'label': 'Lexical Relations',
+                    'description': {'en': 'Types of lexical relationships between entries'},
+                    'values': [
+                        {'id': 'synonym', 'abbrev': 'syn', 'label': 'Synonym'},
+                        {'id': 'antonym', 'abbrev': 'ant', 'label': 'Antonym'},
+                        {'id': 'hypernym', 'abbrev': 'hyper', 'label': 'Hypernym'},
+                        {'id': 'hyponym', 'abbrev': 'hypo', 'label': 'Hyponym'},
+                        {'id': 'holonym', 'abbrev': 'holo', 'label': 'Holonym'},
+                        {'id': 'meronym', 'abbrev': 'mero', 'label': 'Meronym'},
+                        {'id': 'troponym', 'abbrev': 'trop', 'label': 'Troponym'},
+                        {'id': 'entailment', 'abbrev': 'entail', 'label': 'Entailment'},
+                        {'id': 'cause', 'abbrev': 'cause', 'label': 'Cause'},
+                        {'id': 'effect', 'abbrev': 'effect', 'label': 'Effect'}
+                    ],
+                    'official': False,
+                    'standard': True,
+                    'provided_by_config': True,
+                    'fieldworks_standard': True,
+                    'config_type': 'lexical-relation'
+                }
+            elif 'lexical-relation' in parsed_ranges and not parsed_ranges['lexical-relation'].get('values'):
+                # If lexical-relation exists but has no values, add default values
+                self.logger.warning("lexical-relation exists but is empty, adding default values")
+                parsed_ranges['lexical-relation']['values'] = [
+                    {'id': 'synonym', 'abbrev': 'syn', 'label': 'Synonym'},
+                    {'id': 'antonym', 'abbrev': 'ant', 'label': 'Antonym'},
+                    {'id': 'hypernym', 'abbrev': 'hyper', 'label': 'Hypernym'},
+                    {'id': 'hyponym', 'abbrev': 'hypo', 'label': 'Hyponym'}
+                ]
 
             self.ranges = parsed_ranges
             return self.ranges
@@ -2409,4 +3412,28 @@ class DictionaryService:
         except Exception as e:
             self.logger.warning("Error detecting namespace usage: %s", str(e))
             self._has_namespace = False
+            return False
+
+    def _detect_namespace_usage_in_db(self, db_name: str) -> bool:
+        """
+        Check if a specific database uses namespaces.
+        
+        Args:
+            db_name: Name of the database to check
+            
+        Returns:
+            True if the database uses namespaces, False otherwise
+        """
+        try:
+            # Use namespace-aware query to check for root <lift> element with namespace
+            test_query = f"""declare namespace lift = "{self._namespace_manager.LIFT_NAMESPACE}";
+            exists(collection('{db_name}')//lift:lift)"""
+
+            result = self.db_connector.execute_query(test_query)
+            if result:
+                result = result.strip()
+
+            return (result and result.lower() == "true")
+        except Exception as e:
+            self.logger.warning("Error detecting namespace usage in %s: %s", db_name, str(e))
             return False

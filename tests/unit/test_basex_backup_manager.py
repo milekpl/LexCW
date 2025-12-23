@@ -16,19 +16,18 @@ class FakeConnector:
             self.database = cmd.split(' ', 1)[1]
             return True
         if cmd.startswith('EXPORT '):
-            # Extract path from EXPORT command: format is "EXPORT db TO 'path'"
-            parts = cmd.split(' TO ')
-            if len(parts) >= 2:
-                path_part = parts[1]
-                # Remove quotes if present
-                path = path_part.strip("'\"")
-                p = Path(path)
-                # create a simple .lift file
-                p.parent.mkdir(parents=True, exist_ok=True)
-                with open(p, 'w', encoding='utf-8') as f:
-                    f.write('<?xml version="1.0"?><lift version="0.13"><entry id="x"></entry></lift>')
-                return True
-            return False
+            # Extract path from EXPORT command: format is "EXPORT 'path'"
+            # BaseX EXPORT command exports currently opened database to the specified path
+            path_part = cmd[7:].strip()  # Remove 'EXPORT ' prefix
+            # Remove quotes if present
+            path = path_part.strip("'\"")
+            p = Path(path)
+            # Create parent directory if it doesn't exist
+            p.parent.mkdir(parents=True, exist_ok=True)
+            # Create a simple .lift file to simulate export
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write('<?xml version="1.0"?><lift version="0.13"><entry id="test_entry"><lexical-unit><form lang="en"><text>test</text></form></lexical-unit></entry></lift>')
+            return True
         return True
 
 

@@ -194,6 +194,181 @@
         </div>
     </div>
 
+    <div class="card mt-4">
+        <div class="card-header">Database Management</div>
+        <div class="card-body">
+            <p class="mb-3">Manage the dictionary database content.</p>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#dropDatabaseModal">
+                <i class="fas fa-trash"></i> Drop Database Content
+            </button>
+        </div>
+    </div>
+
+    <!-- Drop Database Modal -->
+    <div class="modal fade" id="dropDatabaseModal" tabindex="-1" aria-labelledby="dropDatabaseModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dropDatabaseModalLabel">Database Management Options</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Choose what you want to do with the dictionary database:</p>
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Need help? <a href="/help" 
+                                   class="alert-link">
+                            View Import/Export Help
+                        </a>
+                    </div>
+                    <div class="alert alert-warning mb-3">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Important:</strong> Before making major changes, 
+                        <a href="{{ url_for('backup.backup_management') }}" class="alert-link">
+                            create a backup
+                        </a> to preserve your data.
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="dbAction" id="dropBlank" value="drop" checked>
+                        <label class="form-check-label" for="dropBlank">
+                            <strong>Drop all content (blank slate)</strong><br>
+                            <small class="text-muted">Remove all entries and data, leaving an empty database ready for new imports.</small>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="dbAction" id="dropWithRanges" value="drop_ranges">
+                        <label class="form-check-label" for="dropWithRanges">
+                            <strong>Drop all content and install recommended ranges</strong><br>
+                            <small class="text-muted">Remove all entries and data, then install standard linguistic ranges for new projects.</small>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="dbAction" id="importLift" value="import">
+                        <label class="form-check-label" for="importLift">
+                            <strong>Import LIFT file (replace everything)</strong><br>
+                            <small class="text-muted">Replace the entire database with content from a LIFT file.</small>
+                        </label>
+                    </div>
+                    
+                    <div id="liftFileInput" class="mb-3" style="display: none;">
+                        <label for="liftFile" class="form-label">Select LIFT file:</label>
+                        <input type="file" class="form-control" id="liftFile" accept=".lift,.xml">
+                        <small class="form-text text-muted">
+                            You may also upload a companion <code>.lift-ranges</code> file. 
+                            <strong>This is highly recommended</strong> as the application relies on ranges for proper functionality.
+                        </small>
+                        <label for="rangesFile" class="form-label mt-2">
+                            Select LIFT ranges file <span class="text-warning">(Highly Recommended)</span>:
+                        </label>
+                        <input type="file" class="form-control" id="rangesFile" accept=".lift-ranges">
+                        <small class="form-text text-muted">
+                            <a href="/help#ranges-editor" 
+                               class="text-decoration-none">
+                                <i class="fas fa-question-circle me-1"></i> Learn more about ranges
+                            </a>
+                        </small>
+                    </div>
+                    
+                    <div class="alert alert-danger">
+                        <strong>Warning:</strong> These actions cannot be undone! All current data will be permanently deleted.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDropDatabase">
+                        <i class="fas fa-trash"></i> Execute
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show/hide file input based on selected option
+    document.querySelectorAll('input[name="dbAction"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const liftFileInput = document.getElementById('liftFileInput');
+            if (this.value === 'import') {
+                liftFileInput.style.display = 'block';
+            } else {
+                liftFileInput.style.display = 'none';
+            }
+        });
+    });
+
+    document.getElementById('confirmDropDatabase').addEventListener('click', async function() {
+        const selectedAction = document.querySelector('input[name="dbAction"]:checked').value;
+        const button = this;
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+        try {
+            let response;
+            if (selectedAction === 'import') {
+                const fileInput = document.getElementById('liftFile');
+                const rangesInput = document.getElementById('rangesFile');
+                if (!fileInput.files[0]) {
+                    showAppToast('Please select a LIFT file', 'error');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                if (rangesInput && rangesInput.files && rangesInput.files[0]) {
+                    formData.append('ranges', rangesInput.files[0]);
+                }
+                
+                response = await fetch('/settings/import-lift-replace', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                const data = { action: selectedAction };
+                response = await fetch('/settings/drop-database', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+            }
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                let message = 'Operation completed successfully!';
+                if (result.count !== undefined) {
+                    message += ` Imported ${result.count} entries.`;
+                }
+                showAppToast(message, 'success');
+                // Safely hide the drop database modal
+                try {
+                    const modalEl = document.getElementById('dropDatabaseModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    if (modal) modal.hide();
+                } catch (e) {
+                    console.warn('Could not hide drop database modal:', e);
+                }
+                // Optionally reload the page to reflect changes
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAppToast('Error: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showAppToast('Error: ' + error.message, 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    });
+});
+</script>
+
 </div>
 {% endblock %}
 

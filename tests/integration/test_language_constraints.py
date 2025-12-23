@@ -33,7 +33,9 @@ def test_language_constraints(client):
             }
         }
         
-    _test_submission(client, "Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data, "allowed language")
+        _test_submission(client, "Protestantism_b97495fb-d52f-4755-94bf-a7a762339605", test_data, "allowed language")
+    else:
+        print("⚠️  No allowed languages available, skipping allowed language test")
     
     # Test with disallowed language (Portuguese)
     print("\n=== Testing with disallowed language (Portuguese) ===")

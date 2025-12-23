@@ -234,15 +234,43 @@ TTS: [Generate Audio]</code></pre>
 
             <h3 id="variants"><i class="fas fa-exchange-alt"></i> Variants & Allomorphs <span class="feature-badge badge-advanced">Advanced</span></h3>
             <p>
-                Document different forms of the same lexeme:
+                Document different forms of the same lexeme. Our system largely follows the SIL Fieldworks approach to variants and allomorphs:
             </p>
             <ul class="feature-list">
                 <li><strong>Spelling Variants</strong>: Alternative spellings (e.g., color/colour)</li>
                 <li><strong>Dialectal Forms</strong>: Regional variations</li>
                 <li><strong>Phonological Variants</strong>: Different pronunciations</li>
+                <li><strong>Allomorphs</strong>: One of two or more complementary morphs which manifest a morpheme in its different phonological or morphological environments</li>
                 <li><strong>Morphological Allomorphs</strong>: Different forms based on context</li>
                 <li><strong>Grammatical Information</strong>: POS and traits for each variant</li>
             </ul>
+
+            <h4>Understanding Allomorphs vs Variants</h4>
+            <p>
+                When deciding between calling something an allomorph or a variant:
+            </p>
+            <ul>
+                <li><strong>Allomorphs</strong> if it is phonologically conditioned</li>
+                <li><strong>Variants</strong> for morphologically conditioned or lexically conditioned suppletion</li>
+            </ul>
+
+            <p>
+                <em>Tip</em>: When deciding between calling something an allomorph or a variant:
+                Allomorphs if it is phonologically conditioned, otherwise make it a variant for morphologically
+                conditioned or lexically conditioned suppletion. For more information about allomorphs and variants,
+                see the <a href="#help-more">Need More Help?</a> section below.
+            </p>
+
+            <div class="example-box">
+                <h5><i class="fas fa-lightbulb"></i> Example: Allomorph Usage</h5>
+                <p>
+                    In the LIFT format, allomorphs can be represented as direct variant forms with traits:
+                </p>
+                <pre class="mb-0 mt-2"><code>&lt;variant&gt;
+  &lt;form lang="en"&gt;&lt;text&gt;grass roots&lt;/text&gt;&lt;/form&gt;
+  &lt;trait name="morph-type" value="stem"/&gt;
+&lt;/variant&gt;</code></pre>
+            </div>
 
             <h3 id="relations"><i class="fas fa-project-diagram"></i> Lexical Relations <span class="feature-badge badge-professional">Professional</span></h3>
             <p>
@@ -564,13 +592,19 @@ TTS: [Generate Audio]</code></pre>
                 <li><strong>Export</strong>: Save your work back to LIFT format anytime</li>
             </ol>
 
-            <div class="alert alert-info mt-4">
+            <div class="alert alert-info mt-4" id="help-more">
                 <h5><i class="fas fa-question-circle"></i> Need More Help?</h5>
                 <p class="mb-2">For technical questions about LIFT format:</p>
                 <ul class="mb-2">
                     <li><a href="https://code.google.com/archive/p/lift-standard/" target="_blank">LIFT Standard Documentation</a></li>
                     <li><a href="https://software.sil.org/fieldworks/" target="_blank">SIL FieldWorks</a></li>
                 </ul>
+
+                <p class="mb-2">For lexicographic resources and guidance:</p>
+                <ul class="mb-2">
+                    <li><a href="https://downloads.languagetechnology.org/fieldworks/Documentation/Intro%20to%20Lexicography/Introduction%20to%20Lexicography.htm" target="_blank">Introduction to Lexicography</a> by Ron Moe</li>                    
+                </ul>
+
                 <p class="mb-0">For application-specific support, contact your system administrator.</p>
             </div>
         </div>

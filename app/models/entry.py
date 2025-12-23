@@ -85,15 +85,17 @@ class Variant(BaseModel):
         self.form: Dict[str, str] = form
         self.grammatical_info: str | None = kwargs.pop('grammatical_info', None)
         self.grammatical_traits: Dict[str, str] | None = kwargs.pop('grammatical_traits', None)
+        # Add direct traits for LIFT <variant> elements with direct trait elements
+        self.traits: Dict[str, str] | None = kwargs.pop('traits', None)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert variant to dictionary with nested objects."""
         result = super().to_dict()
-        
+
         # Convert nested form object
         if hasattr(self.form, 'to_dict'):
             result['form'] = self.form.to_dict()
-            
+
         return result
 
 
@@ -204,10 +206,13 @@ class Entry(BaseModel):
         # Handle morphological type with auto-classification if not provided
         existing_morph_type = kwargs.get('morph_type') or self.traits.get('morph-type')
         self.morph_type: Optional[str] = self._get_or_classify_morph_type(existing_morph_type)
-        
+
         # Ensure morph_type is also in traits for XML serialization
         if self.morph_type and 'morph-type' not in self.traits:
             self.traits['morph-type'] = self.morph_type
+
+        # Handle header_info from LIFT files
+        self.header_info: Optional[Dict] = kwargs.get('header_info')
         
         # Handle notes - ensure it's a dictionary and preserve nested dicts
         notes_raw = kwargs.get('notes', {})
@@ -644,6 +649,10 @@ class Entry(BaseModel):
             result['annotations'] = self.annotations
         else:
             result['annotations'] = []
+
+        # Include header_info from LIFT files
+        if hasattr(self, 'header_info') and self.header_info is not None:
+            result['header_info'] = self.header_info
 
         # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
 

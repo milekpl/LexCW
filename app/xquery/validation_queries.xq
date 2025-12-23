@@ -230,7 +230,7 @@ declare function validate:check-orphaned-relations(
         return
             <error>
                 <entry-id>{$entry/@id/string()}</entry-id>
-                <relation-type>{$relation/@type/string()}</relation-type>
+                <lexical-relation>{$relation/@type/string()}</lexical-relation>
                 <ref>{$ref}</ref>
                 <issue>Referenced entry not found</issue>
             </error>

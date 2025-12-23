@@ -37,8 +37,8 @@ def test_pos_inheritance_ui(page: Page, flask_test_server):
     add_sense_button.click()
     page.wait_for_timeout(1000)  # Wait for sense to be added
     
-    # Wait for sense to appear
-    page.wait_for_selector(".sense-item", state="visible", timeout=5000)
+    # Wait for a real (non-template) sense to appear
+    page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template):visible').first.wait_for(state='visible', timeout=5000)
     
     # Fill in sense definition
     sense_definition = page.locator(".sense-item .definition-text").first

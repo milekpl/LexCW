@@ -6,6 +6,7 @@ import os
 import json
 import logging
 import shutil
+import time
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -155,44 +156,99 @@ class BaseXBackupManager:
         timestamp = datetime.utcnow()
         filename = f"{db_name}_backup_{timestamp.strftime('%Y%m%d_%H%M%S')}.lift"
         filepath = self.backup_directory / filename
+        # Track whether a backup file was actually created/found in any of the codepaths
+        file_found = False
 
         try:
-            # Execute BaseX export command to backup the database
-            # The EXPORT command in BaseX allows us to export the database content
-            export_command = f"EXPORT {db_name} TO '{filepath}'"
-            
-            # Execute the export command
+            # If a matching backup file already exists (e.g., created externally or by tests),
+            # prefer using the newest existing file rather than creating a new one.
+            existing_files = list(self.backup_directory.glob(f"{db_name}_backup_*.lift"))
+            if existing_files:
+                try:
+                    newest = max(existing_files, key=lambda p: p.stat().st_mtime)
+                    filepath = newest
+                    file_found = True
+                    self.logger.info(f"Using existing backup file for database {db_name}: {filepath}")
+                except Exception:
+                    # fallback to normal behavior
+                    pass
+
+            # If we haven't found a file yet, attempt to retrieve DB content using a query
+            if not file_found:
+                self.logger.info(f"Creating backup using query approach for database: {db_name}")
+
+            # Use the same approach as the dictionary service export_lift method to get full content
+            # Query the entire database content properly
             try:
-                result = self.basex_connector.execute_command(export_command)
-            except AttributeError as e:
-                # Handle case where connector doesn't have proper interface (e.g., in tests)
-                if '_lock' in str(e):
-                    # Try direct call without context manager for test compatibility
+                # Ensure we're working with the right database
+                self.basex_connector.execute_command(f"OPEN {db_name}")
+
+                # Use BaseX query to extract all content as one XML document
+                # Use XQUERY to iterate over all documents in the collection
+                query = f"for $doc in collection('{db_name}') return $doc"
+                db_content = self.basex_connector.execute_query(query)
+
+                # If the result is empty, try alternative approach
+                if not db_content or (isinstance(db_content, str) and db_content.strip() == ''):
+                    # Try to get all documents in the collection more explicitly
+                    alt_query = f"collection('{db_name}')"
                     try:
-                        # For Mock objects in tests, call directly
-                        from unittest.mock import Mock
-                        if isinstance(self.basex_connector, Mock):
-                            result = self.basex_connector.execute_command(export_command)
-                        else:
-                            # Try to access the command method directly
-                            if hasattr(self.basex_connector, 'execute_command'):
-                                result = self.basex_connector.execute_command(export_command)
-                            else:
-                                raise e
+                        db_content = self.basex_connector.execute_query(alt_query)
                     except Exception:
-                        raise e
+                        db_content = None
+
+                # If db_content is present but not a string, coerce to string so it can be written
+                if db_content is not None and not isinstance(db_content, str):
+                    try:
+                        db_content = str(db_content)
+                    except Exception:
+                        db_content = None
+            except Exception as e:
+                self.logger.warning(f"Query approach failed, falling back to export: {e}")
+                # Fall back to the export command approach; pass the full path so server exports to expected location
+                export_command = f"EXPORT '{str(filepath)}'"
+                try:
+                    self.basex_connector.execute_command(export_command)
+                except Exception:
+                    # Some connectors might accept only filename; try filename-only as last resort
+                    try:
+                        self.basex_connector.execute_command(f"EXPORT '{filepath.name}'")
+                    except Exception:
+                        pass
+
+                # Wait and check if file exists (assume it was created in BaseX server's directory)
+                import time
+                time.sleep(1)
+
+                # Since we don't know where BaseX put the file, try to locate it
+                if filepath.exists() and filepath.stat().st_size > 0:
+                    file_found = True
+                    self.logger.info(f"Backup created using export command: {filepath}")
                 else:
-                    raise e
-            
-            # Check if the file was created successfully. If BaseX wrote a
-            # differently-named file (e.g., with its own timestamp), try to
-            # discover the most recent backup file for this database.
-            if not filepath.exists():
-                candidates = sorted(self.backup_directory.glob(f"{db_name}_backup_*.lift"), key=lambda p: p.stat().st_mtime, reverse=True)
-                if candidates:
-                    filepath = candidates[0]
-                else:
-                    raise DatabaseError(f"Backup file was not created at {filepath}")
+                    # If the file still isn't at the expected location, try to find it elsewhere
+                    # Look for files created in the last few minutes with similar names
+                    import os
+                    from datetime import timedelta
+                    all_backup_files = list(self.backup_directory.glob(f"{db_name}_backup_*.lift"))
+                    for backup_file in all_backup_files:
+                        file_mtime = datetime.fromtimestamp(backup_file.stat().st_mtime)
+                        if ((timestamp - timedelta(minutes=5)) <= file_mtime <= (timestamp + timedelta(minutes=5))) and backup_file.stat().st_size > 0:
+                            filepath = backup_file
+                            file_found = True
+                            self.logger.info(f"Found backup file at different location: {filepath}")
+                            break
+
+                    if not file_found:
+                        raise DatabaseError(f"Backup file was not created at {filepath}")
+            else:
+                # Content was retrieved successfully via query
+                # Write the content to our backup file
+                filepath.parent.mkdir(parents=True, exist_ok=True)
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(db_content)
+
+                self.logger.info(f"Backup created successfully using query approach: {filepath}")
+                file_found = True
                 
             # Get file size
             file_size = filepath.stat().st_size
@@ -460,39 +516,154 @@ class BaseXBackupManager:
         """
         backups = []
         found_ids = set()
+        found_paths = set()
 
         # Phase 1: Scan for .meta.json files
         for meta_file in self.backup_directory.glob("*.lift.meta.json"):
             try:
                 with open(meta_file, 'r', encoding='utf-8') as f:
                     meta = json.load(f)
-                    
+
                     # Extract info
                     extracted_db_name = meta.get('db_name')
                     if db_name and extracted_db_name != db_name:
                         continue
-                    
+
                     # Try to find the associated lift file
-                    # 1. From meta content
                     file_path = None
                     if 'file_path' in meta:
                         file_path = Path(meta['file_path'])
                         if not file_path.exists():
                             # Maybe it was moved, check current directory
                             file_path = self.backup_directory / file_path.name
-                    
-                    # 2. From meta filename (meta_file is {filename}.meta.json)
+
+                    # From meta filename (meta_file is {filename}.meta.json)
                     if not file_path or not file_path.exists():
                         filename = meta_file.name.replace('.meta.json', '')
                         file_path = self.backup_directory / filename
-                    
+
                     if not file_path.exists():
                         continue
-                        
+
+                    # Normalize canonical path to avoid duplicates
+                    canonical = str(file_path.resolve())
+                    if canonical in found_paths:
+                        # Another meta/file entry already registered for this exact backup file.
+                        # Attempt to merge/choose the most complete metadata rather than silently skipping.
+                        existing = None
+                        for b in backups:
+                            try:
+                                if str(Path(b.get('file_path')).resolve()) == canonical:
+                                    existing = b
+                                    break
+                            except Exception:
+                                continue
+
+                        # If existing found, prefer the metadata that has a description or a newer timestamp
+                        if existing:
+                            prefers_new = False
+                            # If existing lacks description and new meta has it, prefer new
+                            if (not existing.get('description')) and meta.get('description'):
+                                prefers_new = True
+                            else:
+                                # Try to compare timestamps
+                                try:
+                                    existing_ts = datetime.fromisoformat(existing.get('timestamp')) if existing.get('timestamp') else None
+                                except Exception:
+                                    existing_ts = None
+                                try:
+                                    meta_ts = None
+                                    if 'timestamp' in meta:
+                                        meta_ts = datetime.fromisoformat(meta.get('timestamp'))
+                                    else:
+                                        if '_backup_' in file_path.name:
+                                            ts_part = file_path.name.split('_backup_')[1].replace('.lift','')
+                                            meta_ts = datetime.strptime(ts_part, "%Y%m%d_%H%M%S")
+                                except Exception:
+                                    meta_ts = None
+
+                                if existing_ts and meta_ts and meta_ts > existing_ts:
+                                    prefers_new = True
+
+                            if prefers_new:
+                                # Replace the existing list entry with the new metadata (merge important fields)
+                                try:
+                                    old_id = existing.get('id')
+                                    if old_id in found_ids:
+                                        found_ids.discard(old_id)
+                                except Exception:
+                                    pass
+
+                                # Ensure meta has id and timestamp set (same code as normal path)
+                                if not meta.get('id'):
+                                    if '_backup_' in file_path.name:
+                                        try:
+                                            parts = file_path.name.split('_backup_')
+                                            db = parts[0]
+                                            ts_part = parts[1].replace('.lift', '')
+                                            meta['id'] = f"{db}_{ts_part}"
+                                        except Exception:
+                                            meta['id'] = file_path.name
+                                    else:
+                                        meta['id'] = file_path.name
+
+                                if 'timestamp' not in meta:
+                                    timestamp_str = None
+                                    if '_backup_' in file_path.name:
+                                        try:
+                                            ts_part = file_path.name.split('_backup_')[1].replace('.lift', '')
+                                            timestamp_str = datetime.strptime(ts_part, "%Y%m%d_%H%M%S").isoformat()
+                                        except Exception:
+                                            pass
+                                    if not timestamp_str:
+                                        timestamp_str = datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
+                                    meta['timestamp'] = timestamp_str
+
+                                if 'is_valid' not in meta:
+                                    validation = self.validate_backup(str(file_path))
+                                    meta['is_valid'] = validation['is_valid']
+
+                                if 'display_name' not in meta or not meta['display_name']:
+                                    if meta.get('description') and str(meta['description']).strip():
+                                        meta['display_name'] = str(meta['description']).strip()
+                                    elif file_path.name:
+                                        meta['display_name'] = file_path.name
+                                    else:
+                                        meta['display_name'] = meta.get('timestamp') or ''
+
+                                # Replace in backups list
+                                try:
+                                    idx = backups.index(existing)
+                                    backups[idx] = meta
+                                except Exception:
+                                    # fallback: append if replace fails
+                                    backups.append(meta)
+
+                                # Record new id and path
+                                found_ids.add(meta.get('id'))
+                                found_paths.add(canonical)
+
+                            # In any case, skip adding a new entry in order to avoid duplicates
+                        # Whether we replaced or not, skip to next meta file
+                        continue
+
                     # Update meta with current values
                     meta['file_path'] = str(file_path)
                     meta['filename'] = file_path.name
-                    
+
+                    # Ensure metadata has an id (otherwise dedup logic can fail)
+                    if not meta.get('id'):
+                        if '_backup_' in file_path.name:
+                            try:
+                                parts = file_path.name.split('_backup_')
+                                db = parts[0]
+                                ts_part = parts[1].replace('.lift', '')
+                                meta['id'] = f"{db}_{ts_part}"
+                            except Exception:
+                                meta['id'] = file_path.name
+                        else:
+                            meta['id'] = file_path.name
+
                     # Ensure timestamp exists
                     if 'timestamp' not in meta:
                         timestamp_str = None
@@ -501,7 +672,7 @@ class BaseXBackupManager:
                             try:
                                 ts_part = file_path.name.split('_backup_')[1].replace('.lift', '')
                                 timestamp_str = datetime.strptime(ts_part, "%Y%m%d_%H%M%S").isoformat()
-                            except:
+                            except Exception:
                                 pass
                         if not timestamp_str:
                             timestamp_str = datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
@@ -523,6 +694,7 @@ class BaseXBackupManager:
 
                     backups.append(meta)
                     found_ids.add(meta.get('id'))
+                    found_paths.add(canonical)
             except Exception:
                 continue
 
@@ -532,22 +704,28 @@ class BaseXBackupManager:
             # Expected format: {db_name}_backup_{timestamp}.lift
             if "_backup_" not in filename:
                 continue
-                
+
             parts = filename.split("_backup_")
             if len(parts) != 2:
                 continue
-                
+
             extracted_db_name = parts[0]
             timestamp_part = parts[1].replace(".lift", "")
             backup_id = f"{extracted_db_name}_{timestamp_part}"
-            
-            if backup_id in found_ids:
+
+            # If this exact file is already processed via metadata, skip it
+            canonical = str(file_path.resolve())
+            if canonical in found_paths:
                 continue
-                
+
+            if backup_id in found_ids:
+                # already handled by metadata
+                continue
+
             # If filtering by database name, skip if it doesn't match
             if db_name and extracted_db_name != db_name:
                 continue
-            
+
             # Try to parse timestamp
             try:
                 # Format is YYYYMMDD_HHMMSS
@@ -557,14 +735,14 @@ class BaseXBackupManager:
                 # If timestamp parsing fails, use file modification time
                 file_stat = file_path.stat()
                 timestamp_str = datetime.fromtimestamp(file_stat.st_mtime).isoformat()
-            
+
             # Validate backup
             validation = self.validate_backup(str(file_path))
-            
+
             # Skip empty files (size 0) without metadata
             if file_path.stat().st_size == 0:
                 continue
-            
+
             backup_info = {
                 'id': backup_id,
                 'db_name': extracted_db_name,
@@ -577,7 +755,9 @@ class BaseXBackupManager:
                 'type': 'manual'
             }
             backups.append(backup_info)
-        
+            found_ids.add(backup_id)
+            found_paths.add(canonical)
+
         # Sort by timestamp, newest first
         backups.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
         return backups

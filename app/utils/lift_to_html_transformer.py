@@ -325,9 +325,14 @@ class HTMLBuilder:
         # First, try to extract from form/text structure (most common)
         text_parts = []
         for form in element.findall('./form'):
-            for text_elem in form.findall('./text'):
-                if text_elem.text:
-                    text_parts.append(text_elem.text.strip())
+            # Handle both formats: <form><text>...</text></form> and <form>...</form>
+            text_elem = form.find('./text')
+            if text_elem and text_elem.text:
+                # Format 1: <form><text>...</text></form>
+                text_parts.append(text_elem.text.strip())
+            elif form.text and form.text.strip():
+                # Format 2: <form>...</form> (direct text in form)
+                text_parts.append(form.text.strip())
         
         if text_parts:
             return ' '.join(text_parts)
@@ -530,3 +535,194 @@ class LIFTToHTMLTransformer:
 
         except Exception as e:
             return {'error': str(e)}
+
+    def generate_lift_xml_from_form_data(self, form_data: Dict[str, Any]) -> str:
+        """
+        Generate LIFT XML from form data structure.
+        
+        This is a simplified version that creates basic LIFT XML structure
+        for live preview purposes.
+        """
+        try:
+            from xml.etree import ElementTree as ET
+            import uuid
+            from datetime import datetime
+            
+            # Create entry element
+            entry_id = form_data.get('id', str(uuid.uuid4()))
+            entry = ET.Element('entry')
+            entry.set('id', entry_id)
+            entry.set('dateCreated', datetime.now().isoformat())
+            entry.set('dateModified', datetime.now().isoformat())
+            
+            # Add lexical unit - this is critical for the headword
+            lexical_unit = form_data.get('lexical_unit', {})
+            lexical_unit_lang = form_data.get('lexical_unit_lang', {})
+            
+            # Handle both old and new formats
+            if lexical_unit:
+                lexical_unit_elem = ET.SubElement(entry, 'lexical-unit')
+                for lang, text in lexical_unit.items():
+                    form_elem = ET.SubElement(lexical_unit_elem, 'form')
+                    form_elem.set('lang', lang)
+                    form_elem.text = str(text)  # Ensure it's a string
+            elif lexical_unit_lang:
+                # New format: lexical_unit_lang contains the language forms
+                lexical_unit_elem = ET.SubElement(entry, 'lexical-unit')
+                for lang, text in lexical_unit_lang.items():
+                    form_elem = ET.SubElement(lexical_unit_elem, 'form')
+                    form_elem.set('lang', lang)
+                    form_elem.text = str(text)  # Ensure it's a string
+            else:
+                # Add a fallback lexical unit if none provided
+                lexical_unit_elem = ET.SubElement(entry, 'lexical-unit')
+                form_elem = ET.SubElement(lexical_unit_elem, 'form')
+                form_elem.set('lang', 'en')
+                form_elem.text = 'unknown'
+            
+            # Add entry-level grammatical info
+            grammatical_info = form_data.get('grammatical_info')
+            if grammatical_info:
+                # Handle dictionary representation
+                if isinstance(grammatical_info, dict):
+                    if len(grammatical_info) == 1:
+                        grammatical_info = list(grammatical_info.values())[0]
+                gram_elem = ET.SubElement(entry, 'grammatical-info')
+                gram_elem.set('value', str(grammatical_info))
+            
+            # Add entry-level traits
+            traits = form_data.get('traits', {})
+            if traits:
+                for trait_name, trait_value in traits.items():
+                    if trait_value:
+                        trait_elem = ET.SubElement(entry, 'trait')
+                        trait_elem.set('name', trait_name)
+                        trait_elem.set('value', trait_value)
+            
+            # Add pronunciations
+            pronunciations = form_data.get('pronunciations', [])
+            if pronunciations and isinstance(pronunciations, list):
+                for pron_data in pronunciations:
+                    if pron_data and isinstance(pron_data, dict):
+                        pron_elem = ET.SubElement(entry, 'pronunciation')
+                        
+                        # Add pronunciation value
+                        if pron_data.get('value'):
+                            pron_elem.set('value', pron_data.get('value'))
+                        
+                        # Add pronunciation type
+                        if pron_data.get('type'):
+                            pron_elem.set('type', pron_data.get('type'))
+                        
+                        # Add audio reference if available
+                        if pron_data.get('audio_path'):
+                            audio_elem = ET.SubElement(pron_elem, 'audio')
+                            audio_elem.set('href', pron_data.get('audio_path'))
+            
+            # Add senses
+            senses = form_data.get('senses', [])
+            if senses and isinstance(senses, list):
+                for sense_data in senses:
+                    if sense_data and isinstance(sense_data, dict):
+                        sense_elem = ET.SubElement(entry, 'sense')
+                        
+                        # Add sense ID if available
+                        sense_id = sense_data.get('id')
+                        if sense_id:
+                            sense_elem.set('id', sense_id)
+                        
+                        # Add grammatical info
+                        grammatical_info = sense_data.get('grammatical_info')
+                        if grammatical_info:
+                            # Handle dictionary representation (e.g., {'part_of_speech': 'Noun'})
+                            if isinstance(grammatical_info, dict):
+                                # Extract the first value if it's a single-key dict
+                                if len(grammatical_info) == 1:
+                                    grammatical_info = list(grammatical_info.values())[0]
+                            gram_elem = ET.SubElement(sense_elem, 'grammatical-info')
+                            gram_elem.set('value', str(grammatical_info))
+                        
+                        # Add definition
+                        definition = sense_data.get('definition', {})
+                        if definition:
+                            for lang, def_data in definition.items():
+                                if isinstance(def_data, dict) and def_data.get('text'):
+                                    def_elem = ET.SubElement(sense_elem, 'definition')
+                                    def_elem.set('lang', lang)
+                                    def_elem.text = def_data.get('text')
+                        
+                        # Add gloss
+                        gloss = sense_data.get('gloss', {})
+                        if gloss:
+                            for lang, gloss_data in gloss.items():
+                                if isinstance(gloss_data, dict) and gloss_data.get('text'):
+                                    gloss_elem = ET.SubElement(sense_elem, 'gloss')
+                                    gloss_elem.set('lang', lang)
+                                    gloss_elem.text = gloss_data.get('text')
+                        
+                        # Add examples
+                        examples = sense_data.get('examples', [])
+                        if examples and isinstance(examples, list):
+                            for example_data in examples:
+                                if example_data and isinstance(example_data, dict):
+                                    example_elem = ET.SubElement(sense_elem, 'example')
+                                    
+                                    # Add example text
+                                    if example_data.get('text'):
+                                        text_elem = ET.SubElement(example_elem, 'text')
+                                        text_elem.text = example_data.get('text')
+                                    
+                                    # Add translation
+                                    if example_data.get('translation'):
+                                        trans_elem = ET.SubElement(example_elem, 'translation')
+                                        trans_elem.set('type', example_data.get('translation_type', 'free'))
+                                        trans_elem.text = example_data.get('translation')
+                        
+                        # Add sense-level traits (usage types, domains, etc.)
+                        for trait_field in ['usage_type', 'domain_type', 'semantic_domain']:
+                            trait_value = sense_data.get(trait_field)
+                            if trait_value:
+                                if isinstance(trait_value, list):
+                                    for value in trait_value:
+                                        trait_elem = ET.SubElement(sense_elem, 'trait')
+                                        trait_elem.set('name', trait_field)
+                                        # Handle dictionary representation
+                                        if isinstance(value, dict):
+                                            if len(value) == 1:
+                                                value = list(value.values())[0]
+                                        trait_elem.set('value', str(value))
+                                else:
+                                    trait_elem = ET.SubElement(sense_elem, 'trait')
+                                    trait_elem.set('name', trait_field)
+                                    # Handle dictionary representation
+                                    if isinstance(trait_value, dict):
+                                        if len(trait_value) == 1:
+                                            trait_value = list(trait_value.values())[0]
+                                    trait_elem.set('value', str(trait_value))
+            
+            # Add notes
+            notes = form_data.get('notes', {})
+            if notes:
+                for note_type, note_text in notes.items():
+                    if note_text:
+                        note_elem = ET.SubElement(entry, 'note')
+                        note_elem.set('type', note_type)
+                        note_elem.text = note_text
+            
+            # Add etymology
+            etymology = form_data.get('etymology')
+            if etymology:
+                etym_elem = ET.SubElement(entry, 'etymology')
+                etym_elem.text = etymology
+            
+            # Convert to XML string
+            xml_string = ET.tostring(entry, encoding='unicode')
+            
+            # Add LIFT namespace and schema location
+            xml_string = f'<?xml version="1.0" encoding="UTF-8"?>\n<lift xmlns="urn:sil:lift:0.13" version="0.13">\n{xml_string}\n</lift>'
+            
+            return xml_string
+            
+        except Exception as e:
+            # Return a minimal valid LIFT XML with error message
+            return f'<?xml version="1.0" encoding="UTF-8"?>\n<lift xmlns="urn:sil:lift:0.13" version="0.13">\n    <entry id="error-entry">\n        <lexical-unit>\n            <form lang="en">Error generating preview: {str(e)}</form>\n        </lexical-unit>\n    </entry>\n</lift>'
