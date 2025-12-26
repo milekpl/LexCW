@@ -65,10 +65,27 @@ def flask_app_with_test_db(test_db_name):
     # Create a test client
     client = app.test_client()
     
-    # Create a context for url_for
-    app_context = app.app_context()
-    app_context.push()
+    # No persistent app_context push here to avoid interfering with other fixtures
+    app_context = None
     
+    # Create a ProjectSettings record pointing to this BaseX test DB so app requests
+    # that require project context do not redirect to project settings.
+    project_settings = None
+    try:
+        from app.config_manager import ConfigManager
+        from app.models.project_settings import ProjectSettings, db as _db
+        cm = ConfigManager(app.instance_path)
+        project_settings = cm.create_settings(
+            project_name=f"flask_search_{test_db_name}",
+            basex_db_name=test_db_name,
+            settings_json={'source_language': {'code': 'en', 'name': 'English'}}
+        )
+        # Ensure the session has the project_id so before_request doesn't redirect
+        with client.session_transaction() as sess:
+            sess['project_id'] = project_settings.id
+    except Exception:
+        project_settings = None
+
     # Create a BaseX connector for the test database
     connector = BaseXConnector(
         host='localhost',
@@ -107,14 +124,23 @@ def flask_app_with_test_db(test_db_name):
             os.unlink(temp_lift_path)
     
     yield app, client, dict_service, app_context
-    
+
     # Clean up
     try:
         connector.disconnect()
         admin_connector.connect()
         admin_connector.execute_command(f"DROP DB {test_db_name}")
         admin_connector.disconnect()
-        app_context.pop()
+        # Remove the project settings we created (if any)
+        try:
+            if project_settings is not None:
+                from app.models.project_settings import ProjectSettings, db as _db
+                s = ProjectSettings.query.get(project_settings.id)
+                if s:
+                    _db.session.delete(s)
+                    _db.session.commit()
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -123,75 +149,128 @@ class TestFlaskSearchEndpoint:
     """Test case for the Flask app's search endpoint."""
 
     @pytest.mark.integration
-    def test_search_endpoint_with_results(self, flask_app_with_test_db):
+    def test_search_endpoint_with_results(self, app, client):
         """Test the search endpoint with a query that should return results."""
-        app, client, dict_service, app_context = flask_app_with_test_db
-        
-        # First verify directly with the dictionary service
-        entries, total = dict_service.search_entries("test")
-        print(f"Direct API search found {total} entries")
-        
-        # Then test the Flask endpoint
-        with app.test_request_context():
-            url = url_for('main.search', q='test')
-        
-        response = client.get(url)
-        assert response.status_code == 200, f"Search endpoint returned {response.status_code}"
-        
-        # Check if the response contains search results
-        html_content = response.data.decode('utf-8')
-        assert 'class="search-results"' in html_content, "Search results section not found in HTML"
-        
-        # Check if it shows the number of results (containers exist for JS)
-        if total > 0:
-            assert 'id="search-results"' in html_content, "Search results container not found"
-            assert 'id="results-count"' in html_content, "Results count container not found"
-    
-    @pytest.mark.integration
-    def test_search_endpoint_empty_query(self, flask_app_with_test_db):
-        """Test the search endpoint with an empty query."""
-        app, client, dict_service, app_context = flask_app_with_test_db
-        
-        with app.test_request_context():
-            url = url_for('main.search')
-        
-        response = client.get(url)
-        assert response.status_code == 200, "Empty search should return 200 status"
-        
-        # Empty search should render the template without results
-        html_content = response.data.decode('utf-8')
-        assert 'id="search-form"' in html_content, "Search form not found in HTML"
-    
-    @pytest.mark.integration
-    def test_search_endpoint_pagination(self, flask_app_with_test_db):
-        """Test the search endpoint with pagination."""
-        app, client, dict_service, app_context = flask_app_with_test_db
-        
-        # First verify we have enough entries for pagination
-        _, total = dict_service.search_entries("test")
-        
-        if total > 5:  # Only test pagination if we have enough entries
+        dict_service = app.dict_service
+
+        # Initialize a small LIFT payload in the test database so search returns data
+        minimal_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.15">
+    <entry id="test_entry_1">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="test_sense_1">
+            <gloss lang="en"><text>test entry</text></gloss>
+        </sense>
+    </entry>
+</lift>'''
+
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False) as f:
+            f.write(minimal_lift)
+            temp_lift_path = f.name
+
+        try:
+            dict_service.initialize_database(temp_lift_path)
+
+            # First verify directly with the dictionary service
+            entries, total = dict_service.search_entries("test")
+            print(f"Direct API search found {total} entries")
+
+            # Then test the Flask endpoint
             with app.test_request_context():
-                url = url_for('main.search', q='test', page=2, per_page=5)
-            
+                url = url_for('main.search', q='test', _external=False)
+
             response = client.get(url)
-            assert response.status_code == 200, "Paginated search should return 200 status"
-            
-            # Check for pagination controls containers (they exist for JS population)
+            assert response.status_code == 200, f"Search endpoint returned {response.status_code}"
+
+            # Check if the response contains search results
             html_content = response.data.decode('utf-8')
-            assert 'id="search-pagination"' in html_content, "Pagination container not found in HTML"
-            assert 'id="results-pagination"' in html_content, "Results pagination container not found in HTML"
+            assert 'class="search-results"' in html_content, "Search results section not found in HTML"
+
+            # Check if it shows the number of results (containers exist for JS)
+            if total > 0:
+                assert 'id="search-results"' in html_content, "Search results container not found"
+                assert 'id="results-count"' in html_content, "Results count container not found"
+        finally:
+            if os.path.exists(temp_lift_path):
+                os.unlink(temp_lift_path)
     
     @pytest.mark.integration
-    def test_direct_api_search(self, flask_app_with_test_db):
+    def test_search_endpoint_empty_query(self, app, client):
+        """Test the search endpoint with an empty query."""
+        dict_service = app.dict_service
+
+        # Ensure the DB is initialized (even if empty) so the page renders
+        minimal_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.15"></lift>'''
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False) as f:
+            f.write(minimal_lift)
+            temp_lift_path = f.name
+        try:
+            dict_service.initialize_database(temp_lift_path)
+
+            with app.test_request_context():
+                url = url_for('main.search', _external=False)
+
+            response = client.get(url)
+            assert response.status_code == 200, "Empty search should return 200 status"
+
+            # Empty search should render the template without results
+            html_content = response.data.decode('utf-8')
+            assert 'id="search-form"' in html_content, "Search form not found in HTML"
+        finally:
+            if os.path.exists(temp_lift_path):
+                os.unlink(temp_lift_path)
+    
+    @pytest.mark.integration
+    def test_search_endpoint_pagination(self, app, client):
+        """Test the search endpoint with pagination."""
+        dict_service = app.dict_service
+
+        # Initialize DB with multiple entries to test pagination
+        import tempfile, os
+        minimal_lift = '<?xml version="1.0" encoding="UTF-8"?>\n<lift version="0.15">\n'
+        for i in range(10):
+            minimal_lift += f"    <entry id=\"e{i}\"><lexical-unit><form lang=\"en\"><text>test{i}</text></form></lexical-unit></entry>\n"
+        minimal_lift += '</lift>'
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False) as f:
+            f.write(minimal_lift)
+            temp_lift_path = f.name
+        try:
+            dict_service.initialize_database(temp_lift_path)
+
+            # First verify we have enough entries for pagination
+            _, total = dict_service.search_entries("test")
+
+            if total > 5:  # Only test pagination if we have enough entries
+                with app.test_request_context():
+                    url = url_for('main.search', q='test', page=2, per_page=5, _external=False)
+
+                response = client.get(url)
+                assert response.status_code == 200, "Paginated search should return 200 status"
+
+                # Check for pagination controls containers (they exist for JS population)
+                html_content = response.data.decode('utf-8')
+                assert 'id="search-pagination"' in html_content, "Pagination container not found in HTML"
+                assert 'id="results-pagination"' in html_content, "Results pagination container not found in HTML"
+        finally:
+            if os.path.exists(temp_lift_path):
+                os.unlink(temp_lift_path)
+    
+    @pytest.mark.integration
+    def test_direct_api_search(self, app):
         """Test the dictionary service search function directly."""
-        app, client, dict_service, app_context = flask_app_with_test_db
-        
+        dict_service = app.dict_service
+
         # This is useful to compare with the endpoint results
         entries, total = dict_service.search_entries("test")
         assert entries is not None, "Entries should not be None"
         assert isinstance(total, int), "Total should be an integer"
-        
+
         print(f"Direct API found {total} entries for 'test'")
         if entries:
             for i, entry in enumerate(entries[:5]):  # Print first 5 entries

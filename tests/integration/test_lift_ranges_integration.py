@@ -54,13 +54,20 @@ def test_entry_form_loads_lift_ranges(client: FlaskClient, basex_test_connector)
 
     html = response.data.decode('utf-8')
     
-    # Check if the form contains a grammatical info select element set up for dynamic loading
-    assert '<select class="form-select dynamic-grammatical-info" id="part-of-speech"' in html, \
-        "Expected to find grammatical info select element"
-    
-    # Verify the select element has the correct data attributes for dynamic loading
-    pos_select_html = html.split('<select class="form-select dynamic-grammatical-info" id="part-of-speech"')[1].split('</select>')[0]
-    
+    # Check if the form contains the grammatical info select element set up for dynamic loading
+    assert 'dynamic-grammatical-info' in html and 'id="part-of-speech"' in html, \
+        "Expected to find grammatical info select element (class and id)"
+
+    # Extract the select element HTML by finding its id attribute and the surrounding <select>...</select>
+    idx = html.find('id="part-of-speech"')
+    assert idx != -1, "Could not locate part-of-speech select by id"
+    # Find the opening '<select' before this index
+    open_tag_start = html.rfind('<select', 0, idx)
+    close_tag_end = html.find('</select>', idx)
+    assert open_tag_start != -1 and close_tag_end != -1, "Could not extract select element HTML"
+    pos_select_html = html[open_tag_start:close_tag_end+9]
+
+    # Verify data attributes and name
     assert 'data-range-id="grammatical-info"' in pos_select_html, \
         "Expected select element to have data-range-id attribute for dynamic loading"
     
@@ -68,8 +75,7 @@ def test_entry_form_loads_lift_ranges(client: FlaskClient, basex_test_connector)
         "Expected select element to have correct name attribute"
     
     # The options are loaded dynamically by JavaScript, so we just verify the infrastructure is in place
-    assert 'Options will be dynamically loaded from LIFT ranges' in pos_select_html or \
-           'Select part of speech' in pos_select_html, \
+    assert 'Select part of speech' in pos_select_html or 'Options will be dynamically loaded from LIFT ranges' in pos_select_html, \
         "Expected placeholder content indicating dynamic loading"
 
 @pytest.mark.integration

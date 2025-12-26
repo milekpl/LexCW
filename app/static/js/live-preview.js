@@ -17,12 +17,10 @@ class LivePreviewManager {
         // Check if elements exist
         if (!this.form) {
             console.error('LivePreviewManager: Form element not found', formSelector);
-            alert('DEBUG: Form element not found: ' + formSelector);
             return;
         }
         if (!this.previewContainer) {
             console.error('LivePreviewManager: Preview container not found', previewContainerSelector);
-            alert('DEBUG: Preview container not found: ' + previewContainerSelector);
             return;
         }
         
@@ -38,13 +36,10 @@ class LivePreviewManager {
         // Initialize event listeners
         this._initializeEventListeners();
         
-        // Show loading state initially
-        this._showLoadingState();
-        
         // Generate initial preview with a small delay to ensure everything is loaded
         setTimeout(() => {
             console.log('Generating initial preview...');
-            this.updatePreview().catch(error => {
+            this.updatePreview(true).catch(error => {
                 console.error('Initial preview failed:', error);
                 this._showErrorState('Failed to generate initial preview. Click refresh to try again.');
             });
@@ -115,8 +110,6 @@ class LivePreviewManager {
     }
     
     _showLoadingState() {
-        if (this.isUpdating) return;
-        
         this.isUpdating = true;
         this.previewContainer.innerHTML = `
             <div class="text-center py-4">
@@ -143,20 +136,21 @@ class LivePreviewManager {
     
     async updatePreview(forceUpdate = false) {
         // Skip if already updating and not forced
-        if (this.isUpdating && !forceUpdate) return;
+        if (this.isUpdating && !forceUpdate) {
+            console.log('updatePreview skipped: already updating');
+            return;
+        }
         
         try {
-            console.log('updatePreview called', {forceUpdate});
+            console.log('updatePreview starting', {forceUpdate});
             this._showLoadingState();
             
             // Serialize form data
             const formData = this._serializeFormData();
-            console.log('Form data for preview:', formData);
             
             if (!formData) {
                 console.error('No form data available');
                 this._showErrorState('No form data available for preview.');
-                this.isUpdating = false;
                 return;
             }
             
@@ -179,7 +173,6 @@ class LivePreviewManager {
             
             if (response.success && response.html) {
                 this.previewContainer.innerHTML = response.html;
-                this.isUpdating = false;
             } else {
                 const errorMsg = response.error || 'Unknown error generating preview';
                 this._showErrorState(errorMsg);
@@ -188,6 +181,9 @@ class LivePreviewManager {
         } catch (error) {
             console.error('Live preview error:', error);
             this._showErrorState(error.message || 'Failed to generate preview');
+        } finally {
+            this.isUpdating = false;
+            console.log('updatePreview finished');
         }
     }
     
@@ -195,40 +191,52 @@ class LivePreviewManager {
         try {
             console.log('Serializing form data...');
             
+            let formData = null;
             // Use the existing form serializer if available
             if (window.FormSerializer && window.FormSerializer.serializeFormToJSON) {
-                const formData = window.FormSerializer.serializeFormToJSON(this.form, {
-                    includeEmpty: true
-                });
-                console.log('Form data serialized:', formData);
-                
-                // Ensure we have the basic required fields
-                if (!formData.lexical_unit) {
-                    console.warn('No lexical_unit in form data, adding fallback');
-                    formData.lexical_unit = {'en': 'test'};
-                }
-                
-                return formData;
-            }
-            
-            // Fallback to simple serialization
-            console.log('Using fallback form serialization');
-            const formData = new FormData(this.form);
-            const result = {};
-            
-            for (let [key, value] of formData.entries()) {
-                // Simple key-value mapping
-                if (value) {
-                    result[key] = value;
+                try {
+                    formData = window.FormSerializer.serializeFormToJSON(this.form, {
+                        includeEmpty: true
+                    });
+                    console.log('Form data serialized via FormSerializer:', formData);
+                } catch (e) {
+                    console.warn('FormSerializer failed, falling back:', e);
                 }
             }
             
-            console.log('Fallback form data:', result);
-            return result;
+            if (!formData) {
+                // Fallback to simple serialization
+                console.log('Using simple form serialization fallback');
+                const rawData = new FormData(this.form);
+                formData = {};
+                
+                // Very basic mapping for preview purposes if the complex serializer fails
+                for (let [key, value] of rawData.entries()) {
+                    // Look for headword specifically
+                    if (key.includes('lexical_unit') || key.includes('headword')) {
+                        if (!formData.lexical_unit) formData.lexical_unit = {};
+                        // Try to extract language code from name like lexical_unit-en
+                        const langMatch = key.match(/-(..)$/);
+                        const lang = langMatch ? langMatch[1] : 'en';
+                        formData.lexical_unit[lang] = value;
+                    }
+                }
+            }
+            
+            // Final check/fix for preview requirements
+            if (formData && !formData.lexical_unit) {
+                // Try to find ANY text input that might be the headword if still missing
+                const headwordInput = this.form.querySelector('input[name*="lexical_unit"], .headword-input');
+                if (headwordInput && headwordInput.value) {
+                    formData.lexical_unit = {'en': headwordInput.value};
+                }
+            }
+            
+            return formData;
             
         } catch (error) {
             console.error('Form serialization error:', error);
-            return null;
+            return { lexical_unit: { 'en': 'Error serializing form' } };
         }
     }
     

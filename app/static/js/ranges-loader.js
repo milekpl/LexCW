@@ -9,7 +9,7 @@
 class RangesLoader {
     constructor() {
         this.cache = new Map();
-        this.baseUrl = '/api/ranges';
+        this.baseUrl = '/api/ranges-editor';
         this.debug = true;
     }
     
@@ -23,25 +23,35 @@ class RangesLoader {
      * Load a specific range by ID with caching
      */
     async loadRange(rangeId) {
+        // Return from cache if available
         if (this.cache.has(rangeId)) {
             return this.cache.get(rangeId);
         }
 
+        this.log(`Loading range: ${rangeId}`);
+
         try {
-            
-            this.log(`Loading range: ${rangeId}`);
-            const response = await fetch(`${this.baseUrl}/${rangeId}`);
+            // Try direct per-range endpoint first
+            let response = await fetch(`${this.baseUrl}/${rangeId}`);
 
             if (response.ok) {
                 const result = await response.json();
-
-                if (result.success && result.data) {
+                if (result && result.success && result.data) {
                     this.cache.set(rangeId, result.data);
                     this.log(`Successfully cached range ${rangeId} with ${result.data.values?.length || 0} values`);
                     return result.data;
-                } else {
-                    this.log(`API returned success=false or no data for ${rangeId}:`, result);
                 }
+                this.log(`API returned success=false or no data for ${rangeId}:`, result);
+            } else if (response.status === 404) {
+                // If the per-range endpoint is not found, refresh the full ranges index and retry
+                this.log(`Range ${rangeId} returned 404 - refreshing /api/ranges-editor and retrying`);
+                const all = await this.loadAllRanges();
+                if (all && all[rangeId]) {
+                    this.log(`Found ${rangeId} after refresh in /api/ranges-editor; caching and returning`);
+                    this.cache.set(rangeId, all[rangeId]);
+                    return all[rangeId];
+                }
+                this.log(`Range ${rangeId} still not present after refreshing /api/ranges-editor`);
             } else {
                 this.log(`HTTP error ${response.status} for range ${rangeId}`);
             }
@@ -49,8 +59,7 @@ class RangesLoader {
             this.log(`Failed to load range ${rangeId}:`, error);
         }
 
-        // No fallback data allowed; return null if API fails
-
+        // No data available
         return null;
     }
     
@@ -327,7 +336,7 @@ class RangesLoader {
 
         document.getElementById('install-recommended-ranges').addEventListener('click', async () => {
             try {
-                const resp = await fetch('/api/ranges/install_recommended', { method: 'POST' });
+                const resp = await fetch('/api/ranges-editor/install_recommended', { method: 'POST' });
                 const data = await resp.json();
                 if (resp.ok && data.success) {
                     banner.className = 'alert alert-success mt-3';

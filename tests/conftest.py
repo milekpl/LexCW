@@ -104,6 +104,10 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
     if not basex_available:
         pytest.skip("BaseX server not available")
     
+    # Check if we are using a shared database (e.g., for integration tests)
+    shared_db_name = os.environ.get('TEST_DB_NAME')
+    is_shared_db = shared_db_name and test_db_name == shared_db_name
+    
     # First create connector without database to create the database
     connector = BaseXConnector(
         host=os.getenv('BASEX_HOST', 'localhost'),
@@ -118,7 +122,16 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         connector.connect()
         
         # Create the test database
-        connector.create_database(test_db_name)
+        if is_shared_db:
+            # For shared DB, try to create but ignore if it exists (or if it's locked)
+            try:
+                connector.create_database(test_db_name)
+            except Exception:
+                # Assuming it exists or is in use, which is fine for shared DB
+                pass
+        else:
+            # For isolated DB, explicit creation is expected to succeed
+            connector.create_database(test_db_name)
         
         # Now set the database name and reconnect
         connector.database = test_db_name
@@ -126,6 +139,7 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         connector.connect()  # Reconnect with the database
         
         # Add sample LIFT content using BaseX command
+        # For shared DB, we do this every time because ensure_clean_basex_db might have cleared it
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
             sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
@@ -156,7 +170,10 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
             connector.execute_command(f"ADD {temp_file}")
             logger.info("Added LIFT data to test database using ADD command")
         except Exception as e:
-            logger.warning(f"Failed to add data with ADD command: {e}")
+            if not is_shared_db:
+                logger.warning(f"Failed to add data with ADD command: {e}")
+            # For shared DB, failure might mean it's already there or DB locked (less likely with ADD)
+            # but we proceed.
         finally:
             # Clean up temp file
             try:
@@ -197,7 +214,8 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
             connector.execute_command(f"ADD {temp_file}")
             logger.info("Added ranges.xml to test database")
         except Exception as e:
-            logger.warning(f"Failed to add ranges.xml: {e}")
+            if not is_shared_db:
+                logger.warning(f"Failed to add ranges.xml: {e}")
         finally:
             try:
                 os.unlink(temp_file)
@@ -214,21 +232,24 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
             except Exception:
                 pass
 
-            cleanup_connector = BaseXConnector(
-                host=os.getenv('BASEX_HOST', 'localhost'),
-                port=int(os.getenv('BASEX_PORT', '1984')),
-                username=os.getenv('BASEX_USERNAME', 'admin'),
-                password=os.getenv('BASEX_PASSWORD', 'admin'),
-                database=None,
-            )
-            cleanup_connector.connect()
-            cleanup_connector.drop_database(test_db_name)
-            logger.info(f"Dropped test database: {test_db_name}")
+            # Only drop if it's NOT a shared database
+            if not is_shared_db:
+                cleanup_connector = BaseXConnector(
+                    host=os.getenv('BASEX_HOST', 'localhost'),
+                    port=int(os.getenv('BASEX_PORT', '1984')),
+                    username=os.getenv('BASEX_USERNAME', 'admin'),
+                    password=os.getenv('BASEX_PASSWORD', 'admin'),
+                    database=None,
+                )
+                cleanup_connector.connect()
+                cleanup_connector.drop_database(test_db_name)
+                logger.info(f"Dropped test database: {test_db_name}")
+                cleanup_connector.disconnect()
         except Exception as e:
             logger.warning(f"Failed to drop test database {test_db_name}: {e}")
-        finally:
             try:
-                cleanup_connector.disconnect()
+                if 'cleanup_connector' in locals():
+                    cleanup_connector.disconnect()
             except Exception:
                 pass
 
@@ -416,6 +437,24 @@ def flask_test_server():
     # Export to environment so other services/readers see the same value
     os.environ['BASEX_DATABASE'] = app.config['BASEX_DATABASE']
     os.environ['TEST_DB_NAME'] = app.config['BASEX_DATABASE']
+    
+    # Create default project settings in the app's database
+    with app.app_context():
+        from app.config_manager import ConfigManager
+        from app.models.project_settings import ProjectSettings
+        
+        # Check if project exists, if not create it
+        if not ProjectSettings.query.first():
+            cm = ConfigManager(app.instance_path)
+            cm.create_settings(
+                project_name="E2E Test Project",
+                basex_db_name=app.config['BASEX_DATABASE'],
+                settings_json={
+                    'source_language': {'code': 'en', 'name': 'English'},
+                    'target_languages': [{'code': 'es', 'name': 'Spanish'}]
+                }
+            )
+            # Commit is handled by create_settings
 
     server = make_server('localhost', port, app)
     thread = None

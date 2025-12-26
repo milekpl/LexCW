@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, List
 from app.models.project_settings import ProjectSettings, db
 from flask import current_app
 import json
+import uuid
 
 class ConfigManager:
     def __init__(self, app_instance_path: str):
@@ -11,7 +12,10 @@ class ConfigManager:
     def get_settings(self, project_name: str) -> Optional[ProjectSettings]:
         return ProjectSettings.query.filter_by(project_name=project_name).first()
 
-    def create_settings(self, project_name: str, basex_db_name: str, settings_json: Dict[str, Any] = None) -> ProjectSettings:
+    def get_settings_by_id(self, project_id: int) -> Optional[ProjectSettings]:
+        return ProjectSettings.query.get(project_id)
+
+    def create_settings(self, project_name: str, basex_db_name: str = None, settings_json: Dict[str, Any] = None) -> ProjectSettings:
         # Extract language settings if present, otherwise use defaults
         if settings_json is None:
             settings_json = {}
@@ -19,6 +23,20 @@ class ConfigManager:
         source_language = settings_json.get('source_language', {'code': 'en', 'name': 'English'})
         target_languages = settings_json.get('target_languages', [{'code': 'fr', 'name': 'French'}])
         
+        # Generate a unique database name if not provided
+        if not basex_db_name:
+            # Check if we are in testing mode
+            is_testing = False
+            try:
+                from flask import current_app
+                is_testing = current_app.config.get('TESTING') or current_app.config.get('FLASK_CONFIG') == 'testing'
+            except (ImportError, RuntimeError):
+                import os
+                is_testing = os.environ.get('FLASK_CONFIG') == 'testing' or os.environ.get('TESTING') == 'true'
+            
+            prefix = "test_project_" if is_testing else "project_"
+            basex_db_name = f"{prefix}{uuid.uuid4().hex}"
+
         settings = ProjectSettings(
             project_name=project_name,
             basex_db_name=basex_db_name,

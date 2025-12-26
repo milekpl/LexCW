@@ -8,6 +8,7 @@ including CRUD operations for entries, searching, and other dictionary-related o
 import logging
 import os
 import sys
+import re
 import random
 import tempfile
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -197,7 +198,31 @@ class DictionaryService:
                                     attempt,
                                     max_retries,
                                 )
+                                try:
+                                    self.logger.info("Querying sessions before KILL...")
+                                    sessions = admin_connector.execute_command("SHOW SESSIONS")
+                                    self.logger.info("Current sessions: %s", sessions)
+                                    # BaseX 12.0 format: "- admin [127.0.0.1:48156]"
+                                    # Older format: "1 admin 127.0.0.1:48156"
+                                    for line in str(sessions).split('\n'):
+                                        # Match both formats
+                                        m = re.search(r'(?:^|-\s+)([a-zA-Z0-9_-]+)\s+(?:\[|\d)', line)
+                                        if m:
+                                            user = m.group(1)
+                                            # Skip empty lines or headers
+                                            if user.lower() in ('username', 'session', 'sessions'):
+                                                continue
+                                            self.logger.info("Requesting KILL for user %s holding %s", user, db_name)
+                                            try:
+                                                admin_connector.execute_command(f"KILL {user}")
+                                                self.logger.info("KILL command for user %s executed", user)
+                                            except Exception as ke:
+                                                self.logger.debug("Failed to kill sessions for user %s: %s", user, ke)
+                                except Exception as se:
+                                    self.logger.debug("Failed to query/kill sessions: %s", se)
+                                self.logger.info("Waiting 1s before retry...")
                                 time.sleep(1)
+                                self.logger.info("Wait complete, retrying DROP...")
                                 continue
                             self.logger.error("Failed to DROP DB %s: %s", db_name, e)
                             raise
@@ -525,29 +550,31 @@ class DictionaryService:
                         if "opened by another process" in str(drop_error):
                             try:
                                 self.logger.warning("Database is opened by another process, querying sessions...")
-                                sessions = admin_connector.execute_command("SHOW SESSIONS")
-                                self.logger.warning("Found sessions: %s", sessions)
-                                # Optionally try to parse session ids and attempt kill commands if supported
-                                # e.g., parse 'id: 1234' and try 'KILL 1234' or 'KILL SESSION 1234'
-                                import re
-                                ids = re.findall(r'id:\s*(\d+)', str(sessions))
-                                for sid in ids:
-                                    for kill_cmd in (f'KILL {sid}', f'KILL SESSION {sid}'):
+                                sessions_info = admin_connector.execute_command("SHOW SESSIONS")
+                                self.logger.warning("Found sessions: %s", sessions_info)
+                                
+                                # Identify and kill sessions that might hold this database
+                                lines = str(sessions_info).split('\n')
+                                for line in lines:
+                                    # Extract username (e.g. from "- admin [127.0.0.1:1234]")
+                                    m = re.search(r'(?:^|-\s+)([a-zA-Z0-9_-]+)\s+(?:\[|\d)', line)
+                                    if m:
+                                        user = m.group(1)
+                                        if user.lower() in ('username', 'session', 'sessions'):
+                                            continue
                                         try:
-                                            self.logger.info("Attempting to kill session %s with command: %s", sid, kill_cmd)
-                                            admin_connector.execute_command(kill_cmd)
-                                            self.logger.info("Kill command executed: %s", kill_cmd)
+                                            self.logger.info("Killing blocking sessions for user %s potentially holding %s", user, db_name)
+                                            admin_connector.execute_command(f"KILL {user}")
                                         except Exception as kill_err:
-                                            # Ignore unsupported kill commands, but log for debugging
-                                            self.logger.debug("Kill command failed (%s): %s", kill_cmd, kill_err)
-                            except Exception as session_err:
-                                self.logger.debug("Could not retrieve sessions: %s", session_err)
+                                            self.logger.debug("Failed to kill sessions for user %s: %s", user, kill_err)
+                            except Exception as sess_err:
+                                self.logger.debug("Failed to process sessions: %s", sess_err)
 
                             # If we have more retries left, wait a bit and try again
                             if attempt < max_retries - 1:
                                 self.logger.warning("Retrying drop after session check (attempt %d)", attempt + 1)
                                 import time
-                                time.sleep(0.5)
+                                time.sleep(1.0)
                                 continue
 
                         if attempt == max_retries - 1:
@@ -615,12 +642,13 @@ class DictionaryService:
             self.logger.error("Error dropping database content: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to drop database content: {e}") from e
 
-    def get_entry(self, entry_id: str) -> Entry:
+    def get_entry(self, entry_id: str, project_id: Optional[int] = None) -> Entry:
         """
         Get an entry by ID.
 
         Args:
             entry_id: ID of the entry to retrieve.
+            project_id: Optional project ID to determine database.
 
         Returns:
             Entry object.
@@ -631,6 +659,17 @@ class DictionaryService:
         """
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
@@ -684,7 +723,7 @@ class DictionaryService:
             self.logger.error("Error retrieving entry %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
 
-    def create_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False) -> str:
+    def create_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, project_id: Optional[int] = None) -> str:
         """
         Create a new entry.
 
@@ -692,6 +731,7 @@ class DictionaryService:
             entry: Entry object to create.
             draft: If True, use draft validation mode (allows saving incomplete entries).
             skip_validation: If True, skip validation entirely (for manual saves of partial work).
+            project_id: Optional project ID to determine database.
 
         Returns:
             ID of the created entry.
@@ -707,17 +747,28 @@ class DictionaryService:
                     raise ValidationError("Entry validation failed")
 
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             # Check if entry already exists
-            if self.entry_exists(entry.id):
+            if self.entry_exists(entry.id, project_id=project_id):
                 raise ValidationError(f"Entry with ID {entry.id} already exists")
 
             entry_xml = self._prepare_entry_xml(entry)
 
             # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
+            has_ns = self._detect_namespace_usage(project_id=project_id)
             query = self._query_builder.build_insert_entry_query(
                 entry_xml, db_name, has_ns
             )
@@ -742,7 +793,7 @@ class DictionaryService:
             self.logger.error("Error creating entry: %s", str(e))
             raise DatabaseError(f"Failed to create entry: {str(e)}") from e
 
-    def update_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, skip_bidirectional: bool = False) -> None:
+    def update_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, skip_bidirectional: bool = False, project_id: Optional[int] = None) -> None:
         """
         Update an existing entry.
 
@@ -751,6 +802,7 @@ class DictionaryService:
             draft: If True, use draft validation mode (allows saving incomplete entries).
             skip_validation: If True, skip validation entirely (allows saving partial work).
             skip_bidirectional: If True, do not process bidirectional relation creation for this update.
+            project_id: Optional project ID to determine database.
 
         Raises:
             NotFoundError: If the entry does not exist.
@@ -758,7 +810,7 @@ class DictionaryService:
             DatabaseError: If there is an error updating the entry.
         """
         try:
-            self.logger.info(f"[UPDATE_ENTRY] Received skip_validation={skip_validation}, draft={draft}, skip_bidirectional={skip_bidirectional}")
+            self.logger.info(f"[UPDATE_ENTRY] Received skip_validation={skip_validation}, draft={draft}, skip_bidirectional={skip_bidirectional}, project_id={project_id}")
             if not skip_validation:
                 self.logger.info(f"[UPDATE_ENTRY] Running validation in mode: {'draft' if draft else 'save'}")
                 validation_mode = "draft" if draft else "save"
@@ -768,20 +820,31 @@ class DictionaryService:
                 self.logger.info(f"[UPDATE_ENTRY] Skipping validation as requested")
 
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             # Check if entry exists
-            self.get_entry(entry.id)
+            self.get_entry(entry.id, project_id=project_id)
 
             # Handle bidirectional relations before saving (unless explicitly skipped)
             if not skip_bidirectional:
-                self._handle_bidirectional_relations(entry)
+                self._handle_bidirectional_relations(entry, project_id=project_id)
 
             entry_xml = self._prepare_entry_xml(entry)
 
             # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
+            has_ns = self._detect_namespace_usage(project_id=project_id)
             query = self._query_builder.build_update_entry_query(
                 entry.id, entry_xml, db_name, has_ns
             )
@@ -803,7 +866,7 @@ class DictionaryService:
             self.logger.error("Error updating entry %s: %s", entry.id, str(e))
             raise DatabaseError(f"Failed to update entry: {str(e)}") from e
 
-    def _handle_bidirectional_relations(self, entry: 'Entry') -> None:
+    def _handle_bidirectional_relations(self, entry: 'Entry', project_id: Optional[int] = None) -> None:
         """
         Handle bidirectional relations by creating reverse relations for target entries.
 
@@ -825,7 +888,7 @@ class DictionaryService:
             if is_relation_bidirectional(rel_type, self):  # Pass self (the dict_service) for dynamic range checking
                 try:
                     # Get the target entry that should receive the reverse relation
-                    target_entry = self.get_entry(rel_ref)
+                    target_entry = self.get_entry(rel_ref, project_id=project_id)
 
                     # Determine the reverse relation type
                     reverse_rel_type = get_reverse_relation_type(rel_type, self)
@@ -846,7 +909,7 @@ class DictionaryService:
 
                         # Save the target entry with the new reverse relation
                         # Skip validation and skip bidirectional processing to avoid recursion
-                        self.update_entry(target_entry, skip_validation=True, skip_bidirectional=True)
+                        self.update_entry(target_entry, skip_validation=True, skip_bidirectional=True, project_id=project_id)
 
                         self.logger.info(f"Added reverse relation '{reverse_rel_type}' from '{rel_ref}' to '{entry.id}'")
 
@@ -864,7 +927,7 @@ class DictionaryService:
                         try:
                             # For sense relations, the ref might be the target sense ID
                             # We need to find which entry contains the target sense
-                            target_entry = self._find_entry_by_sense_id(rel_ref)
+                            target_entry = self._find_entry_by_sense_id(rel_ref, project_id=project_id)
 
                             if target_entry:
                                 # For sense-to-sense relations, we need to determine which sense in target entry this relates to
@@ -886,14 +949,14 @@ class DictionaryService:
                                     target_entry.relations.append(reverse_relation)
 
                                     # Save the target entry
-                                    self.update_entry(target_entry, skip_validation=True)
+                                    self.update_entry(target_entry, skip_validation=True, project_id=project_id)
 
                                     self.logger.info(f"Added reverse sense relation '{reverse_rel_type}' to entry '{target_entry.id}' for sense relation from '{entry.id}'")
 
                         except Exception as e:
                             self.logger.warning(f"Could not create reverse sense relation for type '{rel_type}' from sense in '{entry.id}' to target '{rel_ref}': {str(e)}")
 
-    def _find_entry_by_sense_id(self, sense_id: str) -> 'Entry':
+    def _find_entry_by_sense_id(self, sense_id: str, project_id: Optional[int] = None) -> Optional['Entry']:
         """
         Find an entry that contains a specific sense ID.
 
@@ -915,7 +978,7 @@ class DictionaryService:
 
                 for possible_id in possible_entry_ids:
                     try:
-                        entry = self.get_entry(possible_id)
+                        entry = self.get_entry(possible_id, project_id=project_id)
                         # Check if this entry contains the sense
                         for sense in entry.senses:
                             if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
@@ -926,7 +989,7 @@ class DictionaryService:
         # If the simple approach didn't work, search all entries
         # (this would be expensive but needed for exact match)
         try:
-            all_entries, _ = self.list_entries(limit=None)
+            all_entries, _ = self.list_entries(project_id=project_id, limit=None)
             for entry in all_entries:
                 for sense in entry.senses:
                     if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
@@ -937,22 +1000,34 @@ class DictionaryService:
         # If we still can't find it, raise an exception
         raise NotFoundError(f"No entry found containing sense with ID: {sense_id}")
 
-    def entry_exists(self, entry_id: str) -> bool:
+    def entry_exists(self, entry_id: str, project_id: Optional[int] = None) -> bool:
         """
         Check if an entry exists in the database.
 
         Args:
             entry_id: ID of the entry to check.
+            project_id: Optional project ID to determine database.
 
         Returns:
             True if the entry exists, False otherwise.
         """
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            has_ns = self._detect_namespace_usage()
+            has_ns = self._detect_namespace_usage(project_id=project_id)
             query = self._query_builder.build_entry_exists_query(
                 entry_id, db_name, has_ns
             )
@@ -964,12 +1039,13 @@ class DictionaryService:
             self.logger.error("Error checking if entry exists %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to check if entry exists: {str(e)}") from e
 
-    def delete_entry(self, entry_id: str) -> bool:
+    def delete_entry(self, entry_id: str, project_id: Optional[int] = None) -> bool:
         """
         Delete an entry by ID.
 
         Args:
             entry_id: ID of the entry to delete.
+            project_id: Optional project ID to determine database.
 
         Returns:
             True if the entry was deleted successfully.
@@ -980,15 +1056,26 @@ class DictionaryService:
         """
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             # Check if entry exists first
-            if not self.entry_exists(entry_id):
+            if not self.entry_exists(entry_id, project_id=project_id):
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
 
             # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
+            has_ns = self._detect_namespace_usage(project_id=project_id)
             query = self._query_builder.build_delete_entry_query(
                 entry_id, db_name, has_ns
             )
@@ -1012,7 +1099,7 @@ class DictionaryService:
             self.logger.error("Error deleting entry %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to delete entry: {str(e)}") from e
 
-    def get_lift_ranges(self) -> Dict[str, Any]:
+    def get_lift_ranges(self, project_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Get all LIFT ranges from the database.
 
@@ -1028,10 +1115,21 @@ class DictionaryService:
 
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            has_ns = self._detect_namespace_usage()
+            has_ns = self._detect_namespace_usage(project_id=project_id)
             query = self._query_builder.build_get_lift_ranges_query(db_name, has_ns)
 
             self.logger.debug(f"Executing query for LIFT ranges: {query}")
@@ -1084,6 +1182,7 @@ class DictionaryService:
 
     def list_entries(
         self,
+        project_id: Optional[int] = None,
         limit: Optional[int] = None,
         offset: int = 0,
         sort_by: str = "lexical_unit",
@@ -1094,6 +1193,7 @@ class DictionaryService:
         List entries with filtering and sorting support.
 
         Args:
+            project_id: Optional project ID to determine database.
             limit: Maximum number of entries to return.
             offset: Number of entries to skip.
             sort_by: Field to sort by (lexical_unit, id, etc.).
@@ -1107,23 +1207,34 @@ class DictionaryService:
             DatabaseError: If there is an error listing entries.
         """
         try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             # Log input parameters for debugging
             self.logger.debug(
-                f"list_entries called with: limit={limit}, offset={offset}, sort_by={sort_by}, sort_order={sort_order}, filter_text={filter_text}"
+                f"list_entries called with: limit={limit}, offset={offset}, sort_by={sort_by}, sort_order={sort_order}, filter_text={filter_text}, db_name={db_name}"
             )
 
             # Sanitize filter_text to prevent injection issues
             if filter_text:
-                filter_text = filter_text.replace("'", "'")
+                filter_text = filter_text.replace("'", "''")
 
             # Get total count (this may be filtered count if filter is applied)
             total_count = (
-                self._count_entries_with_filter(filter_text)
+                self._count_entries_with_filter(filter_text, project_id=project_id)
                 if filter_text
                 else self.count_entries()
             )
 
-            db_name = self.db_connector.database
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
             # Log connection status and database name for debugging
@@ -1238,7 +1349,8 @@ class DictionaryService:
 
     def search_entries(
         self,
-        query: str,
+        query: str = "",
+        project_id: Optional[int] = None,
         fields: Optional[List[str]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
@@ -1269,6 +1381,17 @@ class DictionaryService:
 
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
@@ -1603,26 +1726,44 @@ class DictionaryService:
             raise DatabaseError(f"Failed to get statistics: {str(e)}") from e
 
     def get_related_entries(
-        self, entry_id: str, relation_type: Optional[str] = None
+        self,
+        entry_id: str,
+        relation_type: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        project_id: Optional[int] = None,
     ) -> List[Entry]:
         """
-        Get entries related to the specified entry.
+        Get entries related to the given entry.
 
         Args:
             entry_id: ID of the entry to get related entries for.
             relation_type: Optional type of relation to filter by.
+            limit: Maximum number of entries to return.
+            offset: Number of entries to skip.
+            project_id: Optional project ID to determine database.
 
         Returns:
-            List of related Entry objects.
+            List of Entry objects.
 
         Raises:
-            NotFoundError: If the entry does not exist.
-            DatabaseError: If there is an error getting related entries.
+            DatabaseError: If there is an error retrieving related entries.
         """
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except: pass
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
 
             self.get_entry(entry_id)
 
@@ -1739,18 +1880,31 @@ class DictionaryService:
                 f"Failed to get entries by grammatical info: {str(e)}"
             ) from e
 
-    def count_entries(self) -> int:
+    def count_entries(self, project_id: Optional[int] = None) -> int:
         """
-        Count the total number of entries in the dictionary.
+        Count the total number of entries in the database.
+
+        Args:
+            project_id: Optional project ID to determine database.
 
         Returns:
-            The total number of entries.
+            Total number of entries.
 
         Raises:
-            DatabaseError: If there is an error accessing the database.
+            DatabaseError: If there is an error counting entries.
         """
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except: pass
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
@@ -1768,7 +1922,7 @@ class DictionaryService:
             self.logger.error("Error counting entries: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to count entries: {e}") from e
 
-    def count_senses_and_examples(self) -> Tuple[int, int]:
+    def count_senses_and_examples(self, project_id: Optional[int] = None) -> Tuple[int, int]:
         """
         Count the total number of senses and examples in the dictionary.
 
@@ -1805,7 +1959,7 @@ class DictionaryService:
             )
             raise DatabaseError(f"Failed to count senses and examples: {e}") from e
 
-    def import_lift(self, lift_path: str, mode: str = "merge", ranges_path: Optional[str] = None) -> int:
+    def import_lift(self, lift_path: str, mode: str = "merge", ranges_path: Optional[str] = None, project_id: Optional[int] = None) -> int:
         """
         Import entries from a LIFT file into the database.
 
@@ -1830,7 +1984,7 @@ class DictionaryService:
         else:
             return self._import_lift_merge(lift_path)
 
-    def _import_lift_with_ranges(self, lift_path: str, mode: str, ranges_path: Optional[str] = None) -> int:
+    def _import_lift_with_ranges(self, lift_path: str, mode: str, ranges_path: Optional[str] = None, project_id: Optional[int] = None) -> int:
         """
         Unified method to handle LIFT import with ranges file support for both merge and replace modes.
         
@@ -1972,21 +2126,27 @@ class DictionaryService:
                                     backoff,
                                 )
 
-                                # Attempt to gather session info to aid debugging
+                                # Attempt to gather session info and kill sessions
                                 try:
-                                    sessions_info = None
-                                    for cmd in ("SHOW SESSIONS", "SESSIONS", "SHOW SESSIONS FULL", "LIST SESSIONS"):
-                                        try:
-                                            info = admin_connector.execute_command(cmd)
-                                            if info and 'session' in info.lower() or 'conn' in info.lower() or 'id' in info.lower():
-                                                sessions_info = info
-                                                break
-                                        except Exception:
-                                            continue
+                                    sessions_info = admin_connector.execute_command("SHOW SESSIONS")
                                     if sessions_info:
                                         self.logger.warning("Found sessions that may hold DB open: %s", sessions_info)
+                                        # Identify and kill sessions that might hold this database
+                                        lines = str(sessions_info).split('\n')
+                                        for line in lines:
+                                            # Extract username (e.g. from "- admin [127.0.0.1:1234]")
+                                            m = re.search(r'(?:^|-\s+)([a-zA-Z0-9_-]+)\s+(?:\[|\d)', line)
+                                            if m:
+                                                user = m.group(1)
+                                                if user.lower() in ('username', 'session', 'sessions'):
+                                                    continue
+                                                try:
+                                                    self.logger.info("Killing blocking sessions for user %s potentially holding %s", user, db_name)
+                                                    admin_connector.execute_command(f"KILL {user}")
+                                                except Exception as kill_err:
+                                                    self.logger.debug("Failed to kill sessions for user %s: %s", user, kill_err)
                                 except Exception as sess_e:
-                                    self.logger.debug("Failed to fetch sessions info: %s", sess_e)
+                                    self.logger.debug("Failed to process sessions: %s", sess_e)
 
                                 time.sleep(backoff)
                                 backoff = min(backoff * 2, 8)
@@ -2312,7 +2472,7 @@ class DictionaryService:
             self.logger.error("Error merging LIFT file: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to merge LIFT file: {e}") from e
 
-    def export_lift(self, project_id: int = 1, dual_file: bool = False) -> str:
+    def export_lift(self, project_id: Optional[int] = None, dual_file: bool = False) -> str:
         """
         Export all entries to LIFT format by dumping the database content.
         Can export as single file (with inline ranges) or dual files (main + ranges).
@@ -2449,7 +2609,7 @@ class DictionaryService:
             self.logger.error(f"Error converting to dual-file format: {e}")
             return lift_xml
 
-    def export_lift_ranges(self, project_id: int = 1) -> str:
+    def export_lift_ranges(self, project_id: Optional[int] = None) -> str:
         """
         Export ranges to a separate LIFT ranges file.
         
@@ -2523,7 +2683,7 @@ class DictionaryService:
         try:
             from app.exporters.kindle_exporter import KindleExporter
 
-            entries, _ = self.list_entries()
+            entries, _ = self.list_entries ( project_id=project_id)
 
             exporter = KindleExporter(self)
 
@@ -2571,7 +2731,7 @@ class DictionaryService:
         try:
             from app.exporters.sqlite_exporter import SQLiteExporter
 
-            entries, _ = self.list_entries()
+            entries, _ = self.list_entries ( project_id=project_id)
 
             exporter = SQLiteExporter(self)
 
@@ -2594,12 +2754,13 @@ class DictionaryService:
                 f"Failed to export dictionary to SQLite format: {str(e)}"
             ) from e
 
-    def create_or_update_entry(self, entry: Entry) -> str:
+    def create_or_update_entry(self, entry: Entry, project_id: Optional[int] = None) -> str:
         """
         Create a new entry or update an existing one.
 
         Args:
             entry: Entry object to create or update.
+            project_id: Optional project ID.
 
         Returns:
             ID of the created or updated entry.
@@ -2609,11 +2770,11 @@ class DictionaryService:
             DatabaseError: If there is an error creating or updating the entry.
         """
         try:
-            self.get_entry(entry.id)
-            self.update_entry(entry)
+            self.get_entry(entry.id, project_id=project_id)
+            self.update_entry(entry, project_id=project_id)
             return entry.id
         except NotFoundError:
-            return self.create_entry(entry)
+            return self.create_entry(entry, project_id=project_id)
         except (ValidationError, DatabaseError):
             raise
         except Exception as e:
@@ -2644,7 +2805,7 @@ class DictionaryService:
             self.logger.error("Error exporting LIFT file: %s", str(e))
             raise ExportError(f"Failed to export LIFT file: {str(e)}") from e
 
-    def get_ranges(self, project_id: int = 1, force_reload: bool = False) -> Dict[str, Any]:
+    def get_ranges(self, project_id: Optional[int] = None, force_reload: bool = False) -> Dict[str, Any]:
         """
         Retrieves LIFT ranges data from the database and custom ranges.
         Caches the result for subsequent calls.
@@ -2660,6 +2821,17 @@ class DictionaryService:
 
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
@@ -2870,23 +3042,53 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # If ranges already exist with non-empty values, return them (idempotent call).
-            # If existing ranges are only placeholder standard fallbacks with empty 'values',
+            # If ranges already exist with non-empty values for *all* required minimal ranges,
+            # return them (idempotent call). If some required ranges are missing or empty,
             # proceed to seed the minimal ranges file.
+            # Load minimal.lift-ranges path early so we can inspect which ranges are required.
+            minimal_ranges_path = os.path.join(os.path.dirname(__file__), '../../config/minimal.lift-ranges')
+            minimal_ranges_path = os.path.abspath(minimal_ranges_path)
+            required_range_ids: list[str] = []
+            if os.path.exists(minimal_ranges_path):
+                try:
+                    import xml.etree.ElementTree as ET
+                    tree = ET.parse(minimal_ranges_path)
+                    root = tree.getroot()
+                    # collect all <range id="..."> attributes
+                    for r in root.findall('.//range'):
+                        rid = r.get('id')
+                        if rid:
+                            required_range_ids.append(rid)
+                except Exception:
+                    # If parsing fails, fall back to conservative behavior and require
+                    # at least one existing non-empty range to consider ranges installed.
+                    required_range_ids = []
+
             existing = self.get_ranges()
-            has_values = False
             if existing:
-                for r in existing.values():
-                    if r.get('values'):
-                        has_values = True
-                        break
-            if existing and has_values:
-                self.logger.info("Recommended ranges already installed; returning existing ranges")
-                return existing
-            # Otherwise, fall through and add minimal ranges to the DB
+                # If we found a list of required ranges, ensure all are present and contain values.
+                if required_range_ids:
+                    all_present = True
+                    for rid in required_range_ids:
+                        r = existing.get(rid)
+                        if not r or not r.get('values'):
+                            all_present = False
+                            break
+                    if all_present:
+                        self.logger.info("Recommended ranges already installed; returning existing ranges")
+                        return existing
+                else:
+                    # Fallback behaviour: if parsing failed but there is at least one range
+                    # with non-empty values, assume ranges are installed.
+                    for r in existing.values():
+                        if r.get('values'):
+                            self.logger.info("Recommended ranges already installed; returning existing ranges (fallback)")
+                            return existing
 
             # --- Load minimal.lift-ranges and add to DB ---
-            minimal_ranges_path = os.path.join(os.path.dirname(__file__), '../../config/minimal.lift-ranges')
+            if not os.path.exists(minimal_ranges_path):
+                raise FileNotFoundError(f"minimal.lift-ranges not found: {minimal_ranges_path}")
+            self.logger.info(f"Adding minimal.lift-ranges to database: {minimal_ranges_path}")
             minimal_ranges_path = os.path.abspath(minimal_ranges_path)
             if not os.path.exists(minimal_ranges_path):
                 raise FileNotFoundError(f"minimal.lift-ranges not found: {minimal_ranges_path}")
@@ -2904,25 +3106,29 @@ class DictionaryService:
             with open(traits_path, 'r', encoding='utf-8') as f:
                 traits_data = yaml.safe_load(f)
 
-            # Seed trait values (variant-types, complex-form-types) as custom ranges
+            # Seed trait values (variant-type, complex-form-type) as custom ranges
             # Use RangesService to create/update custom_ranges.json
             ranges_service = RangesService(self.db_connector)
             custom_ranges = {}
-            if 'variant-types' in traits_data:
+            if 'variant-type' in traits_data:
                 custom_ranges['variant-type'] = [
                     {
                         'id': v['id'],
                         'label': v.get('label', v['id']),
                         'definition': v.get('definition', '')
-                    } for v in traits_data['variant-types']
+                    } for v in traits_data['variant-type']
                 ]
-            if 'complex-form-types' in traits_data:
+            complex_list = []
+            if 'complex-form-type' in traits_data:
+                complex_list = traits_data['complex-form-type']
+            
+            if complex_list:
                 custom_ranges['complex-form-type'] = [
                     {
                         'id': v['id'],
                         'label': v.get('label', v['id']),
                         'definition': v.get('definition', '')
-                    } for v in traits_data['complex-form-types']
+                    } for v in complex_list
                 ]
             if custom_ranges:
                 ranges_service.save_custom_ranges(custom_ranges)
@@ -3089,20 +3295,31 @@ class DictionaryService:
             return len(history)
         return 0
 
-    def _count_entries_with_filter(self, filter_text: str) -> int:
+    def _count_entries_with_filter(self, filter_text: str, project_id: Optional[int] = None) -> int:
         """
         Count entries that match the filter text.
 
         Args:
-            filter_text: Text to filter entries by.
+            filter_text: Text to filter by.
+            project_id: Optional project ID to determine database.
 
         Returns:
-            Number of entries matching the filter.
+            Number of matching entries.
         """
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except: pass
+
             if not db_name:
-                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+                return 0
 
             # Use namespace-aware query building
             has_ns = self._detect_namespace_usage()
@@ -3308,13 +3525,14 @@ class DictionaryService:
             self.logger.error(f"Error retrieving lexical relation types: {str(e)}", exc_info=True)
             return []
         
-    def get_entry_for_editing(self, entry_id: str) -> Entry:
+    def get_entry_for_editing(self, entry_id: str, project_id: Optional[int] = None) -> Entry:
         """
         Get an entry by ID for editing purposes.
         This method bypasses validation to allow editing of invalid entries.
 
         Args:
             entry_id: ID of the entry to retrieve.
+            project_id: Optional project ID to determine database.
 
         Returns:
             Entry object, even if it has validation errors.
@@ -3325,6 +3543,17 @@ class DictionaryService:
         """
         try:
             db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
@@ -3385,7 +3614,7 @@ class DictionaryService:
                 f"Failed to retrieve entry for editing: {str(e)}"
             ) from e
 
-    def _detect_namespace_usage(self, project_id: int = 1) -> bool:
+    def _detect_namespace_usage(self, project_id: Optional[int] = None) -> bool:
         """
         Check if the dictionary database uses namespaces.
         """

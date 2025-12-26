@@ -31,10 +31,9 @@ def app():
     return app
 
 
-@pytest.fixture
-def client(app):
-    """Create test client."""
-    return app.test_client()
+# Use shared `client` fixture from tests/integration/conftest.py which ensures
+# the `project_id` is set in the session to avoid redirect behavior.
+# (local client fixture removed to follow DRY principle)
 
 
 @pytest.mark.integration

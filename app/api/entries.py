@@ -5,7 +5,7 @@ API endpoints for managing dictionary entries.
 import json
 import logging
 from typing import Any
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, session
 from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
@@ -239,7 +239,8 @@ def create_entry() -> Any:
         dict_service = get_dictionary_service()
         
         # Create entry
-        entry_id = dict_service.create_entry(entry)
+        project_id = session.get('project_id')
+        entry_id = dict_service.create_entry(entry, project_id=project_id)
         
         # Clear entries cache after successful creation
         cache = CacheService()
@@ -350,8 +351,9 @@ def update_entry(entry_id: str) -> Any:
         dict_service = get_dictionary_service()
         
         # Update entry
-        logger.info(f"[SENSE UPDATE] Calling dict_service.update_entry with skip_validation={skip_validation}")
-        dict_service.update_entry(entry, skip_validation=skip_validation)
+        project_id = session.get('project_id')
+        logger.info(f"[SENSE UPDATE] Calling dict_service.update_entry with skip_validation={skip_validation}, project_id={project_id}")
+        dict_service.update_entry(entry, skip_validation=skip_validation, project_id=project_id)
         
         # Clear entries cache after successful update
         cache = CacheService()

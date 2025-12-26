@@ -131,31 +131,21 @@ def test_basic_search(dict_service: DictionaryService) -> None:
 
 
 
-@pytest.fixture(scope="module")
-def flask_client():
-    from app import create_app
-    app = create_app('testing')
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
-    client = app.test_client()
-    ctx = app.app_context()
-    ctx.push()
-    yield client
-    ctx.pop()
+
 
 
 @pytest.mark.integration
-def test_search_api_endpoint_exists(flask_client):
+def test_search_api_endpoint_exists(client):
     """Test that the search API endpoint is accessible."""
-    response = flask_client.get('/api/search/?q=test')
+    response = client.get('/api/search/?q=test')
     assert response.status_code != 404
     assert response.is_json
 
 
 @pytest.mark.integration
-def test_search_api_response_structure(flask_client):
+def test_search_api_response_structure(client):
     """Test that the search API returns the correct JSON structure."""
-    response = flask_client.get('/api/search/?q=test')
+    response = client.get('/api/search/?q=test')
     if response.status_code == 200:
         data = response.get_json()
         assert 'entries' in data
@@ -169,22 +159,22 @@ def test_search_api_response_structure(flask_client):
 
 
 @pytest.mark.integration
-def test_search_api_parameter_validation(flask_client):
+def test_search_api_parameter_validation(client):
     """Test API parameter validation."""
-    response = flask_client.get('/api/search/')
+    response = client.get('/api/search/')
     assert response.status_code in [400, 422]
-    response = flask_client.get('/api/search/?q=')
+    response = client.get('/api/search/?q=')
     assert response.status_code in [200, 400, 422]
-    response = flask_client.get('/api/search/?q=test&limit=5&offset=0')
+    response = client.get('/api/search/?q=test&limit=5&offset=0')
     if response.status_code == 200:
         data = response.get_json()
         assert len(data['entries']) <= 5
 
 
 @pytest.mark.integration
-def test_search_frontend_page_loads(flask_client):
+def test_search_frontend_page_loads(client):
     """Test that the search frontend page loads correctly."""
-    response = flask_client.get('/search')
+    response = client.get('/search')
     assert response.status_code == 200
     assert 'text/html' in response.content_type
     response_data = response.get_data(as_text=True)
@@ -192,9 +182,9 @@ def test_search_frontend_page_loads(flask_client):
 
 
 @pytest.mark.integration
-def test_search_frontend_javascript_integration(flask_client):
+def test_search_frontend_javascript_integration(client):
     """Test that the search page includes the necessary JavaScript."""
-    response = flask_client.get('/search')
+    response = client.get('/search')
     if response.status_code == 200:
         response_data = response.get_data(as_text=True)
         has_search_js = (
@@ -211,9 +201,9 @@ def test_search_frontend_javascript_integration(flask_client):
 
 
 @pytest.mark.integration
-def test_search_javascript_file_accessible(flask_client):
+def test_search_javascript_file_accessible(client):
     """Test that the search JavaScript file is accessible."""
-    response = flask_client.get('/static/js/search.js')
+    response = client.get('/static/js/search.js')
     if response.status_code == 200:
         js_content = response.get_data(as_text=True)
         assert 'fetch' in js_content
@@ -224,9 +214,9 @@ def test_search_javascript_file_accessible(flask_client):
 
 
 @pytest.mark.integration
-def test_search_api_with_frontend_query(flask_client):
+def test_search_api_with_frontend_query(client):
     """Test the API endpoint with a query similar to what the frontend would send."""
-    response = flask_client.get('/api/search/?q=test&limit=10&offset=0')
+    response = client.get('/api/search/?q=test&limit=10&offset=0')
     if response.status_code == 200:
         data = response.get_json()
         assert 'entries' in data
@@ -236,11 +226,11 @@ def test_search_api_with_frontend_query(flask_client):
 
 
 @pytest.mark.integration
-def test_search_error_handling(flask_client):
+def test_search_error_handling(client):
     """Test error handling in search functionality."""
-    response = flask_client.get('/api/search/?q=test&limit=invalid')
+    response = client.get('/api/search/?q=test&limit=invalid')
     assert response.status_code in [200, 400, 422]
-    response = flask_client.get('/api/search/?q=test&limit=999999')
+    response = client.get('/api/search/?q=test&limit=999999')
     if response.status_code == 200:
         data = response.get_json()
         assert len(data['entries']) < 1000

@@ -12,7 +12,7 @@ from typing import Dict, List
 # Define the mapping of non-standard IDs to standard IDs
 NON_STANDARD_TO_STANDARD_MAPPINGS = {
     'relation-types': 'lexical-relation',
-    'variant-types-from-traits': 'variant-types',
+    'variant-types-from-traits': 'variant-type',
     'semantic-domains': 'semantic-domain-ddp4',
     'usage-types': 'usage-type',
     'note-types': 'note-type',

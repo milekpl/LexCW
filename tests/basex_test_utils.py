@@ -92,9 +92,10 @@ def delete_all_lift_entries(db_name: str) -> None:
         admin.database = db_name
         admin.connect()
         try:
+            # Delete entries both with and without namespace to ensure full cleanup
             q = (
                 "declare namespace lift = 'http://fieldworks.sil.org/schemas/lift/0.13'; "
-                "delete node collection('%s')//lift:entry" % db_name
+                "delete node collection('%s')//*:entry" % db_name
             )
             admin.execute_update(q)
             # ensure at least one empty lift exists

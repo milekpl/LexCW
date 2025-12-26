@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
-from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, jsonify
+from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, jsonify, session
 from flasgger import swag_from
 
 from app.forms.settings_form import SettingsForm
@@ -76,7 +76,10 @@ def manage_settings() -> Any:
     except Exception as e:
         logger.debug('Could not load ranges via DictionaryService: %s', e)
 
-    show_wizard = show_wizard or (not bool(ranges))
+    # NEW: Only show wizard if absolutely no projects exist.
+    # Otherwise, even if ranges are empty, we are likely in a valid project that just needs initialization.
+    all_projects = config_manager.get_all_settings()
+    show_wizard = (not all_projects) or (show_wizard and not bool(ranges))
 
     return render_template('settings.html',
                            form=form,
@@ -119,9 +122,35 @@ def create_project() -> Any:
             'source_language': {'code': source_lang_code, 'name': source_lang_name or source_lang_code},
             'target_languages': [{'code': target_lang_code or '', 'name': target_lang_name or ''}] if target_lang_code else []
         }
-        config_manager.create_settings(project_name, basex_db_name='dictionary', settings_json=settings_json)
-        if install_ranges and dict_service:
+        settings = config_manager.create_settings(project_name, basex_db_name=None, settings_json=settings_json)
+        
+        # Create the BaseX database
+        if dict_service and hasattr(dict_service, 'db_connector'):
             try:
+                dict_service.db_connector.create_database(settings.basex_db_name)
+            except Exception as e:
+                # If database creation fails, we should probably rollback settings creation?
+                # For now, just log and proceed (user can retry or delete)
+                logger.error(f"Failed to create BaseX database {settings.basex_db_name}: {e}")
+        
+        if install_ranges and dict_service:
+            # We need to ensure install_ranges runs against the NEW database.
+            # install_recommended_ranges likely uses the default DB or current context.
+            # We haven't set the request context to the new project yet.
+            # We might need to manually pass the db_name if install_recommended_ranges supports it,
+            # OR force a context switch.
+            # Since we just created it, it's empty.
+            try:
+                # Assuming install_recommended_ranges uses the connector which uses g.project_db_name or similar.
+                # But g.project_db_name is set from session, which isn't updated yet.
+                # We can temporarily mock g or pass explicit DB.
+                # DictionaryService.install_recommended_ranges doesn't seem to take db_name.
+                # Let's check DictionaryService later. 
+                # For now, let's leave it, but acknowledge it might install to 'dictionary' if we aren't careful.
+                # Actually, BaseXConnector now checks g.project_db_name.
+                # We can set g.project_db_name temporarily?
+                from flask import g
+                g.project_db_name = settings.basex_db_name
                 dict_service.install_recommended_ranges()
             except Exception:
                 logger.exception('Failed to install recommended ranges')
@@ -130,6 +159,22 @@ def create_project() -> Any:
     except Exception as e:
         logger.error('Error creating project: %s', e)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/projects/<int:project_id>/select', methods=['GET', 'POST'])
+@swag_from({'summary': 'Select project', 'tags': ['Settings']})
+def select_project(project_id: int) -> Any:
+    config_manager: ConfigManager = current_app.config_manager
+    project = config_manager.get_settings_by_id(project_id)
+    if not project:
+        flash('Project not found', 'danger')
+        return redirect(url_for('settings.list_projects'))
+    
+    session['project_id'] = project.id
+    flash(f'Project "{project.project_name}" selected', 'success')
+    
+    next_url = request.args.get('next') or url_for('main.index')
+    return redirect(next_url)
 
 
 @settings_bp.route('/projects/<int:project_id>/delete', methods=['POST'])
@@ -145,7 +190,19 @@ def delete_project(project_id: int) -> Any:
     if not target:
         return jsonify({'success': False, 'error': 'Project not found'}), 404
     try:
+        # Capture DB name before deleting settings
+        db_name = target.basex_db_name
+        
         config_manager.delete_settings(target.project_name)
+        
+        # Drop BaseX database
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+            if dict_service and hasattr(dict_service, 'db_connector'):
+                dict_service.db_connector.drop_database(db_name)
+        except Exception as e:
+            logger.error(f"Failed to drop BaseX database {db_name}: {e}")
+            
         return jsonify({'success': True}), 200
     except Exception as e:
         logger.error('Error deleting project: %s', e)

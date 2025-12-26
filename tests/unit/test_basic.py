@@ -262,12 +262,12 @@ class TestFlaskApp:
     
     @pytest.mark.integration
     def test_404_error(self):
-        """Test 404 error handling."""
+        """Test 404 error handling (redirects if no project selected)."""
         response = self.client.get('/nonexistent')
         
-        assert response.status_code == 404
-        data = response.get_json()
-        assert data['error'] == 'Not found'
+        # Should redirect to settings/projects because no project is in session
+        assert response.status_code == 302
+        assert '/settings/projects' in response.headers.get('Location', '')
 
 
 if __name__ == '__main__':

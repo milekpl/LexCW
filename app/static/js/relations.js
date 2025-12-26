@@ -40,7 +40,7 @@ class RelationsManager {
             }
             
             // Fallback to direct API call if rangesLoader isn't available
-            const response = await fetch(`/api/ranges/${this.rangeId}`);
+            const response = await fetch(`/api/ranges-editor/${this.rangeId}`);
             if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data?.values) {

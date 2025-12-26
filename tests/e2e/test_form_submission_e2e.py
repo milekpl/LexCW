@@ -67,10 +67,28 @@ def test_form_submission_with_grammatical_info(page: Page, app_url: str) -> None
     # Fill in basic fields
     page.fill('input.lexical-unit-text', 'test_pos_word')
     
-    # Select part of speech if available
+    # Select part of speech if available. Wait for options to be loaded, then
+    # prefer selecting "Noun" if present; otherwise select the first non-placeholder option.
     pos_select = page.locator('#part-of-speech')
     if pos_select.count() > 0:
-        pos_select.select_option('Noun')
+        # Wait for options to be populated (allow some retries for async loading)
+        for _ in range(50):
+            option_texts = pos_select.locator('option').all_text_contents()
+            if len(option_texts) > 1:
+                break
+            page.wait_for_timeout(100)
+        else:
+            raise RuntimeError('Timed out waiting for POS options to populate')
+
+        # Prefer the explicit label 'Noun' if available, otherwise pick first non-empty option
+        option_texts = pos_select.locator('option').all_text_contents()
+        if any('Noun' == t.strip() for t in option_texts):
+            pos_select.select_option(label='Noun')
+        else:
+            # pick the first option with a non-empty value or label (skip placeholder)
+            first_opt = pos_select.locator('option').nth(1)
+            val = first_opt.get_attribute('value') or first_opt.text_content()
+            pos_select.select_option(val)
     
     # Ensure a sense exists (may require clicking Add First Sense)
     if page.locator('textarea[name*="definition"]:visible').count() == 0:

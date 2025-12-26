@@ -50,6 +50,9 @@ class BaseXConnector:
         self.logger = logging.getLogger(__name__)
         self._session = None
         self._lock = threading.RLock()
+        self._current_db = None
+        # NEW: Control aggressive disconnection
+        self.aggressive_disconnect = os.environ.get('BASEX_AGGRESSIVE_DISCONNECT') == 'true'
     
     def connect(self) -> bool:
         """
@@ -73,6 +76,7 @@ class BaseXConnector:
                         return True
                     except:
                         self._session = None
+                        self._current_db = None
 
                 self._session = BaseXSession(self.host, self.port, self.username, self.password)
                 
@@ -83,8 +87,10 @@ class BaseXConnector:
                     
                     self.logger.info(f"Opening BaseX database: {self.database}")
                     self._session.execute(f"OPEN {self.database}")
+                    self._current_db = self.database
                 else:
                     self.logger.info("No BaseX database configured for this connector")
+                    self._current_db = None
                     
                 self.logger.debug(f"Connected to BaseX server at {self.host}:{self.port} (database: {self.database})")
                 return True
@@ -92,6 +98,7 @@ class BaseXConnector:
             except Exception as e:
                 self.logger.error(f"Failed to connect to BaseX: {e}")
                 self._session = None
+                self._current_db = None
                 raise DatabaseError(f"Connection failed: {e}")
     
     def _is_test_mode(self) -> bool:
@@ -128,10 +135,8 @@ class BaseXConnector:
             if protected in db_name_lower:
                 return False
                 
-        # Must match our naming pattern: test_YYYYMMDD_HHMM_<type>_<random>
-        import re
-        pattern = r'test_\d{8}_\d{4}_[a-z]+_[a-f0-9]{6}'
-        return bool(re.match(pattern, db_name))
+        # In test mode, we allow anything starting with 'test_' that passed the protected check
+        return True
     
     def disconnect(self) -> None:
         """Close the connection to BaseX server."""
@@ -144,62 +149,85 @@ class BaseXConnector:
                     self.logger.warning(f"Error during disconnect: {e}")
                 finally:
                     self._session = None
+                    self._current_db = None
     
     def is_connected(self) -> bool:
         """Check if connection is active."""
         with self._lock:
             return self._session is not None
     
-    def execute_query(self, query: str) -> str:
+    def execute_query(self, query: str, db_name: str = None) -> str:
         """
         Execute an XQuery and return the result.
         Logs the full query string for debugging.
         Args:
             query: XQuery string to execute.
+            db_name: Optional database name to execute query against.
         Returns:
             Query result as string.
         """
         with self._lock:
-            # print(f"Thread {threading.get_ident()} acquired lock")
             if not self._session:
                 self.connect()
 
-            # Ensure the session is using the configured database or the one
-            # explicitly referenced in the query (collection('db_name')). We try
-            # to be tolerant to mismatched connectors created earlier in the
-            # process lifecycle by opening the DB referenced by the query.
-            original_db = self.database
-            try:
-                import re as _re
-                m = _re.search(r"collection\(\s*'([^']+)'\s*\)", query)
-                target_db = m.group(1) if m else self.database
-                if target_db and target_db != original_db:
-                    self.logger.info(f"Query references DB '{target_db}' which differs from connector DB '{original_db}'; switching session DB temporarily")
+            # Determine target database priority:
+            # 1. Explicit db_name argument
+            # 2. collection('db_name') in query
+            # 3. Connector's default database
+            
+            target_db = None
+            if db_name:
+                target_db = db_name
+            else:
+                # Try to get from Flask global context
+                try:
+                    from flask import has_request_context, g
+                    if has_request_context() and hasattr(g, 'project_db_name'):
+                        target_db = g.project_db_name
+                except ImportError:
+                    pass
+
+                if not target_db:
                     try:
-                        self._session.execute(f"OPEN {target_db}")
+                        import re as _re
+                        m = _re.search(r"collection\(\s*'([^']+)'\s*\)", query)
+                        if m:
+                            target_db = m.group(1)
                     except Exception:
-                        # If OPEN fails here, we'll attempt the query anyway and let the
-                        # error be handled downstream, but log for diagnostics.
-                        self.logger.debug(
-                            "Failed to explicitly OPEN referenced database '%s' before query; proceeding and letting query surface any errors",
-                            target_db,
-                        )
-                # Do NOT permanently overwrite self.database here; restore it after the operation
-            except Exception:
-                self.logger.debug("Error while parsing query for referenced database; proceeding to execute the query")
+                        pass
+            
+            if not target_db:
+                target_db = self.database
+
+            # Switch database if needed
+            if target_db and target_db != self._current_db:
+                self.logger.debug(f"Switching from DB '{self._current_db}' to '{target_db}'")
+                try:
+                    self._session.execute(f"OPEN {target_db}")
+                    self._current_db = target_db
+                except Exception as e:
+                    self.logger.error(f"Failed to switch to database '{target_db}': {e}")
+                    # Proceeding might fail if the query depends on context, but let's try
+                    pass
 
             # Log the full query string for debugging
-            self.logger.info("Executing BaseX query:\n%s", query)
+            self.logger.info("Executing BaseX query on DB '%s':\n%s", self._current_db, query)
+
+            # Strip 'xquery ' prefix if present (it's often added by callers but Session.query doesn't want it)
+            clean_query = query
+            if query.strip().lower().startswith('xquery '):
+                clean_query = query.strip()[7:].strip()
 
             q = None
             try:
-                q = self._session.query(query)
+                q = self._session.query(clean_query)
                 result = q.execute()
                 self.logger.debug(f"Query executed successfully: {query[:100]}...")
                 return result
             except Exception as e:
                 error_msg = f"Query execution failed: {e}\nQuery was:\n{query}"
                 self.logger.error(error_msg)
+                
                 # Attempt intelligent DB substitution for missing DB resources.
                 try:
                     import re as _re
@@ -213,6 +241,7 @@ class BaseXConnector:
                             try:
                                 # Ensure session is opened to the env DB temporarily
                                 self._session.execute(f"OPEN {env_db}")
+                                self._current_db = env_db
                                 q = self._session.query(alt_query)
                                 result = q.execute()
                                 self.logger.info(f"Query succeeded after substituting collection('{referenced_db}') -> collection('{env_db}')")
@@ -223,11 +252,17 @@ class BaseXConnector:
                     pass
 
                 # If error is related to connection/session, try to reconnect and retry once
-                if "Unknown Query ID" in str(e) or "Broken pipe" in str(e) or "Connection reset" in str(e):
+                err_str = str(e)
+                if isinstance(e, (IOError, OSError)) or "Unknown Query ID" in err_str or "Broken pipe" in err_str or "Connection reset" in err_str:
                     self.logger.warning("Connection issue detected, retrying query...")
                     try:
                         self.disconnect()
                         self.connect()
+                        # Restore target DB after reconnect if it wasn't the default
+                        if target_db and target_db != self.database:
+                             self._session.execute(f"OPEN {target_db}")
+                             self._current_db = target_db
+                        
                         q = self._session.query(query)
                         result = q.execute()
                         return result
@@ -242,22 +277,22 @@ class BaseXConnector:
                         q.close()
                     except:
                         pass  # Ignore errors when closing
-                # Restore original database if we opened a different one for this query
-                try:
-                    if original_db and self._session:
-                        self._session.execute(f"OPEN {original_db}")
-                        self.database = original_db
-                        self.logger.debug(f"Restored session to original database '{original_db}' after query")
-                except Exception as restore_e:
-                    self.logger.warning(f"Failed to restore original database after query: {restore_e}")
+                
+                # Optionally DISCONNECT after query to release ALL locks and sessions
+                if self.aggressive_disconnect and self._session:
+                    try:
+                        self.disconnect()
+                    except Exception:
+                        pass
     
-    def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
+    def execute_lift_query(self, query: str, has_namespace: bool = False, db_name: str = None) -> str:
         """
         Execute a LIFT-specific query with namespace handling.
         
         Args:
             query: XQuery query string (may include namespace prologue)
             has_namespace: Whether the database contains namespaced LIFT elements
+            db_name: Optional database name to execute query against.
             
         Returns:
             Query result as string
@@ -266,7 +301,7 @@ class BaseXConnector:
         if not query.strip().startswith('xquery'):
             query = f"xquery {query}"
         
-        return self.execute_query(query)
+        return self.execute_query(query, db_name=db_name)
 
     def execute_command(self, command: str) -> str:
         """
@@ -286,50 +321,103 @@ class BaseXConnector:
                 result = self._session.execute(command)
                 self.logger.debug(f"Command executed successfully: {command}")
                 return result
+            except (IOError, OSError) as e:
+                # Session might be lost (e.g. killed by another process)
+                self.logger.warning(f"Session lost during command execution: {e}. Attempting to reconnect...")
+                try:
+                    self.disconnect()
+                    self.connect()
+                    # Retry once
+                    result = self._session.execute(command)
+                    self.logger.info(f"Reconnected and successfully executed command: {command}")
+                    return result
+                except Exception as retry_e:
+                    error_msg = f"Command execution failed after reconnection attempt: {retry_e}"
+                    self.logger.error(error_msg)
+                    raise DatabaseError(error_msg)
             except Exception as e:
                 error_msg = f"Command execution failed: {e}"
                 self.logger.error(error_msg)
                 raise DatabaseError(error_msg)
     
-    def execute_update(self, query: str) -> None:
+    def execute_update(self, query: str, db_name: str = None) -> None:
         """
         Execute an XQuery update.
         
         Args:
             query: XQuery update string to execute.
+            db_name: Optional database name to execute update against.
         """
         with self._lock:
             if not self._session:
                 self.connect()
             
-            # Ensure the session is using the configured database or the one
-            # referenced in the update query (collection('db_name')). This keeps
-            # the session aligned with the target data the update operates on.
-            original_db = self.database
-            try:
-                import re as _re
-                m = _re.search(r"collection\(\s*'([^']+)'\s*\)", query)
-                target_db = m.group(1) if m else self.database
-                if target_db and target_db != original_db:
-                    self.logger.info(f"Update references DB '{target_db}' which differs from connector DB '{original_db}'; switching session DB temporarily")
+            # Determine target database
+            target_db = None
+            if db_name:
+                target_db = db_name
+            else:
+                # Try to get from Flask global context
+                try:
+                    from flask import has_request_context, g
+                    if has_request_context() and hasattr(g, 'project_db_name'):
+                        target_db = g.project_db_name
+                except ImportError:
+                    pass
+
+                if not target_db:
                     try:
-                        self._session.execute(f"OPEN {target_db}")
+                        import re as _re
+                        m = _re.search(r"collection\(\s*'([^']+)'\s*\)", query)
+                        if m:
+                            target_db = m.group(1)
                     except Exception:
-                        self.logger.debug(
-                            "Failed to explicitly OPEN referenced database '%s' before update; proceeding and letting update surface any errors",
-                            target_db,
-                        )
-                    # Set connector database to target temporarily so that the reconnect after update persists to the intended DB
-                    self.database = target_db
-            except Exception:
-                self.logger.debug("Error while parsing update for referenced database; proceeding to execute the update")
+                        pass
+            
+            if not target_db:
+                target_db = self.database
+
+            # Switch database if needed
+            if target_db and target_db != self._current_db:
+                self.logger.debug(f"Switching from DB '{self._current_db}' to '{target_db}' for update")
+                try:
+                    self._session.execute(f"OPEN {target_db}")
+                    self._current_db = target_db
+                except Exception:
+                    # Proceeding, error might occur
+                    pass
+
+            # Log the full query string for debugging
+            self.logger.info("Executing BaseX update on DB '%s':\n%s", self._current_db, query)
+
+            # Strip 'xquery ' prefix if present
+            clean_query = query
+            if query.strip().lower().startswith('xquery '):
+                clean_query = query.strip()[7:].strip()
 
             q = None
             try:
-                q = self._session.query(query)
+                q = self._session.query(clean_query)
                 result = q.execute()
                 self.logger.debug(f"Update executed successfully: {query[:100]}...")
                 
+            except (IOError, OSError) as e:
+                self.logger.warning(f"Session lost during update: {e}. Attempting to reconnect...")
+                try:
+                    self.disconnect()
+                    self.connect()
+                    # Restore target DB
+                    if target_db:
+                        self._session.execute(f"OPEN {target_db}")
+                        self._current_db = target_db
+                    
+                    q = self._session.query(clean_query)
+                    result = q.execute()
+                    self.logger.info("Reconnected and successfully executed update")
+                except Exception as retry_e:
+                    error_msg = f"Update execution failed after reconnection: {retry_e}"
+                    self.logger.error(error_msg)
+                    raise DatabaseError(error_msg)
             except Exception as e:
                 error_msg = f"Update execution failed: {e}"
                 self.logger.error(error_msg)
@@ -344,24 +432,24 @@ class BaseXConnector:
                 # CRITICAL: Close and reopen connection to force persistence
                 # BaseX doesn't commit changes until the session is properly closed
                 try:
-                    old_session = self._session
-                    self._session = None
-                    if old_session:
-                        old_session.close()
-                    self.logger.debug("Closed session to persist changes")
-                    # Reconnect for next operation
-                    self.connect()
-                    self.logger.debug("Reopened session after persist")
-                    # Restore original database if we had temporarily switched
-                    try:
-                        if original_db and self._session:
-                            self._session.execute(f"OPEN {original_db}")
-                            self.database = original_db
-                            self.logger.debug(f"Restored session to original database '{original_db}' after update")
-                    except Exception as restore_e:
-                        self.logger.warning(f"Failed to restore original database after update: {restore_e}")
+                    if self._session:
+                        self.disconnect()
+                        self.logger.debug("Disconnected session to persist changes")
+                    
+                    if not self.aggressive_disconnect:
+                        # Reconnect for next operation
+                        self.connect()
+                        self.logger.debug("Reopened session after persist")
+                        
+                        # Always CLOSE after reconnect to ensure no DB is open by default
+                        try:
+                            if self._session:
+                                self._session.execute("CLOSE")
+                            self._current_db = None
+                        except Exception:
+                            pass
                 except Exception as reconnect_error:
-                    self.logger.warning(f"Failed to reconnect after update: {reconnect_error}")
+                    self.logger.warning(f"Failed to handle persistence after update: {reconnect_error}")
     
     def create_database(self, db_name: str, content: str = "") -> None:
         """
@@ -397,6 +485,20 @@ class BaseXConnector:
             self.logger.error(error_msg)
             raise DatabaseError(error_msg)
     
+    def close_database(self) -> None:
+        """
+        Close the currently open database.
+        """
+        with self._lock:
+            if self._session:
+                try:
+                    self._session.execute("CLOSE")
+                    self.logger.debug(f"Closed database (previous: {self._current_db})")
+                except Exception as e:
+                    self.logger.debug(f"Error while closing database: {e}")
+                finally:
+                    self._current_db = None
+
     def __enter__(self):
         """Context manager entry."""
         self.connect()

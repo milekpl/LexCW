@@ -42,6 +42,7 @@ def setup_e2e_test_database():
     # Store original environment variables for restoration
     original_test_db = os.environ.get('TEST_DB_NAME')
     original_basex_db = os.environ.get('BASEX_DATABASE')
+    original_aggressive = os.environ.get('BASEX_AGGRESSIVE_DISCONNECT')
     
     # Generate safe database name
     test_db = os.environ.get('TEST_DB_NAME')
@@ -63,6 +64,7 @@ def setup_e2e_test_database():
         # Set isolated environment for E2E tests
         os.environ['TEST_DB_NAME'] = test_db
         os.environ['BASEX_DATABASE'] = test_db
+        os.environ['BASEX_AGGRESSIVE_DISCONNECT'] = 'true'
         
         connector.connect()
         
@@ -252,6 +254,11 @@ def setup_e2e_test_database():
                 os.environ['BASEX_DATABASE'] = original_basex_db
             elif 'BASEX_DATABASE' in os.environ:
                 del os.environ['BASEX_DATABASE']
+
+            if original_aggressive:
+                os.environ['BASEX_AGGRESSIVE_DISCONNECT'] = original_aggressive
+            elif 'BASEX_AGGRESSIVE_DISCONNECT' in os.environ:
+                del os.environ['BASEX_AGGRESSIVE_DISCONNECT']
             
             # Atomic cleanup with verification
             cleanup_connector = BaseXConnector(
@@ -309,6 +316,38 @@ def page(context: BrowserContext, flask_test_server: str) -> Generator[Page, Non
     """Create a new page for each test with base URL."""
     page = context.new_page()
     page.set_default_timeout(30000)  # 30 seconds
+    
+    # Automatically select the first project to satisfy project context requirement
+    try:
+        # Navigate to projects list
+        page.goto(f"{flask_test_server}/settings/projects")
+        
+        # Wait for the project list to load
+        # Use a selector that matches the Select button I just added
+        select_button = page.locator("a.btn-success:has-text('Select')").first
+        
+        # Check if button exists. If not, maybe we need to create a project?
+        # But setup_e2e_test_database and flask_test_server should have created one.
+        if select_button.count() == 0:
+            # Fallback: maybe it's already selected or UI is different
+            logger.warning("No project selection button found in E2E page fixture")
+        else:
+            select_button.click()
+            page.wait_for_load_state("networkidle")
+            
+            # CRITICAL: Close the wizard modal if it's still open (can happen if it didn't redirect)
+            # or if it was shown on the redirected page.
+            page.evaluate("() => { "
+                          "  const m1 = document.getElementById('projectSetupModal'); "
+                          "  if (m1) { const inst = bootstrap.Modal.getInstance(m1); if (inst) inst.hide(); } "
+                          "  const m2 = document.getElementById('projectSetupModalSettings'); "
+                          "  if (m2) { const inst = bootstrap.Modal.getInstance(m2); if (inst) inst.hide(); } "
+                          "}")
+            
+            logger.info("Auto-selected project for E2E test")
+    except Exception as e:
+        logger.warning(f"Error during auto-project selection in E2E: {e}")
+
     # Store base URL for tests to use
     page._base_url = flask_test_server  # type: ignore
     yield page

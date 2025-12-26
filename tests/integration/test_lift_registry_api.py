@@ -139,12 +139,12 @@ class TestLIFTRegistryAPI:
         assert response.status_code == 200
         
         data = response.get_json()
-        assert 'relation_types' in data
+        assert 'lexical_relations' in data
         assert 'note_types' in data
         assert 'grammatical_categories' in data
         
         # Verify each has items
-        assert len(data['relation_types']) > 0
+        assert len(data['lexical_relations']) > 0
         assert len(data['note_types']) > 0
         assert len(data['grammatical_categories']) > 0
 

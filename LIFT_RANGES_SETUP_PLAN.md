@@ -1,9 +1,9 @@
-## Note on Variant-Types and Complex-Form-Types
+## Note on Variant-Type and Complex-Form-Types
 
-According to the LIFT 0.13 standard, variant-types and complex-form-types are not defined in the `.lift-ranges` XML file. Instead, they are represented as traits on lexical relations or variants, and their values are discovered dynamically from the data or set up per project (often via a custom editor or database insert).
+According to the LIFT 0.13 standard, variant-type and complex-form-types are not defined in the `.lift-ranges` XML file. Instead, they are represented as traits on lexical relations or variants, and their values are discovered dynamically from the data or set up per project (often via a custom editor or database insert).
 
 **Best Practice:**
-- Maintain a recommended set of variant-types and complex-form-types (e.g., dialect, register, compound, reduplicated) in a separate JSON or YAML file for easy editing and installation.
+- Maintain a recommended set of variant-type and complex-form-types (e.g., dialect, register, compound, reduplicated) in a separate JSON or YAML file for easy editing and installation.
 - Enhance the install procedure for new projects to read these sets and insert them into the database or expose them via the editor/API, ensuring lexicographers have access to best-practice values from the start.
 - Document these recommended sets alongside the `.lift-ranges` file for clarity and future customization.
 
@@ -22,10 +22,10 @@ Create a robust, reusable, and standards-compliant system for initializing LIFT 
 
 ### 1. Prepare Minimal, Trimmed-Down LIFT Ranges File
 - Create a new `.lift-ranges` XML file containing:
-  - All required range definitions (semantic domains, variant-types, complex-form-types, etc.)
+  - All required range definitions (semantic domains, variant-type, complex-form-types, etc.)
   - A curated set of recommended values for each range, with labels, definitions, and metadata.
 - Semantic domains should reflect a practical classification system (e.g., DDP4, SIL domains).
-- Variant-types and complex-form-types should include best-practice examples (e.g., dialect, register, compound, reduplicated).
+- Variant-type and complex-form-types should include best-practice examples (e.g., dialect, register, compound, reduplicated).
 
 ### 2. Implement Import & Install Logic
 - Add or update backend logic to:
@@ -36,7 +36,7 @@ Create a robust, reusable, and standards-compliant system for initializing LIFT 
 ### 3. Integration Test Setup
 - Update integration tests to:
   - Use the new install logic to guarantee all required ranges and values are present.
-  - Assert that semantic domains, variant-types, and complex-form-types are available and correct.
+  - Assert that semantic domains, variant-type, and complex-form-types are available and correct.
   - Clean up or reset ranges/values after tests if needed.
 
 ### 4. UI/Editor Support

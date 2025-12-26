@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', async function() {
             try {
                 btn.disabled = true;
-                const resp = await fetch('/api/ranges/install_recommended', { method: 'POST' });
+                const resp = await fetch('/api/ranges-editor/install_recommended', { method: 'POST' });
                 const data = await resp.json();
                 if (resp.ok && data.success) {
                     // Reload page to populate selects

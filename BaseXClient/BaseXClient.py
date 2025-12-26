@@ -51,13 +51,23 @@ or ``recv_single_byte()``."""
     def __fill_buffer(self):
         """cache next bytes"""
         if self.__bpos >= self.__bsize:
-            self.__bsize = self.__s.recv_into(self.__buf)
+            try:
+                self.__bsize = self.__s.recv_into(self.__buf)
+                if self.__bsize == 0:
+                    # Connection closed
+                    raise IOError("Connection closed by server")
+            except socket.timeout:
+                raise IOError("Connection timed out")
+            except Exception as e:
+                raise IOError(f"Socket error: {e}")
             self.__bpos = 0
 
     # Returns a single byte from the socket.
     def recv_single_byte(self):
         """recv a single byte from previously fetched buffer."""
         self.__fill_buffer()
+        if self.__bsize == 0:
+            raise IOError("Connection closed by server")
         result_byte = self.__buf[self.__bpos]
         self.__bpos += 1
         return result_byte
@@ -106,8 +116,10 @@ class Session:
         self.__info = None
 
         # create server connection
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(30.0)  # 30 seconds timeout
         self.__swrapper = SocketWrapper(
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM),
+            sock,
             receive_bytes_encoding=receive_bytes_encoding,
             send_bytes_encoding=send_bytes_encoding)
 

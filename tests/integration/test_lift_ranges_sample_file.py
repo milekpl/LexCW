@@ -10,7 +10,7 @@ from flask import Flask
 
 
 @pytest.mark.integration
-def test_lift_ranges_with_sample_file(app: Flask) -> None:
+def test_lift_ranges_with_sample_file(client: Flask) -> None:
     """
     Test LIFT ranges functionality by forcing the service to use the sample file.
     This test ensures that when database is unavailable, the service correctly
@@ -32,45 +32,44 @@ def test_lift_ranges_with_sample_file(app: Flask) -> None:
         # Mock the service to return the sample ranges
         mock_get_ranges.return_value = sample_ranges
         
-        with app.test_client() as client:
-            response = client.get('/api/ranges')
-            assert response.status_code == 200
+        response = client.get('/api/ranges')
+        assert response.status_code == 200
+        
+        ranges_data = response.get_json()
+        assert 'data' in ranges_data
+        ranges = ranges_data['data']
+        
+        # Verify all expected range types from sample file are present
+        expected_range_types = {
+            'etymology', 'grammatical-info', 'lexical-relation', 'note-type',
+            'paradigm', 'reversal-type', 'semantic-domain-ddp4', 'status',
+            'users', 'location', 'anthro-code', 'translation-type',
+            'inflection-feature', 'inflection-feature-type', 'from-part-of-speech',
+            'morph-type', 'num-feature-value', 'Publications', 'do-not-publish-in',
+            'domain-type', 'usage-type'
+        }
+        
+        available_types = set(ranges.keys())
+        
+        # Check each expected range type
+        missing_ranges = []
+        for range_type in expected_range_types:
+            if range_type not in available_types:
+                missing_ranges.append(range_type)
+        
+        assert not missing_ranges, f"Missing range types: {missing_ranges}. Available: {sorted(available_types)}"
+        
+        # Verify that ranges have proper structure
+        for range_type, range_data in ranges.items():
+            assert 'id' in range_data, f"Range {range_type} missing 'id' field"
+            assert 'values' in range_data, f"Range {range_type} missing 'values' field"
+            assert isinstance(range_data['values'], list), f"Range {range_type} 'values' should be a list"
             
-            ranges_data = response.get_json()
-            assert 'data' in ranges_data
-            ranges = ranges_data['data']
-            
-            # Verify all expected range types from sample file are present
-            expected_range_types = {
-                'etymology', 'grammatical-info', 'lexical-relation', 'note-type',
-                'paradigm', 'reversal-type', 'semantic-domain-ddp4', 'status',
-                'users', 'location', 'anthro-code', 'translation-type',
-                'inflection-feature', 'inflection-feature-type', 'from-part-of-speech',
-                'morph-type', 'num-feature-value', 'Publications', 'do-not-publish-in',
-                'domain-type', 'usage-type'
-            }
-            
-            available_types = set(ranges.keys())
-            
-            # Check each expected range type
-            missing_ranges = []
-            for range_type in expected_range_types:
-                if range_type not in available_types:
-                    missing_ranges.append(range_type)
-            
-            assert not missing_ranges, f"Missing range types: {missing_ranges}. Available: {sorted(available_types)}"
-            
-            # Verify that ranges have proper structure
-            for range_type, range_data in ranges.items():
-                assert 'id' in range_data, f"Range {range_type} missing 'id' field"
-                assert 'values' in range_data, f"Range {range_type} missing 'values' field"
-                assert isinstance(range_data['values'], list), f"Range {range_type} 'values' should be a list"
-                
-                # Verify range values have proper structure
-                if range_data['values']:
-                    for value in range_data['values'][:3]:  # Check first 3 values
-                        assert 'id' in value, f"Range {range_type} value missing 'id' field"
-                        assert 'value' in value, f"Range {range_type} value missing 'value' field"
+            # Verify range values have proper structure
+            if range_data['values']:
+                for value in range_data['values'][:3]:  # Check first 3 values
+                    assert 'id' in value, f"Range {range_type} value missing 'id' field"
+                    assert 'value' in value, f"Range {range_type} value missing 'value' field"
 
 
 @pytest.mark.integration

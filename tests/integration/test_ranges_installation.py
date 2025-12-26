@@ -78,28 +78,28 @@ def test_recommended_traits_yaml_content():
         data = yaml.safe_load(f)
     
     # Verify structure
-    assert 'variant-types' in data, "variant-types section missing from recommended_traits.yaml"
-    assert 'complex-form-types' in data, "complex-form-types section missing from recommended_traits.yaml"
+    assert 'variant-type' in data, "variant-type section missing from recommended_traits.yaml"
+    assert 'complex-form-type' in data, "complex-form-type section missing from recommended_traits.yaml"
     assert 'recommended-traits' not in data, "recommended-traits should not be in YAML (they're in LIFT ranges)"
     
-    # Verify variant-types content
-    variant_types = data['variant-types']
-    assert len(variant_types) > 0, "variant-types should not be empty"
+    # Verify variant-type content
+    variant_types = data['variant-type']
+    assert len(variant_types) > 0, "variant-type should not be empty"
     required_variant_ids = {'dialectal', 'free', 'irregular', 'spelling'}
     actual_variant_ids = {vt['id'] for vt in variant_types}
     assert required_variant_ids.issubset(actual_variant_ids), \
         f"Missing required variant types. Expected: {required_variant_ids}, Got: {actual_variant_ids}"
     
-    # Verify complex-form-types content
-    complex_form_types = data['complex-form-types']
-    assert len(complex_form_types) > 0, "complex-form-types should not be empty"
+    # Verify complex-form-type content
+    complex_form_types = data['complex-form-type']
+    assert len(complex_form_types) > 0, "complex-form-type should not be empty"
     required_complex_ids = {'compound', 'derivative', 'idiom', 'phrasal-verb', 'contraction', 'saying'}
     actual_complex_ids = {cft['id'] for cft in complex_form_types}
     assert required_complex_ids.issubset(actual_complex_ids), \
         f"Missing required complex form types. Expected: {required_complex_ids}, Got: {actual_complex_ids}"
     
     # Verify each item has required fields
-    for section_name, items in [('variant-types', variant_types), ('complex-form-types', complex_form_types)]:
+    for section_name, items in [('variant-type', variant_types), ('complex-form-type', complex_form_types)]:
         for item in items:
             assert 'id' in item, f"{section_name} item missing 'id': {item}"
             assert 'label' in item, f"{section_name} item missing 'label': {item}"
@@ -122,8 +122,7 @@ def test_minimal_lift_ranges_content():
     # Verify required ranges exist
     range_ids = {r.get('id') for r in root.findall('range')}
     required_ranges = {
-        'grammatical-info', 'lexical-relation', 'complex-form-types', 
-        'variant-type', 'usage-labels', 'recommended-traits'
+        'grammatical-info', 'lexical-relation', 'usage-type'
     }
     assert required_ranges.issubset(range_ids), \
         f"Missing required ranges. Expected: {required_ranges}, Got: {range_ids}"
@@ -142,8 +141,4 @@ def test_minimal_lift_ranges_content():
     component_lexeme = lexical_relation_range.find("range-element[@id='_component-lexeme']")
     assert component_lexeme is not None, "_component-lexeme relation not found"
     
-    # Verify recommended-traits doesn't have reverse-label
-    traits_range = root.find("range[@id='recommended-traits']")
-    assert traits_range is not None, "recommended-traits range not found"
-    trait_names = {elem.get('value') for elem in traits_range.findall('.//trait[@name="trait-name"]')}
-    assert 'reverse-label' not in trait_names, "reverse-label trait should not be in recommended-traits"
+

@@ -7,16 +7,12 @@ This module initializes the Flask application and registers all blueprints.
 import os
 import logging
 from pathlib import Path
-from flask import Flask
+from flask import Flask, session, g, request, redirect, url_for
 from flasgger import Swagger
 from injector import Injector, singleton
 import psycopg2
 
 from app.database.basex_connector import BaseXConnector
-from app.services.dictionary_service import DictionaryService
-from app.services.merge_split_service import MergeSplitService
-from app.config_manager import ConfigManager
-from app.services.cache_service import CacheService
 from app.database.workset_db import create_workset_tables
 
 
@@ -37,6 +33,12 @@ def create_app(config_name=None):
     Returns:
         Flask application instance
     """
+    # Moved imports inside to avoid circular dependency with models/services
+    from app.services.dictionary_service import DictionaryService
+    from app.services.merge_split_service import MergeSplitService
+    from app.config_manager import ConfigManager
+    from app.services.cache_service import CacheService
+
     app = Flask(__name__, instance_relative_config=True)  # type: Flask
     # Ensure the instance folder exists
     try:
@@ -90,7 +92,7 @@ def create_app(config_name=None):
     
     # Create database tables if they don't exist
     with app.app_context():
-        from app.models import custom_ranges as _custom_ranges  # noqa: F401
+        from app import models as _models  # noqa: F401
         db.create_all()
     
     # Configure logging
@@ -261,10 +263,44 @@ def create_app(config_name=None):
         """Handle 500 errors."""
         return {'error': 'Server error'}, 500
 
+    @app.before_request
+    def load_project_context():
+        """Load project context from session if available."""
+        # Exempt certain paths from mandatory project context
+        exempt_paths = ['/settings/', '/static/', '/health', '/apidocs/', '/apispec.json', '/flasgger_static/', '/favicon.ico']
+        
+        # Also exempt the root index if it's just a status check
+        if request.path == '/':
+            return
+
+        if any(request.path.startswith(path) for path in exempt_paths):
+            return
+
+        project_id = session.get('project_id')
+        if project_id:
+            try:
+                # Access config_manager from app context via injector
+                config_manager = app.injector.get(ConfigManager)
+                settings = config_manager.get_settings_by_id(project_id)
+                if settings:
+                    g.project_settings = settings
+                    g.project_db_name = settings.basex_db_name
+                else:
+                    # Invalid project ID in session
+                    session.pop('project_id', None)
+                    return redirect(url_for('settings.list_projects', next=request.url))
+            except Exception as e:
+                app.logger.error(f"Error loading project context: {e}")
+        else:
+            # No project selected, redirect to project list
+            # Skip redirect for API calls to avoid breaking external clients; 
+            # they will fail later with "no database configured" if they don't provide context
+            if not request.path.startswith('/api/'):
+                return redirect(url_for('settings.list_projects', next=request.url))
+
+
     # In testing mode, log redirects to help triage UI auth/redirect issues
     if app.config.get('TESTING'):
-        from flask import request
-
         @app.after_request
         def log_redirects(response):
             try:
