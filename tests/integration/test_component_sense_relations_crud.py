@@ -21,39 +21,9 @@ from app.services.dictionary_service import DictionaryService
 
 
 @pytest.fixture
-def app(basex_test_connector, test_db_name):
-    """Create and configure a test Flask application."""
-    # Set environment variable for test database
-    os.environ['TEST_DB_NAME'] = test_db_name
-    os.environ['FLASK_CONFIG'] = 'testing'
-    
-    app = create_app('testing')
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
-    
-    yield app
-    
-    # Cleanup
-    if 'TEST_DB_NAME' in os.environ:
-        del os.environ['TEST_DB_NAME']
-
-
-@pytest.fixture
-def client(app):
-    """Create a test client."""
-    return app.test_client()
-
-
-@pytest.fixture
-def dict_service(app):
-    """Get dictionary service from app context."""
-    with app.app_context():
-        return app.injector.get(DictionaryService)
-
-
-@pytest.fixture
-def sample_entries(dict_service):
+def sample_entries(dict_service_with_db):
     """Create sample entries for testing relationships."""
+    dict_service = dict_service_with_db
     # Create main entry
     main_entry = Entry(
         id_="main_entry_001",
@@ -103,10 +73,10 @@ def sample_entries(dict_service):
     )
     
     # Store entries
-    dict_service.create_entry(main_entry)
-    dict_service.create_entry(component_entry_1)
-    dict_service.create_entry(component_entry_2)
-    dict_service.create_entry(target_entry)
+    dict_service_with_db.create_entry(main_entry)
+    dict_service_with_db.create_entry(component_entry_1)
+    dict_service_with_db.create_entry(component_entry_2)
+    dict_service_with_db.create_entry(target_entry)
     
     return {
         'main': 'main_entry_001',
@@ -120,7 +90,7 @@ def sample_entries(dict_service):
 class TestComponentCRUD:
     """Test CRUD operations for complex form components."""
     
-    def test_create_component_relation(self, client, dict_service, sample_entries):
+    def test_create_component_relation(self, client, dict_service_with_db, sample_entries):
         """Test adding a new component to an entry."""
         # Add component via form submission
         form_data = {
@@ -141,8 +111,8 @@ class TestComponentCRUD:
         assert response.status_code in [200, 302]
         
         # Verify component was added
-        entry = dict_service.get_entry(sample_entries['main'])
-        component_relations = entry.get_component_relations(dict_service)
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
+        component_relations = entry.get_component_relations(dict_service_with_db)
         
         assert len(component_relations) > 0
         assert any(comp['ref'] == sample_entries['component1'] for comp in component_relations)
@@ -160,7 +130,7 @@ class TestComponentCRUD:
         assert 'component-search-btn' in html
         assert 'new-component-type' in html
     
-    def test_add_multiple_components(self, client, dict_service, sample_entries):
+    def test_add_multiple_components(self, client, dict_service_with_db, sample_entries):
         """Test adding multiple components to an entry."""
         form_data = {
             'id': sample_entries['main'],
@@ -182,15 +152,15 @@ class TestComponentCRUD:
         assert response.status_code in [200, 302]
         
         # Verify both components were added
-        entry = dict_service.get_entry(sample_entries['main'])
-        component_relations = entry.get_component_relations(dict_service)
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
+        component_relations = entry.get_component_relations(dict_service_with_db)
         
         assert len(component_relations) >= 2
         component_refs = [comp['ref'] for comp in component_relations]
         assert sample_entries['component1'] in component_refs
         assert sample_entries['component2'] in component_refs
     
-    def test_component_circularity_detection_backend(self, client, dict_service, sample_entries):
+    def test_component_circularity_detection_backend(self, client, dict_service_with_db, sample_entries):
         """Test that backend prevents circular component references."""
         # Try to add entry as its own component
         form_data = {
@@ -208,7 +178,7 @@ class TestComponentCRUD:
         )
         
         # Entry should still update, but validation should flag the issue
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         
         # Validate the entry
         from app.services.validation_engine import ValidationEngine
@@ -227,7 +197,7 @@ class TestComponentCRUD:
 class TestSenseRelationCRUD:
     """Test CRUD operations for sense relations."""
     
-    def test_create_sense_relation(self, client, dict_service, sample_entries):
+    def test_create_sense_relation(self, client, dict_service_with_db, sample_entries):
         """Test adding a sense relation."""
         form_data = {
             'id': sample_entries['main'],
@@ -247,7 +217,7 @@ class TestSenseRelationCRUD:
         assert response.status_code in [200, 302]
         
         # Verify sense relation was added
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         assert len(entry.senses) > 0
         
         sense = entry.senses[0]
@@ -256,16 +226,16 @@ class TestSenseRelationCRUD:
             assert sense.relations[0].get('type') == 'synonim'
             assert sense.relations[0].get('ref') == 'sense_target_001'
     
-    def test_read_sense_relations(self, client, dict_service, sample_entries):
+    def test_read_sense_relations(self, client, dict_service_with_db, sample_entries):
         """Test reading sense relations from the edit page."""
         # First add a sense relation
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         if entry.senses:
             sense = entry.senses[0]
             sense.relations = [
                 {'type': 'synonim', 'ref': 'sense_target_001'}
             ]
-            dict_service.update_entry(entry)
+            dict_service_with_db.update_entry(entry)
         
         # Get the edit page
         response = client.get(f"/entries/{sample_entries['main']}/edit")
@@ -273,20 +243,21 @@ class TestSenseRelationCRUD:
         assert response.status_code == 200
         html = response.data.decode('utf-8')
         
-        # Check for sense relation search interface
-        assert 'sense-relation-search-input' in html
-        assert 'sense-relation-search-btn' in html
+        # Check for sense relation interface elements (updated to current template classes)
+        assert 'sense-relation-target' in html
+        # Relation type select should be present
+        assert 'sense-lexical-relation-select' in html
     
-    def test_update_sense_relation(self, client, dict_service, sample_entries):
+    def test_update_sense_relation(self, client, dict_service_with_db, sample_entries):
         """Test updating an existing sense relation."""
         # First add a relation
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         if entry.senses:
             sense = entry.senses[0]
             sense.relations = [
                 {'type': 'synonim', 'ref': 'old_sense_ref'}
             ]
-            dict_service.update_entry(entry)
+            dict_service_with_db.update_entry(entry)
         
         # Update the relation
         form_data = {
@@ -307,22 +278,22 @@ class TestSenseRelationCRUD:
         assert response.status_code in [200, 302]
         
         # Verify relation was updated
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         sense = entry.senses[0]
         if hasattr(sense, 'relations') and sense.relations:
             assert sense.relations[0].get('type') == 'antonim'
             assert sense.relations[0].get('ref') == 'sense_target_001'
     
-    def test_delete_sense_relation(self, client, dict_service, sample_entries):
+    def test_delete_sense_relation(self, client, dict_service_with_db, sample_entries):
         """Test removing a sense relation."""
         # First add a relation
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         if entry.senses:
             sense = entry.senses[0]
             sense.relations = [
                 {'type': 'synonim', 'ref': 'sense_target_001'}
             ]
-            dict_service.update_entry(entry)
+            dict_service_with_db.update_entry(entry)
         
         # Remove the relation by not including it in the form
         form_data = {
@@ -342,14 +313,14 @@ class TestSenseRelationCRUD:
         assert response.status_code in [200, 302]
         
         # Verify relation was removed
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         sense = entry.senses[0]
         
         # Relations should be empty or None
         if hasattr(sense, 'relations'):
             assert not sense.relations or len(sense.relations) == 0
     
-    def test_sense_relation_circularity_detection_backend(self, client, dict_service, sample_entries):
+    def test_sense_relation_circularity_detection_backend(self, client, dict_service_with_db, sample_entries):
         """Test that backend prevents circular sense references within same entry."""
         # Try to add sense relation to another sense in the same entry
         form_data = {
@@ -368,7 +339,7 @@ class TestSenseRelationCRUD:
         )
         
         # Entry should update, but validation should flag it
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         
         # Validate the entry
         from app.services.validation_engine import ValidationEngine
@@ -387,7 +358,7 @@ class TestSenseRelationCRUD:
 class TestSearchIntegration:
     """Test search functionality for components and sense relations."""
     
-    def test_search_api_for_components(self, client, dict_service, sample_entries):
+    def test_search_api_for_components(self, client, dict_service_with_db, sample_entries):
         """Test that search API returns entries for component selection."""
         response = client.get('/api/search?q=ball&limit=10')
         
@@ -404,7 +375,7 @@ class TestSearchIntegration:
             assert 'id' in entry
             assert 'lexical_unit' in entry or 'headword' in entry
     
-    def test_search_api_for_sense_relations(self, client, dict_service, sample_entries):
+    def test_search_api_for_sense_relations(self, client, dict_service_with_db, sample_entries):
         """Test that search API returns entries with senses for sense relation selection."""
         response = client.get('/api/search?q=sport&limit=10')
         
@@ -427,10 +398,10 @@ class TestSearchIntegration:
 class TestEnrichmentDisplay:
     """Test that component and sense relation enrichment works correctly."""
     
-    def test_component_enrichment_displays_headword(self, client, dict_service, sample_entries):
+    def test_component_enrichment_displays_headword(self, client, dict_service_with_db, sample_entries):
         """Test that component relations show the referenced entry's headword."""
         # Add component relation
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         entry.relations = [
             Relation(
                 type='_component-lexeme',
@@ -438,7 +409,7 @@ class TestEnrichmentDisplay:
                 traits={'complex-form-type': 'compound'}
             )
         ]
-        dict_service.update_entry(entry)
+        dict_service_with_db.update_entry(entry)
         
         # Get edit page
         response = client.get(f"/entries/{sample_entries['main']}/edit")
@@ -449,16 +420,16 @@ class TestEnrichmentDisplay:
         # Should display the component's headword
         assert 'basket' in html  # The component entry's lexical unit
     
-    def test_sense_relation_enrichment_displays_headword_and_gloss(self, client, dict_service, sample_entries):
+    def test_sense_relation_enrichment_displays_headword_and_gloss(self, client, dict_service_with_db, sample_entries):
         """Test that sense relations show the target sense's headword and gloss."""
         # Add sense relation
-        entry = dict_service.get_entry(sample_entries['main'])
+        entry = dict_service_with_db.get_entry(sample_entries['main'])
         if entry.senses:
             sense = entry.senses[0]
             sense.relations = [
                 {'type': 'synonim', 'ref': 'sense_target_001'}
             ]
-            dict_service.update_entry(entry)
+            dict_service_with_db.update_entry(entry)
         
         # Get edit page
         response = client.get(f"/entries/{sample_entries['main']}/edit")
@@ -498,7 +469,7 @@ class TestUIScriptLoading:
 class TestValidationRules:
     """Test that validation rules catch circularity issues."""
     
-    def test_validation_rule_r811_component_circularity(self, dict_service, sample_entries):
+    def test_validation_rule_r811_component_circularity(self, dict_service_with_db, sample_entries):
         """Test validation rule R8.1.1 catches component circular references."""
         from app.services.validation_engine import ValidationEngine
         
@@ -523,7 +494,7 @@ class TestValidationRules:
         assert len(rule_errors) > 0
         assert 'circular' in rule_errors[0].message.lower()
     
-    def test_validation_rule_r812_sense_circularity(self, dict_service, sample_entries):
+    def test_validation_rule_r812_sense_circularity(self, dict_service_with_db, sample_entries):
         """Test validation rule R8.1.2 catches sense circular references."""
         from app.services.validation_engine import ValidationEngine
         
@@ -553,7 +524,7 @@ class TestValidationRules:
         assert len(rule_errors) > 0
         assert 'circular' in rule_errors[0].message.lower()
     
-    def test_validation_rule_r813_entry_relation_circularity(self, dict_service, sample_entries):
+    def test_validation_rule_r813_entry_relation_circularity(self, dict_service_with_db, sample_entries):
         """Test validation rule R8.1.3 catches entry relation circular references."""
         from app.services.validation_engine import ValidationEngine
         

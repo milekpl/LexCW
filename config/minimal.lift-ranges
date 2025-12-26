@@ -27241,4 +27241,39 @@
 </abbrev>
 </range-element>
 </range>
-<range id="complex-form-types"><range-element id="compound"><label><form lang="en"><text>Compound</text></form></label><abbrev><form lang="en"><text>comp</text></form></abbrev><description><form lang="en"><text>A stem made of more than one root.</text></form></description></range-element><range-element id="derivative"><label><form lang="en"><text>Derivative</text></form></label><abbrev><form lang="en"><text>der</text></form></abbrev><description><form lang="en"><text>A stem made up of a root plus an affix that adds a non-inflectional component of meaning.</text></form></description></range-element><range-element id="idiom"><label><form lang="en"><text>Idiom</text></form></label><abbrev><form lang="en"><text>id</text></form></abbrev><description><form lang="en"><text>A multi-word expression that is recognized as a semantic unit.</text></form></description></range-element><range-element id="phrasal-verb"><label><form lang="en"><text>Phrasal Verb</text></form></label><abbrev><form lang="en"><text>ph. v.</text></form></abbrev><description><form lang="en"><text>A combination of a lexical verb and a verbal particle that forms a single semantic and syntactic unit.</text></form></description></range-element><range-element id="contraction"><label><form lang="en"><text>Contraction</text></form></label><abbrev><form lang="en"><text>contr.</text></form></abbrev><description><form lang="en"><text>A combination of two lexemes that are phonologically reduced.</text></form></description></range-element><range-element id="saying"><label><form lang="en"><text>Saying</text></form></label><abbrev><form lang="en"><text>say.</text></form></abbrev><description><form lang="en"><text>Any pithy phrasal expression of wisdom or truth; esp., an adage, proverb, or maxim.</text></form></description></range-element></range><range id="variant-type"><range-element id="dialectal"><label><form lang="en"><text>Dialectal Variant</text></form></label><description><form lang="en"><text>Characteristically used by a specific demographic or geographic subset.</text></form></description></range-element><range-element id="free"><label><form lang="en"><text>Free Variant</text></form></label><description><form lang="en"><text>Interchangeable forms used by the same speaker without discernible conditioning.</text></form></description></range-element><range-element id="irregular"><label><form lang="en"><text>Irregularly Inflected Form</text></form></label><description><form lang="en"><text>Forms that deviate from standard inflectional rules.</text></form></description></range-element><range-element id="spelling"><label><form lang="en"><text>Spelling Variant</text></form></label><description><form lang="en"><text>Purely orthographic differences (e.g., color vs. colour).</text></form></description></range-element></range><range id="usage-labels"><range-element id="domain"><label><form lang="en"><text>Domain</text></form></label><abbrev><form lang="en"><text>domain</text></form></abbrev><description><form lang="en"><text>Marks terms belonging to specialized fields.</text></form></description></range-element><range-element id="regional"><label><form lang="en"><text>Regional</text></form></label><abbrev><form lang="en"><text>regional</text></form></abbrev><description><form lang="en"><text>Indicates spatial distribution.</text></form></description></range-element><range-element id="register"><label><form lang="en"><text>Register</text></form></label><abbrev><form lang="en"><text>register</text></form></abbrev><description><form lang="en"><text>Indicates stylistic level.</text></form></description></range-element><range-element id="usage"><label><form lang="en"><text>Usage</text></form></label><abbrev><form lang="en"><text>usage</text></form></abbrev><description><form lang="en"><text>Marks words that are offensive, taboo, or limited to specific text types.</text></form></description></range-element><range-element id="temporal"><label><form lang="en"><text>Temporal</text></form></label><abbrev><form lang="en"><text>temporal</text></form></abbrev><description><form lang="en"><text>Identifies archaic, obsolete, or new (neologism) words.</text></form></description></range-element></range><range id="recommended-traits"><range-element id="catalog-source-id"><label><form lang="en"><text>Catalog-Source-ID</text></form></label><description><form lang="en"><text>Links a project-specific category to a global standard.</text></form></description><trait name="trait-name" value="catalog-source-id" /></range-element><range-element id="inflectable-feature"><label><form lang="en"><text>Inflectable-Feature</text></form></label><description><form lang="en"><text>Marks whether a POS can take inflectional affixes.</text></form></description><trait name="trait-name" value="inflectable-feature" /></range-element><range-element id="leading-symbol"><label><form lang="en"><text>Leading-Symbol</text></form></label><description><form lang="en"><text>Automates formatting for bound forms (e.g., adding a hyphen).</text></form></description><trait name="trait-name" value="leading-symbol" /></range-element><range-element id="trailing-symbol"><label><form lang="en"><text>Trailing-Symbol</text></form></label><description><form lang="en"><text>Automates formatting for bound forms (e.g., adding a hyphen).</text></form></description><trait name="trait-name" value="trailing-symbol" /></range-element></range></lift-ranges>
+
+<range id="usage-type">
+<range-element id="archaic">
+<label>
+<form lang="en"><text>archaic</text></form>
+</label>
+<abbrev>
+<form lang="en"><text>arch</text></form>
+</abbrev>
+</range-element>
+<range-element id="colloquial">
+<label>
+<form lang="en"><text>colloquial</text></form>
+</label>
+<abbrev>
+<form lang="en"><text>col</text></form>
+</abbrev>
+</range-element>
+<range-element id="formal">
+<label>
+<form lang="en"><text>formal</text></form>
+</label>
+<abbrev>
+<form lang="en"><text>form</text></form>
+</abbrev>
+</range-element>
+<range-element id="slang">
+<label>
+<form lang="en"><text>slang</text></form>
+</label>
+<abbrev>
+<form lang="en"><text>slg</text></form>
+</abbrev>
+</range-element>
+</range>
+</lift-ranges>

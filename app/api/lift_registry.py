@@ -209,7 +209,7 @@ def get_hierarchy():
 @registry_bp.route("/metadata", methods=["GET"])
 def get_metadata():
     """
-    Get all registry metadata (relation types, note types, etc.)
+    Get all registry metadata (lexical relations, note types, etc.)
     ---
     tags:
       - LIFT Registry
@@ -221,7 +221,7 @@ def get_metadata():
             schema:
               type: object
               properties:
-                relation_types:
+                lexical_relations:
                   type: array
                   items:
                     type: string
@@ -237,7 +237,7 @@ def get_metadata():
     registry = get_registry()
     
     return jsonify({
-        "relation_types": registry.get_relation_types(),
+        "lexical_relations": registry.get_relation_types(),
         "note_types": registry.get_note_types(),
         "grammatical_categories": registry.get_grammatical_categories()
     })

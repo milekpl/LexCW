@@ -19,55 +19,51 @@ class TestAppConsistency:
     """Test application title consistency and routing."""
     
     @pytest.mark.integration
-    def test_consistent_app_title_in_templates(self, app: Flask):
+    def test_consistent_app_title_in_templates(self, client):
         """Verify the landing page renders the standardized 'Lexicographic Curation Workbench' title."""
-        with app.test_client() as client:
-            response = client.get('/')
-            assert response.status_code == 200
-            assert b'Lexicographic Curation Workbench' in response.data
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'Lexicographic Curation Workbench' in response.data
             
     @pytest.mark.integration
-    def test_corpus_management_single_route(self, app: Flask):
+    def test_corpus_management_single_route(self, client):
         """Test that corpus management has single consistent route."""
-        with app.test_client() as client:
-            # Test correct route works
+        # Test correct route works
+        response = client.get('/corpus-management')
+        assert response.status_code == 200
+            
+        # Test old API route doesn't serve templates
+        response = client.get('/api/corpus/')
+        # Should either not exist or return JSON, not HTML template
+        if response.status_code == 200:
+            assert 'text/html' not in response.content_type
+                
+    @pytest.mark.integration
+    def test_corpus_management_postgres_connection(self, client):
+        """Test that corpus management connects to PostgreSQL."""
+        # Mock PostgreSQL connection
+        with patch('app.database.postgresql_connector.PostgreSQLConnector') as mock_connector:
+            mock_instance = MagicMock()
+            mock_connector.return_value = mock_instance
+            mock_instance.test_connection.return_value = True
+                
             response = client.get('/corpus-management')
             assert response.status_code == 200
-            
-            # Test old API route doesn't serve templates
-            response = client.get('/api/corpus/')
-            # Should either not exist or return JSON, not HTML template
-            if response.status_code == 200:
-                assert 'text/html' not in response.content_type
+            # Should have PostgreSQL status check
                 
     @pytest.mark.integration
-    def test_corpus_management_postgres_connection(self, app: Flask):
-        """Test that corpus management connects to PostgreSQL."""
-        with app.test_client() as client:
-            # Mock PostgreSQL connection
-            with patch('app.database.postgresql_connector.PostgreSQLConnector') as mock_connector:
-                mock_instance = MagicMock()
-                mock_connector.return_value = mock_instance
-                mock_instance.test_connection.return_value = True
-                
-                response = client.get('/corpus-management')
-                assert response.status_code == 200
-                # Should have PostgreSQL status check
-                
-    @pytest.mark.integration
-    def test_navigation_consistency(self, app: Flask):
+    def test_navigation_consistency(self, client):
         """Test that navigation links are consistent across templates."""
-        with app.test_client() as client:
-            # Check main page navigation
-            response = client.get('/')
-            assert response.status_code == 200
-            assert b'/corpus-management' in response.data
-            assert b'/api/corpus' not in response.data
+        # Check main page navigation
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'/corpus-management' in response.data
+        assert b'/api/corpus' not in response.data
             
-            # Check entries page navigation
-            response = client.get('/entries')
-            assert response.status_code == 200
-            assert b'/corpus-management' in response.data
+        # Check entries page navigation
+        response = client.get('/entries')
+        assert response.status_code == 200
+        assert b'/corpus-management' in response.data
 
 
 
@@ -97,12 +93,11 @@ class TestRedisCacheIntegration:
             assert hasattr(cache_service, 'redis_client')
             
     @pytest.mark.integration
-    def test_entries_api_caching(self, app: Flask):
+    def test_entries_api_caching(self, app: Flask, client):
         """Test that entries API uses Redis caching when available."""
-        with app.test_client() as client:
-            # We patch the cache_service instance on the app context
-            with patch.object(app.cache_service, 'get') as mock_get:
-                mock_get.return_value = None  # Cache miss
-                response = client.get('/api/entries')
-                # Just verify that the endpoint works, caching is optional
-                assert response.status_code == 200
+        # We patch the cache_service instance on the app context
+        with patch.object(app.cache_service, 'get') as mock_get:
+            mock_get.return_value = None  # Cache miss
+            response = client.get('/api/entries')
+            # Just verify that the endpoint works, caching is optional
+            assert response.status_code == 200

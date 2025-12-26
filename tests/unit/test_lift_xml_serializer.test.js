@@ -21,9 +21,9 @@
 const { DOMParser, XMLSerializer, DOMImplementation } = require('@xmldom/xmldom');
 
 // Inject XML DOM globals for the serializer to use
-global.DOMParser = DOMParser;
-global.XMLSerializer = XMLSerializer;
-global.document = new DOMImplementation().createDocument(null, null, null);
+globalThis.DOMParser = DOMParser;
+globalThis.XMLSerializer = XMLSerializer;
+globalThis.document = new DOMImplementation().createDocument(null, null, null);
 
 // Import the serializer (now that globals are set)
 const LIFTXMLSerializer = require('../../app/static/js/lift-xml-serializer.js');

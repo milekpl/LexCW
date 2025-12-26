@@ -1,13 +1,4 @@
 import pytest
-from flask import url_for
-from app import create_app
-
-@pytest.fixture
-def client():
-    app = create_app('testing')
-    app.config['SERVER_NAME'] = 'localhost'
-    with app.test_client() as client:
-        yield client
 
 def test_tools_page(client):
     response = client.get('/tools')

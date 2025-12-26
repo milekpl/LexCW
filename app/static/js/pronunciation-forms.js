@@ -531,12 +531,12 @@ class PronunciationFormsManager {
         if (selectElement) {
             availableLanguages = Array.from(selectElement.options)
                 .map(opt => opt.value)
-                .filter(val => val); // Remove empty values
+                .filter(Boolean); // Remove empty values
         }
         
-        const existingLangs = Array.from(container.querySelectorAll('.language-form-group'))
-            .map(form => form.dataset.lang);
-        const availableLang = availableLanguages.find(lang => !existingLangs.includes(lang)) || availableLanguages[0];
+        const existingLangs = new Set(Array.from(container.querySelectorAll('.language-form-group'))
+            .map(form => form.dataset.lang));
+        const availableLang = availableLanguages.find(lang => !existingLangs.has(lang)) || availableLanguages[0];
         
         const displayName = fieldName === 'cv_pattern' ? 'CV Pattern' : 'Tone';
         const placeholder = fieldName === 'cv_pattern' ? 'e.g., CVCC, CV-CVC' : 'e.g., High, 35, Rising';

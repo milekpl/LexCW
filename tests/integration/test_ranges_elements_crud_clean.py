@@ -16,10 +16,7 @@ from app.services.ranges_service import RangesService
 class TestRangeElementsCRUDClean:
     """Clean test suite for ranges element CRUD using service methods."""
 
-    @pytest.fixture
-    def client(self, app: Flask) -> FlaskClient:
-        with app.test_client() as client:
-            yield client
+
 
     @pytest.fixture
     def test_range_id(self, client: Flask) -> str:

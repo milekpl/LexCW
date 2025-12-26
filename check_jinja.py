@@ -15,7 +15,27 @@ def check_template_render() -> bool:
     print("Creating Flask app for testing...")
     app = create_app('testing')
     
+    # Create a dummy project to satisfy the load_project_context requirement
+    from app.config_manager import ConfigManager
+    with app.app_context():
+        config_manager = app.injector.get(ConfigManager)
+        # Check if any project exists, if not create one
+        settings = config_manager.get_all_settings()
+        if not settings:
+            print("Creating dummy project for testing...")
+            project = config_manager.create_settings(
+                project_name="Test Project", 
+                basex_db_name="test_db"
+            )
+            project_id = project.id
+        else:
+            project_id = settings[0].id
+    
     with app.test_client() as client:
+        # Set the project_id in the session
+        with client.session_transaction() as sess:
+            sess['project_id'] = project_id
+            
         print("Making request to /entries/add to render the template...")
         try:
             # The /entries/add route renders the entry_form.html template

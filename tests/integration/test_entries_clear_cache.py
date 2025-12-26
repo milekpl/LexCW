@@ -2,14 +2,6 @@ from __future__ import annotations
 from typing import Any
 import pytest
 from flask import Flask
-from app import create_app
-
-@pytest.fixture
-def client() -> Any:
-    app = create_app()
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
 
 def test_clear_entries_cache(client: Any) -> None:
     """

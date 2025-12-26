@@ -17,10 +17,8 @@ def app() -> Flask:
     return app
 
 
-@pytest.fixture
-def client(app: Flask):
-    """Create test client."""
-    return app.test_client()
+# Use shared `client` fixture from tests/integration/conftest.py for consistent project/session setup
+# (local client fixture removed to follow DRY principle)
 
 
 @pytest.fixture(autouse=True)

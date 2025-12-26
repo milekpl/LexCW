@@ -133,7 +133,7 @@
   },
   {
     "endpoint": "api.search.get_variant_types",
-    "url": "/api/search/ranges/variant-types",
+    "url": "/api/search/ranges/variant-type",
     "methods": [
       "GET"
     ],
@@ -353,7 +353,7 @@
   },
   {
     "endpoint": "ranges.get_variant_types_range",
-    "url": "/api/ranges/variant-types",
+    "url": "/api/ranges/variant-type",
     "methods": [
       "GET"
     ],
@@ -397,7 +397,7 @@
   },
   {
     "endpoint": "ranges.get_variant_types_from_traits",
-    "url": "/api/ranges/variant-types",
+    "url": "/api/ranges/variant-type",
     "methods": [
       "GET"
     ],

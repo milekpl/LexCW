@@ -55,8 +55,12 @@ class TestPronunciationUIElements:
         assert response.status_code == 200
         
         # The template HTML is embedded in the JavaScript
-        # Just verify the buttons exist in our template
-        pass  # Already verified by other tests
+        # Verify the buttons exist in the embedded template
+        js_content = response.data.decode('utf-8')
+        assert 'upload-audio-btn' in js_content
+        assert 'generate-audio-btn' in js_content
+        assert '<i class="fas fa-upload"></i> Upload' in js_content or 'Upload' in js_content
+        assert '<i class="fas fa-magic"></i> Generate' in js_content or 'Generate' in js_content
 
 
 @pytest.mark.integration

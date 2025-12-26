@@ -9,17 +9,23 @@ This test checks:
 """
 
 import re
+import uuid
+import requests
+import time
 from playwright.sync_api import expect, Page
 
 
-def test_live_preview_auto_load_with_debug(page: Page):
+def test_live_preview_auto_load_with_debug(page: Page, flask_test_server: str):
     """Test that live preview loads automatically and renders headword."""
     
-    # Navigate to an entry edit page
-    page.goto("/entries/edit/test-entry-id")  # Replace with actual entry ID
+    # Create a real entry first
+    entry_id = f"preview_test_{uuid.uuid4().hex[:8]}"
+    lift_xml = f'''<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{entry_id}">
+  <lexical-unit><form lang="en"><text>PreviewHeadword</text></form></lexical-unit>
+  <sense id="s1"><definition><form lang="en"><text>test</text></form></definition></sense>
+</entry>'''
     
-    # Wait for page to load
-    expect(page.locator("#entry-form")).to_be_visible()
+    requests.post(f"{flask_test_server}/api/xml/entries", data=lift_xml.encode('utf-8'), headers={'Content-Type': 'application/xml'})
     
     # Set up console error logging
     console_messages = []
@@ -33,52 +39,43 @@ def test_live_preview_auto_load_with_debug(page: Page):
             console_messages.append(f"INFO: {msg.text}")
     
     page.on("console", handle_console)
+
+    # Navigate to an entry edit page
+    page.goto(f"{flask_test_server}/entries/{entry_id}/edit")
     
-    # Check if live preview container exists
+    # Wait for page to load
+    expect(page.locator("#entry-form")).to_be_visible()
+    
+    # Wait for initial preview to load (should be automatic)
+    # Check for headword in preview
     preview_container = page.locator("#live-preview-container")
     expect(preview_container).to_be_visible()
     
-    # Wait for initial preview to load (should be automatic)
-    # If it doesn't load automatically, we'll see error messages
+    # Wait for it to contain the headword text
+    expect(preview_container).to_contain_text("PreviewHeadword", timeout=15000)
     
-    # Check for headword in preview
+    # Check for headword element specifically if needed
     headword = preview_container.locator(".headword.lexical-unit")
-    
-    # If headword is found, test passes
-    if headword.count() > 0:
-        print("✅ Live preview loaded automatically with headword")
-        print(f"Headword text: {headword.inner_text()}")
-    else:
-        print("❌ Live preview did not load automatically")
-        print(f"Preview container HTML: {preview_container.inner_html()}")
-    
-    # Print any console messages
-    if console_messages:
-        print("\nConsole messages:")
-        for msg in console_messages:
-            print(f"  {msg}")
-    else:
-        print("\nNo relevant console messages")
-    
-    # Check for specific issues
-    if "LivePreviewManager is undefined" in str(console_messages):
-        print("\n🔍 Issue: LivePreviewManager not loaded")
-    elif "Form element not found" in str(console_messages):
-        print("\n🔍 Issue: Form element not found")
-    elif "Preview container not found" in str(console_messages):
-        print("\n🔍 Issue: Preview container not found")
-    elif not console_messages:
-        print("\n🔍 Issue: No debug output - check if JavaScript is running")
     
     # Assert that preview loaded correctly
     assert headword.count() > 0, "Live preview should load automatically with headword"
+    assert "PreviewHeadword" in headword.inner_text()
 
 
-def test_live_preview_refresh_button(page: Page):
+def test_live_preview_refresh_button(page: Page, flask_test_server: str):
     """Test that refresh button works if auto-load fails."""
     
+    # Create a real entry first
+    entry_id = f"refresh_test_{uuid.uuid4().hex[:8]}"
+    lift_xml = f'''<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{entry_id}">
+  <lexical-unit><form lang="en"><text>RefreshHeadword</text></form></lexical-unit>
+  <sense id="s1"><definition><form lang="en"><text>test</text></form></definition></sense>
+</entry>'''
+    
+    requests.post(f"{flask_test_server}/api/xml/entries", data=lift_xml.encode('utf-8'), headers={'Content-Type': 'application/xml'})
+
     # Navigate to entry edit page
-    page.goto("/entries/edit/test-entry-id")
+    page.goto(f"{flask_test_server}/entries/{entry_id}/edit")
     
     # Click refresh button
     refresh_btn = page.locator("#refresh-preview-btn")
@@ -86,10 +83,10 @@ def test_live_preview_refresh_button(page: Page):
     
     # Check if preview updates
     preview_container = page.locator("#live-preview-container")
-    headword = preview_container.locator(".headword.lexical-unit")
+    expect(preview_container).to_contain_text("RefreshHeadword", timeout=15000)
     
-    # Should have headword after refresh
-    assert headword.count() > 0, "Refresh button should trigger preview update"
+    headword = preview_container.locator(".headword.lexical-unit")
+    assert "RefreshHeadword" in headword.inner_text()
 
 
 if __name__ == "__main__":

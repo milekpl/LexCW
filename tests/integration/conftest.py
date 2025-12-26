@@ -26,10 +26,17 @@ parent_conftest = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(parent_conftest)
 
 basex_available = parent_conftest.basex_available
-test_db_name = parent_conftest.test_db_name
-basex_test_connector = parent_conftest.basex_test_connector
+# Override test_db_name to use the session DB for integration tests
+# test_db_name = parent_conftest.test_db_name
+# Override basex_test_connector to use the session DB without creating/dropping it
+# basex_test_connector = parent_conftest.basex_test_connector
 dict_service_with_db = parent_conftest.dict_service_with_db
 flask_test_server = parent_conftest.flask_test_server
+
+@pytest.fixture(scope="function")
+def test_db_name() -> str:
+    """Return the shared test database name for integration tests."""
+    return os.environ.get('TEST_DB_NAME') or f"test_{importlib.util.sys.modules['uuid'].uuid4().hex[:8]}"
 
 # Ensure TEST_DB_NAME is set early (at import time) so tests that call
 # create_app('testing') at module import get the correct DB. This mirrors
@@ -183,10 +190,54 @@ def app() -> Flask:
 
 
 @pytest.fixture(scope="function")
-def client(app: Flask):
+def test_project(app: Flask, test_db_name: str):
+    """Create a project setting that points to the test database."""
+    unique_name = f"Integration Test Project {test_db_name}"
+    project_id = None
+    
+    with app.app_context():
+        from app.config_manager import ConfigManager
+        from app.models.project_settings import ProjectSettings, db
+        
+        # Cleanup any existing collision
+        existing = ProjectSettings.query.filter_by(project_name=unique_name).first()
+        if existing:
+            db.session.delete(existing)
+            db.session.commit()
+
+        cm = ConfigManager(app.instance_path)
+        settings = cm.create_settings(
+            project_name=unique_name,
+            basex_db_name=test_db_name,
+            settings_json={'source_language': {'code': 'en', 'name': 'English'}}
+        )
+        project_id = settings.id
+        # Expunge to keep the object available detached, preventing refresh error
+        db.session.expunge(settings)
+        
+    yield settings
+    
+    # Teardown
+    if project_id:
+        with app.app_context():
+            from app.models.project_settings import ProjectSettings, db
+            s = ProjectSettings.query.get(project_id)
+            if s:
+                db.session.delete(s)
+                db.session.commit()
+
+@pytest.fixture(scope="function")
+def client(app: Flask, test_project):
     """Create Flask test client (function-scoped for fresh context per test)."""
     with app.app_context():
-        yield app.test_client()
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            # test_project is detached but id should be available if we expunged it correctly
+            # or we can rely on it not being expired if we didn't access it?
+            # Safest is to just access .id if it's loaded, or use the one we captured?
+            # We yielded 'settings'.
+            sess['project_id'] = test_project.id
+        yield client
 
 
 @pytest.fixture(autouse=True)
@@ -201,13 +252,23 @@ def ensure_recommended_ranges(client: FlaskClient) -> None:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def ensure_clean_basex_db() -> None:
+def ensure_clean_basex_db(app: Flask) -> None:
     """Ensure a clean (empty) LIFT dataset exists in TEST_DB_NAME before each test.
 
     Uses the same delete-and-add logic from tests/basex_test_utils to keep the
     behavior DRY and safe (avoids DROP/CREATE races).
     """
     from tests.basex_test_utils import delete_all_lift_entries
+
+    # CRITICAL: Disconnect the session-scoped app's dictionary service to release locks
+    # before attempting cleanup from a different connector.
+    try:
+        from app.services.dictionary_service import DictionaryService
+        dict_service: DictionaryService = app.injector.get(DictionaryService)
+        if hasattr(dict_service, 'db_connector') and dict_service.db_connector:
+            dict_service.db_connector.disconnect()
+    except Exception:
+        pass
 
     db_name = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE') or 'dictionary_test'
 

@@ -212,7 +212,10 @@ def test_edit_page_handles_range_value_with_none_description(client: FlaskClient
     # Patch DictionaryService.get_lift_ranges to return a malformed description
     from app.services.dictionary_service import DictionaryService
 
-    def fake_get_lift_ranges(self):
+    def fake_get_lift_ranges(self, project_id=None, force_reload=False, **kwargs):
+        # Accept the same signature as the real method to avoid unexpected
+        # keyword argument errors when called from views. Return a minimal
+        # malformed range value to exercise the template fallback.
         return {
             "lexical-relation": {
                 "values": [{"id": "r1", "description": None}]

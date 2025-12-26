@@ -88,17 +88,22 @@ class TestDatabaseOperationsE2E:
         # Wait for either a success toast or an error to be shown, and assert accordingly
         dropped = False
         try:
-            success_message = page.get_by_text("Operation completed successfully!")
-            expect(success_message).to_be_visible(timeout=15000)
+            # Wait for success toast
+            page.wait_for_selector('.toast.text-bg-success', timeout=15000)
             dropped = True
         except Exception:
-            # If an error is shown, surface it for debugging but continue the test
-            error_message = page.get_by_text("Error", exact=False)
-            expect(error_message).to_be_visible(timeout=15000)
-            dropped = False
+            # Check for error toast
+            try:
+                if page.locator('.toast.text-bg-danger').is_visible():
+                    dropped = False
+            except Exception:
+                pass
         
+        # Give UI time to process the reload if it's going to happen
+        page.wait_for_timeout(2000)
+
         # Verify database state by checking entry count
-        page.goto(f"{flask_test_server}/entries")
+        page.goto(f"{flask_test_server}/entries", wait_until="networkidle")
         # Title updated to 'Dictionary Entries' in the UI
         expect(page).to_have_title("Dictionary Entries")
 

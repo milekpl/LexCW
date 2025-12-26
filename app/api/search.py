@@ -3,7 +3,7 @@ API endpoints for searching dictionary entries.
 """
 
 import logging
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, session
 from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
@@ -104,7 +104,9 @@ def search_entries():
         dict_service = get_dictionary_service()
 
         # Search entries
+        project_id = session.get('project_id')
         entries, total_count = dict_service.search_entries(
+            project_id=project_id,
             query=query,
             fields=fields,
             limit=limit,
@@ -218,10 +220,16 @@ def get_range_values(range_id):
         
         # Canonical forms only - no backward compatibility mappings
         
-        # Check if range exists
+        # Check if range exists; if not, attempt a forced refresh (handles transient load race)
         if range_id not in ranges:
-            raise NotFoundError(f"Range '{range_id}' not found")
-        
+            logger.debug("Range %s not found in cached ranges; forcing refresh", range_id)
+            try:
+                ranges = dict_service.get_ranges(force_reload=True) if hasattr(dict_service, 'get_ranges') else ranges
+            except Exception as e:
+                logger.warning("Forced ranges refresh failed: %s", str(e))
+            if range_id not in ranges:
+                raise NotFoundError(f"Range '{range_id}' not found")
+
         # Return response
         return jsonify({
             'success': True,

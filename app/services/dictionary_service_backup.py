@@ -822,7 +822,8 @@ class DictionaryService:
 
     def search_entries(
         self,
-        query: str,
+        query: str = "",
+        project_id: Optional[int] = None,
         fields: Optional[List[str]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
@@ -2357,17 +2358,17 @@ class DictionaryService:
             with open(traits_path, 'r', encoding='utf-8') as f:
                 traits_data = yaml.safe_load(f)
 
-            # Seed trait values (variant-types, complex-form-types) as custom ranges
+            # Seed trait values (variant-type, complex-form-types) as custom ranges
             # Use RangesService to create/update custom_ranges.json
             ranges_service = RangesService(self.db_connector)
             custom_ranges = {}
-            if 'variant-types' in traits_data:
+            if 'variant-type' in traits_data:
                 custom_ranges['variant-type'] = [
                     {
                         'id': v['id'],
                         'label': v.get('label', v['id']),
                         'definition': v.get('definition', '')
-                    } for v in traits_data['variant-types']
+                    } for v in traits_data['variant-type']
                 ]
             if 'complex-form-types' in traits_data:
                 custom_ranges['complex-form-type'] = [

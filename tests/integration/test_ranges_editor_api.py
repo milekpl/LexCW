@@ -15,11 +15,7 @@ from flask.testing import FlaskClient
 class TestRangesEditorAPI:
     """Test ranges editor API endpoints."""
     
-    @pytest.fixture
-    def client(self, app: Flask) -> FlaskClient:
-        """Create test client."""
-        with app.test_client() as client:
-            yield client
+
     
     def test_list_ranges(self, client: FlaskClient) -> None:
         """Test GET /api/ranges-editor/."""

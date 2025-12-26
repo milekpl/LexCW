@@ -1041,15 +1041,15 @@
 
         // Create new variant HTML
         const variantHtml = `
-            <div class="direct-variant-item card mb-3" data-variant-index="\${newIndex}">
+            <div class="direct-variant-item card mb-3" data-variant-index="${newIndex}">
                 <div class="card-header bg-warning text-dark">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">
                             <i class="fas fa-copy me-2"></i>
-                            Direct Variant \${newIndex + 1}
+                            Direct Variant ${newIndex + 1}
                         </h6>
                         <button type="button" class="btn btn-sm btn-light remove-direct-variant-btn"
-                                data-index="\${newIndex}" title="Remove direct variant">
+                                data-index="${newIndex}" title="Remove direct variant">
                             <i class="fas fa-trash text-danger"></i>
                         </button>
                     </div>
@@ -1064,7 +1064,7 @@
                                     <div class="input-group mb-2">
                                         <span class="input-group-text">en</span>
                                         <input type="text" class="form-control"
-                                               name="variants[\${newIndex}].form.en"
+                                               name="variants[${newIndex}].form.en"
                                                value=""
                                                placeholder="Variant form in English">
                                     </div>
@@ -1094,7 +1094,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Grammatical Info</label>
                                 <input type="text" class="form-control"
-                                       name="variants[\${newIndex}].grammatical_info"
+                                       name="variants[${newIndex}].grammatical_info"
                                        value=""
                                        placeholder="Grammatical information">
                             </div>
@@ -1119,7 +1119,7 @@
     }
 
     function removeDirectVariant(index) {
-        const variantElement = document.querySelector(\`[data-variant-index="\${index}"]\`);
+        const variantElement = document.querySelector(`[data-variant-index="${index}"]`);
         if (variantElement) {
             variantElement.remove();
             reindexDirectVariants();
@@ -1136,10 +1136,7 @@
             // Update header number
             const header = element.querySelector('.card-header h6');
             if (header) {
-                header.innerHTML = \`
-                    <i class="fas fa-copy me-2"></i>
-                    Direct Variant \${newIndex + 1}
-                \`;
+                header.innerHTML = `<i class="fas fa-copy me-2"></i> Direct Variant ${newIndex + 1}`;
             }
 
             // Update remove button
@@ -1154,7 +1151,7 @@
                 const name = input.getAttribute('name');
                 if (name && name.includes('variants[')) {
                     // Replace the index in the name attribute
-                    const newName = name.replace(/variants\\[\\d+\\]/, \`variants[\${newIndex}]\`);
+                    const newName = name.replace(/variants\[\d+\]/, `variants[${newIndex}]`);
                     input.setAttribute('name', newName);
                 }
             });
@@ -1162,26 +1159,13 @@
     }
 
     function addVariantLanguage(variantIndex) {
-        const variantElement = document.querySelector(\`[data-variant-index="\${variantIndex}"]\`);
+        const variantElement = document.querySelector(`[data-variant-index="${variantIndex}"]`);
         const languagesContainer = variantElement.querySelector('.variant-form-languages');
 
         // Create a new language input
         const newInput = document.createElement('div');
         newInput.className = 'input-group mb-2';
-        newInput.innerHTML = \`
-            <span class="input-group-text">
-                <input type="text" class="form-control form-control-sm lang-code-input"
-                       style="width: 60px;" placeholder="xx" maxlength="10">
-            </span>
-            <input type="text" class="form-control"
-                   name="variants[\${variantIndex}].form.NEW_LANG"
-                   value=""
-                   placeholder="Variant form in new language">
-            <button type="button" class="btn btn-outline-danger remove-variant-language-btn"
-                    title="Remove this language">
-                <i class="fas fa-times"></i>
-            </button>
-        \`;
+        newInput.innerHTML = '<span class="input-group-text"><input type="text" class="form-control form-control-sm lang-code-input" style="width: 60px;" placeholder="xx" maxlength="10"></span><input type="text" class="form-control" name="variants[' + variantIndex + '].form.NEW_LANG" value="" placeholder="Variant form in new language"><button type="button" class="btn btn-outline-danger remove-variant-language-btn" title="Remove this language"><i class="fas fa-times"></i></button>';
 
         languagesContainer.appendChild(newInput);
 
@@ -1194,7 +1178,7 @@
             const langCode = this.value.trim();
             if (langCode) {
                 const currentName = textInput.getAttribute('name');
-                const newName = currentName.replace('.form.NEW_LANG', \`.form.\${langCode}\`);
+                const newName = currentName.replace('.form.NEW_LANG', `.form.${langCode}`);
                 textInput.setAttribute('name', newName);
             }
         });
@@ -1205,25 +1189,16 @@
     }
 
     function addVariantTrait(variantIndex) {
-        const variantElement = document.querySelector(\`[data-variant-index="\${variantIndex}"]\`);
+        const variantElement = document.querySelector(`[data-variant-index="${variantIndex}"]`);
         const traitsContainer = variantElement.querySelector('.variant-traits');
 
         // Create a new trait input
         const newInput = document.createElement('div');
         newInput.className = 'input-group mb-2';
-        newInput.innerHTML = \`
-            <input type="text" class="form-control trait-name-input"
-                   placeholder="trait-name" style="width: 40%;">
-            <input type="text" class="form-control trait-value-input"
-                   placeholder="trait-value" style="width: 60%;">
-            <button type="button" class="btn btn-outline-danger remove-variant-trait-btn"
-                    title="Remove this trait">
-                <i class="fas fa-times"></i>
-            </button>
-            <input type="hidden" class="trait-hidden-input"
-                   name="variants[\${variantIndex}].traits.NEW_TRAIT"
-                   value="">
-        \`;
+        newInput.innerHTML = '<input type="text" class="form-control trait-name-input" placeholder="trait-name" style="width: 40%;">' +
+                             '<input type="text" class="form-control trait-value-input" placeholder="trait-value" style="width: 60%;">' +
+                             '<button type="button" class="btn btn-outline-danger remove-variant-trait-btn" title="Remove this trait"><i class="fas fa-times"></i></button>' +
+                             '<input type="hidden" class="trait-hidden-input" name="variants[' + variantIndex + '].traits.NEW_TRAIT" value="">';
 
         traitsContainer.appendChild(newInput);
 
@@ -1238,7 +1213,7 @@
             const traitValue = traitValueInput.value.trim();
             if (traitName && traitValue) {
                 const currentName = hiddenInput.getAttribute('name');
-                const newName = currentName.replace('.traits.NEW_TRAIT', \`.traits.\${traitName}\`);
+                const newName = currentName.replace('.traits.NEW_TRAIT', `.traits.${traitName}`);
                 hiddenInput.setAttribute('name', newName);
                 hiddenInput.value = traitValue;
             }
@@ -1253,25 +1228,17 @@
     }
 
     function addGrammaticalTrait(variantIndex) {
-        const variantElement = document.querySelector(\`[data-variant-index="\${variantIndex}"]\`);
+        const variantElement = document.querySelector(`[data-variant-index="${variantIndex}"]`);
         const grammaticalTraitsContainer = variantElement.querySelector('.variant-grammatical-traits');
 
         // Create a new grammatical trait input
         const newInput = document.createElement('div');
         newInput.className = 'input-group mb-2';
-        newInput.innerHTML = \`
-            <input type="text" class="form-control grammatical-trait-name-input"
-                   placeholder="trait-name" style="width: 40%;">
-            <input type="text" class="form-control grammatical-trait-value-input"
-                   placeholder="trait-value" style="width: 60%;">
-            <button type="button" class="btn btn-outline-danger remove-grammatical-trait-btn"
-                    title="Remove this trait">
-                <i class="fas fa-times"></i>
-            </button>
-            <input type="hidden" class="grammatical-trait-hidden-input"
-                   name="variants[\${variantIndex}].grammatical_traits.NEW_TRAIT"
-                   value="">
-        \`;
+        newInput.innerHTML = 
+'<input type="text" class="form-control grammatical-trait-name-input" placeholder="trait-name" style="width: 40%;">' +
+                             '<input type="text" class="form-control grammatical-trait-value-input" placeholder="trait-value" style="width: 60%;">' +
+                             '<button type="button" class="btn btn-outline-danger remove-grammatical-trait-btn" title="Remove this trait"><i class="fas fa-times"></i></button>' +
+                             '<input type="hidden" class="grammatical-trait-hidden-input" name="variants[' + variantIndex + '].grammatical_traits.NEW_TRAIT" value="">';
 
         grammaticalTraitsContainer.appendChild(newInput);
 
@@ -1286,7 +1253,7 @@
             const traitValue = traitValueInput.value.trim();
             if (traitName && traitValue) {
                 const currentName = hiddenInput.getAttribute('name');
-                const newName = currentName.replace('.grammatical_traits.NEW_TRAIT', \`.grammatical_traits.\${traitName}\`);
+                const newName = currentName.replace('.grammatical_traits.NEW_TRAIT', `.grammatical_traits.${traitName}`);
                 hiddenInput.setAttribute('name', newName);
                 hiddenInput.value = traitValue;
             }
@@ -1392,45 +1359,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }   
     
-    // Initialize live preview manager
-    if (typeof LivePreviewManager !== 'undefined' && document.getElementById('live-preview-container')) {
-        window.livePreviewManager = new LivePreviewManager('#entry-form', '#live-preview-container', 500);
-            
-            // Add click handler for refresh button
-            const refreshBtn = document.getElementById('refresh-preview-btn');
-            if (refreshBtn) {
-                refreshBtn.addEventListener('click', () => {
-                    console.log('Refresh button clicked');
-                    if (window.livePreviewManager) {
-                        window.livePreviewManager.updatePreview(true);
-                    }
-                });
-            }
-            
-            // Also trigger live preview when XML preview is toggled
-            const toggleXmlBtn = document.getElementById('toggle-xml-preview-btn');
-            if (toggleXmlBtn) {
-                toggleXmlBtn.addEventListener('click', () => {
-                    // Small delay to allow XML preview to update first
-                    setTimeout(() => {
-                        if (window.livePreviewManager) {
-                            window.livePreviewManager.updatePreview(true);
-                        }
-                    }, 100);
-                });
-            }
-            
-
-        }
-            
-
-    
-    // Initialize live preview manager
+    // Initialize live preview manager with logging
     console.log('About to initialize LivePreviewManager...');
     console.log('LivePreviewManager type:', typeof LivePreviewManager);
-    console.log('Preview container exists:', !!document.getElementById('live-preview-container'));
+    const previewContainer = document.getElementById('live-preview-container');
+    console.log('Preview container exists:', !!previewContainer);
     
-    if (typeof LivePreviewManager !== 'undefined' && document.getElementById('live-preview-container')) {
+    if (typeof LivePreviewManager !== 'undefined' && previewContainer) {
         console.log('Creating LivePreviewManager instance...');
         window.livePreviewManager = new LivePreviewManager('#entry-form', '#live-preview-container', 500);
         console.log('LivePreviewManager created:', window.livePreviewManager);
@@ -1446,15 +1381,26 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             });
         }
+        
+        // Also trigger live preview when XML preview is toggled
+        const toggleXmlBtn = document.getElementById('toggle-xml-preview-btn');
+        if (toggleXmlBtn) {
+            toggleXmlBtn.addEventListener('click', () => {
+                // Small delay to allow XML preview to update first
+                setTimeout(() => {
+                    if (window.livePreviewManager) {
+                        window.livePreviewManager.updatePreview(true);
+                    }
+                }, 100);
+            });
+        }
     } else {
         console.error('LivePreviewManager initialization failed - conditions not met');
         if (typeof LivePreviewManager === 'undefined') {
             console.error('LivePreviewManager class is undefined - check if live-preview.js loaded correctly');
-            alert('DEBUG: LivePreviewManager is undefined. Check browser console for errors.');
         }
-        if (!document.getElementById('live-preview-container')) {
+        if (!previewContainer) {
             console.error('Live preview container not found');
-            alert('DEBUG: Live preview container not found. Check if the element exists.');
         }
     }
 });

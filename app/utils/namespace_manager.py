@@ -96,9 +96,16 @@ class LIFTNamespaceManager:
         Returns:
             Normalized XML content
         """
+        import logging
+        logger = logging.getLogger(__name__)
         try:
             # Parse the XML
+            if not xml_content or not xml_content.strip():
+                logger.warning("Empty XML content passed to normalize_lift_xml")
+                return xml_content
+
             root = ET.fromstring(xml_content)
+            logger.debug(f"Successfully parsed XML for normalization, root tag: {root.tag}")
 
             if target_namespace == cls.LIFT_NAMESPACE:
                 # Add LIFT namespace
@@ -112,6 +119,7 @@ class LIFTNamespaceManager:
 
         except ET.ParseError as e:
             logger.error(f"Failed to parse XML for namespace normalization: {e}")
+            logger.debug(f"XML content that failed: {xml_content[:500]}...")
             return xml_content  # Return original if parsing fails
 
     @classmethod

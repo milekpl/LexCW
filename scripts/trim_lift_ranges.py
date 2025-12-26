@@ -2,7 +2,7 @@
 Script to trim a LIFT .lift-ranges file to a minimal, universal set of values for each range.
 - Retains all semantic domains.
 - For grammatical-info, retains universal POS (Noun, Verb, Adjective, Adverb, Pronoun, Pro-form, Abbreviation, Acronym, etc.), excludes countability distinctions and project-specific subtypes.
-- Retains recommended etymology, variant-types, complex-form-types.
+- Retains recommended etymology, variant-type, complex-form-type.
 - Can be extended for other ranges.
 """
 import xml.etree.ElementTree as ET
@@ -120,7 +120,7 @@ def create_usage_labels_range(root: ET.Element):
 
 def create_complex_form_types_range(root: ET.Element):
     """Create a new range for complex form types."""
-    complex_form_range = ET.SubElement(root, "range", id="complex-form-types")
+    complex_form_range = ET.SubElement(root, "range", id="complex-form-type")
     
     # Define recommended complex form types
     complex_forms = [
@@ -280,7 +280,7 @@ def trim_lift_ranges(input_path: str, output_path: str):
             for elem in list(range_elem.findall("range-element")):
                 if not should_include_gram_info(elem):
                     range_elem.remove(elem)
-        elif range_id == "complex-form-types":
+        elif range_id == "complex-form-type":
             # Keep only recommended complex form types
             for elem in list(range_elem.findall("range-element")):
                 if not should_include_complex_form(elem):
@@ -303,7 +303,7 @@ def trim_lift_ranges(input_path: str, output_path: str):
     add_component_lexeme_relation(root)
     
     # Add new ranges if they don't exist
-    if root.find("range[@id='complex-form-types']") is None:
+    if root.find("range[@id='complex-form-type']") is None:
         create_complex_form_types_range(root)
     if root.find("range[@id='variant-type']") is None:
         create_variant_types_range(root)

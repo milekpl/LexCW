@@ -19,6 +19,7 @@
                                 <div class="small text-muted">Source: {{ p.source_language.code }}</div>
                             </div>
                             <div>
+                                <a href="{{ url_for('settings.select_project', project_id=p.id, next=request.args.get('next')) }}" class="btn btn-sm btn-success me-2">Select</a>
                                 <a href="/settings/?project={{ p.project_name }}" class="btn btn-sm btn-outline-primary me-2">Edit</a>
                                 <button class="btn btn-sm btn-danger delete-project-btn" data-project-id="{{ p.id }}">Delete</button>
                             </div>

@@ -14,6 +14,7 @@ from flask import (
     flash,
     jsonify,
     current_app,
+    session,
     send_from_directory,
     Response,
 )
@@ -372,9 +373,10 @@ def edit_entry(entry_id):
                     return jsonify({"error": "No data provided"}), 400
 
             # Get existing entry data for merging (use non-validating method for editing)
+            project_id = session.get('project_id')
             existing_entry = None
             try:
-                existing_entry = dict_service.get_entry_for_editing(entry_id)
+                existing_entry = dict_service.get_entry_for_editing(entry_id, project_id=project_id)
             except NotFoundError:
                 # Entry doesn't exist yet - will be created instead of updated
                 pass
@@ -440,11 +442,18 @@ def edit_entry(entry_id):
 
         # Try to load the entry for editing
         entry = None
+        project_id = session.get('project_id')
         try:
             entry = dict_service.get_entry_for_editing(
-                entry_id
+                entry_id, project_id=project_id
             )  # Use non-validating method for editing
         except NotFoundError:
+            print(f"Entry {entry_id} not found in database {dict_service.db_connector.database}")
+            try:
+                all_entries, count = dict_service.list_entries(project_id=project_id, limit=100)
+                print(f"Available entries ({count}): {[e.id for e in all_entries]}")
+            except Exception as e:
+                print(f"Error listing entries: {e}")
             # Entry doesn't exist yet - create a new empty entry with the given ID
             entry = Entry(id_=entry_id)
 
@@ -452,7 +461,7 @@ def edit_entry(entry_id):
         if entry:
             entry._apply_pos_inheritance()
 
-        ranges = dict_service.get_lift_ranges()
+        ranges = dict_service.get_lift_ranges(project_id=project_id)
 
         # Get validation results for the entry to show as guidance (not as blockers)
         validation_result = None
@@ -699,7 +708,8 @@ def add_entry():
             entry = Entry.from_dict(merged_data)
 
             # Create entry
-            entry_id = dict_service.create_entry(entry)
+            project_id = session.get('project_id')
+            entry_id = dict_service.create_entry(entry, project_id=project_id)
 
             # Return appropriate response format
             if request.is_json:
@@ -715,7 +725,8 @@ def add_entry():
         entry.id = ""  # Explicitly set to empty string
 
         # Get LIFT ranges for dropdowns
-        ranges = dict_service.get_lift_ranges()
+        project_id = session.get('project_id')
+        ranges = dict_service.get_lift_ranges(project_id=project_id)
 
         # Get project languages for multilingual fields
         languages = get_project_languages()
@@ -1561,6 +1572,7 @@ def live_preview():
                 dict_service=dict_service
             )
             logger.info(f"CSS rendering completed, length: {len(css_html) if css_html else 0}")
+            logger.debug(f"Full CSS HTML: {css_html}")
             
             # Debug: Check if CSS HTML contains expected elements
             if css_html:

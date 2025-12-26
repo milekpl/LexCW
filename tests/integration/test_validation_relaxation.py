@@ -12,10 +12,8 @@ def app():
     app.config['TESTING'] = True
     return app
 
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
+# Use shared `client` fixture from tests/integration/conftest.py for consistency and session setup
+# (removed local client fixture to avoid duplication)
 @pytest.fixture
 def validation_engine():
     return ValidationEngine()
