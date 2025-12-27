@@ -36,5 +36,29 @@ class TestConfigManager(unittest.TestCase):
         self.assertIn('Project1', names)
         self.assertIn('Project2', names)
 
+    def test_update_current_settings_persists_backup_settings(self) -> None:
+        # Create initial default settings (will be the first project)
+        settings = self.config_manager.create_settings(
+            project_name='BackupTest',
+            basex_db_name='db_backup'
+        )
+
+        new_backup = {
+            'directory': '/tmp/backups',
+            'schedule': 'daily',
+            'retention': 7,
+            'compression': False
+        }
+
+        # Call update_current_settings and ensure it returns the updated object
+        updated = self.config_manager.update_current_settings({'backup_settings': new_backup})
+        self.assertIsNotNone(updated)
+        self.assertEqual(updated.backup_settings, new_backup)
+
+        # Query the database directly to ensure persistence
+        first = ProjectSettings.query.first()
+        self.assertIsNotNone(first)
+        self.assertEqual(first.backup_settings, new_backup)
+
 if __name__ == '__main__':
     unittest.main()

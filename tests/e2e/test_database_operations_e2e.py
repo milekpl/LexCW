@@ -1,6 +1,10 @@
 """
 End-to-end tests for database operations using Playwright.
 Tests the actual UI workflow for dropping database content and importing files.
+
+NOTE: These tests perform destructive operations on the test database.
+They use autouse fixtures to restore the ranges.xml after each test
+to ensure subsequent tests have the necessary data.
 """
 
 import pytest
@@ -8,6 +12,159 @@ import os
 import tempfile
 from pathlib import Path
 from playwright.sync_api import Page, expect
+
+
+@pytest.fixture(autouse=True)
+def restore_ranges_after_test(flask_test_server):
+    """
+    Restore ranges.xml after each test in this module.
+    
+    Database operations tests like dropping content destroy the ranges.xml,
+    which breaks subsequent tests that depend on it. This fixture runs after
+    each test to re-add the comprehensive ranges.xml that was created by
+    setup_e2e_test_database.
+    """
+    from app.database.basex_connector import BaseXConnector
+    import tempfile
+    import os as os_module
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Yield first to let the test run
+    yield
+    
+    # After test cleanup: restore ranges
+    test_db = os_module.environ.get('TEST_DB_NAME')
+    if not test_db:
+        logger.warning("No TEST_DB_NAME found, skipping ranges restoration")
+        return
+    
+    connector = BaseXConnector(
+        host=os_module.getenv('BASEX_HOST', 'localhost'),
+        port=int(os_module.getenv('BASEX_PORT', '1984')),
+        username=os_module.getenv('BASEX_USERNAME', 'admin'),
+        password=os_module.getenv('BASEX_PASSWORD', 'admin'),
+        database=test_db,
+    )
+    
+    try:
+        connector.connect()
+        
+        # Check if ranges.xml exists
+        check_query = f"db:exists('{test_db}', 'ranges.xml')"
+        result = connector.execute_query(check_query)
+        
+        if result.strip().lower() == 'false':
+            logger.info(f"ranges.xml missing after test, restoring to {test_db}")
+            
+            # Add comprehensive ranges.xml (same as setup_e2e_test_database)
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift-ranges>
+    <range id="grammatical-info" href="http://fieldworks.sil.org/lift/grammatical-info">
+        <range-element id="Noun" guid="5049f0e3-12a4-4e9f-97f7-60091082793c">
+            <label>
+                <form lang="en"><text>Noun</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>n</text></form>
+            </abbrev>
+        </range-element>
+        <range-element id="Verb" guid="5049f0e3-12a4-4e9f-97f7-60091082793d">
+            <label>
+                <form lang="en"><text>Verb</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>v</text></form>
+            </abbrev>
+        </range-element>
+        <range-element id="Adjective" guid="5049f0e3-12a4-4e9f-97f7-60091082793e">
+            <label>
+                <form lang="en"><text>Adjective</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>adj</text></form>
+            </abbrev>
+        </range-element>
+    </range>
+    <range id="lexical-relation" href="http://fieldworks.sil.org/lift/lexical-relation">
+        <range-element id="_component-lexeme" guid="4e1c72b2-7430-4eb9-a9d2-4b31c5620804">
+            <label>
+                <form lang="en"><text>Component</text></form>
+            </label>
+        </range-element>
+        <range-element id="_main-entry" guid="45e6b7ef-0e55-448a-a7f2-93d485712c54">
+            <label>
+                <form lang="en"><text>Main Entry</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="semantic-domain-ddp4" href="http://fieldworks.sil.org/lift/semantic-domain-ddp4">
+        <range-element id="1" guid="63403699-07c1-4d82-91ab-f8046c335e11">
+            <label>
+                <form lang="en"><text>Universe, creation</text></form>
+            </label>
+        </range-element>
+        <range-element id="1.1" guid="999581c4-1611-4acb-ae1b-cc1f7e0e18e5" parent="1">
+            <label>
+                <form lang="en"><text>Sky</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="anthro-code" href="http://fieldworks.sil.org/lift/anthro-code">
+        <range-element id="1" guid="d12cf2e5-22c8-4826-9d98-8f669f4c5496">
+            <label>
+                <form lang="en"><text>Social organization</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="domain-type" href="http://fieldworks.sil.org/lift/domain-type">
+        <range-element id="agriculture" guid="0fc97f63-a059-4894-84bf-c29a58f96dc4">
+            <label>
+                <form lang="en"><text>Agriculture</text></form>
+            </label>
+        </range-element>
+        <range-element id="grammar" guid="56d33d26-e0fb-4840-bea6-e7e1b86f3e95">
+            <label>
+                <form lang="en"><text>Grammar</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="usage-type" href="http://fieldworks.sil.org/lift/usage-type">
+        <range-element id="archaic" guid="4f845bbd-1bf4-4c8b-9f50-76f1b69e0d3d">
+            <label>
+                <form lang="en"><text>Archaic</text></form>
+            </label>
+        </range-element>
+        <range-element id="colloquial" guid="cf829d77-cf92-4328-bc86-72a44e42fbf0">
+            <label>
+                <form lang="en"><text>Colloquial</text></form>
+            </label>
+        </range-element>
+    </range>
+</lift-ranges>'''
+                f.write(ranges_xml)
+                temp_file = f.name
+            
+            try:
+                connector.execute_command(f"ADD TO ranges.xml {temp_file}")
+                logger.info(f"Successfully restored ranges.xml to {test_db}")
+            finally:
+                try:
+                    os_module.unlink(temp_file)
+                except OSError:
+                    pass
+        else:
+            logger.debug(f"ranges.xml already exists in {test_db}, no restoration needed")
+                
+    except Exception as e:
+        logger.warning(f"Failed to restore ranges after database operation test: {e}")
+    finally:
+        try:
+            connector.disconnect()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="function")

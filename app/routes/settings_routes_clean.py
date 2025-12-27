@@ -29,13 +29,31 @@ def manage_settings() -> Any:
     if form.validate_on_submit():
         try:
             new_settings = form.to_dict()
-            config_manager.update_current_settings(new_settings)
+            logger.info('Form submitted with data: %s', new_settings)
+            if not new_settings:
+                logger.warning('Empty settings dictionary submitted')
+                flash('No settings data received', 'warning')
+                return redirect(url_for('settings.manage_settings'))
+            
+            saved = config_manager.update_current_settings(new_settings)
+            # Log what ended up persisted for diagnostics
+            try:
+                logger.info('Project settings updated (request): %s', new_settings)
+                logger.info('Project settings persisted (db): %s', getattr(saved, 'backup_settings', None))
+            except Exception:
+                logger.exception('Error while logging saved settings')
+            # Update in-memory project list for immediate visibility in the UI
+            try:
+                current_app.config['PROJECT_SETTINGS'] = [s.settings_json for s in config_manager.get_all_settings()]
+            except Exception:
+                logger.debug('Could not update app.config PROJECT_SETTINGS')
+
             flash('Settings updated successfully!', 'success')
-            logger.info('Project settings updated: %s', new_settings)
             return redirect(url_for('settings.manage_settings'))
         except Exception as e:
             logger.error('Error updating settings: %s', e, exc_info=True)
             flash(f'Error updating settings: {str(e)}', 'danger')
+    
     elif request.method == 'GET':
         form.populate_from_config(config_manager)
 

@@ -386,19 +386,77 @@ class BackupManager {
 
     async loadBackupSettings() {
         try {
-            // Load backup settings from a settings endpoint or from the page data
+            // Load backup settings from the API
             const scheduleEl = document.getElementById('current-schedule');
             const directoryEl = document.getElementById('backup-directory');
             const nextBackupEl = document.getElementById('next-backup');
 
-            // For now, show placeholder data - in a real implementation,
-            // this would come from an API endpoint
-            if (scheduleEl) scheduleEl.textContent = 'Daily at 2:00 AM';
-            if (directoryEl) directoryEl.textContent = '/var/backups/dictionary';
-            if (nextBackupEl) nextBackupEl.textContent = 'Tomorrow at 2:00 AM';
+            // Get scheduled backups from the API
+            const response = await fetch('/api/backup/scheduled');
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    const scheduledBackups = result.data;
+                    
+                    // Update schedule information based on actual scheduled backups
+                    if (scheduleEl) {
+                        if (scheduledBackups && scheduledBackups.length > 0) {
+                            // Show actual schedule information
+                            const firstBackup = scheduledBackups[0];
+                            const trigger = firstBackup.trigger;
+                            scheduleEl.textContent = trigger || 'Custom schedule';
+                        } else {
+                            scheduleEl.textContent = 'No backups scheduled';
+                        }
+                    }
+                    
+                    // Update next backup time
+                    if (nextBackupEl) {
+                        if (scheduledBackups && scheduledBackups.length > 0) {
+                            // Find the soonest next backup
+                            let soonest = null;
+                            for (const backup of scheduledBackups) {
+                                if (backup.next_run_time) {
+                                    const nextRun = new Date(backup.next_run_time);
+                                    if (!soonest || nextRun < soonest) {
+                                        soonest = nextRun;
+                                    }
+                                }
+                            }
+                            
+                            if (soonest) {
+                                // Format the date nicely
+                                const options = { 
+                                    weekday: 'long', 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric',
+                                    hour: '2-digit', 
+                                    minute: '2-digit'
+                                };
+                                nextBackupEl.textContent = soonest.toLocaleDateString('en-US', options);
+                            } else {
+                                nextBackupEl.textContent = 'Schedule available, next run not determined';
+                            }
+                        } else {
+                            nextBackupEl.textContent = 'No backups scheduled';
+                        }
+                    }
+                }
+            } else {
+                // Fallback to placeholder data if API call fails
+                console.warn('Failed to load backup settings, using placeholder data');
+                if (scheduleEl) scheduleEl.textContent = 'Daily at 2:00 AM';
+                if (directoryEl) directoryEl.textContent = '/var/backups/dictionary';
+                if (nextBackupEl) nextBackupEl.textContent = 'Tomorrow at 2:00 AM';
+            }
 
         } catch (error) {
             console.error('Error loading backup settings:', error);
+            // Fallback to placeholder data on error
+            if (scheduleEl) scheduleEl.textContent = 'Daily at 2:00 AM';
+            if (directoryEl) directoryEl.textContent = '/var/backups/dictionary';
+            if (nextBackupEl) nextBackupEl.textContent = 'Tomorrow at 2:00 AM';
         }
     }
 

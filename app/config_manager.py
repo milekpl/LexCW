@@ -4,6 +4,10 @@ from app.models.project_settings import ProjectSettings, db
 from flask import current_app
 import json
 import uuid
+import logging
+from sqlalchemy.orm.attributes import flag_modified
+
+logger = logging.getLogger(__name__)
 
 class ConfigManager:
     def __init__(self, app_instance_path: str):
@@ -69,7 +73,15 @@ class ConfigManager:
         return settings
 
     def update_current_settings(self, new_values: Dict[str, Any]) -> Optional[ProjectSettings]:
-        """Update settings for the current/default project."""
+        """Update settings for the current/default project.
+
+        Adds detailed logging so callers can trace what data is applied and
+        whether it persisted correctly to the database.
+        """
+        # Avoid mutating caller's dictionary
+        new_values = dict(new_values or {})
+        logger.debug('update_current_settings called with: %s', new_values)
+
         # Get the first project settings or create default if none exist
         settings = ProjectSettings.query.first()
         if not settings:
@@ -77,24 +89,55 @@ class ConfigManager:
                 project_name='Default Project',
                 basex_db_name='dictionary'
             )
-        
+
+        # Log previous state for diagnostics
+        prev_backup = getattr(settings, 'backup_settings', None)
+        logger.debug('Previous backup_settings: %s', prev_backup)
+
         # Update specific fields directly
         if 'source_language' in new_values:
             settings.source_language = new_values.pop('source_language')
-            
+            logger.debug('Updated source_language to: %s', settings.source_language)
+
         if 'target_languages' in new_values:
             settings.target_languages = new_values.pop('target_languages')
-            
+            logger.debug('Updated target_languages to: %s', settings.target_languages)
+
         if 'project_name' in new_values:
             settings.project_name = new_values.pop('project_name')
-            
+            logger.debug('Updated project_name to: %s', settings.project_name)
+
         if 'basex_db_name' in new_values:
             settings.basex_db_name = new_values.pop('basex_db_name')
-            
+            logger.debug('Updated basex_db_name to: %s', settings.basex_db_name)
+
         if 'backup_settings' in new_values:
-            settings.backup_settings = new_values.pop('backup_settings')
-            
-        db.session.commit()
+            new_backup = new_values.pop('backup_settings')
+            settings.backup_settings = new_backup
+            # Ensure SQLAlchemy detects in-place JSON changes
+            try:
+                flag_modified(settings, 'backup_settings')
+            except Exception:
+                # If flag_modified isn't applicable, it's fine - assignment usually suffices
+                logger.debug('flag_modified not applicable for backup_settings')
+            logger.debug('Updated backup_settings to: %s', settings.backup_settings)
+
+        # Attempt commit with error handling and logging
+        try:
+            db.session.commit()
+            # Refresh from DB to ensure persisted state is accurate
+            try:
+                db.session.refresh(settings)
+            except Exception:
+                # Some SQLAlchemy setups may not have refresh; ignore if not available
+                pass
+            logger.info('Settings saved successfully: id=%s backup_settings=%s', getattr(settings, 'id', None), getattr(settings, 'backup_settings', None))
+        except Exception as e:
+            logger.error('Failed to commit settings to database: %s', e, exc_info=True)
+            db.session.rollback()
+            # Re-raise so callers can react to the failure if needed
+            raise
+
         return settings
 
     def delete_settings(self, project_name: str) -> bool:
@@ -181,6 +224,7 @@ class ConfigManager:
             'directory': backup_settings.get('directory', 'app/static/backup'),
             'schedule': backup_settings.get('schedule', 'daily'),
             'retention': backup_settings.get('retention', 10),
-            'compression': backup_settings.get('compression', True)
+            'compression': backup_settings.get('compression', True),
+            'include_media': backup_settings.get('include_media', False)
         }
         

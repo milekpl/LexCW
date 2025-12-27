@@ -367,6 +367,67 @@ def create_app(config_name=None):
             backup_directory=os.path.join(app.instance_path, "backups"),
         )
         backup_scheduler = BackupScheduler(backup_manager)
+        
+        # Load backup settings and schedule backups if configured
+        try:
+            from app.models.project_settings import ProjectSettings
+            from app.models.backup_models import ScheduledBackup
+            from app.config_manager import ConfigManager
+            
+            # Get current project settings (use the first project if any exist)
+            settings = ProjectSettings.query.first()
+            backup_config = None
+            
+            # Try to get backup settings from ProjectSettings first
+            if settings and hasattr(settings, 'backup_settings') and settings.backup_settings:
+                backup_config = settings.backup_settings
+                app.logger.info("Using backup settings from ProjectSettings (project id=%s)", getattr(settings, 'id', None))
+            else:
+                # Fallback to ConfigManager defaults
+                try:
+                    config_manager = app.injector.get(ConfigManager)
+                    backup_config = config_manager.get_backup_settings()
+                    app.logger.info("Using default backup settings from ConfigManager")
+                except Exception as e:
+                    app.logger.error(f"Failed to get ConfigManager: {e}")
+                    import traceback
+                    app.logger.error(traceback.format_exc())
+            
+            if backup_config:
+                # Check if backups are enabled and scheduled
+                schedule_interval = backup_config.get('schedule', 'daily')
+                if schedule_interval and schedule_interval != 'none':
+                    # Create a scheduled backup configuration
+                    scheduled_backup = ScheduledBackup(
+                        project_id=1,
+                        interval=schedule_interval,
+                        time="02:00",  # Default to 2:00 AM as shown in UI
+                        backup_type="full",
+                        description=f"Automated {schedule_interval} backup"
+                    )
+                    
+                    # Schedule the backup
+                    backup_scheduler.schedule_backup(scheduled_backup)
+                    app.logger.info(f"Scheduled {schedule_interval} backup at 2:00 AM")
+                else:
+                    app.logger.info("Backup schedule is set to 'none' in settings")
+            else:
+                app.logger.info("No backup settings found")
+        except Exception as e:
+            import traceback
+            app.logger.error(f"Error loading backup settings: {e}")
+            app.logger.error(traceback.format_exc())
+
+        # Start the backup scheduler
+        backup_scheduler.start()
+        app.logger.info("Backup scheduler started")
+        
+        # Debug: Check if scheduler has any scheduled backups after our setup
+        scheduled_after_setup = backup_scheduler.get_scheduled_backups()
+        app.logger.info(f"Scheduled backups after setup: {len(scheduled_after_setup)}")
+        if scheduled_after_setup:
+            for backup in scheduled_after_setup:
+                app.logger.info(f"  - {backup.get('schedule_id')}: {backup.get('trigger')}")
 
         # Create and bind DictionaryService
         dictionary_service = DictionaryService(
