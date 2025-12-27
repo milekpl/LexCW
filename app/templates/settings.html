@@ -535,7 +535,15 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Settings page with comprehensive language support loaded');
         
         // Scroll to target languages section if there are validation errors
-        const targetLanguagesFieldset = document.querySelector('fieldset:has(legend:contains("Target Languages"))');
+        // Use a more compatible selector approach
+        const legends = document.querySelectorAll('legend');
+        let targetLanguagesFieldset = null;
+        for (const legend of legends) {
+            if (legend.textContent.includes('Target Languages')) {
+                targetLanguagesFieldset = legend.closest('fieldset');
+                break;
+            }
+        }
         if (targetLanguagesFieldset && document.querySelector('.text-danger')) {
             targetLanguagesFieldset.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }

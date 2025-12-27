@@ -134,6 +134,35 @@ class TestSettingsRoute(unittest.TestCase):
             self.assertGreater(len(settings_json['target_languages']), 0)
 
     @pytest.mark.integration
+    def test_update_backup_settings_via_form(self):
+        """Test updating backup settings via POST request and verify persistence."""
+        backup_data = {
+            'project_name': 'Backup Project',
+            'source_language_code': 'en',
+            'source_language_name': 'English',
+            'available_target_languages': '[]',
+            'backup_directory': '/tmp/my_backups',
+            'auto_backup_schedule': 'daily',
+            'backup_retention': '5',
+            'backup_compression': 'y',
+            'backup_include_media': 'y',
+            'csrf_token': 'testing_csrf_token'
+        }
+
+        resp = self.client.post('/settings/', data=backup_data, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'Settings updated successfully!', resp.data)
+
+        # Validate persisted backup settings
+        cfg = self.app.config_manager
+        backup_settings = cfg.get_backup_settings()
+        self.assertEqual(backup_settings.get('directory'), '/tmp/my_backups')
+        self.assertEqual(backup_settings.get('schedule'), 'daily')
+        self.assertEqual(backup_settings.get('retention'), 5)
+        self.assertEqual(backup_settings.get('compression'), True)
+        self.assertEqual(backup_settings.get('include_media'), True)
+
+    @pytest.mark.integration
     def test_settings_are_applied_immediately(self):
         """Test that updated settings are immediately available in the application."""
         new_settings_data = {
