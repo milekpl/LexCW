@@ -99,14 +99,19 @@
 
 .element-controls {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     flex: 1;
     align-items: center;
 }
 
+.element-controls > * {
+    min-width: 100px;
+}
+
 .element-controls input,
 .element-controls select {
-    flex: 1;
+    flex: 1 1 auto;
 }
 
 .element-remove {

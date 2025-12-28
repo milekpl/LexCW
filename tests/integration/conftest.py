@@ -260,15 +260,61 @@ def ensure_clean_basex_db(app: Flask) -> None:
     """
     from tests.basex_test_utils import delete_all_lift_entries
 
-    # CRITICAL: Disconnect the session-scoped app's dictionary service to release locks
+    # CRITICAL: Disconnect ALL database connections to release locks
     # before attempting cleanup from a different connector.
     try:
         from app.services.dictionary_service import DictionaryService
+        from app.services.ranges_service import RangesService
+        from app.services.operation_history_service import OperationHistoryService
+        
+        # Disconnect dictionary service
         dict_service: DictionaryService = app.injector.get(DictionaryService)
         if hasattr(dict_service, 'db_connector') and dict_service.db_connector:
             dict_service.db_connector.disconnect()
-    except Exception:
-        pass
+        
+        # Disconnect ranges service
+        ranges_service: RangesService = app.injector.get(RangesService)
+        if hasattr(ranges_service, 'db_connector') and ranges_service.db_connector:
+            ranges_service.db_connector.disconnect()
+        
+        # Clear operation history to prevent state pollution
+        history_service: OperationHistoryService = app.injector.get(OperationHistoryService)
+        history_service.clear_history()
+        
+    except Exception as e:
+        # Log but don't fail the test setup
+        import logging
+        logging.getLogger(__name__).warning(f"Error during database cleanup: {e}")
+
+
+@pytest.fixture(scope="function", autouse=True)
+def reset_database_connections(app: Flask) -> None:
+    """Reset database connections after each test to prevent state pollution.
+    
+    This fixture runs after each test and ensures that all database connections
+    are properly closed and reset to prevent tests from affecting each other.
+    """
+    yield  # Run the test
+    
+    # After test completes, clean up database connections
+    try:
+        from app.services.dictionary_service import DictionaryService
+        from app.services.ranges_service import RangesService
+        
+        # Disconnect dictionary service
+        dict_service: DictionaryService = app.injector.get(DictionaryService)
+        if hasattr(dict_service, 'db_connector') and dict_service.db_connector:
+            dict_service.db_connector.disconnect()
+        
+        # Disconnect ranges service
+        ranges_service: RangesService = app.injector.get(RangesService)
+        if hasattr(ranges_service, 'db_connector') and ranges_service.db_connector:
+            ranges_service.db_connector.disconnect()
+        
+    except Exception as e:
+        # Log but don't fail the test teardown
+        import logging
+        logging.getLogger(__name__).warning(f"Error during database connection reset: {e}")
 
     db_name = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE') or 'dictionary_test'
 

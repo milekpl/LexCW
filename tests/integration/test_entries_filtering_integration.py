@@ -23,11 +23,32 @@ class TestEntriesFilteringIntegration:
         cache = CacheService()
         if cache.is_available():
             cache.clear_pattern('entries*')
+        
+        # Create test data to ensure the filter has something to find
+        test_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+        <entry id="test_filter_app">
+            <lexical-unit>
+                <form lang="en"><text>application</text></form>
+            </lexical-unit>
+            <sense id="sense_1">
+                <gloss lang="en"><text>Test application entry</text></gloss>
+            </sense>
+        </entry>'''
+        
+        # Create test entry
+        create_response = client.post('/api/xml/entries', data=test_xml, content_type='application/xml')
+        assert create_response.status_code == 201
+        
+        # Now test the filter
         response = client.get('/api/entries/?filter_text=app&limit=10&offset=0')
         assert response.status_code == 200
         data = response.get_json()
         assert 'entries' in data
         assert 'total_count' in data
+        
+        # Cleanup: Remove the test entry
+        client.delete(f'/api/xml/entries/test_filter_app')
+        
         # Optionally, check that at least one entry matches the filter
         entries = data['entries']
         assert any('app' in entry['lexical_unit']['en'] for entry in entries)
@@ -54,6 +75,21 @@ class TestEntriesFilteringIntegration:
     @pytest.mark.integration
     def test_entries_api_supports_combined_filter_and_sort(self, client: FlaskClient) -> None:
         """Test that entries API supports both filtering and sorting together (integration, no mocks)."""
+        # Create test data to ensure the filter has something to find
+        test_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+        <entry id="test_filter_app_2">
+            <lexical-unit>
+                <form lang="en"><text>application</text></form>
+            </lexical-unit>
+            <sense id="sense_1">
+                <gloss lang="en"><text>Test application entry 2</text></gloss>
+            </sense>
+        </entry>'''
+        
+        # Create test entry
+        create_response = client.post('/api/xml/entries', data=test_xml, content_type='application/xml')
+        assert create_response.status_code == 201
+        
         response = client.get('/api/entries/?filter_text=app&sort_order=desc&sort_by=lexical_unit&limit=10&offset=0')
         assert response.status_code == 200
         data = response.get_json()
@@ -67,6 +103,9 @@ class TestEntriesFilteringIntegration:
             lexical_units = [entry['lexical_unit']['en'] for entry in entries if 'lexical_unit' in entry and 'en' in entry['lexical_unit']]
             expected = sorted(lexical_units, key=lambda x: x.lower(), reverse=True)
             assert lexical_units == expected, f"Entries not sorted in descending order: {lexical_units}\nExpected: {expected}"
+        
+        # Cleanup
+        client.delete(f'/api/xml/entries/test_filter_app_2')
 
     @pytest.mark.integration
     def test_entries_api_maintains_backward_compatibility(self, client: FlaskClient) -> None:
@@ -75,11 +114,30 @@ class TestEntriesFilteringIntegration:
         cache = CacheService()
         if cache.is_available():
             cache.clear_pattern('entries*')
+        
+        # Create test data to ensure there's at least one entry
+        test_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+        <entry id="test_backward_compat">
+            <lexical-unit>
+                <form lang="en"><text>test_entry</text></form>
+            </lexical-unit>
+            <sense id="sense_1">
+                <gloss lang="en"><text>Test entry for backward compatibility</text></gloss>
+            </sense>
+        </entry>'''
+        
+        # Create test entry
+        create_response = client.post('/api/xml/entries', data=test_xml, content_type='application/xml')
+        assert create_response.status_code == 201
+        
         response = client.get('/api/entries/?limit=10&offset=0')
         assert response.status_code == 200
         data = response.get_json()
         assert 'entries' in data
         assert len(data['entries']) >= 1
+        
+        # Cleanup
+        client.delete(f'/api/xml/entries/test_backward_compat')
 
     @pytest.mark.integration
     def test_entries_api_cache_key_includes_filter_parameters(self, client: FlaskClient) -> None:

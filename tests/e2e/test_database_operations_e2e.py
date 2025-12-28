@@ -143,6 +143,28 @@ def restore_ranges_after_test(flask_test_server):
             </label>
         </range-element>
     </range>
+    <range id="variant-type" href="http://fieldworks.sil.org/lift/variant-type">
+        <range-element id="spelling" guid="a1b2c3d4-e5f6-7890-abcd-ef0123456789">
+            <label>
+                <form lang="en"><text>Spelling Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="dialectal" guid="b2c3d4e5-f6a7-8901-bcde-f01234567890">
+            <label>
+                <form lang="en"><text>Dialectal Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="free" guid="c3d4e5f6-a7b8-9012-cdef-012345678901">
+            <label>
+                <form lang="en"><text>Free Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="irregular" guid="d4e5f6a7-b8c9-0123-defa-123456789012">
+            <label>
+                <form lang="en"><text>Irregularly Inflected Form</text></form>
+            </label>
+        </range-element>
+    </range>
 </lift-ranges>'''
                 f.write(ranges_xml)
                 temp_file = f.name

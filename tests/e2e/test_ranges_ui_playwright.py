@@ -86,25 +86,37 @@ class TestRangesUIPlaywright:
 
     def test_variant_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
         """Test that variant type dropdown is populated with values from LIFT ranges."""
-        # Navigate to entry edit page (variants are shown in edit mode)
-        page.goto(f'{app_url}/entries/new')
+        # Navigate to entry add page (variants can be added in new entries too)
+        page.goto(f'{app_url}/entries/add')
         
         # Wait for page to load
         page.wait_for_load_state('networkidle')
+        
+        # Wait for the page to be fully interactive
+        page.wait_for_timeout(500)
         
         # Scroll to variants section
         page.evaluate("document.querySelector('#variants-container')?.scrollIntoView()")
         
         # Click "Add Variant" button if it exists
         add_variant_btn = page.locator('#add-variant-btn, button:has-text("Add Variant")')
-        if add_variant_btn.count() > 0:
-            add_variant_btn.first.click()
-            page.wait_for_timeout(500)  # Wait for variant form to appear
+        if add_variant_btn.count() == 0:
+            pytest.skip("Add Variant button not found in UI")
         
-        # Find variant type dropdown
-        variant_type_select = page.locator('select[name*="variant_type"], select[name*="variant"][name*="type"]')
+        add_variant_btn.first.click()
+        page.wait_for_timeout(1000)  # Wait for variant form to appear and populate
+        
+        # Find variant type dropdown using the data-range-id attribute (more reliable)
+        variant_type_select = page.locator('select[data-range-id="variant-type"]')
+        
+        if variant_type_select.count() == 0:
+            # Fallback to name-based selector
+            variant_type_select = page.locator('select[name*="variant_type"]')
         
         if variant_type_select.count() > 0:
+            # Wait for options to be populated (ranges are loaded asynchronously)
+            page.wait_for_timeout(2000)
+            
             # Wait for it to be visible
             expect(variant_type_select.first).to_be_visible(timeout=5000)
             
@@ -114,13 +126,13 @@ class TestRangesUIPlaywright:
             # Should have more than just the empty/placeholder option
             assert len(options) > 1, f"Expected multiple variant type options, got: {options}"
             
-            # Check for common variant types
+            # Check for common variant types (our test data has: Spelling Variant, Dialectal Variant, Free Variant, Irregularly Inflected Form)
             options_text = " ".join(options).lower()
-            common_variants = ['spelling', 'dialect', 'free']
+            common_variants = ['spelling', 'dialect', 'free', 'irregular']
             has_variant = any(var in options_text for var in common_variants)
             assert has_variant, f"Expected at least one common variant type in: {options}"
         else:
-            pytest.skip("Variant dropdown not found in UI, needs UI implementation")
+            pytest.skip("Variant dropdown not found in UI after clicking Add Variant")
 
     def test_ranges_loaded_via_api(self, page: Page, app_url, basex_test_connector):
         """Test that ranges are accessible via API endpoint."""

@@ -306,6 +306,8 @@
         // Check if this element is a range element or relation
         const isRangeElement = elementName === 'grammatical-info' ||
             elementName === 'relation' ||
+            elementName === 'trait' ||
+            elementName === 'field' ||
             registryElem?.type === 'range';
 
         // Prepare datalist options based on element type

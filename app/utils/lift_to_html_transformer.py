@@ -19,6 +19,7 @@ class ElementConfig:
     filter: Optional[str] = None
     separator: str = ", "  # Separator for multiple occurrences of same element
     children: List[ElementConfig] = None
+    abbr_format: Optional[str] = None # "label", "abbr", "full" for traits/fields
 
     def __post_init__(self):
         if self.children is None:
@@ -29,11 +30,17 @@ class HTMLBuilder:
 
     def __init__(self, profile_elements: List[ElementConfig], entry_level_pos: Optional[str] = None):
         self.profile_elements = sorted(profile_elements, key=lambda x: x.display_order)
-        self.element_config_map = {config.lift_element: config for config in self.profile_elements}
+        # Support multiple configs per tag for filtered elements (traits, fields, relations)
+        self.element_config_map: Dict[str, List[ElementConfig]] = {}
+        for config in self.profile_elements:
+            if config.lift_element not in self.element_config_map:
+                self.element_config_map[config.lift_element] = []
+            self.element_config_map[config.lift_element].append(config)
+            
         self.html_parts = []
         self.current_indent = 0
         self.entry_level_pos = entry_level_pos
-        self.pos_displayed = False  # Track if we've already shown the entry-level PoS
+        self.pos_displayed = False
         self.logger = logging.getLogger(__name__)
 
     def _get_local_tag(self, tag: str) -> str:
@@ -62,244 +69,216 @@ class HTMLBuilder:
         if elem_id in processed:
             return ""
         
-        # Check if we have a config for this element (using local tag name)
         local_tag = self._get_local_tag(element.tag)
-        config = self.element_config_map.get(local_tag)
-        
+        configs = self.element_config_map.get(local_tag, [])
+
+        # Find the best matching config for this specific element instance
+        config = None
+        # Try specific filters first
+        for c in configs:
+            if c.filter and self._check_filter(element, c.filter):
+                config = c
+                break
+        # Fallback to first non-filtered config if no filtered match
         if not config:
-            # No config for this element - process its children with grouping
-            child_parts = []
-            i = 0
-            children_list = list(element)
-            
-            while i < len(children_list):
-                child = children_list[i]
-                child_local_tag = self._get_local_tag(child.tag)
-                
-                # If this is the entry element and we have entry-level PoS, 
-                # display it before the first sense
-                if (local_tag == 'entry' and child_local_tag == 'sense' and 
-                    self.entry_level_pos and not self.pos_displayed):
-                    self.pos_displayed = True
-                    child_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
-                
-                # Check if this child should be grouped
-                child_config = self.element_config_map.get(child_local_tag)
-                should_group = child_config and child_local_tag in ('trait', 'field', 'relation')
-                
-                if should_group:
-                    # Collect all consecutive elements of same type
-                    same_type_elements = [child]
-                    j = i + 1
-                    while j < len(children_list) and self._get_local_tag(children_list[j].tag) == child_local_tag:
-                        same_type_elements.append(children_list[j])
-                        j += 1
-                    
-                    # Mark all as processed
-                    for elem in same_type_elements:
-                        processed.add(id(elem))
-                    
-                    # Extract text content from all elements
-                    same_type_texts = []
-                    for elem in same_type_elements:
-                        # Apply filter check
-                        if child_config.filter and not self._check_filter(elem, child_config.filter):
-                            continue
-                        
-                        text = self._extract_text_from_forms(elem)
-                        if text:
-                            same_type_texts.append(text)
-                    
-                    # Join with configured separator and wrap once
-                    if same_type_texts:
-                        joined_text = child_config.separator.join(same_type_texts)
-                        tag = 'div' if child_config.display_mode == 'block' else 'span'
-
-                        # For trait elements, add the trait name as a data attribute for identification
-                        if child_local_tag == 'trait' and same_type_elements:
-                            # Use the name from the first trait element for the group
-                            first_trait_name = same_type_elements[0].attrib.get('name', '')
-                            if first_trait_name:
-                                html = f'<{tag} class="{child_config.css_class}" data-trait-name="{first_trait_name}">'
-                            else:
-                                html = f'<{tag} class="{child_config.css_class}">'
-                        else:
-                            html = f'<{tag} class="{child_config.css_class}">'
-
-                        if child_config.prefix:
-                            html += f'<span class="prefix">{child_config.prefix}</span>'
-                        html += joined_text
-                        if child_config.suffix:
-                            html += f'<span class="suffix">{child_config.suffix}</span>'
-                        html += f'</{tag}>'
-                        child_parts.append(html)
-                    
-                    # Skip the elements we just processed
-                    i = j
-                else:
-                    # Process single element normally
-                    child_html = self._process_hierarchical(child, processed)
-                    if child_html:
-                        child_parts.append(child_html)
-                    i += 1
-            
-            return ' '.join(child_parts)
+            for c in configs:
+                if not c.filter:
+                    config = c
+                    break
         
+        # If configs exist for this tag but none match, it means it's filtered out
+        if configs and not config:
+            return ""
+
         # Mark as processed
         processed.add(elem_id)
-        
-        # Check visibility
-        if config.visibility == "never":
-            return ""
-        
-        # Check filter if present
-        if config.filter and not self._check_filter(element, config.filter):
-            return ""
-        
-        # Determine if this is a pure structural element (sense, subsense)
-        # These elements should NOT extract their own text, only wrap children
-        structural_only_elements = {'sense', 'subsense', 'entry', 'lift'}
-        
-        # Get text content - most elements should extract their own text
-        if local_tag in structural_only_elements:
-            # Pure structural element - don't extract text
-            text_content = ""
-        elif local_tag == 'grammatical-info' and self.entry_level_pos:
-            # Skip sense-level grammatical-info if we're showing entry-level PoS
-            # But only if this grammatical-info matches the entry-level PoS
-            gram_value = element.attrib.get('value', '').strip()
-            if gram_value == self.entry_level_pos:
-                # This sense has same PoS as entry level, skip it
+
+        # Handle visibility
+        if config:
+            if config.visibility == "never":
                 return ""
-            # Different PoS at sense level - show it (heterogeneous entry)
-            text_content = self._extract_text_from_forms(element)
-        else:
-            # Content or mixed element - extract text from form/text or attributes
-            text_content = self._extract_text_from_forms(element)
-        
-        # Process configured children with grouping for same-type elements
-        child_html_parts = []
-        i = 0
-        children_list = list(element)
-        
-        while i < len(children_list):
-            child = children_list[i]
-            child_local_tag = self._get_local_tag(child.tag)
-            
-            # If this is the entry element and we have entry-level PoS, 
-            # display it before the first sense
-            if (local_tag == 'entry' and child_local_tag == 'sense' and 
-                self.entry_level_pos and not self.pos_displayed):
-                self.pos_displayed = True
-                child_html_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
-            
-            # Check if this child has a config and if we should group it
-            child_config = self.element_config_map.get(child_local_tag)
-            # Group elements that can appear multiple times: trait, field, relation
-            should_group = child_config and child_local_tag in ('trait', 'field', 'relation')
-            
-            if should_group:
-                # Collect all consecutive elements of same type
-                same_type_elements = [child]
-                j = i + 1
-                while j < len(children_list) and self._get_local_tag(children_list[j].tag) == child_local_tag:
-                    same_type_elements.append(children_list[j])
-                    j += 1
-                
-                # Mark all as processed
-                for elem in same_type_elements:
-                    processed.add(id(elem))
-                
-                # Extract text content from all elements
-                same_type_texts = []
-                for elem in same_type_elements:
-                    # Apply filter check
-                    if child_config.filter and not self._check_filter(elem, child_config.filter):
-                        continue
-                    
-                    text = self._extract_text_from_forms(elem)
-                    if text:
-                        same_type_texts.append(text)
-                
-                # Join with configured separator and wrap once
-                if same_type_texts:
-                    joined_text = child_config.separator.join(same_type_texts)
-                    tag = 'div' if child_config.display_mode == 'block' else 'span'
+            if config.filter and not self._check_filter(element, config.filter):
+                return ""
 
-                    # For trait elements, add the trait name as a data attribute for identification
-                    if child_local_tag == 'trait' and same_type_elements:
-                        # Use the name from the first trait element for the group
-                        first_trait_name = same_type_elements[0].attrib.get('name', '')
-                        if first_trait_name:
-                            html = f'<{tag} class="{child_config.css_class}" data-trait-name="{first_trait_name}">'
-                        else:
-                            html = f'<{tag} class="{child_config.css_class}">'
-                    else:
-                        html = f'<{tag} class="{child_config.css_class}">'
-
-                    if child_config.prefix:
-                        html += f'<span class="prefix">{child_config.prefix}</span>'
-                    html += joined_text
-                    if child_config.suffix:
-                        html += f'<span class="suffix">{child_config.suffix}</span>'
-                    html += f'</{tag}>'
-                    child_html_parts.append(html)
-                
-                # Skip the elements we just processed
-                i = j
+        # Determine structural vs content
+        structural_only_elements = {'sense', 'subsense', 'entry', 'lift'}
+        is_structural = local_tag in structural_only_elements
+        
+        # Extract text content if appropriate
+        text_content = ""
+        if not is_structural:
+            if local_tag == 'grammatical-info' and self.entry_level_pos:
+                # Special case: skip if matches entry-level PoS
+                gram_value = element.attrib.get('value', '').strip()
+                if gram_value == self.entry_level_pos:
+                    return ""
+                # Use non-recursive extraction here to avoid duplication with form children
+                text_content = self._extract_text_from_forms(element, recursive=False, aspect=config.abbr_format if config else None)
             else:
-                # Process single element normally
-                child_html = self._process_hierarchical(child, processed)
-                if child_html:
-                    child_html_parts.append(child_html)
-                i += 1
+                # Use non-recursive extraction here to avoid duplication with form children
+                text_content = self._extract_text_from_forms(element, recursive=False, aspect=config.abbr_format if config else None)
         
-        # Combine text and child HTML
+        # Process children (respecting profile order)
+        child_html = self._process_children(element, processed, parent_tag=local_tag)
+        
+        # Combine text and children
         combined_content = text_content
-        if child_html_parts:
+        if child_html:
             if text_content:
-                combined_content += ' ' + ' '.join(child_html_parts)
+                combined_content += ' ' + child_html
             else:
-                combined_content = ' '.join(child_html_parts)
+                combined_content = child_html
         
-        # Apply conditional visibility
-        if config.visibility == "if-content" and not combined_content.strip():
+        if config:
+            # Check if-content visibility
+            if config.visibility == "if-content" and not combined_content.strip():
+                return ""
+            
+            # Wrap in configured tag/class
+            tag = 'div' if config.display_mode == 'block' else 'span'
+            html = f'<{tag} class="{config.css_class}">'
+            if config.prefix:
+                html += f'<span class="prefix">{config.prefix}</span>'
+            html += combined_content
+            if config.suffix:
+                html += f'<span class="suffix">{config.suffix}</span>'
+            html += f'</{tag}>'
+            return html
+            
+        else:
+            # No config (e.g. entry, form), just return content
+            return combined_content
+
+    def _process_children(self, element: ET.Element, processed: set, parent_tag: str) -> str:
+        """Process children of an element, respecting profile order then XML order."""
+        child_parts = []
+        children_list = list(element)
+        if not children_list:
             return ""
-        
-        # Build HTML for this element
-        tag = 'div' if config.display_mode == 'block' else 'span'
-        html = f'<{tag} class="{config.css_class}">'
-        
-        if config.prefix:
-            html += f'<span class="prefix">{config.prefix}</span>'
-        
-        html += combined_content
-        
-        if config.suffix:
-            html += f'<span class="suffix">{config.suffix}</span>'
-        
-        html += f'</{tag}>'
-        
-        return html
+
+        # Map children by their local tag for quick lookup
+        children_by_tag = {}
+        for child in children_list:
+            tag = self._get_local_tag(child.tag)
+            if tag not in children_by_tag:
+                children_by_tag[tag] = []
+            children_by_tag[tag].append(child)
+
+        # 1. Iterate Profile Elements (Ordered)
+        for config in self.profile_elements:
+            tag = config.lift_element
+            if tag in children_by_tag:
+                # Found matching children for this profile element
+                matching_children = children_by_tag[tag]
+                
+                # Check for grouping
+                should_group = tag in ('trait', 'field', 'relation')
+                
+                if should_group:
+                    # Collect all candidates for this config
+                    group_candidates = []
+                    for child in matching_children:
+                        if id(child) in processed:
+                            continue
+                        # Check filter for this specific config
+                        if config.filter and not self._check_filter(child, config.filter):
+                            continue
+                        group_candidates.append(child)
+                    
+                    if group_candidates:
+                        # Extract text/html for grouped elements
+                        group_texts = []
+                        for child in group_candidates:
+                            processed.add(id(child))
+                            # For grouped items, we want the recursive text because we won't visit children
+                            text = self._extract_text_from_forms(child, recursive=True, aspect=config.abbr_format if hasattr(config, 'abbr_format') else None)
+                            if text:
+                                group_texts.append(text)
+                        
+                        if group_texts:
+                            joined_text = config.separator.join(group_texts)
+                            tag_name = 'div' if config.display_mode == 'block' else 'span'
+                            
+                            # Trait data attribute logic
+                            attr_html = ""
+                            if tag == 'trait' and group_candidates:
+                                first_name = group_candidates[0].attrib.get('name', '')
+                                if first_name:
+                                    attr_html = f' data-trait-name="{first_name}"'
+                            
+                            html = f'<{tag_name} class="{config.css_class}"{attr_html}>'
+                            if config.prefix:
+                                html += f'<span class="prefix">{config.prefix}</span>'
+                            html += joined_text
+                            if config.suffix:
+                                html += f'<span class="suffix">{config.suffix}</span>'
+                            html += f'</{tag_name}>'
+                            child_parts.append(html)
+                            
+                else:
+                    # Not grouped - process individually
+                    # Inject entry-level PoS before processing senses when applicable
+                    if tag == 'sense' and parent_tag == 'entry' and self.entry_level_pos and not self.pos_displayed:
+                        self.pos_displayed = True
+                        child_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
+
+                    for child in matching_children:
+                        if id(child) in processed:
+                            continue
+                        
+                        # filter check
+                        if config.filter and not self._check_filter(child, config.filter):
+                            continue
+                            
+                        # Process recursively
+                        # Important: Do NOT mark as processed here; _process_hierarchical does it.
+                        child_html = self._process_hierarchical(child, processed)
+                        if child_html:
+                            child_parts.append(child_html)
+
+        # 2. Entry-level PoS injection (if applicable)
+        # 3. Iterate Remaining XML Children (Unconfigured / Unprocessed)
+        for child in children_list:
+            if id(child) in processed:
+                continue
+            
+            # Special check for Entry PoS if we hit a sense and haven't shown it
+            tag = self._get_local_tag(child.tag)
+            if parent_tag == 'entry' and tag == 'sense' and self.entry_level_pos and not self.pos_displayed:
+                self.pos_displayed = True
+                child_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
+            
+            res = self._process_hierarchical(child, processed)
+            if res:
+                child_parts.append(res)
+                
+        return ' '.join(child_parts)
     
-    def _extract_text_from_forms(self, element: ET.Element) -> str:
-        """Extract text from LIFT form/text structure or element attributes."""
+    def _extract_text_from_forms(self, element: ET.Element, recursive: bool = True, aspect: Optional[str] = None) -> str:
+        """Extract text from LIFT form/text structure or element attributes.
+        
+        Args:
+            element: LIFT element
+            recursive: If True, look at form/text children. If False, only check own attributes/text.
+            aspect: Current display aspect (label, abbr, full)
+        """
         text_parts = []
         
         # Use local tag awareness for children
-        for child in element:
-            child_local = self._get_local_tag(child.tag)
-            if child_local == 'form':
-                # Found a form
-                text_found = False
-                for subchild in child:
-                    if self._get_local_tag(subchild.tag) == 'text':
-                        if subchild.text:
-                            text_parts.append(subchild.text.strip())
-                            text_found = True
-                if not text_found and child.text:
-                    if child.text.strip():
-                        text_parts.append(child.text.strip())
+        if recursive:
+            for child in element:
+                child_local = self._get_local_tag(child.tag)
+                if child_local == 'form':
+                    # Found a form
+                    text_found = False
+                    for subchild in child:
+                        if self._get_local_tag(subchild.tag) == 'text':
+                            if subchild.text:
+                                text_parts.append(subchild.text.strip())
+                                text_found = True
+                    if not text_found and child.text:
+                        if child.text.strip():
+                            text_parts.append(child.text.strip())
         
         if text_parts:
             return ' '.join(text_parts)

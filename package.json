@@ -13,6 +13,10 @@
     "test:python": "python -m pytest tests/unit/ -v",
     "test:python:integration": "python -m pytest tests/integration/ -v",
     "test:all": "npm run test:js && npm run test:python && npm run test:python:integration",
+    "test:python-with-js": "python -m pytest --js-tests",
+    "test:python-with-js-lint": "python -m pytest --js-tests --js-lint",
+    "test:templates": "python -m pytest tests/unit/test_template_validation.py -v",
+    "test:all-with-templates": "npm run test:js && npm run test:python && npm run test:python:integration && npm run test:templates",
     "lint:js": "eslint app/static/js/ --ext .js",
     "format:js": "prettier --write app/static/js/**/*.js tests/unit/**/*.js"
   },
