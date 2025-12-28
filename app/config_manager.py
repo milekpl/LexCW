@@ -113,14 +113,37 @@ class ConfigManager:
 
         if 'backup_settings' in new_values:
             new_backup = new_values.pop('backup_settings')
+            logger.info('Updating backup_settings with: %s (Type: %s)', new_backup, type(new_backup))
             settings.backup_settings = new_backup
             # Ensure SQLAlchemy detects in-place JSON changes
             try:
                 flag_modified(settings, 'backup_settings')
-            except Exception:
+                logger.debug('flag_modified called for backup_settings')
+            except Exception as e:
                 # If flag_modified isn't applicable, it's fine - assignment usually suffices
-                logger.debug('flag_modified not applicable for backup_settings')
-            logger.debug('Updated backup_settings to: %s', settings.backup_settings)
+                logger.warning('flag_modified failed/not applicable for backup_settings: %s', e)
+            
+            # Verify immediate state on object
+            logger.info('ProjectSettings.backup_settings after assignment: %s', settings.backup_settings)
+            
+            # Sync with BackupScheduler
+            try:
+                from app.services.backup_scheduler import BackupScheduler
+                # Use injector to get the singleton instance
+                scheduler = current_app.injector.get(BackupScheduler)
+                scheduler.sync_backup_schedule(settings.basex_db_name, new_backup)
+            except Exception as e:
+                logger.warning('Failed to sync settings with backup scheduler: %s', e)
+
+            # Invalidate dashboard cache to ensure new settings (like backup status) are reflected
+            try:
+                from app.services.cache_service import CacheService
+                cache = current_app.injector.get(CacheService)
+                if cache.is_available():
+                    cache.delete('dashboard_stats')
+                    logger.info('Invalidated dashboard_stats cache')
+            except Exception as e:
+                logger.warning('Failed to invalidate dashboard cache: %s', e)
 
         # Attempt commit with error handling and logging
         try:

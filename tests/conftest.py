@@ -613,6 +613,12 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "skip_et_mock: skip ET module mocking for tests that need real XML parsing"
     )
+    config.addinivalue_line(
+        "markers", "javascript: mark test as JavaScript test"
+    )
+    config.addinivalue_line(
+        "markers", "js_lint: mark test as JavaScript linting test"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -627,13 +633,15 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.e2e)
             item.add_marker(pytest.mark.integration)  # E2E tests are also integration tests
 
-    # Deselect tests not in unit, integration, or e2e folders
+    # Deselect tests not in unit, integration, e2e, or js test folders
     selected_items = []
     deselected_items = []
 
     for item in items:
         path = str(item.fspath).replace('\\', '/')  # Normalize path separators
-        if "tests/unit/" in path or "tests/integration/" in path or "tests/e2e/" in path:
+        if ("tests/unit/" in path or
+            "tests/integration/" in path or
+            "tests/e2e/" in path):
             selected_items.append(item)
         else:
             deselected_items.append(item)

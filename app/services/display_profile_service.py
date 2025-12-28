@@ -81,12 +81,10 @@ class DisplayProfileService:
         )
         
         db.session.add(profile)
-        db.session.flush()  # Get the profile ID
         
         # Add elements if provided
         if elements:
-            for elem_config in elements:
-                self._add_element_to_profile(profile, elem_config)
+            profile.elements = [self._create_element_instance(elem_config) for elem_config in elements]
         
         db.session.commit()
         return profile
@@ -221,12 +219,9 @@ class DisplayProfileService:
 
         # Update elements if provided
         if elements is not None:
-            # Remove existing elements
-            db.session.query(ProfileElement).filter_by(profile_id=profile_id).delete()
-            
-            # Add new elements
-            for elem_config in elements:
-                self._add_element_to_profile(profile, elem_config)
+            # Use assignment for robust relationship management
+            # cascade="all, delete-orphan" handles the rest
+            profile.elements = [self._create_element_instance(elem_config) for elem_config in elements]
         
         profile.updated_at = datetime.now(timezone.utc)
         db.session.commit()
@@ -394,21 +389,11 @@ class DisplayProfileService:
             'language': element.get_display_language()
         }
 
-    def _add_element_to_profile(self, profile: DisplayProfile, config: Dict[str, Any]) -> ProfileElement:
-        """Add an element to a profile.
-        
-        Args:
-            profile: DisplayProfile instance
-            config: Element configuration
-            
-        Returns:
-            Created ProfileElement instance
-        """
-        # Validate configuration
+    def _create_element_instance(self, config: Dict[str, Any]) -> ProfileElement:
+        """Create a ProfileElement instance from configuration."""
         self.validate_element_config(config)
         
-        element = ProfileElement(
-            profile_id=profile.id,
+        return ProfileElement(
             lift_element=config.get('lift_element') or config.get('element'),
             css_class=config.get('css_class', ''),
             visibility=config.get('visibility', 'if-content'),
@@ -418,8 +403,11 @@ class DisplayProfileService:
             suffix=config.get('suffix'),
             config=config.get('config')
         )
-        
-        db.session.add(element)
+
+    def _add_element_to_profile(self, profile: DisplayProfile, config: Dict[str, Any]) -> ProfileElement:
+        """Add an element to a profile."""
+        element = self._create_element_instance(config)
+        profile.elements.append(element)
         return element
     
     def export_profile(self, profile_id: int) -> Dict[str, Any]:

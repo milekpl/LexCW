@@ -249,3 +249,63 @@ class BackupScheduler:
 
         # Then schedule the updated configuration
         return self.schedule_backup(scheduled_backup)
+
+    def sync_backup_schedule(self, db_name: str, backup_settings: Dict[str, any]) -> bool:
+        """
+        Sync scheduled backups with project settings.
+        
+        This method will:
+        1. Find any existing jobs for the given database and cancel them
+        2. If schedule is enabled, create and schedule a new backup job
+        
+        Args:
+            db_name: Name of the database (e.g., 'dictionary')
+            backup_settings: Dictionary containing backup settings (schedule, time, etc.)
+            
+        Returns:
+            True if sync resulted in active schedule, False if disabled/failed
+        """
+        try:
+            self.logger.info(f"Syncing backup schedule for {db_name} with settings: {backup_settings}")
+            
+            # 1. Find and cancel existing jobs for this database
+            jobs_to_cancel = []
+            for schedule_id, job in self._scheduled_backup_jobs.items():
+                if job.name == f"Backup job for {db_name}":
+                    jobs_to_cancel.append(schedule_id)
+            
+            for schedule_id in jobs_to_cancel:
+                self.cancel_backup(schedule_id)
+                self.logger.info(f"Cancelled existing backup job {schedule_id} for {db_name}")
+                
+            # 2. Check if scheduling is enabled
+            schedule_interval = backup_settings.get('schedule', 'daily')
+            if not schedule_interval or schedule_interval == 'none':
+                self.logger.info(f"Backup schedule disabled for {db_name}")
+                return False
+                
+            # 3. Create new schedule
+            # Import here to avoid circular dependencies if any
+            from app.models.backup_models import ScheduledBackup
+            
+            # Default to 2:00 AM if not specified
+            time_str = backup_settings.get('time', '02:00')
+            
+            scheduled_backup = ScheduledBackup(
+                db_name=db_name,
+                interval=schedule_interval,
+                time_=time_str,
+                type_='full', # Default to full backup
+                active=True,
+                next_run=datetime.now() + timedelta(days=1) # Initial dummy value, updated by scheduler
+            )
+            
+            # 4. Schedule the job
+            result = self.schedule_backup(scheduled_backup)
+            if result:
+                self.logger.info(f"Successfully synced new backup schedule for {db_name}: {schedule_interval} at {time_str}")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Failed to sync backup schedule for {db_name}: {e}")
+            return False

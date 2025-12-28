@@ -169,13 +169,14 @@ class ProfileElement(db.Model):
         # SQLAlchemy JSON types sometimes track mutations, sometimes need reassignment
         new_config = dict(self.config)
         new_config['display_aspect'] = aspect
+        new_config['abbr_format'] = aspect # Sync both for compatibility
         self.config = new_config
 
     def get_display_aspect(self) -> Optional[str]:
-        """Get the current display aspect."""
+        """Get the current display aspect. Checks both 'display_aspect' and 'abbr_format'."""
         if not self.config:
             return None
-        return self.config.get('display_aspect')
+        return self.config.get('display_aspect') or self.config.get('abbr_format')
 
     def set_display_language(self, lang: str) -> None:
         """Set the display language.

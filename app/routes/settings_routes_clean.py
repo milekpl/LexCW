@@ -30,6 +30,11 @@ def manage_settings() -> Any:
         try:
             new_settings = form.to_dict()
             logger.info('Form submitted with data: %s', new_settings)
+            
+            # DEBUG: Specific logging for backup settings
+            backup_settings = new_settings.get('backup_settings', {})
+            logger.info('Backup Settings from Form: %s (Type: %s)', backup_settings, type(backup_settings))
+            
             if not new_settings:
                 logger.warning('Empty settings dictionary submitted')
                 flash('No settings data received', 'warning')
@@ -44,7 +49,7 @@ def manage_settings() -> Any:
                 logger.exception('Error while logging saved settings')
             # Update in-memory project list for immediate visibility in the UI
             try:
-                current_app.config['PROJECT_SETTINGS'] = [s.settings_json for s in config_manager.get_all_settings()]
+                current_app.config['PROJECT_SETTINGS'] = [s.serialization_dict for s in config_manager.get_all_settings()]
             except Exception:
                 logger.debug('Could not update app.config PROJECT_SETTINGS')
 
@@ -62,7 +67,7 @@ def manage_settings() -> Any:
     if project_query:
         project_settings = config_manager.get_settings(project_query)
         if project_settings:
-            current_settings = project_settings.settings_json
+            current_settings = project_settings.serialization_dict
         else:
             current_settings = {
                 'project_name': config_manager.get_project_name(),

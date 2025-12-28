@@ -497,3 +497,49 @@
                                                                                 <option value="">Select type</option>
                                                                                 {% set rel_type = relation.get('type', '') if relation is mapping else (relation.type or '') %}
                                                                                 {% set lex_rel = ranges.get('lexical-relation') if ranges is mapping else None %}
+                                                                                {% if lex_rel and lex_rel.values %}
+                                                                                    {% for value in lex_rel.values() %}
+                                                                                        <option value="{{ value.id }}" {% if value.id == rel_type %}selected{% endif %}>{{ value.name }}</option>
+                                                                                    {% endfor %}
+                                                                                {% endif %}
+                                                                            </select>
+                                                                        </div>
+                                                                        <div class="col-md-8">
+                                                                            <label class="form-label">Target Entry</label>
+                                                                            <input type="text" class="form-control sense-relation-target"
+                                                                                   name="senses[{{ sense_index }}].relations[{{ loop.index0 }}].ref"
+                                                                                   value="{{ relation.get('ref', '') if relation is mapping else (relation.ref or '') }}"
+                                                                                   placeholder="Enter entry ID or search">
+                                                                            <div class="form-text">ID of the target entry for this sense relation</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="row mt-2">
+                                                                        <div class="col-md-12">
+                                                                            <label class="form-label">Note</label>
+                                                                            <input type="text" class="form-control sense-relation-note"
+                                                                                   name="senses[{{ sense_index }}].relations[{{ loop.index0 }}].note"
+                                                                                   value="{{ relation.get('note', '') if relation is mapping else (relation.note or '') }}"
+                                                                                   placeholder="Optional note about this relation">
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        {% endfor %}
+                                                    {% endif %}
+                                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2 add-sense-relation-btn"
+                                                            data-sense-index="{{ sense_index }}">
+                                                        <i class="fas fa-plus"></i> Add Relation
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</div>

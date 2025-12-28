@@ -37,7 +37,7 @@ class ProjectSettings(db.Model):
         return f'<ProjectSettings id={self.id} name={self.project_name}>'
 
     @property
-    def settings_json(self):
+    def serialization_dict(self):
         return {
             'project_name': self.project_name,
             'source_language': self.source_language,

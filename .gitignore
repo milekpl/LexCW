@@ -65,3 +65,4 @@ sample_3
 '/home/milek/backup_dir/**
 app/app/static/backup/**
 app/static/backup/**
+node_modules
