@@ -71,7 +71,8 @@ class TestJavaScriptIntegration:
         # Find all JavaScript files in the app directory
         for root, dirs, files in os.walk('app/static/js/'):
             for file in files:
-                if file.endswith('.js') and not file.endswith('.min.js'):
+                # Skip minified files and JS test files (they run under Jest)
+                if (file.endswith('.js') and not file.endswith('.min.js') and not file.endswith('.test.js') and '__tests__' not in root):
                     js_files.append(os.path.join(root, file))
         
         # Validate each JavaScript file by attempting to parse it with Node
@@ -80,6 +81,9 @@ class TestJavaScriptIntegration:
                 # Create a simple Node script to validate syntax
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as temp:
                     temp.write(f"// Syntax validation for {js_file}\n")
+                    # Provide safe shims for browser globals so we can require modules in Node
+                    shim_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'js_node_shim.js'))
+                    temp.write(f"require('{shim_path}');\n")
                     temp.write(f"require('{os.path.abspath(js_file)}');\n")
                     temp_path = temp.name
                 
@@ -127,23 +131,26 @@ class TestJavaScriptBrowserCompatibility:
         # by checking for proper mocking of browser globals
         
         # Example: Test form serializer with mocked browser globals
-        test_script_content = """
-        // Mock browser globals for Node.js
-        global.window = { FormSerializerProblemFields: [] };
-        global.document = { createElement: () => ({}) };
+        shim_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'js_node_shim.js'))
+        form_serializer_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'static', 'js', 'form-serializer.js'))
+
+        test_script_content = f"""
+        // Load centralized Node shim
+        require('{shim_path}');
+        // Ensure console is available
         global.console = console;
-        
+
         // Import and test the form serializer
-        const FormSerializer = require('../../app/static/js/form-serializer.js');
-        const { serializeFormToJSON } = FormSerializer;
-        
+        const FormSerializer = require('{form_serializer_path}');
+        const {{ serializeFormToJSON }} = FormSerializer;
+
         // Simple test
-        const mockFormData = {
-            forEach: function(callback) {
+        const mockFormData = {{
+            forEach: function(callback) {{
                 callback('test_value', 'test_field');
-            }
-        };
-        
+            }}
+        }};
+
         const result = serializeFormToJSON(mockFormData);
         console.log('Test passed:', JSON.stringify(result));
         """

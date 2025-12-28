@@ -5,12 +5,12 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up search form submission
-    const searchForm = document.getElementById('search-form');
-    searchForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        performSearch(1);
-    });
+        // Set up search form submission
+        const searchForm = document.getElementById('search-form');
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            performSearch(1);
+        });
     
     // View mode buttons
     document.getElementById('btn-view-all').addEventListener('click', function() {
