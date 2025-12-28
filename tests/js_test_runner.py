@@ -110,7 +110,7 @@ class JSTestRunner:
             result = subprocess.run(cmd, 
                                   capture_output=True, 
                                   text=True, 
-                                  timeout=60,  # 60 second timeout
+                                  timeout=180,  # Increased timeout for larger test suites
                                   cwd=self.project_root)
             
             if result.returncode == 0:

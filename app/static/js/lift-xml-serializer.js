@@ -61,11 +61,9 @@ class LIFTXMLSerializer {
         let entryId = formData.id;
 
         if (!entryId) {
-            // For new entries (add page) there may be no id input.
-            // Generate a temporary entry id so XML can be produced and
-            // server can assign a permanent id on POST.
-            entryId = this.generateEntryId();
-            console.warn(`[FORM SUBMIT] No entry id provided; generated temporary id: ${entryId}`);
+            // IDs are required for serialization in this serializer.
+            // Throw an error so callers must provide an id (server or client-side assignment).
+            throw new Error('Entry must have an id');
         }
         
         if (!lexicalUnit || Object.keys(lexicalUnit).length === 0) {

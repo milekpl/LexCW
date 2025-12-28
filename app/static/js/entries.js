@@ -355,7 +355,7 @@ if (mergeEntrySearchModalEl) {
 
 // --- Column Visibility ---
 function loadVisibleColumns() {
-    const stored = localStorage.getItem(ENTRIES_CONFIG.localStorageKeys.visibleColumns);
+    const stored = (typeof localStorage !== 'undefined') ? localStorage.getItem(ENTRIES_CONFIG.localStorageKeys.visibleColumns) : null;
     if (stored) {
         try {
             const parsed = JSON.parse(stored);
@@ -372,7 +372,9 @@ function loadVisibleColumns() {
 }
 
 function saveVisibleColumns() {
-    localStorage.setItem(ENTRIES_CONFIG.localStorageKeys.visibleColumns, JSON.stringify(visibleColumns));
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(ENTRIES_CONFIG.localStorageKeys.visibleColumns, JSON.stringify(visibleColumns));
+    }
 }
 
 function initializeColumnVisibilityMenu() {
