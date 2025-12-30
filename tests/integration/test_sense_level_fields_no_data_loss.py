@@ -88,7 +88,7 @@ class TestSenseLevelFieldsNoDataLoss:
         
         assert len(senses) == 1
         assert senses[0].get('usage_type', []) == []
-        assert senses[0].get('domain_type') is None
+        assert senses[0].get('domain_type') == []
         print("✓ Empty list fields handled correctly")
 
     @pytest.mark.integration

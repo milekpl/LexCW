@@ -109,8 +109,8 @@ class RangesLoader {
         const {
             emptyOption = 'Select option',
             selectedValue = null,
-            valueField = 'value',
-            labelField = 'value',
+            valueField = 'id',
+            labelField = 'effective_label',
             hierarchical = true, // Enable hierarchical display by default
             indentChar = '—', // Character used for indentation
             searchable = true, // Enable searchable dropdowns for hierarchical data
@@ -193,7 +193,8 @@ class RangesLoader {
         
         items.forEach(item => {
             const itemValue = item[valueField] || item.id || item.value;
-            const itemLabel = item[labelField] || item.value || item.id;
+            // Prefer explicit effective_label/effective_abbrev when available, then fall back
+            const itemLabel = item[labelField] || item.effective_label || item.value || item.label || item.id || item.name || '';
             let displayLabel = itemLabel;
             
             // Add indentation for child items
@@ -207,8 +208,31 @@ class RangesLoader {
             option.dataset.indent = level;
             option.dataset.path = parentPath ? `${parentPath}/${itemValue}` : itemValue;
             
-            if (selectedValue && (option.value === selectedValue || item.id === selectedValue)) {
-                option.selected = true;
+            // Handle selected values for single- and multi-selects
+            if (selectElement.multiple) {
+                // Normalize selectedValue into an array
+                let selArray = [];
+                if (Array.isArray(selectedValue)) selArray = selectedValue.map(String);
+                else if (selectedValue) {
+                    try {
+                        const parsed = JSON.parse(selectedValue);
+                        if (Array.isArray(parsed)) selArray = parsed.map(String);
+                        else selArray = String(selectedValue).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                    } catch (e) {
+                        selArray = String(selectedValue).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                    }
+                } else {
+                    // Also check for existing selected options on the select (e.g., server-rendered)
+                    selArray = Array.from(selectElement.querySelectorAll('option[selected]')).map(o => o.value);
+                }
+
+                if (selArray.includes(String(option.value)) || selArray.includes(String(item.id))) {
+                    option.selected = true;
+                }
+            } else {
+                if (selectedValue && (option.value === selectedValue || item.id === selectedValue)) {
+                    option.selected = true;
+                }
             }
             
             selectElement.appendChild(option);
@@ -241,12 +265,33 @@ class RangesLoader {
         flattenedItems.forEach(item => {
             const option = document.createElement('option');
             option.value = item[valueField] || item.id || item.value;
-            option.textContent = item[labelField] || item.value || item.id;
-            
-            if (selectedValue && (option.value === selectedValue || item.id === selectedValue)) {
-                option.selected = true;
+            option.textContent = item[labelField] || item.effective_label || item.value || item.id || '';
+
+            if (selectElement.multiple) {
+                // Normalize selectedValue into an array
+                let selArray = [];
+                if (Array.isArray(selectedValue)) selArray = selectedValue.map(String);
+                else if (selectedValue) {
+                    try {
+                        const parsed = JSON.parse(selectedValue);
+                        if (Array.isArray(parsed)) selArray = parsed.map(String);
+                        else selArray = String(selectedValue).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                    } catch (e) {
+                        selArray = String(selectedValue).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                    }
+                } else {
+                    selArray = Array.from(selectElement.querySelectorAll('option[selected]')).map(o => o.value);
+                }
+
+                if (selArray.includes(String(option.value)) || selArray.includes(String(item.id))) {
+                    option.selected = true;
+                }
+            } else {
+                if (selectedValue && (option.value === selectedValue || item.id === selectedValue)) {
+                    option.selected = true;
+                }
             }
-            
+
             selectElement.appendChild(option);
         });
     }

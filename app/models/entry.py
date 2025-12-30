@@ -236,15 +236,24 @@ class Entry(BaseModel):
             self.custom_fields: Dict[str, Any] = {}
         self.homograph_number: Optional[int] = kwargs.get('homograph_number')
         
-        # Domain types - single string field (separate from semantic domains)
+        # Domain types - treat as list of strings at entry level (supports multiple values)
         domain_type_raw = kwargs.get('domain_type', None)
-        if isinstance(domain_type_raw, str):
-            self.domain_type: Optional[str] = domain_type_raw if domain_type_raw.strip() else None
+        if isinstance(domain_type_raw, list):
+            self.domain_type: list[str] = [v.strip() for v in domain_type_raw if isinstance(v, str) and v.strip()]
+        elif isinstance(domain_type_raw, str):
+            val = domain_type_raw.strip()
+            if val:
+                if ';' in val:
+                    self.domain_type = [v.strip() for v in val.split(';') if v.strip()]
+                else:
+                    self.domain_type = [val]
+            else:
+                self.domain_type = []
         elif domain_type_raw is None:
-            self.domain_type: Optional[str] = None
+            self.domain_type: list[str] = []
         else:
-            # Handle non-string values by converting to string
-            self.domain_type: Optional[str] = str(domain_type_raw) if domain_type_raw else None
+            str_value = str(domain_type_raw).strip()
+            self.domain_type = [str_value] if str_value else []
 
         # Handle senses
         from app.models.sense import Sense

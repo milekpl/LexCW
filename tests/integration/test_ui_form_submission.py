@@ -49,8 +49,8 @@ class TestUIFormSubmissionWorkflow:
         # Retrieve and verify
         retrieved = dict_service_with_db.get_entry('ui_test_new_entry')
         assert retrieved.senses[0].usage_type == ['formal', 'literary']
-        # Note: domain_type currently only supports single values, so only the first value is stored
-        assert retrieved.senses[0].domain_type == 'academic'
+        # domain_type supports multiple values; verify list preservation
+        assert retrieved.senses[0].domain_type == ['academic']
         
         # Cleanup
         dict_service_with_db.delete_entry('ui_test_new_entry')
@@ -99,7 +99,7 @@ class TestUIFormSubmissionWorkflow:
         # Retrieve and verify
         retrieved = dict_service_with_db.get_entry('ui_test_edit_entry')
         assert retrieved.senses[0].usage_type == ['formal', 'written']
-        assert retrieved.senses[0].domain_type == 'academic'
+        assert retrieved.senses[0].domain_type == ['academic']
         
         # Cleanup
         dict_service_with_db.delete_entry('ui_test_edit_entry')
@@ -153,7 +153,7 @@ class TestUIFormSubmissionWorkflow:
         assert len(retrieved.senses) == 2
         assert retrieved.senses[0].usage_type == ['formal']
         assert retrieved.senses[1].usage_type == ['informal', 'colloquial']
-        assert retrieved.senses[1].domain_type == 'everyday'
+        assert retrieved.senses[1].domain_type == ['everyday']
         
         # Cleanup
         dict_service_with_db.delete_entry('ui_test_add_sense')

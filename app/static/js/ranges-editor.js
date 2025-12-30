@@ -12,22 +12,17 @@ class RangesEditor {
     
     async init() {
         await this.loadRanges();
+        await this.loadProjectLanguages(); // Load project languages for language selection dropdowns
         this.setupEventListeners();
         this.renderTable();
     }
     
     async loadRanges() {
         try {
-            const response = await fetch('/api/ranges-editor/');
-            const result = await response.json();
-
-            if (result.success) {
-                this.ranges = result.data;
-                // Load custom ranges and mark them
-                await this.loadCustomRanges();
-            } else {
-                this.showError('Error loading ranges: ' + result.error);
-            }
+            const result = await apiGet('/api/ranges-editor/');
+            this.ranges = result;
+            // Load custom ranges and mark them
+            await this.loadCustomRanges();
         } catch (error) {
             console.error('Failed to load ranges:', error);
             this.showError('Failed to load ranges');
@@ -36,22 +31,100 @@ class RangesEditor {
 
     async loadCustomRanges() {
         try {
-            const response = await fetch('/api/ranges-editor/custom');
-            const result = await response.json();
+            const result = await apiGet('/api/ranges-editor/custom');
 
-            if (result.success) {
-                // Mark custom ranges in the UI
-                result.data.forEach(customRange => {
-                    const rangeElement = document.querySelector(`tr[data-range-id="${customRange.element_id}"]`);
-                    if (rangeElement) {
-                        rangeElement.classList.add('custom-range');
-                        rangeElement.setAttribute('data-custom-id', customRange.id);
-                    }
-                });
-            }
+            // Mark custom ranges in the UI
+            result.forEach(customRange => {
+                const rangeElement = document.querySelector(`tr[data-range-id="${customRange.element_id}"]`);
+                if (rangeElement) {
+                    rangeElement.classList.add('custom-range');
+                    rangeElement.setAttribute('data-custom-id', customRange.id);
+                }
+            });
         } catch (error) {
             console.error('Failed to load custom ranges:', error);
         }
+    }
+
+    /**
+     * Load project languages for language selection dropdowns
+     */
+    async loadProjectLanguages() {
+        try {
+            const response = await fetch('/api/ranges/project-languages'); // Use the new endpoint
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    // Convert the API response format (array of {code, name} objects) to internal format (array of [code, name] tuples)
+                    this.projectLanguages = result.data.map(lang => [lang.code, lang.name]);
+                    // Populate language dropdowns with project languages
+                    this.populateLanguageDropdowns();
+                }
+            } else {
+                // If the project languages endpoint fails, use a default set
+                this.projectLanguages = [
+                    ['en', 'English'],
+                    ['pl', 'Polish'],
+                    ['fr', 'French'],
+                    ['de', 'German'],
+                    ['es', 'Spanish'],
+                    ['pt', 'Portuguese']
+                ];
+                this.populateLanguageDropdowns();
+            }
+        } catch (error) {
+            console.warn('Failed to load project languages:', error);
+            // Use default languages as fallback
+            this.projectLanguages = [
+                ['en', 'English'],
+                ['pl', 'Polish'],
+                ['fr', 'French'],
+                ['de', 'German'],
+                ['es', 'Spanish'],
+                ['pt', 'Portuguese']
+            ];
+            this.populateLanguageDropdowns();
+        }
+    }
+
+    /**
+     * Populate language dropdowns with project languages
+     */
+    populateLanguageDropdowns() {
+        if (!this.projectLanguages) return;
+
+        // Populate the element language dropdown in the element modal
+        const elementLangSelect = document.getElementById('elementLanguage');
+        if (elementLangSelect) {
+            // Get current value to preserve selection
+            const currentValue = elementLangSelect.value;
+
+            // Clear existing options except the default ones
+            elementLangSelect.innerHTML = `
+                <option value="" ${currentValue === '' ? 'selected' : ''}>Use system default</option>
+                <option value="*" ${currentValue === '*' ? 'selected' : ''}>All languages (*)</option>
+            `;
+
+            // Add project languages
+            this.projectLanguages.forEach(([code, name]) => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = `${name} (${code})`;
+                option.selected = (currentValue === code);
+                elementLangSelect.appendChild(option);
+            });
+        }
+    }
+
+    /**
+     * Update language dropdown in element modal when it's shown
+     * This ensures the dropdown is always populated with current project languages
+     */
+    updateElementLanguageDropdown() {
+        if (!this.projectLanguages) return;
+
+        // Make sure the dropdown is populated with project languages
+        this.populateLanguageDropdowns();
     }
     
     setupEventListeners() {
@@ -76,6 +149,10 @@ class RangesEditor {
         
         document.getElementById('btnAddElementDescription').addEventListener('click', () => {
             this.addElementLanguageField();
+        });
+
+        document.getElementById('btnAddElementAbbrev').addEventListener('click', () => {
+            this.addElementAbbrevField();
         });
         
         // Search box
@@ -402,8 +479,12 @@ class RangesEditor {
                                 <div class="flex-grow-1">
                                     <div class="d-flex align-items-center mb-1">
                                         <strong class="me-2">${this.escapeHtml(elem.id)}</strong>
-                                        ${elem.abbrev ? 
-                                            `<span class="badge bg-info">${this.escapeHtml(elem.abbrev)}</span>` : ''}
+                                        ${elem.abbrev ?
+                                            `<span class="badge bg-info me-1">${this.escapeHtml(elem.abbrev)}</span>` : ''}
+                                        ${elem.abbrevs && Object.keys(elem.abbrevs).length > 0 ?
+                                            Object.entries(elem.abbrevs).map(([lang, abbr]) =>
+                                                `<span class="badge bg-secondary me-1" title="${this.escapeHtml(lang)}">${this.escapeHtml(abbr)}</span>`
+                                            ).join('') : ''}
                                     </div>
                                     ${elem.description && elem.description.en ? 
                                         `<small class="text-muted">${this.escapeHtml(elem.description.en)}</small>` : ''}
@@ -647,7 +728,20 @@ class RangesEditor {
             title.textContent = 'Edit Element';
             document.getElementById('elementId').value = elementData.id;
             document.getElementById('elementId').readOnly = true;
+            // Set single abbreviation field (for backward compatibility)
             document.getElementById('elementAbbrev').value = elementData.abbrev || '';
+            // If there are multilingual abbreviations, we'll use the 'en' one as default, or first available
+            if (elementData.abbrevs && Object.keys(elementData.abbrevs).length > 0) {
+                if (elementData.abbrevs['en']) {
+                    document.getElementById('elementAbbrev').value = elementData.abbrevs['en'];
+                } else {
+                    // Use first available abbreviation
+                    const firstLang = Object.keys(elementData.abbrevs)[0];
+                    if (firstLang) {
+                        document.getElementById('elementAbbrev').value = elementData.abbrevs[firstLang];
+                    }
+                }
+            }
             document.getElementById('elementValue').value = elementData.value || '';
             document.getElementById('elementParent').value = elementData.parent || '';
             
@@ -661,16 +755,40 @@ class RangesEditor {
             } else {
                 this.addElementLanguageField();
             }
+
+            // Populate multilingual abbreviations
+            const abbrevsContainer = document.getElementById('elementAbbrevsContainer');
+            abbrevsContainer.innerHTML = '';
+            if (elementData.abbrevs) {
+                for (const [lang, abbr] of Object.entries(elementData.abbrevs)) {
+                    this.addElementAbbrevField(lang, abbr);
+                }
+            } else {
+                this.addElementAbbrevField();
+            }
+
+            // Set the display language if available
+            if (elementData.language) {
+                document.getElementById('elementLanguage').value = elementData.language;
+            } else {
+                document.getElementById('elementLanguage').value = '';
+            }
         } else {
             // Create mode
             title.textContent = 'New Element';
             form.reset();
             document.getElementById('elementId').readOnly = false;
+            document.getElementById('elementLanguage').value = ''; // Default to empty (use system default)
             const container = document.getElementById('elementDescriptionsContainer');
             container.innerHTML = '';
             this.addElementLanguageField();
+
+            // Initialize multilingual abbreviations container for create mode
+            const abbrevsContainer = document.getElementById('elementAbbrevsContainer');
+            abbrevsContainer.innerHTML = '';
+            this.addElementAbbrevField();
         }
-        
+
         new bootstrap.Modal(modal).show();
     }
     
@@ -686,6 +804,25 @@ class RangesEditor {
                 <option value="pt" ${lang === 'pt' ? 'selected' : ''}>pt</option>
             </select>
             <input type="text" class="form-control lang-text" placeholder="Description" value="${this.escapeHtml(text)}">
+            <button type="button" class="btn btn-outline-danger btn-remove-lang">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+        container.appendChild(div);
+    }
+
+    addElementAbbrevField(lang = 'en', abbr = '') {
+        const container = document.getElementById('elementAbbrevsContainer');
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.setAttribute('data-lang-group', 'element-abbrevs');
+        div.innerHTML = `
+            <select class="form-select lang-select" style="max-width: 100px">
+                <option value="en" ${lang === 'en' ? 'selected' : ''}>en</option>
+                <option value="pl" ${lang === 'pl' ? 'selected' : ''}>pl</option>
+                <option value="pt" ${lang === 'pt' ? 'selected' : ''}>pt</option>
+            </select>
+            <input type="text" class="form-control lang-text" placeholder="Abbreviation" value="${this.escapeHtml(abbr)}">
             <button type="button" class="btn btn-outline-danger btn-remove-lang">
                 <i class="bi bi-trash"></i>
             </button>
@@ -715,12 +852,13 @@ class RangesEditor {
         const abbrev = document.getElementById('elementAbbrev').value.trim();
         const value = document.getElementById('elementValue').value.trim();
         const parent = document.getElementById('elementParent').value.trim();
-        
+        const isEdit = document.getElementById('elementId').readOnly; // If ID field is read-only, it's edit mode
+
         if (!elementId) {
             this.showError('Element ID is required');
             return;
         }
-        
+
         // Collect descriptions
         const descriptions = {};
         document.querySelectorAll('#elementDescriptionsContainer [data-lang-group="element-descriptions"]').forEach(group => {
@@ -730,22 +868,55 @@ class RangesEditor {
                 descriptions[lang] = text;
             }
         });
-        
+
+        // Collect multilingual abbreviations
+        const abbrevs = {};
+        document.querySelectorAll('#elementAbbrevsContainer [data-lang-group="element-abbrevs"]').forEach(group => {
+            const lang = group.querySelector('.lang-select').value;
+            const abbr = group.querySelector('.lang-text').value.trim();
+            if (abbr) {
+                abbrevs[lang] = abbr;
+            }
+        });
+
+        // Get the selected display language
+        const elementLanguage = document.getElementById('elementLanguage').value;
+
         try {
-            const response = await fetch(`/api/ranges-editor/${this.currentRangeId}/elements`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    id: elementId,
-                    abbrev: abbrev,
-                    value: value,
-                    parent: parent,
-                    description: descriptions
-                })
-            });
-            
+            let response;
+            if (isEdit) {
+                // Update existing element
+                response = await fetch(`/api/ranges-editor/${this.currentRangeId}/elements/${elementId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        abbrev: abbrev,
+                        abbrevs: abbrevs,
+                        value: value,
+                        parent: parent,
+                        language: elementLanguage || undefined, // Only send if not empty
+                        description: descriptions
+                    })
+                });
+            } else {
+                // Create new element
+                response = await fetch(`/api/ranges-editor/${this.currentRangeId}/elements`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id: elementId,
+                        abbrev: abbrev,
+                        abbrevs: abbrevs,
+                        value: value,
+                        parent: parent,
+                        language: elementLanguage || undefined, // Only send if not empty
+                        description: descriptions
+                    })
+                });
+            }
+
             const result = await response.json();
-            
+
             if (result.success) {
                 this.showSuccess('Element saved successfully');
                 bootstrap.Modal.getInstance(document.getElementById('elementModal')).hide();

@@ -237,10 +237,67 @@ class TestRangesService:
     def test_validate_element_id_unique(self, service, mock_connector):
         """Test element ID uniqueness within range."""
         mock_connector.execute_query.return_value = 'false'
-        
         result = service.validate_element_id('test-range', 'new-element')
-        
         assert result is True
+
+    def test_get_range_resolved_includes_effective_fields(self, service, mock_connector):
+        """Requesting a resolved range should include effective_label and effective_abbrev on values."""
+        mock_connector.execute_query.return_value = """
+        <lift-ranges>
+          <range id="test-range" guid="r1">
+            <range-element id="parent" value="parent">
+              <label><form lang="en"><text>ParentLabel</text></form></label>
+              <abbrev>P1</abbrev>
+              <range-element id="child" value="child">
+                <label><form lang="en"><text>ChildLabel</text></form></label>
+              </range-element>
+              <range-element id="child2" value="child2" />
+            </range-element>
+          </range>
+        </lift-ranges>
+        """
+
+        resolved = service.get_range('test-range', resolved=True)
+
+        assert 'values' in resolved
+        vals = resolved['values']
+        # parent should have children
+        parent = next((v for v in vals if v['id'] == 'parent'), None)
+        assert parent is not None
+        child = next((c for c in parent.get('children', []) if c['id'] == 'child'), None)
+        child2 = next((c for c in parent.get('children', []) if c['id'] == 'child2'), None)
+        assert child is not None and child2 is not None
+
+        # effective_label should be present
+        assert child.get('effective_label') == 'ChildLabel'
+        # child2 should inherit parent's label
+        assert child2.get('effective_label') == 'ParentLabel'
+        # effective_abbrev: child2 should inherit parent's abbrev 'P1'
+        assert child2.get('effective_abbrev') == 'P1'
+
+    def test_get_range_resolved_non_mutating_original(self, service, mock_connector):
+        """Requesting a resolved range should not mutate the cached original range data."""
+        mock_connector.execute_query.return_value = """
+        <lift-ranges>
+          <range id="test-range" guid="r1">
+            <range-element id="parent" value="parent">
+              <label><form lang="en"><text>ParentLabel</text></form></label>
+              <abbrev>P1</abbrev>
+              <range-element id="child" value="child" />
+            </range-element>
+          </range>
+        </lift-ranges>
+        """
+
+        # Call resolved
+        _ = service.get_range('test-range', resolved=True)
+        # Call non-resolved and ensure no effective_label exists
+        original = service.get_range('test-range', resolved=False)
+        vals = original.get('values', [])
+        parent = next((v for v in vals if v['id'] == 'parent'), None)
+        child = next((c for c in parent.get('children', []) if c['id'] == 'child'), None)
+        assert child is not None
+        assert 'effective_label' not in child
     
     def test_validate_element_id_duplicate(self, service, mock_connector):
         """Test element ID already exists within range."""

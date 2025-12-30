@@ -221,14 +221,30 @@ class LIFTParser:
             traits_to_serialize = entry.traits.copy() if hasattr(entry, 'traits') and entry.traits else {}
             
             # Add domain_type to traits if present (for entry-level domain type)
+            # domain_type may be a list of values; write one trait element per value.
             if hasattr(entry, 'domain_type') and entry.domain_type:
-                traits_to_serialize['domain-type'] = entry.domain_type
-            
+                # Remove any existing domain-type in traits_to_serialize - we'll serialize explicitly
+                traits_to_serialize.pop('domain-type', None)
+
             if traits_to_serialize:
                 for trait_name, trait_value in traits_to_serialize.items():
                     ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                        'name': trait_name, 
+                        'name': trait_name,
                         'value': trait_value
+                    })
+
+            # Serialize entry-level domain-type(s) explicitly (one trait per value)
+            if hasattr(entry, 'domain_type') and entry.domain_type:
+                if isinstance(entry.domain_type, list):
+                    for dt in entry.domain_type:
+                        ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                            'name': 'domain-type',
+                            'value': dt
+                        })
+                else:
+                    ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                        'name': 'domain-type',
+                        'value': entry.domain_type
                     })
             # Pronunciations (text-based)
             if hasattr(entry, 'pronunciations') and entry.pronunciations:
@@ -323,9 +339,8 @@ class LIFTParser:
                         })
                 
                 if hasattr(sense, 'domain_type') and sense.domain_type:
-                    # Handle both string and list domain_type values
-                    domains = sense.domain_type if isinstance(sense.domain_type, list) else [sense.domain_type]
-                    for domain in domains:
+                    # domain_type is a list of values; serialize one trait per value
+                    for domain in sense.domain_type:
                         ET.SubElement(sense_elem, f"{{{self.NSMAP['lift']}}}trait", {
                             'name': 'domain-type', 
                             'value': domain
@@ -1065,14 +1080,39 @@ class LIFTRangesParser:
         return ranges
 
     def _find(self, parent: ET.Element, xpath: str, single: bool = False) -> Any:
-        """Namespace-aware finder with fallback to non-namespaced search."""
+        """Namespace-aware finder with fallback to non-namespaced and wildcard-namespace search.
+
+        This handles three cases in order:
+        1. Namespaced XPath using `lift:` prefix (normal case when ranges use the expected namespace).
+        2. Plain XPath without any namespace (FieldWorks exports often omit namespaces).
+        3. Wildcard-namespace XPath (matches elements with any namespace, including default namespace).
+        """
+        # 1) Try namespaced lookup first
         result = parent.find(xpath, self.NSMAP) if single else parent.findall(xpath, self.NSMAP)
+
+        # 2) Fallback to plain XPath (no namespace prefix)
         if (result is None if single else not result):
             plain_xpath = xpath.replace('lift:', '')
             result = parent.find(plain_xpath) if single else parent.findall(plain_xpath)
-            if (result is None if single else not result) and 'range-element' in xpath:
-                 # Debug only for missing range elements
-                 self.logger.debug(f"MISSING: {xpath} (plain: {plain_xpath}) in <{parent.tag}>")
+
+        # 3) If still not found, try a wildcard-namespace XPath to match default-namespace elements
+        if (result is None if single else not result):
+            wildcard_xpath = xpath.replace('lift:', '{*}')
+            try:
+                result = parent.find(wildcard_xpath) if single else parent.findall(wildcard_xpath)
+                if (result is None if single else not result):
+                    # Only log missing range-element when it is meaningful — e.g. when searching
+                    # directly under a <range> or root <lift-ranges>. Avoid noisy logs when
+                    # checking for nested children inside an element that legitimately has none.
+                    tag_local = parent.tag.split('}')[-1] if '}' in parent.tag else parent.tag
+                    if 'range-element' in xpath and tag_local in ('range', 'lift-ranges'):
+                        self.logger.debug(
+                            f"MISSING: {xpath} (plain: {plain_xpath}, wildcard: {wildcard_xpath}) in <{parent.tag}>"
+                        )
+            except Exception:
+                # If wildcard lookup raises for some xpath constructs, swallow and leave result empty
+                result = None if single else []
+
         return result
 
     def _find_element(self, parent: ET.Element, xpath: str) -> Optional[ET.Element]:
@@ -1154,6 +1194,11 @@ class LIFTRangesParser:
         """Parse single range element."""
         elem_id = elem.get('id', '')
             
+        # Parse traits and extract language preference
+        traits = {t.get('name'): t.get('value') for t in self._find_elements(elem, './lift:trait') if t.get('name')}
+        # Extract language preference from traits if present
+        language_preference = traits.get('display-language')
+
         return {
             'id': elem_id,
             'guid': elem.get('guid', ''),
@@ -1164,7 +1209,8 @@ class LIFTRangesParser:
             'labels': self._parse_multitext(elem, './lift:label'),
             'description': self._parse_multitext(elem, './lift:description'),
             'children': [],
-            'traits': {t.get('name'): t.get('value') for t in self._find_elements(elem, './lift:trait') if t.get('name')},
+            'traits': traits,
+            'language': language_preference,  # Add language preference as a top-level field
             'reverse_labels': self._parse_multitext(elem, "./lift:field[@type='reverse-label']"),
             'reverse_abbrevs': self._parse_multitext(elem, "./lift:field[@type='reverse-abbrev']")
         }
@@ -1178,7 +1224,9 @@ class LIFTRangesParser:
             text_elem = self._find_element(form, './lift:text')
             if text_elem is not None:
                 if text_elem.text and text_elem.text.strip():
-                    result[form.get('lang', 'und')] = text_elem.text.strip()
+                    # Use the lang attribute, default to 'und' if not present
+                    lang = form.get('lang', 'und')
+                    result[lang] = text_elem.text.strip()
         return result
 
     def _parse_abbrev(self, elem: ET.Element) -> str:
@@ -1187,7 +1235,13 @@ class LIFTRangesParser:
         if abbrev is not None:
             if abbrev.text and abbrev.text.strip():
                 return abbrev.text.strip()
-            return next((v for v in self._parse_multitext(abbrev, '.').values() if v), '')
+            # Get multilingual abbreviations and return the first non-empty one
+            abbrevs_dict = self._parse_multitext(abbrev, '.')
+            if abbrevs_dict:
+                # Prefer English abbreviation if available, otherwise return first available
+                if 'en' in abbrevs_dict:
+                    return abbrevs_dict['en']
+                return next((v for v in abbrevs_dict.values() if v), '')
         return ''
 
     def _parse_abbrevs(self, elem: ET.Element) -> Dict[str, str]:
@@ -1196,6 +1250,74 @@ class LIFTRangesParser:
         if abbrev is not None:
             return self._parse_multitext(abbrev, '.')
         return {}
+
+    def resolve_values_with_inheritance(self, values: List[Dict[str, Any]], prefer_lang: str = 'en') -> List[Dict[str, Any]]:
+        """Return a deep-copied values list with *effective* properties applied via inheritance.
+
+        This is non-mutating and computes `effective_label` and `effective_abbrev` for each
+        element using the following precedence:
+          - element-specific value (prefer `labels[prefer_lang]`)
+          - parent's effective value
+          - fallback to `value` or `id` (for labels) and a `value[:3]` fallback for abbrev
+        """
+        import copy
+        vals_copy = copy.deepcopy(values)
+
+        def pick_label(labels: Dict[str, str], parent_label: str | None) -> str:
+            if not labels and parent_label:
+                return parent_label
+            if not labels:
+                return parent_label or ''
+            # prefer language
+            if prefer_lang in labels:
+                return labels[prefer_lang]
+            # otherwise take first
+            return next(iter(labels.values()))
+
+        def pick_abbrev(abbrev: str, abbrevs: Dict[str, str], parent_abbrev: str | None, fallback: str) -> str:
+            # Prefer explicit abbrev on the element first, then multilingual abbrevs,
+            # then parent's effective abbrev, then a simple fallback.
+            own = abbrev if abbrev and abbrev.strip() else None
+            own_multi = None
+            if abbrevs:
+                if prefer_lang in abbrevs and abbrevs[prefer_lang].strip():
+                    own_multi = abbrevs[prefer_lang]
+                else:
+                    # take first non-empty
+                    for v in abbrevs.values():
+                        if v and v.strip():
+                            own_multi = v
+                            break
+            if own:
+                return own
+            if own_multi:
+                return own_multi
+            if parent_abbrev:
+                return parent_abbrev
+            return (fallback[:3] if fallback else '')
+
+        def walk(nodes: List[Dict[str, Any]], parent_label: str | None = None, parent_abbrev: str | None = None) -> None:
+            for n in nodes:
+                label = pick_label(n.get('labels', {}), parent_label)
+                abbrev = pick_abbrev(n.get('abbrev', ''), n.get('abbrevs', {}), parent_abbrev, n.get('value') or n.get('id') or '')
+                # Attach effective values
+                n['effective_label'] = label or (n.get('value') or n.get('id') or '')
+                n['effective_abbrev'] = abbrev
+                # Debug: log what we computed for this node
+                try:
+                    self.logger.debug(
+                        f"resolved node {n.get('id')}: raw_abbrev={n.get('abbrev')!r}, raw_abbrevs={n.get('abbrevs')!r}, effective_abbrev={n['effective_abbrev']!r}"
+                    )
+                except Exception:
+                    pass
+                # Temporary debug output (pytest -s will show this)
+                # Recurse into children
+                children = n.get('children') or []
+                if children:
+                    walk(children, n['effective_label'], n['effective_abbrev'])
+
+        walk(vals_copy, None, None)
+        return vals_copy
 
     # Minimal trait extraction used by DictionaryService.get_trait_values_from_relations tests
     def extract_trait_values_from_relations(self, xml_string: str, trait_name: str) -> List[Dict[str, Any]]:

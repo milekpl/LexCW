@@ -238,8 +238,26 @@
           </div>
           
           <div class="mb-3">
-            <label for="elementAbbrev" class="form-label">Abbreviation</label>
+            <label for="elementAbbrev" class="form-label">Abbreviation (Default)</label>
             <input type="text" class="form-control" id="elementAbbrev">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Abbreviations (Multilingual)</label>
+            <div id="elementAbbrevsContainer"></div>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddElementAbbrev">
+              + Add Language Abbreviation
+            </button>
+          </div>
+
+          <div class="mb-3">
+            <label for="elementLanguage" class="form-label">Default Display Language</label>
+            <select class="form-select" id="elementLanguage">
+              <option value="" selected>Use system default</option>
+              <option value="*">All languages (*)</option>
+              <!-- Options will be populated dynamically via JavaScript -->
+            </select>
+            <div class="form-text">Preferred language for displaying this element in UI and display profiles</div>
           </div>
           
           <div class="mb-3">

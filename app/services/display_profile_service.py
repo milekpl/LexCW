@@ -227,7 +227,7 @@ class DisplayProfileService:
         db.session.commit()
         return profile
     
-    def delete_profile(self, profile_id: int) -> None:
+    def delete_profile(self, profile_id: int) -> bool:
         """Delete a display profile.
         
         Args:
@@ -245,6 +245,7 @@ class DisplayProfileService:
         
         db.session.delete(profile)
         db.session.commit()
+        return True
     
     def set_default_profile(self, profile_id: int) -> DisplayProfile:
         """Set a profile as the default.
@@ -388,6 +389,43 @@ class DisplayProfileService:
             'aspect': element.get_display_aspect(),
             'language': element.get_display_language()
         }
+
+    def get_profile_elements(self, profile_id: int) -> List[ProfileElement]:
+        """Get all elements for a profile.
+
+        Args:
+            profile_id: Profile ID
+
+        Returns:
+            List of ProfileElement instances
+
+        Raises:
+            ValueError: If profile not found
+        """
+        profile = self.get_profile(profile_id)
+        if not profile:
+            raise ValueError(f"Profile with ID {profile_id} not found")
+        
+        return list(profile.elements)
+
+    def get_profile_element(self, profile_id: int, element_name: str) -> Optional[ProfileElement]:
+        """Get a specific element from a profile by element name.
+
+        Args:
+            profile_id: Profile ID
+            element_name: LIFT element name
+
+        Returns:
+            ProfileElement instance or None if not found
+
+        Raises:
+            ValueError: If profile not found
+        """
+        profile = self.get_profile(profile_id)
+        if not profile:
+            raise ValueError(f"Profile with ID {profile_id} not found")
+        
+        return next((e for e in profile.elements if e.lift_element == element_name), None)
 
     def _create_element_instance(self, config: Dict[str, Any]) -> ProfileElement:
         """Create a ProfileElement instance from configuration."""

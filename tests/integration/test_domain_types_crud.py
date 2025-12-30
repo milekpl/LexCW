@@ -42,7 +42,7 @@ class TestDomainTypesIntegration:
         # Retrieve and verify
         retrieved_entry = dict_service_with_db.get_entry("test_entry_domain_type")
         assert retrieved_entry is not None
-        assert retrieved_entry.domain_type == "informatyka"
+        assert retrieved_entry.domain_type == ["informatyka"]
         assert retrieved_entry.lexical_unit["en"] == "computer science"
         
         # Clean up
@@ -84,11 +84,11 @@ class TestDomainTypesIntegration:
         sense2 = retrieved_entry.senses[1] if retrieved_entry.senses[1].id == "sense2" else retrieved_entry.senses[0]
         
         if sense1.id == "sense1":
-            assert sense1.domain_type == "finanse"
-            assert sense2.domain_type == "prawniczy"
+            assert sense1.domain_type == ["finanse"]
+            assert sense2.domain_type == ["prawniczy"]
         else:
-            assert sense1.domain_type == "prawniczy" 
-            assert sense2.domain_type == "finanse"
+            assert sense1.domain_type == ["prawniczy"] 
+            assert sense2.domain_type == ["finanse"]
         
         # Clean up
         dict_service_with_db.delete_entry("test_sense_domain_type")
@@ -119,11 +119,11 @@ class TestDomainTypesIntegration:
         assert retrieved_entry is not None
         
         # Verify entry-level domain type
-        assert retrieved_entry.domain_type == "literatura"
+        assert retrieved_entry.domain_type == ["literatura"]
         
         # Verify sense-level domain type
         assert len(retrieved_entry.senses) == 1
-        assert retrieved_entry.senses[0].domain_type == "antyk"
+        assert retrieved_entry.senses[0].domain_type == ["antyk"]
         
         # Clean up
         dict_service_with_db.delete_entry("test_both_domain_types")
@@ -154,7 +154,7 @@ class TestDomainTypesIntegration:
         # Retrieve and verify update
         retrieved_entry = dict_service_with_db.get_entry("test_update_domain_type")
         assert retrieved_entry is not None
-        assert retrieved_entry.domain_type == "rolnictwo"
+        assert retrieved_entry.domain_type == ["rolnictwo"]
         
         # Clean up
         dict_service_with_db.delete_entry("test_update_domain_type")
@@ -186,7 +186,7 @@ class TestDomainTypesIntegration:
         retrieved_entry = dict_service_with_db.get_entry("test_update_sense_domain_type")
         assert retrieved_entry is not None
         assert len(retrieved_entry.senses) == 1
-        assert retrieved_entry.senses[0].domain_type == "literatura"
+        assert retrieved_entry.senses[0].domain_type == ["literatura"]
         
         # Clean up
         dict_service_with_db.delete_entry("test_update_sense_domain_type")
@@ -254,22 +254,22 @@ class TestDomainTypesIntegration:
         entry_informatyka = dict_service_with_db.get_entry("entry_informatyka")
         assert entry_informatyka is not None
         assert len(entry_informatyka.senses) == 1
-        assert entry_informatyka.senses[0].domain_type == "informatyka"
+        assert entry_informatyka.senses[0].domain_type == ["informatyka"]
         
         entry_finanse = dict_service_with_db.get_entry("entry_finanse")
         assert entry_finanse is not None
         assert len(entry_finanse.senses) == 1
-        assert entry_finanse.senses[0].domain_type == "finanse"
+        assert entry_finanse.senses[0].domain_type == ["finanse"]
         
         entry_prawniczy = dict_service_with_db.get_entry("entry_prawniczy")
         assert entry_prawniczy is not None
         assert len(entry_prawniczy.senses) == 1
-        assert entry_prawniczy.senses[0].domain_type == "prawniczy"
+        assert entry_prawniczy.senses[0].domain_type == ["prawniczy"]
         
         entry_literatura = dict_service_with_db.get_entry("entry_literatura")
         assert entry_literatura is not None
         assert len(entry_literatura.senses) == 1
-        assert entry_literatura.senses[0].domain_type == "literatura"
+        assert entry_literatura.senses[0].domain_type == ["literatura"]
         
         # Clean up test entries
         for entry_id in ["entry_informatyka", "entry_finanse", "entry_prawniczy", "entry_literatura"]:
@@ -300,7 +300,7 @@ class TestDomainTypesIntegration:
         # Verify entry exists
         retrieved_entry = dict_service_with_db.get_entry("test_delete_domain_type")
         assert retrieved_entry is not None
-        assert retrieved_entry.domain_type == "rolnictwo"
+        assert retrieved_entry.domain_type == ["rolnictwo"]
         
         # Delete the entry
         dict_service_with_db.delete_entry("test_delete_domain_type")
@@ -328,10 +328,10 @@ class TestDomainTypesIntegration:
         entry_id = dict_service_with_db.create_entry(entry)
         assert entry_id == "test_no_domain_type"
         
-        # Retrieve and verify domain_type is None
+        # Retrieve and verify domain_type is empty list
         retrieved_entry = dict_service_with_db.get_entry("test_no_domain_type")
         assert retrieved_entry is not None
-        assert retrieved_entry.domain_type is None
+        assert retrieved_entry.domain_type == []
         
         # Clean up
         dict_service_with_db.delete_entry("test_no_domain_type")
@@ -356,11 +356,11 @@ class TestDomainTypesIntegration:
         entry_id = dict_service_with_db.create_entry(entry)
         assert entry_id == "test_empty_domain_type"
         
-        # Retrieve and verify domain_type is None
+        # Retrieve and verify domain_type is empty list
         retrieved_entry = dict_service_with_db.get_entry("test_empty_domain_type")
         assert retrieved_entry is not None
-        # Empty string should be converted to None
-        assert retrieved_entry.domain_type is None or retrieved_entry.domain_type == ""
+        # Empty string should be converted to empty list
+        assert retrieved_entry.domain_type == []
         
         # Clean up
         dict_service_with_db.delete_entry("test_empty_domain_type")
@@ -396,7 +396,7 @@ class TestDomainTypesIntegration:
         assert retrieved_entry is not None
         assert len(retrieved_entry.senses) == 2
         
-        domain_types = [sense.domain_type for sense in retrieved_entry.senses]
+        domain_types = [dt for sense in retrieved_entry.senses for dt in sense.domain_type]
         assert "finanse" in domain_types
         assert "geografia" in domain_types
         
@@ -427,8 +427,8 @@ class TestDomainTypesIntegration:
         retrieved_entry = dict_service_with_db.get_entry("test_unicode_domain_type")
         assert retrieved_entry is not None
         assert len(retrieved_entry.senses) == 1
-        assert retrieved_entry.senses[0].domain_type == "informatyka-żabki"
-        assert 'ż' in (retrieved_entry.senses[0].domain_type or '')
+        assert retrieved_entry.senses[0].domain_type == ["informatyka-żabki"]
+        assert 'ż' in (retrieved_entry.senses[0].domain_type[0] if retrieved_entry.senses[0].domain_type else '')
         
         # Clean up
         dict_service_with_db.delete_entry("test_unicode_domain_type")
@@ -461,7 +461,7 @@ class TestDomainTypesIntegration:
         
         # Verify domain type is preserved at sense level
         assert len(reconstructed_entry.senses) == 1
-        assert reconstructed_entry.senses[0].domain_type == "finanse"
+        assert reconstructed_entry.senses[0].domain_type == ["finanse"]
         
         # Clean up
         dict_service_with_db.delete_entry("test_domain_types_serialization")
@@ -500,9 +500,9 @@ class TestDomainTypesIntegration:
             entry.senses = [Sense(**sense_data) for sense_data in senses_data]
         
         # Verify domain types are set correctly (sense-level only)
-        assert entry.domain_type is None
+        assert entry.domain_type == []
         assert len(entry.senses) == 1
-        assert entry.senses[0].domain_type == "informatyka"
+        assert entry.senses[0].domain_type == ["informatyka"]
         
         # Create in database and retrieve
         dict_service_with_db.create_entry(entry)
@@ -510,7 +510,7 @@ class TestDomainTypesIntegration:
         
         # Verify domain types are preserved after database roundtrip (sense-level only)
         assert len(retrieved_entry.senses) == 1
-        assert retrieved_entry.senses[0].domain_type == "informatyka"
+        assert retrieved_entry.senses[0].domain_type == ["informatyka"]
         
         # Clean up
         dict_service_with_db.delete_entry(entry.id)

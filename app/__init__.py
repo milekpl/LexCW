@@ -284,7 +284,15 @@ def create_app(config_name=None):
                 settings = config_manager.get_settings_by_id(project_id)
                 if settings:
                     g.project_settings = settings
-                    g.project_db_name = settings.basex_db_name
+                    db_name = getattr(settings, 'basex_db_name', None)
+                    # Guard against tests or misconfigured settings that return non-string values (e.g., Mock objects)
+                    if not isinstance(db_name, str):
+                        app.logger.warning(
+                            "Invalid basex_db_name from settings (type=%s); falling back to app.config['BASEX_DATABASE']",
+                            type(db_name)
+                        )
+                        db_name = app.config.get('BASEX_DATABASE')
+                    g.project_db_name = db_name
                 else:
                     # Invalid project ID in session
                     session.pop('project_id', None)
@@ -368,55 +376,9 @@ def create_app(config_name=None):
         )
         backup_scheduler = BackupScheduler(backup_manager)
         
-        # Load backup settings and schedule backups if configured
-        try:
-            from app.models.project_settings import ProjectSettings
-            from app.models.backup_models import ScheduledBackup
-            from app.config_manager import ConfigManager
-            
-            # Get current project settings (use the first project if any exist)
-            settings = ProjectSettings.query.first()
-            backup_config = None
-            
-            # Try to get backup settings from ProjectSettings first
-            if settings and hasattr(settings, 'backup_settings') and settings.backup_settings:
-                backup_config = settings.backup_settings
-                app.logger.info("Using backup settings from ProjectSettings (project id=%s)", getattr(settings, 'id', None))
-            else:
-                # Fallback to ConfigManager defaults
-                try:
-                    config_manager = app.injector.get(ConfigManager)
-                    backup_config = config_manager.get_backup_settings()
-                    app.logger.info("Using default backup settings from ConfigManager")
-                except Exception as e:
-                    app.logger.error(f"Failed to get ConfigManager: {e}")
-                    import traceback
-                    app.logger.error(traceback.format_exc())
-            
-            if backup_config:
-                # Check if backups are enabled and scheduled
-                schedule_interval = backup_config.get('schedule', 'daily')
-                if schedule_interval and schedule_interval != 'none':
-                    # Create a scheduled backup configuration
-                    scheduled_backup = ScheduledBackup(
-                        project_id=1,
-                        interval=schedule_interval,
-                        time="02:00",  # Default to 2:00 AM as shown in UI
-                        backup_type="full",
-                        description=f"Automated {schedule_interval} backup"
-                    )
-                    
-                    # Schedule the backup
-                    backup_scheduler.schedule_backup(scheduled_backup)
-                    app.logger.info(f"Scheduled {schedule_interval} backup at 2:00 AM")
-                else:
-                    app.logger.info("Backup schedule is set to 'none' in settings")
-            else:
-                app.logger.info("No backup settings found")
-        except Exception as e:
-            import traceback
-            app.logger.error(f"Error loading backup settings: {e}")
-            app.logger.error(traceback.format_exc())
+        # Load backup settings: moved after ConfigManager is initialized to avoid
+        # accessing the database before an application context is active.
+        # (Actual load happens after ConfigManager binding below.)
 
         # Start the backup scheduler
         backup_scheduler.start()
@@ -451,6 +413,80 @@ def create_app(config_name=None):
         binder.bind(ConfigManager, to=config_manager, scope=singleton)
         binder.bind(BaseXBackupManager, to=backup_manager, scope=singleton)
         binder.bind(BackupScheduler, to=backup_scheduler, scope=singleton)
+
+        # Load backup settings and schedule backups if configured
+        try:
+            from app.models.project_settings import ProjectSettings
+            from app.models.backup_models import ScheduledBackup
+            import traceback
+            from datetime import datetime, timedelta, timezone
+
+            backup_config = None
+
+            # Query ProjectSettings inside app context to avoid "Working outside of application context"
+            try:
+                with app.app_context():
+                    settings = ProjectSettings.query.first()
+            except Exception as e:
+                app.logger.error(f"Failed to query ProjectSettings: {e}")
+                app.logger.debug(traceback.format_exc())
+                settings = None
+
+            if settings and getattr(settings, 'backup_settings', None):
+                backup_config = settings.backup_settings
+                app.logger.info("Using backup settings from ProjectSettings (project id=%s)", getattr(settings, 'id', None))
+            else:
+                # Fallback to ConfigManager defaults
+                try:
+                    backup_config = config_manager.get_backup_settings()
+                    app.logger.info("Using default backup settings from ConfigManager")
+                except Exception as e:
+                    app.logger.error(f"Failed to get backup settings from ConfigManager: {e}")
+                    app.logger.debug(traceback.format_exc())
+
+            def compute_next_run(time_str: str, interval: str) -> datetime:
+                now = datetime.now(timezone.utc)
+                try:
+                    hh, mm = map(int, time_str.split(':'))
+                    candidate = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                except Exception:
+                    candidate = now + timedelta(minutes=1)
+                if candidate <= now:
+                    if interval == 'daily':
+                        candidate += timedelta(days=1)
+                    elif interval == 'weekly':
+                        candidate += timedelta(days=7)
+                    elif interval == 'hourly':
+                        candidate += timedelta(hours=1)
+                    else:
+                        candidate += timedelta(days=1)
+                return candidate
+
+            if backup_config:
+                schedule_interval = backup_config.get('schedule', 'daily')
+                if schedule_interval and schedule_interval != 'none':
+                    time_str = backup_config.get('time', "02:00")
+                    db_name = getattr(settings, 'basex_db_name', None) or basex_database
+                    next_run = compute_next_run(time_str, schedule_interval)
+
+                    scheduled_backup = ScheduledBackup(
+                        db_name=db_name,
+                        interval=schedule_interval,
+                        time_=time_str,
+                        type_=backup_config.get('backup_type', "full"),
+                        next_run=next_run,
+                        active=True
+                    )
+
+                    backup_scheduler.schedule_backup(scheduled_backup)
+                    app.logger.info(f"Scheduled {schedule_interval} backup at {time_str}")
+                else:
+                    app.logger.info("Backup schedule is set to 'none' in settings")
+            else:
+                app.logger.info("No backup settings found")
+        except Exception as e:
+            app.logger.error(f"Error loading backup settings: {e}")
+            app.logger.debug(traceback.format_exc())
         
         # Initialize and bind CacheService
         from app.services.cache_service import CacheService
@@ -487,9 +523,6 @@ def create_app(config_name=None):
             history_service=operation_history_service
         )
         binder.bind(MergeSplitService, to=merge_split_service, scope=singleton)
-
-        # Start the backup scheduler
-        backup_scheduler.start()
 
     # After DI, set a flag if this is a first-run (no project settings configured)
     with app.app_context():

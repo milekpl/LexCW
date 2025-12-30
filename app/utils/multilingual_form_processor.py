@@ -473,11 +473,20 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     for key, value in form_data.items():
         # Check if it's a sense-related key and has a non-empty value
         if key.startswith('senses['):
-            # Skip empty values - handle both strings and lists
+            # Skip empty values generally - but keep explicit empty domain_type lists
             if isinstance(value, str) and not value.strip():
-                continue
+                # If this is a domain_type field, preserve it as an empty list instead of skipping
+                if 'domain_type' in key:
+                    # Allow the handler below to set domain_type to []
+                    pass
+                else:
+                    continue
             elif isinstance(value, list) and not value:
-                continue
+                # empty list - if domain_type field, preserve it, otherwise skip
+                if 'domain_type' in key:
+                    pass
+                else:
+                    continue
             elif not value:  # None or other falsy non-list/non-string
                 continue
                 
@@ -569,15 +578,15 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                             else:
                                 senses_data[sense_index][field_name] = []
                         elif field_name == 'domain_type':
-                            # domain_type is a single value; if list provided, take first non-empty
-                            if isinstance(value, list) and value:
-                                first = next((v for v in value if isinstance(v, str) and v.strip()), None)
-                                senses_data[sense_index][field_name] = first.strip() if first else None
+                            # domain_type now supports multiple values at sense level: always store as a list
+                            if isinstance(value, list):
+                                senses_data[sense_index][field_name] = [v.strip() for v in value if isinstance(v, str) and v.strip()]
                             elif isinstance(value, str) and value.strip():
-                                # If semicolon-separated, take first part (LIFT multi-values shouldn't apply to domain_type)
-                                senses_data[sense_index][field_name] = value.split(';')[0].strip()
+                                # Accept semicolon-separated form or single value and convert to list
+                                parts = [v.strip() for v in value.split(';') if v.strip()]
+                                senses_data[sense_index][field_name] = parts
                             else:
-                                senses_data[sense_index][field_name] = None
+                                senses_data[sense_index][field_name] = []
                         elif field_name == 'semantic_domain_':
                             # semantic_domain_ supports multiple values and maps to semantic_domains
                             if isinstance(value, list):

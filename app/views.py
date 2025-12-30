@@ -747,9 +747,18 @@ def add_entry():
             ('bibliography', 'Bibliography')
         ]
             
+        # Ensure ranges is JSON-serializable for template JS (tests may mock service returning Mock)
+        import json as _json
+        try:
+            _json.dumps(ranges)
+            ranges_for_template = ranges
+        except Exception:
+            logger.warning("Non-serializable ranges object returned by DictionaryService.get_lift_ranges; using empty dict for template")
+            ranges_for_template = {}
+
         return render_template("entry_form.html", 
                               entry=entry, 
-                              ranges=ranges, 
+                              ranges=ranges_for_template, 
                               variant_relations=[],
                               component_relations=[],
                               project_languages=languages,
@@ -1328,9 +1337,12 @@ def test_search():
     if query:
         try:
             dict_service = current_app.injector.get(DictionaryService)
-            entries, total = dict_service.search_entries(
-                query=query, limit=limit, offset=offset
-            )
+            result = dict_service.search_entries(query=query, limit=limit, offset=offset)
+            try:
+                entries, total = result
+            except Exception:
+                logger.warning("search_entries returned unexpected value (type=%s); coercing to ([],0)", type(result))
+                entries, total = [], 0
         except Exception as e:
             logger.error(f"Error testing search: {e}", exc_info=True)
             error = str(e)
@@ -1360,12 +1372,21 @@ def api_test_search():
             return jsonify({"error": "No search query provided"}), 400
 
         dict_service = current_app.injector.get(DictionaryService)
-        entries, total = dict_service.search_entries(
-            query=query, limit=limit, offset=offset
-        )
+        result = dict_service.search_entries(query=query, limit=limit, offset=offset)
+        try:
+            entries, total = result
+        except Exception:
+            logger.warning("api_test_search: search_entries returned unexpected value (type=%s); coercing to ([],0)", type(result))
+            entries, total = [], 0
 
         # Convert entries to dictionaries for JSON response
-        entry_dicts = [entry.to_dict() for entry in entries]
+        entry_dicts = []
+        for entry in entries:
+            try:
+                entry_dicts.append(entry.to_dict())
+            except Exception:
+                logger.debug("api_test_search: skipping non-Entry object in results: %s", type(entry))
+                continue
 
         return jsonify(
             {

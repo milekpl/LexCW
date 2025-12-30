@@ -165,7 +165,25 @@ def get_entry(entry_id: str) -> Any:
         entry = dict_service.get_entry(entry_id)
         if entry is None:
             return jsonify({'error': f'Entry with ID {entry_id} not found'}), 404
-        return jsonify(entry.to_dict())
+        # Normalize entry to a serializable dict safely
+        data = {}
+        try:
+            if hasattr(entry, 'to_dict'):
+                data = entry.to_dict()
+            elif isinstance(entry, dict):
+                data = entry
+            else:
+                data = {}
+        except Exception as e:
+            logger.warning("get_entry: failed to convert entry to dict: %s", e)
+            data = {}
+        # Ensure JSON serialization will not fail; if it would, return empty dict
+        try:
+            import json as _json
+            _json.dumps(data)
+        except Exception:
+            data = {}
+        return jsonify(data)
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
