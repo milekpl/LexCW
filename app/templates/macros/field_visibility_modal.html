@@ -1,0 +1,83 @@
+{#
+    Field Visibility Modal Macro
+
+    Reusable modal for controlling field section visibility in forms.
+    Extracts inline modal from entry_form.html for better maintainability.
+
+    Usage:
+        {% import "macros/field_visibility_modal.html" as field_visibility_modal %}
+        {{ field_visibility_modal.field_visibility_modal() }}
+
+    Parameters:
+        modal_id: Unique ID for the modal (default: 'fieldVisibilityModal')
+        sections: List of section definitions with id, label, target (optional)
+#}
+{% macro field_visibility_modal(modal_id='fieldVisibilityModal', sections=None) %}
+{% if sections is none %}
+{% set sections = [
+    {'id': 'basic-info', 'label': 'Basic Information', 'target': '.basic-info-section'},
+    {'id': 'custom-fields', 'label': 'Custom Fields', 'target': '.custom-fields-section'},
+    {'id': 'notes', 'label': 'Entry Notes', 'target': '.notes-section'},
+    {'id': 'pronunciation', 'label': 'Pronunciation', 'target': '.pronunciation-section'},
+    {'id': 'variants', 'label': 'Variants', 'target': '.variants-section'},
+    {'id': 'direct-variants', 'label': 'Direct Variants', 'target': '.direct-variants-section'},
+    {'id': 'relations', 'label': 'Relations', 'target': '.relations-section'},
+    {'id': 'senses', 'label': 'Senses & Definitions', 'target': '.senses-section'},
+] %}
+{% endif %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-labelledby="{{ modal_id }}Label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="{{ modal_id }}Label">
+                    <i class="fas fa-cog"></i> Field Visibility Settings
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-4">
+                    Control which field sections are visible in the entry form. Settings are saved automatically.
+                </p>
+
+                <div class="row">
+                    {% for section in sections %}
+                    <div class="col-md-6">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input field-visibility-toggle"
+                                   type="checkbox"
+                                   id="show-{{ section.id }}"
+                                   data-section-id="{{ section.id }}"
+                                   data-target="{{ section.target }}"
+                                   data-skip-validation="true"
+                                   checked>
+                            <label class="form-check-label" for="show-{{ section.id }}">
+                                {{ section.label }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <hr class="my-4">
+
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary reset-field-visibility-btn">
+                        <i class="fas fa-undo"></i> Reset to Defaults
+                    </button>
+                    <div>
+                        <button type="button" class="btn btn-outline-primary hide-empty-sections-btn">
+                            <i class="fas fa-eye-slash"></i> Hide Empty Sections
+                        </button>
+                        <button type="button" class="btn btn-outline-primary show-all-sections-btn">
+                            <i class="fas fa-eye"></i> Show All Sections
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

@@ -269,7 +269,7 @@ class DictionaryService:
                         self.logger.info(
                             "Using absolute path for ranges: %s", ranges_path_basex
                         )
-                        admin_connector.execute_command(f'ADD "{ranges_path_basex}"')
+                        admin_connector.execute_command(f'ADD TO ranges.lift-ranges "{ranges_path_basex}"')
                         self.logger.info("LIFT ranges file added successfully via admin connector")
 
                         # Verify it was added
@@ -289,7 +289,7 @@ class DictionaryService:
                             config_ranges = os.path.join('config', 'recommended_ranges.lift-ranges')
                             if os.path.exists(config_ranges):
                                 path_clean = os.path.abspath(config_ranges).replace('\\', '/')
-                                admin_connector.execute_command(f'ADD "{path_clean}"')
+                                admin_connector.execute_command(f'ADD TO ranges.lift-ranges "{path_clean}"')
                                 self.logger.info("Fallback: Used recommended ranges")
                         except Exception as e2:
                             self.logger.error(f"Failed to load fallback ranges: {e2}")
@@ -2870,16 +2870,36 @@ class DictionaryService:
             self.logger.error("Error exporting LIFT file: %s", str(e))
             raise ExportError(f"Failed to export LIFT file: {str(e)}") from e
 
-    def get_ranges(self, project_id: Optional[int] = None, force_reload: bool = False) -> Dict[str, Any]:
+    def get_ranges(self, project_id: Optional[int] = None, force_reload: bool = False, resolved: bool = False) -> Dict[str, Any]:
         """
         Retrieves LIFT ranges data from the database and custom ranges.
         Caches the result for subsequent calls.
         Falls back to default ranges if database is unavailable.
         Ensures both singular and plural keys for all relevant range types.
+
+        Args:
+            project_id: Optional project id to scope ranges
+            force_reload: If True, bypass cached ranges and reload from DB
+            resolved: If True, return ranges with resolved "effective_label" and "effective_abbrev"
         """
-        print(f"DEBUG: get_ranges entering for project_id {project_id}, force_reload={force_reload}, current self.ranges keys: {list(self.ranges.keys()) if self.ranges else 'None'}")
+        print(f"DEBUG: get_ranges entering for project_id {project_id}, force_reload={force_reload}, resolved={resolved}, current self.ranges keys: {list(self.ranges.keys()) if self.ranges else 'None'}")
         if self.ranges and not force_reload:
             self.logger.debug("Returning cached LIFT ranges.")
+            # If the caller wants resolved values, compute a resolved copy without mutating cache
+            if resolved:
+                try:
+                    resolved_copy = {}
+                    for k, v in self.ranges.items():
+                        # Deep copy to avoid mutating internal cache
+                        import copy as _copy
+                        rcopy = _copy.deepcopy(v)
+                        if 'values' in rcopy and isinstance(rcopy['values'], list):
+                            rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'])
+                        resolved_copy[k] = rcopy
+                    return resolved_copy
+                except Exception:
+                    self.logger.exception("Failed to compute resolved ranges; returning raw cached ranges")
+                    return self.ranges
             return self.ranges
 
         # Removed nested install_recommended_ranges definition to place it at class level
@@ -3173,10 +3193,10 @@ class DictionaryService:
             if not os.path.exists(minimal_ranges_path):
                 raise FileNotFoundError(f"minimal.lift-ranges not found: {minimal_ranges_path}")
             self.logger.info(f"Adding minimal.lift-ranges to database: {minimal_ranges_path}")
-            
+
             minimal_ranges_path = os.path.abspath(minimal_ranges_path)
             minimal_ranges_path = minimal_ranges_path.replace("\\", "/")
-            self.db_connector.execute_command(f'ADD "{minimal_ranges_path}"')
+            self.db_connector.execute_command(f'ADD TO ranges.lift-ranges "{minimal_ranges_path}"')
             
             # --- Load recommended_traits.yaml and seed trait values ---
             traits_path = os.path.join(os.path.dirname(__file__), '../../config/recommended_traits.yaml')

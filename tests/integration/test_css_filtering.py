@@ -4,21 +4,27 @@ from app.services.css_mapping_service import CSSMappingService
 from app.models.display_profile import DisplayProfile, ProfileElement
 
 class TestCSSFiltering:
-    
+
     @pytest.fixture
     def css_service(self, tmp_path):
         return CSSMappingService(storage_path=tmp_path / "profiles.json")
-    
+
     @pytest.fixture
     def entry_xml(self):
+        """Entry XML using relation types that exist in minimal.lift-ranges.
+
+        Note: minimal.lift-ranges uses 'synonim'/'antonim' (Polish spelling),
+        not 'synonym'/'antonym' (English). Tests should use types that exist
+        in the ranges file to avoid unexpected abbreviation mapping.
+        """
         return """
         <entry id="e1">
             <lexical-unit>
                 <form lang="en"><text>filter-test</text></form>
             </lexical-unit>
             <relation type="_component_lexeme" ref="e2"/>
-            <relation type="synonym" ref="e3"/>
-            <relation type="antonym" ref="e4"/>
+            <relation type="Part" ref="e3"/>
+            <relation type="Specific" ref="e4"/>
             <sense>
                 <trait name="domain-type" value="chemistry"/>
                 <trait name="semantic-domain" value="science"/>
@@ -39,29 +45,29 @@ class TestCSSFiltering:
             ProfileElement(lift_element="relation", config={"filter": "!_component_lexeme"})
         ]
         profile = DisplayProfile(name="Exclude Test", elements=elements)
-        
+
         html = css_service.render_entry(entry_xml, profile)
-        
+
         # component_lexeme should be hidden
         assert "_component_lexeme" not in html
-        # synonym and antonym should be visible
-        assert "synonym" in html
-        assert "antonym" in html
+        # Part and Specific should be visible (exist in minimal.lift-ranges)
+        assert "Part" in html
+        assert "Specific" in html
 
     def test_relation_filter_include(self, css_service, entry_xml):
         """Test including only specific relations."""
         elements = [
             ProfileElement(lift_element="lexical-unit"),
-            ProfileElement(lift_element="relation", config={"filter": "synonym"})
+            ProfileElement(lift_element="relation", config={"filter": "Part"})
         ]
         profile = DisplayProfile(name="Include Test", elements=elements)
-        
+
         html = css_service.render_entry(entry_xml, profile)
-        
-        # only synonym should be visible
-        assert "synonym" in html
+
+        # only Part should be visible
+        assert "Part" in html
         assert "_component_lexeme" not in html
-        assert "antonym" not in html
+        assert "Specific" not in html
         
     def test_trait_filter(self, css_service, entry_xml):
         """Test filtering traits by name."""

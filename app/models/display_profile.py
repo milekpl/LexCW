@@ -209,7 +209,17 @@ class ProfileElement(db.Model):
         self.config = new_config
 
     def get_display_language(self) -> Optional[str]:
-        """Get the current display language."""
-        if not self.config:
-            return None
-        return self.config.get('language')
+        """Get the current display language.
+
+        Falls back to language_filter field if config doesn't specify a language.
+        Returns None only if neither is set (meaning "use profile default").
+        """
+        # First check config (explicitly set language)
+        if self.config:
+            lang = self.config.get('language')
+            if lang:
+                return lang
+        # Fall back to language_filter field
+        if self.language_filter and self.language_filter != '*':
+            return self.language_filter
+        return None

@@ -666,26 +666,30 @@ class RangesService:
     ) -> None:
         """
         Update existing range element.
-        
+
         Args:
             range_id: ID of the parent range.
             element_id: ID of the element to update.
             element_data: Updated element data.
-            
+
         Raises:
             NotFoundError: If range or element not found.
         """
-        # Verify range and element exist
+        # Verify range exists
         range_obj = self.get_range(range_id)
-        
-        # Find element in range
-        element_found = False
-        for value in range_obj.get('values', []):
-            if value.get('id') == element_id:
-                element_found = True
-                break
-        
-        if not element_found:
+
+        # Recursive helper to find element anywhere in hierarchy
+        def find_element(values, eid):
+            for value in values:
+                if value.get('id') == eid:
+                    return True
+                children = value.get('children', [])
+                if children and find_element(children, eid):
+                    return True
+            return False
+
+        # Find element in range (handles hierarchical ranges)
+        if not find_element(range_obj.get('values', []), element_id):
             raise NotFoundError(f"Element '{element_id}' not found in range '{range_id}'")
         
         # Delete old element

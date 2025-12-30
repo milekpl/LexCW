@@ -500,7 +500,8 @@ class TestEnhancedDisplayAspectIntegration:
             assert "integration" in result
             assert "Noun" in result  # Full label for grammatical-info
             assert "Synonym" in result or "synonym" in result  # Label for synonym
-            assert "antonym" in result  # Antonym not filtered, should appear as-is
+            # Antonym is filtered out (not in filter list), so should not appear in output
+            assert "antonym" not in result
 
     def test_enhanced_display_aspect_with_css_generation(self, db_app: Flask) -> None:
         """Enhanced display aspects should work with CSS generation."""

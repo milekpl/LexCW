@@ -214,10 +214,12 @@ class RangesEditor {
                 <td>${range.values ? range.values.length : 0}</td>
                 <td>
                     ${range.official ? '<span class="badge bg-secondary me-2">Official</span>' : '<span class="badge bg-warning text-dark me-2">Custom</span>'}
-                    <button class="btn btn-sm btn-outline-primary" onclick="editor.editRange('${this.escapeHtml(rangeId)}')">
+                    <button class="btn btn-sm btn-outline-primary" title="Edit"
+                            onclick="editor.editRange('${this.escapeHtml(rangeId)}')">
                         <i class="bi bi-pencil"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="editor.deleteRange('${this.escapeHtml(rangeId)}')">
+                    <button class="btn btn-sm btn-outline-danger" title="Delete"
+                            onclick="editor.deleteRange('${this.escapeHtml(rangeId)}')">
                         <i class="bi bi-trash"></i>
                     </button>
                 </td>
@@ -465,43 +467,69 @@ class RangesEditor {
             
             const elements = result.data;
             const container = document.getElementById('elementsContainer');
-            
+
             if (!elements || elements.length === 0) {
                 container.innerHTML = '<p class="text-muted">No elements defined</p>';
                 return;
             }
-            
-            container.innerHTML = `
-                <div class="list-group">
-                    ${elements.map(elem => `
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex align-items-center mb-1">
-                                        <strong class="me-2">${this.escapeHtml(elem.id)}</strong>
-                                        ${elem.abbrev ?
-                                            `<span class="badge bg-info me-1">${this.escapeHtml(elem.abbrev)}</span>` : ''}
-                                        ${elem.abbrevs && Object.keys(elem.abbrevs).length > 0 ?
-                                            Object.entries(elem.abbrevs).map(([lang, abbr]) =>
-                                                `<span class="badge bg-secondary me-1" title="${this.escapeHtml(lang)}">${this.escapeHtml(abbr)}</span>`
-                                            ).join('') : ''}
-                                    </div>
-                                    ${elem.description && elem.description.en ? 
-                                        `<small class="text-muted">${this.escapeHtml(elem.description.en)}</small>` : ''}
+
+            // Recursive renderer for elements and children
+            const renderElement = (elem) => {
+                const abbrev = elem.effective_abbrev || elem.abbrev || (elem.abbrevs ? (elem.abbrevs['en'] || Object.values(elem.abbrevs)[0]) : '');
+                const label = elem.effective_label || (elem.labels && (elem.labels.en || Object.values(elem.labels)[0])) || elem.value || elem.id;
+
+                const badges = [];
+                if (abbrev) {
+                    badges.push(`<span class="badge bg-info me-1">${this.escapeHtml(abbrev)}</span>`);
+                }
+                if (elem.abbrevs && Object.keys(elem.abbrevs).length > 0) {
+                    badges.push(Object.entries(elem.abbrevs).map(([lang, abbr]) =>
+                        `<span class="badge bg-secondary me-1" title="${this.escapeHtml(lang)}">${this.escapeHtml(abbr)}</span>`
+                    ).join(''));
+                }
+
+                const desc = (elem.description && (elem.description.en || Object.values(elem.description)[0])) ?
+                    `<small class="text-muted">${this.escapeHtml(elem.description.en || Object.values(elem.description)[0])}</small>` : '';
+
+                let html = `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-1">
+                                    <strong class="me-2">${this.escapeHtml(elem.id)}</strong>
+                                    ${badges.join('')}
+                                    <small class="text-muted ms-2">${this.escapeHtml(label)}</small>
                                 </div>
-                                <div class="btn-group">
-                                    <button class="btn btn-sm btn-outline-primary" 
-                                            onclick="editor.editElement('${this.escapeHtml(rangeId)}', '${this.escapeHtml(elem.id)}')">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" 
-                                            onclick="editor.deleteElement('${this.escapeHtml(rangeId)}', '${this.escapeHtml(elem.id)}')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
+                                ${desc}
+                            </div>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary" title="Edit"
+                                        onclick="editor.editElement('${this.escapeHtml(rangeId)}', '${this.escapeHtml(elem.id)}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" title="Delete"
+                                        onclick="editor.deleteElement('${this.escapeHtml(rangeId)}', '${this.escapeHtml(elem.id)}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </div>
                         </div>
-                    `).join('')}
+                    </div>
+                `;
+
+                if (elem.children && elem.children.length > 0) {
+                    html += `<div class="ms-3">
+                                <div class="list-group">
+                                    ${elem.children.map(child => renderElement(child)).join('')}
+                                </div>
+                             </div>`;
+                }
+
+                return html;
+            };
+
+            container.innerHTML = `
+                <div class="list-group">
+                    ${elements.map(elem => renderElement(elem)).join('')}
                 </div>
             `;
             

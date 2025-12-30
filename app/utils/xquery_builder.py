@@ -72,8 +72,9 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
+        # Search in /entries container to match existing entries structure
         return f"""{prologue}
-        for $entry in collection('{db_name}')//{entry_path}[@id="{entry_id}"]
+        for $entry in (collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"])[1]
         return $entry
         """
 
@@ -201,10 +202,10 @@ class XQueryBuilder:
             Complete XQuery string
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
-        lift_path = XQueryBuilder.get_element_path("lift", has_namespace)
 
+        # Insert into the /entries container to match existing entries structure
         return f"""{prologue}
-        insert node {entry_xml} into collection('{db_name}')//{lift_path}
+        insert node {entry_xml} as last into collection('{db_name}')/entries
         """
 
     @staticmethod
@@ -226,8 +227,9 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
+        # Search in /entries container to match existing entries structure
         return f"""{prologue}
-        replace node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
+        replace node collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"]
         with {entry_xml}
         """
 
@@ -249,8 +251,9 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
+        # Search in /entries container to match existing entries structure
         return f"""{prologue}
-        delete node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
+        delete node collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"]
         """
 
     @staticmethod
@@ -271,8 +274,9 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
+        # Search in /entries container to match existing entries structure
         return f"""{prologue}
-        exists(collection('{db_name}')//{entry_path}[@id="{entry_id}"])
+        exists(collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"])
         """
 
     @staticmethod

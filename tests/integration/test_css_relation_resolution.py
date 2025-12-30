@@ -192,7 +192,7 @@ class TestCSSRelationResolution:
             # Both relations should show headwords
             assert 'Synonym' in html
             assert 'fast' in html
-            assert 'ant' in html  # Antonym shows as abbreviation by default
+            assert 'Antonym' in html  # Full label shown due to display aspect setting
             assert 'slow' in html
             # IDs should not be visible
             assert 'synonym_entry' not in html

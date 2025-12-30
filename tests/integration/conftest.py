@@ -260,16 +260,20 @@ def ensure_recommended_ranges(client: FlaskClient, app: Flask) -> None:
                 from app.services.dictionary_service import DictionaryService
                 from app.database.basex_connector import BaseXConnector
                 # Try to obtain a real connector from injector; if not available,
-                # fall back to creating a new connector using app config.
+                # fall back to creating a new connector using env vars (more reliable for tests).
                 try:
                     connector = app.injector.get(BaseXConnector)
                 except Exception:
+                    # Use environment variables for database name - these are set by
+                    # basex_available fixture and are more reliable than app.config
+                    import os
+                    test_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
                     connector = BaseXConnector(
                         host=app.config.get('BASEX_HOST', 'localhost'),
                         port=app.config.get('BASEX_PORT', 1984),
                         username=app.config.get('BASEX_USERNAME', 'admin'),
                         password=app.config.get('BASEX_PASSWORD', 'admin'),
-                        database=app.config.get('BASEX_DATABASE')
+                        database=test_db
                     )
                 ds = DictionaryService(connector)
                 ds.install_recommended_ranges()
@@ -575,34 +579,59 @@ def app_context(app: Flask):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def reset_ranges_service_parser(app: Flask):
-    """Reset the singleton RangesService parser between tests.
+def reset_ranges_service_parser(app: Flask, client):
+    """Reset singleton service state between tests to ensure test isolation.
 
-    Some integration tests monkeypatch RangesService.ranges_parser.parse_string
-    and expect the API layer to observe that patch. Because the app injector
-    is session-scoped, we must restore the parser after each test to avoid
-    cross-test contamination.
+    This fixture runs before each test and ensures:
+    1. RangesService parser is reset (for tests that patch parse_string)
+    2. DictionaryService ranges cache is cleared and reloaded to a known state
+
+    The client fixture is used as a dependency to ensure proper execution order.
+    After this fixture runs, the DictionaryService will have a fresh, complete
+    ranges cache with all standard ranges installed.
     """
     with app.app_context():
         try:
             from app.services.ranges_service import RangesService
             from app.parsers.lift_parser import LIFTRangesParser
 
-            service = app.injector.get(RangesService)
-            original_parser = getattr(service, 'ranges_parser', None)
-            service.ranges_parser = LIFTRangesParser()
+            ranges_service = app.injector.get(RangesService)
+            original_parser = getattr(ranges_service, 'ranges_parser', None)
+            ranges_service.ranges_parser = LIFTRangesParser()
         except Exception:
-            service = None
+            ranges_service = None
             original_parser = None
+
+        try:
+            from app.services.dictionary_service import DictionaryService
+            dict_service = app.injector.get(DictionaryService)
+
+            # Clear the ranges cache completely - this makes the service stateless
+            dict_service.ranges = None
+
+            # Force reinstall ranges to get a known good state
+            # This ensures all tests start with the same complete set of ranges
+            dict_service.install_recommended_ranges()
+        except Exception:
+            # If reinstall fails, the ranges might already be loaded
+            # Continue anyway - the service will reload on first access
+            pass
 
     yield
 
+    # Teardown: restore original state
     with app.app_context():
         try:
-            if service is not None:
-                from app.parsers.lift_parser import LIFTRangesParser
+            if ranges_service is not None and original_parser is not None:
+                ranges_service.ranges_parser = original_parser
+        except Exception:
+            pass
 
-                service.ranges_parser = LIFTRangesParser()
+        try:
+            from app.services.dictionary_service import DictionaryService
+            dict_service = app.injector.get(DictionaryService)
+            # Clear cache for next test
+            dict_service.ranges = None
         except Exception:
             pass
 
