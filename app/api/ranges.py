@@ -7,7 +7,7 @@ to support dynamic dropdown population in the UI.
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, Response, current_app
+from flask import Blueprint, jsonify, Response, current_app, request
 from typing import Union, Tuple
 
 from app.services.dictionary_service import DictionaryService
@@ -78,7 +78,10 @@ def get_all_ranges() -> Union[Response, Tuple[Response, int]]:
     try:
         # Get dictionary service using dependency injection
         dict_service = current_app.injector.get(DictionaryService)
-        ranges = dict_service.get_ranges()
+        # Check query param to request resolved view
+        resolved_param = (request.args.get('resolved') or '').lower()
+        resolved = resolved_param in ('1', 'true', 'yes')
+        ranges = dict_service.get_ranges(resolved=resolved)
         return jsonify({
             'success': True,
             'data': ranges
@@ -169,7 +172,10 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         # Get dictionary service using dependency injection
         dict_service = current_app.injector.get(DictionaryService)
         print(f"\nDEBUG: get_range hit for {range_id}")
-        ranges = dict_service.get_ranges()
+        # Accept `resolved` query param for resolved view
+        resolved_param = (request.args.get('resolved') or '').lower()
+        resolved = resolved_param in ('1', 'true', 'yes')
+        ranges = dict_service.get_ranges(resolved=resolved)
 
         # Use exact ID matching first. Do not attempt plural/singular
         # or heuristic fallbacks here; callers should use canonical IDs.

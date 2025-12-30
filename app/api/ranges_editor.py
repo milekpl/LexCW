@@ -10,6 +10,7 @@ import json
 
 from app.services.ranges_service import RangesService
 from app.services.ranges_service import reload_custom_ranges_config
+from app.services.dictionary_service import DictionaryService
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
 from app.utils.api_response_handler import api_response_handler, get_service
 from flasgger import swag_from
@@ -235,18 +236,12 @@ def get_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
 def create_range() -> Union[Response, Tuple[Response, int]]:
     """Create new range."""
     try:
-        # Reject JSON body for data-rich endpoints; prefer XML request payloads
+        # Accept JSON for ranges editor (frontend uses JSON)
         if request.content_type and 'application/json' in request.content_type:
-            # Check if this is an abbreviation update (allow JSON for this case)
             data = request.get_json(silent=True)
-            if data and ('abbreviations' in data or 'abbr' in data):
-                # Allow JSON for abbreviation updates
-                pass
-            else:
-                return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
         else:
             data = request.get_json(silent=True)
-        
+
         # Validate required fields
         if not data or 'id' not in data or 'labels' not in data:
             return jsonify({
@@ -256,7 +251,14 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
         
         service = current_app.injector.get(RangesService)
         guid = service.create_range(data)
-        
+
+        # Invalidate ranges cache so editor and other consumers see the new range immediately
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+            dict_service.get_ranges(force_reload=True)
+        except Exception as e:
+            current_app.logger.debug(f"Failed to refresh ranges cache after create_range: {e}")
+
         return jsonify({
             'success': True,
             'data': {'guid': guid}
@@ -337,7 +339,14 @@ def update_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         
         service = current_app.injector.get(RangesService)
         service.update_range(range_id, data)
-        
+
+        # Refresh dictionary ranges cache
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+            dict_service.get_ranges(force_reload=True)
+        except Exception as e:
+            current_app.logger.debug(f"Failed to refresh ranges cache after update_range: {e}")
+
         return jsonify({
             'success': True,
             'message': f"Range '{range_id}' updated successfully"
@@ -405,7 +414,14 @@ def delete_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         
         service = current_app.injector.get(RangesService)
         service.delete_range(range_id, migration=migration)
-        
+
+        # Refresh cache so editor and consumers see removal
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+            dict_service.get_ranges(force_reload=True)
+        except Exception as e:
+            current_app.logger.debug(f"Failed to refresh ranges cache after delete_range: {e}")
+
         return jsonify({
             'success': True,
             'message': f"Range '{range_id}' deleted successfully"
@@ -441,11 +457,17 @@ def delete_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
     }
 })
 def list_range_elements(range_id: str) -> Union[Response, Tuple[Response, int]]:
-    """Get all elements in a range."""
+    """Get all elements in a range. Accept `resolved` query param to request effective_* fields."""
     try:
         service = current_app.injector.get(RangesService)
-        range_data = service.get_range(range_id)
-        
+        resolved_raw = request.args.get('resolved', None)
+        resolved = False
+        if resolved_raw is not None:
+            resolved = str(resolved_raw).lower() in ('1', 'true', 'yes')
+
+        range_data = service.get_range(range_id, resolved=resolved)
+
+        # Return only values for editor convenience
         return jsonify({
             'success': True,
             'data': range_data.get('values', [])
@@ -532,7 +554,14 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
         
         service = current_app.injector.get(RangesService)
         guid = service.create_range_element(range_id, element_data)
-        
+
+        # Refresh dictionary ranges cache so the editor sees the new element without manual reload
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+            dict_service.get_ranges(force_reload=True)
+        except Exception as e:
+            current_app.logger.debug(f"Failed to refresh ranges cache after create_range_element: {e}")
+
         return jsonify({
             'success': True,
             'data': {'guid': guid}
@@ -579,21 +608,36 @@ def get_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[R
     """Get specific element from a range."""
     try:
         service = current_app.injector.get(RangesService)
-        range_data = service.get_range(range_id)
-        
-        # Find the element
-        element = None
-        for elem in range_data.get('values', []):
-            if elem.get('id') == element_id:
-                element = elem
-                break
-        
+
+        # Accept resolved query param similar to list_range_elements
+        resolved_raw = request.args.get('resolved', None)
+        resolved = False
+        if resolved_raw is not None:
+            resolved = str(resolved_raw).lower() in ('1', 'true', 'yes')
+
+        range_data = service.get_range(range_id, resolved=resolved)
+
+        # Recursive helper to find element anywhere in hierarchy
+        def find_element(values, eid):
+            for elem in values:
+                if elem.get('id') == eid:
+                    return elem
+                children = elem.get('children', [])
+                if children:
+                    found = find_element(children, eid)
+                    if found:
+                        return found
+            return None
+
+        # Find the element (handles hierarchical ranges)
+        element = find_element(range_data.get('values', []), element_id)
+
         if not element:
             return jsonify({
                 'success': False,
                 'error': f'Element {element_id} not found in range {range_id}'
             }), 404
-        
+
         return jsonify({
             'success': True,
             'data': element
@@ -669,7 +713,14 @@ def update_range_element(range_id: str, element_id: str) -> Union[Response, Tupl
         
         service = current_app.injector.get(RangesService)
         service.update_range_element(range_id, element_id, data)
-        
+
+        # Refresh cache to ensure editor sees updated data
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+            dict_service.get_ranges(force_reload=True)
+        except Exception as e:
+            current_app.logger.debug(f"Failed to refresh ranges cache after update_range_element: {e}")
+
         return jsonify({
             'success': True,
             'message': f"Element '{element_id}' updated successfully"
@@ -738,7 +789,14 @@ def delete_range_element(range_id: str, element_id: str) -> Union[Response, Tupl
         
         service = current_app.injector.get(RangesService)
         service.delete_range_element(range_id, element_id, migration=migration)
-        
+
+        # Refresh cache so editor and other consumers reflect deletion
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+            dict_service.get_ranges(force_reload=True)
+        except Exception as e:
+            current_app.logger.debug(f"Failed to refresh ranges cache after delete_range_element: {e}")
+
         return jsonify({
             'success': True,
             'message': f"Element '{element_id}' deleted successfully"

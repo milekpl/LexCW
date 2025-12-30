@@ -29,24 +29,29 @@ class InlineValidationManager {
      */
     setupFieldValidation() {
         const formFields = document.querySelectorAll('input, textarea, select');
-        
+
         formFields.forEach(field => {
-            // Skip hidden fields and certain types
+            // Skip hidden fields, buttons, and fields marked to skip validation
             if (field.type === 'hidden' || field.type === 'submit' || field.type === 'button') {
                 return;
             }
-            
-            const fieldId = field.getAttribute('data-validation-target') || 
+
+            // Skip fields marked with data-skip-validation attribute
+            if (field.hasAttribute('data-skip-validation')) {
+                return;
+            }
+
+            const fieldId = field.getAttribute('data-validation-target') ||
                            field.id || field.name;
-            
+
             if (!fieldId) return;
-            
+
             // Add validation rules attribute if not present
             if (!field.hasAttribute('data-validation-rules')) {
                 const rules = this.getFieldValidationRules(field);
                 field.setAttribute('data-validation-rules', JSON.stringify(rules));
             }
-            
+
             // Setup event listeners
             this.setupFieldEventListeners(field, fieldId);
         });

@@ -44,7 +44,7 @@ def get_xml_entry_service() -> XMLEntryService:
 
     # Important: Use the same database configuration as Dictionary Service
     # to ensure both services see the same data
-    logger.debug(f'[XML API] Creating XMLEntryService with database: {database}')
+    logger.info(f'[XML API] Creating XMLEntryService with database: database={database}, TEST_DB_NAME={os.environ.get("TEST_DB_NAME")}, BASEX_DATABASE={os.environ.get("BASEX_DATABASE")}')
 
     return XMLEntryService(
         host=config.get('BASEX_HOST', 'localhost'),

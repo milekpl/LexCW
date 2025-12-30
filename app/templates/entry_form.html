@@ -63,6 +63,14 @@
         <a href="{{ url_for('main.view_entry', entry_id=entry.id) }}" class="btn btn-outline-primary">
             <i class="fas fa-eye"></i> View Entry
         </a>
+        <div class="d-inline-block text-start" style="vertical-align: middle;">
+            <button type="button" class="btn btn-outline-danger me-2" id="delete-entry-btn">
+                <i class="fas fa-trash-alt"></i> DELETE ENTRY
+            </button>
+            <span class="d-block text-danger small mt-1" id="delete-warning" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i> Click again to confirm deletion
+            </span>
+        </div>
         {% endif %}
         <a href="{{ url_for('main.entries') }}" class="btn btn-outline-secondary">
             <i class="fas fa-list"></i> All Entries
@@ -946,6 +954,9 @@
 
 {% include 'macros/merge_split_modals.html' %}
 
+{% import "macros/field_visibility_modal.html" as field_visibility_modal %}
+{{ field_visibility_modal.field_visibility_modal() }}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -976,297 +987,19 @@
 <!-- Variant relationships management -->
 <script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
 <!-- Direct variants (allomorphs) management -->
+<!-- Field Visibility Manager -->
+<script src="{{ url_for('static', filename='js/field-visibility-manager.js') }}"></script>
+<!-- Direct Variants (Allomorphs) Management -->
+<script src="{{ url_for('static', filename='js/direct-variants.js') }}"></script>
+
 <script>
-    // Direct Variants (Allomorphs) JavaScript functionality
+    // Initialize Direct Variants Manager
     document.addEventListener('DOMContentLoaded', function() {
-        // Add direct variant button
-        const addDirectVariantBtn = document.getElementById('add-direct-variant-btn');
-        if (addDirectVariantBtn) {
-            addDirectVariantBtn.addEventListener('click', function() {
-                addDirectVariant();
-            });
-        }
-
-        // Add event delegation for remove direct variant buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('remove-direct-variant-btn')) {
-                const index = e.target.dataset.index;
-                removeDirectVariant(parseInt(index));
-            }
-        });
-
-        // Add event delegation for adding language inputs to variant forms
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('add-variant-language-btn')) {
-                const variantItem = e.target.closest('.direct-variant-item');
-                if (variantItem) {
-                    const index = parseInt(variantItem.dataset.variantIndex);
-                    addVariantLanguage(index);
-                }
-            }
-        });
-
-        // Add event delegation for adding trait inputs to variant traits
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('add-variant-trait-btn')) {
-                const variantItem = e.target.closest('.direct-variant-item');
-                if (variantItem) {
-                    const index = parseInt(variantItem.dataset.variantIndex);
-                    addVariantTrait(index);
-                }
-            }
-        });
-
-        // Add event delegation for adding grammatical trait inputs
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('add-grammatical-trait-btn')) {
-                const variantItem = e.target.closest('.direct-variant-item');
-                if (variantItem) {
-                    const index = parseInt(variantItem.dataset.variantIndex);
-                    addGrammaticalTrait(index);
-                }
-            }
-        });
-    });
-
-    function addDirectVariant() {
         const container = document.getElementById('direct-variants-container');
-        const variantItems = container.querySelectorAll('.direct-variant-item');
-        const newIndex = variantItems.length;
-
-        // Remove empty state if present
-        const emptyState = container.querySelector('.empty-state');
-        if (emptyState) {
-            emptyState.remove();
+        if (container && typeof DirectVariantsManager !== 'undefined') {
+            window.directVariantsManager = new DirectVariantsManager('#direct-variants-container');
         }
-
-        // Create new variant HTML
-        const variantHtml = `
-            <div class="direct-variant-item card mb-3" data-variant-index="${newIndex}">
-                <div class="card-header bg-warning text-dark">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">
-                            <i class="fas fa-copy me-2"></i>
-                            Direct Variant ${newIndex + 1}
-                        </h6>
-                        <button type="button" class="btn btn-sm btn-light remove-direct-variant-btn"
-                                data-index="${newIndex}" title="Remove direct variant">
-                            <i class="fas fa-trash text-danger"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <!-- Variant form -->
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Variant Form</label>
-                                <div class="variant-form-languages">
-                                    <div class="input-group mb-2">
-                                        <span class="input-group-text">en</span>
-                                        <input type="text" class="form-control"
-                                               name="variants[${newIndex}].form.en"
-                                               value=""
-                                               placeholder="Variant form in English">
-                                    </div>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary add-variant-language-btn">
-                                    <i class="fas fa-plus"></i> Add Language
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <!-- Variant traits -->
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Variant Traits</label>
-                                <div class="variant-traits">
-                                    <!-- No initial traits -->
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary add-variant-trait-btn">
-                                    <i class="fas fa-plus"></i> Add Trait
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Grammatical info and traits -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Grammatical Info</label>
-                                <input type="text" class="form-control"
-                                       name="variants[${newIndex}].grammatical_info"
-                                       value=""
-                                       placeholder="Grammatical information">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Grammatical Traits</label>
-                                <div class="variant-grammatical-traits">
-                                    <!-- No initial grammatical traits -->
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary add-grammatical-trait-btn">
-                                    <i class="fas fa-plus"></i> Add Grammatical Trait
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.insertAdjacentHTML('beforeend', variantHtml);
-    }
-
-    function removeDirectVariant(index) {
-        const variantElement = document.querySelector(`[data-variant-index="${index}"]`);
-        if (variantElement) {
-            variantElement.remove();
-            reindexDirectVariants();
-        }
-    }
-
-    function reindexDirectVariants() {
-        const variantElements = document.querySelectorAll('.direct-variant-item');
-
-        variantElements.forEach((element, newIndex) => {
-            // Update data attribute
-            element.setAttribute('data-variant-index', newIndex);
-
-            // Update header number
-            const header = element.querySelector('.card-header h6');
-            if (header) {
-                header.innerHTML = `<i class="fas fa-copy me-2"></i> Direct Variant ${newIndex + 1}`;
-            }
-
-            // Update remove button
-            const removeBtn = element.querySelector('.remove-direct-variant-btn');
-            if (removeBtn) {
-                removeBtn.setAttribute('data-index', newIndex);
-            }
-
-            // Update all input names
-            const inputs = element.querySelectorAll('input, select, textarea');
-            inputs.forEach(input => {
-                const name = input.getAttribute('name');
-                if (name && name.includes('variants[')) {
-                    // Replace the index in the name attribute
-                    const newName = name.replace(/variants\[\d+\]/, `variants[${newIndex}]`);
-                    input.setAttribute('name', newName);
-                }
-            });
-        });
-    }
-
-    function addVariantLanguage(variantIndex) {
-        const variantElement = document.querySelector(`[data-variant-index="${variantIndex}"]`);
-        const languagesContainer = variantElement.querySelector('.variant-form-languages');
-
-        // Create a new language input
-        const newInput = document.createElement('div');
-        newInput.className = 'input-group mb-2';
-        newInput.innerHTML = '<span class="input-group-text"><input type="text" class="form-control form-control-sm lang-code-input" style="width: 60px;" placeholder="xx" maxlength="10"></span><input type="text" class="form-control" name="variants[' + variantIndex + '].form.NEW_LANG" value="" placeholder="Variant form in new language"><button type="button" class="btn btn-outline-danger remove-variant-language-btn" title="Remove this language"><i class="fas fa-times"></i></button>';
-
-        languagesContainer.appendChild(newInput);
-
-        // Update the name attribute when language code is entered
-        const langCodeInput = newInput.querySelector('.lang-code-input');
-        const textInput = newInput.querySelector('input[type="text"]:not(.lang-code-input)');
-        const removeBtn = newInput.querySelector('.remove-variant-language-btn');
-
-        langCodeInput.addEventListener('change', function() {
-            const langCode = this.value.trim();
-            if (langCode) {
-                const currentName = textInput.getAttribute('name');
-                const newName = currentName.replace('.form.NEW_LANG', `.form.${langCode}`);
-                textInput.setAttribute('name', newName);
-            }
-        });
-
-        removeBtn.addEventListener('click', function() {
-            newInput.remove();
-        });
-    }
-
-    function addVariantTrait(variantIndex) {
-        const variantElement = document.querySelector(`[data-variant-index="${variantIndex}"]`);
-        const traitsContainer = variantElement.querySelector('.variant-traits');
-
-        // Create a new trait input
-        const newInput = document.createElement('div');
-        newInput.className = 'input-group mb-2';
-        newInput.innerHTML = '<input type="text" class="form-control trait-name-input" placeholder="trait-name" style="width: 40%;">' +
-                             '<input type="text" class="form-control trait-value-input" placeholder="trait-value" style="width: 60%;">' +
-                             '<button type="button" class="btn btn-outline-danger remove-variant-trait-btn" title="Remove this trait"><i class="fas fa-times"></i></button>' +
-                             '<input type="hidden" class="trait-hidden-input" name="variants[' + variantIndex + '].traits.NEW_TRAIT" value="">';
-
-        traitsContainer.appendChild(newInput);
-
-        // Update the name and value when trait name and value are entered
-        const traitNameInput = newInput.querySelector('.trait-name-input');
-        const traitValueInput = newInput.querySelector('.trait-value-input');
-        const hiddenInput = newInput.querySelector('.trait-hidden-input');
-        const removeBtn = newInput.querySelector('.remove-variant-trait-btn');
-
-        function updateHiddenInput() {
-            const traitName = traitNameInput.value.trim();
-            const traitValue = traitValueInput.value.trim();
-            if (traitName && traitValue) {
-                const currentName = hiddenInput.getAttribute('name');
-                const newName = currentName.replace('.traits.NEW_TRAIT', `.traits.${traitName}`);
-                hiddenInput.setAttribute('name', newName);
-                hiddenInput.value = traitValue;
-            }
-        }
-
-        traitNameInput.addEventListener('change', updateHiddenInput);
-        traitValueInput.addEventListener('input', updateHiddenInput);
-
-        removeBtn.addEventListener('click', function() {
-            newInput.remove();
-        });
-    }
-
-    function addGrammaticalTrait(variantIndex) {
-        const variantElement = document.querySelector(`[data-variant-index="${variantIndex}"]`);
-        const grammaticalTraitsContainer = variantElement.querySelector('.variant-grammatical-traits');
-
-        // Create a new grammatical trait input
-        const newInput = document.createElement('div');
-        newInput.className = 'input-group mb-2';
-        newInput.innerHTML = 
-'<input type="text" class="form-control grammatical-trait-name-input" placeholder="trait-name" style="width: 40%;">' +
-                             '<input type="text" class="form-control grammatical-trait-value-input" placeholder="trait-value" style="width: 60%;">' +
-                             '<button type="button" class="btn btn-outline-danger remove-grammatical-trait-btn" title="Remove this trait"><i class="fas fa-times"></i></button>' +
-                             '<input type="hidden" class="grammatical-trait-hidden-input" name="variants[' + variantIndex + '].grammatical_traits.NEW_TRAIT" value="">';
-
-        grammaticalTraitsContainer.appendChild(newInput);
-
-        // Update the name and value when trait name and value are entered
-        const traitNameInput = newInput.querySelector('.grammatical-trait-name-input');
-        const traitValueInput = newInput.querySelector('.grammatical-trait-value-input');
-        const hiddenInput = newInput.querySelector('.grammatical-trait-hidden-input');
-        const removeBtn = newInput.querySelector('.remove-grammatical-trait-btn');
-
-        function updateHiddenInput() {
-            const traitName = traitNameInput.value.trim();
-            const traitValue = traitValueInput.value.trim();
-            if (traitName && traitValue) {
-                const currentName = hiddenInput.getAttribute('name');
-                const newName = currentName.replace('.grammatical_traits.NEW_TRAIT', `.grammatical_traits.${traitName}`);
-                hiddenInput.setAttribute('name', newName);
-                hiddenInput.value = traitValue;
-            }
-        }
-
-        traitNameInput.addEventListener('change', updateHiddenInput);
-        traitValueInput.addEventListener('input', updateHiddenInput);
-
-        removeBtn.addEventListener('click', function() {
-            newInput.remove();
-        });
-    }
+    });
 </script>
 <!-- Relations management -->
 <script src="{{ url_for('static', filename='js/relations.js') }}"></script>
@@ -1404,94 +1137,72 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('Live preview container not found');
         }
     }
+
+    // Initialize Field Visibility Manager
+    if (typeof FieldVisibilityManager !== 'undefined') {
+        console.log('Initializing FieldVisibilityManager...');
+        window.fieldVisibilityManager = new FieldVisibilityManager({
+            storageKey: 'entryFormFieldVisibility'
+            // Note: Visibility changes are stored locally and do NOT trigger validation
+            // or auto-save since they only affect UI display preferences
+        });
+
+        // Listen for events from other components
+        document.addEventListener('fieldVisibilityChanged', (e) => {
+            console.log('fieldVisibilityChanged event:', e.detail);
+        });
+    } else {
+        console.warn('FieldVisibilityManager not loaded');
+    }
+
+    // DELETE button with two-step confirmation
+    const deleteBtn = document.getElementById('delete-entry-btn');
+    const deleteWarning = document.getElementById('delete-warning');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            if (deleteWarning.style.display === 'none') {
+                // First click: show warning and change button
+                deleteWarning.style.display = 'inline';
+                deleteBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> CONFIRM DELETE';
+                deleteBtn.classList.remove('btn-outline-danger');
+                deleteBtn.classList.add('btn-danger');
+            } else {
+                // Second click: proceed with deletion
+                if (confirm('Are you sure you want to permanently delete this entry? This action cannot be undone.')) {
+                    // Get entry ID from the page
+                    const entryId = '{{ entry.id }}';
+                    if (entryId) {
+                        fetch(`/api/entries/${entryId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Redirect to entries list
+                                window.location.href = '{{ url_for("main.entries") }}';
+                            } else {
+                                alert('Error deleting entry: ' + (data.error || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Delete error:', error);
+                            alert('Error deleting entry. Please try again.');
+                        });
+                    }
+                } else {
+                    // Cancel: reset button state
+                    deleteWarning.style.display = 'none';
+                    deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> DELETE ENTRY';
+                    deleteBtn.classList.remove('btn-danger');
+                    deleteBtn.classList.add('btn-outline-danger');
+                }
+            }
+        });
+    }
 });
 </script>
-
-<!-- Field Visibility Settings Modal -->
-<div class="modal fade" id="fieldVisibilityModal" tabindex="-1" aria-labelledby="fieldVisibilityModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="fieldVisibilityModalLabel">
-                    <i class="fas fa-cog"></i> Field Visibility Settings
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted mb-4">
-                    Control which field sections are visible in the entry form. Settings are saved automatically.
-                </p>
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6 class="fw-bold">Main Sections</h6>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-basic-info" 
-                                   data-target=".basic-info-section" checked>
-                            <label class="form-check-label" for="show-basic-info">Basic Information</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-custom-fields" 
-                                   data-target=".custom-fields-section" checked>
-                            <label class="form-check-label" for="show-custom-fields">Custom Fields</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-notes" 
-                                   data-target=".notes-section" checked>
-                            <label class="form-check-label" for="show-notes">Entry Notes</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-pronunciation" 
-                                   data-target=".pronunciation-section" checked>
-                            <label class="form-check-label" for="show-pronunciation">Pronunciation</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h6 class="fw-bold">Content Sections</h6>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-variants"
-                                   data-target=".variants-section" checked>
-                            <label class="form-check-label" for="show-variants">Variants</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-direct-variants"
-                                   data-target=".direct-variants-section" checked>
-                            <label class="form-check-label" for="show-direct-variants">Direct Variants</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-relations" 
-                                   data-target=".relations-section" checked>
-                            <label class="form-check-label" for="show-relations">Relations</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input field-visibility-toggle" type="checkbox" id="show-senses" 
-                                   data-target=".senses-section" checked>
-                            <label class="form-check-label" for="show-senses">Senses & Definitions</label>
-                        </div>
-                    </div>
-                </div>
-                
-                <hr class="my-4">
-                
-                <div class="d-flex justify-content-between">
-                    <button type="button" class="btn btn-outline-secondary" id="reset-field-visibility">
-                        <i class="fas fa-undo"></i> Reset to Defaults
-                    </button>
-                    <div>
-                        <button type="button" class="btn btn-outline-primary" id="hide-empty-sections">
-                            <i class="fas fa-eye-slash"></i> Hide Empty Sections
-                        </button>
-                        <button type="button" class="btn btn-outline-primary" id="show-all-sections">
-                            <i class="fas fa-eye"></i> Show All Sections
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 {% endblock %}
