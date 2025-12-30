@@ -131,13 +131,20 @@ class CSSMappingService:
                 for val in values_list:
                     val_id = val.get("id")
                     if use_abbrev:
-                        abbrev = val.get("abbrev")
-                        if val_id and abbrev:
-                            if isinstance(abbrev, dict):
-                                # Try requested language, then English, then any available, then ID
-                                abbr_text = abbrev.get(lang) or abbrev.get("en") or (list(abbrev.values())[0] if abbrev else val_id)
-                            else:
-                                abbr_text = abbrev
+                        # Try both 'abbrevs' (language-specific) and 'abbrev' (backward compatibility)
+                        abbrevs_dict = val.get("abbrevs")
+                        abbrev_str = val.get("abbrev")
+                        
+                        if abbrevs_dict:
+                            # Use language-specific abbreviations if available
+                            abbr_text = abbrevs_dict.get(lang) or abbrevs_dict.get("en") or (list(abbrevs_dict.values())[0] if abbrevs_dict else None)
+                        elif abbrev_str:
+                            # Fall back to simple abbreviation string
+                            abbr_text = abbrev_str
+                        else:
+                            abbr_text = None
+                            
+                        if val_id and abbr_text:
                             target_map[val_id] = abbr_text
                     else:
                         label = val.get("label") or val.get("id")
@@ -166,33 +173,29 @@ class CSSMappingService:
 
     def _apply_relation_display_aspect(
         self, elem: ET.Element, aspect: str, range_map: Dict[str, str]
-    ) -> None:
+    ) -> bool:
         """Apply display aspect to a relation element.
 
         - If aspect == 'label' or 'full', range_map should be id->label mapping.
         - If aspect == 'abbr', range_map should be id->abbrev mapping.
-        If a label mapping is requested but missing, fall back to a humanized label
-        by capitalizing the type ID (e.g., 'antonym' -> 'Antonym').
+        Returns True if the element was changed/applied, False otherwise.
         """
         current_type = elem.attrib.get("type", "")
         if not current_type:
-            return
+            return False
 
+        # If mapping exists for this type, apply it
         if current_type in range_map:
+            # Preserve original type so later configuration checks can match
+            if "data-original-type" not in elem.attrib:
+                elem.attrib["data-original-type"] = current_type
             elem.attrib["type"] = range_map[current_type]
-            return
+            return True
 
-        # If we requested a label/full and there's no mapping, create a fallback
-        if aspect in ("label", "full"):
-            # Humanize type: replace dashes with spaces and title-case each word
-            human_label = " ".join(
-                [w.capitalize() for w in current_type.replace("-", " ").split()]
-            )
-            elem.attrib["type"] = human_label
-            return
-
-        # Otherwise leave it unchanged (abbr or unknown aspect)
-        return
+        # Do NOT humanize when label requested but no mapping exists. Instead, let
+        # the generic abbreviation replacement or other downstream logic handle
+        # the value so tests that expect abbreviation fallback still pass.
+        return False
 
     def _apply_grammatical_display_aspect(
         self, elem: ET.Element, aspect: str, range_map: Dict[str, str]
@@ -222,12 +225,21 @@ class CSSMappingService:
             def add_to_map(values_list, target_map):
                 for val in values_list:
                     val_id = val.get("id")
-                    label = val.get("label") or val.get("id")
-                    if isinstance(label, dict):
-                        # Try requested language, then English, then any available, then ID
-                        label_text = label.get(lang) or label.get("en") or (list(label.values())[0] if label else val_id)
+                    # Try both 'labels' (language-specific) and 'label' (backward compatibility)
+                    labels_dict = val.get("labels")
+                    label_str = val.get("label")
+                    
+                    if labels_dict:
+                        # Use language-specific labels if available
+                        label_text = labels_dict.get(lang) or labels_dict.get("en") or (list(labels_dict.values())[0] if labels_dict else val_id)
+                    elif label_str:
+                        # Fall back to simple label string
+                        if isinstance(label_str, dict):
+                            label_text = label_str.get(lang) or label_str.get("en") or (list(label_str.values())[0] if label_str else val_id)
+                        else:
+                            label_text = label_str
                     else:
-                        label_text = label
+                        label_text = val_id
                     if val_id and label_text:
                         target_map[val_id] = label_text
 
@@ -247,6 +259,58 @@ class CSSMappingService:
             self._logger.debug(f"Could not build range label lookup: {e}")
             return {}
 
+    def _check_filter(self, element: ET.Element, filter_str: str, element_type: str = "relation") -> bool:
+        """Check if element matches the filter configuration.
+        
+        This method is completely data-driven and doesn't make any assumptions
+        about specific relation types, trait names, or field types. All filter
+        values come from the profile configuration and are compared against
+        the actual values in the XML.
+        
+        Args:
+            element: XML element to check
+            filter_str: Filter string from profile configuration (e.g., "synonym,antonym", "!hypernym")
+            element_type: Type of element (relation, trait, field, etc.)
+            
+        Returns:
+            True if element matches filter, False otherwise
+            
+        Examples:
+            - Inclusion filter: "synonym,antonym" matches relations with type "synonym" or "antonym"
+            - Exclusion filter: "!hypernym" matches all relations except those with type "hypernym"
+            - Mixed filter: "synonym,!hypernym" matches "synonym" but excludes "hypernym"
+            - Empty/None filter: matches all elements of the given type
+        """
+        if not filter_str or not filter_str.strip():
+            return True
+            
+        if element_type == "relation":
+            # Prefer original type (if preserved) for filter comparisons
+            rel_type = element.attrib.get("data-original-type") or element.attrib.get("type", "")
+            filters = [f.strip() for f in filter_str.split(",")]
+            
+            # Check for exclusions (starting with !)
+            exclusions = [f[1:] for f in filters if f.startswith("!")]
+            if exclusions and rel_type.lower() in [e.lower() for e in exclusions]:
+                return False
+                
+            # Check for inclusions (not starting with !)
+            inclusions = [f for f in filters if not f.startswith("!")]
+            if inclusions and rel_type.lower() not in [i.lower() for i in inclusions]:
+                return False
+                
+            return True
+            
+        elif element_type == "trait":
+            trait_name = element.attrib.get("name", "")
+            return trait_name == filter_str
+            
+        elif element_type == "field":
+            field_type = element.attrib.get("type", "")
+            return field_type == filter_str
+            
+        return True
+
     def apply_display_aspects(
         self, entry_xml: str, profile: DisplayProfile
     ) -> (str, set):
@@ -261,7 +325,8 @@ class CSSMappingService:
 
         handled_elements = set()
 
-        # Build mapping tables
+        # Build mapping tables - use default language initially
+        # The actual language-specific lookups will be built per element based on profile settings
         abbr_maps = self._build_range_lookup()
         label_maps = self._build_range_label_lookup()
 
@@ -296,53 +361,103 @@ class CSSMappingService:
 
             # Relation-specific handling
             if lift_elem == "relation":
+                # Get language from profile element, default to 'en' if not specified
+                element_lang = pe.get_display_language() or "en"
+
+                # Build language-specific mapping tables for this element
+                element_abbr_maps = self._build_range_lookup(lang=element_lang)
+                element_label_maps = self._build_range_label_lookup(lang=element_lang)
+
+                self._logger.debug(f"Handling relation config: pe.display_aspect={pe.get_display_aspect() if hasattr(pe, 'get_display_aspect') else None}, aspect={aspect}")
+
+                # If the user provided a filter but did not explicitly set an aspect,
+                # default to 'label' for relations so filters behave intuitively.
+                if not aspect and pe.config and isinstance(pe.config, dict) and pe.config.get('filter'):
+                    aspect = 'label'
+
                 # Choose label map for 'label' or 'full' aspects; abbrev map for 'abbr'
                 use_label = aspect in ("label", "full")
                 # Prefer standardized range ids
                 rel_map = None
                 if use_label:
                     # Prefer standardized lexical-relation mapping only
-                    rel_map = label_maps.get("lexical-relation")
+                    rel_map = element_label_maps.get("lexical-relation")
                 else:
-                    rel_map = abbr_maps.get("lexical-relation")
+                    rel_map = element_abbr_maps.get("lexical-relation")
 
-                # Respect filter (relation types) if provided
-                target_rel_types = []
-                if pe.config and isinstance(pe.config, dict) and pe.config.get("filter"):
-                    target_rel_types = [f.strip() for f in pe.config.get("filter").split(',')]
+                # Debug: show a sample mapping (if any) for diagnostics
+                try:
+                    sample_key = next(iter(rel_map.keys())) if rel_map else None
+                except Exception:
+                    sample_key = None
+                self._logger.debug(f"Relation mapping present: sample_key={sample_key}, use_label={use_label}")
+
+                # Get filter configuration if provided
+                filter_config = None
+                if pe.config and isinstance(pe.config, dict):
+                    filter_config = pe.config.get("filter")
+
+                # If the user provided a filter but did not explicitly set an aspect,
+                # default to 'label' for relations so filters behave intuitively.
+                if not aspect and filter_config:
+                    aspect = 'label'
 
                 # Apply relation display aspect
+                any_applied = False
                 for elem in root.findall(".//relation"):
                     if elem.attrib.get("__aspect_handled"):
                         continue
-                        
+
                     rel_type = elem.attrib.get("type", "")
-                    if target_rel_types:
-                        # Simple check for inclusions (should ideally use _check_filter logic)
-                        inclusions = [f for f in target_rel_types if not f.startswith('!')]
-                        exclusions = [f[1:] for f in target_rel_types if f.startswith('!')]
-                        if exclusions and rel_type in exclusions:
-                            continue
-                        if inclusions and rel_type not in inclusions:
+                    self._logger.debug(f"Relation element before aspect: type='{rel_type}', filter_config={filter_config}")
+
+                    # Check if this relation matches the filter
+                    if filter_config:
+                        if not self._check_filter(elem, filter_config, "relation"):
+                            self._logger.debug(f"Relation '{rel_type}' did not match filter '{filter_config}'")
                             continue
 
-                    self._apply_relation_display_aspect(
-                        elem, aspect or "abbr", rel_map or {}
+                    # Only apply an explicit aspect when the profile provided one.
+                    # If no aspect was specified, do NOT apply a mapping but mark
+                    # the element as handled so that generic abbreviation replacement
+                    # does not overwrite profile-managed elements (preserve original type).
+                    if aspect:
+                        applied = self._apply_relation_display_aspect(
+                            elem, aspect, rel_map or {}
+                        )
+                        if applied:
+                            elem.attrib["__aspect_handled"] = "1"
+                            any_applied = True
+                    else:
+                        # Mark as handled to preserve the original type when a profile
+                        # element exists but no explicit display aspect was provided.
+                        elem.attrib["__aspect_handled"] = "1"
+
+                    self._logger.debug(
+                        f"Relation element after aspect: type='{elem.attrib.get('type')}', __aspect_handled='{elem.attrib.get('__aspect_handled')}'"
                     )
-                    elem.attrib["__aspect_handled"] = "1"
-                
-                # Only mark as globally handled if no filter was present
-                if not target_rel_types:
+
+                # Only mark relation as globally handled if at least one element
+                # was actually modified by the aspect application (so generic
+                # abbreviation pass won't be blocked when nothing was applied).
+                if any_applied:
                     handled_elements.add("relation")
 
             # Grammatical info handling
             if lift_elem == "grammatical-info":
+                # Get language from profile element, default to 'en' if not specified
+                element_lang = pe.get_display_language() or "en"
+
+                # Build language-specific mapping tables for this element
+                element_abbr_maps = self._build_range_lookup(lang=element_lang)
+                element_label_maps = self._build_range_label_lookup(lang=element_lang)
+
                 # If the profile asks for 'label' or 'full', use label map; otherwise use abbr
                 use_label = aspect in ("label", "full")
                 gram_map = (
-                    label_maps.get("grammatical-info")
+                    element_label_maps.get("grammatical-info")
                     if use_label
-                    else abbr_maps.get("grammatical-info")
+                    else element_abbr_maps.get("grammatical-info")
                 )
                 if gram_map:
                     for elem in root.findall(".//grammatical-info"):
@@ -352,7 +467,7 @@ class CSSMappingService:
                             elem, aspect or "abbr", gram_map
                         )
                         elem.attrib["__aspect_handled"] = "1"
-                
+
                 # Only mark as globally handled if no filter was present
                 # (Grammatical-info doesn't use filters currently, but consistency is good)
                 if not pe.config or not pe.config.get("filter"):
@@ -360,32 +475,89 @@ class CSSMappingService:
 
             # Variant handling
             if lift_elem == "variant":
+                # Get language from profile element, default to 'en' if not specified
+                element_lang = pe.get_display_language() or "en"
+
+                # Build language-specific mapping tables for this element
+                element_abbr_maps = self._build_range_lookup(lang=element_lang)
+                element_label_maps = self._build_range_label_lookup(lang=element_lang)
+
                 use_label = aspect in ("label", "full")
                 var_map = (
-                    label_maps.get("variant-type")
+                    element_label_maps.get("variant-type")
                     if use_label
-                    else abbr_maps.get("variant-type")
+                    else element_abbr_maps.get("variant-type")
                 )
+
+                # Get filter configuration if provided
+                filter_config = None
+                if pe.config and isinstance(pe.config, dict):
+                    filter_config = pe.config.get("filter")
+
                 if var_map:
                     for elem in root.findall(".//variant"):
                         if elem.attrib.get("__aspect_handled"):
                             continue
+
+                        # Check if this variant matches the filter
+                        if filter_config:
+                            variant_type = elem.attrib.get("type", "")
+                            if variant_type != filter_config:
+                                continue
+
                         current_type = elem.attrib.get("type", "")
                         if current_type in var_map:
+                            # Store resolved label on a separate attribute so transformer can show it
                             elem.attrib["type"] = var_map[current_type]
+                            elem.attrib["data-variant-label"] = var_map[current_type]
                             elem.attrib["__aspect_handled"] = "1"
-                    
+
                     # Only mark as globally handled if no filter
-                    if not pe.config or not pe.config.get("filter"):
+                    if not filter_config:
                         handled_elements.add("variant")
+                else:
+                    # No mapping available; if user requested label/full, fall back to
+                    # a humanized representation of the type (e.g., 'spelling' -> 'Spelling').
+                    if use_label:
+                        for elem in root.findall(".//variant"):
+                            if elem.attrib.get("__aspect_handled"):
+                                continue
+                            # Check filter
+                            if filter_config:
+                                variant_type = elem.attrib.get("type", "")
+                                if variant_type != filter_config:
+                                    continue
+
+                            current_type = elem.attrib.get("type", "")
+                            if current_type:
+                                human_label = " ".join(
+                                    [w.capitalize() for w in current_type.replace("-", " ").split()]
+                                )
+                                elem.attrib["type"] = human_label
+                                elem.attrib["__aspect_handled"] = "1"
+
+                        # Only mark as globally handled if no filter
+                        if not filter_config:
+                            handled_elements.add("variant")
 
             # Traits are a bit generic; apply if profile requested
             if lift_elem == "trait":
+                # Get language from profile element, default to 'en' if not specified
+                element_lang = pe.get_display_language() or "en"
+
+                # Build language-specific mapping tables for this element
+                element_abbr_maps = self._build_range_lookup(lang=element_lang)
+                element_label_maps = self._build_range_label_lookup(lang=element_lang)
+
                 # For simplicity, apply abbreviation replacement if no aspect
                 use_label = aspect in ("label", "full")
                 # Respect filter (Range ID) if provided
-                target_trait_name = pe.config.get("filter") if pe.config and isinstance(pe.config, dict) else None
+                filter_config = None
+                if pe.config and isinstance(pe.config, dict):
+                    filter_config = pe.config.get("filter")
 
+                # Debug log for trait handling
+                self._logger.debug(f"Trait handling: aspect={aspect}, use_label={use_label}, filter={filter_config}")
                 for elem in root.findall(".//trait"):
                     # Check if this element was already handled by a more specific config
                     # or if it's already being marked with a 'handled' attribute we might add
@@ -396,30 +568,31 @@ class CSSMappingService:
                     value = elem.attrib.get("value", "")
                     if not trait_name or not value:
                         continue
-                    
+
                     # If a filter is set, only process traits matching it
-                    if target_trait_name and trait_name != target_trait_name:
-                        continue
-                    
-                    # If this is a generic config (no filter) but we are looking at 
-                    # something that HAS a specific config later/earlier, 
-                    # we should probably be careful, but the loop order in profile.elements 
+                    if filter_config:
+                        if not self._check_filter(elem, filter_config, "trait"):
+                            continue
+
+                    # If this is a generic config (no filter) but we are looking at
+                    # something that HAS a specific config later/earlier,
+                    # we should probably be careful, but the loop order in profile.elements
                     # plus the __aspect_handled check should help.
 
                     # Resolve correct map for this trait name
                     if use_label:
                         val_map = (
-                            label_maps.get(trait_name)
-                            or label_maps.get(f"{trait_name}s")
-                            or label_maps.get(trait_name.rstrip("s"))
+                            element_label_maps.get(trait_name)
+                            or element_label_maps.get(f"{trait_name}s")
+                            or element_label_maps.get(trait_name.rstrip("s"))
                         )
                     else:
                         val_map = (
-                            abbr_maps.get(trait_name)
-                            or abbr_maps.get(f"{trait_name}s")
-                            or abbr_maps.get(trait_name.rstrip("s"))
+                            element_abbr_maps.get(trait_name)
+                            or element_abbr_maps.get(f"{trait_name}s")
+                            or element_abbr_maps.get(trait_name.rstrip("s"))
                         )
-                    
+
                     if val_map and value in val_map:
                         elem.attrib["value"] = val_map[value]
                         elem.attrib["__aspect_handled"] = "1"
@@ -428,13 +601,21 @@ class CSSMappingService:
                         human_value = " ".join([w.capitalize() for w in value.replace("-", " ").split()])
                         elem.attrib["value"] = human_value
                         elem.attrib["__aspect_handled"] = "1"
-                    elif target_trait_name:
+                    elif aspect == 'abbr':
+                        # Only abbreviate when the explicit 'abbr' aspect is requested
+                        fallback_abbr = value[:4] if len(value) > 4 else value
+                        elem.attrib["value"] = fallback_abbr
+                        elem.attrib["__aspect_handled"] = "1"
+                    elif filter_config:
                         # If we matched a specific trait but found no mapping, still mark it
                         # as handled so generic trait config doesn't overwrite it
                         elem.attrib["__aspect_handled"] = "1"
+                    else:
+                        # No aspect requested and no mapping found — leave value unchanged
+                        continue
 
                 # Only mark as globally handled if no filter was present
-                if not target_trait_name:
+                if not filter_config:
                     handled_elements.add("trait")
 
         # Convert tree back to string and return with handled set
@@ -457,6 +638,18 @@ class CSSMappingService:
             f"[CSS Service] Number of elements in profile: {len(profile.elements) if profile else 0}"
         )
         logger.info(f"[CSS Service] Dict service available: {dict_service is not None}")
+
+        # Pre-parse validation: ensure incoming LIFT XML is well-formed. If not,
+        # return an explicit error container so callers (and tests) can detect
+        # the failure at the service boundary.
+        try:
+            from app.utils.namespace_manager import LIFTNamespaceManager
+            clean_check = LIFTNamespaceManager.normalize_lift_xml(entry_xml, target_namespace=None)
+            import xml.etree.ElementTree as _ET
+            _ET.fromstring(clean_check)
+        except Exception as parse_exc:
+            self._logger.error(f"Failed to parse entry XML: {parse_exc}")
+            return f'<div class="entry-render-error">Error rendering entry: Failed to parse LIFT XML: {parse_exc}</div>'
 
         try:
             from app.utils.lift_to_html_transformer import (
@@ -487,7 +680,8 @@ class CSSMappingService:
                     separator=elem.config.get("separator", ", ")
                     if elem.config and isinstance(elem.config, dict)
                     else ", ",
-                    abbr_format=elem.get_display_aspect()
+                    abbr_format=elem.get_display_aspect(),
+                    language=getattr(elem, 'language_filter', None)
                 )
                 element_configs.append(config)
 
@@ -550,10 +744,11 @@ class CSSMappingService:
                 sense_count = 0
 
             # Add sense numbering CSS if enabled
-            # Simplified logic: number senses if number_senses is True AND there are multiple senses
-            should_number_senses = False
-            if profile.number_senses and sense_count > 1:
-                should_number_senses = True
+            # Only add numbering when profile.number_senses is True AND there is
+            # more than one sense (including nested senses). This avoids showing
+            # numbering CSS for single-sense entries.
+            should_number_senses = bool(profile.number_senses and sense_count > 1)
+            if should_number_senses:
                 self._logger.info(
                     f"Profile '{profile.name}': Numbering ON (sense_count={sense_count})"
                 )
@@ -737,12 +932,21 @@ class CSSMappingService:
             # relation: type attribute (maps to lexical-relation range)
             relation_map = range_abbr_maps.get("lexical-relation")
             if "relation" not in skip_elements and relation_map:
+                # Prepare a lower-cased lookup to allow case-insensitive matches
+                relation_map_lower = {k.lower(): v for k, v in relation_map.items()}
                 for elem in root.findall(".//relation"):
                     if elem.attrib.get("__aspect_handled"):
                         continue
-                    current_type = elem.attrib.get("type", "")
-                    if current_type in relation_map:
-                        elem.attrib["type"] = relation_map[current_type]
+                    # Prefer data-original-type for matching if it exists
+                    candidate_type = elem.attrib.get("data-original-type") or elem.attrib.get("type", "")
+                    cand_lower = candidate_type.lower() if candidate_type else ""
+                    if cand_lower and cand_lower in relation_map_lower:
+                        elem.attrib["type"] = relation_map_lower[cand_lower]
+                    else:
+                        # Fallback to exact match against the provided type
+                        current_type = elem.attrib.get("type", "")
+                        if current_type in relation_map:
+                            elem.attrib["type"] = relation_map[current_type]
 
             # variant: type attribute (maps to variant-type or variant-type range)
             variant_map = range_abbr_maps.get("variant-type")

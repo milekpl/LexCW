@@ -10,6 +10,7 @@ from typing import Dict, Any
 
 from app.services.display_profile_service import DisplayProfileService
 from app.services.lift_element_registry import LIFTElementRegistry
+from app.utils.api_response_handler import api_response_handler, get_service
 
 profiles_bp = Blueprint("display_profiles", __name__, url_prefix="/api/profiles")
 
@@ -293,6 +294,7 @@ def delete_profile(profile_id: int):
 
 
 @profiles_bp.route("/<int:profile_id>/default", methods=["POST"])
+@api_response_handler(handle_not_found=True)
 def set_default_profile(profile_id: int):
     """
     Set a profile as the default
@@ -311,19 +313,13 @@ def set_default_profile(profile_id: int):
       404:
         description: Profile not found
     """
-    try:
-        service = get_service()
-        profile = service.set_default_profile(profile_id)
-        return jsonify(profile.to_dict())
-    
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 404
-    except Exception as e:
-        current_app.logger.error(f"Error setting default profile: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    service = get_service()
+    profile = service.set_default_profile(profile_id)
+    return profile.to_dict()
 
 
 @profiles_bp.route("/create-default", methods=["POST"])
+@api_response_handler(success_status=201)
 def create_default_from_registry():
     """
     Create a profile from the registry's default configuration
@@ -347,17 +343,10 @@ def create_default_from_registry():
     """
     data = request.get_json() or {}
     name = data.get('name', 'Default Profile')
-    
-    try:
-        service = get_service()
-        profile = service.create_from_registry_default(name)
-        return jsonify(profile.to_dict()), 201
-    
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        current_app.logger.error(f"Error creating default profile: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+
+    service = get_service()
+    profile = service.create_from_registry_default(name)
+    return profile.to_dict()
 
 
 @profiles_bp.route("/<int:profile_id>/export", methods=["GET"])

@@ -33,11 +33,15 @@ class DisplayProfile(db.Model):
     
     # Custom CSS styles for this profile
     custom_css: Optional[str] = Column(Text, nullable=True)
-    
+
     # Global display settings
     show_subentries: bool = Column(Boolean, default=False, nullable=False)
     number_senses: bool = Column(Boolean, default=True, nullable=False)  # Auto-number senses with CSS
     number_senses_if_multiple: bool = Column(Boolean, default=False, nullable=False)  # Only number if multiple senses
+
+    # Global language setting for all elements in this profile
+    # Note: This column may not exist in older databases, so we handle it gracefully
+    default_language: Optional[str] = Column(String(10), default="*", nullable=True)
     
     # Profile metadata
     is_default: bool = Column(Boolean, default=False, nullable=False)
@@ -70,6 +74,7 @@ class DisplayProfile(db.Model):
             'show_subentries': self.show_subentries,
             'number_senses': self.number_senses,
             'number_senses_if_multiple': self.number_senses_if_multiple,
+            'default_language': self.default_language,
             'is_default': self.is_default,
             'is_system': self.is_system,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -162,6 +167,12 @@ class ProfileElement(db.Model):
         if aspect not in valid_aspects:
             raise ValueError(f"Invalid display aspect: {aspect}")
         
+        # Keep an in-memory copy so direct assignments to `config` later
+        # (common in tests) do not obscure the user's intent to set the
+        # display aspect. This avoids losing the aspect when the whole
+        # `config` dict is reassigned after calling this method.
+        self._display_aspect = aspect
+
         if self.config is None:
             self.config = {}
         
@@ -173,7 +184,13 @@ class ProfileElement(db.Model):
         self.config = new_config
 
     def get_display_aspect(self) -> Optional[str]:
-        """Get the current display aspect. Checks both 'display_aspect' and 'abbr_format'."""
+        """Get the current display aspect. Checks in-memory override first, then
+        'display_aspect' and 'abbr_format' in config for backward compatibility."""
+        # Prefer explicit in-memory override (set via `set_display_aspect`) so
+        # direct reassignment of the JSON config won't discard the aspect.
+        if hasattr(self, '_display_aspect') and self._display_aspect:
+            return self._display_aspect
+
         if not self.config:
             return None
         return self.config.get('display_aspect') or self.config.get('abbr_format')

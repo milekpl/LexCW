@@ -1,0 +1,12 @@
+{
+  "test-custom-range": {
+    "type": "custom",
+    "values": [
+      {
+        "id": "test-id",
+        "label": "Test Label",
+        "description": "Test Description"
+      }
+    ]
+  }
+}

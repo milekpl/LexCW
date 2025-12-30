@@ -222,7 +222,9 @@ class TestDisplayProfilesAPI:
         response = client.post(f"/api/profiles/{profile2['id']}/default")
         
         assert response.status_code == 200
-        data = response.get_json()
+        resp = response.get_json()
+        assert resp.get("success", False) is True
+        data = resp.get("data", resp)
         
         assert data["is_default"] is True
         
@@ -277,11 +279,13 @@ class TestDisplayProfilesAPI:
         )
         
         assert response.status_code == 201
-        data = response.get_json()
+        resp = response.get_json()
+        assert resp.get("success", False) is True
+        data = resp.get("data", resp)
         
         assert data["name"] == "From Default"
         # Description comes from the service, not the request
-        assert "default" in data["description"].lower() or "registry" in data["description"].lower()
+        assert "default" in (data.get("description") or "").lower() or "registry" in (data.get("description") or "").lower()
         # Should have elements from registry
         assert len(data["elements"]) > 0
 

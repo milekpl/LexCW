@@ -44,7 +44,7 @@ class TestSenseLevelFields:
         )
         
         assert sense.usage_type == []
-        assert sense.domain_type is None
+        assert sense.domain_type == []
 
     def test_form_processor_handles_usage_type_as_list(self) -> None:
         """Test that form processor handles usage_type as a list."""
@@ -73,9 +73,9 @@ class TestSenseLevelFields:
         
         assert len(senses) == 1
         assert 'domain_type' in senses[0]
-        # domain_type is normalized to a single value (first non-empty)
-        assert senses[0]['domain_type'] == '1.1'
-        assert isinstance(senses[0]['domain_type'], str)
+        # domain_type is represented as a list
+        assert senses[0]['domain_type'] == ['1.1', '1.2']
+        assert isinstance(senses[0]['domain_type'], list)
 
     def test_form_processor_handles_semicolon_separated_string(self) -> None:
         """Test that form processor handles semicolon-separated strings (LIFT format)."""
@@ -104,7 +104,7 @@ class TestSenseLevelFields:
         
         assert len(senses) == 1
         assert senses[0].get('usage_type', []) == []
-        assert senses[0].get('domain_type') is None
+        assert senses[0].get('domain_type') == []
 
     def test_sense_to_dict_includes_usage_type_and_domain_type(self) -> None:
         """Test that Sense.to_dict() includes usage_type and domain_type."""
@@ -120,8 +120,8 @@ class TestSenseLevelFields:
         assert 'usage_type' in sense_dict
         assert 'domain_type' in sense_dict
         assert sense_dict['usage_type'] == ["formal"]
-        # domain_type is represented as a single value in to_dict
-        assert sense_dict['domain_type'] == "1.1"
+        # domain_type is represented as a list in to_dict
+        assert sense_dict['domain_type'] == ["1.1"]
 
     def test_multiple_senses_with_different_values(self) -> None:
         """Test form processor with multiple senses having different usage_type values."""

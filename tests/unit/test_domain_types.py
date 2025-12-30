@@ -23,8 +23,8 @@ class TestDomainTypesEntryLevel:
             domain_type="informatyka"
         )
         
-        assert entry.domain_type == "informatyka"
-        assert isinstance(entry.domain_type, str)
+        assert entry.domain_type == ["informatyka"]
+        assert isinstance(entry.domain_type, list)
 
     def test_entry_model_accepts_domain_type_none(self) -> None:
         """Test that Entry model accepts None for domain_type."""
@@ -33,15 +33,15 @@ class TestDomainTypesEntryLevel:
             domain_type=None
         )
         
-        assert entry.domain_type is None
+        assert entry.domain_type == []
 
     def test_entry_model_defaults_to_none(self) -> None:
-        """Test that domain_type defaults to None."""
+        """Test that domain_type defaults to an empty list."""
         entry = Entry(
             lexical_unit={"en": "test word"}
         )
         
-        assert entry.domain_type is None
+        assert entry.domain_type == []
 
     def test_entry_to_dict_includes_domain_type(self) -> None:
         """Test that Entry.to_dict() includes domain_type."""
@@ -53,7 +53,7 @@ class TestDomainTypesEntryLevel:
         entry_dict = entry.to_dict()
         
         assert 'domain_type' in entry_dict
-        assert entry_dict['domain_type'] == "finanse"
+        assert entry_dict['domain_type'] == ["finanse"]
 
     def test_entry_to_template_dict_includes_domain_type(self) -> None:
         """Test that Entry.to_template_dict() includes domain_type."""
@@ -65,7 +65,7 @@ class TestDomainTypesEntryLevel:
         template_dict = entry.to_template_dict()
         
         assert 'domain_type' in template_dict
-        assert template_dict['domain_type'] == "prawniczy"
+        assert template_dict['domain_type'] == ["prawniczy"]
 
     def test_entry_form_processing_domain_type(self) -> None:
         """Test that form processor does NOT include domain_type at entry level.
@@ -102,37 +102,37 @@ class TestDomainTypesSenseLevel:
     """Test domain_type field at sense level."""
 
     def test_sense_model_accepts_domain_type_string(self) -> None:
-        """Test that Sense model accepts domain_type as a string."""
+        """Test that Sense model accepts domain_type as a string and normalizes to list."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
             domain_type="informatyka"
         )
         
-        assert sense.domain_type == "informatyka"
-        assert isinstance(sense.domain_type, str)
+        assert sense.domain_type == ["informatyka"]
+        assert isinstance(sense.domain_type, list)
 
     def test_sense_model_accepts_domain_type_none(self) -> None:
-        """Test that Sense model accepts None for domain_type."""
+        """Test that Sense model accepts None for domain_type and normalizes to empty list."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
             domain_type=None
         )
         
-        assert sense.domain_type is None
+        assert sense.domain_type == []
 
     def test_sense_model_defaults_to_none(self) -> None:
-        """Test that domain_type defaults to None."""
+        """Test that domain_type defaults to an empty list."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"}
         )
         
-        assert sense.domain_type is None
+        assert sense.domain_type == []
 
     def test_sense_to_dict_includes_domain_type(self) -> None:
-        """Test that Sense.to_dict() includes domain_type."""
+        """Test that Sense.to_dict() includes domain_type as a list."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
@@ -142,7 +142,7 @@ class TestDomainTypesSenseLevel:
         sense_dict = sense.to_dict()
         
         assert 'domain_type' in sense_dict
-        assert sense_dict['domain_type'] == "finanse"
+        assert sense_dict['domain_type'] == ["finanse"]
 
     def test_form_processor_handles_sense_domain_type(self) -> None:
         """Test that form processor handles sense domain_type as a string."""
@@ -156,8 +156,8 @@ class TestDomainTypesSenseLevel:
         
         assert len(senses) == 1
         assert 'domain_type' in senses[0]
-        assert senses[0]['domain_type'] == "prawniczy"
-        assert isinstance(senses[0]['domain_type'], str)
+        assert senses[0]['domain_type'] == ["prawniczy"]
+        assert isinstance(senses[0]['domain_type'], list)
 
     def test_form_processor_handles_empty_sense_domain_type(self) -> None:
         """Test that form processor handles empty sense domain_type."""
@@ -170,7 +170,7 @@ class TestDomainTypesSenseLevel:
         senses = process_senses_form_data(form_data)
         
         assert len(senses) == 1
-        assert senses[0].get('domain_type') is None or senses[0].get('domain_type') == ''
+        assert senses[0].get('domain_type') == []
 
     def test_multiple_senses_with_different_domain_types(self) -> None:
         """Test form processor with multiple senses having different domain_type values."""
@@ -186,8 +186,8 @@ class TestDomainTypesSenseLevel:
         senses = process_senses_form_data(form_data)
         
         assert len(senses) == 2
-        assert senses[0]['domain_type'] == 'informatyka'
-        assert senses[1]['domain_type'] == 'finanse'
+        assert senses[0]['domain_type'] == ['informatyka']
+        assert senses[1]['domain_type'] == ['finanse']
 
 
 class TestDomainTypesLIFTIntegration:
@@ -209,7 +209,7 @@ class TestDomainTypesLIFTIntegration:
         
         sense = entry.senses[0]
         assert sense.semantic_domain == ["1.1 Universe, creation"]  # Semantic domain
-        assert sense.domain_type == "informatyka"  # Domain Type - separate
+        assert sense.domain_type == ["informatyka"]  # Domain Type - separate
 
     def test_domain_type_values_from_lift_ranges(self) -> None:
         """Test that domain_type accepts valid values from LIFT domain-type ranges."""
@@ -229,7 +229,7 @@ class TestDomainTypesLIFTIntegration:
                 glosses={"en": "test"},
                 domain_type=domain
             )
-            assert sense.domain_type == domain
+            assert sense.domain_type == [domain]
 
     def test_entry_domain_type_independent_of_senses(self) -> None:
         """Test that entry-level domain_type is independent of sense domain_types."""
@@ -245,8 +245,8 @@ class TestDomainTypesLIFTIntegration:
             ]
         )
         
-        assert entry.domain_type == "finanse"  # Entry-level
-        assert entry.senses[0].domain_type == "informatyka"  # Sense-level - different
+        assert entry.domain_type == ["finanse"]  # Entry-level
+        assert entry.senses[0].domain_type == ["informatyka"]  # Sense-level - different
 
 
 class TestDomainTypesValidation:
@@ -264,25 +264,25 @@ class TestDomainTypesValidation:
         assert sense.domain_type is not None
 
     def test_empty_string_domain_type(self) -> None:
-        """Test that empty string domain_type becomes None."""
+        """Test that empty string domain_type becomes an empty list."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
             domain_type=""
         )
         
-        assert sense.domain_type is None
+        assert sense.domain_type == []
 
     def test_whitespace_only_domain_type(self) -> None:
-        """Test that whitespace-only domain_type becomes None."""
+        """Test that whitespace-only domain_type becomes an empty list."""
         sense = Sense(
             id_="test_sense",
             glosses={"en": "test"},
             domain_type="   "
         )
         
-        # Empty/whitespace strings are normalized to None
-        assert sense.domain_type is None
+        # Empty/whitespace strings are normalized to empty list
+        assert sense.domain_type == []
 
     def test_unicode_domain_type(self) -> None:
         """Test that Unicode domain_type values are handled correctly."""
@@ -292,4 +292,4 @@ class TestDomainTypesValidation:
             domain_type="informatyka"  # Polish word
         )
         
-        assert sense.domain_type == "informatyka"
+        assert sense.domain_type == ["informatyka"]

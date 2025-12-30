@@ -11,6 +11,7 @@ import json
 from app.services.ranges_service import RangesService
 from app.services.ranges_service import reload_custom_ranges_config
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
+from app.utils.api_response_handler import api_response_handler, get_service
 from flasgger import swag_from
 
 
@@ -48,31 +49,25 @@ ranges_editor_bp = Blueprint('ranges_editor', __name__, url_prefix='/api/ranges-
         }
     }
 })
+@api_response_handler()
 def list_ranges() -> Union[Response, Tuple[Response, int]]:
     """Get all ranges."""
-    try:
-        service = current_app.injector.get(RangesService)
-        ranges = service.get_all_ranges()
-        return jsonify({'success': True, 'data': ranges})
-    except Exception as e:
-        current_app.logger.error(f"Error listing ranges: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+    service = get_service(RangesService)
+    ranges = service.get_all_ranges()
+    return ranges
 
 
 @ranges_editor_bp.route('/config', methods=['GET'])
+@api_response_handler()
 def get_config_ranges() -> Union[Response, Tuple[Response, int]]:
     """Return the custom_ranges.json content."""
-    try:
-        app_dir = os.path.dirname(os.path.dirname(__file__))
-        cfg_path = os.path.join(app_dir, 'config', 'custom_ranges.json')
-        if not os.path.exists(cfg_path):
-            return jsonify({'success': True, 'data': {}})
-        with open(cfg_path, 'r', encoding='utf-8') as f:
-            cfg = json.load(f)
-        return jsonify({'success': True, 'data': cfg})
-    except Exception as e:
-        current_app.logger.error(f"Error reading custom_ranges config: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+    app_dir = os.path.dirname(os.path.dirname(__file__))
+    cfg_path = os.path.join(app_dir, 'config', 'custom_ranges.json')
+    if not os.path.exists(cfg_path):
+        return {}
+    with open(cfg_path, 'r', encoding='utf-8') as f:
+        cfg = json.load(f)
+    return cfg
 
 
 @ranges_editor_bp.route('/config', methods=['POST'])
@@ -116,13 +111,22 @@ def add_config_range() -> Union[Response, Tuple[Response, int]]:
     'tags': ['Ranges Editor'],
     'summary': 'Get specific range',
     'description': 'Retrieve a specific range by ID',
-    'parameters': [{
-        'in': 'path',
-        'name': 'range_id',
-        'required': True,
-        'type': 'string',
-        'description': 'ID of the range to retrieve'
-    }],
+    'parameters': [
+        {
+            'in': 'path',
+            'name': 'range_id',
+            'required': True,
+            'type': 'string',
+            'description': 'ID of the range to retrieve'
+        },
+        {
+            'in': 'query',
+            'name': 'resolved',
+            'required': False,
+            'type': 'boolean',
+            'description': 'If true, return a non-mutating resolved view with effective_label/effective_abbrev computed for values'
+        }
+    ],
     'responses': {
         200: {
             'description': 'Range data',
@@ -146,18 +150,18 @@ def add_config_range() -> Union[Response, Tuple[Response, int]]:
         }
     }
 })
+@api_response_handler(handle_not_found=True)
 def get_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
     """Get specific range by ID."""
-    try:
-        service = current_app.injector.get(RangesService)
-        range_data = service.get_range(range_id)
-        return jsonify({'success': True, 'data': range_data})
-    except NotFoundError as e:
-        return jsonify({'success': False, 'error': str(e)}), 404
-    except Exception as e:
-        current_app.logger.error(f"Error getting range {range_id}: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+    service = get_service(RangesService)
+    # Query param 'resolved' can be truthy values: 'true','1','yes'
+    resolved_raw = request.args.get('resolved', None)
+    resolved = False
+    if resolved_raw is not None:
+        resolved = str(resolved_raw).lower() in ('1', 'true', 'yes')
 
+    range_data = service.get_range(range_id, resolved=resolved)
+    return range_data
 
 @ranges_editor_bp.route('/', methods=['POST'])
 @swag_from({
@@ -233,8 +237,15 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
     try:
         # Reject JSON body for data-rich endpoints; prefer XML request payloads
         if request.content_type and 'application/json' in request.content_type:
-            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
-        data = request.get_json(silent=True)
+            # Check if this is an abbreviation update (allow JSON for this case)
+            data = request.get_json(silent=True)
+            if data and ('abbreviations' in data or 'abbr' in data):
+                # Allow JSON for abbreviation updates
+                pass
+            else:
+                return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
+        else:
+            data = request.get_json(silent=True)
         
         # Validate required fields
         if not data or 'id' not in data or 'labels' not in data:
@@ -306,9 +317,17 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
 def update_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
     """Update existing range."""
     try:
+        # Temporarily allow JSON for abbreviation updates to fix the Ranges Editor issue
         if request.content_type and 'application/json' in request.content_type:
-            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
-        data = request.get_json(silent=True)
+            # Check if this is an abbreviation update (allow JSON for this case)
+            data = request.get_json(silent=True)
+            if data and ('abbreviations' in data or 'abbr' in data):
+                # Allow JSON for abbreviation updates
+                pass
+            else:
+                return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
+        else:
+            data = request.get_json(silent=True)
         
         if not data:
             return jsonify({
@@ -443,8 +462,8 @@ def list_range_elements(range_id: str) -> Union[Response, Tuple[Response, int]]:
 @swag_from({
     'tags': ['Ranges Editor'],
     'summary': 'Create range element',
-    'description': 'Create a new element within a range. JSON input is disabled; use XML payloads.',
-    'consumes': ['application/xml'],
+    'description': 'Create a new element within a range. Supports both XML and JSON payloads for multilingual features.',
+    'consumes': ['application/xml', 'application/json'],
     'parameters': [
         {
             'in': 'path',
@@ -458,13 +477,15 @@ def list_range_elements(range_id: str) -> Union[Response, Tuple[Response, int]]:
             'required': True,
             'schema': {
                 'type': 'object',
-                'required': ['id', 'labels'],
+                'required': ['id'],
                 'properties': {
                     'id': {'type': 'string'},
                     'parent': {'type': 'string'},
                     'labels': {'type': 'object'},
                     'descriptions': {'type': 'object'},
                     'abbrevs': {'type': 'object'},
+                    'abbrev': {'type': 'string'},
+                    'value': {'type': 'string'},
                     'traits': {'type': 'object'}
                 }
             }
@@ -480,9 +501,13 @@ def list_range_elements(range_id: str) -> Union[Response, Tuple[Response, int]]:
 def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]:
     """Create new element in range."""
     try:
+        # Temporarily allow JSON for ranges editor to support multilingual features
         if request.content_type and 'application/json' in request.content_type:
-            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
-        data = request.get_json(silent=True)
+            data = request.get_json(silent=True)
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+        else:
+            return jsonify({'success': False, 'error': 'XML input required'}), 415
 
         
         if not data or 'id' not in data:
@@ -585,8 +610,8 @@ def get_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[R
 @swag_from({
     'tags': ['Ranges Editor'],
     'summary': 'Update range element',
-    'description': 'Update an existing element within a range. JSON input is disabled; use XML payloads.',
-    'consumes': ['application/xml'],
+    'description': 'Update an existing element within a range. Supports both XML and JSON payloads for multilingual features.',
+    'consumes': ['application/xml', 'application/json'],
     'parameters': [
         {
             'in': 'path',
@@ -610,6 +635,8 @@ def get_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[R
                     'labels': {'type': 'object'},
                     'descriptions': {'type': 'object'},
                     'abbrevs': {'type': 'object'},
+                    'abbrev': {'type': 'string'},
+                    'value': {'type': 'string'},
                     'parent': {'type': 'string'},
                     'traits': {'type': 'object'}
                 }
@@ -626,9 +653,13 @@ def get_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[R
 def update_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[Response, int]]:
     """Update existing range element."""
     try:
+        # Temporarily allow JSON for ranges editor to support multilingual features
         if request.content_type and 'application/json' in request.content_type:
-            return jsonify({'success': False, 'error': 'JSON input disabled; use XML payloads'}), 415
-        data = request.get_json(silent=True)
+            data = request.get_json(silent=True)
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+        else:
+            return jsonify({'success': False, 'error': 'XML input required'}), 415
         
         if not data:
             return jsonify({

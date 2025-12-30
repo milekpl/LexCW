@@ -375,22 +375,51 @@ class RangesService:
 
         return custom_ranges
 
-    def get_range(self, range_id: str, project_id: int = 1) -> Dict[str, Any]:
+    def get_range(self, range_id: str, project_id: int = 1, resolved: bool = False) -> Dict[str, Any]:
         """
         Get single range by ID.
-        
+
         Args:
             range_id: ID of the range to retrieve.
-            
+            project_id: Project ID for custom ranges.
+            resolved: If True, return a non-mutating resolved view with
+                      effective_label/effective_abbrev computed for each value.
+
         Returns:
             Range data dictionary.
-            
+
         Raises:
             NotFoundError: If range not found.
         """
         # Try parsing all ranges first
         ranges = self.get_all_ranges()
         if ranges and range_id in ranges:
+            # Sanity check: ensure cached ranges are not already mutated with effective_ keys
+            try:
+                def contains_effective(node_list):
+                    for n in node_list:
+                        if 'effective_label' in n or 'effective_abbrev' in n:
+                            return True
+                        children = n.get('children') or []
+                        if children and contains_effective(children):
+                            return True
+                    return False
+                cached_vals = ranges[range_id].get('values', [])
+                if contains_effective(cached_vals):
+                    self.logger.warning(f"Cached range '{range_id}' already contains effective_* fields; this may indicate mutation.")
+            except Exception:
+                pass
+
+            # If asked for resolved view, return a deep-copied resolved structure
+            if resolved:
+                import copy
+                rcopy = copy.deepcopy(ranges[range_id])
+                # Ensure values exist
+                vals = rcopy.get('values', [])
+                if vals:
+                    rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(vals, prefer_lang='en')
+                return rcopy
+
             return ranges[range_id]
 
         # If not found, query for the specific range to avoid parsing whole doc
@@ -1201,11 +1230,21 @@ class RangesService:
                 text_elem = ET.SubElement(form, 'text')
                 text_elem.text = text
         
-        # Add traits
+        # Add language preference as a trait if provided
+        language_preference = element_data.get('language')
+        if language_preference:
+            # Add language preference as a special trait
+            lang_trait = ET.SubElement(elem, 'trait')
+            lang_trait.set('name', 'display-language')
+            lang_trait.set('value', language_preference)
+
+        # Add other traits
         traits = element_data.get('traits', {})
         for trait_name, trait_value in traits.items():
-            trait_elem = ET.SubElement(elem, 'trait')
-            trait_elem.set('name', trait_name)
-            trait_elem.set('value', trait_value)
-        
+            # Skip the 'display-language' trait if it's also in the traits dict to avoid duplication
+            if trait_name != 'display-language':
+                trait_elem = ET.SubElement(elem, 'trait')
+                trait_elem.set('name', trait_name)
+                trait_elem.set('value', trait_value)
+
         return ET.tostring(elem, encoding='unicode')

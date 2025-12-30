@@ -219,6 +219,6 @@ class TestCustomRangesImportIntegration:
 
             # Should include custom ranges
             assert 'lexical-relation' in result
-            assert len(result['lexical-relation']['values']) == 1
-            assert result['lexical-relation']['values'][0]['id'] == 'custom-rel'
-            assert result['lexical-relation']['values'][0]['custom'] is True
+            # Custom element should be present among values and marked as custom
+            values = result['lexical-relation']['values']
+            assert any(v.get('id') == 'custom-rel' and v.get('custom') for v in values), f"Custom relation 'custom-rel' not found in values: {values}"

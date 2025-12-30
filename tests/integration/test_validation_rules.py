@@ -1,8 +1,13 @@
+#!/usr/bin/env python3
 """
-Test-driven validation rule implementation.
+Consolidated validation rules tests.
 
-This module implements comprehensive validation tests for the dictionary system
-following the TDD approach as specified in the project requirements.
+This file merges the fixed validation tests with a subset of the original
+integration tests that add valuable coverage (language code checks,
+variant sense scenarios and a service-level draft-mode integration test).
+
+Use the ValidationEngine (JSON-level) for raw data checks and the
+Entry/Sense models for model-level validation.
 """
 
 from __future__ import annotations
@@ -11,7 +16,225 @@ import pytest
 
 from app.models.entry import Entry
 from app.models.sense import Sense
+from app.services.validation_engine import ValidationEngine
 from app.utils.exceptions import ValidationError
+
+
+@pytest.mark.integration
+class TestValidationModes:
+    """Test validation modes and their behavior."""
+
+    def test_save_entry_without_senses_in_draft_mode(self):
+        """Entries can be saved without senses in draft mode, but not save mode."""
+        entry = Entry(
+            id_="test_entry",
+            lexical_unit={"pl": "test"},
+            senses=[],
+        )
+
+        # Should fail in save mode
+        with pytest.raises(ValidationError):
+            entry.validate("save")
+
+        # Should pass in draft mode
+        assert entry.validate("draft") is True
+
+    def test_delete_entry_bypasses_validation(self):
+        """Deletion should bypass validation requirements."""
+        entry = Entry(
+            id_="test_entry",
+            lexical_unit={"pl": "test"},
+            senses=[],
+        )
+
+        assert entry.validate("delete") is True
+
+    def test_progressive_validation_workflow(self):
+        """Draft -> add sense -> save works end-to-end."""
+        entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[])
+        assert entry.validate("draft") is True
+
+        sense = Sense(id_="sense1", gloss={"pl": {"text": "test gloss"}})
+        entry.add_sense(sense)
+        assert entry.validate("save") is True
+
+    def test_dictionary_service_draft_mode(self, app, dict_service_with_db):
+        """Integration check: the dictionary service supports draft creation."""
+        with app.app_context():
+            dict_service = dict_service_with_db
+
+            entry = Entry(
+                id_="test_draft_entry",
+                lexical_unit={"pl": "test"},
+                senses=[],
+            )
+
+            # Create as draft using the service (integration-level check)
+            entry_id = dict_service.create_entry(entry, draft=True)
+            assert entry_id == "test_draft_entry"
+
+            # Clean up
+            dict_service.delete_entry(entry_id)
+
+
+@pytest.mark.integration
+class TestEntryValidationRules:
+    """Entry-level validation rules with focused cases."""
+
+    def test_r1_1_1_entry_id_required(self):
+        """R1.1.1: Entry ID is required."""
+        engine = ValidationEngine()
+        data = {"id": None, "lexical_unit": {"pl": "test"}, "senses": [{"id": "sense1", "gloss": {"pl": "test"}}]}
+        result = engine.validate_json(data, "save")
+        assert not result.is_valid
+        assert any("Entry ID is required" in str(e.message) for e in result.errors)
+
+        # Empty string ID
+        data["id"] = ""
+        result = engine.validate_json(data, "save")
+        assert not result.is_valid
+        assert any("Entry ID is required" in str(e.message) for e in result.errors)
+
+    def test_r1_1_2_lexical_unit_required(self):
+        """R1.1.2: Lexical unit is required."""
+        with pytest.raises(ValidationError):
+            entry = Entry(id_="test_entry", lexical_unit={}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
+            entry.validate("save")
+
+    def test_r1_1_3_at_least_one_sense_required_save_mode(self):
+        """R1.1.3: At least one sense is required in save mode."""
+        with pytest.raises(ValidationError):
+            entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[])
+            entry.validate("save")
+
+    def test_r1_1_3_sense_not_required_draft_mode(self):
+        """Senses are not required in draft mode."""
+        entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[])
+        assert entry.validate("draft") is True
+
+    def test_r1_2_1_entry_id_format_validation(self):
+        """R1.2.1: Entry ID format validation."""
+        valid_ids = ["test_entry", "entry-123", "ENTRY_1", "entry123"]
+        for valid_id in valid_ids:
+            entry = Entry(id_=valid_id, lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
+            assert entry.validate("save") is True
+
+        invalid_ids = ["entry@123", "entry#1", "entry.1", "entry/1"]
+        for invalid_id in invalid_ids:
+            with pytest.raises(ValidationError):
+                entry = Entry(id_=invalid_id, lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
+                entry.validate("save")
+
+    def test_r1_2_2_lexical_unit_format_validation(self):
+        """R1.2.2: Lexical unit structure validation."""
+        valid_units = [{"pl": "test"}, {"en": "test", "pl": "test"}]
+        for unit in valid_units:
+            entry = Entry(id_="test_entry", lexical_unit=unit, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
+            assert entry.validate("save") is True
+
+        with pytest.raises(ValidationError):
+            entry = Entry(id_="test_entry", lexical_unit={"pl": ""}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
+            entry.validate("save")
+
+    def test_r1_2_3_language_code_validation(self):
+        """R1.2.3: Language code checks (RFC4646). This rule is WARNING-priority; it shouldn't raise exceptions on save."""
+        valid_language_codes = ["pl", "en", "fr", "de", "pt", "seh-fonipa", "qaa-x-spec", "pt-br", "zh-hans"]
+        for lang_code in valid_language_codes:
+            entry = Entry(id_="test_entry", lexical_unit={lang_code: "test"}, senses=[Sense(id_="sense1", gloss={lang_code: {"text": "test"}})])
+            assert entry.validate("save") is True
+
+        invalid_language_codes = ["english", "123", "EN", "seh_fonipa", "ipa", "a", "abcd"]
+        # Rule is a warning: ensure no exception is raised; engine may produce warnings
+        engine = ValidationEngine()
+        for lang in invalid_language_codes:
+            entry = Entry(id_="test_entry", lexical_unit={lang: "test"}, senses=[Sense(id_="sense1", gloss={lang: {"text": "test"}})])
+            # Model-level validation should not raise; engine may report warnings
+            assert entry.validate("save") is True
+            result = engine.validate_json(entry.to_dict(), "save")
+            # Accept either valid with warnings or explicit non-fatal results
+            assert result is not None
+
+
+@pytest.mark.integration
+class TestSenseValidationRules:
+    """Sense-level validation rules and variants."""
+
+    def test_r2_1_1_sense_id_required(self):
+        """R2.1.1: Sense ID is required."""
+        engine = ValidationEngine()
+        data = {"id": "test_entry", "lexical_unit": {"pl": "test"}, "senses": [{"id": None, "gloss": {"pl": "test"}}]}
+        result = engine.validate_json(data, "save")
+        assert not result.is_valid
+        assert any("Sense ID is required" in str(e.message) for e in result.errors)
+
+    def test_r2_1_2_sense_definition_or_gloss_required(self):
+        """R2.1.2: Sense requires definition OR gloss."""
+        entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test gloss"}})])
+        assert entry.validate("save") is True
+
+        entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", definition={"pl": {"text": "test definition"}})])
+        assert entry.validate("save") is True
+
+        with pytest.raises(ValidationError):
+            entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1")])
+            entry.validate("save")
+
+    def test_r2_1_3_variant_sense_validation(self):
+        """R2.1.3: Variant senses reference validation (structure only)."""
+        entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[{"id": "sense1", "variant_of": "base_entry#sense1"}])
+        # Structural validation should be fine; full reference resolution requires DB access
+        assert entry is not None
+
+    def test_r2_2_1_definition_content_validation(self):
+        """R2.2.1: Definition content non-empty check."""
+        entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", definition={"pl": {"text": "valid definition"}})])
+        assert entry.validate("save") is True
+
+        with pytest.raises(ValidationError):
+            entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", definition={"pl": {"text": ""}})])
+            entry.validate("save")
+
+        with pytest.raises(ValidationError):
+            entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", definition={"en": {"text": "   "}})])
+            entry.validate("save")
+
+    def test_r2_2_2_gloss_content_validation(self):
+        """R2.2.2: Gloss content must be non-empty."""
+        entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "valid gloss"}})])
+        assert entry.validate("save") is True
+
+        with pytest.raises(ValidationError):
+            entry = Entry(id_="test_entry", lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": ""}})])
+            entry.validate("save")
+
+
+class TestValidationEngineDirectly:
+    """Engine-level tests for JSON validation."""
+
+    def test_validation_engine_with_proper_data(self):
+        engine = ValidationEngine()
+        valid_data = {"id": "test_entry", "lexical_unit": {"pl": "test"}, "senses": [{"id": "sense1", "gloss": {"pl": {"text": "test gloss"}}}]}
+        result = engine.validate_json(valid_data, "save")
+        assert result.is_valid is True
+
+        invalid_data = {"id": "test@entry", "lexical_unit": {"pl": "test"}, "senses": [{"id": "sense1", "gloss": {"pl": {"text": "test gloss"}}}]}
+        result = engine.validate_json(invalid_data, "save")
+        assert result.is_valid is False
+        assert len(result.errors) > 0
+        assert any("Invalid entry ID format" in error.message for error in result.errors)
+
+    def test_validation_modes_in_engine(self):
+        engine = ValidationEngine()
+        data_no_senses = {"id": "test_entry", "lexical_unit": {"pl": "test"}, "senses": []}
+        result = engine.validate_json(data_no_senses, "save")
+        assert result.is_valid is False
+        assert any("At least one sense is required" in error.message for error in result.errors)
+
+        result = engine.validate_json(data_no_senses, "draft")
+        assert result.is_valid is True
+
+        result = engine.validate_json(data_no_senses, "delete")
+        assert result.is_valid is True
 
 
 

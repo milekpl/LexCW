@@ -46,7 +46,8 @@ class Sense(BaseModel):
         self.illustrations: list[dict[str, Any]] = kwargs.pop('illustrations', [])
 
         # Internal storage for fields with special typing/behavior
-        self._domain_type_value: Optional[str] = None
+        # domain_type is now a list of strings (supports multiple values)
+        self._domain_type_value: list[str] = []
         self._semantic_domains_value: Optional[List[str]] = None
         
         # LIFT 0.13: Literal meaning field - stores literal meaning of compounds/idioms (multitext) - Day 28
@@ -94,15 +95,18 @@ class Sense(BaseModel):
             else:
                 self.semantic_domains = None
 
-        # Handle domain_type - conceptually distinct from semantic domains.
-        # Can be a list of values (LIFT standard) or a single value.
+        # Handle domain_type - always treat as a list of values at sense level.
         domain_type_value = kwargs.pop('domain_type', None)
         if isinstance(domain_type_value, list):
             # Filter out empty values and strip whitespace
             self._domain_type_value = [v.strip() for v in domain_type_value if isinstance(v, str) and v.strip()]
         elif isinstance(domain_type_value, str):
             val = domain_type_value.strip()
-            self._domain_type_value = [val] if val else []
+            # Accept semicolon-separated values as well
+            if ';' in val:
+                self._domain_type_value = [v.strip() for v in val.split(';') if v.strip()]
+            else:
+                self._domain_type_value = [val] if val else []
         elif domain_type_value is None:
             self._domain_type_value = []
         else:
@@ -113,18 +117,9 @@ class Sense(BaseModel):
         super().__init__(id_, **kwargs)
 
     @property
-    def domain_type(self) -> Union[str, List[str], None]:
-        """Return the domain-type value(s) (distinct from semantic domains).
-        
-        For backward compatibility, returns a single string if only one value,
-        otherwise returns a list. Returns None when no value is present.
-        """
-        if len(self._domain_type_value) == 1:
-            return self._domain_type_value[0]
-        elif len(self._domain_type_value) > 1:
-            return self._domain_type_value
-        else:
-            return None
+    def domain_type(self) -> list[str]:
+        """Return the domain-type values as a list of strings (empty list if none)."""
+        return list(self._domain_type_value)
 
     @domain_type.setter
     def domain_type(self, value: Optional[Union[str, List[str]]]):
@@ -135,7 +130,10 @@ class Sense(BaseModel):
             self._domain_type_value = [v.strip() for v in value if isinstance(v, str) and v.strip()]
         elif isinstance(value, str):
             val = value.strip()
-            self._domain_type_value = [val] if val else []
+            if ';' in val:
+                self._domain_type_value = [v.strip() for v in val.split(';') if v.strip()]
+            else:
+                self._domain_type_value = [val] if val else []
         else:
             str_value = str(value).strip()
             self._domain_type_value = [str_value] if str_value else []

@@ -466,3 +466,88 @@ def get_language_codes() -> Union[Response, Tuple[Response, int]]:
             'success': False,
             'error': str(e)
         }), 500
+
+
+@ranges_bp.route('/project-languages', methods=['GET'])
+def get_project_languages_api() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get project-specific language codes and names.
+
+    This endpoint provides the language codes configured in the project settings
+    (source language + target languages), which are the only languages that
+    should be used in the project.
+
+    Returns:
+        JSON response with project language codes and names.
+    ---
+    tags:
+      - Ranges
+    summary: Get project languages
+    description: Retrieve language codes configured in project settings (source + target languages)
+    responses:
+      200:
+        description: Successfully retrieved project languages
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: array
+              description: Array of language objects with code and name
+              items:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    description: Language code (e.g., 'en', 'pl')
+                  name:
+                    type: string
+                    description: Language name (e.g., 'English', 'Polish')
+      500:
+        description: Error retrieving project languages
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            error:
+              type: string
+              description: Error message
+    """
+    try:
+        from app.utils.language_utils import get_project_languages
+
+        # Get project languages as (code, name) tuples
+        project_lang_tuples = get_project_languages()
+
+        # Convert to the expected format: array of objects with code and name
+        project_languages = []
+        for code, name in project_lang_tuples:
+            # Handle the case where name might be a Markup object (with tooltip)
+            if hasattr(name, '__html__'):
+                # Extract just the text part without the tooltip markup
+                import re
+                clean_name = re.sub(r'<.*?>', '', str(name)).strip()
+                # If the name was marked as vernacular, try to extract the clean name
+                if clean_name.startswith((' ', '\n')):
+                    clean_name = clean_name.lstrip()
+            else:
+                clean_name = str(name)
+
+            project_languages.append({
+                'code': code,
+                'name': clean_name
+            })
+
+        return jsonify({
+            'success': True,
+            'data': project_languages
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

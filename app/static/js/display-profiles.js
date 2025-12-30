@@ -35,6 +35,9 @@
             // Load ranges for autocomplete
             await loadRanges();
 
+            // Load project languages for language selection dropdowns
+            await loadProjectLanguages();
+
             // Load profiles
             await loadProfiles();
 
@@ -83,6 +86,72 @@
             console.warn('Failed to load ranges for autocomplete:', error);
             // Non-critical, just continue without autocomplete
         }
+    }
+
+    /**
+     * Load project languages for language selection dropdowns
+     */
+    async function loadProjectLanguages() {
+        try {
+            const response = await fetch('/api/ranges/project-languages'); // Use the new endpoint
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    // Convert the API response format (array of {code, name} objects) to internal format (array of [code, name] tuples)
+                    state.projectLanguages = result.data.map(lang => [lang.code, lang.name]);
+                    // Populate language dropdowns with project languages
+                    populateLanguageDropdowns();
+                }
+            } else {
+                // If the project languages endpoint fails, use a default set
+                state.projectLanguages = [
+                    ['en', 'English'],
+                    ['pl', 'Polish'],
+                    ['fr', 'French'],
+                    ['de', 'German'],
+                    ['es', 'Spanish'],
+                    ['pt', 'Portuguese']
+                ];
+                populateLanguageDropdowns();
+            }
+        } catch (error) {
+            console.warn('Failed to load project languages:', error);
+            // Use default languages as fallback
+            state.projectLanguages = [
+                ['en', 'English'],
+                ['pl', 'Polish'],
+                ['fr', 'French'],
+                ['de', 'German'],
+                ['es', 'Spanish'],
+                ['pt', 'Portuguese']
+            ];
+            populateLanguageDropdowns();
+        }
+    }
+
+    /**
+     * Populate language dropdowns with project languages
+     */
+    function populateLanguageDropdowns() {
+        if (!state.projectLanguages) return;
+
+        // Populate the global default language dropdown
+        const globalLangSelect = document.getElementById('defaultLanguage');
+        if (globalLangSelect) {
+            // Clear existing options except the "All Languages" option
+            globalLangSelect.innerHTML = '<option value="*" selected>All Languages</option>';
+
+            // Add project languages
+            state.projectLanguages.forEach(([code, name]) => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = `${name} (${code})`;
+                globalLangSelect.appendChild(option);
+            });
+        }
+
+        // For element-specific language dropdowns in the element config items,
+        // we'll populate them when the elements are rendered or when adding new elements
     }
 
     /**
@@ -244,6 +313,7 @@
             document.getElementById('numberSenses').checked = profile.number_senses !== false;  // Default true
             document.getElementById('numberSensesIfMultiple').checked = profile.number_senses_if_multiple || false;
             document.getElementById('isDefault').checked = profile.is_default;
+            document.getElementById('defaultLanguage').value = profile.default_language || '*';
 
             // Load elements
             renderElementConfig(profile.elements || []);
@@ -343,6 +413,10 @@
             placeholder = 'Type (e.g. synonym, !antonym)';
         }
 
+        // Get the global default language to show as a hint
+        const globalDefaultLang = document.getElementById('defaultLanguage')?.value || '*';
+        const languagePlaceholder = elem.language_filter || (globalDefaultLang && globalDefaultLang !== '*' ? globalDefaultLang : '*');
+
         return `
             <div class="element-config-item" data-element="${elementName}" data-order="${index}">
                 <span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>
@@ -351,10 +425,10 @@
                     <input type="hidden" name="elements[${index}][lift_element]" value="${elementName}">
                 </div>
                 <div class="element-controls">
-                    <input type="text" 
-                           class="form-control form-control-sm" 
-                           name="elements[${index}][css_class]" 
-                           value="${elem.css_class || ''}" 
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           name="elements[${index}][css_class]"
+                           value="${elem.css_class || ''}"
                            placeholder="CSS classes"
                            title="CSS classes to apply">
                     <select class="form-select form-select-sm" name="elements[${index}][visibility]" title="Visibility">
@@ -375,10 +449,10 @@
                     ` : ''}
                     ${datalistHtml}
                     ${(datalistId) ? `
-                    <input type="text" 
-                           class="form-control form-control-sm" 
-                           name="elements[${index}][filter]" 
-                           value="${filter}" 
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           name="elements[${index}][filter]"
+                           value="${filter}"
                            placeholder="${placeholder}"
                            list="${datalistId}"
                            style="width: 150px;"
@@ -393,31 +467,31 @@
                         <option value=" • " ${elem.config?.separator === ' • ' ? 'selected' : ''}>• (bullet)</option>
                     </select>
                     ` : ''}
-                    <input type="text" 
-                           class="form-control form-control-sm" 
-                           name="elements[${index}][language_filter]" 
-                           value="${elem.language_filter || '*'}" 
-                           placeholder="Lang (*=all)"
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           name="elements[${index}][language_filter]"
+                           value="${elem.language_filter || '*'}"
+                           placeholder="${languagePlaceholder}"
                            style="width: 90px;"
-                           title="Language filter (* for all, 'en', 'pl', etc.)">
-                    <input type="number" 
-                           class="form-control form-control-sm" 
-                           name="elements[${index}][display_order]" 
-                           value="${elem.display_order || elem.order || index}" 
-                           style="width: 70px;" 
+                           title="Language filter (override global default: ${globalDefaultLang !== '*' ? globalDefaultLang : 'all'})">
+                    <input type="number"
+                           class="form-control form-control-sm"
+                           name="elements[${index}][display_order]"
+                           value="${elem.display_order || elem.order || index}"
+                           style="width: 70px;"
                            placeholder="Order"
                            title="Display order">
-                    <input type="text" 
-                           class="form-control form-control-sm" 
-                           name="elements[${index}][prefix]" 
-                           value="${elem.prefix || ''}" 
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           name="elements[${index}][prefix]"
+                           value="${elem.prefix || ''}"
                            placeholder="Prefix"
                            style="width: 90px;"
                            title="Text before element">
-                    <input type="text" 
-                           class="form-control form-control-sm" 
-                           name="elements[${index}][suffix]" 
-                           value="${elem.suffix || ''}" 
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           name="elements[${index}][suffix]"
+                           value="${elem.suffix || ''}"
                            placeholder="Suffix"
                            style="width: 90px;"
                            title="Text after element">
@@ -657,12 +731,24 @@
                 configObj.abbr_format = abbrFormat;
             }
 
+            // Get element-specific language filter, or use global default if not specified
+            let elementLanguageFilter = item.querySelector('[name$="[language_filter]"]')?.value || '*';
+            // If element language filter is empty or '*', use the global default if available
+            if ((elementLanguageFilter === '*' || elementLanguageFilter === '') && document.getElementById('defaultLanguage')) {
+                const globalDefault = document.getElementById('defaultLanguage').value;
+                if (globalDefault && globalDefault !== '*') {
+                    elementLanguageFilter = globalDefault;
+                } else {
+                    elementLanguageFilter = '*'; // fallback to all languages
+                }
+            }
+
             const config = {
                 lift_element: elementName,
                 css_class: item.querySelector('[name$="[css_class]"]')?.value || '',
                 visibility: item.querySelector('[name$="[visibility]"]')?.value || 'if-content',
                 display_order: parseInt(item.querySelector('[name$="[display_order]"]')?.value || index),
-                language_filter: item.querySelector('[name$="[language_filter]"]')?.value || '*',
+                language_filter: elementLanguageFilter,
                 prefix: item.querySelector('[name$="[prefix]"]')?.value || '',
                 suffix: item.querySelector('[name$="[suffix]"]')?.value || '',
                 config: configObj
@@ -674,6 +760,7 @@
             name: document.getElementById('profileName').value,
             description: document.getElementById('profileDescription').value,
             custom_css: document.getElementById('profileCustomCSS').value,
+            default_language: document.getElementById('defaultLanguage').value,
             show_subentries: document.getElementById('showSubentries').checked,
             number_senses: document.getElementById('numberSenses').checked,
             number_senses_if_multiple: document.getElementById('numberSensesIfMultiple').checked,
