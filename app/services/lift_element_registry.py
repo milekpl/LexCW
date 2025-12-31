@@ -153,16 +153,16 @@ class LIFTElementRegistry:
     
     def get_displayable_elements(self) -> List[ElementMetadata]:
         """Get elements suitable for display configuration.
-        
+
         Excludes purely structural elements like 'form' and 'text'.
-        
+
         Returns:
             List of displayable ElementMetadata objects
         """
         # Elements that are typically configured in display profiles
         displayable = [
             "lexical-unit", "citation", "pronunciation", "variant",
-            "sense", "subsense", "grammatical-info", "gloss", "definition",
+            "variant-relation", "sense", "subsense", "grammatical-info", "gloss", "definition",
             "example", "reversal", "illustration", "relation", "etymology",
             "note", "field", "trait"
         ]
@@ -210,7 +210,7 @@ class LIFTElementRegistry:
     
     def create_default_profile_elements(self) -> List[Dict[str, Any]]:
         """Create default element configuration for a new profile.
-        
+
         Returns:
             List of element configurations with sensible defaults
         """
@@ -222,24 +222,25 @@ class LIFTElementRegistry:
             ("citation", "inline", "if-content", None),
             ("pronunciation", "inline", "if-content", None),
             ("variant", "inline", "if-content", None),
-            
+            ("variant-relation", "inline", "if-content", None),
+
             # Sense structure (order 100-190)
             ("sense", "block", "if-content", None),
             ("subsense", "block", "if-content", None),
-            
+
             # Sense content (order 200-290)
             ("grammatical-info", "inline", "if-content", None),
             ("gloss", "inline", "if-content", None),
             ("definition", "inline", "if-content", None),
-            
+
             # Examples and translations (order 300-390)
             ("example", "block", "if-content", None),
             ("translation", "block", "if-content", None),
-            
+
             # Additional sense elements (order 400-490)
             ("reversal", "inline", "if-content", None),
             ("illustration", "block", "if-content", None),
-            
+
             # Metadata and extensibility (order 500-590)
             ("note", "block", "if-content", None),
             ("field", "block", "if-content", "custom-field"),

@@ -394,6 +394,8 @@ class RangesService:
         # Try parsing all ranges first
         ranges = self.get_all_ranges()
         if ranges and range_id in ranges:
+            cached_range = ranges[range_id]
+
             # Sanity check: ensure cached ranges are not already mutated with effective_ keys
             try:
                 def contains_effective(node_list):
@@ -404,27 +406,73 @@ class RangesService:
                         if children and contains_effective(children):
                             return True
                     return False
-                cached_vals = ranges[range_id].get('values', [])
+                cached_vals = cached_range.get('values', [])
                 if contains_effective(cached_vals):
                     self.logger.warning(f"Cached range '{range_id}' already contains effective_* fields; this may indicate mutation.")
             except Exception:
                 pass
 
-            # If asked for resolved view, return a deep-copied resolved structure
+            # If the cached range has values from the database, return it directly
+            if cached_range.get('values'):
+                if resolved:
+                    import copy
+                    rcopy = copy.deepcopy(cached_range)
+                    rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'], prefer_lang='en')
+                    return rcopy
+                return cached_range
+
+            # If cached range has empty values BUT came from STANDARD_RANGE_METADATA
+            # (indicated by guid starting with 'provided-'), we should still check
+            # the database for actual elements that may have been added
+            if cached_range.get('guid', '').startswith('provided-'):
+                # Query database for this specific range - it might have elements now
+                # Use local-name() for namespace-insensitive matching
+                db_name = self.db_connector.database
+                query = f"for $range in collection('{db_name}')//*[local-name()='range'][@id='{range_id}'] return $range"
+                self.logger.debug(f"Checking database for range '{range_id}' (empty cached version)")
+                result_xml = self.db_connector.execute_query(query)
+                self.logger.debug(f"Database query result for '{range_id}': {len(result_xml) if result_xml else 0} chars")
+                if result_xml and result_xml.strip():
+                    try:
+                        parsed = self.ranges_parser.parse_string(result_xml)
+                        self.logger.debug(f"Parsed {len(parsed)} ranges from database")
+                        if range_id in parsed:
+                            self.logger.debug(f"Found '{range_id}' in parsed database ranges with {len(parsed[range_id].get('values', []))} values")
+                            # Merge the database version with metadata (label/description from cache)
+                            db_range = parsed[range_id]
+                            db_range['label'] = cached_range.get('label', range_id)
+                            db_range['description'] = cached_range.get('description', {})
+                            db_range['official'] = cached_range.get('official', False)
+                            db_range['standard'] = cached_range.get('standard', True)
+                            db_range['provided_by_config'] = cached_range.get('provided_by_config', False)
+                            db_range['fieldworks_standard'] = cached_range.get('fieldworks_standard', False)
+                            db_range['config_type'] = cached_range.get('config_type')
+
+                            if resolved:
+                                import copy
+                                rcopy = copy.deepcopy(db_range)
+                                if rcopy.get('values'):
+                                    rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'], prefer_lang='en')
+                                return rcopy
+                            return db_range
+                        else:
+                            self.logger.debug(f"Range '{range_id}' not in parsed results, keys: {list(parsed.keys())}")
+                    except ET.ParseError:
+                        self.logger.debug(f"Error parsing database range XML for {range_id}")
+
+            # Return cached version (may have empty values from STANDARD_RANGE_METADATA)
             if resolved:
                 import copy
-                rcopy = copy.deepcopy(ranges[range_id])
-                # Ensure values exist
-                vals = rcopy.get('values', [])
-                if vals:
-                    rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(vals, prefer_lang='en')
+                rcopy = copy.deepcopy(cached_range)
+                if rcopy.get('values'):
+                    rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'], prefer_lang='en')
                 return rcopy
-
-            return ranges[range_id]
+            return cached_range
 
         # If not found, query for the specific range to avoid parsing whole doc
+        # Use local-name() for namespace-insensitive matching
         db_name = self.db_connector.database
-        query = f"for $range in collection('{db_name}')//range[@id='{range_id}'] return $range"
+        query = f"for $range in collection('{db_name}')//*[local-name()='range'][@id='{range_id}'] return $range"
         result_xml = self.db_connector.execute_query(query)
         if not result_xml or not result_xml.strip():
             raise NotFoundError(f"Range '{range_id}' not found")

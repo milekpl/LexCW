@@ -1420,7 +1420,7 @@ async function addSense() {
     }
     
     // Populate semantic domain select for the new sense (sense-level)
-    const semanticDomainSelect = newSenseElement.querySelector('select[name*=".domain_type"]');
+    const semanticDomainSelect = newSenseElement.querySelector('select[name*=".semantic_domain_"]');
     if (semanticDomainSelect && window.rangesLoader) {
         await window.rangesLoader.populateSelect(semanticDomainSelect, 'semantic-domain-ddp4', {
             emptyOption: 'Select semantic domain(s)'

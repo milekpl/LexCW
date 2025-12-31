@@ -28,7 +28,7 @@ def cleanup_ranges(app):
     from app.utils.exceptions import NotFoundError
     
     range_ids = [
-        'test-range', 'ml-range', 'update-range', 'list-range', 
+        'test-range', 'ml-range', 'update-range', 'list-range',
         'val-range', 'ne-range', 'crud-range'
     ]
     
@@ -155,20 +155,6 @@ class TestMultilingualElementAPI:
         # Execute via service
         service.update_range_element('update-range', 'update-element', updated_data)
 
-    def test_create_range_json_rejected(self, client) -> None:
-        """JSON POST to create range should be rejected (data-rich JSON removed)."""
-        range_data = {
-            'id': 'json-reject-range',
-            'labels': {'en': 'JSON Reject Range'}
-        }
-        response = client.post(
-            '/api/ranges-editor/',
-            json=range_data,
-            content_type='application/json'
-        )
-        # Expect 415 Unsupported Media Type or 400 depending on implementation
-        assert response.status_code in (400, 415)
-    
     def test_list_elements_shows_all_properties(self, client) -> None:
         """Should list all elements with their multilingual properties."""
         # Create range

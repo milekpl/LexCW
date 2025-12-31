@@ -1,0 +1,452 @@
+{
+  "template_id": "research",
+  "name": "Research Validation",
+  "description": "Comprehensive validation rules for research projects. Maximum validation coverage including date formats, language codes, and all structural checks.",
+  "category": "research",
+  "version": "1.0",
+  "rules": [
+    {
+      "rule_id": "R1.1.1",
+      "name": "entry_id_required",
+      "description": "Entry ID is required and must be non-empty",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.id",
+      "condition": {
+        "type": "required"
+      },
+      "validation": {
+        "type": "string",
+        "minLength": 1
+      },
+      "error_message": "Entry ID is required and must be non-empty"
+    },
+    {
+      "rule_id": "R1.1.2",
+      "name": "lexical_unit_required",
+      "description": "Lexical unit is required and must contain at least one language entry",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.lexical_unit",
+      "condition": {
+        "type": "required"
+      },
+      "validation": {
+        "type": "object",
+        "minProperties": 1
+      },
+      "error_message": "Lexical unit is required and must contain at least one language entry"
+    },
+    {
+      "rule_id": "R1.1.3",
+      "name": "sense_required_non_variant",
+      "description": "At least one sense is required per entry (except for variant entries)",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.senses",
+      "condition": {
+        "type": "conditional",
+        "when": {
+          "not": {
+            "path": "$.relations[*]",
+            "contains": {
+              "field": "type",
+              "value": "_component-lexeme"
+            }
+          }
+        }
+      },
+      "validation": {
+        "type": "array",
+        "minItems": 1
+      },
+      "error_message": "At least one sense is required per entry",
+      "validation_mode": "save_only"
+    },
+    {
+      "rule_id": "R1.2.2",
+      "name": "lexical_unit_content_validation",
+      "description": "Lexical unit content must be non-empty strings",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.lexical_unit.*",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S+"
+      },
+      "error_message": "Lexical unit content cannot be empty or contain only whitespace"
+    },
+    {
+      "rule_id": "R1.2.3",
+      "name": "language_code_validation",
+      "description": "Lexical unit must contain at least one language",
+      "category": "entry_level",
+      "priority": "critical",
+      "path": "$.lexical_unit",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "object",
+        "minProperties": 1
+      },
+      "error_message": "Lexical unit must contain at least one language"
+    },
+    {
+      "rule_id": "R1.2.4",
+      "name": "language_code_format",
+      "description": "Language codes must follow RFC 4646 format",
+      "category": "entry_level",
+      "priority": "warning",
+      "path": "$.lexical_unit",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_language_code_format"
+      },
+      "error_message": "Invalid language code format"
+    },
+    {
+      "rule_id": "R2.1.1",
+      "name": "sense_id_required",
+      "description": "Sense ID is required and must be non-empty",
+      "category": "sense_level",
+      "priority": "critical",
+      "path": "$.senses[*].id",
+      "condition": {
+        "type": "required"
+      },
+      "validation": {
+        "type": "string",
+        "minLength": 1
+      },
+      "error_message": "Sense ID is required and must be non-empty"
+    },
+    {
+      "rule_id": "R2.1.2",
+      "name": "sense_content_or_variant",
+      "description": "Sense must have definition, gloss, or variant reference",
+      "category": "sense_level",
+      "priority": "critical",
+      "path": "$.senses[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_sense_content_or_variant"
+      },
+      "error_message": "Sense must have definition, gloss, or be a variant reference"
+    },
+    {
+      "rule_id": "R2.2.1",
+      "name": "definition_content_validation",
+      "description": "Sense definitions must have at least one non-empty language value",
+      "category": "sense_level",
+      "priority": "critical",
+      "path": "$.senses[*].definition",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "object_has_non_empty_value"
+      },
+      "error_message": "Sense definition cannot be empty or contain only whitespace"
+    },
+    {
+      "rule_id": "R2.2.2",
+      "name": "gloss_content_validation",
+      "description": "Sense glosses must have at least one non-empty language value",
+      "category": "sense_level",
+      "priority": "critical",
+      "path": "$.senses[*].gloss",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "object_has_non_empty_value"
+      },
+      "error_message": "Sense gloss cannot be empty or contain only whitespace"
+    },
+    {
+      "rule_id": "R2.2.3",
+      "name": "example_text_validation",
+      "description": "Example texts must be non-empty when example is present",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*].examples[*].text",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S+"
+      },
+      "error_message": "Example text cannot be empty or contain only whitespace"
+    },
+    {
+      "rule_id": "R3.1.1",
+      "name": "unique_note_types",
+      "description": "Note types must be unique within entry",
+      "category": "notes_level",
+      "priority": "warning",
+      "path": "$.notes",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "object_unique_keys"
+      },
+      "error_message": "Duplicate note type found"
+    },
+    {
+      "rule_id": "R3.1.2",
+      "name": "note_content_validation",
+      "description": "Note content must be non-empty",
+      "category": "notes_level",
+      "priority": "warning",
+      "path": "$.notes",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_note_content"
+      },
+      "error_message": "Note content cannot be empty"
+    },
+    {
+      "rule_id": "R3.2.1",
+      "name": "multilingual_note_structure",
+      "description": "Multilingual notes must be objects with at least one language",
+      "category": "notes_level",
+      "priority": "critical",
+      "path": "$.notes.*",
+      "condition": {
+        "type": "if_type",
+        "value_type": "object"
+      },
+      "validation": {
+        "type": "object",
+        "minProperties": 1
+      },
+      "error_message": "Multilingual note must contain at least one language"
+    },
+    {
+      "rule_id": "R3.2.2",
+      "name": "multilingual_note_language_codes",
+      "description": "Multilingual notes must use valid language codes",
+      "category": "notes_level",
+      "priority": "critical",
+      "path": "$.notes",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_multilingual_note_structure"
+      },
+      "error_message": "Invalid language code in multilingual note"
+    },
+    {
+      "rule_id": "R4.1.1",
+      "name": "pronunciation_language_codes",
+      "description": "Pronunciation language codes must be valid",
+      "category": "pronunciation_level",
+      "priority": "critical",
+      "path": "$.pronunciations",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "object",
+        "keys_in": ["pl-fonipa", "en-fonipa", "seh-fonipa", "ipa"]
+      },
+      "error_message": "Invalid pronunciation language code"
+    },
+    {
+      "rule_id": "R5.1.1",
+      "name": "synonym_antonym_exclusion",
+      "description": "Entries cannot be both synonym and antonym",
+      "category": "relations_level",
+      "priority": "warning",
+      "path": "$.relations",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_synonym_antonym_exclusion"
+      },
+      "error_message": "Entry cannot have both synonym and antonym relations to the same entry"
+    },
+    {
+      "rule_id": "R5.3.1",
+      "name": "relation_targets_exist",
+      "description": "All relation targets must exist in the dictionary",
+      "category": "relation_validation",
+      "priority": "critical",
+      "path": "$.relations[*]",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_relation_targets_exist"
+      },
+      "error_message": "Relation target '{value}' does not exist in the dictionary"
+    },
+    {
+      "rule_id": "R5.2.1",
+      "name": "subsense_depth",
+      "description": "Subsense nesting must not exceed 3 levels",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*]",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_subsense_depth"
+      },
+      "error_message": "Subsense nesting exceeds maximum depth of 3"
+    },
+    {
+      "rule_id": "R6.1.1",
+      "name": "unique_languages_in_multitext",
+      "description": "Language codes must be unique in multilingual content",
+      "category": "general",
+      "priority": "critical",
+      "path": "$.senses[*].definition",
+      "condition": {
+        "type": "if_type",
+        "value_type": "object"
+      },
+      "validation": {
+        "type": "object_unique_keys"
+      },
+      "error_message": "Duplicate language code found in multilingual content"
+    },
+    {
+      "rule_id": "R6.1.2",
+      "name": "pos_consistency",
+      "description": "Part-of-speech should be consistent between entry and senses",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_pos_consistency"
+      },
+      "error_message": "Sense POS differs from entry POS"
+    },
+    {
+      "rule_id": "R6.1.3",
+      "name": "conflicting_pos_requires_entry_pos",
+      "description": "Conflicting sense POS values require entry POS to be set",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_conflicting_pos"
+      },
+      "error_message": "Conflicting POS values in senses require entry-level POS"
+    },
+    {
+      "rule_id": "R7.1.1",
+      "name": "date_fields_format",
+      "description": "Date fields must be in ISO8601 format",
+      "category": "entry_level",
+      "priority": "warning",
+      "path": "$.[date_created,date_modified]",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}"
+      },
+      "error_message": "Date field must be in ISO8601 format (YYYY-MM-DDTHH:MM:SS)"
+    },
+    {
+      "rule_id": "R7.1.2",
+      "name": "date_fields_validation",
+      "description": "Validate date fields throughout entry",
+      "category": "entry_level",
+      "priority": "warning",
+      "path": "$",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_date_fields",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}"
+      },
+      "error_message": "Invalid date format"
+    },
+    {
+      "rule_id": "R8.1.1",
+      "name": "no_circular_component_references",
+      "description": "Component relations must not reference the entry itself",
+      "category": "relation_validation",
+      "priority": "critical",
+      "path": "$.relations[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_no_circular_components"
+      },
+      "error_message": "Component relation cannot reference the entry itself (circular reference)"
+    },
+    {
+      "rule_id": "R8.1.2",
+      "name": "no_circular_sense_references",
+      "description": "Sense relations must not reference senses within the same entry",
+      "category": "relation_validation",
+      "priority": "critical",
+      "path": "$.senses[*].relations[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_no_circular_sense_relations"
+      },
+      "error_message": "Sense relation cannot reference a sense within the same entry (circular reference)"
+    },
+    {
+      "rule_id": "R8.1.3",
+      "name": "no_circular_entry_references",
+      "description": "Entry-level relations must not reference the entry itself",
+      "category": "relation_validation",
+      "priority": "critical",
+      "path": "$.relations[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_no_circular_entry_relations"
+      },
+      "error_message": "Entry relation cannot reference the entry itself (circular reference)"
+    }
+  ]
+}

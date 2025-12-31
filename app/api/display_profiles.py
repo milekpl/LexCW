@@ -5,6 +5,8 @@ Provides REST API for CRUD operations on display profiles.
 
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, jsonify, request, current_app
 from typing import Dict, Any
 
@@ -463,15 +465,39 @@ def preview_profile():
         description: Invalid data
     """
     data = request.get_json()
-    
+
     if not data:
         return jsonify({"error": "Request body is required"}), 400
-    
+
     try:
         from app.services.css_mapping_service import CSSMappingService
         from app.services.dictionary_service import DictionaryService
         from app.models.display_profile import DisplayProfile, ProfileElement
-        
+        import hashlib
+        import json
+
+        # Generate cache key from profile configuration
+        cache_data = {
+            'elements': data.get('elements', []),
+            'custom_css': data.get('custom_css', ''),
+            'show_subentries': data.get('show_subentries', False),
+            'number_senses': data.get('number_senses', True),
+            'entry_id': data.get('entry_id', '')
+        }
+        cache_key = f"preview:{hashlib.sha256(json.dumps(cache_data, sort_keys=True).encode()).hexdigest()}"
+
+        cache_service = None
+        # Try to get cached result
+        try:
+            cache_service = current_app.injector.get('cache_service')
+            if hasattr(cache_service, 'get') and cache_service.is_available():
+                cached_result = cache_service.get(cache_key)
+                if cached_result:
+                    current_app.logger.debug(f"Preview cache hit: {cache_key[:16]}...")
+                    return jsonify(cached_result), 200
+        except Exception as e:
+            current_app.logger.debug(f"Preview cache unavailable: {e}")
+
         # Create a temporary profile object (not saved to database)
         temp_profile = DisplayProfile(
             id=0,
@@ -483,7 +509,7 @@ def preview_profile():
             is_default=False,
             is_system=False
         )
-        
+
         # Add elements to temporary profile
         temp_profile.elements = []
         for elem_config in data.get('elements', []):
@@ -499,11 +525,11 @@ def preview_profile():
                 config=elem_config.get('config')
             )
             temp_profile.elements.append(elem)
-        
+
         # Get a sample entry or specified entry
         dict_service = current_app.injector.get(DictionaryService)
         entry_id = data.get('entry_id')
-        
+
         if not entry_id:
             # Get a clean, simple entry (skip test entries)
             query = """
@@ -515,7 +541,7 @@ def preview_profile():
                 return $entry
             """
             result = dict_service.db_connector.execute_query(query)
-            
+
             # Take just the first entry from the result
             if result and '<entry' in result:
                 # Extract first complete entry element
@@ -535,22 +561,204 @@ def preview_profile():
                 entry_id, db_name, has_ns
             )
             entry_xml = dict_service.db_connector.execute_query(query)
-        
+
         if not entry_xml or not entry_xml.strip():
             return jsonify({"error": "No entry found for preview"}), 404
-        
+
         # Ensure entry_xml is wrapped in a root element if it's not already valid XML
         # BaseX might return just the entry element without a root wrapper
         if not entry_xml.strip().startswith('<?xml'):
             # Wrap in a temporary root to ensure valid XML parsing
             entry_xml = f'<root>{entry_xml}</root>'
-        
+
         # Render with CSS mapping service
         css_service = CSSMappingService()
         html = css_service.render_entry(entry_xml, temp_profile, dict_service=dict_service)
-        
-        return jsonify({"html": html}), 200
-    
+
+        # Cache the result
+        result_data = {"html": html}
+        try:
+            if cache_service is not None and cache_service.is_available():
+                cache_service.set(cache_key, result_data, ttl=300)  # 5 minute TTL for preview
+                current_app.logger.debug(f"Cached preview result: {cache_key[:16]}...")
+        except Exception as e:
+            current_app.logger.debug(f"Failed to cache preview: {e}")
+
+        return jsonify(result_data), 200
+
     except Exception as e:
         current_app.logger.error(f"Error generating preview: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
+@profiles_bp.route("/validate-css", methods=["POST"])
+def validate_css():
+    """
+    Validate custom CSS syntax before saving a profile
+    ---
+    tags:
+      - Display Profiles
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              custom_css:
+                type: string
+                description: CSS code to validate
+    responses:
+      200:
+        description: Validation result
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                valid:
+                  type: boolean
+                errors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      line:
+                        type: integer
+                warnings:
+                  type: array
+                  items:
+                    type: object
+      400:
+        description: Invalid request
+    """
+    data = request.get_json(silent=True)
+
+    if not data:
+        # Empty request is valid (empty CSS)
+        return jsonify({
+            "valid": True,
+            "errors": [],
+            "warnings": []
+        })
+
+    custom_css = data.get('custom_css', '')
+
+    # Empty CSS is valid (no custom styling)
+    if not custom_css or not custom_css.strip():
+        return jsonify({
+            "valid": True,
+            "errors": [],
+            "warnings": []
+        })
+
+    errors = []
+    warnings = []
+
+    try:
+        import re
+
+        # Check for basic CSS syntax issues
+        lines = custom_css.split('\n')
+
+        for i, line in enumerate(lines, 1):
+            stripped = line.strip()
+
+            # Skip empty lines and comments
+            if not stripped or stripped.startswith('/*') or stripped.startswith('*'):
+                continue
+
+            # Check for unclosed braces
+            open_braces = stripped.count('{')
+            close_braces = stripped.count('}')
+
+            if stripped.endswith('{') and close_braces == 0:
+                pass  # Opening brace line - will be balanced later
+
+            if stripped.count('{') > stripped.count('}') + 1:
+                errors.append({
+                    "message": "Too many opening braces",
+                    "line": i
+                })
+
+            # Check for unclosed strings
+            single_quotes = stripped.count("'") - stripped.count("\\'")
+            double_quotes = stripped.count('"') - stripped.count('\\"')
+
+            if single_quotes % 2 != 0:
+                errors.append({
+                    "message": "Unclosed single quote",
+                    "line": i
+                })
+            if double_quotes % 2 != 0:
+                errors.append({
+                    "message": "Unclosed double quote",
+                    "line": i
+                })
+
+            # Check for common typos
+            if ':;' in stripped:
+                warnings.append({
+                    "message": "Suspicious ':;' pattern - possible typo",
+                    "line": i
+                })
+
+            # Check for invalid property separators
+            if re.search(r'[^:];', stripped):
+                warnings.append({
+                    "message": "Extra semicolon found - properties may not parse correctly",
+                    "line": i
+                })
+
+        # Final brace balance check
+        total_open = custom_css.count('{')
+        total_close = custom_css.count('}')
+
+        if total_open > total_close:
+            errors.append({
+                "message": f"Unclosed CSS block(s): {total_open - total_close} missing closing brace(s)",
+                "line": len(lines)
+            })
+        elif total_close > total_open:
+            errors.append({
+                "message": f"Extra closing brace(s): {total_close - total_open} without matching opening",
+                "line": len(lines)
+            })
+
+        # Try to use cssutils for more thorough validation if available
+        try:
+            import cssutils
+            # Suppress cssutils logging
+            cssutils.log.setLevel(logging.CRITICAL)
+
+            sheet = cssutils.parseString(custom_css)
+
+            for error in sheet.cssRules:
+                if error.type == cssutils.css.CSSRule.STYLE_RULE:
+                    # Valid rule
+                    pass
+                elif error.type == cssutils.css.CSSRule.IMPORT_RULE:
+                    warnings.append({
+                        "message": "@import rules may not work in all contexts",
+                        "line": error.linenumber if hasattr(error, 'linenumber') else 0
+                    })
+
+        except Exception as e:
+            # cssutils parsing failed - already caught by our basic checks
+            pass
+
+        return jsonify({
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error validating CSS: {e}", exc_info=True)
+        return jsonify({
+            "valid": False,
+            "errors": [{"message": f"Validation error: {str(e)}", "line": 0}],
+            "warnings": []
+        })

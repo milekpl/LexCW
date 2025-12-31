@@ -68,7 +68,16 @@ def basex_available() -> bool:
 
 @pytest.fixture(scope="function")
 def test_db_name() -> str:
-    """Generate a unique test database name."""
+    """
+    Generate a unique test database name.
+
+    Uses TEST_DB_NAME if already set (e.g., by Flask app initialization at import time),
+    otherwise generates a new unique name. This ensures consistency between the Flask app
+    and test fixtures.
+    """
+    # Use TEST_DB_NAME if already set (set at module import time for Flask compatibility)
+    if os.environ.get('TEST_DB_NAME'):
+        return os.environ['TEST_DB_NAME']
     return generate_safe_db_name('unit')
 
 
@@ -76,38 +85,50 @@ def test_db_name() -> str:
 def safe_test_db_name(request) -> str:
     """
     Generate a safe, unique test database name.
-    
+
     Determines test type from the request path and generates
-    an appropriate safe database name.
+    an appropriate safe database name. Uses TEST_DB_NAME if already set
+    to ensure consistency with Flask app initialization.
     """
-    # Determine test type from request
-    test_path = str(request.fspath).replace('\\', '/')  # Normalize path separators
-    if "e2e" in test_path:
-        test_type = "e2e"
-    elif "integration" in test_path:
-        test_type = "integration"
+    # Use TEST_DB_NAME if already set (set at module import time for Flask compatibility)
+    if os.environ.get('TEST_DB_NAME'):
+        db_name = os.environ['TEST_DB_NAME']
     else:
-        test_type = "unit"
-    
-    db_name = generate_safe_db_name(test_type)
-    
+        # Determine test type from request
+        test_path = str(request.fspath).replace('\\', '/')  # Normalize path separators
+        if "e2e" in test_path:
+            test_type = "e2e"
+        elif "integration" in test_path:
+            test_type = "integration"
+        else:
+            test_type = "unit"
+
+        db_name = generate_safe_db_name(test_type)
+
     # Validate safety
     if not is_safe_database_name(db_name):
         pytest.fail(f"Generated unsafe database name: {db_name}")
-    
+
     return db_name
 
 
 @pytest.fixture(scope="function")
 def basex_test_connector(basex_available: bool, test_db_name: str):
-    """Create BaseX connector with isolated test database."""
+    """Create BaseX connector with isolated test database.
+
+    For integration tests that set TEST_DB_NAME (session-scoped), this fixture
+    uses the shared database name. For unit tests, it creates an isolated database.
+    """
     if not basex_available:
         pytest.skip("BaseX server not available")
-    
-    # Check if we are using a shared database (e.g., for integration tests)
+
+    # Check if we should use a shared database (set by session-scoped fixture for integration tests)
     shared_db_name = os.environ.get('TEST_DB_NAME')
-    is_shared_db = shared_db_name and test_db_name == shared_db_name
-    
+    use_shared_db = shared_db_name is not None
+
+    # Use shared DB name if available, otherwise use the function-scoped test_db_name
+    db_name = shared_db_name if use_shared_db else test_db_name
+
     # First create connector without database to create the database
     connector = BaseXConnector(
         host=os.getenv('BASEX_HOST', 'localhost'),
@@ -116,32 +137,40 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         password=os.getenv('BASEX_PASSWORD', 'admin'),
         database=None,  # No database initially
     )
-    
+
     try:
         # Connect without opening a database
         connector.connect()
-        
+
         # Create the test database
-        if is_shared_db:
-            # For shared DB, try to create but ignore if it exists (or if it's locked)
+        if use_shared_db:
+            # For shared DB, try to create but ignore if it exists or is locked
+            # (another fixture or process may have already created it)
             try:
-                connector.create_database(test_db_name)
+                connector.create_database(db_name)
             except Exception:
                 # Assuming it exists or is in use, which is fine for shared DB
                 pass
         else:
             # For isolated DB, explicit creation is expected to succeed
-            connector.create_database(test_db_name)
-        
+            connector.create_database(db_name)
+
         # Now set the database name and reconnect
-        connector.database = test_db_name
+        connector.database = db_name
         connector.disconnect()
         connector.connect()  # Reconnect with the database
-        
-        # Add sample LIFT content using BaseX command
-        # For shared DB, we do this every time because ensure_clean_basex_db might have cleared it
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+
+        # Check if test_entry_1 already exists to avoid duplicates
+        try:
+            check_query = "xquery exists(collection('" + db_name + "')//*:entry[@id='test_entry_1'])"
+            entry_exists = connector.execute_query(check_query)
+            if entry_exists and entry_exists.strip().lower() == 'true':
+                logger.info("test_entry_1 already exists, skipping ADD")
+            else:
+                # Add sample LIFT content using BaseX command
+                # For shared DB, we add data every time because other fixtures may have cleared it
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                    sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
     <entry id="test_entry_1">
         <lexical-unit>
@@ -162,25 +191,24 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         </relation>
     </entry>
 </lift>'''
-            f.write(sample_lift)
-            temp_file = f.name
-        
-        # Use BaseX ADD command to add the document to the database
-        try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info("Added LIFT data to test database using ADD command")
+                    f.write(sample_lift)
+                    temp_file = f.name
+
+                # Add sample data - for shared DB always add, for isolated DB add once
+                try:
+                    connector.execute_command(f"ADD {temp_file}")
+                    logger.info(f"Added LIFT data to {'shared' if use_shared_db else 'isolated'} test database")
+                except Exception as e:
+                    logger.warning(f"Failed to add data with ADD command: {e}")
+
+                # Clean up temp file (always)
+                try:
+                    os.unlink(temp_file)
+                except OSError:
+                    pass
         except Exception as e:
-            if not is_shared_db:
-                logger.warning(f"Failed to add data with ADD command: {e}")
-            # For shared DB, failure might mean it's already there or DB locked (less likely with ADD)
-            # but we proceed.
-        finally:
-            # Clean up temp file
-            try:
-                os.unlink(temp_file)
-            except OSError:
-                pass
-        
+            logger.warning(f"Failed to check for existing entries: {e}")
+
         # Add ranges.xml similarly
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
             ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -206,22 +234,30 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         <range-element id="spelling" label="Spelling Variant"/>
         <range-element id="dialectal" label="Dialectal Variant"/>
     </range>
+    <range id="lexical-relation">
+        <range-element id="synonym" label="Synonym"/>
+        <range-element id="antonym" label="Antonym"/>
+        <range-element id="hypernym" label="Hypernym"/>
+        <range-element id="hyponym" label="Hyponym"/>
+        <range-element id="component-lexeme" label="Component Lexeme"/>
+    </range>
 </lift-ranges>'''
             f.write(ranges_xml)
             temp_file = f.name
-        
+
+        # Add ranges - always add for shared DB (ranges may have been cleared), add once for isolated
         try:
             connector.execute_command(f"ADD {temp_file}")
-            logger.info("Added ranges.xml to test database")
+            logger.info(f"Added ranges.xml to {'shared' if use_shared_db else 'isolated'} test database")
         except Exception as e:
-            if not is_shared_db:
-                logger.warning(f"Failed to add ranges.xml: {e}")
-        finally:
-            try:
-                os.unlink(temp_file)
-            except OSError:
-                pass
-        
+            logger.warning(f"Failed to add ranges.xml: {e}")
+
+        # Clean up temp file (always)
+        try:
+            os.unlink(temp_file)
+        except OSError:
+            pass
+
         yield connector
         
     finally:
@@ -232,8 +268,8 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
             except Exception:
                 pass
 
-            # Only drop if it's NOT a shared database
-            if not is_shared_db:
+            # Only drop if it's NOT a shared database (shared DB is dropped by session fixture)
+            if not use_shared_db:
                 cleanup_connector = BaseXConnector(
                     host=os.getenv('BASEX_HOST', 'localhost'),
                     port=int(os.getenv('BASEX_PORT', '1984')),
@@ -242,11 +278,11 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
                     database=None,
                 )
                 cleanup_connector.connect()
-                cleanup_connector.drop_database(test_db_name)
-                logger.info(f"Dropped test database: {test_db_name}")
+                cleanup_connector.drop_database(db_name)
+                logger.info(f"Dropped isolated test database: {db_name}")
                 cleanup_connector.disconnect()
         except Exception as e:
-            logger.warning(f"Failed to drop test database {test_db_name}: {e}")
+            logger.warning(f"Failed to drop test database {db_name}: {e}")
             try:
                 if 'cleanup_connector' in locals():
                     cleanup_connector.disconnect()
@@ -333,6 +369,10 @@ def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, requ
         <range-element id="Noun" label="Noun" abbrev="n"/>
         <range-element id="Verb" label="Verb" abbrev="v"/>
     </range>
+    <range id="lexical-relation">
+        <range-element id="synonym" label="Synonym"/>
+        <range-element id="antonym" label="Antonym"/>
+    </range>
 </lift-ranges>'''
             f.write(ranges_xml)
             temp_file = f.name
@@ -400,7 +440,12 @@ def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, requ
 
 @pytest.fixture(scope="function")
 def dict_service_with_db(basex_test_connector: BaseXConnector) -> DictionaryService:
-    """Create dictionary service with real test database."""
+    """Create dictionary service with real test database.
+
+    For integration tests using a shared session-scoped database (via TEST_DB_NAME),
+    this fixture correctly uses the shared database. For unit tests, it creates
+    an isolated database per test function.
+    """
     return DictionaryService(db_connector=basex_test_connector)
 
 

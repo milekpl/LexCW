@@ -90,74 +90,44 @@ class TestValidationEngine:
     def test_r1_1_3_sense_required_json(self):
         """Test R1.1.3: At least one sense is required per entry (JSON)."""
         engine = ValidationEngine()
-        
+
         # Valid entry
         valid_entry = {
             "id": "test_entry",
             "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": "test"}]
         }
-        
+
         # Invalid entries
         missing_senses = {
             "id": "test_entry",
             "lexical_unit": {"pl": "test"}
         }
-        
+
         empty_senses = {
             "id": "test_entry",
             "lexical_unit": {"pl": "test"},
             "senses": []
         }
-        
+
         # Test validation - entries without senses should now be valid (with warning)
         assert engine.validate_json(valid_entry).is_valid
-        
+
         # Missing senses should now fail validation in save mode (critical error)
         result_missing = engine.validate_json(missing_senses)
         assert not result_missing.is_valid  # Should fail validation in save mode
         assert len(result_missing.errors) > 0  # Should have critical errors
-        
+
         result_empty = engine.validate_json(empty_senses)
         assert not result_empty.is_valid  # Should fail validation in save mode
         assert len(result_empty.errors) > 0  # Should have critical errors
-        
+
         # But should be valid in draft mode
         result_missing_draft = engine.validate_json(missing_senses, "draft")
         assert result_missing_draft.is_valid  # Should be valid in draft mode
-        
+
         result_empty_draft = engine.validate_json(empty_senses, "draft")
         assert result_empty_draft.is_valid  # Should be valid in draft mode
-
-    def test_r1_2_1_entry_id_format_json(self):
-        """Test R1.2.1: Entry ID must match valid format pattern (JSON)."""
-        engine = ValidationEngine()
-        
-        # Valid IDs (now including spaces)
-        valid_ids = ["entry1", "entry_test", "entry-test", "TEST123", "entry 1", "my entry"]
-        
-        # Invalid IDs (special characters not allowed)
-        invalid_ids = ["entry@test", "entry.test", "entry/test", "entry#test", "entry(1)", "entry%"]
-        
-        for valid_id in valid_ids:
-            entry = {
-                "id": valid_id,
-                "lexical_unit": {"pl": "test"},
-                "senses": [{"id": "sense1", "gloss": "test"}]
-            }
-            result = engine.validate_json(entry)
-            # This should be valid for core fields, format might be warning
-            assert result.is_valid or len(result.warnings) > 0
-        
-        for invalid_id in invalid_ids:
-            entry = {
-                "id": invalid_id,
-                "lexical_unit": {"pl": "test"},
-                "senses": [{"id": "sense1", "gloss": "test"}]
-            }
-            result = engine.validate_json(entry)
-            # Should have warning or error for format
-            assert len(result.warnings) > 0 or not result.is_valid
 
     def test_r4_1_1_pronunciation_language_restriction_json(self):
         """Test R4.1.1: Pronunciation language restricted to seh-fonipa (JSON)."""

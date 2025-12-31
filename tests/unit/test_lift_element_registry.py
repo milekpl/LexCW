@@ -97,15 +97,17 @@ class TestLIFTElementRegistry:
     def test_get_displayable_elements(self, registry: LIFTElementRegistry) -> None:
         """Test getting elements suitable for display profiles."""
         displayable = registry.get_displayable_elements()
-        
+
         assert len(displayable) > 0
-        
+
         names = {elem.name for elem in displayable}
         # Should include main displayable elements
         assert "lexical-unit" in names
         assert "pronunciation" in names
         assert "sense" in names
-        
+        # Should include variant-relation for configuring variant-type relations
+        assert "variant-relation" in names
+
         # Should not include purely structural elements
         assert "form" not in names
         assert "text" not in names
@@ -137,11 +139,12 @@ class TestLIFTElementRegistry:
     def test_get_relation_types(self, registry: LIFTElementRegistry) -> None:
         """Test retrieving relation types."""
         relation_types = registry.get_relation_types()
-        
+
         assert isinstance(relation_types, list)
-        assert len(relation_types) > 0
-        assert "synonym" in relation_types
-        assert "antonym" in relation_types
+        # Registry only contains implicit SIL internal types like _component-lexeme
+        # Real relation types should be loaded dynamically from lexical-relation range
+        assert len(relation_types) >= 1
+        assert "_component-lexeme" in relation_types
 
     def test_get_note_types(self, registry: LIFTElementRegistry) -> None:
         """Test retrieving note types."""
@@ -164,21 +167,24 @@ class TestLIFTElementRegistry:
     def test_create_default_profile_elements(self, registry: LIFTElementRegistry) -> None:
         """Test creating default element configuration."""
         default_elements = registry.create_default_profile_elements()
-        
+
         assert isinstance(default_elements, list)
         assert len(default_elements) > 0
-        
+
         # Check structure of element configs
         for elem_config in default_elements:
             assert "lift_element" in elem_config
             assert "display_order" in elem_config
             assert "css_class" in elem_config
             assert "visibility" in elem_config
-        
+
         # Check expected default elements
         names = {elem["lift_element"] for elem in default_elements}
         assert "lexical-unit" in names
         assert "pronunciation" in names
+        assert "variant" in names
+        # Variant-relation should be in default profile for variant-type relations
+        assert "variant-relation" in names
 
     def test_validate_element_config_valid(self, registry: LIFTElementRegistry) -> None:
         """Test validating a valid element configuration."""

@@ -7,6 +7,7 @@ using the centralized validation engine.
 
 from __future__ import annotations
 
+import json
 from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
 from typing import Dict, Any, List
@@ -449,7 +450,7 @@ def validate_language(language_code: str, project_settings: Dict[str, Any]) -> D
     """Validate if a language is configured for the project."""
     configured_languages: List[str] = [project_settings['source_language']['code']] + \
                                    [lang['code'] for lang in project_settings['target_languages']]
-    
+
     if language_code not in configured_languages:
         return {
             'is_valid': False,
@@ -463,3 +464,136 @@ def validate_language(language_code: str, project_settings: Dict[str, Any]) -> D
         'warnings': [],
         'info': []
     }
+
+
+@validation_service_bp.route('/api/validation/batch', methods=['POST'])
+@swag_from({
+    'tags': ['Validation'],
+    'summary': 'Batch validate multiple entries',
+    'description': 'Validates multiple entries against validation rules and returns summary',
+    'parameters': [
+        {
+            'name': 'entries',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'entries': {
+                        'type': 'array',
+                        'items': {'type': 'object'}
+                    },
+                    'priority_filter': {
+                        'type': 'string',
+                        'description': 'Filter by priority: critical, warning, informational, or all'
+                    }
+                }
+            }
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Batch validation results',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'total_entries': {'type': 'integer'},
+                    'valid_entries': {'type': 'integer'},
+                    'invalid_entries': {'type': 'integer'},
+                    'results': {'type': 'array'}
+                }
+            }
+        }
+    }
+})
+def batch_validate_entries() -> tuple[Dict[str, Any], int]:
+    """
+    Batch validate multiple entries against validation rules.
+
+    Returns a summary of valid and invalid entries along with detailed results.
+    """
+    try:
+        if not request.is_json:
+            return {'error': 'Request must be JSON'}, 400
+
+        data = request.get_json()
+        if not data or 'entries' not in data:
+            return {'error': 'No entries data provided'}, 400
+
+        entries = data.get('entries', [])
+        priority_filter = data.get('priority_filter', 'all')
+
+        # Initialize validation engine
+        engine = ValidationEngine()
+
+        results = []
+        valid_count = 0
+        invalid_count = 0
+
+        for entry in entries:
+            # Skip entries that are not dictionaries or strings
+            if not isinstance(entry, dict) and not isinstance(entry, str):
+                current_app.logger.warning(f"Skipping entry of type {type(entry).__name__}: not a dict or string")
+                continue
+
+            # Try to parse string entries as JSON
+            entry_data = entry
+            entry_id = 'unknown'
+
+            if isinstance(entry, str):
+                try:
+                    entry_data = json.loads(entry)
+                except json.JSONDecodeError as e:
+                    current_app.logger.warning(f"Failed to parse entry as JSON: {str(e)}")
+                    results.append({
+                        'entry_id': 'unknown',
+                        'valid': False,
+                        'error_count': 1,
+                        'has_critical_errors': True,
+                        'errors': [{'message': f'Invalid JSON format: {str(e)}', 'priority': 'critical', 'category': 'general'}],
+                        'warnings': [],
+                        'info': []
+                    })
+                    invalid_count += 1
+                    continue
+
+            # Get entry_id safely
+            if isinstance(entry_data, dict):
+                entry_id = entry_data.get('id', 'unknown')
+
+            # Perform validation
+            result = engine.validate_json(entry_data)
+
+            # Filter by priority if needed
+            if priority_filter != 'all':
+                result.errors = [e for e in result.errors if e.priority.value == priority_filter]
+                result.warnings = [w for w in result.warnings if w.priority.value == priority_filter]
+                result.info = [i for i in result.info if i.priority.value == priority_filter]
+
+            entry_result = {
+                'entry_id': entry_id,
+                'valid': result.is_valid,
+                'error_count': result.error_count,
+                'has_critical_errors': result.has_critical_errors,
+                'errors': [_error_to_dict(error) for error in result.errors],
+                'warnings': [_error_to_dict(warning) for warning in result.warnings],
+                'info': [_error_to_dict(info) for info in result.info]
+            }
+
+            results.append(entry_result)
+
+            if result.is_valid:
+                valid_count += 1
+            else:
+                invalid_count += 1
+
+        return {
+            'total_entries': len(entries),
+            'valid_entries': valid_count,
+            'invalid_entries': invalid_count,
+            'results': results
+        }, 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error in batch validation endpoint: {str(e)}")
+        return {'error': f'Batch validation error: {str(e)}'}, 500

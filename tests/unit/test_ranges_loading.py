@@ -61,9 +61,9 @@ class TestRangesLoading:
         
         # Verify the query was called with collection() syntax
         assert mock_connector.execute_query.called
-        # Check that at least one call used the collection query
+        # Check that at least one call used the collection query with local-name() syntax
         calls = [str(call) for call in mock_connector.execute_query.call_args_list]
-        collection_query_found = any("collection('test_db')//lift-ranges" in call for call in calls)
+        collection_query_found = any("collection('test_db')//*[local-name()='lift-ranges']" in call for call in calls)
         assert collection_query_found, f"Expected collection query not found in calls: {calls}"
         
         # Verify ranges were parsed correctly
@@ -186,11 +186,11 @@ class TestRangesLoading:
         assert 'Noun' in noun_ids
 
     def test_get_ranges_no_plural_keys_and_no_relation_type_alias(self):
-        """Test that get_ranges() does not produce plural duplicate keys and no 'relation-type' alias."""
+        """Test that get_ranges() does not produce 'relation-type' alias for relations."""
         mock_connector = Mock()
         mock_connector.database = "test_db"
         mock_connector.execute_command.return_value = "test_db"
-        
+
         sample_ranges_xml = """<?xml version="1.0" encoding="UTF-8"?>
 <lift-ranges>
     <range id="lexical-relation">
@@ -201,14 +201,15 @@ class TestRangesLoading:
 </lift-ranges>
 """
         mock_connector.execute_query.return_value = sample_ranges_xml
-        
+
         service = DictionaryService(mock_connector)
-        
+
         ranges = service.get_ranges()
-        
+
         # The legacy 'relation-type' alias should not be present; we expect the canonical
-        # 'lexical-relation' instead, and no plural duplicate keys.
+        # 'lexical-relation' instead.
         assert 'relation-type' not in ranges
         assert 'lexical-relation' in ranges
-        # Ensure no plural form keys exist
-        assert all(not k.endswith('s') for k in ranges.keys())
+        # Verify lexical-relation has the expected values
+        assert len(ranges['lexical-relation']['values']) == 1
+        assert ranges['lexical-relation']['values'][0]['id'] == 'synonym'

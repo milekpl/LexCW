@@ -34,7 +34,7 @@
     },
     "R1.1.3": {
       "name": "sense_required_non_variant",
-      "description": "At least one sense is required per entry (except for variant entries)",
+      "description": "At least one sense is required per entry (except for variant entries with variant-type trait)",
       "category": "entry_level",
       "priority": "critical",
       "path": "$.senses",
@@ -42,10 +42,9 @@
         "type": "conditional",
         "when": {
           "not": {
-            "path": "$.relations[*]",
+            "path": "$.relations[*].traits",
             "contains": {
-              "field": "type",
-              "value": "_component-lexeme"
+              "field": "variant-type"
             }
           }
         }
@@ -56,21 +55,6 @@
       },
       "error_message": "At least one sense is required per entry",
       "validation_mode": "save_only"
-    },
-    "R1.2.1": {
-      "name": "entry_id_format",
-      "description": "Entry ID must match valid format pattern",
-      "category": "entry_level",
-      "priority": "critical",
-      "path": "$.id",
-      "condition": {
-        "type": "if_present"
-      },
-      "validation": {
-        "type": "string",
-        "pattern": "^[a-zA-Z0-9_\\- ]+$"
-      },
-      "error_message": "Invalid entry ID format. Use only letters, numbers, underscores, hyphens, and spaces"
     },
     "R1.2.2": {
       "name": "lexical_unit_content_validation",
@@ -128,27 +112,8 @@
         "type": "required"
       },
       "validation": {
-        "type": "logic",
-        "operator": "or",
-        "conditions": [
-          {
-            "path": "definition",
-            "type": "object_has_non_empty_value"
-          },
-          {
-            "path": "gloss",
-            "type": "object_has_non_empty_value"
-          },
-          {
-            "path": "variant_of",
-            "type": "non_empty_string"
-          },
-          {
-            "path": "is_variant",
-            "type": "equals",
-            "value": true
-          }
-        ]
+        "type": "custom",
+        "custom_function": "validate_sense_content_or_variant"
       },
       "error_message": "Sense must have definition, gloss, or be a variant reference"
     },
@@ -171,12 +136,14 @@
       "description": "Sense glosses must have at least one non-empty language value",
       "category": "sense_level",
       "priority": "critical",
-      "path": "$.senses[*].gloss",
+      "path": "$.senses[*].gloss.*.text",
       "condition": {
         "type": "if_present"
       },
       "validation": {
-        "type": "object_has_non_empty_value"
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S+"
       },
       "error_message": "Sense gloss cannot be empty or contain only whitespace"
     },
@@ -199,7 +166,7 @@
     "R3.1.1": {
       "name": "unique_note_types",
       "description": "Note types must be unique within entry",
-      "category": "notes_level",
+      "category": "note_validation",
       "priority": "warning",
       "path": "$.notes",
       "condition": {
@@ -213,7 +180,7 @@
     "R3.2.1": {
       "name": "multilingual_note_structure",
       "description": "Multilingual notes must be objects with at least one language",
-      "category": "notes_level",
+      "category": "note_validation",
       "priority": "critical",
       "path": "$.notes.*",
       "condition": {
@@ -226,25 +193,86 @@
       },
       "error_message": "Multilingual note must contain at least one language"
     },
+    "R3.1.2": {
+      "name": "note_content_validation",
+      "description": "Note content must be non-empty strings when present",
+      "category": "note_validation",
+      "priority": "critical",
+      "path": "$.notes.*",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_note_content"
+      },
+      "error_message": "Note content cannot be empty"
+    },
     "R4.1.1": {
       "name": "pronunciation_language_codes",
       "description": "Pronunciation language codes must be valid",
-      "category": "pronunciation_level",
+      "category": "pronunciation",
       "priority": "critical",
       "path": "$.pronunciations",
       "condition": {
         "type": "if_present"
       },
       "validation": {
-        "type": "object",
-        "keys_in": ["pl-fonipa", "en-fonipa", "seh-fonipa", "ipa"]
+        "type": "custom",
+        "custom_function": "validate_pronunciation_language_codes",
+        "allowed_languages": ["pl-fonipa", "en-fonipa", "seh-fonipa", "ipa"]
       },
       "error_message": "Invalid pronunciation language code"
+    },
+    "R4.1.2": {
+      "name": "ipa_character_validation",
+      "description": "IPA characters must be from approved character set",
+      "category": "pronunciation",
+      "priority": "critical",
+      "path": "$.pronunciations.*",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_ipa_characters"
+      },
+      "error_message": "Invalid IPA character in pronunciation"
+    },
+    "R4.2.1": {
+      "name": "no_double_stress_markers",
+      "description": "Double stress markers (ˈˈ or ˌˌ) are not allowed",
+      "category": "pronunciation",
+      "priority": "critical",
+      "path": "$.pronunciations.*",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_no_double_stress"
+      },
+      "error_message": "Double stress markers not allowed"
+    },
+    "R4.2.2": {
+      "name": "no_double_length_markers",
+      "description": "Double length markers (ːː) are not allowed",
+      "category": "pronunciation",
+      "priority": "critical",
+      "path": "$.pronunciations.*",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_no_double_length"
+      },
+      "error_message": "Double length markers not allowed"
     },
     "R5.1.1": {
       "name": "synonym_antonym_exclusion",
       "description": "Entries cannot be both synonym and antonym",
-      "category": "relations_level",
+      "category": "relation_validation",
       "priority": "warning",
       "path": "$.relations",
       "condition": {
@@ -305,6 +333,21 @@
       },
       "error_message": "Duplicate language code found in multilingual content"
     },
+    "R6.1.2": {
+      "name": "conflicting_sense_pos_requires_manual_entry_pos",
+      "description": "If senses have conflicting POS values, entry POS must be set manually",
+      "category": "general",
+      "priority": "critical",
+      "path": "$.senses[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_conflicting_pos"
+      },
+      "error_message": "Entry must have grammatical_info when senses have conflicting POS"
+    },
     "R7.1.1": {
       "name": "date_fields_format",
       "description": "Date fields must be in ISO8601 format",
@@ -364,6 +407,21 @@
         "custom_function": "validate_no_circular_entry_relations"
       },
       "error_message": "Entry relation cannot reference the entry itself (circular reference)"
+    },
+    "R5.3.1": {
+      "name": "relation_targets_exist",
+      "description": "All relation targets must exist in the dictionary",
+      "category": "relation_validation",
+      "priority": "critical",
+      "path": "$.relations[*]",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_relation_targets_exist"
+      },
+      "error_message": "Relation target '{value}' does not exist in the dictionary"
     }
   }
 }

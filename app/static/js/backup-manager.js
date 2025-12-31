@@ -346,6 +346,52 @@ class BackupManager {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
+    formatScheduleDescription(trigger) {
+        // Convert APScheduler cron trigger to human-readable description
+        // Example: "cron[month='*', day='*', day_of_week='*', hour='*', minute='0']"
+        if (!trigger) return 'Custom schedule';
+
+        // Extract minute, hour, day, month, day_of_week from the trigger string
+        const minuteMatch = trigger.match(/minute='([^']*)'/);
+        const hourMatch = trigger.match(/hour='([^']*)'/);
+        const dayMatch = trigger.match(/day='([^']*)'/);
+        const monthMatch = trigger.match(/month='([^']*)'/);
+        const dowMatch = trigger.match(/day_of_week='([^']*)'/);
+
+        const minute = minuteMatch ? minuteMatch[1] : '*';
+        const hour = hourMatch ? hourMatch[1] : '*';
+        const day = dayMatch ? dayMatch[1] : '*';
+        const month = monthMatch ? monthMatch[1] : '*';
+        const dow = dowMatch ? dowMatch[1] : '*';
+
+        // Determine the schedule type
+        if (minute !== '*' && hour === '*' && day === '*' && month === '*' && dow === '*') {
+            // Hourly: specific minute every hour
+            return `Hourly at minute ${minute}`;
+        } else if (minute !== '*' && hour !== '*' && day === '*' && month === '*' && dow === '*') {
+            // Daily: specific time every day
+            const h = parseInt(hour).toString().padStart(2, '0');
+            const m = parseInt(minute).toString().padStart(2, '0');
+            return `Daily at ${h}:${m}`;
+        } else if (minute !== '*' && hour !== '*' && day === '*' && month === '*' && dow !== '*') {
+            // Weekly: specific time on specific day
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const dayNum = parseInt(dow);
+            const dayName = days[dayNum] || dow;
+            const h = parseInt(hour).toString().padStart(2, '0');
+            const m = parseInt(minute).toString().padStart(2, '0');
+            return `Weekly on ${dayName} at ${h}:${m}`;
+        } else if (minute !== '*' && hour !== '*' && day !== '*' && month === '*' && dow === '*') {
+            // Monthly: specific time on specific day of month
+            const h = parseInt(hour).toString().padStart(2, '0');
+            const m = parseInt(minute).toString().padStart(2, '0');
+            return `Monthly on day ${day} at ${h}:${m}`;
+        } else {
+            // Fallback to raw trigger
+            return trigger;
+        }
+    }
+
     getStatusBadge(status) {
         const statusMap = {
             'completed': '<span class="badge bg-success">Completed</span>',
@@ -401,10 +447,10 @@ class BackupManager {
                     // Update schedule information based on actual scheduled backups
                     if (scheduleEl) {
                         if (scheduledBackups && scheduledBackups.length > 0) {
-                            // Show actual schedule information
+                            // Show actual schedule information with human-readable description
                             const firstBackup = scheduledBackups[0];
                             const trigger = firstBackup.trigger;
-                            scheduleEl.textContent = trigger || 'Custom schedule';
+                            scheduleEl.textContent = this.formatScheduleDescription(trigger);
                         } else {
                             scheduleEl.textContent = 'No backups scheduled';
                         }

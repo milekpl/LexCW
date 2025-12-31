@@ -44,7 +44,7 @@
                             <!-- Hidden field for sense ID -->
                             <input type="hidden" name="senses[{{ sense_index }}].id" value="{{ sense.id }}">
 
-                            <div class="mb-3">
+                            <div class="mb-3" data-section-id="senses" data-field-id="sense-definition">
                                 <label class="form-label">Definition <span class="text-danger">*</span></label>
                                 <div class="multilingual-forms definition-forms">
                                     {% set project_lang_codes = project_languages|map(attribute=0)|list %}
@@ -87,7 +87,7 @@
                                 </div>
                             </div>
 
-                            <div class="mb-3">
+                            <div class="mb-3" data-section-id="senses" data-field-id="sense-gloss">
                                 <label class="form-label">Gloss</label>
                                 <div class="multilingual-forms gloss-forms">
                                     {% for lang, gloss_text in sense.glosses.items() %}
@@ -115,6 +115,7 @@
                                 <div class="form-text">A short equivalent in another language.</div>
                             </div>
 
+                            <div data-section-id="senses" data-field-id="sense-grammatical">
             {{ new_macros.render_dynamic_select(
                                 name='senses[' ~ loop.index0 ~ '].grammatical_info',
                                 range_id='grammatical-info',
@@ -123,9 +124,11 @@
                                 custom_classes='dynamic-grammatical-info',
                                 placeholder='Select part of speech'
                             ) }}
-                            <div class="form-text">Grammatical category for this sense.</div>
+                                <div class="form-text">Grammatical category for this sense.</div>
+                            </div>
 
                             <!-- LIFT Ranges: Domain Types (sense-level) -->
+                            <div data-section-id="senses" data-field-id="sense-domain">
                             {{ new_macros.render_dynamic_select(
                                 name='senses[' ~ loop.index0 ~ '].domain_type',
                                 range_id='domain-type',
@@ -135,9 +138,11 @@
                                 is_hierarchical=true,
                                 placeholder='Select domain type(s)'
                             ) }}
-                            <div class="form-text">Academic or disciplinary domain this sense belongs to.</div>
+                                <div class="form-text">Academic or disciplinary domain this sense belongs to.</div>
+                            </div>
 
                             <!-- LIFT Ranges: Semantic Domain (sense-level) -->
+                            <div data-section-id="senses" data-field-id="sense-domain">
                             {{ new_macros.render_dynamic_select(
                                 name='senses[' ~ loop.index0 ~ '].semantic_domain',
                                 range_id='semantic-domain-ddp4',
@@ -147,9 +152,11 @@
                                 is_hierarchical=true,
                                 placeholder='Select semantic domain(s)'
                             ) }}
-                            <div class="form-text">Semantic categorization for this sense (can select multiple).</div>
+                                <div class="form-text">Semantic categorization for this sense (can select multiple).</div>
+                            </div>
 
                             <!-- LIFT Ranges: Usage Type (sense-level) -->
+                            <div data-section-id="senses" data-field-id="sense-domain">
                             {{ new_macros.render_dynamic_select(
                                 name='senses[' ~ loop.index0 ~ '].usage_type',
                                 range_id='usage-type',
@@ -159,16 +166,17 @@
                                 is_hierarchical=true,
                                 placeholder='Select usage type(s)'
                             ) }}
-                            <div class="form-text">Usage classification for this sense (can select multiple).</div>
+                                <div class="form-text">Usage classification for this sense (can select multiple).</div>
+                            </div>
 
-                            <div class="mb-3">
+                            <div class="mb-3" data-section-id="senses" data-field-id="sense-note">
                                 <label class="form-label">Sense Note</label>
                                 <textarea class="form-control" name="senses[{{ loop.index0 }}].note"
                                           rows="2">{{ sense.note }}</textarea>
                             </div>
 
                             <!-- LIFT 0.13: Exemplar (Sense-Level Custom Field - Day 28) -->
-                            <div class="mb-3">
+                            <div class="mb-3" data-section-id="senses" data-field-id="sense-exemplar">
                                 <label class="form-label">
                                     Exemplar
                                     <i class="fas fa-info-circle ms-1 form-tooltip"
@@ -205,7 +213,7 @@
                             </div>
 
                             <!-- LIFT 0.13: Scientific Name (Sense-Level Custom Field - Day 28) -->
-                            <div class="mb-3">
+                            <div class="mb-3" data-section-id="senses" data-field-id="sense-scientific-name">
                                 <label class="form-label">
                                     Scientific Name
                                     <i class="fas fa-info-circle ms-1 form-tooltip"
@@ -242,7 +250,7 @@
                             </div>
 
                             <!-- LIFT 0.13: Literal Meaning (Sense-Level Custom Field - Day 28 - MOVED FROM ENTRY LEVEL) -->
-                            <div class="mb-3">
+                            <div class="mb-3" data-section-id="senses" data-field-id="sense-literal-meaning">
                                 <label class="form-label">
                                     Literal Meaning
                                     <i class="fas fa-info-circle ms-1 form-tooltip"
@@ -279,7 +287,7 @@
                             </div>
 
                             <!-- LIFT 0.13: Illustrations (Day 33-34) -->
-                            <div class="mb-3">
+                            <div class="mb-3" data-section-id="senses" data-field-id="sense-illustrations">
                                 <label class="form-label">
                                     Illustrations
                                     <i class="fas fa-info-circle ms-1 form-tooltip"
@@ -394,7 +402,7 @@
                                 <div class="form-text">Add images with optional multilingual captions to illustrate this sense.</div>
                             </div>
 
-                                            <div class="examples-section mt-4">
+                                            <div class="examples-section mt-4" data-section-id="senses" data-field-id="sense-examples">
                                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                                     <h6><i class="fas fa-quote-left"></i> Examples</h6>
                                                     <button type="button" class="btn btn-sm btn-outline-primary add-example-btn"
@@ -457,8 +465,91 @@
                                                 </div>
                                             </div>
 
+                                            <!-- Sense-Level Variant Relations (NEW) -->
+                                            <div class="sense-variant-relations-section mt-4" data-section-id="senses" data-field-id="sense-variants">
+                                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                                    <h6>
+                                                        <i class="fas fa-code-branch"></i> Variant Relations
+                                                        <i class="fas fa-info-circle ms-2 form-tooltip"
+                                                           data-bs-toggle="tooltip"
+                                                           data-bs-placement="top"
+                                                           data-bs-html="true"
+                                                           title="<strong>About Variant Relations:</strong><br>Link this sense to variant forms of the entry. For example, connect 'color' (noun) to 'colour' (British spelling) or 'dog' to 'hound' (archaic form)."></i>
+                                                    </h6>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary add-sense-variant-relation-btn"
+                                                            data-sense-index="{{ loop.index0 }}"
+                                                            title="Add a variant relation for this sense">
+                                                        <i class="fas fa-plus"></i> Add Variant
+                                                    </button>
+                                                </div>
+
+                                                <div class="sense-variant-relations-container ms-3" data-sense-index="{{ loop.index0 }}">
+                                                    {% if sense.variant_relations %}
+                                                        {% for variant_rel in sense.variant_relations %}
+                                                            <div class="sense-variant-relation-item card mb-3 border-secondary" data-variant-index="{{ loop.index0 }}">
+                                                                <div class="card-header bg-secondary bg-opacity-10">
+                                                                    <div class="d-flex justify-content-between align-items-center">
+                                                                        <span><i class="fas fa-link"></i> Variant: {{ variant_rel.get('type', 'unspecified') }}</span>
+                                                                        <button type="button" class="btn btn-sm btn-outline-danger remove-sense-variant-relation-btn"
+                                                                                data-sense-index="{{ sense_index }}" data-variant-index="{{ loop.index0 }}">
+                                                                            <i class="fas fa-trash"></i> Remove
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="card-body">
+                                                                    <div class="row">
+                                                                        <div class="col-md-4">
+                                                                            <label class="form-label">Variant Type</label>
+                                                                            <select class="form-select dynamic-lift-range sense-variant-type-select"
+                                                                                    name="senses[{{ sense_index }}].variant_relations[{{ loop.index0 }}].type"
+                                                                                    data-range-id="variant-type">
+                                                                                <option value="">Select type</option>
+                                                                                {% set var_type = variant_rel.get('type', '') %}
+                                                                                {% if ranges.get('variant-type') and ranges['variant-type'].values %}
+                                                                                    {% for value in ranges['variant-type'].values() %}
+                                                                                        <option value="{{ value.id }}" {% if value.id == var_type %}selected{% endif %}>{{ value.name }}</option>
+                                                                                    {% endfor %}
+                                                                                {% endif %}
+                                                                            </select>
+                                                                        </div>
+                                                                        <div class="col-md-8">
+                                                                            <label class="form-label">Target Entry</label>
+                                                                            <div class="input-group">
+                                                                                <input type="text" class="form-control sense-variant-target-input"
+                                                                                       name="senses[{{ sense_index }}].variant_relations[{{ loop.index0 }}].ref"
+                                                                                       value="{{ variant_rel.get('ref', '') }}"
+                                                                                       placeholder="Enter entry ID or search">
+                                                                                <button type="button" class="btn btn-outline-secondary search-variant-entry-btn"
+                                                                                        data-sense-index="{{ sense_index }}" data-variant-index="{{ loop.index0 }}"
+                                                                                        title="Search for entry">
+                                                                                    <i class="fas fa-search"></i>
+                                                                                </button>
+                                                                            </div>
+                                                                            <div class="form-text">ID of the target entry for this variant relation</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="row mt-2">
+                                                                        <div class="col-md-12">
+                                                                            <label class="form-label">Comment (Optional)</label>
+                                                                            <textarea class="form-control"
+                                                                                      name="senses[{{ sense_index }}].variant_relations[{{ loop.index0 }}].comment"
+                                                                                      rows="2"
+                                                                                      placeholder="Optional note about this variant">{{ variant_rel.get('comment', '') }}</textarea>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <div class="no-sense-variant-relations text-center text-muted py-3 border border-secondary border-opacity-25 rounded">
+                                                            <p class="mb-2"><small>No variant relations yet. Add variants to link this sense to alternate forms (e.g., spelling variants, archaic forms).</small></p>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+
                                             <!-- LIFT 0.13: Sense Relations Section (Day 42) -->
-                                            <div class="sense-relations-section mt-4">
+                                            <div class="sense-relations-section mt-4" data-section-id="senses" data-field-id="sense-relations">
                                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                                     <h6>
                                                         <i class="fas fa-project-diagram"></i> Sense Relations
@@ -535,7 +626,7 @@
                                             </div>
 
                                             <!-- LIFT 0.13: Reversal Entries (Day 24-25) -->
-                                            <div class="reversals-section mt-4">
+                                            <div class="reversals-section mt-4" data-section-id="senses" data-field-id="sense-reversals">
                                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                                     <h6>
                                                         <i class="fas fa-exchange-alt"></i> Reversal Entries

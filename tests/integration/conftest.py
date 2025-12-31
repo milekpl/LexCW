@@ -74,22 +74,39 @@ def ensure_basex_test_database() -> None:
     app and the DB utilities use the same name consistently.
     """
     import uuid
+    import threading
     from tests.basex_test_utils import create_test_db, drop_test_db
 
-    # Check BaseX availability by attempting a short connection
+    # Check BaseX availability by attempting a short connection with timeout
     from app.database.basex_connector import BaseXConnector
-    try:
-        admin_check = BaseXConnector(
-            host=os.getenv('BASEX_HOST', 'localhost'),
-            port=int(os.getenv('BASEX_PORT', '1984')),
-            username=os.getenv('BASEX_USERNAME', 'admin'),
-            password=os.getenv('BASEX_PASSWORD', 'admin'),
-            database=None
-        )
-        admin_check.connect()
-        admin_check.disconnect()
-    except Exception as e:
-        pytest.skip(f"BaseX server not available: {e}")
+
+    connection_result = {"connected": False, "error": None}
+    connection_done = threading.Event()
+
+    def try_connect():
+        try:
+            admin_check = BaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin'),
+                database=None
+            )
+            admin_check.connect()
+            admin_check.disconnect()
+            connection_result["connected"] = True
+        except Exception as e:
+            connection_result["error"] = e
+        finally:
+            connection_done.set()
+
+    # Start connection in a thread with timeout
+    connect_thread = threading.Thread(target=try_connect, daemon=True)
+    connect_thread.start()
+    connection_done.wait(timeout=5)  # 5 second timeout (reduced for faster test discovery)
+
+    if not connection_result["connected"]:
+        pytest.skip(f"BaseX server not available: {connection_result['error'] or 'Connection timed out'}")
 
     # Use provided TEST_DB_NAME if present (useful for CI), otherwise generate one
     test_db = os.environ.get('TEST_DB_NAME') or f"test_{uuid.uuid4().hex[:8]}"

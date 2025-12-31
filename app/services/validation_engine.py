@@ -14,7 +14,7 @@ import json
 import re
 import os
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Set, Union
 from dataclasses import dataclass
 from enum import Enum
 
@@ -41,6 +41,7 @@ class ValidationCategory(Enum):
     DATE_VALIDATION = "date_validation"
     RELATION_VALIDATION = "relation_validation"
     HIERARCHICAL_VALIDATION = "hierarchical_validation"
+    GENERAL = "general"
 
 
 @dataclass
@@ -79,44 +80,101 @@ class ValidationEngine:
     _jsonpath_cache: dict[str, Any] = {}
     """
     Core validation engine implementing centralized validation rules.
-    
+
     This engine loads validation rules from configuration and applies them
     to JSON data from entry forms, replacing scattered model validation.
+
+    Supports project-specific rules that override or extend the default rules.
     """
-    
+
     # Class-level cache for rules and custom functions
     _rules_cache: dict[str, dict[str, Any]] = {}
     _custom_functions_cache: dict[str, Any] = {}
     _rules_file_loaded: Optional[str] = None
+    # Project-specific rules cache: {project_id: {rule_id: rule_config}}
+    _project_rules_cache: dict[str, dict[str, Dict[str, Any]]] = {}
 
-    def __init__(self, rules_file: Optional[str] = None, project_config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        rules_file: Optional[str] = None,
+        project_config: Optional[Dict[str, Any]] = None,
+        project_id: Optional[str] = None,
+        project_rules: Optional[Dict[str, Dict[str, Any]]] = None,
+        existing_entry_ids: Optional[Set[str]] = None
+    ):
         """
         Initialize the validation engine.
-        
+
         Args:
             rules_file: Path to validation rules JSON file
             project_config: Optional project configuration with source/target languages
+            project_id: Optional project identifier for loading project-specific rules
+            project_rules: Optional pre-loaded project-specific rules dict
+            existing_entry_ids: Optional set of existing entry IDs for relation target validation
         """
         self.rules_file = rules_file or "validation_rules.json"
         self.project_config = project_config or {}
+        self.project_id = project_id
+
+        # Store existing entry IDs for relation target validation
+        self._existing_entry_ids = existing_entry_ids
+
         # Always reload rules to ensure validation_mode changes are picked up
-        self._load_rules()
+        self._load_rules(project_rules=project_rules)
         ValidationEngine._rules_file_loaded = self.rules_file
         self.rules: Dict[str, Dict[str, Any]] = ValidationEngine._rules_cache
         self.custom_functions: Dict[str, Any] = ValidationEngine._custom_functions_cache
-    
-    def _load_rules(self) -> None:
-        """Load validation rules from configuration file."""
+
+    def _load_rules(
+        self,
+        rules_file: Optional[str] = None,
+        project_rules: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> None:
+        """Load validation rules from configuration file or project-specific rules.
+
+        If project_rules is provided, use those rules instead of loading from file.
+        If project_id was set, try to load from project rules cache or database.
+        """
+        # Priority order:
+        # 1. Explicitly passed project_rules
+        # 2. Project rules from cache (if project_id set)
+        # 3. Load from database if project_id available
+        # 4. Fall back to default rules from file
+
+        if project_rules:
+            # Use explicitly provided project rules
+            self._compile_and_cache_rules(project_rules)
+            ValidationEngine._rules_cache = project_rules
+            return
+
+        # Try to load project-specific rules from database
+        if self.project_id:
+            db_rules = self._load_project_rules_from_db()
+            if db_rules:
+                self._compile_and_cache_rules(db_rules)
+                ValidationEngine._rules_cache = db_rules
+                ValidationEngine._project_rules_cache[self.project_id] = db_rules
+                return
+
+        # Load default rules from file
         try:
-            rules_path = Path(self.rules_file)
+            rules_path = Path(self.rules_file if rules_file else self.rules_file)
             if not rules_path.is_absolute():
                 # Look for rules file relative to this module
-                rules_path = Path(__file__).parent.parent.parent / self.rules_file
-            
+                base_path = Path(__file__).parent.parent.parent
+                # Also check for validation_rules_v2.json
+                v2_path = base_path / "validation_rules_v2.json"
+                if v2_path.exists():
+                    rules_path = v2_path
+                else:
+                    rules_path = base_path / self.rules_file
+
             with open(rules_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 rules = config.get('rules', {})
                 custom_functions = config.get('custom_functions', {})
+
+                # Compile regex patterns
                 for rule_id, rule_config in rules.items():
                     validation = rule_config.get('validation', {})
                     pattern = validation.get('pattern')
@@ -125,20 +183,116 @@ class ValidationEngine:
                             validation['compiled_pattern'] = re.compile(pattern)
                         except re.error as e:
                             raise ValueError(f"Invalid regex '{pattern}' in rule {rule_id}: {e}")
-                    
+
                     not_pattern = validation.get('not_pattern')
                     if not_pattern:
                         try:
                             validation['compiled_not_pattern'] = re.compile(not_pattern)
                         except re.error as e:
                             raise ValueError(f"Invalid regex '{not_pattern}' in rule {rule_id}: {e}")
+
                 ValidationEngine._rules_cache = rules
                 ValidationEngine._custom_functions_cache = custom_functions
         except FileNotFoundError:
             raise FileNotFoundError(f"Validation rules file not found: {self.rules_file}")
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in validation rules file: {e}")
-    
+
+    def _load_project_rules_from_db(self) -> Optional[Dict[str, Dict[str, Any]]]:
+        """Load project-specific rules from database.
+
+        Returns:
+            Dictionary of rule_id -> rule_config, or None if no project rules exist
+        """
+        if not self.project_id:
+            return None
+
+        # Check cache first
+        if self.project_id in ValidationEngine._project_rules_cache:
+            return ValidationEngine._project_rules_cache[self.project_id]
+
+        # Try to load from database
+        try:
+            from app.models.workset_models import db
+            from app.models.validation_models import ProjectValidationRule
+
+            # Import Flask app if needed for context
+            from flask import Flask
+            app = Flask(__name__)
+
+            with app.app_context():
+                rules = ProjectValidationRule.get_rules_for_project(self.project_id)
+                if not rules:
+                    return None
+
+                # Convert list of rules to dict keyed by rule_id
+                rules_dict: Dict[str, Dict[str, Any]] = {}
+                for rule in rules:
+                    rule_id = rule.get('rule_id')
+                    if rule_id:
+                        rules_dict[rule_id] = rule
+
+                return rules_dict if rules_dict else None
+
+        except Exception as e:
+            # Log but don't fail - use default rules
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Could not load project rules for {self.project_id}: {e}"
+            )
+            return None
+
+    def _compile_and_cache_rules(self, rules: Dict[str, Dict[str, Any]]) -> None:
+        """Compile regex patterns and cache rules.
+
+        Args:
+            rules: Dictionary of rule_id -> rule_config
+        """
+        for rule_id, rule_config in rules.items():
+            validation = rule_config.get('validation', {})
+
+            # Skip if already compiled
+            if 'compiled_pattern' in validation:
+                continue
+
+            pattern = validation.get('pattern')
+            if pattern:
+                try:
+                    validation['compiled_pattern'] = re.compile(pattern)
+                except re.error as e:
+                    raise ValueError(f"Invalid regex '{pattern}' in rule {rule_id}: {e}")
+
+            not_pattern = validation.get('not_pattern')
+            if not_pattern:
+                try:
+                    validation['compiled_not_pattern'] = re.compile(not_pattern)
+                except re.error as e:
+                    raise ValueError(f"Invalid regex '{not_pattern}' in rule {rule_id}: {e}")
+
+    @classmethod
+    def clear_project_cache(cls, project_id: Optional[str] = None) -> None:
+        """Clear the project rules cache.
+
+        Args:
+            project_id: Optional specific project to clear, or None to clear all
+        """
+        if project_id:
+            cls._project_rules_cache.pop(project_id, None)
+        else:
+            cls._project_rules_cache.clear()
+
+    @classmethod
+    def set_project_rules(cls, project_id: str, rules: Dict[str, Dict[str, Any]]) -> None:
+        """Set project-specific rules directly (bypassing database).
+
+        Useful for testing or when rules are already loaded.
+
+        Args:
+            project_id: The project identifier
+            rules: Dictionary of rule_id -> rule_config
+        """
+        cls._project_rules_cache[project_id] = rules
+
     def validate_json(self, data: Dict[str, Any], validation_mode: str = "save") -> ValidationResult:
         """
         Validate JSON data against all applicable rules.
@@ -200,16 +354,21 @@ class ValidationEngine:
             
             # Extract condition type - it can be either a string or a dict with 'type' key
             condition_type = condition if isinstance(condition, str) else condition.get('type')
-            
+
             # Handle different condition types
             if condition_type == "required":
                 # For array element paths like $.senses[*].id, only validate if elements exist
                 # Don't require the elements themselves to exist
                 if '[*]' in path:
                     # This is an array element path - only validate existing elements
-                    for match in matches:
-                        if not self._validate_value(match.value, validation):
-                            errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
+                    # Check if this is a custom validation function
+                    if validation.get('type') == 'custom' and validation.get('custom_function'):
+                        custom_errors = self._apply_custom_validation(rule_id, rule_config, data, matches)
+                        errors.extend(custom_errors)
+                    else:
+                        for match in matches:
+                            if not self._validate_value(match.value, validation):
+                                errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
                 else:
                     # This is a direct field path - require it to exist
                     if not matches:
@@ -222,14 +381,41 @@ class ValidationEngine:
             
             elif condition_type == "if_present":
                 # Only validate if the field is present
-                for match in matches:
-                    if match.value is not None and not self._validate_value(match.value, validation):
-                        errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
+                # Check if this is a custom validation function
+                if validation.get('type') == 'custom' and validation.get('custom_function'):
+                    custom_errors = self._apply_custom_validation(rule_id, rule_config, data, matches)
+                    errors.extend(custom_errors)
+                else:
+                    # Standard validation
+                    for match in matches:
+                        if match.value is not None and not self._validate_value(match.value, validation):
+                            errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
             
             elif condition_type == "custom":
                 # Handle custom validation functions
                 custom_errors = self._apply_custom_validation(rule_id, rule_config, data, matches)
                 errors.extend(custom_errors)
+
+            elif condition_type == "conditional":
+                # Handle conditional validation - only apply if condition is met
+                when_clause = condition.get('when')
+                if when_clause:
+                    # Evaluate the condition
+                    condition_met = self._evaluate_condition(when_clause, data)
+                    if condition_met:
+                        # Condition is met, apply the validation
+                        if not matches:
+                            # Field is missing but condition requires it - error
+                            errors.append(self._create_error(rule_id, rule_config, path, None))
+                        else:
+                            # Field exists, validate each match
+                            for match in matches:
+                                if not self._validate_value(match.value, validation):
+                                    errors.append(self._create_error(rule_id, rule_config, str(match.full_path), match.value))
+                    # If condition not met, skip validation (this is the conditional behavior)
+                else:
+                    # No when clause, treat as optional validation
+                    pass
                 
         except Exception as e:
             # Log validation rule application error
@@ -448,7 +634,76 @@ class ValidationEngine:
                 return False
                 
         return True
-    
+
+    def _evaluate_condition(self, condition: Dict[str, Any], data: Dict[str, Any]) -> bool:
+        """Evaluate a conditional clause.
+
+        Args:
+            condition: Condition dict with 'not' and/or 'path' and 'contains' keys
+            data: The data to evaluate against
+
+        Returns:
+            True if condition is met, False otherwise
+        """
+        try:
+            # Handle negation
+            is_negated = 'not' in condition
+
+            # Get the condition to evaluate
+            eval_condition = condition.get('not', condition)
+
+            # Get the path to check
+            path = eval_condition.get('path')
+            if not path:
+                return True  # No path to check, condition passes
+
+            # Parse and evaluate the JSONPath
+            if path in ValidationEngine._jsonpath_cache:
+                jsonpath_expr = ValidationEngine._jsonpath_cache[path]
+            else:
+                jsonpath_expr = jsonpath_ng.parse(path)
+                ValidationEngine._jsonpath_cache[path] = jsonpath_expr
+
+            matches = jsonpath_expr.find(data)
+
+            # Check for 'contains' clause
+            contains = eval_condition.get('contains')
+            if contains:
+                # Check if any match contains the specified field/value
+                field = contains.get('field')
+                value = contains.get('value')
+                result = False  # Initialize result
+
+                for match in matches:
+                    if isinstance(match.value, dict):
+                        if field in match.value:
+                            actual_value = match.value[field]
+                            # If value is not specified, just check field existence
+                            if value is None:
+                                result = True
+                                break
+                            elif isinstance(actual_value, list):
+                                if value in actual_value:
+                                    result = True
+                                    break
+                            elif actual_value == value:
+                                result = True
+                                break
+            else:
+                # No contains clause - check if path exists
+                result = len(matches) > 0
+
+            # Apply negation if needed
+            if is_negated:
+                result = not result
+
+            return result
+
+        except Exception as e:
+            # On error, be conservative - don't apply validation
+            self.logger.warning(f"Error evaluating condition: {e}")
+            return False
+
     def _apply_custom_validation(self, rule_id: str, rule_config: Dict[str, Any], 
                                 data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
         """Apply custom validation functions."""
@@ -491,7 +746,15 @@ class ValidationEngine:
             errors.extend(self._validate_no_circular_sense_relations(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_no_circular_entry_relations':
             errors.extend(self._validate_no_circular_entry_relations(rule_id, rule_config, data, matches))
-        
+        elif custom_function == 'validate_relation_targets_exist':
+            errors.extend(self._validate_relation_targets_exist(rule_id, rule_config, data))
+        elif custom_function == 'validate_ipa_characters':
+            errors.extend(self._validate_ipa_characters(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_no_double_stress':
+            errors.extend(self._validate_no_double_stress(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_no_double_length':
+            errors.extend(self._validate_no_double_length(rule_id, rule_config, data, matches))
+
         return errors
     
     def _validate_sense_content_or_variant(self, rule_id: str, rule_config: Dict[str, Any], 
@@ -1161,6 +1424,158 @@ class ValidationEngine:
                     )
                 )
         
+        return errors
+
+    def _validate_relation_targets_exist(self, rule_id: str, rule_config: Dict[str, Any],
+                                         data: Dict[str, Any]) -> List[ValidationError]:
+        """R5.3.1: Validate that all relation targets exist in the dictionary.
+
+        This checks both entry-level relations and sense-level relations
+        to ensure that referenced entry IDs actually exist.
+        """
+        errors: List[ValidationError] = []
+
+        # Get set of existing entry IDs (from constructor parameter)
+        existing_ids = getattr(self, '_existing_entry_ids', None)
+
+        # If no existing IDs provided, skip validation (can't check without reference)
+        if not existing_ids:
+            return errors
+
+        entry_id = data.get('id', '')
+
+        # Check entry-level relations
+        relations = data.get('relations', [])
+        for idx, relation in enumerate(relations):
+            if not isinstance(relation, dict):
+                continue
+
+            # Skip component-lexeme relations (internal references, not semantic relations)
+            rel_type = relation.get('type', '')
+            if rel_type == '_component-lexeme':
+                continue
+
+            target = relation.get('ref') or relation.get('target')
+            if target and target not in existing_ids:
+                errors.append(
+                    self._create_error(rule_id, rule_config, f"$.relations[{idx}].ref", target)
+                )
+
+        # Check sense-level relations
+        senses = data.get('senses', [])
+        for sense_idx, sense in enumerate(senses):
+            if not isinstance(sense, dict):
+                continue
+
+            sense_relations = sense.get('relations', [])
+            for rel_idx, relation in enumerate(sense_relations):
+                if not isinstance(relation, dict):
+                    continue
+
+                target = relation.get('ref') or relation.get('target')
+                if target and target not in existing_ids:
+                    errors.append(
+                        self._create_error(rule_id, rule_config, f"$.senses[{sense_idx}].relations[{rel_idx}].ref", target)
+                    )
+
+        return errors
+
+    def _validate_ipa_characters(self, rule_id: str, rule_config: Dict[str, Any],
+                                  data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R4.1.2: Validate IPA characters in pronunciation values."""
+        import re
+        errors: List[ValidationError] = []
+
+        # IPA characters plus basic Latin letters (for fallback transcription)
+        # Includes Latin Extended-A (0100-024F) which has IPA chars like ŋ
+        ipa_pattern = re.compile(
+            r'^[\u0100-\u024F\u0250-\u02AF\u02B0-\u02FF\u0300-\u036F\u1D00-\u1D7F\u1DC0-\u1DFF'
+            r'\u2090-\u209Fˌˈː.ˑʔʰ͡ⱱəɛɪɔʊæɐɑɒɓɕɗɖɟɡɠɣɦɧɨɭɲɳɴɵɸɹɻɾʀʁʂʃʈʊʋʌʍʎʏʐʑʒʔʕʘʙʛʜʝʞʟʠʡʢʣʥʦʧʨ'
+            r'a-zA-Z ]+$'
+        )
+
+        pronunciations = data.get('pronunciations', {})
+        if not isinstance(pronunciations, dict):
+            return errors
+
+        for lang_code, pron_value in pronunciations.items():
+            if not isinstance(pron_value, str):
+                continue
+
+            # Skip empty strings
+            if not pron_value:
+                continue
+
+            # Check if all characters are valid IPA or ASCII letters
+            if not ipa_pattern.match(pron_value):
+                errors.append(ValidationError(
+                    rule_id=rule_id,
+                    rule_name=rule_config['name'],
+                    message=rule_config['error_message'],
+                    path=f"$.pronunciations.{lang_code}",
+                    priority=ValidationPriority(rule_config['priority']),
+                    category=ValidationCategory(rule_config['category']),
+                    value=pron_value[:20] + '...' if len(pron_value) > 20 else pron_value
+                ))
+
+        return errors
+
+    def _validate_no_double_stress(self, rule_id: str, rule_config: Dict[str, Any],
+                                    data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R4.2.1: Validate no double stress markers in pronunciation values."""
+        errors: List[ValidationError] = []
+
+        pronunciations = data.get('pronunciations', {})
+        if not isinstance(pronunciations, dict):
+            return errors
+
+        # Double stress markers: ˈˈ or ˌˌ or combinations
+        double_stress_pattern = re.compile(r'[ˈˌ][ˈˌ]')
+
+        for lang_code, pron_value in pronunciations.items():
+            if not isinstance(pron_value, str):
+                continue
+
+            if double_stress_pattern.search(pron_value):
+                errors.append(ValidationError(
+                    rule_id=rule_id,
+                    rule_name=rule_config['name'],
+                    message=rule_config['error_message'],
+                    path=f"$.pronunciations.{lang_code}",
+                    priority=ValidationPriority(rule_config['priority']),
+                    category=ValidationCategory(rule_config['category']),
+                    value=pron_value
+                ))
+
+        return errors
+
+    def _validate_no_double_length(self, rule_id: str, rule_config: Dict[str, Any],
+                                    data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R4.2.2: Validate no double length markers in pronunciation values."""
+        errors: List[ValidationError] = []
+
+        pronunciations = data.get('pronunciations', {})
+        if not isinstance(pronunciations, dict):
+            return errors
+
+        # Double length markerːː
+        double_length_pattern = re.compile(r'ːː')
+
+        for lang_code, pron_value in pronunciations.items():
+            if not isinstance(pron_value, str):
+                continue
+
+            if double_length_pattern.search(pron_value):
+                errors.append(ValidationError(
+                    rule_id=rule_id,
+                    rule_name=rule_config['name'],
+                    message=rule_config['error_message'],
+                    path=f"$.pronunciations.{lang_code}",
+                    priority=ValidationPriority(rule_config['priority']),
+                    category=ValidationCategory(rule_config['category']),
+                    value=pron_value
+                ))
+
         return errors
 
 

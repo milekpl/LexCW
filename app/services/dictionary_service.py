@@ -19,7 +19,7 @@ from app.database.basex_connector import BaseXConnector
 from app.database.mock_connector import MockDatabaseConnector
 from app.models.entry import Entry
 from app.parsers.lift_parser import LIFTParser, LIFTRangesParser
-from app.services.ranges_service import RangesService
+from app.services.ranges_service import RangesService, STANDARD_RANGE_METADATA, CONFIG_PROVIDED_RANGES, CONFIG_RANGE_TYPES
 from app.services.lift_export_service import LIFTExportService
 from app.utils.exceptions import (
     NotFoundError,
@@ -1673,8 +1673,8 @@ class DictionaryService:
                                    then 1
                                    else 2"""
 
-            # Order by score, then by the lexical unit itself for consistent sorting.
-            order_by_expr = f"order by $score, $entry/{lexical_unit_path_order}/{form_path_order}[1]/{text_path_order}[1]/string()"
+            # Order by score, then by the lexical unit, then by entry id for consistent/deterministic sorting.
+            order_by_expr = f"order by $score, $entry/{lexical_unit_path_order}/{form_path_order}[1]/{text_path_order}[1]/string(), $entry/@id"
 
             query_str = f"""
             {prologue}
@@ -1845,7 +1845,16 @@ class DictionaryService:
 
             # Use non-validating parser for related entries to avoid validation errors
             non_validating_parser = LIFTParser(validate=False)
-            return non_validating_parser.parse_string(f"<lift>{result}</lift>")
+            entries = non_validating_parser.parse_string(f"<lift>{result}</lift>")
+
+            # Deduplicate entries by ID (XQuery may return duplicates from different documents)
+            seen_ids = set()
+            unique_entries = []
+            for entry in entries:
+                if entry.id not in seen_ids:
+                    seen_ids.add(entry.id)
+                    unique_entries.append(entry)
+            return unique_entries
 
         except NotFoundError:
             raise
@@ -1892,7 +1901,16 @@ class DictionaryService:
 
             # Use non-validating parser for related entries to avoid validation errors
             non_validating_parser = LIFTParser(validate=False)
-            return non_validating_parser.parse_string(f"<lift>{result}</lift>")
+            entries = non_validating_parser.parse_string(f"<lift>{result}</lift>")
+
+            # Deduplicate entries by ID (XQuery may return duplicates from different documents)
+            seen_ids = set()
+            unique_entries = []
+            for entry in entries:
+                if entry.id not in seen_ids:
+                    seen_ids.add(entry.id)
+                    unique_entries.append(entry)
+            return unique_entries
 
         except NotFoundError:
             raise
@@ -1933,7 +1951,16 @@ class DictionaryService:
 
             # Use non-validating parser for grammatical info queries to avoid validation errors
             non_validating_parser = LIFTParser(validate=False)
-            return non_validating_parser.parse_string(f"<lift>{result}</lift>")
+            entries = non_validating_parser.parse_string(f"<lift>{result}</lift>")
+
+            # Deduplicate entries by ID (XQuery may return duplicates from different documents)
+            seen_ids = set()
+            unique_entries = []
+            for entry in entries:
+                if entry.id not in seen_ids:
+                    seen_ids.add(entry.id)
+                    unique_entries.append(entry)
+            return unique_entries
 
         except Exception as e:
             self.logger.error(
@@ -2921,10 +2948,11 @@ class DictionaryService:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
             # Primary strategy: Use collection() query to find lift-ranges anywhere
-            # This works for both embedded ranges in main LIFT file and separate ranges documents
-            self.logger.debug(f"Querying for ranges using collection('{db_name}')//lift-ranges")
+            # Use local-name() for namespace-insensitive matching (works for both
+            # namespaced FieldWorks ranges and non-namespaced test fixtures)
+            self.logger.debug(f"Querying for ranges using collection('{db_name}')//*[local-name()='lift-ranges']")
             ranges_xml = self.db_connector.execute_query(
-                f"collection('{db_name}')//lift-ranges"
+                f"collection('{db_name}')//*[local-name()='lift-ranges']"
             )
 
             parsed_ranges = {}
@@ -3025,44 +3053,31 @@ class DictionaryService:
             # NOTE: Standard ranges are no longer automatically added as fallbacks.
             # This ensures that ranges only come from actual LIFT data or explicit configuration.
             # If standard ranges are needed, they should be explicitly loaded or requested.
+            # Lexical relations should come from the LIFT-ranges configuration, not hardcoded.
 
-            # Special handling for lexical-relation to ensure it's always available
-            # This is critical for relation types to work properly
-            if 'lexical-relation' not in parsed_ranges:
-                self.logger.warning("lexical-relation not found in parsed ranges, adding default")
-                parsed_ranges['lexical-relation'] = {
-                    'id': 'lexical-relation',
-                    'guid': 'lexical-relation-default',
-                    'label': 'Lexical Relations',
-                    'description': {'en': 'Types of lexical relationships between entries'},
-                    'values': [
-                        {'id': 'synonym', 'abbrev': 'syn', 'label': 'Synonym'},
-                        {'id': 'antonym', 'abbrev': 'ant', 'label': 'Antonym'},
-                        {'id': 'hypernym', 'abbrev': 'hyper', 'label': 'Hypernym'},
-                        {'id': 'hyponym', 'abbrev': 'hypo', 'label': 'Hyponym'},
-                        {'id': 'holonym', 'abbrev': 'holo', 'label': 'Holonym'},
-                        {'id': 'meronym', 'abbrev': 'mero', 'label': 'Meronym'},
-                        {'id': 'troponym', 'abbrev': 'trop', 'label': 'Troponym'},
-                        {'id': 'entailment', 'abbrev': 'entail', 'label': 'Entailment'},
-                        {'id': 'cause', 'abbrev': 'cause', 'label': 'Cause'},
-                        {'id': 'effect', 'abbrev': 'effect', 'label': 'Effect'}
-                    ],
-                    'official': False,
-                    'standard': True,
-                    'provided_by_config': True,
-                    'fieldworks_standard': True,
-                    'config_type': 'lexical-relation'
-                }
-            elif 'lexical-relation' in parsed_ranges and not parsed_ranges['lexical-relation'].get('values') and not self._skip_auto_range_loading:
-                # If lexical-relation exists but has no values, add default values
-                # Skip automatic range loading if flag is set (e.g., after drop database)
-                self.logger.warning("lexical-relation exists but is empty, adding default values")
-                parsed_ranges['lexical-relation']['values'] = [
-                    {'id': 'synonym', 'abbrev': 'syn', 'label': 'Synonym'},
-                    {'id': 'antonym', 'abbrev': 'ant', 'label': 'Antonym'},
-                    {'id': 'hypernym', 'abbrev': 'hyper', 'label': 'Hypernym'},
-                    {'id': 'hyponym', 'abbrev': 'hypo', 'label': 'Hyponym'}
-                ]
+            # Now ensure that any known standard ranges that are entirely absent
+            # from the parsed ranges are included for the editor (these are
+            # typically FieldWorks-related lists that cannot be stored in LIFT).
+            # This mirrors the logic in RangesService.get_all_ranges()
+            for std_id, meta in STANDARD_RANGE_METADATA.items():
+                if std_id not in parsed_ranges:
+                    label = meta.get('label') if isinstance(meta, dict) else meta
+                    desc = meta.get('description') if isinstance(meta, dict) else ''
+                    parsed_ranges[std_id] = {
+                        'id': std_id,
+                        'guid': f'provided-{std_id}',
+                        'label': label or std_id,
+                        'description': {'en': desc} if desc else {},
+                        'values': [],
+                        'official': False,
+                        'standard': True,
+                        # Only mark provided_by_config when the config file actually
+                        # declared the FieldWorks-only list (custom_ranges.json)
+                        'provided_by_config': std_id in CONFIG_PROVIDED_RANGES,
+                        # Treat config-provided ranges as FieldWorks-standard by default
+                        'fieldworks_standard': (std_id in CONFIG_PROVIDED_RANGES) or (CONFIG_RANGE_TYPES.get(std_id) == 'fieldworks'),
+                        'config_type': CONFIG_RANGE_TYPES.get(std_id)
+                    }
 
             self.ranges = parsed_ranges
             return self.ranges

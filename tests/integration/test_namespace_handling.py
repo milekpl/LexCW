@@ -49,7 +49,6 @@ class TestLIFTNamespaceManager:
             </entry>
         </lift>'''
         
-        namespaces = LIFTNamespaceManager.detect_namespaces(xml_without_ns)
         assert LIFTNamespaceManager.has_lift_namespace(xml_without_ns) is False
     
     @pytest.mark.integration
@@ -64,12 +63,15 @@ class TestLIFTNamespaceManager:
                 </lexical-unit>
             </entry>
         </lift>'''
-        
+
         normalized = LIFTNamespaceManager.normalize_lift_xml(
             xml_without_ns, LIFTNamespaceManager.LIFT_NAMESPACE
         )
-        
-        assert 'xmlns="http://fieldworks.sil.org/schemas/lift/0.13"' in normalized
+
+        # Check that namespace is properly added (either default or prefixed)
+        has_default_ns = 'xmlns="http://fieldworks.sil.org/schemas/lift/0.13"' in normalized
+        has_prefixed_ns = 'xmlns:lift="http://fieldworks.sil.org/schemas/lift/0.13"' in normalized
+        assert has_default_ns or has_prefixed_ns, f"Expected namespace declaration in: {normalized[:200]}"
         assert LIFTNamespaceManager.has_lift_namespace(normalized) is True
     
     @pytest.mark.integration

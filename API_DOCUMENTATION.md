@@ -961,12 +961,13 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/tools/batch-edit`
+### `/tools/bulk-edit` (and `/tools/batch-edit` for backward compatibility)
 
 - **Endpoint Name:** `main.batch_edit`
 - **HTTP Methods:** `GET`
 - **Handler Function:** `batch_edit`
 - **Defined at:** `app/views.py:760-767`
+- **Description:** Bulk editing interface for dictionary entries (currently not implemented)
 
 ---
 

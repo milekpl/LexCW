@@ -72,9 +72,9 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
-        # Search in /entries container to match existing entries structure
+        # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        for $entry in (collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"])[1]
+        for $entry in (collection('{db_name}')//{entry_path}[@id="{entry_id}"])[1]
         return $entry
         """
 
@@ -202,10 +202,11 @@ class XQueryBuilder:
             Complete XQuery string
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        lift_path = XQueryBuilder.get_element_path("lift", has_namespace)
 
-        # Insert into the /entries container to match existing entries structure
+        # Insert into the lift root element (standard LIFT structure has entries directly under lift)
         return f"""{prologue}
-        insert node {entry_xml} as last into collection('{db_name}')/entries
+        insert node {entry_xml} as last into collection('{db_name}')/{lift_path}
         """
 
     @staticmethod
@@ -226,10 +227,11 @@ class XQueryBuilder:
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        lift_path = XQueryBuilder.get_element_path("lift", has_namespace)
 
-        # Search in /entries container to match existing entries structure
+        # Search in lift root (standard LIFT structure has entries directly under lift)
         return f"""{prologue}
-        replace node collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"]
+        replace node collection('{db_name}')/{lift_path}/{entry_path}[@id="{entry_id}"]
         with {entry_xml}
         """
 
@@ -251,9 +253,9 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
-        # Search in /entries container to match existing entries structure
+        # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        delete node collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"]
+        delete node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
         """
 
     @staticmethod
@@ -274,9 +276,9 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
-        # Search in /entries container to match existing entries structure
+        # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        exists(collection('{db_name}')/entries/{entry_path}[@id="{entry_id}"])
+        exists(collection('{db_name}')//{entry_path}[@id="{entry_id}"])
         """
 
     @staticmethod
@@ -517,17 +519,14 @@ class XQueryBuilder:
         
         relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
 
-        relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
-
         query = f"""
-        let $entry_relations := collection('{db_name}')//{entry_path}[@id="{entry_id}"]/{relation_path}{relation_condition}/@ref
-        for $related in collection('{db_name}')//{entry_path}[@id = $entry_relations]
+        let $related_ids := collection('{db_name}')//{entry_path}[@id="{entry_id}"]/{relation_path}{relation_condition}/@ref
+        for $entry in collection('{db_name}')//{entry_path}[@id = $related_ids]
+        return $entry
         """
 
         if offset:
             query += f"\n        where position() > {offset}"
-
-        query += "\n        return $related"
 
         if limit:
             query = f"({query})[position() <= {limit}]"

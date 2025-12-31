@@ -81,7 +81,9 @@ def get_all_ranges() -> Union[Response, Tuple[Response, int]]:
         # Check query param to request resolved view
         resolved_param = (request.args.get('resolved') or '').lower()
         resolved = resolved_param in ('1', 'true', 'yes')
-        ranges = dict_service.get_ranges(resolved=resolved)
+        # Use force_reload=True to ensure fresh data from the database,
+        # since self.ranges may have been pre-populated with defaults during app startup
+        ranges = dict_service.get_ranges(resolved=resolved, force_reload=True)
         return jsonify({
             'success': True,
             'data': ranges
@@ -175,7 +177,9 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         # Accept `resolved` query param for resolved view
         resolved_param = (request.args.get('resolved') or '').lower()
         resolved = resolved_param in ('1', 'true', 'yes')
-        ranges = dict_service.get_ranges(resolved=resolved)
+        # Use force_reload=True to ensure fresh data from the database,
+        # since self.ranges may have been pre-populated with defaults during app startup
+        ranges = dict_service.get_ranges(resolved=resolved, force_reload=True)
 
         # Use exact ID matching first. Do not attempt plural/singular
         # or heuristic fallbacks here; callers should use canonical IDs.

@@ -10,12 +10,34 @@ from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
 from app.services.dictionary_service import DictionaryService
 
 
+# Test entry IDs that need cleanup
+TEST_ENTRY_IDS = [
+    "duplicate_test_entry", "complex_entry", "new_entry",
+    "word1", "word2", "noun1", "verb1", "adj1", "noun2"
+]
+
 
 @pytest.mark.integration
 class TestAdvancedCRUD:
     """Additional CRUD tests for the DictionaryService."""
-    
-    @pytest.mark.integration
+
+    @pytest.fixture(autouse=True)
+    def cleanup_test_entries(self, dict_service_with_db: DictionaryService) -> None:
+        """Clean up test entries before and after each test."""
+        # Cleanup before test
+        for entry_id in TEST_ENTRY_IDS:
+            try:
+                dict_service_with_db.delete_entry(entry_id)
+            except (NotFoundError, Exception):
+                pass  # Entry might not exist
+        yield
+        # Cleanup after test
+        for entry_id in TEST_ENTRY_IDS:
+            try:
+                dict_service_with_db.delete_entry(entry_id)
+            except (NotFoundError, Exception):
+                pass  # Entry might not exist
+
     def test_create_entry_duplicate_id(self, dict_service_with_db: DictionaryService) -> None:
         """Test creating an entry with a duplicate ID."""
         # Create an entry with a unique ID (not test_entry_1 which is from fixture)
@@ -30,17 +52,15 @@ class TestAdvancedCRUD:
         with pytest.raises(ValidationError):
             dict_service_with_db.create_entry(entry)
     
-    @pytest.mark.integration
     def test_create_entry_with_invalid_data(self, dict_service_with_db: DictionaryService) -> None:
         """Test creating an entry with invalid data."""
         # Create an entry with no lexical unit (which is required)
         entry = Entry(id_="invalid_entry")
-        
+
         # Attempt to create the entry - should raise ValidationError
         with pytest.raises(ValidationError):
             dict_service_with_db.create_entry(entry)
-    
-    @pytest.mark.integration
+
     def test_create_entry_with_complex_structure(self, dict_service_with_db: DictionaryService) -> None:
         """Test creating an entry with a complex structure."""
         # Create an entry with multiple senses, examples, and pronunciations
@@ -71,8 +91,7 @@ class TestAdvancedCRUD:
         # Use flat format (LIFT standard) - glosses and definitions are Dict[str, str]
         assert sense1.glosses.get("pl") == "złożony"
         assert sense1.definitions.get("en") == "Having many interconnected parts"
-    
-    @pytest.mark.integration
+
     def test_update_nonexistent_entry(self, dict_service_with_db):
         """Test updating an entry that doesn't exist."""
         # Create an entry but don't add it to the database
@@ -85,15 +104,13 @@ class TestAdvancedCRUD:
         # Attempt to update the entry - should raise NotFoundError
         with pytest.raises(NotFoundError):
             dict_service_with_db.update_entry(entry)
-    
-    @pytest.mark.integration
+
     def test_delete_nonexistent_entry(self, dict_service_with_db):
         """Test deleting an entry that doesn't exist."""
         # Attempt to delete an entry that doesn't exist - should raise NotFoundError
         with pytest.raises(NotFoundError):
             dict_service_with_db.delete_entry("nonexistent_entry")
-    
-    @pytest.mark.integration
+
     def test_create_or_update_entry(self, dict_service_with_db):
         """Test the create_or_update_entry method."""
         # Create a new entry
@@ -123,8 +140,7 @@ class TestAdvancedCRUD:
         retrieved_entry = dict_service_with_db.get_entry("new_entry")
         assert retrieved_entry.id == "new_entry"
         assert retrieved_entry.lexical_unit.get("en") == "updated"
-    
-    @pytest.mark.integration
+
     def test_related_entries(self, dict_service_with_db):
         """Test creating and retrieving related entries."""
         # Create entries with relationships
@@ -171,8 +187,7 @@ class TestAdvancedCRUD:
         related_entries = dict_service_with_db.get_related_entries("word1", relation_type="antonym")
         assert len(related_entries) == 1
         assert related_entries[0].id == "word2"
-    
-    @pytest.mark.integration
+
     def test_entries_by_grammatical_info(self, dict_service_with_db):
         """Test retrieving entries by grammatical information."""
         # Use create_entry to add test entries
@@ -205,11 +220,4 @@ class TestAdvancedCRUD:
 
         adv_entries = dict_service_with_db.get_entries_by_grammatical_info("adverb")
         assert len(adv_entries) == 0
-
-        # Clean up the test entries using individual delete operations
-        for entry_id in ["noun1", "verb1", "adj1", "noun2"]:
-            try:
-                dict_service_with_db.delete_entry(entry_id)
-            except Exception:
-                pass  # Entry might not exist, which is fine
   

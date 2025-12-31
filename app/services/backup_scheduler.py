@@ -147,20 +147,22 @@ class BackupScheduler:
     def _execute_scheduled_backup(self, scheduled_backup: ScheduledBackup):
         """
         Execute a scheduled backup job.
-        
+
         Args:
             scheduled_backup: ScheduledBackup model instance to execute
         """
         try:
             # Update last run time
             scheduled_backup.last_run = datetime.utcnow()
-            
-            # Perform the backup
-            backup_result = self.backup_manager.backup_database(
-                db_name=scheduled_backup.db_name,
-                backup_type=scheduled_backup.type,
-                description=f"Scheduled {scheduled_backup.interval} backup"
-            )
+
+            # Perform the backup - wrap in app context for background thread safety
+            from flask import current_app
+            with current_app.app_context():
+                backup_result = self.backup_manager.backup_database(
+                    db_name=scheduled_backup.db_name,
+                    backup_type=scheduled_backup.type,
+                    description=f"Scheduled {scheduled_backup.interval} backup"
+                )
             
             # Update last status
             scheduled_backup.last_status = 'success'

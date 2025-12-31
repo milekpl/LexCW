@@ -40,6 +40,7 @@ class Sense(BaseModel):
         self.grammatical_traits: dict[str, str] | None = kwargs.pop('grammatical_traits', None)
         self.examples = kwargs.pop('examples', [])
         self.relations = kwargs.pop('relations', [])
+        self.variant_relations = kwargs.pop('variant_relations', [])
         self.notes = kwargs.pop('notes', {})
         self.custom_fields = kwargs.pop('custom_fields', {})
         self.traits: dict[str, str] = kwargs.pop('traits', {})
@@ -239,6 +240,40 @@ class Sense(BaseModel):
             'type': relation_type,
             'ref': target_id
         })
+
+    def add_variant_relation(self, variant_type: str, target_id: str, **kwargs) -> None:
+        """
+        Add a variant relation to the sense.
+        Variant relations link this sense to variant forms (e.g., archaic, colloquial).
+
+        Args:
+            variant_type: Type of variant (e.g., 'archaic', 'colloquial', 'dialect').
+            target_id: ID of the target entry.
+            **kwargs: Additional optional fields (e.g., 'comment', 'trait').
+        """
+        relation = {
+            'type': variant_type,
+            'ref': target_id
+        }
+        if kwargs:
+            relation.update(kwargs)
+        self.variant_relations.append(relation)
+
+    def remove_variant_relation(self, target_id: str) -> bool:
+        """
+        Remove a variant relation by target ID.
+
+        Args:
+            target_id: ID of the target entry to remove.
+
+        Returns:
+            True if removed, False if not found.
+        """
+        for i, rel in enumerate(self.variant_relations):
+            if rel.get('ref') == target_id:
+                del self.variant_relations[i]
+                return True
+        return False
 
     def add_bidirectional_relation(self, relation_type: str, target_id: str, source_id: str, dict_service=None) -> None:
         """
@@ -493,7 +528,13 @@ class Sense(BaseModel):
             result['reversals'] = self.reversals
         else:
             result['reversals'] = []
-        
+
+        # Sense-level variant relations
+        if hasattr(self, 'variant_relations') and self.variant_relations:
+            result['variant_relations'] = self.variant_relations
+        else:
+            result['variant_relations'] = []
+
         # LIFT 0.13: Include annotations - Day 26-27
         if hasattr(self, 'annotations') and self.annotations:
             result['annotations'] = self.annotations

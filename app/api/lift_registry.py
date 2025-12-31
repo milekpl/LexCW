@@ -235,9 +235,28 @@ def get_metadata():
                     type: string
     """
     registry = get_registry()
-    
+
+    # Dynamically load relation types from the lexical-relation range
+    # This allows projects to define their own relation types via ranges
+    relation_types = ["_component-lexeme"]  # Always include this implicit SIL type
+    try:
+        from flask import current_app
+        from app.services.dictionary_service import DictionaryService
+        dict_service = current_app.injector.get(DictionaryService)
+        ranges = dict_service.get_ranges()
+
+        # Get relation types from the lexical-relation range
+        lexical_rel_range = ranges.get("lexical-relation", {})
+        values = lexical_rel_range.get("values", [])
+        for val in values:
+            rel_id = val.get("id", "")
+            if rel_id and rel_id not in relation_types:
+                relation_types.append(rel_id)
+    except Exception as e:
+        current_app.logger.debug(f"Could not load relation types from ranges: {e}")
+
     return jsonify({
-        "lexical_relations": registry.get_relation_types(),
+        "lexical_relations": relation_types,
         "note_types": registry.get_note_types(),
         "grammatical_categories": registry.get_grammatical_categories()
     })

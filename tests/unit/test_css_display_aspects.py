@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 from flask import Flask
+from unittest.mock import patch, MagicMock
 
 from app.models.display_profile import DisplayProfile, ProfileElement
 from app.models.workset_models import db
@@ -352,8 +353,25 @@ class TestProfileElementIntegration:
             '''
 
             service = CSSMappingService()
-            html = service.render_entry(lift_xml, profile)
 
-            # Expect the full label 'Antonym' rather than abbreviation 'ant'
-            assert 'Antonym' in html
-            assert 'ant ' not in html or ' ant<' not in html
+            # Mock the dictionary service to provide ranges with lexical-relation mappings
+            ranges = {
+                'lexical-relation': {
+                    'values': [
+                        {'id': 'antonym', 'label': {'en': 'Antonym'}}
+                    ]
+                }
+            }
+            mock_dict_service = MagicMock()
+            mock_dict_service.get_ranges.return_value = ranges
+
+            with patch('flask.current_app') as mock_current_app:
+                mock_injector = MagicMock()
+                mock_injector.get.return_value = mock_dict_service
+                mock_current_app.injector = mock_injector
+
+                html = service.render_entry(lift_xml, profile)
+
+                # Expect the full label 'Antonym' rather than abbreviation 'ant'
+                assert 'Antonym' in html
+                assert 'ant ' not in html or ' ant<' not in html

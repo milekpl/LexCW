@@ -104,46 +104,134 @@ def check_entry_data():
 @validation_bp.route('/api/validation/batch', methods=['POST'])
 @swag_from({
     'tags': ['Validation'],
-    'summary': 'Validate multiple entries in batch',
+    'summary': 'Validate multiple entries in batch using centralized validation engine',
     'parameters': [{'name': 'entries_data', 'in': 'body', 'required': True, 'description': 'Dictionary containing entries to validate'}],
     'responses': {'200': {'description': 'Batch validation results.'}, '400': {'description': 'Invalid request data.'}}
 })
 def validate_batch():
-    """Validate multiple entries in batch."""
+    """Validate multiple entries in batch using centralized validation engine."""
+    from app.services.validation_engine import ValidationEngine
+
     try:
         entries_data = request.get_json()
         if not entries_data:
-            return jsonify({'valid': False, 'errors': ['No data provided']}), 400
-        
+            return jsonify({'valid': False, 'errors': ['No data provided'], 'total_entries': 0, 'valid_entries': 0, 'invalid_entries': 0, 'results': []}), 400
+
         if 'entries' not in entries_data:
-            return jsonify({'valid': False, 'errors': ['Missing entries key']}), 400
-        
-        entries = entries_data['entries']
-        all_errors = []
-        
-        for i, entry_data in enumerate(entries):
+            return jsonify({'valid': False, 'errors': ['Missing entries key'], 'total_entries': 0, 'valid_entries': 0, 'invalid_entries': 0, 'results': []}), 400
+
+        entries = entries_data.get('entries', [])
+        priority_filter = entries_data.get('priority_filter', 'all')
+
+        # First pass: collect all entry IDs for relation target validation
+        existing_entry_ids: set = set()
+        parsed_entries: list = []
+
+        for entry_data in entries:
+            # Parse string entries as JSON
+            entry = entry_data
+            if isinstance(entry_data, str):
+                try:
+                    entry = json.loads(entry_data)
+                except json.JSONDecodeError:
+                    entry = None
+            if entry and isinstance(entry, dict):
+                entry_id = entry.get('id')
+                if entry_id:
+                    existing_entry_ids.add(entry_id)
+            parsed_entries.append((entry_data, entry))
+
+        # Initialize validation engine with existing entry IDs
+        engine = ValidationEngine(existing_entry_ids=existing_entry_ids)
+
+        results = []
+        valid_count = 0
+        invalid_count = 0
+
+        for i, (entry_data, entry) in enumerate(parsed_entries):
+            # Skip entries that are not dictionaries or strings
+            if not isinstance(entry_data, dict) and not isinstance(entry_data, str):
+                results.append({
+                    'entry_id': f'entry_{i}',
+                    'valid': False,
+                    'error_count': 1,
+                    'has_critical_errors': True,
+                    'errors': [{'message': f'Invalid entry type: {type(entry_data).__name__}', 'priority': 'critical', 'category': 'general'}],
+                    'warnings': [],
+                    'info': []
+                })
+                invalid_count += 1
+                continue
+
+            # Skip entries that failed to parse
+            if entry is None:
+                results.append({
+                    'entry_id': f'entry_{i}',
+                    'valid': False,
+                    'error_count': 1,
+                    'has_critical_errors': True,
+                    'errors': [{'message': f'Invalid JSON format', 'priority': 'critical', 'category': 'general'}],
+                    'warnings': [],
+                    'info': []
+                })
+                invalid_count += 1
+                continue
+
+            # Get entry_id safely
+            entry_id = f'entry_{i}'
+            if isinstance(entry, dict):
+                entry_id = entry.get('id', f'entry_{i}')
+
             try:
-                entry = Entry.from_dict(entry_data)
-                entry.validate()
-            except ValidationError as ve:
-                all_errors.append({
-                    'index': i,
-                    'id': entry_data.get('id', f'entry_{i}'),
-                    'errors': ve.errors if ve.errors else [str(ve)]
-                })
+                result = engine.validate_json(entry)
             except Exception as e:
-                all_errors.append({
-                    'index': i,
-                    'id': entry_data.get('id', f'entry_{i}'),
-                    'errors': [f'Validation error: {str(e)}']
-                })
-        
-        if all_errors:
-            return jsonify({'valid': False, 'errors': all_errors}), 200
-        return jsonify({'valid': True, 'errors': []}), 200
-        
+                result = type('ValidationResult', (), {'is_valid': False, 'errors': [type('ValidationError', (), {'message': str(e), 'priority': 'critical', 'category': 'general'})()], 'warnings': [], 'info': [], 'has_critical_errors': True, 'error_count': 1})()
+
+            # Filter by priority if needed
+            if priority_filter != 'all':
+                result.errors = [e for e in result.errors if e.priority.value == priority_filter]
+                result.warnings = [w for w in result.warnings if w.priority.value == priority_filter]
+                result.info = [i for i in result.info if i.priority.value == priority_filter]
+
+            def error_to_dict(error):
+                return {
+                    'rule_id': getattr(error, 'rule_id', 'unknown'),
+                    'rule_name': getattr(error, 'rule_name', 'unknown'),
+                    'message': error.message,
+                    'path': getattr(error, 'path', ''),
+                    'priority': error.priority.value if hasattr(error, 'priority') else 'critical',
+                    'category': error.category.value if hasattr(error, 'category') else 'general',
+                    'value': str(getattr(error, 'value', None)) if hasattr(error, 'value') else None
+                }
+
+            results.append({
+                'entry_id': entry_id,
+                'valid': result.is_valid,
+                'error_count': result.error_count,
+                'has_critical_errors': result.has_critical_errors,
+                'errors': [error_to_dict(e) for e in result.errors],
+                'warnings': [error_to_dict(w) for w in result.warnings],
+                'info': [error_to_dict(i) for i in result.info]
+            })
+
+            if result.is_valid:
+                valid_count += 1
+            else:
+                invalid_count += 1
+
+        response = {
+            'valid': invalid_count == 0,
+            'errors': [],
+            'total_entries': len(entries),
+            'valid_entries': valid_count,
+            'invalid_entries': invalid_count,
+            'results': results
+        }
+
+        return jsonify(response), 200
+
     except Exception as e:
-        return jsonify({'valid': False, 'errors': [f'Batch validation error: {str(e)}']}), 200
+        return jsonify({'valid': False, 'errors': [f'Batch validation error: {str(e)}'], 'total_entries': 0, 'valid_entries': 0, 'invalid_entries': 0, 'results': []}), 200
 
 
 @validation_bp.route('/api/validation/schema', methods=['GET'])

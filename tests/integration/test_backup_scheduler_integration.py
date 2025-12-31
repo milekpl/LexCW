@@ -12,8 +12,18 @@ def test_backup_scheduler_schedules_on_start():
     try:
         with app.app_context():
             scheduler: BackupScheduler = app.injector.get(BackupScheduler)
+            config_manager: ConfigManager = app.injector.get(ConfigManager)
 
-            # There should be at least one scheduled backup (default config provides 'daily')
+            # Backup scheduler is disabled during testing, so we need to
+            # explicitly start it and sync settings for this test
+            scheduler.start()
+
+            # Sync with default backup settings to schedule backups
+            default_backup_settings = config_manager.get_backup_settings()
+            db_name = app.config.get('BASEX_DATABASE', 'dictionary_test')
+            scheduler.sync_backup_schedule(db_name, default_backup_settings)
+
+            # There should be at least one scheduled backup now
             scheduled = scheduler.get_scheduled_backups()
             assert isinstance(scheduled, list)
             assert len(scheduled) >= 1, "Expected at least one scheduled backup"
@@ -38,6 +48,9 @@ def test_backup_scheduler_sync_disables_and_enables():
         with app.app_context():
             config_manager: ConfigManager = app.injector.get(ConfigManager)
             scheduler: BackupScheduler = app.injector.get(BackupScheduler)
+
+            # Start the scheduler explicitly (disabled in testing mode by default)
+            scheduler.start()
 
             # Ensure we start from a clean state by removing any pre-existing scheduled jobs
             for s in list(scheduler.get_scheduled_backups()):

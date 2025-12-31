@@ -66,6 +66,13 @@
         font-weight: bold;
         margin-right: 10px;
     }
+    .feature-list li.text-danger:before {
+        content: "✕";
+        color: #dc3545;
+    }
+    .feature-list li.text-danger {
+        color: #dc3545;
+    }
     .nav-link.active {
         font-weight: bold;
         color: #0d6efd !important;
@@ -99,6 +106,7 @@
                 </nav>
                 <a class="nav-link" href="#custom-fields">Custom Fields</a>
                 <a class="nav-link" href="#ranges-editor">Ranges Editor</a>
+                <a class="nav-link" href="#validation-rules">Validation Rules</a>
                 <a class="nav-link" href="#workflow">Workflow Features</a>
                 <a class="nav-link" href="#compatibility">FieldWorks Compatibility</a>
             </nav>
@@ -356,7 +364,7 @@ TTS: [Generate Audio]</code></pre>
                 <li><strong>Geographic Tags</strong>: Regional classifications</li>
             </ul>
 
-            <h2 id="ranges-editor">Ranges Editor <span class="feature-badge badge-professional">Professional</span></h2>
+            <h2 id="ranges-editor">Ranges Editor <span class="feature-badge badge-professional">Professional</span> <a href="{{ url_for('main.ranges_editor') }}" class="btn btn-sm btn-outline-primary" title="Open Ranges Editor"><i class="fas fa-external-link-alt"></i> Open Editor</a></h2>
             <p>
                 Manage controlled vocabularies (ranges) for your dictionary. Ranges define the valid values for fields like 
                 grammatical categories, semantic domains, and lexical relations.
@@ -431,14 +439,151 @@ TTS: [Generate Audio]</code></pre>
                 <li><strong>Cancel</strong>: Keep the element if you change your mind</li>
             </ul>
 
+            <h2 id="validation-rules">Validation Rules <span class="feature-badge badge-advanced">Advanced</span></h2>
+            <p>
+                Ensure dictionary quality with configurable validation rules that check entries for completeness,
+                consistency, and adherence to project standards. The system includes a built-in rule editor and
+                batch validation capabilities.
+            </p>
+
+            <h3><i class="fas fa-clipboard-check"></i> What Are Validation Rules?</h3>
+            <p>
+                Validation rules are automated checks that evaluate dictionary entries against defined criteria.
+                Each rule specifies:
+            </p>
+            <ul class="feature-list">
+                <li><strong>Scope</strong>: What part of the entry to check (e.g., lexical unit, senses, pronunciation)</li>
+                <li><strong>Condition</strong>: When the rule applies (e.g., field is present, field is empty, value matches pattern)</li>
+                <li><strong>Validation Type</strong>: How to check (e.g., required, regex pattern, length check, custom function)</li>
+                <li><strong>Priority</strong>: Error severity (critical, warning, info)</li>
+                <li><strong>Message</strong>: Human-readable feedback when validation fails</li>
+            </ul>
+
+            <h3><i class="fas fa-edit"></i> Rule Editor</h3>
+            <p>
+                Access the Rule Editor from <strong>Tools → Rule Editor</strong> to:
+            </p>
+            <ul class="feature-list">
+                <li><strong>View all rules</strong>: Browse active validation rules for your project</li>
+                <li><strong>Create new rules</strong>: Add custom validation checks tailored to your project</li>
+                <li><strong>Edit existing rules</strong>: Modify rule parameters, conditions, or error messages</li>
+                <li><strong>Enable/disable rules</strong>: Toggle rules on/off without deleting them</li>
+                <li><strong>Test rules</strong>: Preview rule behavior against sample entry data</li>
+                <li><strong>Export/Import</strong>: Share rule sets between projects</li>
+            </ul>
+
+            <div class="example-box">
+                <strong><i class="fas fa-info-circle"></i> Example: Required IPA Rule</strong>
+                <p class="mt-2">
+                    A rule to ensure all entries have IPA pronunciation:
+                </p>
+                <ul class="mb-2">
+                    <li><strong>Path</strong>: <code>$.pronunciations[*].ipa</code></li>
+                    <li><strong>Condition</strong>: <code>if_present</code> (check when pronunciation exists)</li>
+                    <li><strong>Validation</strong>: <code>required</code> (IPA must be non-empty)</li>
+                    <li><strong>Priority</strong>: <code>warning</code></li>
+                    <li><strong>Message</strong>: "Pronunciation entry must have an IPA form"</li>
+                </ul>
+            </div>
+
+            <h3><i class="fas fa-tasks"></i> Batch Validation</h3>
+            <p>
+                Run validation across your entire dictionary using <strong>Tools → Batch Validation</strong>:
+            </p>
+            <ul class="feature-list">
+                <li><strong>Select scope</strong>: Validate all entries or filter by search criteria</li>
+                <li><strong>Filter by severity</strong>: Show only critical errors, warnings, or all issues</li>
+                <li><strong>Export results</strong>: Download validation report for quality assurance records</li>
+                <li><strong>Drill down</strong>: Click any issue to open the problematic entry for editing</li>
+            </ul>
+
+            <h3><i class="fas fa-code"></i> Built-in Rule Templates</h3>
+            <p>
+                Start quickly with pre-configured templates. Available templates include:
+            </p>
+            <ul>
+                <li><strong>Basic</strong>: Essential checks (required fields, non-empty values)</li>
+                <li><strong>Academic</strong>: Stricter requirements for publication-quality dictionaries</li>
+                <li><strong>Bilingual</strong>: Checks for bilingual dictionary completeness</li>
+                <li><strong>Research</strong>: Comprehensive validation for research corpora</li>
+            </ul>
+            <p>
+                Initialize a template from the Rule Editor to get started quickly. You can then customize rules to fit your specific needs.
+            </p>
+
+            <h3><i class="fas fa-plug"></i> Custom Validation Functions</h3>
+            <p>
+                Some validation scenarios require custom logic beyond standard checks. The system supports custom Python functions
+                for advanced validation needs.
+            </p>
+
+            <h4>Who Can Add Custom Functions?</h4>
+            <ul class="feature-list">
+                <li><strong>Administrators</strong>: Can add custom validation functions to the codebase</li>
+                <li><strong>Developers</strong>: Can extend the validation engine with new function types</li>
+                <li class="text-danger"><strong>End Users</strong>: Cannot directly add custom functions (requires code deployment)</li>
+            </ul>
+
+            <h4>How to Add Custom Functions</h4>
+            <p>
+                Custom validation functions are implemented in Python by extending the validation engine:
+            </p>
+            <ol>
+                <li>Create a new validation function in <code>app/services/validation_engine.py</code></li>
+                <li>Register the function in the validation engine's function registry</li>
+                <li>Restart the application to load the new function</li>
+                <li>Create rules using the new function type from the Rule Editor</li>
+            </ol>
+
+            <div class="example-box">
+                <strong><i class="fas fa-code"></i> Example: Custom Function Implementation</strong>
+                <pre class="mb-0 mt-2"><code># In app/services/validation_engine.py
+def validate_custom_check(value: str, context: dict) -> tuple[bool, str]:
+    """
+    Custom validation function.
+    Returns (is_valid, error_message).
+    """
+    if not meets_custom_criteria(value):
+        return False, "Value does not meet custom criteria"
+    return True, ""</code></pre>
+            </div>
+
+            <h4>Available Custom Function Types</h4>
+            <p>
+                Standard built-in functions include:
+            </p>
+            <ul>
+                <li><strong>Required</strong>: Field must have a non-empty value</li>
+                <li><strong>Regex</strong>: Value must match a regular expression pattern</li>
+                <li><strong>Length</strong>: String length constraints (min/max)</li>
+                <li><strong>In Range</strong>: Value must be one of allowed controlled vocabulary values</li>
+                <li><strong>IPA Format</strong>: Validates International Phonetic Alphabet notation</li>
+            </ul>
+            <p>
+                <em>Note: Custom functions require administrator access to the server/codebase to implement.</em>
+            </p>
+
+            <h3><i class="fas fa-users-cog"></i> Rule Management Best Practices</h3>
+            <ul class="feature-list">
+                <li><strong>Start simple</strong>: Begin with basic required-field rules, add complexity gradually</li>
+                <li><strong>Use priorities wisely</strong>: Critical for blocking errors, warnings for suggestions</li>
+                <li><strong>Document rules</strong>: Use descriptive names and messages that help editors understand issues</li>
+                <li><strong>Test before deployment</strong>: Use the Rule Editor's test feature to preview rule behavior</li>
+                <li><strong>Version control</strong>: Export rule sets when making significant changes for backup</li>
+            </ul>
+
             <h2 id="workflow">Workflow Features</h2>
 
             <h3 id="project-setup"><i class="fas fa-gear"></i> Project Setup & Recommended Ranges <span class="feature-badge badge-essential">Getting Started</span></h3>
             <p>
                 When you first create a project, the Setup Wizard helps you configure basic settings such as the project name, source and target languages, and whether to install a minimal set of recommended ranges to bootstrap your project.
             </p>
+            <p>
+                <strong>Projects and Dictionaries:</strong> Each project in the Lexicographic Curation Workbench contains a single dictionary. You can create multiple projects to manage different dictionaries simultaneously. For example, you might have separate projects for different languages, different research teams, or different dictionary publications. Each project maintains its own data, settings, and configurations independently.
+            </p>
             <ul>
                 <li><strong>Project Wizard</strong>: Create a new project from the <strong>Settings → Projects</strong> page, or from the <strong>Settings</strong> page for the current project by using the Project Setup dialog.</li>
+                <li><strong>Multiple Dictionaries</strong>: Create as many projects as needed to manage different dictionaries. Each project contains one dictionary and has its own independent data storage.</li>
                 <li><strong>Install Recommended Ranges</strong>: Choose this option to add a curated minimal set of ranges (grammatical-info, lexical relations, status, etc.) to quickly enable dropdowns and validation in the entry form.</li>
                 <li><strong>Non-destructive install</strong>: The installer will not overwrite existing ranges. If ranges already exist, the installer refuses to run to prevent accidental data changes.</li>
                 <li><strong>Post-install workflow</strong>: After ranges are installed, dropdowns and search filters will automatically populate with the new values; you may need to reload the UI.</li>
