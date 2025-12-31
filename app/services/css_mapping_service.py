@@ -443,6 +443,72 @@ class CSSMappingService:
                 if any_applied:
                     handled_elements.add("relation")
 
+            # Variant-relation specific handling (for relations with type="variant-type")
+            if lift_elem == "variant-relation":
+                # Get language from profile element, default to 'en' if not specified
+                element_lang = pe.get_display_language() or "en"
+
+                # Build language-specific mapping tables for this element
+                element_abbr_maps = self._build_range_lookup(lang=element_lang)
+                element_label_maps = self._build_range_label_lookup(lang=element_lang)
+
+                self._logger.debug(f"Handling variant-relation config: aspect={aspect}")
+
+                # If the user provided a filter but did not explicitly set an aspect,
+                # default to 'label' for variant relations.
+                if not aspect and pe.config and isinstance(pe.config, dict) and pe.config.get('filter'):
+                    aspect = 'label'
+
+                # Choose label map for 'label' or 'full' aspects; abbrev map for 'abbr'
+                use_label = aspect in ("label", "full")
+                # Use variant-type range for mapping variant relations
+                rel_map = None
+                if use_label:
+                    rel_map = element_label_maps.get("variant-type")
+                else:
+                    rel_map = element_abbr_maps.get("variant-type")
+
+                # Get filter configuration if provided
+                filter_config = None
+                if pe.config and isinstance(pe.config, dict):
+                    filter_config = pe.config.get("filter")
+
+                # Apply variant-relation display aspect
+                any_applied = False
+                for elem in root.findall(".//relation"):
+                    if elem.attrib.get("__aspect_handled"):
+                        continue
+
+                    rel_type = elem.attrib.get("type", "")
+
+                    # Only process variant-type relations for variant-relation config
+                    if rel_type != "variant-type":
+                        continue
+
+                    self._logger.debug(f"Variant-relation element: type='{rel_type}', filter_config={filter_config}")
+
+                    # Check if this relation matches the filter
+                    if filter_config:
+                        if not self._check_filter(elem, filter_config, "relation"):
+                            self._logger.debug(f"Variant-relation '{rel_type}' did not match filter '{filter_config}'")
+                            continue
+
+                    # Apply the mapping
+                    if aspect and rel_map:
+                        applied = self._apply_relation_display_aspect(
+                            elem, aspect, rel_map or {}
+                        )
+                        if applied:
+                            elem.attrib["__aspect_handled"] = "1"
+                            any_applied = True
+                    else:
+                        # Mark as handled to preserve the original
+                        elem.attrib["__aspect_handled"] = "1"
+
+                # Mark as handled if we processed any
+                if any_applied:
+                    handled_elements.add("variant-relation")
+
             # Grammatical info handling
             if lift_elem == "grammatical-info":
                 # Get language from profile element, default to 'en' if not specified
@@ -494,7 +560,36 @@ class CSSMappingService:
                 if pe.config and isinstance(pe.config, dict):
                     filter_config = pe.config.get("filter")
 
-                if var_map:
+                def _get_variant_type_label(variant_elem, mapping, use_labels):
+                    """Extract variant type from either type attribute or variant-type trait."""
+                    # First try to get from type attribute
+                    type_attr = variant_elem.attrib.get("type", "")
+                    if type_attr and mapping and type_attr in mapping:
+                        return mapping[type_attr], False
+
+                    # Then try to get from variant-type trait child
+                    for trait in variant_elem.findall("trait"):
+                        if trait.attrib.get("name") == "variant-type":
+                            trait_value = trait.attrib.get("value", "")
+                            if trait_value:
+                                if mapping and trait_value in mapping:
+                                    return mapping[trait_value], False
+                                # Humanize the trait value
+                                human_label = " ".join(
+                                    [w.capitalize() for w in trait_value.replace("-", " ").split()]
+                                )
+                                return human_label, True
+
+                    # Fall back to type attribute with humanization
+                    if type_attr:
+                        human_label = " ".join(
+                            [w.capitalize() for w in type_attr.replace("-", " ").split()]
+                        )
+                        return human_label, True
+
+                    return None, False
+
+                if var_map or use_label:
                     for elem in root.findall(".//variant"):
                         if elem.attrib.get("__aspect_handled"):
                             continue
@@ -502,43 +597,33 @@ class CSSMappingService:
                         # Check if this variant matches the filter
                         if filter_config:
                             variant_type = elem.attrib.get("type", "")
-                            if variant_type != filter_config:
-                                continue
+                            # Also check variant-type trait for filter match
+                            for trait in elem.findall("trait"):
+                                if trait.attrib.get("name") == "variant-type":
+                                    if trait.attrib.get("value") == filter_config:
+                                        break
+                            else:
+                                # Variant-type trait doesn't match filter, continue
+                                if variant_type != filter_config:
+                                    continue
 
-                        current_type = elem.attrib.get("type", "")
-                        if current_type in var_map:
-                            # Store resolved label on a separate attribute so transformer can show it
-                            elem.attrib["type"] = var_map[current_type]
-                            elem.attrib["data-variant-label"] = var_map[current_type]
+                        # Get the variant type label
+                        label, needs_humanize = _get_variant_type_label(elem, var_map, use_label)
+
+                        if label:
+                            # Store resolved label for transformer
+                            elem.attrib["data-variant-label"] = label
+                            # Update type attribute if we got from mapping or need humanized version
+                            if var_map and not needs_humanize:
+                                # Keep the original type for filter compatibility, just add label
+                                pass
+                            elif needs_humanize:
+                                elem.attrib["type"] = label
                             elem.attrib["__aspect_handled"] = "1"
 
                     # Only mark as globally handled if no filter
                     if not filter_config:
                         handled_elements.add("variant")
-                else:
-                    # No mapping available; if user requested label/full, fall back to
-                    # a humanized representation of the type (e.g., 'spelling' -> 'Spelling').
-                    if use_label:
-                        for elem in root.findall(".//variant"):
-                            if elem.attrib.get("__aspect_handled"):
-                                continue
-                            # Check filter
-                            if filter_config:
-                                variant_type = elem.attrib.get("type", "")
-                                if variant_type != filter_config:
-                                    continue
-
-                            current_type = elem.attrib.get("type", "")
-                            if current_type:
-                                human_label = " ".join(
-                                    [w.capitalize() for w in current_type.replace("-", " ").split()]
-                                )
-                                elem.attrib["type"] = human_label
-                                elem.attrib["__aspect_handled"] = "1"
-
-                        # Only mark as globally handled if no filter
-                        if not filter_config:
-                            handled_elements.add("variant")
 
             # Traits are a bit generic; apply if profile requested
             if lift_elem == "trait":
@@ -664,6 +749,9 @@ class CSSMappingService:
                 if elem.config and isinstance(elem.config, dict):
                     display_mode = elem.config.get("display_mode", "inline")
 
+                lang_filter = getattr(elem, 'language_filter', None)
+                self._logger.debug(f"ElementConfig for {elem.lift_element}: language_filter={lang_filter!r}")
+
                 config = ElementConfig(
                     lift_element=elem.lift_element,
                     display_order=elem.display_order
@@ -681,7 +769,7 @@ class CSSMappingService:
                     if elem.config and isinstance(elem.config, dict)
                     else ", ",
                     abbr_format=elem.get_display_aspect(),
-                    language=getattr(elem, 'language_filter', None)
+                    language=lang_filter
                 )
                 element_configs.append(config)
 

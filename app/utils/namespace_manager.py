@@ -125,14 +125,13 @@ class LIFTNamespaceManager:
     @classmethod
     def _add_lift_namespace(cls, root: ET.Element) -> str:
         """Add LIFT namespace to XML element tree."""
-        # Set namespace attributes on root element
-        if root.tag == "lift":
-            root.set("xmlns", cls.LIFT_NAMESPACE)
-            root.set("xmlns:flex", cls.FLEX_NAMESPACE)
+        # Register namespaces with ElementTree so it uses correct prefixes
+        cls.register_namespaces(has_lift_namespace=True)
 
-        # Convert all elements to use namespace
+        # Convert all elements to use namespace (only if not already namespaced)
         cls._apply_namespace_to_tree(root, cls.LIFT_NAMESPACE)
 
+        # Use tostring with proper namespace handling
         return ET.tostring(root, encoding="unicode")
 
     @classmethod
@@ -164,8 +163,8 @@ class LIFTNamespaceManager:
     @classmethod
     def _set_custom_namespace(cls, root: ET.Element, namespace: str) -> str:
         """Set custom namespace on XML element tree."""
-        if root.tag == "lift":
-            root.set("xmlns", namespace)
+        # Register custom namespace
+        ET.register_namespace('', namespace)
 
         cls._apply_namespace_to_tree(root, namespace)
 

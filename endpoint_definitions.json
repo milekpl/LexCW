@@ -598,14 +598,14 @@
   },
   {
     "endpoint": "main.batch_edit",
-    "url": "/tools/batch-edit",
+    "url": "/tools/bulk-edit",
     "methods": [
       "GET"
     ],
     "function_name": "batch_edit",
     "source_file": "app/views.py",
     "start_line": 760,
-    "end_line": 767
+    "end_line": 771
   },
   {
     "endpoint": "main.validation",

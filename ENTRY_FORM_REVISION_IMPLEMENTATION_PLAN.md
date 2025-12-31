@@ -9,6 +9,148 @@ This document outlines the implementation plan for enhancing the entry form in t
 3. **Hierarchical Dropdowns** - Convert usage type and domain type to hierarchical dropdowns with multiple selection
 4. **Refactor Field Visibility Modal** - Extract from inline HTML, connect via proper JS architecture
 
+Additionally, this document includes fixes for code quality issues identified during code review.
+
+---
+
+## Code Quality Issues Found
+
+During code review of `entry_form.html`, the following issues were identified and should be fixed:
+
+### Critical Issues (Fixed ✅)
+
+| Issue | Description | Status |
+|-------|-------------|--------|
+| Duplicate field names | `domain_type` was defined twice with different ranges, causing data overwrite | ✅ Fixed |
+
+### High Priority Issues
+
+#### 1. JavaScript Global Variable Pollution
+
+**Problem**: Global variables are exposed without namespace protection:
+```javascript
+window.rangesData = {{ ranges | tojson | safe }};
+window.componentRelations = {{ (forward_component_relations | default([])) | tojson | safe }};
+```
+
+**Issues**:
+- No namespace protection
+- Potential XSS if JSON contains user data
+- No error handling if data is malformed
+
+**Solution**: Wrap in namespace with error handling:
+```javascript
+(function() {
+    'use strict';
+    try {
+        window.DictionaryApp = window.DictionaryApp || {};
+        window.DictionaryApp.data = {
+            ranges: {{ ranges | tojson | safe }},
+            componentRelations: {{ (forward_component_relations | default([])) | tojson | safe }}
+        };
+    } catch (e) {
+        console.error('Failed to initialize app data:', e);
+    }
+})();
+```
+
+#### 2. Debug Code Left in Production
+
+**Problem**: Multiple `console.log` statements throughout the code (15+ instances):
+```javascript
+console.log('About to initialize LivePreviewManager...');
+console.log('LivePreviewManager type:', typeof LivePreviewManager);
+// ... more console.log statements
+```
+
+**Solution**: Remove debug statements or use a logging utility:
+```javascript
+const Logger = {
+    debug: (...args) => { if (DictionaryApp.config.debug) console.log(...args); },
+    error: (...args) => console.error(...args),
+    warn: (...args) => console.warn(...args)
+};
+```
+
+#### 3. Duplicate Language Code Extraction
+
+**Problem**: Same Jinja2 code repeated throughout template:
+```jinja2
+{% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code ... %}
+```
+
+**Solution**: Define once at template top and reuse:
+```jinja2
+{% set source_lang = current_app.config.PROJECT_SETTINGS.source_language.code|default('en') %}
+{% set target_lang = current_app.config.PROJECT_SETTINGS.target_language.code|default('en') %}
+```
+
+### Medium Priority Issues
+
+#### 4. Mixed jQuery and Vanilla JS
+
+**Problem**: Inconsistent patterns mixing jQuery and vanilla JS:
+```javascript
+// jQuery
+$(select).select2({ theme: 'bootstrap-5', ... });
+// Vanilla
+document.addEventListener('DOMContentLoaded', function() { ... });
+```
+
+**Solution**: Standardize on vanilla JS patterns where possible, keep Select2 for complex dropdowns only.
+
+#### 5. Script Loading Order Issues
+
+**Problem**: 20+ scripts loaded without clear dependency ordering. If `ranges-loader.js` depends on `rangesData` but loads before it's defined, runtime errors occur.
+
+**Solution**: Use `defer` attribute or explicit dependency management:
+```html
+<!-- Critical data first -->
+<script>
+    window.DictionaryApp = { data: { ranges: {{ ranges|tojson }} } };
+</script>
+<!-- Dependencies with defer -->
+<script defer src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
+```
+
+#### 6. Inline Template Mixing
+
+**Problem**: `<template>` elements are inline in HTML but could be loaded on-demand.
+
+**Solution**: Consider lazy-loading templates for complex forms.
+
+### Security Issues
+
+#### 7. XSS via Template Injection
+
+**Problem**: Inline template variables without proper JSON encoding:
+```javascript
+const entryId = '{{ entry.id }}';
+```
+
+**Solution**: Use JSON encoding:
+```javascript
+const entryId = {{ entry.id|tojson }};
+```
+
+#### 8. Missing CSRF on DELETE Handler
+
+**Problem**: Inline DELETE handler lacks CSRF token:
+```javascript
+fetch(`/api/entries/${entryId}`, { method: 'DELETE' })
+```
+
+**Solution**: Include CSRF token:
+```javascript
+fetch(`/api/entries/${entryId}`, {
+    method: 'DELETE',
+    headers: {
+        'X-CSRF-TOKEN': DictionaryApp.config.csrfToken,
+        'Content-Type': 'application/json'
+    }
+})
+```
+
 ---
 
 ## 1. DELETE Button for Dictionary Artifacts
@@ -1001,7 +1143,415 @@ The current implementation has the following known limitations that should be ad
 
 ---
 
-## 5. Refactor JavaScript Architecture (No DOM Scraping)
+## 5. Sense-Level Variant Relations (IMPLEMENTED)
+
+### Status: ✅ COMPLETED
+
+**Backend Changes:**
+- `app/models/sense.py`:
+  - Added `variant_relations` list attribute to Sense model
+  - Added `add_variant_relation()` method
+  - Added `remove_variant_relation()` method
+  - Updated `to_dict()` to include `variant_relations`
+
+**Frontend Changes:**
+- `app/templates/entry_form_partials/_senses.html`:
+  - Added "Variant Relations" section after Examples
+  - Supports variant type selection from `variant-type` range
+  - Target entry ID input with search button
+  - Optional comment field
+
+- `app/static/js/sense-variant-relations.js`:
+  - New `SenseVariantRelationsManager` class
+  - Add/remove variant relations with proper indexing
+  - Select2 integration for variant type dropdown
+  - Event-driven architecture for component communication
+
+- `app/templates/entry_form.html`:
+  - Added script include for `sense-variant-relations.js`
+
+---
+
+## 6. Per-Project Visibility Preferences (Database-Backed)
+
+### Overview
+
+Move visibility preferences from localStorage to database storage, enabling:
+- Cross-device synchronization of user preferences
+- Per-project visibility settings
+- Team-wide default visibility configurations
+- Backup and restore of user preferences
+
+### Implementation Details
+
+#### Backend Changes
+
+**New Model**: `app/models/user_preference.py`
+```python
+class UserPreference(BaseModel):
+    """
+    User preference model for storing visibility and UI settings.
+
+    Attributes:
+        user_id: Reference to the user (optional for anonymous settings)
+        project_id: Reference to the project (null for global settings)
+        preference_type: Type of preference (e.g., 'field_visibility')
+        preference_key: Specific setting key (e.g., 'basic-info', 'glosses-en')
+        preference_value: JSON-serialized value
+        is_default: Whether this is a project default
+    """
+```
+
+**New Service**: `app/services/user_preference_service.py`
+```python
+class UserPreferenceService:
+    """Service for managing user preferences."""
+
+    def get_visibility_settings(self, project_id: str = None, user_id: str = None) -> dict:
+        """Get visibility settings for user/project."""
+
+    def save_visibility_settings(self, settings: dict, project_id: str = None, user_id: str = None) -> None:
+        """Save visibility settings for user/project."""
+
+    def get_project_defaults(self, project_id: str) -> dict:
+        """Get project-level default visibility settings."""
+
+    def set_project_defaults(self, project_id: str, defaults: dict) -> None:
+        """Set project-level default visibility settings."""
+```
+
+**New API Endpoints**:
+- `GET /api/preferences/visibility` - Get visibility settings
+- `POST /api/preferences/visibility` - Save visibility settings
+- `GET /api/projects/<id>/visibility-defaults` - Get project defaults
+- `PUT /api/projects/<id>/visibility-defaults` - Set project defaults
+- `DELETE /api/preferences/visibility` - Reset to defaults
+
+**Database Schema**:
+```sql
+CREATE TABLE user_preferences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    project_id UUID REFERENCES projects(id),
+    preference_type VARCHAR(50) NOT NULL,
+    preference_key VARCHAR(100) NOT NULL,
+    preference_value JSONB NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, project_id, preference_type, preference_key)
+);
+
+CREATE INDEX idx_user_preferences_lookup
+ON user_preferences(user_id, project_id, preference_type);
+```
+
+#### Frontend Changes
+
+**File**: `app/static/js/field-visibility-manager.js`
+
+Enhance `FieldVisibilityManager` to support backend storage:
+
+```javascript
+class FieldVisibilityManager {
+    constructor(options = {}) {
+        this.options = {
+            storageKey: 'fieldVisibilitySettings',
+            useBackend: true,  // Enable backend storage
+            apiEndpoint: '/api/preferences/visibility',
+            projectId: null,
+            userId: null,
+            syncWithBackend: true,
+            ...options
+        };
+        // ... existing code ...
+    }
+
+    async _loadSettings() {
+        // Try backend first if enabled
+        if (this.options.useBackend && this.options.syncWithBackend) {
+            try {
+                const response = await fetch(this.options.apiEndpoint);
+                if (response.ok) {
+                    const backendSettings = await response.json();
+                    return { ...this.options.defaultSettings, ...backendSettings };
+                }
+            } catch (e) {
+                console.warn('[FieldVisibilityManager] Backend unavailable, using localStorage');
+            }
+        }
+        // Fallback to localStorage
+        return this._loadFromLocalStorage();
+    }
+
+    async _saveSettings() {
+        // Save to backend if enabled
+        if (this.options.useBackend && this.options.syncWithBackend) {
+            try {
+                await fetch(this.options.apiEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.settings)
+                });
+                return;
+            } catch (e) {
+                console.warn('[FieldVisibilityManager] Backend save failed, using localStorage');
+            }
+        }
+        // Fallback to localStorage
+        this._saveToLocalStorage();
+    }
+}
+```
+
+**File**: `app/templates/entry_form.html`
+
+Add project context to visibility manager initialization:
+```html
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof FieldVisibilityManager !== 'undefined') {
+        window.fieldVisibilityManager = new FieldVisibilityManager({
+            storageKey: 'entryFormFieldVisibility',
+            useBackend: true,
+            projectId: '{{ project_id }}',  // Pass from template
+            userId: '{{ current_user.id if current_user.is_authenticated else null }}'
+        });
+    }
+});
+</script>
+```
+
+---
+
+## 7. Per-Field Visibility Granularity
+
+### Overview
+
+Allow hiding/showing individual fields within sections, not just entire sections. For example:
+- Show "Lexical Unit" but hide "Pronunciation" in Basic Information
+- Show "Definition" but hide "Gloss" in Senses
+- Show "Examples" but hide "Illustrations" in a sense
+
+### Implementation Details
+
+#### Frontend Changes
+
+**Step 7.1: Add Field-Level Attributes**
+
+Add `data-field-id` and `data-section-id` to all form fields:
+
+```html
+<!-- Section container -->
+<div class="basic-info-section" data-section-id="basic-info">
+    <!-- Individual fields with field-id -->
+    <div class="mb-3" data-field-id="lexical-unit" data-section-id="basic-info">
+        <label>Lexical Unit</label>
+        <input type="text" name="lexical_unit">
+    </div>
+    <div class="mb-3" data-field-id="pronunciation" data-section-id="basic-info">
+        <label>Pronunciation</label>
+        <input type="text" name="pronunciation">
+    </div>
+</div>
+```
+
+**Step 7.2: Update FieldVisibilityManager**
+
+```javascript
+class FieldVisibilityManager {
+    constructor(options = {}) {
+        this.options = {
+            defaultFieldSettings: {
+                'basic-info': {
+                    'lexical-unit': true,
+                    'pronunciation': true,
+                    'variants': true
+                },
+                'senses': {
+                    'definition': true,
+                    'gloss': true,
+                    'grammatical-info': true,
+                    'examples': true,
+                    'illustrations': false  // Hidden by default
+                }
+            },
+            ...options
+        };
+        this.fieldSettings = this._loadFieldSettings();
+    }
+
+    setFieldVisibility(sectionId, fieldId, visible) {
+        // Validate section exists
+        if (!this.options.defaultFieldSettings[sectionId]) {
+            console.warn(`[FieldVisibilityManager] Unknown section: ${sectionId}`);
+            return;
+        }
+
+        // Update settings
+        if (!(sectionId in this.fieldSettings)) {
+            this.fieldSettings[sectionId] = {};
+        }
+        this.fieldSettings[sectionId][fieldId] = visible;
+        this._saveFieldSettings();
+
+        // Apply visibility
+        this._applyFieldVisibility(sectionId, fieldId, visible);
+
+        // Emit change event
+        this._emitChangeEvent('fieldVisibilityChanged', {
+            sectionId,
+            fieldId,
+            isVisible: visible,
+            allSettings: { ...this.fieldSettings }
+        });
+    }
+
+    _applyFieldVisibility(sectionId, fieldId, isVisible) {
+        const fieldElement = document.querySelector(
+            `[data-section-id="${sectionId}"][data-field-id="${fieldId}"]`
+        );
+        if (fieldElement) {
+            fieldElement.style.display = isVisible ? '' : 'none';
+        }
+    }
+
+    setSectionVisibility(sectionId, visible) {
+        // Existing section visibility code...
+
+        // Also apply to all fields in section
+        const sectionFields = document.querySelectorAll(
+            `[data-section-id="${sectionId}"][data-field-id]`
+        );
+        sectionFields.forEach(field => {
+            const fieldId = field.dataset.fieldId;
+            if (visible) {
+                // Restore field visibility from settings
+                const fieldVisible = this.fieldSettings[sectionId]?.[fieldId] ?? true;
+                this._applyFieldVisibility(sectionId, fieldId, fieldVisible);
+            } else {
+                // Hide all fields
+                this._applyFieldVisibility(sectionId, fieldId, false);
+            }
+        });
+    }
+}
+```
+
+**Step 7.3: Update Modal Template**
+
+Add per-field toggles to the visibility modal:
+
+```html
+<!-- In field_visibility_modal.html -->
+{% macro field_visibility_modal(modal_id='fieldVisibilityModal', sections=None) %}
+<!-- ... existing code ... -->
+<div class="modal-body">
+    <div class="row">
+        {% for section in sections %}
+        <div class="col-md-6 mb-4">
+            <h6>{{ section.label }}</h6>
+            {% for field in section.fields %}
+            <div class="form-check">
+                <input class="form-check-input field-visibility-toggle"
+                       type="checkbox"
+                       id="show-{{ section.id }}-{{ field.id }}"
+                       data-section-id="{{ section.id }}"
+                       data-field-id="{{ field.id }}"
+                       data-skip-validation="true"
+                       {% if field.default_visible %}checked{% endif %}>
+                <label class="form-check-label" for="show-{{ section.id }}-{{ field.id }}">
+                    {{ field.label }}
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+```
+
+**Step 7.4: Add Toggle Button for Per-Field View**
+
+Add a button to show/hide field-level controls in the modal:
+
+```html
+<div class="modal-header">
+    <h5 class="modal-title" id="fieldVisibilityModalLabel">
+        <i class="fas fa-cog"></i> Field Visibility Settings
+    </h5>
+    <div class="btn-group ms-auto">
+        <button type="button" class="btn btn-sm btn-outline-secondary active" id="show-sections-view">
+            Sections
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="show-fields-view">
+            Fields
+        </button>
+    </div>
+</div>
+```
+
+**Step 7.5: JavaScript for Toggle View**
+
+```javascript
+// Toggle between section and field views in visibility modal
+document.getElementById('show-fields-view')?.addEventListener('click', function() {
+    document.querySelectorAll('.field-visibility-toggle').forEach(cb => {
+        const hasFieldId = !!cb.dataset.fieldId;
+        // Show/hide based on whether toggle has field-id
+    });
+});
+
+document.getElementById('show-sections-view')?.addEventListener('click', function() {
+    // Show section-level toggles
+});
+```
+
+#### Backend Changes
+
+**Update Section Definitions Model**
+
+```python
+# app/models/display_profile.py
+
+class DisplayProfile(BaseModel):
+    """Display profile for entry form visibility settings."""
+
+    def __init__(self, **kwargs):
+        self.project_id = kwargs.pop('project_id')
+        self.profile_name = kwargs.pop('profile_name', 'default')
+
+        # Section definitions with per-field support
+        self.section_definitions = kwargs.pop('section_definitions', [
+            {
+                'id': 'basic-info',
+                'label': 'Basic Information',
+                'target': '.basic-info-section',
+                'fields': [
+                    {'id': 'lexical-unit', 'label': 'Lexical Unit', 'default_visible': True},
+                    {'id': 'pronunciation', 'label': 'Pronunciation', 'default_visible': True},
+                    {'id': 'variants', 'label': 'Variants', 'default_visible': True}
+                ]
+            },
+            {
+                'id': 'senses',
+                'label': 'Senses & Definitions',
+                'target': '.senses-section',
+                'fields': [
+                    {'id': 'definition', 'label': 'Definition', 'default_visible': True},
+                    {'id': 'gloss', 'label': 'Gloss', 'default_visible': True},
+                    {'id': 'grammatical-info', 'label': 'Part of Speech', 'default_visible': True},
+                    {'id': 'examples', 'label': 'Examples', 'default_visible': True},
+                    {'id': 'illustrations', 'label': 'Illustrations', 'default_visible': False}
+                ]
+            }
+        ])
+```
+
+---
+
+## 8. Refactor JavaScript Architecture (No DOM Scraping)
 
 ### Current Issues
 
@@ -1467,6 +2017,29 @@ class FormStateManager extends FormComponent {
 
 ## Implementation Priority and Timeline
 
+### Updated Priority Order
+
+Based on code review findings, the following priority order is recommended:
+
+| Priority | Phase | Effort | Impact |
+|----------|-------|--------|--------|
+| **0** | Critical Fixes Review | 1 day | High |
+| **1** | DELETE Button (Safety) | 2-3 days | High |
+| **2** | Code Quality - Globals & Security | 1-2 days | High |
+| **3** | Code Quality - Remove Debug Logs | 0.5 day | Medium |
+| **4** | Hierarchical Dropdowns | 3-4 days | Medium |
+| **5** | Sense-level Variant Relations | 4-5 days | Medium |
+| **6** | Field Visibility Modal | 2-3 days | Low |
+| **7** | JavaScript Architecture Refactor | 4-5 days | High |
+
+### Phase 0: Critical Fixes Review
+- **Duration**: 1 day
+- **Tasks**:
+  - ✅ Review duplicate field names (domain_type) - Already fixed
+  - Verify all form field names are unique
+  - Test form submission with all field types
+  - Document field naming conventions
+
 ### Phase 1: DELETE Button (High Priority - Safety Feature)
 - **Duration**: 2-3 days
 - **Tasks**:
@@ -1474,18 +2047,46 @@ class FormStateManager extends FormComponent {
   - Implement backend endpoint
   - Add dependency checking
   - Implement logging and security
+  - Add CSRF protection
   - Write tests
 
-### Phase 2: Hierarchical Dropdowns (Medium Priority - UX Improvement)
+### Phase 2: Code Quality - Namespace & Security
+- **Duration**: 1-2 days
+- **Tasks**:
+  - Create `DictionaryApp` namespace for globals
+  - Wrap global variables in IIFE with error handling
+  - Add CSRF token to DictionaryApp config
+  - Fix XSS vulnerabilities (use `|tojson` for template variables)
+  - Update all scripts to use namespace
+  - Add error boundary for data initialization
+
+### Phase 3: Code Quality - Remove Debug Logs
+- **Duration**: 0.5 day
+- **Tasks**:
+  - Remove all `console.log` statements from entry_form.html
+  - Create `Logger` utility with debug mode toggle
+  - Update all JavaScript files to use Logger
+  - Ensure debug mode can be enabled via config
+
+### Phase 4: Code Quality - Language Code Consolidation
+- **Duration**: 0.5 day
+- **Tasks**:
+  - Define `source_lang` and `target_lang` once at template top
+  - Replace all duplicate `{% set %}` statements
+  - Add default values for missing configuration
+  - Test with various project language configurations
+
+### Phase 5: Hierarchical Dropdowns (Medium Priority - UX Improvement)
 - **Duration**: 3-4 days
 - **Tasks**:
   - Update frontend markup for domain type and usage type
+  - Ensure unique field names for all dropdowns
   - Extend JavaScript for hierarchical support
   - Update form serialization
   - Modify backend models and services
   - Write tests and validate XML output
 
-### Phase 3: Sense-level Variant Relations (Lower Priority - Feature Enhancement)
+### Phase 6: Sense-level Variant Relations (Feature Enhancement)
 - **Duration**: 4-5 days
 - **Tasks**:
   - Add frontend UI to sense template
@@ -1494,7 +2095,7 @@ class FormStateManager extends FormComponent {
   - Implement XML serialization
   - Write comprehensive tests
 
-### Phase 4: Field Visibility Modal Refactor (Infrastructure)
+### Phase 7: Field Visibility Modal Refactor (Infrastructure)
 - **Duration**: 2-3 days
 - **Tasks**:
   - Extract modal to macro template
@@ -1503,7 +2104,7 @@ class FormStateManager extends FormComponent {
   - Update entry_form.html to use macro
   - Write tests
 
-### Phase 5: JavaScript Architecture Refactor (Infrastructure)
+### Phase 8: JavaScript Architecture Refactor (Infrastructure)
 - **Duration**: 4-5 days
 - **Tasks**:
   - Create FormEventBus
@@ -1527,6 +2128,9 @@ class FormStateManager extends FormComponent {
 - FieldVisibilityManager
 - FormEventBus
 - FormComponent base class
+- **Code Quality - Namespace**: DictionaryApp initialization and error handling
+- **Code Quality - Security**: CSRF token injection and XSS prevention
+- **Code Quality - Logger**: Debug mode toggle and conditional logging
 
 ### Integration Tests
 - DELETE endpoint with various scenarios
@@ -1534,6 +2138,8 @@ class FormStateManager extends FormComponent {
 - XML generation with new fields
 - Database updates for new features
 - Event bus communication between components
+- **Code Quality**: Form submission with DictionaryApp namespace
+- **Code Quality**: Template variable encoding (tojson)
 
 ### End-to-End Tests
 - Complete workflow for deleting entries
@@ -1542,6 +2148,8 @@ class FormStateManager extends FormComponent {
 - Field visibility modal interactions
 - Undo/redo with event-driven architecture
 - Data consistency across operations
+- **Code Quality**: Form submission with all field types (verify no data loss)
+- **Code Quality**: Page load with missing/invalid data (verify error handling)
 
 ---
 

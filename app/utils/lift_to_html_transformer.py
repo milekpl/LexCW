@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 import logging
 
@@ -74,12 +74,17 @@ class HTMLBuilder:
             processed: set of processed element ids
             inherited_language: Optional language passed from parent config to filter descendant forms
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         elem_id = id(element)
         if elem_id in processed:
             return ""
-        
+
         local_tag = self._get_local_tag(element.tag)
         configs = self.element_config_map.get(local_tag, [])
+
+        logger.debug(f"_process_hierarchical: tag={local_tag}, configs_count={len(configs)}")
 
         # Find the best matching config for this specific element instance
         config = None
@@ -94,32 +99,61 @@ class HTMLBuilder:
                 if not c.filter:
                     config = c
                     break
-        
-        # If configs exist for this tag but none match, previously we hid the element.
-        # Instead, fall back to default rendering (no wrapper) so unconfigured children
-        # still appear rather than being filtered out.
+
+        # Debug log for trait elements
+        if local_tag == 'trait':
+            trait_name = element.attrib.get('name', '')
+            trait_value = element.attrib.get('value', '')
+            logger.debug(f"Trait element: name={trait_name}, value={trait_value}, configs_count={len(configs)}")
+            for i, c in enumerate(configs):
+                filter_match = c.filter and self._check_filter(element, c.filter)
+                logger.debug(f"  Config {i}: filter={c.filter}, visibility={c.visibility}, matches={filter_match}")
+            logger.debug(f"  Selected config: {config}")
+
+        # If configs exist for this tag but none match, we have two cases:
+        # 1. For traits: render with default config (since not all traits have filters)
+        # 2. For other elements: hide if all configs have filters (intentionally excluded)
         if configs and not config:
-            # If there are multiple filtered-only configs for relations, treat
-            # unmatched relation types as intentionally excluded (do not render).
-            if (
-                local_tag == 'relation'
-                and all(c.filter for c in configs)
-                and len(configs) > 1
-            ):
+            if local_tag == 'trait':
+                # For traits without matching filter config, use a default generic trait config
+                # This ensures morph-type and other unfiltered traits still render properly
+                from app.utils.lift_to_html_transformer import ElementConfig
+                config = ElementConfig(
+                    lift_element='trait',
+                    display_order=999,
+                    css_class='trait',
+                    prefix='',
+                    suffix='',
+                    visibility='if-content',
+                    display_mode='inline'
+                )
+                logger.debug(f"Created default config for unmatched trait: {trait_name}")
+            elif local_tag == 'relation' and all(c.filter for c in configs) and len(configs) > 1:
+                # Relations: if all configs have filters and none matched, hide it
                 return ""
-
-
-            # Otherwise fall back to default rendering (no wrapper)
-            config = None
+            else:
+                # Otherwise fall back to default rendering (no wrapper)
+                config = None
 
         # Mark as processed
         processed.add(elem_id)
 
+        # Special handling for _component-lexeme relations
+        # This SIL Fieldworks relation type is used for subentries and should never render
+        if local_tag == 'relation':
+            rel_type = element.attrib.get('type', '')
+            if rel_type == '_component-lexeme':
+                logger.debug(f"Hiding _component-lexeme relation (never rendered)")
+                return ""
+
         # Handle visibility
         if config:
+            logger.debug(f"Checking visibility for {local_tag}: visibility={config.visibility}")
             if config.visibility == "never":
+                logger.debug(f"Hiding {local_tag} due to visibility=never")
                 return ""
             if config.filter and not self._check_filter(element, config.filter):
+                logger.debug(f"Hiding {local_tag} due to filter mismatch")
                 return ""
 
         # Determine structural vs content
@@ -217,10 +251,10 @@ class HTMLBuilder:
             if tag in children_by_tag:
                 # Found matching children for this profile element
                 matching_children = children_by_tag[tag]
-                
+
                 # Check for grouping
                 should_group = tag in ('trait', 'field', 'relation')
-                
+
                 if should_group:
                     # Collect all candidates for this config
                     group_candidates = []
@@ -228,6 +262,17 @@ class HTMLBuilder:
                         if id(child) in processed:
                             self.logger.debug(f"Skipping child id={id(child)} because already processed")
                             continue
+
+                        # Special handling for relations: filter out _component-lexeme
+                        # This SIL Fieldworks relation type is used for subentries and should never render
+                        if tag == 'relation':
+                            rel_type = child.attrib.get('type', '')
+                            if rel_type == '_component-lexeme':
+                                self.logger.debug(f"Skipping _component-lexeme relation (never rendered)")
+                                # Mark as processed so it won't be rendered elsewhere
+                                processed.add(id(child))
+                                continue
+
                         # Check filter for this specific config
                         if config.filter:
                             match = self._check_filter(child, config.filter)
@@ -258,6 +303,12 @@ class HTMLBuilder:
                         # output. Each trait config (e.g., inclusion or exclusion) should render only
                         # the traits that match its own filter; other configs will pick up remaining
                         # traits in their own pass. This preserves clear separation between groups.
+
+                        # Check visibility - if never, skip this entire config
+                        if config.visibility == "never":
+                            self.logger.debug(f"Skipping config for {tag} due to visibility=never")
+                            # Don't mark children as processed - let other configs handle them
+                            continue
 
                         if group_texts:
                             joined_text = config.separator.join(group_texts)
@@ -417,15 +468,22 @@ class HTMLBuilder:
     
     def _extract_text_from_forms(self, element: ET.Element, recursive: bool = True, aspect: Optional[str] = None, language: Optional[str] = None) -> str:
         """Extract text from LIFT form/text structure or element attributes.
-        
+
         Args:
             element: LIFT element
             recursive: If True, look at form/text children. If False, only check own attributes/text.
             aspect: Current display aspect (label, abbr, full)
             language: Optional language filter (e.g., 'en') - when set, only include forms whose lang startswith this value
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         text_parts = []
-        
+
+        # Debug logging for language filter
+        local_tag = self._get_local_tag(element.tag)
+        logger.debug(f"_extract_text_from_forms: tag={local_tag}, language={language!r}")
+
         # Use local tag awareness for children
         if recursive:
             for child in element:
@@ -434,8 +492,10 @@ class HTMLBuilder:
                     # If a language filter is requested, respect it (match startswith to include "en-fonipa")
                     form_lang = child.attrib.get('lang') or child.attrib.get('{http://www.w3.org/XML/1998/namespace}lang', '')
                     # Treat '*' as a wildcard meaning "all languages" (no filtering)
-                    if language and language != '*':
+                    should_filter = language and language != '*'
+                    if should_filter:
                         if not form_lang or not form_lang.startswith(language):
+                            logger.debug(f"Skipping form with lang={form_lang!r} (filter={language!r})")
                             continue
                     # Found a form
                     text_found = False
@@ -444,6 +504,7 @@ class HTMLBuilder:
                             if subchild.text:
                                 text_parts.append(subchild.text.strip())
                                 text_found = True
+                                logger.debug(f"Found text: {subchild.text.strip()!r}")
                     if not text_found and child.text:
                         if child.text.strip():
                             text_parts.append(child.text.strip())
@@ -736,7 +797,21 @@ class LIFTToHTMLTransformer:
                         trait_elem = ET.SubElement(entry, 'trait')
                         trait_elem.set('name', trait_name)
                         trait_elem.set('value', trait_value)
-            
+
+            # Handle morph_type from form (converts snake_case to LIFT trait name)
+            morph_type = form_data.get('morph_type')
+            if morph_type:
+                trait_elem = ET.SubElement(entry, 'trait')
+                trait_elem.set('name', 'morph-type')
+                trait_elem.set('value', str(morph_type))
+
+            # Handle domain_type from form
+            domain_type = form_data.get('domain_type')
+            if domain_type:
+                trait_elem = ET.SubElement(entry, 'trait')
+                trait_elem.set('name', 'domain-type')
+                trait_elem.set('value', str(domain_type))
+
             # Add senses
             senses = form_data.get('senses', [])
             if senses and isinstance(senses, list):

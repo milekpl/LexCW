@@ -1128,11 +1128,18 @@ class BaseXBackupManager:
     def _write_settings_sidecar(self, lift_path: Path) -> None:
         """Write settings sidecar with real project settings."""
         settings_path = Path(str(lift_path) + '.settings.json')
-        
+
+        cfg = None
         try:
             from flask import current_app
+            # Try to get config_manager - this raises RuntimeError if outside app context
             cfg = getattr(current_app, 'config_manager', None)
-            if cfg is not None:
+        except RuntimeError:
+            # No application context - skip settings export silently
+            cfg = None
+
+        if cfg is not None:
+            try:
                 # Export all known projects for safety (multi-project installs)
                 projects = []
                 try:
@@ -1155,8 +1162,8 @@ class BaseXBackupManager:
                     settings_path.write_text(json.dumps(projects, ensure_ascii=False), encoding='utf-8')
                     self.logger.info(f"Exported {len(projects)} project settings")
                     return
-        except Exception as e:
-            self.logger.warning(f"Failed to export settings: {e}")
+            except Exception as e:
+                self.logger.warning(f"Failed to export settings: {e}")
 
         # Create minimal settings
         minimal_settings = [{

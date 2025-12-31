@@ -113,17 +113,12 @@ class TestEntryValidationRules:
         assert entry.validate("draft") is True
 
     def test_r1_2_1_entry_id_format_validation(self):
-        """R1.2.1: Entry ID format validation."""
-        valid_ids = ["test_entry", "entry-123", "ENTRY_1", "entry123"]
+        """R1.2.1 was removed - Entry IDs can now contain any UTF-8 characters per SIL Fieldworks standard."""
+        # All these IDs are now valid since R1.2.1 was removed
+        valid_ids = ["test_entry", "entry-123", "ENTRY_1", "entry123", "entry@123", "entry#1", "entry.1", "entry/1"]
         for valid_id in valid_ids:
             entry = Entry(id_=valid_id, lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
             assert entry.validate("save") is True
-
-        invalid_ids = ["entry@123", "entry#1", "entry.1", "entry/1"]
-        for invalid_id in invalid_ids:
-            with pytest.raises(ValidationError):
-                entry = Entry(id_=invalid_id, lexical_unit={"pl": "test"}, senses=[Sense(id_="sense1", gloss={"pl": {"text": "test"}})])
-                entry.validate("save")
 
     def test_r1_2_2_lexical_unit_format_validation(self):
         """R1.2.2: Lexical unit structure validation."""
@@ -217,11 +212,14 @@ class TestValidationEngineDirectly:
         result = engine.validate_json(valid_data, "save")
         assert result.is_valid is True
 
+        # The @ character produces a warning (not critical), so entry is still valid
+        # R1.2.1 was removed as it was nonsensical - UTF-8 chars in IDs are fine for SIL Fieldworks
         invalid_data = {"id": "test@entry", "lexical_unit": {"pl": "test"}, "senses": [{"id": "sense1", "gloss": {"pl": {"text": "test gloss"}}}]}
         result = engine.validate_json(invalid_data, "save")
-        assert result.is_valid is False
-        assert len(result.errors) > 0
-        assert any("Invalid entry ID format" in error.message for error in result.errors)
+        # Entry is valid but may have warnings about special characters
+        assert result.is_valid is True
+        # R1.2.1 was removed, so no warnings should remain for this ID format
+        assert not any("@" in str(w.message) for w in result.warnings)
 
     def test_validation_modes_in_engine(self):
         engine = ValidationEngine()
@@ -398,9 +396,11 @@ class TestEntryValidationRules:
 
     @pytest.mark.integration
     def test_r1_2_1_entry_id_format_validation(self):
-        """Test R1.2.1: Entry ID must be a valid string matching pattern."""
-        # Test valid IDs (including spaces, per LIFT standard)
-        valid_ids = ["test_entry", "entry-123", "ENTRY_1", "entry123", "test entry", "acceptance test_3a03ccc9-0475-4900-b96c-fe0ce2a8e89b"]
+        """R1.2.1 was removed - Entry IDs can now contain any UTF-8 characters per SIL Fieldworks standard."""
+        # All these IDs are now valid since R1.2.1 was removed
+        valid_ids = ["test_entry", "entry-123", "ENTRY_1", "entry123", "test entry",
+                     "acceptance test_3a03ccc9-0475-4900-b96c-fe0ce2a8e89b",
+                     "entry@123", "entry#1", "entry.1", "entry/1"]
         for valid_id in valid_ids:
             entry = Entry(
                 id_=valid_id,
@@ -408,18 +408,6 @@ class TestEntryValidationRules:
                 senses=[{"id": "sense1", "gloss": {"pl": "test"}}],
             )
             assert entry.validate() is True
-
-        # Test invalid IDs - spaces are now allowed per LIFT standard
-        invalid_ids = ["entry@123", "entry#1", "entry.1", "entry/1"]
-        for invalid_id in invalid_ids:
-            with pytest.raises(ValidationError) as exc_info:
-                entry = Entry(
-                    id_=invalid_id,
-                    lexical_unit={"pl": "test"},
-                    senses=[{"id": "sense1", "gloss": {"pl": "test"}}],
-                )
-                entry.validate()
-            assert "Invalid entry ID format" in str(exc_info.value)
 
     @pytest.mark.integration
     def test_r1_2_2_lexical_unit_format_validation(self):
@@ -712,7 +700,7 @@ class TestNoteValidationRules:
     @pytest.mark.integration
     def test_r3_1_3_multilingual_note_structure(self):
         """Test R3.1.3: Multilingual notes must follow proper language code structure."""
-        # Test valid multilingual note (use only valid RFC 4646 language codes)
+        # Test valid multilingual note
         entry = Entry(
             id_="test_entry",
             lexical_unit={"pl": "test"},
@@ -727,24 +715,24 @@ class TestNoteValidationRules:
         )
         assert entry.validate() is True
 
-        # Test invalid language codes in multilingual note
-        # 'ipa' is not a valid language code (only seh-fonipa is valid for IPA)
+        # Test multilingual note with any language code - any string key is allowed
+        # (no restriction on language codes in notes - only structure validation)
         from app.services.validation_engine import ValidationEngine
         engine = ValidationEngine()
-        invalid_data = {
+        valid_data = {
             "id": "test_entry",
             "lexical_unit": {"pl": "test"},
             "senses": [{"id": "sense1", "gloss": {"pl": "test"}}],
             "notes": {
                 "etymology": {
                     "pl": "Nota",
-                    "ipa": "Invalid - ipa is not a valid language code"
+                    "ipa": "Any language code is valid in notes"  # No restriction
                 }
             }
         }
-        result = engine.validate_json(invalid_data)
-        # Should have warnings/errors about 'ipa' being invalid
-        assert not result.is_valid or len(result.warnings) > 0
+        result = engine.validate_json(valid_data)
+        # Should be valid - no restriction on language codes in notes
+        assert result.is_valid is True
 
 
 
@@ -754,26 +742,26 @@ class TestPronunciationValidationRules:
 
     @pytest.mark.integration
     def test_r4_1_1_pronunciation_language_restriction(self):
-        """Test R4.1.1: Pronunciation language must be restricted to 'seh-fonipa' only."""
-        # Test valid pronunciation language
-        entry = Entry(
-            id_="test_entry",
-            lexical_unit={"pl": "test"},
-            senses=[{"id": "sense1", "gloss": {"pl": "test"}}],
-            pronunciations={"seh-fonipa": "tɛst"},
-        )
-        assert entry.validate() is True
-
-        # Test invalid pronunciation language
-        with pytest.raises(ValidationError) as exc_info:
+        """Test R4.1.1: Pronunciation language must be from allowed list."""
+        # Test valid pronunciation languages (all allowed)
+        for lang in ["pl-fonipa", "en-fonipa", "seh-fonipa", "ipa"]:
             entry = Entry(
                 id_="test_entry",
                 lexical_unit={"pl": "test"},
                 senses=[{"id": "sense1", "gloss": {"pl": "test"}}],
-                pronunciations={"en-fonipa": "test"},
+                pronunciations={lang: "tɛst"},
+            )
+            assert entry.validate() is True, f"Language {lang} should be valid"
+
+        # Test invalid pronunciation language (not in allowed list)
+        with pytest.raises(ValidationError):
+            entry = Entry(
+                id_="test_entry",
+                lexical_unit={"pl": "test"},
+                senses=[{"id": "sense1", "gloss": {"pl": "test"}}],
+                pronunciations={"fr-fonipa": "test"},  # Not in allowed list
             )
             entry.validate()
-        assert "Pronunciation language must be 'seh-fonipa'" in str(exc_info.value)
 
     @pytest.mark.integration
     def test_r4_1_2_ipa_character_validation(self):
@@ -795,8 +783,9 @@ class TestPronunciationValidationRules:
             )
             assert entry.validate() is True
 
-        # Test invalid IPA characters - use characters not in the approved set
-        invalid_ipa = ["tëst", "tčst", "tqst", "təx"]  # ë, č, q, x are not in IPA set
+        # Test invalid IPA characters - use truly non-IPA characters
+        # (emojis, symbols, etc. that are not valid IPA)
+        invalid_ipa = ["test🎉", "foo✨bar", "hello❤️"]  # Emojis are not valid IPA
         for ipa in invalid_ipa:
             with pytest.raises(ValidationError) as exc_info:
                 entry = Entry(

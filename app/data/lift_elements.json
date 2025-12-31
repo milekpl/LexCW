@@ -66,9 +66,9 @@
     },
     {
       "name": "variant",
-      "display_name": "Variant",
+      "display_name": "Variant Form (Allomorph)",
       "category": "entry",
-      "description": "Variant forms of the entry",
+      "description": "Variant forms of the entry (allomorphs, spelling variants, pronunciational variants). Use variant-type trait to distinguish types.",
       "level": 1,
       "parent": "entry",
       "allowed_children": ["form", "pronunciation", "note", "field", "trait", "relation"],
@@ -223,6 +223,23 @@
       "default_css": "relation",
       "default_visibility": "if-content",
       "typical_order": 18
+    },
+    {
+      "name": "variant-relation",
+      "display_name": "Variant Relationship",
+      "category": "entry",
+      "description": "Relation to a variant form (allomorph, spelling variant, etc.) of this entry. Rendered separately from semantic relations.",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["field", "trait"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": true, "description": "Variant type (e.g., variant-type)"},
+        "ref": {"type": "string", "required": true, "description": "Referenced entry ID"}
+      },
+      "default_css": "variant-relation",
+      "default_visibility": "if-content",
+      "typical_order": 4.5
     },
     {
       "name": "etymology",
@@ -488,17 +505,7 @@
     }
   ],
   "relation_types": [
-    "synonym",
-    "antonym",
-    "hypernym",
-    "hyponym",
-    "meronym",
-    "holonym",
-    "compare",
-    "contrast",
-    "see-also",
-    "derivation",
-    "root"
+    "_component-lexeme"
   ],
   "note_types": [
     "grammar",

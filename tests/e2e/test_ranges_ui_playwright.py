@@ -75,8 +75,8 @@ class TestRangesUIPlaywright:
             
             # Check for relation types in our test data
             options_text = " ".join(options).lower()
-            # Our E2E database has: component-lexeme, main-entry (from lexical-relation range)
-            expected_relations = ['component', 'main', 'lexeme', 'entry', 'synonym', 'antonym']
+            # Our test database has: synonym, antonym, hypernym, hyponym, component-lexeme
+            expected_relations = ['synonym', 'antonym', 'hypernym', 'hyponym', 'component']
             has_relation = any(rel in options_text for rel in expected_relations)
             assert has_relation, f"Expected at least one relation type in: {options}"
         else:

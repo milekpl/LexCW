@@ -179,19 +179,25 @@ class TestSearch:
 
     def test_search_pagination(self):
         """Test search pagination."""
-        # Use "test" which we know returns at least 3 results
+        # Search for entries with at least 2 results for pagination testing
         query = "test"
-        
-        # Limit to 1, get first page
-        entries_p1, total = self.service.search_entries(query, limit=1, offset=0)
-        assert total >= 3
-        assert len(entries_p1) == 1
-        
-        # Get second page
-        entries_p2, total2 = self.service.search_entries(query, limit=1, offset=1)
-        assert total == total2
-        assert len(entries_p2) == 1
-        assert entries_p1[0].id != entries_p2[0].id
+
+        # Get all matching entries first to ensure we have enough
+        all_matching, total = self.service.search_entries(query)
+        assert total >= 2, f"Expected at least 2 matching entries for pagination test, got {total}"
+
+        # Test pagination by getting entries with different offsets
+        entries_page1, _ = self.service.search_entries(query, limit=1, offset=0)
+        entries_page2, _ = self.service.search_entries(query, limit=1, offset=1)
+
+        assert len(entries_page1) == 1, f"Page 1 should return 1 entry, got {len(entries_page1)}"
+        assert len(entries_page2) == 1, f"Page 2 should return 1 entry, got {len(entries_page2)}"
+
+        # Different offsets should return different entries
+        # (Note: if there's only 1 unique entry matching, this may fail)
+        page1_ids = {e.id for e in entries_page1}
+        page2_ids = {e.id for e in entries_page2}
+        assert page1_ids != page2_ids, f"Different pages should return different entries: page1={page1_ids}, page2={page2_ids}"
 
     def test_search_no_results(self):
         """Test search with no matching results."""

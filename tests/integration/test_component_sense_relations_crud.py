@@ -22,8 +22,29 @@ from app.services.dictionary_service import DictionaryService
 
 @pytest.fixture
 def sample_entries(dict_service_with_db):
-    """Create sample entries for testing relationships."""
+    """Create sample entries for testing relationships.
+
+    This fixture safely handles cases where entries may already exist
+    from previous test runs by deleting them first.
+    """
     dict_service = dict_service_with_db
+
+    # List of entry IDs to create
+    entry_ids = [
+        "main_entry_001",
+        "component_entry_001",
+        "component_entry_002",
+        "target_entry_001",
+    ]
+
+    # Clean up any existing entries first to ensure fresh state
+    for entry_id in entry_ids:
+        try:
+            dict_service.delete_entry(entry_id)
+        except Exception:
+            # Entry doesn't exist, that's fine
+            pass
+
     # Create main entry
     main_entry = Entry(
         id_="main_entry_001",
@@ -35,7 +56,7 @@ def sample_entries(dict_service_with_db):
             )
         ]
     )
-    
+
     # Create component entry 1
     component_entry_1 = Entry(
         id_="component_entry_001",
@@ -47,7 +68,7 @@ def sample_entries(dict_service_with_db):
             )
         ]
     )
-    
+
     # Create component entry 2
     component_entry_2 = Entry(
         id_="component_entry_002",
@@ -59,7 +80,7 @@ def sample_entries(dict_service_with_db):
             )
         ]
     )
-    
+
     # Create target entry for sense relations
     target_entry = Entry(
         id_="target_entry_001",
@@ -71,8 +92,8 @@ def sample_entries(dict_service_with_db):
             )
         ]
     )
-    
-    # Store entries
+
+    # Create all entries
     dict_service_with_db.create_entry(main_entry)
     dict_service_with_db.create_entry(component_entry_1)
     dict_service_with_db.create_entry(component_entry_2)

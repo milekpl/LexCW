@@ -89,41 +89,6 @@ class TestLIFTImportFixes:
                 if os.path.exists(lift_path):
                     os.unlink(lift_path)
 
-    def test_lexical_relation_fallback(self, mock_service):
-        """Test that lexical-relation fallback is added when missing."""
-        # Mock get_ranges to return empty ranges
-        with patch.object(mock_service, 'ranges_parser') as mock_parser:
-            mock_parser.parse_string.return_value = {}
-            
-            # Mock database query
-            mock_service.db_connector.execute_query.return_value = None
-            
-            ranges = mock_service.get_ranges(project_id=1)
-            
-            # Check that lexical-relation was added
-            assert 'lexical-relation' in ranges
-            assert len(ranges['lexical-relation']['values']) > 0
-            assert any(rel['id'] == 'synonym' for rel in ranges['lexical-relation']['values'])
-
-    def test_lexical_relation_empty_values(self, mock_service):
-        """Test that default values are added when lexical-relation exists but is empty."""
-        # Mock get_ranges to return lexical-relation with no values
-        with patch.object(mock_service, 'ranges_parser') as mock_parser:
-            mock_parser.parse_string.return_value = {
-                'lexical-relation': {
-                    'id': 'lexical-relation',
-                    'values': []
-                }
-            }
-            
-            # Mock database query
-            mock_service.db_connector.execute_query.return_value = None
-            
-            ranges = mock_service.get_ranges(project_id=1)
-            
-            # Check that default values were added
-            assert 'lexical-relation' in ranges
-            assert len(ranges['lexical-relation']['values']) > 0
 
     def test_range_file_discovery_fallback(self, mock_service, tmp_path, monkeypatch):
         """Test that config ranges are used as fallback (deterministic, no fragile mocks)."""

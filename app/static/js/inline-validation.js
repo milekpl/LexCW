@@ -117,6 +117,7 @@ class InlineValidationManager {
      * Validate a single field
      */
     async validateField(fieldId, value) {
+        console.log(`[InlineValidation] validateField called for field: ${fieldId}, value: ${value}`);
         try {
             // Check if validation should be skipped
             const skipValidationCheckbox = document.getElementById('skip-validation-checkbox');
@@ -186,7 +187,8 @@ class InlineValidationManager {
             return result;
             
         } catch (error) {
-            console.error(`Field validation error for ${fieldId}:`, error);
+            console.error(`[InlineValidation] Field validation error for ${fieldId}:`, error);
+            console.error(`[InlineValidation] Error name: ${error.name}, message: ${error.message}`);
             
             // Show error state
             window.validationUI?.hideValidationLoading(fieldId);

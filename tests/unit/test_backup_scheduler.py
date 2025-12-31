@@ -12,15 +12,15 @@ from app.models.backup_models import ScheduledBackup
 
 class TestBackupScheduler:
     """Test BackupScheduler functionality."""
-    
+
     def setup_method(self):
         """Set up test fixtures before each test method."""
         # Create a mock backup manager
         self.mock_backup_manager = Mock(spec=BaseXBackupManager)
-        
+
         # Create the scheduler with the mock
         self.scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
-    
+
     def teardown_method(self):
         """Clean up after each test method."""
         # Stop the scheduler if it was started
@@ -124,13 +124,21 @@ class TestBackupScheduler:
             type_='full',
             next_run=datetime(2025, 1, 1, 12, 0)
         )
-        
+
         # Mock the backup manager to return success
         self.mock_backup_manager.backup_database.return_value = Mock()
-        
-        # Execute the scheduled backup
-        self.scheduler._execute_scheduled_backup(scheduled_backup)
-        
+
+        # Mock Flask app context to avoid "Working outside of application context" error
+        mock_app = Mock()
+        mock_app_context = Mock()
+        mock_app.app_context.return_value = mock_app_context
+        mock_app_context.__enter__ = Mock(return_value=mock_app_context)
+        mock_app_context.__exit__ = Mock(return_value=False)
+
+        with patch('flask.current_app', mock_app):
+            # Execute the scheduled backup
+            self.scheduler._execute_scheduled_backup(scheduled_backup)
+
         # Verify the backup was called
         self.mock_backup_manager.backup_database.assert_called_once_with(
             db_name='test_db',
@@ -138,7 +146,7 @@ class TestBackupScheduler:
             description='Scheduled daily backup'
         )
         assert scheduled_backup.last_status == 'success'
-    
+
     def test_execute_scheduled_backup_failure(self):
         """Test executing a scheduled backup with failure."""
         scheduled_backup = ScheduledBackup(
@@ -148,13 +156,21 @@ class TestBackupScheduler:
             type_='full',
             next_run=datetime(2025, 1, 1, 12, 0)
         )
-        
+
         # Mock the backup manager to raise an exception
         self.mock_backup_manager.backup_database.side_effect = Exception("Backup failed")
-        
-        # Execute the scheduled backup
-        self.scheduler._execute_scheduled_backup(scheduled_backup)
-        
+
+        # Mock Flask app context to avoid "Working outside of application context" error
+        mock_app = Mock()
+        mock_app_context = Mock()
+        mock_app.app_context.return_value = mock_app_context
+        mock_app_context.__enter__ = Mock(return_value=mock_app_context)
+        mock_app_context.__exit__ = Mock(return_value=False)
+
+        with patch('flask.current_app', mock_app):
+            # Execute the scheduled backup
+            self.scheduler._execute_scheduled_backup(scheduled_backup)
+
         # Verify the backup was called
         self.mock_backup_manager.backup_database.assert_called_once_with(
             db_name='test_db',

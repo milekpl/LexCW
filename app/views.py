@@ -52,6 +52,61 @@ def corpus_management():
     )
 
 
+@main_bp.route("/validation-rules-admin")
+def validation_rules_admin():
+    """Render the validation rules admin interface."""
+    from app.models.project_settings import ProjectSettings
+
+    # Get all projects for the dropdown
+    try:
+        from flask import current_app
+        from app.models.workset_models import db
+
+        projects = db.session.query(ProjectSettings).order_by(ProjectSettings.project_name).all()
+        projects_list = [
+            {'id': p.id, 'project_name': p.project_name}
+            for p in projects
+        ]
+    except Exception:
+        projects_list = []
+
+    return render_template(
+        "admin/validation_rules_admin.html",
+        projects=projects_list,
+        critical_count=0,
+        warning_count=0
+    )
+
+
+@main_bp.route("/validation")
+def validation_tool():
+    """Render the validation tool interface for batch checking entries."""
+    from app.models.project_settings import ProjectSettings
+
+    # Get all projects for the dropdown
+    try:
+        from flask import current_app
+        from app.models.workset_models import db
+
+        projects = db.session.query(ProjectSettings).order_by(ProjectSettings.project_name).all()
+        projects_list = [
+            {'id': p.id, 'name': p.project_name}
+            for p in projects
+        ]
+    except Exception:
+        projects_list = []
+
+    # Get selected project from session
+    from flask import session
+    selected_project_id = session.get('project_id')
+
+    return render_template(
+        "validation_tool.html",
+        projects=projects_list,
+        selected_project_id=selected_project_id
+    )
+
+
 @main_bp.route("/")
 def index():
     """
@@ -1135,13 +1190,14 @@ def download_export(filename):
         return redirect(url_for("main.export_options"))
 
 
-@main_bp.route("/tools/batch-edit")
+@main_bp.route("/tools/bulk-edit")
+@main_bp.route("/tools/batch-edit")  # Keep old route for backward compatibility
 def batch_edit():
     """
-    Render the batch edit page.
+    Render the bulk edit page.
     """
     # To be implemented
-    flash("Batch editing is not yet implemented.", "info")
+    flash("Bulk editing is not yet implemented.", "info")
     return redirect(url_for("main.index"))
 
 

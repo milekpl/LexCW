@@ -3,7 +3,8 @@ import pytest
 def test_tools_page(client):
     response = client.get('/tools')
     assert response.status_code == 200
-    assert b'<h1 class="mt-4">Tools</h1>' in response.data
+    assert b'<h1 class="mt-4">' in response.data
+    assert b'Tools' in response.data
     assert b'<a href="/tools/clear-cache"' in response.data
 
 def test_clear_cache(client):

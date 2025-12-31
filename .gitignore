@@ -66,3 +66,4 @@ sample_3
 app/app/static/backup/**
 app/static/backup/**
 node_modules
+.basex.pid
