@@ -258,10 +258,11 @@ def view_entry(entry_id):
         css_html = None
         try:
             # Query database for raw XML
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             db_name = dict_service.db_connector.database
-            has_ns = dict_service._detect_namespace_usage()
             query = dict_service._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_ns
+                entry_id, db_name, has_namespace=False
             )
             entry_xml = dict_service.db_connector.execute_query(query)
             
@@ -277,12 +278,12 @@ def view_entry(entry_id):
                     subentry_html_parts = []
                     for subentry_info in subentries:
                         try:
-                            # Get subentry XML
+                            # Get subentry XML (entries are stored without namespaces)
                             subentry_query = dict_service._query_builder.build_entry_by_id_query(
-                                subentry_info['id'], db_name, has_ns
+                                subentry_info['id'], db_name, has_namespace=False
                             )
                             subentry_xml = dict_service.db_connector.execute_query(subentry_query)
-                            
+
                             if subentry_xml:
                                 subentry_rendered = css_service.render_entry(
                                     subentry_xml,
@@ -584,10 +585,11 @@ def edit_entry(entry_id):
             
             # Render entry with CSS - need to get raw XML from database
             # Query database for raw XML
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             db_name = dict_service.db_connector.database
-            has_ns = dict_service._detect_namespace_usage()
             query = dict_service._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_ns
+                entry_id, db_name, has_namespace=False
             )
             entry_xml = dict_service.db_connector.execute_query(query)
             
@@ -603,12 +605,12 @@ def edit_entry(entry_id):
                     subentry_html_parts = []
                     for subentry_info in subentries_data:
                         try:
-                            # Get subentry XML
+                            # Get subentry XML (entries are stored without namespaces)
                             subentry_query = dict_service._query_builder.build_entry_by_id_query(
-                                subentry_info['id'], db_name, has_ns
+                                subentry_info['id'], db_name, has_namespace=False
                             )
                             subentry_xml = dict_service.db_connector.execute_query(subentry_query)
-                            
+
                             if subentry_xml:
                                 subentry_rendered = css_service.render_entry(
                                     subentry_xml,

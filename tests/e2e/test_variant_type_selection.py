@@ -20,8 +20,9 @@ PASSWORD = "admin"
 TEST_DB_BASE = "test_variant_type"
 
 # Minimal LIFT file to initialize the database structure
+# Note: SIL Fieldworks doesn't actually use XML namespaces, so we omit them
 MINIMAL_LIFT = '''<?xml version="1.0" encoding="UTF-8"?>
-<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+<lift version="0.13">
     <entries/>
 </lift>
 '''

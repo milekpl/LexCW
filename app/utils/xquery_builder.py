@@ -202,11 +202,19 @@ class XQueryBuilder:
             Complete XQuery string
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
+        element_path = XQueryBuilder.get_element_path("entries", has_namespace)
         lift_path = XQueryBuilder.get_element_path("lift", has_namespace)
 
-        # Insert into the lift root element (standard LIFT structure has entries directly under lift)
+        # Try to find <entries> element and insert after it (as last entry),
+        # or insert into <lift> element,
+        # or directly into collection
         return f"""{prologue}
-        insert node {entry_xml} as last into collection('{db_name}')/{lift_path}
+        if (collection('{db_name}')/{element_path}) then
+            insert node {entry_xml} after (collection('{db_name}')/{element_path})[1]
+        else if (collection('{db_name}')/{lift_path}) then
+            insert node {entry_xml} as last into (collection('{db_name}')/{lift_path})[1]
+        else
+            insert node {entry_xml} as last into collection('{db_name}')
         """
 
     @staticmethod
@@ -227,11 +235,11 @@ class XQueryBuilder:
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
-        lift_path = XQueryBuilder.get_element_path("lift", has_namespace)
 
-        # Search in lift root (standard LIFT structure has entries directly under lift)
+        # Use descendant axis to find entry anywhere in the collection
+        # Entries are stored as separate documents, not under a lift root element
         return f"""{prologue}
-        replace node collection('{db_name}')/{lift_path}/{entry_path}[@id="{entry_id}"]
+        replace node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
         with {entry_xml}
         """
 

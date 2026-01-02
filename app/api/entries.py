@@ -13,6 +13,7 @@ from app.services.cache_service import CacheService
 from app.models.entry import Entry
 import datetime
 from app.utils.exceptions import NotFoundError, ValidationError
+from app.services.xml_entry_service import EntryNotFoundError as XMLEntryNotFoundError
 
 # Create blueprint
 entries_bp = Blueprint('entries', __name__)
@@ -158,7 +159,17 @@ def get_entry(entry_id: str) -> Any:
             # Prefer JSON by default; only return XML if explicitly requested
             if format_param == 'xml' or ('application/xml' in accept_header and 'application/json' not in accept_header):
                 return Response(entry_xml_data['xml'], mimetype='application/xml')
-            # otherwise fall back to JSON representation
+            # Return JSON representation from XML service data
+            # Convert XML to dictionary for JSON response
+            from app.parsers.lift_parser import LIFTParser
+            lift_parser = LIFTParser(validate=False)
+            entries = lift_parser.parse_string(f"<lift>{entry_xml_data['xml']}</lift>")
+            if entries and entries[0]:
+                data = entries[0].to_dict() if hasattr(entries[0], 'to_dict') else entries[0]
+                return jsonify(data)
+            return jsonify({'error': 'Failed to parse entry data'}), 500
+        except XMLEntryNotFoundError:
+            raise NotFoundError(f"Entry '{entry_id}' not found")
         except Exception:
             pass
         dict_service = get_dictionary_service()
@@ -302,14 +313,14 @@ def update_entry(entry_id: str) -> Any:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         # Log the senses being received
         logger.info(f"[SENSE UPDATE] Received update for entry {entry_id}")
         logger.info(f"[SENSE UPDATE] Number of senses in request: {len(data.get('senses', []))}")
         for i, sense in enumerate(data.get('senses', [])):
             logger.info(f"[SENSE UPDATE]   Sense {i}: id={sense.get('id')}")
             logger.info(f"[SENSE UPDATE]   Sense {i} definition: {sense.get('definition')}")
-        
+
         # CRITICAL FIX: Clean up definition/gloss objects that have 'lang' but no 'text'
         # This happens when user removes content from textarea but the language select remains
         # Also fix mismatched language keys (when user changes language in dropdown)
@@ -329,24 +340,62 @@ def update_entry(entry_id: str) -> Any:
                                 logger.info(f"[SENSE UPDATE] Removed empty {field} for language '{lang_key}' from sense")
                     # Replace with cleaned data
                     sense[field] = new_field_data
-        
+
         # Add the entry ID from the path if not present in data
         if 'id' not in data:
             data['id'] = entry_id
-        
+
         # Ensure ID in path matches ID in data
         if data.get('id') != entry_id:
             return jsonify({'error': 'Entry ID in path does not match ID in data'}), 400
-        
+
+        # Try xml_entry_service first (for entries created via XML API)
+        try:
+            from app.api.xml_entries import get_xml_entry_service
+            from app.services.xml_entry_service import LIFTNamespaceManager
+            import xml.etree.ElementTree as ET
+
+            xml_service = get_xml_entry_service()
+            # Get existing entry XML to preserve structure
+            existing_xml_data = xml_service.get_entry(entry_id)
+
+            # Convert the update data to XML and update via xml_service
+            from app.parsers.lift_parser import LIFTParser
+            lift_parser = LIFTParser(validate=False)
+
+            # Create temporary entry to generate XML
+            temp_entry = Entry.from_dict(data)
+            full_lift_xml = lift_parser.generate_lift_string([temp_entry])
+
+            # Extract just the <entry> element from the generated LIFT
+            root = ET.fromstring(full_lift_xml)
+            entry_elem = root.find('.//{http://fieldworks.sil.org/schemas/lift/0.13}entry')
+            if entry_elem is None:
+                entry_elem = root.find('.//entry')
+            if entry_elem is None:
+                raise ValueError("No entry element found in generated XML")
+
+            # Get the entry XML as string
+            entry_xml = ET.tostring(entry_elem, encoding='unicode')
+
+            # Update via xml service
+            result = xml_service.update_entry(entry_id, entry_xml)
+            return jsonify({'success': True, 'id': result.get('id', entry_id)})
+        except XMLEntryNotFoundError:
+            # Fall through to dict_service for entries not in xml service
+            pass
+        except Exception as e:
+            logger.warning(f"[SENSE UPDATE] xml_service update failed, falling back to dict_service: {e}")
+
         # Process form data to handle field format conversions
         from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
         existing_entry_data = {}  # We'll get the actual entry below
         data = merge_form_data_with_entry_data(data, existing_entry_data)
-        
+
         # Create entry object
         # Check if skip_validation parameter is set (extract BEFORE creating Entry)
         skip_validation = data.pop('skip_validation', False) or request.args.get('skip_validation', 'false').lower() == 'true'
-        
+
         # Preserve date_created, update date_modified
         existing_entry = get_dictionary_service().get_entry(entry_id)
         logger.info(f"[SENSE UPDATE] Existing entry has {len(existing_entry.senses) if existing_entry and existing_entry.senses else 0} senses")
@@ -354,20 +403,20 @@ def update_entry(entry_id: str) -> Any:
             for i, sense in enumerate(existing_entry.senses):
                 logger.info(f"[SENSE UPDATE] Existing sense {i}: id={sense.id}")
                 logger.info(f"[SENSE UPDATE] Existing sense {i} definition: {sense.definition}")
-        
+
         if existing_entry and existing_entry.date_created:
             data['date_created'] = existing_entry.date_created
         data['date_modified'] = datetime.datetime.utcnow().isoformat()
-        
+
         logger.info(f"[SENSE UPDATE] Data before Entry.from_dict: {data.get('senses')}")
         entry = Entry.from_dict(data)
         logger.info(f"[SENSE UPDATE] Entry after from_dict - senses: {[{'id': s.id, 'definitions': s.definitions} for s in entry.senses]}")
-        
+
         logger.info(f"[SENSE UPDATE] New entry object has {len(entry.senses) if entry.senses else 0} senses")
-        
+
         # Get dictionary service
         dict_service = get_dictionary_service()
-        
+
         # Update entry
         project_id = session.get('project_id')
         logger.info(f"[SENSE UPDATE] Calling dict_service.update_entry with skip_validation={skip_validation}, project_id={project_id}")
@@ -413,9 +462,21 @@ def update_entry(entry_id: str) -> Any:
 def delete_entry(entry_id: str) -> Any:
     """Delete a dictionary entry."""
     try:
+        # Try xml_entry_service first (for entries created via XML API)
+        try:
+            from app.api.xml_entries import get_xml_entry_service
+            xml_service = get_xml_entry_service()
+            xml_service.delete_entry(entry_id)
+            return jsonify({'success': True})
+        except XMLEntryNotFoundError:
+            # Fall through to dict_service for entries not in xml service
+            pass
+        except Exception as e:
+            logger.warning(f"xml_service delete failed, falling back to dict_service: {e}")
+
         # Get dictionary service
         dict_service = get_dictionary_service()
-        
+
         # Delete entry
         dict_service.delete_entry(entry_id)
         

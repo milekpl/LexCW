@@ -170,9 +170,16 @@ if (confirmSplitBtn) {
             }
         };
 
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+
         fetch(`/api/merge-split/entries/${sourceEntryId}/split`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: headers,
             body: JSON.stringify(payload)
         })
         .then(response => response.json())
@@ -329,9 +336,16 @@ if (mergeEntrySearchModalEl) {
             }
         };
 
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+
         fetch(`/api/merge-split/entries/${targetEntryId}/merge`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: headers,
             body: JSON.stringify(payload)
         })
         .then(response => response.json())
@@ -771,7 +785,17 @@ function updatePagination(totalCount, limit, currentPage) {
 
 
 function deleteEntry(entryId) {
-    fetch(`/api/entries/${entryId}`, { method: 'DELETE' })
+    // Get CSRF token from meta tag
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+    if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken;
+    }
+
+    fetch(`/api/entries/${entryId}`, { method: 'DELETE', headers: headers })
         .then(response => {
             if (!response.ok) throw new Error('Error deleting entry');
             return response.json();
@@ -821,7 +845,14 @@ function refreshEntries() {
     refreshBtn.disabled = true;
     icon.className = 'fas fa-sync-alt fa-spin';
 
-    fetch('/api/entries/clear-cache', { method: 'POST' })
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const headers = {};
+    if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken;
+    }
+
+    fetch('/api/entries/clear-cache', { method: 'POST', headers: headers })
         .then(response => response.json())
         .then(result => {
             if (!result.success) console.warn("Cache clear might have failed, but proceeding with refresh.");

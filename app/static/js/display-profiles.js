@@ -25,6 +25,31 @@
     };
 
     /**
+     * Get CSRF token from meta tag
+     * @returns {string} CSRF token or empty string
+     */
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    /**
+     * Get common headers for API requests including CSRF token
+     * @param {Object} additionalHeaders - Additional headers to include
+     * @returns {Object} Headers object with CSRF token
+     */
+    function getHeaders(additionalHeaders = {}) {
+        const csrfToken = getCsrfToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            ...additionalHeaders
+        };
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+        return headers;
+    }
+
+    /**
      * Initialize the page
      */
     async function init() {
@@ -669,7 +694,7 @@
         try {
             const response = await fetch('/api/profiles/preview', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getHeaders(),
                 body: JSON.stringify({
                     elements: config.elements,
                     custom_css: config.custom_css,
@@ -845,7 +870,7 @@
 
             const response = await fetch(API.profiles, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getHeaders(),
                 body: JSON.stringify(config)
             });
 
@@ -869,7 +894,8 @@
     async function setDefaultProfile(profile) {
         try {
             const response = await fetch(`${API.profiles}/${profile.id}/default`, {
-                method: 'POST'
+                method: 'POST',
+                headers: getHeaders()
             });
 
             if (!response.ok) throw new Error('Failed to set default profile');
@@ -921,7 +947,8 @@
         document.getElementById('btnConfirmDelete').onclick = async () => {
             try {
                 const response = await fetch(`${API.profiles}/${profile.id}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: getHeaders()
                 });
 
                 if (!response.ok) {
@@ -952,7 +979,7 @@
         try {
             const response = await fetch(`${API.profiles}/create-default`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getHeaders(),
                 body: JSON.stringify({ name })
             });
 
@@ -993,7 +1020,7 @@
 
                 const response = await fetch(`${API.profiles}/import?overwrite=${overwrite}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getHeaders(),
                     body: JSON.stringify(data)
                 });
 

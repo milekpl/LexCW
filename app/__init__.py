@@ -89,7 +89,11 @@ def create_app(config_name=None):
     # Ensure SQLAlchemy is registered with the Flask app after config is loaded
     from app.models.project_settings import db
     db.init_app(app)
-    
+
+    # Initialize Flask-WTF CSRF protection
+    from flask_wtf import CSRFProtect
+    csrf = CSRFProtect(app)
+
     # Create database tables if they don't exist
     with app.app_context():
         from app import models as _models  # noqa: F401

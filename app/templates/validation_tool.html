@@ -431,6 +431,21 @@
 
 {% block extra_js %}
 <script>
+/**
+ * Get CSRF token from meta tag or DictionaryApp
+ * @returns {string} The CSRF token or empty string if not available
+ */
+function getCsrfToken() {
+    var metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+        return metaTag.getAttribute('content');
+    }
+    if (typeof DictionaryApp !== 'undefined' && DictionaryApp.config && DictionaryApp.config.csrfToken) {
+        return DictionaryApp.config.csrfToken;
+    }
+    return '';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // State
     let validationResults = [];
@@ -552,12 +567,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         showLoading('Running validation on ' + entriesToValidate.length + ' entries...');
+        const csrfToken = getCsrfToken();
 
         try {
             const response = await fetch('/api/validation/batch', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 body: JSON.stringify({
                     entries: entriesToValidate,

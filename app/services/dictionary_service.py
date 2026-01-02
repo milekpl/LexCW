@@ -738,10 +738,10 @@ class DictionaryService:
                 print(f"Returning hardcoded test entry: {entry.id}")
                 return entry
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             query = self._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_ns
+                entry_id, db_name, has_namespace=False
             )
 
             # Execute query and get XML
@@ -818,10 +818,10 @@ class DictionaryService:
 
             entry_xml = self._prepare_entry_xml(entry)
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage(project_id=project_id)
+            # Entry XML has namespaces stripped by _prepare_entry_xml,
+            # so always use non-namespaced queries for consistency
             query = self._query_builder.build_insert_entry_query(
-                entry_xml, db_name, has_ns
+                entry_xml, db_name, has_namespace=False
             )
 
             self.db_connector.execute_update(query)
@@ -894,10 +894,10 @@ class DictionaryService:
 
             entry_xml = self._prepare_entry_xml(entry)
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage(project_id=project_id)
+            # Entry XML has namespaces stripped by _prepare_entry_xml,
+            # so always use non-namespaced queries for consistency
             query = self._query_builder.build_update_entry_query(
-                entry.id, entry_xml, db_name, has_ns
+                entry.id, entry_xml, db_name, has_namespace=False
             )
 
             self.db_connector.execute_update(query)
@@ -1078,9 +1078,10 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            has_ns = self._detect_namespace_usage(project_id=project_id)
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             query = self._query_builder.build_entry_exists_query(
-                entry_id, db_name, has_ns
+                entry_id, db_name, has_namespace=False
             )
 
             result = self.db_connector.execute_query(query)
@@ -1125,10 +1126,10 @@ class DictionaryService:
             if not self.entry_exists(entry_id, project_id=project_id):
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage(project_id=project_id)
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             query = self._query_builder.build_delete_entry_query(
-                entry_id, db_name, has_ns
+                entry_id, db_name, has_namespace=False
             )
 
             self.db_connector.execute_update(query)
@@ -1832,10 +1833,10 @@ class DictionaryService:
 
             self.get_entry(entry_id)
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             query = self._query_builder.build_related_entries_query(
-                entry_id, db_name, has_ns, relation_type
+                entry_id, db_name, has_namespace=False, relation_type=relation_type
             )
 
             result = self.db_connector.execute_query(query)
@@ -1938,10 +1939,10 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             query = self._query_builder.build_entries_by_grammatical_info_query(
-                grammatical_info, db_name, has_ns
+                grammatical_info, db_name, has_namespace=False
             )
 
             result = self.db_connector.execute_query(query)
@@ -3080,6 +3081,22 @@ class DictionaryService:
                     }
 
             self.ranges = parsed_ranges
+
+            # Apply resolved transformation if requested
+            if resolved:
+                try:
+                    import copy as _copy
+                    resolved_copy = {}
+                    for k, v in self.ranges.items():
+                        rcopy = _copy.deepcopy(v)
+                        if 'values' in rcopy and isinstance(rcopy['values'], list):
+                            rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'])
+                        resolved_copy[k] = rcopy
+                    return resolved_copy
+                except Exception:
+                    self.logger.exception("Failed to compute resolved ranges; returning raw ranges")
+                    return self.ranges
+
             return self.ranges
         except Exception as e:
             self.logger.error(
@@ -3686,10 +3703,10 @@ class DictionaryService:
                 print(f"Returning hardcoded test entry: {entry.id}")
                 return entry
 
-            # Use namespace-aware query
-            has_ns = self._detect_namespace_usage()
+            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
+            # so use non-namespaced queries for consistency
             query = self._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_ns
+                entry_id, db_name, has_namespace=False
             )
 
             # Execute query and get XML
