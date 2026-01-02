@@ -1,4 +1,4 @@
-# Lexicographic Curation Workbench
+# ![LexCW Logo](LexCW_logo_v3_consistent.png) Lexicographic Curation Workbench
 
 A professional tool for creating and managing comprehensive dictionaries using the LIFT (Lexicon Interchange FormaT) standard. This Flask-based application provides full support for LIFT 0.13 with extensive features designed for lexicographers, linguists, and language documentation specialists.
 
