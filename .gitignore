@@ -67,3 +67,4 @@ app/app/static/backup/**
 app/static/backup/**
 node_modules
 .basex.pid
+.worktrees/
