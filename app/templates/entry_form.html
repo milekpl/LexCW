@@ -437,30 +437,29 @@
             <div class="mb-3">
                 <label class="form-label">Definition <span class="text-danger">*</span></label>
                 <div class="multilingual-forms definition-forms">
-                    {% set default_lang_code = source_lang %}
-                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                    <div class="mb-3 language-form" data-language="{{ source_lang }}">
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="form-label">Language</label>
-                                <select class="form-select language-select" 
-                                        name="senses[INDEX].definition.{{ default_lang_code }}.lang"
-                                        data-field-name="senses[INDEX].definition.{{ default_lang_code }}">
+                                <select class="form-select language-select"
+                                        name="senses[INDEX].definition.{{ source_lang }}.lang"
+                                        data-field-name="senses[INDEX].definition.{{ source_lang }}">
                                     {% set project_lang_codes = project_languages|map(attribute=0)|list %}
-                                    {% if default_lang_code not in project_lang_codes %}
-                                        <option value="{{ default_lang_code }}" selected>{{ default_lang_code }} (original)</option>
+                                    {% if source_lang not in project_lang_codes %}
+                                        <option value="{{ source_lang }}" selected>{{ source_lang }} (original)</option>
                                     {% endif %}
                                     {% for code, label in project_languages %}
-                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                        <option value="{{ code }}" {% if code == source_lang %}selected{% endif %}>{{ label|safe }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-8">
                                 <label class="form-label">Definition Text</label>
-                                <textarea class="form-control definition-text" 
-                                          name="senses[INDEX].definition.{{ default_lang_code }}.text"
-                                          rows="2" 
+                                <textarea class="form-control definition-text"
+                                          name="senses[INDEX].definition.{{ source_lang }}.text"
+                                          rows="2"
                                           required
-                                          placeholder="Enter definition in {{ default_lang_code }}"></textarea>
+                                          placeholder="Enter definition in {{ source_lang }}"></textarea>
                             </div>
                             <div class="col-md-1">
                                 <!-- No remove button for primary language -->
@@ -747,24 +746,23 @@
             <div class="mb-3">
                 <label class="form-label">Definition <span class="text-danger">*</span></label>
                 <div class="multilingual-forms definition-forms">
-                    {% set default_lang_code = source_lang %}
-                    <div class="mb-2 language-form" data-language="{{ default_lang_code }}">
+                    <div class="mb-2 language-form" data-language="{{ source_lang }}">
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="form-label small">Language</label>
-                                <select class="form-select form-select-sm language-select" 
-                                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ default_lang_code }}.lang"
-                                        data-field-name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ default_lang_code }}">
+                                <select class="form-select form-select-sm language-select"
+                                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ source_lang }}.lang"
+                                        data-field-name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ source_lang }}">
                                     {% for code, label in project_languages %}
-                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                        <option value="{{ code }}" {% if code == source_lang %}selected{% endif %}>{{ label|safe }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-9">
                                 <label class="form-label small">Definition Text</label>
-                                <textarea class="form-control form-control-sm definition-text" 
-                                          name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ default_lang_code }}.text"
-                                          rows="2" 
+                                <textarea class="form-control form-control-sm definition-text"
+                                          name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ source_lang }}.text"
+                                          rows="2"
                                           required
                                           placeholder="Enter more specific definition"></textarea>
                             </div>
@@ -966,37 +964,46 @@
 {% block extra_js %}
 <!-- Select2 for enhanced dropdowns -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- Core utilities (must load first) -->
+<script defer src="{{ url_for('static', filename='js/core/logger.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/ui/toast.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/api-utils.js') }}"></script>
+<!-- Event system -->
+<script defer src="{{ url_for('static', filename='js/core/form-event-bus.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/core/form-component.js') }}"></script>
+<!-- CSRF Helper -->
+<script defer src="{{ url_for('static', filename='js/core/csrf-helper.js') }}"></script>
 <!-- LIFT XML Serializer -->
-<script src="{{ url_for('static', filename='js/lift-xml-serializer.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/lift-xml-serializer.js') }}"></script>
 <!-- Form serialization utilities -->
-<script src="{{ url_for('static', filename='js/normalize-indexed-array.js') }}"></script>
-<script src="{{ url_for('static', filename='js/form-serializer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/sense-relations-utils.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/normalize-indexed-array.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/form-serializer.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/sense-relations-utils.js') }}"></script>
 <!-- Form state management -->
-<script src="{{ url_for('static', filename='js/form-state-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/form-state-manager.js') }}"></script>
 <!-- Client validation -->
-<script src="{{ url_for('static', filename='js/client-validation-engine.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/client-validation-engine.js') }}"></script>
 <!-- Auto-save functionality -->
-<script src="{{ url_for('static', filename='js/auto-save-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/auto-save-manager.js') }}"></script>
 <!-- Validation UI -->
-<script src="{{ url_for('static', filename='js/validation-ui.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/validation-ui.js') }}"></script>
 <!-- Inline validation -->
-<script src="{{ url_for('static', filename='js/inline-validation.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/inline-validation.js') }}"></script>
 <!-- Ranges loader -->
-<script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
 <!-- SortableJS for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <!-- Pronunciation management -->
-<script src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
 <!-- Variant relationships management -->
-<script src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
 <!-- Sense-level variant relations management -->
-<script src="{{ url_for('static', filename='js/sense-variant-relations.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/sense-variant-relations.js') }}"></script>
 <!-- Direct variants (allomorphs) management -->
 <!-- Field Visibility Manager -->
-<script src="{{ url_for('static', filename='js/field-visibility-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/field-visibility-manager.js') }}"></script>
 <!-- Direct Variants (Allomorphs) Management -->
-<script src="{{ url_for('static', filename='js/direct-variants.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/direct-variants.js') }}"></script>
 
 <script>
     // Initialize Direct Variants Manager
@@ -1008,29 +1015,30 @@
     });
 </script>
 <!-- Relations management -->
-<script src="{{ url_for('static', filename='js/relations.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/relations.js') }}"></script>
 <!-- Etymology management -->
-<script src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
 <!-- Multilingual fields management -->
-<script src="{{ url_for('static', filename='js/multilingual-sense-fields.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/multilingual-sense-fields.js') }}"></script>
 <!-- Sense relation search functionality -->
-<script src="{{ url_for('static', filename='js/sense-relation-search.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/sense-relation-search.js') }}"></script>
 <!-- Component search functionality -->
-<script src="{{ url_for('static', filename='js/component-search.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/component-search.js') }}"></script>
 <!-- Reordering manager for multi-item lists -->
-<script src="{{ url_for('static', filename='js/reordering-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/reordering-manager.js') }}"></script>
 <!-- Undo/Redo functionality -->
-<script src="{{ url_for('static', filename='js/entry-form-undo-redo.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/entry-form-undo-redo.js') }}"></script>
 <!-- Entry form functionality (must be last) -->
-<script src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
-<script src="{{ url_for('static', filename='js/entry_form_setup.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/entry_form_setup.js') }}"></script>
 <!-- Live preview functionality -->
-<script src="{{ url_for('static', filename='js/live-preview.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/live-preview.js') }}"></script>
 
 <script>
 /**
  * DictionaryApp Namespace
  * Encapsulates all global application state to avoid pollution of window object.
+ * MUST be initialized before entry-form-init.js runs.
  */
 (function() {
     'use strict';
@@ -1051,163 +1059,19 @@
             csrfToken: csrfToken
         };
     } catch (e) {
-        console.error('Failed to initialize DictionaryApp namespace:', e);
+        Logger.error('Failed to initialize DictionaryApp namespace:', e);
     }
 })();
-
-document.addEventListener('DOMContentLoaded', async function() {
-     // Initialize Bootstrap tooltips
-    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-    [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
-
-    
-    // Note: Range selects are automatically populated by ranges-loader.js
-    // No manual range loading needed - just ensure data-range-id attributes are set
-    
-    // Initialize component managers after DOM is loaded
-    
-    // Initialize pronunciation manager (if it exists)
-    if (window.PronunciationFormsManager && document.getElementById('pronunciation-container')) {
-        // Initialize the manager without data. It should attach listeners to existing items.
-        window.pronunciationFormsManager = new PronunciationFormsManager('pronunciation-container');
-    }
-
-    // Initialize variant forms manager
-    if (window.VariantFormsManager && document.getElementById('variants-container')) {
-        window.variantFormsManager = new VariantFormsManager('variants-container', {
-            variantRelations: {{ (variant_relations | default([])) | tojson | safe }}
-        });
-    }
-
-    // Initialize relations manager
-    if (window.RelationsManager && document.getElementById('relations-container')) {
-        window.relationsManager = new RelationsManager('relations-container');
-    }
-
-    // Initialize etymology forms manager
-    if (window.EtymologyFormsManager && document.getElementById('etymology-container')) {
-        window.etymologyFormsManager = new EtymologyFormsManager('etymology-container', {
-            rangeId: 'etymology'
-        });
-    }
-
-    // Initialize multilingual notes manager
-    if (window.MultilingualNotesManager && document.getElementById('notes-container')) {
-        window.multilingualNotesManager = new MultilingualNotesManager('notes-container');
-    }
-    
-    // Initialize SortableJS for senses    
-    const sensesContainer = document.getElementById('senses-container');
-    if (sensesContainer && typeof Sortable !== 'undefined') {
-        new Sortable(sensesContainer, {
-            animation: 150,
-            handle: '.drag-handle',  // ← Use specific drag handle
-            ghostClass: 'sortable-ghost',
-            chosenClass: 'sortable-chosen',
-            dragClass: 'sortable-drag',
-            onStart: function(evt) {
-                // Change cursor during drag
-                document.body.style.cursor = 'grabbing';
-            },
-            onEnd: function (evt) {
-                // Reset cursor
-                document.body.style.cursor = '';
-                // Reindex senses
-                if (typeof reindexSenses === 'function') {
-                    reindexSenses();
-                }
-            }
-        });
-    }   
-    
-    // Initialize live preview manager
-    const previewContainer = document.getElementById('live-preview-container');
-
-    if (typeof LivePreviewManager !== 'undefined' && previewContainer) {
-        window.livePreviewManager = new LivePreviewManager('#entry-form', '#live-preview-container', 500);
-
-        // Add click handler for refresh button
-        const refreshBtn = document.getElementById('refresh-preview-btn');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
-                if (window.livePreviewManager) {
-                    window.livePreviewManager.updatePreview(true);
-                }
-            });
-        }
-        
-        // Also trigger live preview when XML preview is toggled
-        const toggleXmlBtn = document.getElementById('toggle-xml-preview-btn');
-        if (toggleXmlBtn) {
-            toggleXmlBtn.addEventListener('click', () => {
-                // Small delay to allow XML preview to update first
-                setTimeout(() => {
-                    if (window.livePreviewManager) {
-                        window.livePreviewManager.updatePreview(true);
-                    }
-                }, 100);
-            });
-        }
-    }
-
-    // Initialize Field Visibility Manager
-    if (typeof FieldVisibilityManager !== 'undefined') {
-        window.fieldVisibilityManager = new FieldVisibilityManager({
-            storageKey: 'entryFormFieldVisibility'
-            // Note: Visibility changes are stored locally and do NOT trigger validation
-            // or auto-save since they only affect UI display preferences
-        });
-    }
-
-    // DELETE button with two-step confirmation and CSRF protection
-    const deleteBtn = document.getElementById('delete-entry-btn');
-    const deleteWarning = document.getElementById('delete-warning');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', function() {
-            if (!deleteWarning.classList.contains('visible')) {
-                // First click: show warning and change button
-                deleteWarning.classList.add('visible');
-                deleteBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> CONFIRM DELETE';
-                deleteBtn.classList.remove('btn-outline-danger');
-                deleteBtn.classList.add('btn-danger');
-            } else {
-                // Second click: proceed with deletion
-                if (confirm('Are you sure you want to permanently delete this entry? This action cannot be undone.')) {
-                    // Get entry ID and CSRF token from DictionaryApp namespace
-                    const entryId = DictionaryApp.config.entryId;
-                    const csrfToken = DictionaryApp.config.csrfToken;
-                    if (entryId) {
-                        const headers = {
-                            'Content-Type': 'application/json'
-                        };
-                        if (csrfToken) {
-                            headers['X-CSRF-TOKEN'] = csrfToken;
-                        }
-                        fetch(`/api/entries/${entryId}`, {
-                            method: 'DELETE',
-                            headers: headers
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                // Redirect to entries list
-                                window.location.href = '{{ url_for("main.entries") }}';
-                            } else {
-                                alert('Error deleting entry: ' + (data.error || 'Unknown error'));
-                            }
-                        })
-                        .catch(error => {
-                            alert('Error deleting entry. Please try again.');
-                        });
-                    }
-                } else {
-                    // Cancel: reset button state
-                    deleteWarning.classList.remove('visible');
-                    deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> DELETE ENTRY';
-                    deleteBtn.classList.remove('btn-danger');
-                    deleteBtn.classList.add('btn-outline-danger');
-                }
-            }
+</script>
+<!-- Entry form initialization (extracted to separate file) -->
+<script defer src="{{ url_for('static', filename='js/entry/entry-form-init.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize entry form managers after all modules are loaded
+    if (typeof initEntryForm === 'function') {
+        initEntryForm({
+            variantRelations: {{ (variant_relations | default([])) | tojson | safe }},
+            entriesUrl: '{{ url_for("main.entries") }}'
         });
     }
 });

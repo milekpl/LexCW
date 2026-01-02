@@ -4,6 +4,8 @@ Integration tests for sense deletion functionality.
 Tests that senses can be added and removed properly, and that deleted senses
 don't reappear after save.
 """
+import re
+
 import pytest
 from playwright.sync_api import expect
 
@@ -200,38 +202,58 @@ def test_default_template_not_serialized(page, flask_test_server):
             add_sense_btn.click()
             # Wait for sense to appear
             expect(page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')).to_have_count(1, timeout=3000)
-    
+
     # Fill minimal entry data - use correct multilingual selectors
     page.locator('input.lexical-unit-text').first.fill('template_test')
     first_sense = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)').first
     first_sense.locator('textarea[name*="definition"]').first.fill('Test definition')
-    
-    # Setup console monitoring
-    console_logs = []
-    page.on("console", lambda msg: console_logs.append(msg.text))
-    
+
+    # Verify there is exactly 1 real sense item (not counting template)
+    real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
+    expect(real_senses).to_have_count(1, timeout=3000)
+
     # Save
     page.click('button[type="submit"]:has-text("Save Entry")')
-    # Wait for form submission logs to appear
-    max_attempts = 30
-    for _ in range(max_attempts):
-        if len(console_logs) > 5:
-            break
-        page.wait_for_timeout(100)
-    
-    # Check serialization logs
-    submit_logs = [log for log in console_logs if 'FORM SUBMIT' in log]
-    
-    # Should serialize exactly 1 sense (not 2 - one real + one template)
-    count_log = [log for log in submit_logs if 'Serialized senses:' in log]
-    # DEBUG: dump console logs when assertion would fail
-    if len(count_log) == 0:
-        print("DEBUG: console_logs:")
-        for i, cl in enumerate(console_logs):
-            print(i, repr(cl))
-    assert len(count_log) > 0, f"No serialization count log. Got {len(console_logs)} total logs"
-    assert 'Serialized senses: 1' in count_log[0], \
-        f"Default template was serialized! Got: {count_log[0]}"
+
+    # Wait for potential navigation or success indicator
+    # After successful save, we should either:
+    # - Navigate to /entries/{id}?status=saved
+    # - Or see a success indicator on the page
+    try:
+        # Try to wait for navigation to saved entry page
+        page.wait_for_url("**/entries/temp-*", timeout=10000)
+    except Exception:
+        # If navigation doesn't happen, check if we're still on add page with success state
+        pass
+
+    # Wait for any pending requests to complete
+    page.wait_for_load_state("networkidle", timeout=15000)
+
+    # Check current URL to determine if save was successful
+    current_url = page.url
+    if "/entries/" in current_url and "status=saved" in current_url:
+        # Success - extract entry ID from URL
+        entry_id_match = re.search(r'/entries/([^?/]+)', current_url)
+        assert entry_id_match, f"Could not extract entry ID from URL: {current_url}"
+        entry_id = entry_id_match.group(1)
+    else:
+        # Alternative: check if there's a success message or toast
+        # For now, fail with helpful message
+        raise AssertionError(
+            f"Save may have failed. Current URL: {current_url}. "
+            f"Expected navigation to /entries/temp-*?status=saved"
+        )
+
+    # Retrieve the entry from the database via API and verify it has exactly 1 sense
+    response = page.request.get(f"{flask_test_server}/api/xml/entries/{entry_id}")
+    assert response.ok, f"Failed to retrieve entry {entry_id}"
+
+    xml_content = response.body()
+    # body() returns bytes, decode to string for counting
+    xml_str = xml_content.decode('utf-8') if isinstance(xml_content, bytes) else xml_content
+    # Count sense elements in the XML
+    sense_count = xml_str.count('<sense ')
+    assert sense_count == 1, f"Expected 1 sense in saved entry, found {sense_count}. XML: {xml_str}"
 
 
 @pytest.mark.integration

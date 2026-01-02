@@ -6,38 +6,7 @@
  * Refactored and bug-fixed version.
  */
 
-// REFACTOR: Create a single, reusable utility for showing toast notifications.
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    const alertClass = type === 'error' ? 'alert-danger' : `alert-${type}`;
-    toast.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
-    toast.style.cssText = `
-        top: 20px;
-        right: 20px;
-        z-index: 1056; /* Ensure it's above modals */
-        min-width: 300px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    `;
-    toast.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
-
-    document.body.appendChild(toast);
-
-    // Auto-remove after 3.5 seconds
-    setTimeout(() => {
-        // Use bootstrap's API to gracefully fade out the alert
-        const bsAlert = bootstrap.Alert.getOrCreateInstance(toast);
-        if (bsAlert) {
-            bsAlert.close();
-        } else if (toast.parentNode) {
-            toast.remove();
-        }
-    }, 3500);
-}
-
-// Helper to normalize numeric-keyed objects to arrays (used by serializers)
+// NOTE: showToast() is now provided by ui/toast.js - loaded before this file
 const normalizeIndexedArray = window.normalizeIndexedArray || function(value) {
     if (value === undefined || value === null) {
         return [];
@@ -113,7 +82,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize LIFT XML Serializer
     if (typeof LIFTXMLSerializer !== 'undefined') {
         window.xmlSerializer = new LIFTXMLSerializer();
-        console.log('[Entry Form] LIFT XML Serializer initialized');
     } else {
         console.warn('[Entry Form] LIFT XML Serializer not available');
     }
@@ -167,10 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Normalize senses and refresh relations directly from DOM to avoid stale values
             formData.senses = normalizeIndexedArray(formData.senses);
             applySenseRelationsFromDom(entryForm, formData, normalizeIndexedArray);
-            
-            console.log('[XML Preview] Form data:', formData);
-            console.log('[XML Preview] lexical_unit:', formData.lexical_unit);
-            
+
             // Generate XML directly from form data (serializer now handles snake_case)
             const xmlString = window.xmlSerializer.serializeEntry(formData);
             
@@ -219,7 +184,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const searchable = select.dataset.searchable === 'true';
             
             if (rangeId && window.rangesLoader) {
-                console.log(`[Entry Form] Initializing range dropdown: ${rangeId}`);
                 return window.rangesLoader.populateSelect(select, rangeId, {
                     selectedValue: selectedValue,
                     emptyOption: select.querySelector('option[value=""]')?.textContent || 'Select option',
@@ -418,11 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             // Get CSRF token
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const headers = { 'Content-Type': 'application/json' };
-            if (csrfToken) {
-                headers['X-CSRF-TOKEN'] = csrfToken;
-            }
+            const headers = getCsrfHeaders({ 'Content-Type': 'application/json' });
 
             fetch(`/api/merge-split/entries/${entryId}/senses/${targetSenseId}/merge`, {
                 method: 'POST',
@@ -448,7 +408,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function openSplitEntryDialog(entryId, senseIds) {
-        console.log(`Opening Split Entry Dialog for entry: ${entryId} with senses: ${senseIds}`);
         const splitEntryModal = new bootstrap.Modal(document.getElementById('splitEntryModal'));
         splitEntryModal.show();
         document.getElementById('splitSourceEntry').textContent = entryId;
@@ -459,8 +418,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 1. Initialize all dynamic select elements on the page.
     initializeDynamicSelects(document.body).then(() => {
-        console.log('Dynamic selects initialized.');
-
         // 2. After selects are populated, set up the inheritance logic.
         setupGrammaticalInheritanceListeners();
 
@@ -493,11 +450,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (shouldSkipValidation) {
                 // Skip validation and submit directly
-                console.log('Skipping validation as requested by user');
                 submitForm();
             } else {
                 // Submit form - validation will happen server-side
-                console.log('Submitting form - server will validate');
                 submitForm();
             }
         });
@@ -506,10 +461,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const validateBtn = document.getElementById('validate-btn');
     if (validateBtn) {
         validateBtn.addEventListener('click', () => {
-            console.log('[Entry Form] Validate button clicked');
             validateForm(true);
         });
-        console.log('[Entry Form] Validate button event listener attached');
     } else {
         console.warn('[Entry Form] Validate button not found');
     }
@@ -623,8 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const pronunciationItem = uploadBtn.closest('.pronunciation-item');
                 const audioPathInput = pronunciationItem.querySelector('input[name*="audio_path"]');
                 audioPathInput.value = audioPath;
-                
-                console.log('Selected audio file:', file.name, 'Size:', file.size, 'bytes');
+
                 // TODO: Upload file to server and get actual path/URL
             };
             
@@ -689,16 +641,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const senseItem = removeSenseBtn.closest('.sense-item');
                 if (senseItem && confirm('Are you sure you want to remove this sense and all its examples?')) {
                     const senseId = senseItem.querySelector('[name*=".id"]')?.value || 'unknown';
-                    console.log('[SENSE DELETION] Removing sense:', senseId);
-                    console.log('[SENSE DELETION] Sense count before removal:', document.querySelectorAll('.sense-item').length);
-                    
+
                     senseItem.remove();
-                    
-                    console.log('[SENSE DELETION] Sense count after removal:', document.querySelectorAll('.sense-item').length);
-                    console.log('[SENSE DELETION] Remaining sense IDs:', 
-                        Array.from(document.querySelectorAll('[name*="senses["][name*=".id"]'))
-                            .map(input => input.value));
-                    
+
                     reindexSenses();
                     // The MutationObserver will automatically trigger updateGrammaticalCategoryInheritance.
                 }
@@ -800,11 +745,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         form.append('image_file', file);
 
                         // Get CSRF token
-                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                        const headers = {};
-                        if (csrfToken) {
-                            headers['X-CSRF-TOKEN'] = csrfToken;
-                        }
+                        const headers = getCsrfHeaders();
 
                         const resp = await fetch('/api/illustration/upload', {
                             method: 'POST',
@@ -1068,7 +1009,6 @@ document.addEventListener('DOMContentLoaded', function() {
  * @returns {boolean} - True if the form is valid, false otherwise.
  */
 function validateForm(showSummaryModal = false) {
-    console.log('[validateForm] Called with showSummaryModal:', showSummaryModal);
     const errors = [];
     let isValid = true;
 
@@ -1165,8 +1105,7 @@ function validateForm(showSummaryModal = false) {
 
     // Show summary if requested
     if (showSummaryModal) {
-        console.log('[validateForm] Showing feedback, isValid:', isValid, 'errors:', errors);
-        
+
         if (!isValid) {
             // Form has errors - show them in modal for detailed review
             const errorsList = document.getElementById('validation-errors-list');
@@ -1194,8 +1133,6 @@ function validateForm(showSummaryModal = false) {
             // Form is valid - show unobtrusive success toast
             showToast('✓ Form validation passed! No errors found.', 'success');
         }
-    } else {
-        console.log('[validateForm] isValid:', isValid, 'showSummaryModal:', showSummaryModal);
     }
 
     return isValid;
@@ -1243,9 +1180,7 @@ async function submitForm() {
         // Normalize senses and refresh relations directly from DOM to avoid stale values before XML generation
         formData.senses = normalizeIndexedArray(formData.senses);
         applySenseRelationsFromDom(form, formData, normalizeIndexedArray);
-        
-        console.log('[FORM SUBMIT] Form data serialized to JSON');
-        
+
         // Update progress
         progressBar.style.width = '30%';
         progressBar.textContent = 'Generating LIFT XML...';
@@ -1270,14 +1205,11 @@ async function submitForm() {
         // Generate LIFT XML directly from form data (serializer now handles snake_case)
         let xmlString;
         try {
-            console.debug('[FORM SUBMIT] Before serializeEntry - formData.id =', formData.id, 'xmlSerializer.generateEntryId =', typeof (window.xmlSerializer && window.xmlSerializer.generateEntryId));
             xmlString = window.xmlSerializer.serializeEntry(formData);
-            console.log('[FORM SUBMIT] LIFT XML generated successfully');
-            console.log('[FORM SUBMIT] XML Preview:', xmlString.substring(0, 500) + '...');
         } catch (xmlError) {
             throw new Error(`XML generation failed: ${xmlError.message}`);
         }
-        
+
         // Validate XML if needed
         const skipValidationCheckbox = document.getElementById('skip-validation-checkbox');
         const skipValidation = skipValidationCheckbox && skipValidationCheckbox.checked;
@@ -1289,27 +1221,20 @@ async function submitForm() {
         const entryId = form.querySelector('input[name="id"]')?.value?.trim();
         const apiUrl = entryId ? `/api/xml/entries/${entryId}` : '/api/xml/entries';
         const apiMethod = entryId ? 'PUT' : 'POST';
-        
+
         // Debug: Log sense count in XML being sent
         const senseMatchesBefore = xmlString.match(/<sense\s+/g);
         const senseCountBefore = senseMatchesBefore ? senseMatchesBefore.length : 0;
-        console.log(`[FORM SUBMIT] About to send XML to ${apiUrl} with ${senseCountBefore} senses`);
-        
-        console.log(`Submitting XML to URL: ${apiUrl}, Method: ${apiMethod}`);
-        
+
         // Set a timeout for the fetch request
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
         // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        const headers = {
+        const headers = getCsrfHeaders({
             'Content-Type': 'application/xml',
             'Accept': 'application/json'
-        };
-        if (csrfToken) {
-            headers['X-CSRF-TOKEN'] = csrfToken;
-        }
+        });
 
         const response = await fetch(apiUrl, {
             method: apiMethod,
@@ -1573,7 +1498,6 @@ function addSenseRelation(senseIndex) {
     // Initialize the search functionality for the new relation if the sense-relation-search handler exists
     if (window.senseRelationSearchHandler) {
         // The event listeners are already in place to handle the new elements
-        console.log(`[addSenseRelation] New relation ${newIndex} added to sense ${senseIndex}`);
     }
 }
 
@@ -1969,11 +1893,7 @@ function generateAudio(word, ipa, index) {
     btn.disabled = true;
 
     // Get CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const headers = { 'Content-Type': 'application/json' };
-    if (csrfToken) {
-        headers['X-CSRF-TOKEN'] = csrfToken;
-    }
+    const headers = getCsrfHeaders({ 'Content-Type': 'application/json' });
 
     fetch('/api/pronunciations/generate', {
             method: 'POST',

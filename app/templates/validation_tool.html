@@ -430,22 +430,12 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-/**
- * Get CSRF token from meta tag or DictionaryApp
- * @returns {string} The CSRF token or empty string if not available
- */
-function getCsrfToken() {
-    var metaTag = document.querySelector('meta[name="csrf-token"]');
-    if (metaTag) {
-        return metaTag.getAttribute('content');
-    }
-    if (typeof DictionaryApp !== 'undefined' && DictionaryApp.config && DictionaryApp.config.csrfToken) {
-        return DictionaryApp.config.csrfToken;
-    }
-    return '';
-}
+<!-- Core utilities -->
+<script defer src="{{ url_for('static', filename='js/core/logger.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/api-utils.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/ui/toast.js') }}"></script>
 
+<script>
 document.addEventListener('DOMContentLoaded', function() {
     // State
     let validationResults = [];
@@ -541,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Run validation on all entries
             await runValidation(entries);
         } catch (error) {
-            console.error('Error loading entries:', error);
+            Logger.error('Error loading entries:', error);
             hideLoading();
             showEmptyState();
             flashMessage('Error loading entries: ' + error.message, 'danger');
@@ -604,13 +594,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Check if the response contains an error
             if (result.error) {
-                console.error('API returned error:', result);
+                Logger.error('API returned error:', result);
                 throw new Error(result.error);
             }
 
             // Validate result structure
             if (!result.results || !Array.isArray(result.results)) {
-                console.error('Invalid response format:', result);
+                Logger.error('Invalid response format:', result);
                 throw new Error('Invalid response format from server. Expected results array but got: ' + JSON.stringify(result).substring(0, 200));
             }
 
@@ -627,7 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showEmptyState();
             }
         } catch (error) {
-            console.error('Validation error:', error);
+            Logger.error('Validation error:', error);
             hideLoading();
             flashMessage('Validation error: ' + error.message, 'danger');
         }

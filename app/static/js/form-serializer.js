@@ -1,18 +1,16 @@
 /**
  * Form Serialization Utility
- * 
+ *
  * A robust utility for converting HTML form data to structured JSON objects.
  * Supports complex field naming conventions including:
  * - Simple fields: name, email
  * - Dot notation: user.name, address.city
  * - Array notation: items[0], items[1]
  * - Complex notation: items[0].name, users[2].addresses[0].street
- * 
+ *
  * @author Dictionary App Team
  * @version 1.0.1-bugfix-sense-deletion
  */
-
-console.log('[FormSerializer] Version 1.0.1-bugfix-sense-deletion loaded');
 
 /**
  * Serializes a form to a structured JSON object
