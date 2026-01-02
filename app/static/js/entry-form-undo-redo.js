@@ -14,6 +14,25 @@ class EntryFormUndoRedo {
         this.init();
     }
 
+    /**
+     * Get CSRF token from meta tag
+     */
+    getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    /**
+     * Get headers with CSRF token
+     */
+    getHeaders() {
+        const csrfToken = this.getCsrfToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+        return headers;
+    }
+
     init() {
         // Bind event listeners
         this.undoBtn.addEventListener('click', () => this.performUndo());
@@ -137,9 +156,7 @@ class EntryFormUndoRedo {
 
             const response = await fetch('/api/backup/operations/undo', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: this.getHeaders()
             });
 
             if (response.ok) {
@@ -171,9 +188,7 @@ class EntryFormUndoRedo {
 
             const response = await fetch('/api/backup/operations/redo', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: this.getHeaders()
             });
 
             if (response.ok) {
@@ -217,9 +232,7 @@ class EntryFormUndoRedo {
 
             const response = await fetch('/api/backup/operations', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: this.getHeaders(),
                 body: JSON.stringify(operationData)
             });
 

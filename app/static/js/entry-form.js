@@ -417,9 +417,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 merge_strategy: mergeStrategy
             };
 
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
             fetch(`/api/merge-split/entries/${entryId}/senses/${targetSenseId}/merge`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(payload)
             })
             .then(response => response.json())
@@ -792,8 +799,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         const form = new FormData();
                         form.append('image_file', file);
 
+                        // Get CSRF token
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        const headers = {};
+                        if (csrfToken) {
+                            headers['X-CSRF-TOKEN'] = csrfToken;
+                        }
+
                         const resp = await fetch('/api/illustration/upload', {
                             method: 'POST',
+                            headers: headers,
                             body: form
                         });
 
@@ -1285,13 +1300,20 @@ async function submitForm() {
         // Set a timeout for the fetch request
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-        
+
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const headers = {
+            'Content-Type': 'application/xml',
+            'Accept': 'application/json'
+        };
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+
         const response = await fetch(apiUrl, {
             method: apiMethod,
-            headers: {
-                'Content-Type': 'application/xml',
-                'Accept': 'application/json'
-            },
+            headers: headers,
             body: xmlString,
             signal: controller.signal
         });
@@ -1946,11 +1968,16 @@ function generateAudio(word, ipa, index) {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
     btn.disabled = true;
 
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken;
+    }
+
     fetch('/api/pronunciations/generate', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({
                 word,
                 ipa  // Can be empty - backend will use word text for TTS

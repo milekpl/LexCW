@@ -85,8 +85,9 @@ def setup_e2e_test_database():
         
         # Add sample LIFT content with dateCreated and dateModified
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            # Note: SIL Fieldworks LIFT format doesn't use XML namespaces
             sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
-<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+<lift version="0.13">
     <entry id="test_entry_1" dateCreated="2024-01-15T10:30:00Z" dateModified="2024-03-20T14:45:00Z">
         <lexical-unit>
             <form lang="en"><text>test</text></form>

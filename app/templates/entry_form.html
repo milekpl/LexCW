@@ -94,6 +94,7 @@
 {% endif %}
 
 {% set source_lang = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.source_language else 'en' %}
+{% set target_lang = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.target_language else 'en' %}
 <form id="entry-form" method="post" data-source-language="{{ source_lang }}" novalidate>
     {% if entry.id %}
         <input type="hidden" name="id" value="{{ entry.id }}">
@@ -436,7 +437,7 @@
             <div class="mb-3">
                 <label class="form-label">Definition <span class="text-danger">*</span></label>
                 <div class="multilingual-forms definition-forms">
-                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    {% set default_lang_code = source_lang %}
                     <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
                         <div class="row">
                             <div class="col-md-3">
@@ -479,12 +480,12 @@
             <div class="mb-3">
                 <label class="form-label">Gloss</label>
                 <div class="multilingual-forms gloss-forms">
-                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    {% set default_lang_code = target_lang %}
                     <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="form-label">Language</label>
-                                <select class="form-select language-select" 
+                                <select class="form-select language-select"
                                         name="senses[INDEX].gloss.{{ default_lang_code }}.lang"
                                         data-field-name="senses[INDEX].gloss.{{ default_lang_code }}">
                                     {% for code, label in project_languages %}
@@ -746,7 +747,7 @@
             <div class="mb-3">
                 <label class="form-label">Definition <span class="text-danger">*</span></label>
                 <div class="multilingual-forms definition-forms">
-                    {% set default_lang_code = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    {% set default_lang_code = source_lang %}
                     <div class="mb-2 language-form" data-language="{{ default_lang_code }}">
                         <div class="row">
                             <div class="col-md-3">
@@ -783,12 +784,12 @@
             <div class="mb-3">
                 <label class="form-label">Gloss</label>
                 <div class="multilingual-forms gloss-forms">
-                    {% set default_gloss_lang = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
+                    {% set default_gloss_lang = target_lang %}
                     <div class="mb-2 language-form" data-language="{{ default_gloss_lang }}">
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="form-label small">Language</label>
-                                <select class="form-select form-select-sm language-select" 
+                                <select class="form-select form-select-sm language-select"
                                         name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}.lang"
                                         data-field-name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}">
                                     {% for code, label in project_languages %}
@@ -877,12 +878,11 @@
             <div class="mb-3">
                 <label class="form-label">Forms</label>
                 <div class="reversal-forms-container">
-                    {% set default_lang = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS else 'en' %}
                     <div class="input-group mb-2">
-                        <span class="input-group-text">{{ default_lang }}</span>
-                        <input type="text" class="form-control" 
-                               name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].forms.{{ default_lang }}"
-                               placeholder="Enter text in {{ default_lang }}">
+                        <span class="input-group-text">{{ target_lang }}</span>
+                        <input type="text" class="form-control"
+                               name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].forms.{{ target_lang }}"
+                               placeholder="Enter text in {{ target_lang }}">
                     </div>
                 </div>
             </div>
@@ -913,9 +913,9 @@
                             <div class="mb-2">
                                 <label class="form-label"><small>Forms</small></label>
                                 <div class="input-group mb-1">
-                                    <span class="input-group-text input-group-text-sm">{{ default_lang }}</span>
-                                    <input type="text" class="form-control form-control-sm" 
-                                           name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].main.forms.{{ default_lang }}"
+                                    <span class="input-group-text input-group-text-sm">{{ target_lang }}</span>
+                                    <input type="text" class="form-control form-control-sm"
+                                           name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].main.forms.{{ target_lang }}"
                                            placeholder="Enter main form">
                                 </div>
                             </div>
@@ -1028,11 +1028,32 @@
 <script src="{{ url_for('static', filename='js/live-preview.js') }}"></script>
 
 <script>
-// Make ranges data available to JavaScript
-window.rangesData = {{ ranges | tojson | safe }};
-
-// Make component relations available to JavaScript
-window.componentRelations = {{ (forward_component_relations | default([])) | tojson | safe }};
+/**
+ * DictionaryApp Namespace
+ * Encapsulates all global application state to avoid pollution of window object.
+ */
+(function() {
+    'use strict';
+    try {
+        window.DictionaryApp = window.DictionaryApp || {};
+        window.DictionaryApp.data = {
+            ranges: {{ ranges | tojson | safe }},
+            componentRelations: {{ (forward_component_relations | default([])) | tojson | safe }}
+        };
+        // Get CSRF token from meta tag or form
+        var csrfToken = '';
+        var metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+            csrfToken = metaTag.getAttribute('content');
+        }
+        window.DictionaryApp.config = {
+            entryId: '{{ entry.id | default("") }}',
+            csrfToken: csrfToken
+        };
+    } catch (e) {
+        console.error('Failed to initialize DictionaryApp namespace:', e);
+    }
+})();
 
 document.addEventListener('DOMContentLoaded', async function() {
      // Initialize Bootstrap tooltips
@@ -1099,23 +1120,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }   
     
-    // Initialize live preview manager with logging
-    console.log('About to initialize LivePreviewManager...');
-    console.log('LivePreviewManager type:', typeof LivePreviewManager);
+    // Initialize live preview manager
     const previewContainer = document.getElementById('live-preview-container');
-    console.log('Preview container exists:', !!previewContainer);
-    
+
     if (typeof LivePreviewManager !== 'undefined' && previewContainer) {
-        console.log('Creating LivePreviewManager instance...');
         window.livePreviewManager = new LivePreviewManager('#entry-form', '#live-preview-container', 500);
-        console.log('LivePreviewManager created:', window.livePreviewManager);
-        
+
         // Add click handler for refresh button
         const refreshBtn = document.getElementById('refresh-preview-btn');
         if (refreshBtn) {
-            console.log('Adding click handler to refresh button');
             refreshBtn.addEventListener('click', () => {
-                console.log('Refresh button clicked - calling updatePreview');
                 if (window.livePreviewManager) {
                     window.livePreviewManager.updatePreview(true);
                 }
@@ -1134,34 +1148,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }, 100);
             });
         }
-    } else {
-        console.error('LivePreviewManager initialization failed - conditions not met');
-        if (typeof LivePreviewManager === 'undefined') {
-            console.error('LivePreviewManager class is undefined - check if live-preview.js loaded correctly');
-        }
-        if (!previewContainer) {
-            console.error('Live preview container not found');
-        }
     }
 
     // Initialize Field Visibility Manager
     if (typeof FieldVisibilityManager !== 'undefined') {
-        console.log('Initializing FieldVisibilityManager...');
         window.fieldVisibilityManager = new FieldVisibilityManager({
             storageKey: 'entryFormFieldVisibility'
             // Note: Visibility changes are stored locally and do NOT trigger validation
             // or auto-save since they only affect UI display preferences
         });
-
-        // Listen for events from other components
-        document.addEventListener('fieldVisibilityChanged', (e) => {
-            console.log('fieldVisibilityChanged event:', e.detail);
-        });
-    } else {
-        console.warn('FieldVisibilityManager not loaded');
     }
 
-    // DELETE button with two-step confirmation
+    // DELETE button with two-step confirmation and CSRF protection
     const deleteBtn = document.getElementById('delete-entry-btn');
     const deleteWarning = document.getElementById('delete-warning');
     if (deleteBtn) {
@@ -1175,14 +1173,19 @@ document.addEventListener('DOMContentLoaded', async function() {
             } else {
                 // Second click: proceed with deletion
                 if (confirm('Are you sure you want to permanently delete this entry? This action cannot be undone.')) {
-                    // Get entry ID from the page
-                    const entryId = '{{ entry.id }}';
+                    // Get entry ID and CSRF token from DictionaryApp namespace
+                    const entryId = DictionaryApp.config.entryId;
+                    const csrfToken = DictionaryApp.config.csrfToken;
                     if (entryId) {
+                        const headers = {
+                            'Content-Type': 'application/json'
+                        };
+                        if (csrfToken) {
+                            headers['X-CSRF-TOKEN'] = csrfToken;
+                        }
                         fetch(`/api/entries/${entryId}`, {
                             method: 'DELETE',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            }
+                            headers: headers
                         })
                         .then(response => response.json())
                         .then(data => {
@@ -1194,7 +1197,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                             }
                         })
                         .catch(error => {
-                            console.error('Delete error:', error);
                             alert('Error deleting entry. Please try again.');
                         });
                     }

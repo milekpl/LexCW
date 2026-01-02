@@ -381,7 +381,13 @@ class RangesLoader {
 
         document.getElementById('install-recommended-ranges').addEventListener('click', async () => {
             try {
-                const resp = await fetch('/api/ranges-editor/install_recommended', { method: 'POST' });
+                // Get CSRF token
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const headers = {};
+                if (csrfToken) {
+                    headers['X-CSRF-TOKEN'] = csrfToken;
+                }
+                const resp = await fetch('/api/ranges-editor/install_recommended', { method: 'POST', headers: headers });
                 const data = await resp.json();
                 if (resp.ok && data.success) {
                     banner.className = 'alert alert-success mt-3';

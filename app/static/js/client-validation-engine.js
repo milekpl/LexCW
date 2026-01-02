@@ -182,23 +182,30 @@ class ClientValidationEngine {
      */
     async validateCompleteForm(formData) {
         try {
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
             // Send to server for comprehensive validation
             const response = await fetch('/api/validate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(formData)
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Validation request failed: ${response.status}`);
             }
-            
+
             const result = await response.json();
             return this.normalizeValidationResult(result);
-            
+
         } catch (error) {
             console.error('[ClientValidationEngine] Server validation failed:', error);
-            
+
             // Fallback to client-side validation
             return await this.validateFormDataLocally(formData);
         }

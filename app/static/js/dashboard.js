@@ -54,11 +54,15 @@ function createQuickBackup() {
     const dbName = window.currentDatabaseName || 'dictionary';
     
     // Make API call to create backup with required db_name parameter
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken;
+    }
+
     fetch('/api/backup/create', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: JSON.stringify({
             db_name: dbName,
             backup_type: 'manual',

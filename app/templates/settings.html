@@ -323,16 +323,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     formData.append('ranges', rangesInput.files[0]);
                 }
                 
+                // Get CSRF token for import request
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfHeader = csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {};
+
                 response = await fetch('/settings/import-lift-replace', {
                     method: 'POST',
+                    headers: csrfHeader,
                     body: formData
                 });
             } else {
                 const data = { action: selectedAction };
+                // Get CSRF token for drop database request
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfHeader = csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {};
+
                 response = await fetch('/settings/drop-database', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        ...csrfHeader
                     },
                     body: JSON.stringify(data)
                 });
@@ -357,7 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Optionally reload the page to reflect changes
                 setTimeout(() => location.reload(), 1000);
             } else {
-                showAppToast('Error: ' + (data.error || 'Unknown error'), 'error');
+                showAppToast('Error: ' + (result.error || 'Unknown error'), 'error');
             }
         } catch (error) {
             showAppToast('Error: ' + error.message, 'error');

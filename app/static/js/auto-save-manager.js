@@ -108,12 +108,18 @@ class AutoSaveManager {
             }
             
             // Attempt to save
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
             const response = await fetch('/api/entry/autosave', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
+                headers: headers,
                 body: JSON.stringify({
                     entryData: formData,
                     version: this.lastSaveVersion,

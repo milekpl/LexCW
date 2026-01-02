@@ -1,13 +1,30 @@
 /**
  * API Utility Functions
- * 
+ *
  * Provides common functions for handling API requests and responses
  * to reduce code duplication across JavaScript files.
  */
 
 /**
+ * Get CSRF token from meta tag or DictionaryApp
+ * @returns {string} The CSRF token or empty string if not available
+ */
+function getCsrfToken() {
+    // Try to get from meta tag first
+    var metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+        return metaTag.getAttribute('content');
+    }
+    // Fall back to DictionaryApp namespace
+    if (typeof DictionaryApp !== 'undefined' && DictionaryApp.config && DictionaryApp.config.csrfToken) {
+        return DictionaryApp.config.csrfToken;
+    }
+    return '';
+}
+
+/**
  * Makes an API request with common error handling and response formatting
- * 
+ *
  * @param {string} url - The API endpoint URL
  * @param {string} method - HTTP method (GET, POST, PUT, DELETE, etc.)
  * @param {Object} options - Additional options for the request
@@ -16,6 +33,7 @@
  * @param {Function} options.onSuccess - Callback for successful response
  * @param {Function} options.onError - Callback for error response
  * @param {boolean} options.showLoading - Whether to show loading indicator
+ * @param {boolean} options.useCsrf - Whether to include CSRF token (default: true for non-GET)
  * @returns {Promise} The API response
  */
 function makeApiRequest(url, method = 'GET', options = {}) {
@@ -24,7 +42,8 @@ function makeApiRequest(url, method = 'GET', options = {}) {
         headers = {},
         onSuccess = null,
         onError = null,
-        showLoading = true
+        showLoading = true,
+        useCsrf = true
     } = options;
 
     // Show loading indicator if requested
@@ -38,6 +57,14 @@ function makeApiRequest(url, method = 'GET', options = {}) {
         'X-Requested-With': 'XMLHttpRequest',
         ...headers
     };
+
+    // Add CSRF token for state-changing requests (unless disabled)
+    if (useCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+            defaultHeaders['X-CSRF-TOKEN'] = csrfToken;
+        }
+    }
 
     // Prepare request options
     const requestOptions = {

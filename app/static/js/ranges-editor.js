@@ -3,6 +3,21 @@
  * Manages the LIFT ranges editor interface
  */
 
+/**
+ * Get CSRF token from meta tag or DictionaryApp
+ * @returns {string} The CSRF token or empty string if not available
+ */
+function getCsrfToken() {
+    var metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+        return metaTag.getAttribute('content');
+    }
+    if (typeof DictionaryApp !== 'undefined' && DictionaryApp.config && DictionaryApp.config.csrfToken) {
+        return DictionaryApp.config.csrfToken;
+    }
+    return '';
+}
+
 class RangesEditor {
     constructor() {
         this.ranges = {};
@@ -339,9 +354,13 @@ class RangesEditor {
         
         // Call API
         try {
+            const csrfToken = getCsrfToken();
             const response = await fetch('/api/ranges-editor/', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
                 body: JSON.stringify({
                     id: rangeId,
                     labels: labels,
@@ -635,11 +654,15 @@ class RangesEditor {
         const rangeId = this.currentRangeId;
         const guid = document.getElementById('editRangeGuid').value;
         const labels = this.collectMultilingualData('editLabelsContainer');
-        
+        const csrfToken = getCsrfToken();
+
         try {
             const response = await fetch(`/api/ranges-editor/${rangeId}`, {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
                 body: JSON.stringify({
                     guid: guid,
                     labels: labels
@@ -722,11 +745,15 @@ class RangesEditor {
                 };
             }
         }
-        
+
         try {
+            const csrfToken = getCsrfToken();
             const response = await fetch(`/api/ranges-editor/${rangeId}`, {
                 method: 'DELETE',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
                 body: JSON.stringify({ migration: migration })
             });
             
@@ -909,6 +936,11 @@ class RangesEditor {
 
         // Get the selected display language
         const elementLanguage = document.getElementById('elementLanguage').value;
+        const csrfToken = getCsrfToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        };
 
         try {
             let response;
@@ -916,7 +948,7 @@ class RangesEditor {
                 // Update existing element
                 response = await fetch(`/api/ranges-editor/${this.currentRangeId}/elements/${elementId}`, {
                     method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: headers,
                     body: JSON.stringify({
                         abbrev: abbrev,
                         abbrevs: abbrevs,
@@ -930,7 +962,7 @@ class RangesEditor {
                 // Create new element
                 response = await fetch(`/api/ranges-editor/${this.currentRangeId}/elements`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: headers,
                     body: JSON.stringify({
                         id: elementId,
                         abbrev: abbrev,
@@ -962,10 +994,14 @@ class RangesEditor {
         if (!confirm(`Delete element "${elementId}"?`)) {
             return;
         }
-        
+
+        const csrfToken = getCsrfToken();
         try {
             const response = await fetch(`/api/ranges-editor/${rangeId}/elements/${elementId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken
+                }
             });
             
             const result = await response.json();

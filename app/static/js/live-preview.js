@@ -244,41 +244,59 @@ class LivePreviewManager {
         try {
             console.log('Sending preview request to server...');
             console.log('Form data being sent:', formData);
-            
+
             // Add timeout to prevent hanging
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-            
+
+            // Get CSRF token with retry logic
+            let csrfToken = '';
+            for (let i = 0; i < 5; i++) {
+                const metaTag = document.querySelector('meta[name="csrf-token"]');
+                csrfToken = metaTag?.getAttribute('content') || '';
+                if (csrfToken) break;
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            if (!csrfToken) {
+                throw new Error('CSRF token not found. Please refresh the page.');
+            }
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            };
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
             const response = await fetch('/api/live-preview', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify(formData),
                 signal: controller.signal
             });
-            
+
             clearTimeout(timeoutId);
-            
+
             console.log('Server response received:', response.status, response.statusText);
-            
+
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('Server error details:', errorText);
                 throw new Error(`Server error: ${response.status} ${response.statusText} - ${errorText}`);
             }
-            
+
             const result = await response.json();
             console.log('Preview response:', result);
-            
+
             if (!result.success) {
                 console.error('Preview generation failed:', result.error);
                 throw new Error(result.error || 'Preview generation failed');
             }
-            
+
             return result;
-            
+
         } catch (error) {
             console.error('Preview fetch error:', error);
             this._showErrorState(`Failed to generate preview: ${error.message}`);

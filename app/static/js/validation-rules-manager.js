@@ -5,6 +5,21 @@
  * Handles loading, saving, and testing validation rules.
  */
 
+/**
+ * Get CSRF token from meta tag or DictionaryApp
+ * @returns {string} The CSRF token or empty string if not available
+ */
+function getCsrfToken() {
+    var metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+        return metaTag.getAttribute('content');
+    }
+    if (typeof DictionaryApp !== 'undefined' && DictionaryApp.config && DictionaryApp.config.csrfToken) {
+        return DictionaryApp.config.csrfToken;
+    }
+    return '';
+}
+
 class ValidationRulesManager {
     constructor() {
         // State
@@ -178,12 +193,14 @@ class ValidationRulesManager {
     async saveRules(projectId, rules, createdBy = null) {
         this._setLoading(true);
         this._setError(null);
+        const csrfToken = getCsrfToken();
 
         try {
             const response = await fetch(`${this._apiBase}/${projectId}/validation-rules`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 body: JSON.stringify({ rules, created_by: createdBy })
             });
@@ -215,10 +232,14 @@ class ValidationRulesManager {
     async deleteRules(projectId) {
         this._setLoading(true);
         this._setError(null);
+        const csrfToken = getCsrfToken();
 
         try {
             const response = await fetch(`${this._apiBase}/${projectId}/validation-rules`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken
+                }
             });
 
             const data = await this._handleApiResponse(response);
@@ -276,12 +297,14 @@ class ValidationRulesManager {
     async initializeFromTemplate(projectId, templateId, createdBy = null) {
         this._setLoading(true);
         this._setError(null);
+        const csrfToken = getCsrfToken();
 
         try {
             const response = await fetch(`${this._apiBase}/${projectId}/validation-rules/initialize`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 body: JSON.stringify({
                     template_id: templateId,
@@ -312,12 +335,14 @@ class ValidationRulesManager {
     async testRule(ruleConfig, testData) {
         this._setLoading(true);
         this._setError(null);
+        const csrfToken = getCsrfToken();
 
         try {
             const response = await fetch(`${this._apiBase}/validation-rules/test`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 body: JSON.stringify({
                     rule: ruleConfig,
@@ -373,12 +398,14 @@ class ValidationRulesManager {
     async importRules(projectId, importData, replace = false, createdBy = null) {
         this._setLoading(true);
         this._setError(null);
+        const csrfToken = getCsrfToken();
 
         try {
             const response = await fetch(`${this._apiBase}/${projectId}/validation-rules/import`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 body: JSON.stringify({
                     rules: importData.rules,
