@@ -1,8 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Helper function to get CSRF token
-    function getCsrfToken() {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    }
+    // getCsrfToken() is provided by api-utils.js (loaded before this file)
 
     const btn = document.getElementById('install-recommended-ranges-btn');
     if (btn) {
@@ -20,11 +17,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Reload page to populate selects
                     window.location.reload();
                 } else {
-                    alert('Failed to install recommended ranges: ' + (data.error || 'unknown'));
+                    showToast('Failed to install recommended ranges: ' + (data.error || 'unknown'), 'error');
                     btn.disabled = false;
                 }
             } catch (err) {
-                alert('Failed to install recommended ranges: ' + err);
+                Logger.error('Failed to install recommended ranges:', err);
+                showToast('Failed to install recommended ranges: ' + err, 'error');
                 btn.disabled = false;
             }
         });

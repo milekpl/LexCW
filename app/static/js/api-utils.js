@@ -125,13 +125,13 @@ function makeApiRequest(url, method = 'GET', options = {}) {
                 hideLoadingIndicator();
             }
 
-            console.error('API request failed:', error);
+            Logger.error('API request failed:', error);
 
             // Call error callback if provided
             if (onError && typeof onError === 'function') {
                 onError(error);
             } else {
-                // Show generic error message
+                // Show generic error message (showToast provided by ui/toast.js)
                 showToast(`Request failed: ${error.message}`, 'error');
             }
 
@@ -195,7 +195,7 @@ function hideLoadingIndicator() {
  * Common error handler for API responses
  */
 function handleApiError(error, context = '') {
-    console.error(`API Error in ${context}:`, error);
+    Logger.error(`API Error in ${context}:`, error);
     showToast(`An error occurred: ${error.message}`, 'error');
 }
 

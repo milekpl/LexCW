@@ -1,6 +1,6 @@
 /**
  * Enhanced Ranges Loader Utility
- * 
+ *
  * JavaScript utility for loading LIFT ranges from the API
  * and populating dropdown/select elements dynamically with support for
  * hierarchical (nested) range values.
@@ -10,13 +10,10 @@ class RangesLoader {
     constructor() {
         this.cache = new Map();
         this.baseUrl = '/api/ranges-editor';
-        this.debug = true;
     }
-    
+
     log(message, ...args) {
-        if (this.debug) {
-            console.log(`[RangesLoader] ${message}`, ...args);
-        }
+        Logger.debug(`[RangesLoader] ${message}`, ...args);
     }
     
     /**

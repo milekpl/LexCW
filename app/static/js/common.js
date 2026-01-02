@@ -74,61 +74,15 @@ function truncateText(text, length = 100) {
 
 /**
  * Escape HTML to prevent XSS
- * 
+ *
  * @param {string} html - HTML string to escape
  * @returns {string} Escaped HTML
+ * @deprecated Use ui/toast.js::escapeHtml instead
  */
 function escapeHtml(html) {
     const div = document.createElement('div');
     div.textContent = html;
     return div.innerHTML;
-}
-
-/**
- * Show a toast message
- * 
- * @param {string} message - Message to display
- * @param {string} type - Message type (success, error, warning, info)
- */
-function showToast(message, type = 'info') {
-    // Check if toast container exists, create if not
-    let toastContainer = document.getElementById('toast-container');
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.id = 'toast-container';
-        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
-        toastContainer.style.zIndex = '5';
-        document.body.appendChild(toastContainer);
-    }
-    
-    // Create toast element
-    const toastEl = document.createElement('div');
-    toastEl.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : type}`;
-    toastEl.setAttribute('role', 'alert');
-    toastEl.setAttribute('aria-live', 'assertive');
-    toastEl.setAttribute('aria-atomic', 'true');
-    
-    // Create toast content
-    toastEl.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">
-                ${message}
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-    `;
-    
-    // Add to container
-    toastContainer.appendChild(toastEl);
-    
-    // Initialize and show toast
-    const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
-    toast.show();
-    
-    // Remove toast from DOM after it's hidden
-    toastEl.addEventListener('hidden.bs.toast', function() {
-        toastEl.remove();
-    });
 }
 
 /**

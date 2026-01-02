@@ -19,8 +19,6 @@ class FormStateManager {
         this.changeListeners = new Set();
         this.fieldBindings = new Map(); // field -> JSONPath mapping
         this.validationResults = new Map(); // field -> validation results
-        
-        console.log('[FormStateManager] Initialized with data:', initialData);
     }
     
     /**
@@ -50,7 +48,6 @@ class FormStateManager {
     captureInitialState() {
         this.originalState = this.serializeFormToJSON();
         this.currentState = this.deepClone(this.originalState);
-        console.log('[FormStateManager] Initial state captured:', this.originalState);
     }
     
     /**
@@ -91,7 +88,6 @@ class FormStateManager {
         this.currentState = this.deepClone(data);
         this.populateFormFromData(data);
         this.notifyChangeListeners();
-        console.log('[FormStateManager] Updated from JSON:', data);
     }
     
     /**
@@ -155,8 +151,6 @@ class FormStateManager {
         field.addEventListener('change', () => {
             this.captureFieldChange(field);
         });
-        
-        console.log(`[FormStateManager] Registered binding: ${field.name || field.id} -> ${jsonPath}`);
     }
     
     /**
@@ -173,8 +167,7 @@ class FormStateManager {
         const value = this.extractFieldValue(field);
         this.setValueAtPath(jsonPath, value);
         this.notifyChangeListeners();
-        
-        console.log(`[FormStateManager] Field changed: ${jsonPath} = ${value}`);
+
     }
     
     /**
@@ -502,8 +495,6 @@ class FormStateManager {
     populateFormFromData(data) {
         // This method would update form fields from JSON data
         // Implementation depends on specific form structure
-        console.log('[FormStateManager] Populating form from data:', data);
-        
         // Basic implementation for common fields
         if (data.id) {
             const idField = document.querySelector('[name="entry-id"], #entry-id');

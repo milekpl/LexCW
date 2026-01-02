@@ -57,7 +57,6 @@ class LIFTXMLSerializer {
         const dateModified = formData.dateModified || formData.date_modified;
         
         // Validate required fields
-        console.debug(`[FORM SUBMIT] serializeEntry called, incoming id: ${formData.id || '<none>'}`);
         let entryId = formData.id;
 
         if (!entryId) {
@@ -187,13 +186,10 @@ class LIFTXMLSerializer {
 
         // Add senses
         if (formData.senses && formData.senses.length > 0) {
-            console.log(`[FORM SUBMIT] Serialized senses: ${formData.senses.length}`);
             formData.senses.forEach((senseData, index) => {
                 const sense = this.serializeSense(doc, senseData, index);
                 entry.appendChild(sense);
             });
-        } else {
-            console.log('[FORM SUBMIT] Serialized senses: 0');
         }
 
         // LIFT 0.13: Add annotations (editorial workflow) - Day 26-27
@@ -210,15 +206,6 @@ class LIFTXMLSerializer {
 
         // Remove XML declaration if present (we'll add it later if needed)
         xmlString = xmlString.replace(/<\?xml[^>]*\?>\s*/, '');
-        
-        // Log the actual XML being sent (for debugging sense deletion issues)
-        const senseMatches = xmlString.match(/<sense\s+/g);
-        const actualSenseCount = senseMatches ? senseMatches.length : 0;
-        console.log(`[FORM SUBMIT] Generated XML has ${actualSenseCount} <sense> elements`);
-        const expectedSenseCount = (formData.senses && formData.senses.length) || 0;
-        if (actualSenseCount !== expectedSenseCount) {
-            console.warn(`[FORM SUBMIT] WARNING: Expected ${expectedSenseCount} senses but XML has ${actualSenseCount}`);
-        }
 
         return xmlString;
     }
