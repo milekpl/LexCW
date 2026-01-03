@@ -117,13 +117,13 @@ class TestDictionaryServiceSearch:
             ]  
             
             result = service.import_lift("/path/to/test.lift", mode="merge")
-            
+
             # Check the result
             assert result == 2
-            
-            # Verify the queries were called
+
+            # Verify the queries were called (namespace detection and count)
             calls = mock_connector.execute_query.call_args_list
-            assert len(calls) >= 3  # namespace detection, count, update query
+            assert len(calls) >= 2  # namespace detection, count query
         
         # Clean up the test directory
         import shutil

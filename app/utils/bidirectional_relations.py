@@ -2,11 +2,13 @@
 Utility functions for handling bidirectional lexical relations.
 """
 
-from typing import Dict, Any, Optional
-from app.services.dictionary_service import DictionaryService
+from typing import TYPE_CHECKING, Dict, Any, Optional
+
+if TYPE_CHECKING:
+    from app.services.dictionary_service import DictionaryService
 
 
-def is_relation_bidirectional(relation_type: str, dict_service: Optional[DictionaryService] = None) -> bool:
+def is_relation_bidirectional(relation_type: str, dict_service: Optional['DictionaryService'] = None) -> bool:
     """
     Determine if a lexical relation type is bidirectional based on LIFT ranges.
     By default, ALL lexical relations EXCEPT _component-lexeme are bidirectional.
@@ -27,7 +29,7 @@ def is_relation_bidirectional(relation_type: str, dict_service: Optional[Diction
     return True
 
 
-def get_reverse_relation_type(relation_type: str, dict_service: Optional[DictionaryService] = None) -> str:
+def get_reverse_relation_type(relation_type: str, dict_service: Optional['DictionaryService'] = None) -> str:
     """
     Get the reverse relation type for bidirectional relations.
 
@@ -87,11 +89,11 @@ def get_reverse_relation_type(relation_type: str, dict_service: Optional[Diction
 
 def add_bidirectional_relation(
     source_obj: Any, 
-    target_obj: Any, 
-    relation_type: str, 
+    target_obj: Any,
+    relation_type: str,
     target_id: str,
     source_id: str,
-    dict_service: Optional[DictionaryService] = None
+    dict_service: Optional['DictionaryService'] = None
 ) -> None:
     """
     Add a relation from source to target and optionally the reverse relation from target to source.
