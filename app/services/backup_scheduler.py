@@ -6,13 +6,14 @@ import threading
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.job import Job
 
 from app.services.basex_backup_manager import BaseXBackupManager
 from app.models.backup_models import ScheduledBackup
+from app.services.event_bus import EventBus
 
 
 class BackupScheduler:
@@ -24,12 +25,14 @@ class BackupScheduler:
     scheduling metadata.
     """
 
-    def __init__(self, backup_manager: BaseXBackupManager):
+    def __init__(self, backup_manager: BaseXBackupManager,
+                 event_bus: Optional[EventBus] = None):
         """
         Initialize the backup scheduler.
 
         Args:
             backup_manager: BaseXBackupManager instance to perform actual backups
+            event_bus: Optional EventBus instance for receiving entry update events
         """
         self.backup_manager = backup_manager
         # Defer scheduler initialization to `start()` so tests can patch
@@ -38,6 +41,12 @@ class BackupScheduler:
         self.logger = logging.getLogger(__name__)
         self._scheduled_backup_jobs: Dict[str, Job] = {}
         self._running = False
+        # First run always performs a backup
+        self._dirty = True
+
+        # Subscribe to entry_updated events if event_bus is provided
+        if event_bus:
+            event_bus.on('entry_updated', self._on_entry_updated)
 
     def start(self):
         """Start the backup scheduler."""
@@ -151,7 +160,15 @@ class BackupScheduler:
         Args:
             scheduled_backup: ScheduledBackup model instance to execute
         """
+        # Check if any changes occurred since last backup
+        if not getattr(self, '_dirty', True):
+            self.logger.info(f"No changes since last backup for {scheduled_backup.db_name}, skipping")
+            return
+
         try:
+            # Reset dirty flag after checking
+            self._dirty = False
+
             # Update last run time
             scheduled_backup.last_run = datetime.utcnow()
 
@@ -163,16 +180,26 @@ class BackupScheduler:
                     backup_type=scheduled_backup.type,
                     description=f"Scheduled {scheduled_backup.interval} backup"
                 )
-            
+
             # Update last status
             scheduled_backup.last_status = 'success'
-            
+
             self.logger.info(f"Scheduled backup completed for {scheduled_backup.db_name}")
-            
+
         except Exception as e:
             scheduled_backup.last_status = 'failed'
             error_msg = f"Scheduled backup failed for {scheduled_backup.db_name}: {str(e)}"
             self.logger.error(error_msg)
+
+    def _on_entry_updated(self, data: Dict[str, Any]) -> None:
+        """
+        Handle entry_updated events - mark backup as needed.
+
+        Args:
+            data: Event data containing entry_id
+        """
+        self._dirty = True
+        self.logger.debug(f"Entry {data.get('entry_id')} updated, backup needed")
 
     def cancel_backup(self, schedule_id: str) -> bool:
         """
