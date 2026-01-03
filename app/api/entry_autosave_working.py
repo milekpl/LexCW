@@ -2,11 +2,14 @@
 Working auto-save API endpoint for testing Phase 2 implementation
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import logging
 from datetime import datetime, timezone
 
 from app.services.validation_engine import ValidationEngine, ValidationPriority
+from app.services.dictionary_service import DictionaryService
+from app.services.event_bus import EventBus
+from app.models.entry import Entry
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -62,17 +65,34 @@ def autosave_entry():
                 ],
                 'message': f'Cannot save due to {len(critical_errors)} critical validation errors'
             }), 400
-        
-        # For now, simulate successful save (actual database operations would go here)
+
+        # Get services from injector
+        dictionary_service = current_app.injector.get(DictionaryService)
+        event_bus = current_app.injector.get(EventBus)
+
+        # Create Entry object from entry_data
+        entry = Entry.from_dict(entry_data)
+
+        # Persist the entry
+        dictionary_service.update_entry(entry, skip_validation=True)
+
+        # Emit event after successful save
+        entry_id = entry_data.get('id', 'unknown')
+        event_bus.emit('entry_updated', {
+            'entry_id': entry_id,
+            'source': 'autosave',
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
+
         new_version = str(datetime.now(timezone.utc).timestamp())
-        
-        logger.info(f"Auto-save successful (simulated) for entry {entry_data.get('id', 'new')}")
-        
+
+        logger.info(f"Auto-save successful for entry {entry_id}")
+
         response_data = {
             'success': True,
             'newVersion': new_version,
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'message': 'Entry auto-saved successfully (simulation)'
+            'message': 'Entry auto-saved successfully'
         }
         
         # Add warnings if any
