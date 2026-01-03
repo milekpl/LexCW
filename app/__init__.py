@@ -545,6 +545,11 @@ def create_app(config_name=None):
         validation_rules_service = ValidationRulesService(app=app)
         binder.bind(ValidationRulesService, to=validation_rules_service, scope=singleton)
 
+        # Initialize and bind EventBus for service coordination
+        from app.services.event_bus import EventBus
+        event_bus = EventBus()
+        binder.bind(EventBus, to=event_bus, scope=singleton)
+
     # After DI, set a flag if this is a first-run (no project settings configured)
     with app.app_context():
         try:
