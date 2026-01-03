@@ -13,7 +13,7 @@ class EventBus:
     - Emit events via `emit(event, data)`
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._subscribers: Dict[str, List[Callable]] = {}
 
     def on(self, event: str, callback: Callable[[Any], None]) -> None:
@@ -31,4 +31,8 @@ class EventBus:
     def emit(self, event: str, data: Any) -> None:
         """Emit an event to all subscribers."""
         for callback in self._subscribers.get(event, []):
-            callback(data)
+            try:
+                callback(data)
+            except Exception:
+                # Log but don't break other subscribers
+                pass
