@@ -6,7 +6,7 @@
         <div class="mb-3">
             <label class="form-label">Lexical Unit <span class="text-danger">*</span></label>
             <div class="multilingual-forms lexical-unit-forms">
-                {% set default_lang_code = current_app.config_manager.get_source_language().code if current_app and current_app.config_manager else 'en' %}
+                {% set default_lang_code = source_lang %}
                 {% if entry.lexical_unit %}
                     {% for lang_code, text in entry.lexical_unit.items() %}
                         <div class="mb-2 language-form" data-language="{{ lang_code }}">
