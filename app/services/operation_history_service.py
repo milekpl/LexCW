@@ -9,6 +9,7 @@ from datetime import datetime
 from app.models.merge_split_operations import MergeSplitOperation, SenseTransfer
 from app.models.backup_models import OperationHistory as OperationHistoryModel
 
+
 class OperationHistoryService:
     """
     Enhanced service for persisting and retrieving comprehensive operation history
@@ -16,10 +17,15 @@ class OperationHistoryService:
     update, delete, merge, and split operations on dictionary entries.
     """
 
-    def __init__(self, history_file_path: str = 'instance/operation_history.json', max_history: int = 100):
+    def __init__(self, history_file_path: str = 'instance/operation_history.json', max_history: int = 100, event_bus: Optional['EventBus'] = None):
         self.history_file_path = history_file_path
         self.max_history = max_history  # Maximum number of operations to keep in history
+        self.event_bus = event_bus
         self._ensure_history_file_exists()
+
+        # Subscribe to entry_updated events if event_bus is provided
+        if event_bus:
+            event_bus.on('entry_updated', self._on_entry_updated)
 
     def _ensure_history_file_exists(self):
         if not os.path.exists(os.path.dirname(self.history_file_path)):
@@ -32,6 +38,16 @@ class OperationHistoryService:
                     'undo_stack': [],
                     'redo_stack': []
                 }, f)
+
+    def _on_entry_updated(self, data: Dict[str, Any]) -> None:
+        """Handle entry_updated events from EventBus."""
+        self.record_operation(
+            operation_type='autosave',
+            data=data,
+            entry_id=data.get('entry_id'),
+            user_id='autosave',  # System user for autosaves
+            db_name=None
+        )
 
     def _read_history(self):
         try:

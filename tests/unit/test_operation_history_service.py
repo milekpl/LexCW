@@ -173,17 +173,56 @@ class TestOperationHistoryService:
             data={'test': 'data'},
             entry_id='entry1'
         )
-        
+
         # Verify operations exist
         history = self.service._read_history()
         assert len(history['operations']) > 0
-        
+
         # Clear history
         self.service.clear_history()
-        
+
         # Verify history is cleared
         history = self.service._read_history()
         assert len(history['operations']) == 0
         assert len(history['transfers']) == 0
         assert len(history['undo_stack']) == 0
         assert len(history['redo_stack']) == 0
+
+    def test_listens_to_entry_updated_event(self):
+        """OperationHistoryService should record operations when entry_updated is emitted."""
+        from app.services.operation_history_service import OperationHistoryService
+        from unittest.mock import Mock
+
+        mock_event_bus = Mock()
+        service = OperationHistoryService(history_file_path=self.temp_file.name, event_bus=mock_event_bus)
+
+        # Verify on() was called with 'entry_updated' and the handler
+        mock_event_bus.on.assert_called_with('entry_updated', service._on_entry_updated)
+
+    def test_on_entry_updated_handler_records_autosave(self):
+        """_on_entry_updated handler should record autosave operation."""
+        from app.services.operation_history_service import OperationHistoryService
+        from unittest.mock import Mock
+
+        mock_event_bus = Mock()
+        service = OperationHistoryService(history_file_path=self.temp_file.name, event_bus=mock_event_bus)
+
+        # Call the handler with sample data
+        test_data = {'entry_id': 'test-entry-123', 'changes': {'field': 'value'}}
+        service._on_entry_updated(test_data)
+
+        # Verify operation was recorded with autosave type
+        history = service._read_history()
+        autosave_ops = [op for op in history['operations'] if op.get('type') == 'autosave']
+        assert len(autosave_ops) == 1
+        assert autosave_ops[0]['entry_id'] == 'test-entry-123'
+        assert autosave_ops[0]['user_id'] == 'autosave'
+
+    def test_no_event_bus_subscription_without_event_bus(self):
+        """Service should work without event_bus parameter."""
+        from app.services.operation_history_service import OperationHistoryService
+
+        service = OperationHistoryService(history_file_path=self.temp_file.name)
+
+        # Verify no event_bus attribute when not provided
+        assert service.event_bus is None
