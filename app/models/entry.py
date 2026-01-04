@@ -1353,3 +1353,12 @@ class Entry(BaseModel):
             raise ValueError(f"Trait '{trait_type}' does not have value '{old_value}'")
 
         self.traits[trait_type] = new_value
+
+    def update_grammatical_info(self, grammatical_info: str) -> None:
+        """
+        Update the grammatical information for this entry.
+
+        Args:
+            grammatical_info: New grammatical info string (e.g., 'noun', 'verb')
+        """
+        self.grammatical_info = grammatical_info
