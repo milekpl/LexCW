@@ -133,11 +133,23 @@ def test_audio_info_nonexistent_file(client):
 
 @pytest.mark.integration
 def test_audio_filename_security(client):
-    """Test that directory traversal attempts are rejected."""
+    """Test that directory traversal in filenames is sanitized (not rejected)."""
+    # Path traversal is sanitized by secure_filename, not rejected
+    # File is saved with sanitized name (e.g., "etc_passwd.mp3") in static/audio/
     data = {
         'audio_file': (BytesIO(MP3_BYTES), '../../../etc/passwd.mp3'),
         'ipa_value': '/test/',
         'index': '0'
     }
     response = client.post('/api/pronunciation/upload', data=data, content_type='multipart/form-data')
-    assert response.status_code == 400
+    # secure_filename converts "../../../etc/passwd.mp3" to "etc_passwd.mp3"
+    # which is a valid filename, so upload succeeds
+    assert response.status_code == 200
+    result = response.get_json()
+    assert result['success'] is True
+    # Verify the sanitized filename doesn't contain path traversal
+    assert '..' not in result['filename']
+    assert result['filename'].startswith('/') is False
+
+    # Cleanup
+    client.delete(f'/api/pronunciation/delete/{result["filename"]}')
