@@ -560,6 +560,14 @@ def create_app(config_name=None):
         )
         binder.bind(BulkOperationsService, to=bulk_operations_service, scope=singleton)
 
+        # Initialize and bind BulkQueryService and BulkActionService for advanced bulk operations
+        from app.services.bulk_query_service import BulkQueryService
+        from app.services.bulk_action_service import BulkActionService
+        bulk_query_service = BulkQueryService(dictionary_service=dictionary_service)
+        bulk_action_service = BulkActionService(dictionary_service=dictionary_service)
+        binder.bind(BulkQueryService, to=bulk_query_service, scope=singleton)
+        binder.bind(BulkActionService, to=bulk_action_service, scope=singleton)
+
     # After DI, set a flag if this is a first-run (no project settings configured)
     with app.app_context():
         try:
