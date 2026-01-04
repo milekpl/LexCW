@@ -718,6 +718,11 @@ function renderTableBody(entries) {
         });
         entriesList.appendChild(tr);
     });
+
+    // Dispatch event for bulk-editor to add checkboxes
+    document.dispatchEvent(new CustomEvent('entriesRendered', {
+        detail: { entryCount: entries.length }
+    }));
 }
 
 // --- Utility Functions ---
