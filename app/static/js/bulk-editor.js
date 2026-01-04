@@ -641,7 +641,7 @@ class BulkEditor {
                 <div class="alert alert-info d-flex align-items-center flex-wrap gap-2">
                     <span class="me-2"><strong>Bulk Actions:</strong> <span id="selected-count">0</span> entries selected</span>
                     <button class="btn btn-sm btn-primary me-2" id="bulk-advanced-btn">
-                        <i class="bi bi-gear"></i> Advanced
+                        <i class="bi bi-pencil"></i> Edit
                     </button>
                     <button class="btn btn-sm btn-secondary" id="bulk-clear-selection-btn">Clear</button>
                 </div>
@@ -818,7 +818,7 @@ class BulkEditor {
                             <div class="mt-3">
                                 <button class="btn btn-link btn-sm p-0" type="button"
                                     data-bs-toggle="collapse" data-bs-target="#pipeline-collapse">
-                                    <i class="bi bi-chevron-right"></i> Advanced: Multi-step pipeline
+                                    <i class="bi bi-chevron-right"></i> Multi-step pipeline
                                 </button>
                                 <div class="collapse mt-2" id="pipeline-collapse">
                                     <div class="card card-body">
