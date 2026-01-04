@@ -67,4 +67,13 @@ app/app/static/backup/**
 app/static/backup/**
 node_modules
 .basex.pid
+.basexlogs/
 .worktrees/
+
+# BaseX
+basex/log/
+basex/data/
+basex/.pid
+basex/BaseX.jar
+basex/lib/*.jar
+*.jar
