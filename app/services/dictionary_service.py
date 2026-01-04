@@ -3300,8 +3300,9 @@ class DictionaryService:
             next_backup = "Not scheduled"
             total_backups = 0
 
-            if self.backup_manager:
-                backups = self.backup_manager.list_backups(self.db_connector.database)
+            backup_manager = getattr(self, 'backup_manager', None)
+            if backup_manager:
+                backups = backup_manager.list_backups(self.db_connector.database)
                 total_backups = len(backups)
                 if backups:
                     # list_backups returns newest first
@@ -3313,8 +3314,9 @@ class DictionaryService:
                         except ValueError:
                             last_backup = last_backup_time
 
-            if self.backup_scheduler:
-                scheduled = self.backup_scheduler.get_scheduled_backups()
+            backup_scheduler = getattr(self, 'backup_scheduler', None)
+            if backup_scheduler:
+                scheduled = backup_scheduler.get_scheduled_backups()
                 if scheduled:
                     # Find soonest next run
                     soonest = None
@@ -3324,7 +3326,7 @@ class DictionaryService:
                             next_run = datetime.fromisoformat(next_run_str)
                             if soonest is None or next_run < soonest:
                                 soonest = next_run
-                    
+
                     if soonest:
                         next_backup = soonest.strftime("%Y-%m-%d %H:%M")
 

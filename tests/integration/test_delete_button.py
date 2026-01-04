@@ -29,7 +29,7 @@ class TestDeleteButtonTemplate:
             content = f.read()
 
         assert 'delete-warning' in content, "delete-warning element not found"
-        assert 'permanently delete' in content.lower(), "Warning text not found"
+        assert 'confirm deletion' in content.lower(), "Warning text not found"
 
     def test_delete_button_shown_only_for_existing_entries(self):
         """Test that DELETE button is conditional on entry.id."""
@@ -70,38 +70,40 @@ class TestDeleteButtonJavaScript:
     def test_delete_button_has_click_handler(self):
         """Test that DELETE button has click event handler."""
         import os
-        template_path = os.path.join(
+        js_path = os.path.join(
             os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
+            'app', 'static', 'js', 'entry', 'entry-form-init.js'
         )
-        with open(template_path, 'r') as f:
+        with open(js_path, 'r') as f:
             content = f.read()
 
         # Check for JavaScript event handler
         assert "addEventListener('click'" in content or 'addEventListener("click"' in content, \
             "Click event listener not found"
+        assert "delete-entry-btn" in content, "delete-entry-btn handler not found"
 
     def test_delete_button_confirms_before_delete(self):
         """Test that DELETE button shows confirmation."""
         import os
-        template_path = os.path.join(
+        js_path = os.path.join(
             os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
+            'app', 'static', 'js', 'entry', 'entry-form-init.js'
         )
-        with open(template_path, 'r') as f:
+        with open(js_path, 'r') as f:
             content = f.read()
 
-        # Should have confirm message or alert
+        # Should have confirm message
         assert 'confirm' in content.lower(), "Confirmation not found in DELETE button script"
+        assert 'permanently delete' in content.lower(), "Warning text not found"
 
     def test_delete_button_calls_api_endpoint(self):
         """Test that DELETE button calls the correct API endpoint."""
         import os
-        template_path = os.path.join(
+        js_path = os.path.join(
             os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
+            'app', 'static', 'js', 'entry', 'entry-form-init.js'
         )
-        with open(template_path, 'r') as f:
+        with open(js_path, 'r') as f:
             content = f.read()
 
         # Should call DELETE /api/entries/{entry_id}
@@ -162,24 +164,24 @@ class TestDeleteButtonIntegration:
     def test_delete_button_changes_on_confirm(self):
         """Test that DELETE button changes style on confirm click."""
         import os
-        template_path = os.path.join(
+        js_path = os.path.join(
             os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
+            'app', 'static', 'js', 'entry', 'entry-form-init.js'
         )
-        with open(template_path, 'r') as f:
+        with open(js_path, 'r') as f:
             content = f.read()
 
-        # Should change to btn-danger on first click
+        # Should change to btn-danger on first click (via JavaScript)
         assert 'btn-danger' in content, "Button should change to btn-danger on confirmation"
 
     def test_delete_redirects_on_success(self):
         """Test that DELETE redirects to entries list on success."""
         import os
-        template_path = os.path.join(
+        js_path = os.path.join(
             os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
+            'app', 'static', 'js', 'entry', 'entry-form-init.js'
         )
-        with open(template_path, 'r') as f:
+        with open(js_path, 'r') as f:
             content = f.read()
 
         # Should redirect to entries list

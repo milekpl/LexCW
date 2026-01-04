@@ -25,12 +25,22 @@ def test_truncated_ranges_sample_logged(caplog):
     os.environ['TESTING'] = 'true'
     caplog.set_level(logging.DEBUG)
 
-    conn = FakeConnectorEmptyRanges()
-    svc = DictionaryService(conn)
-    svc.db_connector = conn
+    # DictionaryService uses logging.getLogger(__name__) = "app.services.dictionary_service"
+    # caplog captures from the root logger, so we need to enable propagation
+    dict_service_logger = logging.getLogger('app.services.dictionary_service')
+    dict_service_logger.setLevel(logging.DEBUG)
+    original_propagate = dict_service_logger.propagate
+    dict_service_logger.propagate = True
 
-    _ = svc.get_lift_ranges()
+    try:
+        conn = FakeConnectorEmptyRanges()
+        svc = DictionaryService(conn)
+        svc.db_connector = conn
 
-    # Ensure a truncated sample was logged at DEBUG
-    found = any('Ranges XML sample' in rec.message for rec in caplog.records)
-    assert found, f"Expected 'Ranges XML sample' debug log, got: {[r.message for r in caplog.records]}"
+        _ = svc.get_lift_ranges()
+
+        # Ensure a truncated sample was logged at DEBUG
+        found = any('Ranges XML sample' in rec.message for rec in caplog.records)
+        assert found, f"Expected 'Ranges XML sample' debug log, got: {[r.message for r in caplog.records]}"
+    finally:
+        dict_service_logger.propagate = original_propagate

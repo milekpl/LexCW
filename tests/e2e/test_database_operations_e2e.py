@@ -3,64 +3,41 @@ End-to-end tests for database operations using Playwright.
 Tests the actual UI workflow for dropping database content and importing files.
 
 NOTE: These tests perform destructive operations on the test database.
-They use autouse fixtures to restore the ranges.xml after each test
+They use autouse fixtures to restore the database content after each test
 to ensure subsequent tests have the necessary data.
 """
 
 import pytest
 import os
 import tempfile
-from pathlib import Path
 from playwright.sync_api import Page, expect
 
 
-@pytest.fixture(autouse=True)
-def restore_ranges_after_test(flask_test_server):
-    """
-    Restore ranges.xml after each test in this module.
-    
-    Database operations tests like dropping content destroy the ranges.xml,
-    which breaks subsequent tests that depend on it. This fixture runs after
-    each test to re-add the comprehensive ranges.xml that was created by
-    setup_e2e_test_database.
-    """
-    from app.database.basex_connector import BaseXConnector
-    import tempfile
-    import os as os_module
-    import logging
-    
-    logger = logging.getLogger(__name__)
-    
-    # Yield first to let the test run
-    yield
-    
-    # After test cleanup: restore ranges
-    test_db = os_module.environ.get('TEST_DB_NAME')
-    if not test_db:
-        logger.warning("No TEST_DB_NAME found, skipping ranges restoration")
-        return
-    
-    connector = BaseXConnector(
-        host=os_module.getenv('BASEX_HOST', 'localhost'),
-        port=int(os_module.getenv('BASEX_PORT', '1984')),
-        username=os_module.getenv('BASEX_USERNAME', 'admin'),
-        password=os_module.getenv('BASEX_PASSWORD', 'admin'),
-        database=test_db,
-    )
-    
-    try:
-        connector.connect()
-        
-        # Check if ranges.xml exists
-        check_query = f"db:exists('{test_db}', 'ranges.xml')"
-        result = connector.execute_query(check_query)
-        
-        if result.strip().lower() == 'false':
-            logger.info(f"ranges.xml missing after test, restoring to {test_db}")
-            
-            # Add comprehensive ranges.xml (same as setup_e2e_test_database)
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-                ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+# Sample entries that basex_test_connector adds (matching conftest.py)
+SAMPLE_LIFT_CONTENT = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+    <entry id="test_entry_1">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="test_sense_1">
+            <definition>
+                <form lang="en"><text>A test entry</text></form>
+            </definition>
+            <gloss lang="pl"><text>test</text></gloss>
+        </sense>
+        <variant type="spelling">
+            <form lang="en"><text>teest</text></form>
+            <trait name="type" value="spelling"/>
+        </variant>
+        <relation type="_component-lexeme" ref="other">
+            <trait name="variant-type" value="dialectal"/>
+        </relation>
+    </entry>
+</lift>'''
+
+# Comprehensive ranges.xml
+RANGES_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift-ranges>
     <range id="grammatical-info" href="http://fieldworks.sil.org/lift/grammatical-info">
         <range-element id="Noun" guid="5049f0e3-12a4-4e9f-97f7-60091082793c">
@@ -166,27 +143,102 @@ def restore_ranges_after_test(flask_test_server):
         </range-element>
     </range>
 </lift-ranges>'''
-                f.write(ranges_xml)
-                temp_file = f.name
-            
+
+
+def _restore_database_content():
+    """Restore ranges.xml AND sample entries to the test database."""
+    import logging
+    from app.database.basex_connector import BaseXConnector
+
+    logger = logging.getLogger(__name__)
+
+    test_db = os.environ.get('TEST_DB_NAME')
+    if not test_db:
+        logger.warning("No TEST_DB_NAME found, skipping database restoration")
+        return False
+
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=test_db,
+    )
+
+    try:
+        connector.connect()
+
+        # Check if database is empty (no entries at all)
+        check_query = f"xquery count(collection('{test_db}')//entry)"
+        entry_count_result = connector.execute_query(check_query)
+        try:
+            entry_count = int(entry_count_result.strip()) if entry_count_result else 0
+        except (ValueError, TypeError):
+            entry_count = 0
+
+        if entry_count == 0:
+            logger.info(f"Database {test_db} is empty, restoring content")
+
+            # Restore sample entries
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                f.write(SAMPLE_LIFT_CONTENT)
+                temp_lift_file = f.name
+
             try:
-                connector.execute_command(f"ADD TO ranges.xml {temp_file}")
-                logger.info(f"Successfully restored ranges.xml to {test_db}")
+                connector.execute_command(f"ADD {temp_lift_file}")
+                logger.info("Restored sample entries to test database")
+            except Exception as e:
+                logger.warning(f"Failed to restore sample entries: {e}")
             finally:
                 try:
-                    os_module.unlink(temp_file)
+                    os.unlink(temp_lift_file)
                 except OSError:
                     pass
+
+            # Restore ranges.xml
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                f.write(RANGES_XML)
+                temp_ranges_file = f.name
+
+            try:
+                connector.execute_command(f"ADD TO ranges.xml {temp_ranges_file}")
+                logger.info("Restored ranges.xml to test database")
+            except Exception as e:
+                logger.warning(f"Failed to restore ranges.xml: {e}")
+            finally:
+                try:
+                    os.unlink(temp_ranges_file)
+                except OSError:
+                    pass
+
+            return True
         else:
-            logger.debug(f"ranges.xml already exists in {test_db}, no restoration needed")
-                
+            logger.debug(f"Database {test_db} has {entry_count} entries, no restoration needed")
+            return False
+
     except Exception as e:
-        logger.warning(f"Failed to restore ranges after database operation test: {e}")
+        logger.warning(f"Failed to restore database: {e}")
+        return False
     finally:
         try:
             connector.disconnect()
         except Exception:
             pass
+
+
+@pytest.fixture(autouse=True)
+def restore_database_after_test(flask_test_server):
+    """
+    Restore ranges.xml AND sample entries after each test in this module.
+
+    Database operations tests like dropping content destroy the database content,
+    which breaks subsequent tests that depend on it. This fixture runs after
+    each test to re-add the comprehensive ranges.xml AND sample entries.
+    """
+    # Yield first to let the test run
+    yield
+    # After test cleanup: restore database content if needed
+    _restore_database_content()
 
 
 @pytest.fixture(scope="function")
@@ -211,10 +263,25 @@ def test_lift_file():
         </sense>
     </entry>
 </lift>'''
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.lift', delete=False) as f:
         f.write(lift_content)
         return f.name
+
+
+def _close_modal_if_present(page, modal_id='projectSetupModalSettings'):
+    """Helper to close modal if present and intercepting clicks."""
+    page.evaluate(f"""() => {{
+        const m = document.getElementById('{modal_id}');
+        if (m) {{
+            const inst = bootstrap.Modal.getInstance(m);
+            if (inst) inst.hide();
+        }}
+    }}""")
+    try:
+        page.wait_for_selector(f'#{modal_id}', state='hidden', timeout=3000)
+    except Exception:
+        pass
 
 
 @pytest.mark.e2e
@@ -226,45 +293,48 @@ class TestDatabaseOperationsE2E:
         """Test the complete workflow of dropping database content via UI."""
         # Navigate to settings page
         page.goto(f"{flask_test_server}/settings")
-        
-        # Close the project setup wizard modal if it appears (it can intercept clicks)
-        page.evaluate("() => { const m = document.getElementById('projectSetupModalSettings'); if (m) { const inst = bootstrap.Modal.getInstance(m); if (inst) inst.hide(); } }")
-        try:
-            page.wait_for_selector('#projectSetupModalSettings', state='hidden', timeout=3000)
-        except Exception:
-            pass
-        
+
+        # Close the project setup wizard modal if it appears
+        _close_modal_if_present(page)
+
         # Wait for page to load
-        # UI title is 'Project Settings' in the app
         expect(page).to_have_title("Project Settings")
-        
+
         # Find and click the "Drop Database Content" button
         drop_button = page.get_by_role("button", name="Drop Database Content")
         expect(drop_button).to_be_visible()
 
-        # Ensure the wizard modal is not intercepting pointer events and attempt hide again
-        page.evaluate("() => { const m = document.getElementById('projectSetupModalSettings'); if (m) { const inst = bootstrap.Modal.getInstance(m); if (inst) inst.hide(); } }")
-        try:
-            page.wait_for_selector('#projectSetupModalSettings', state='hidden', timeout=3000)
-        except Exception:
-            pass
+        # Ensure the wizard modal is not intercepting pointer events
+        _close_modal_if_present(page)
 
-        # Click the button (if click is intercepted repeatedly, fallback to server-side POST)
+        # Click the button (if click is intercepted, fallback to server-side POST)
         try:
-            drop_button.click()
+            drop_button.click(timeout=5000)
         except Exception:
             # Fallback: perform the drop via fetch to avoid UI modal interception issues
-            result = page.evaluate("async () => { const resp = await fetch('/settings/drop-database', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'drop' }) }); return resp.json(); }")
-            # If server returned success, consider the drop performed; otherwise surface the error
-            if not result.get('success'):
-                raise AssertionError(f"Drop database API failed in fallback: {result}")
+            result = page.evaluate("""async () => {
+                const resp = await fetch('/settings/drop-database', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ action: 'drop' })
+                });
+                return { ok: resp.ok, status: resp.status };
+            }""")
+            if not result.get('ok'):
+                raise AssertionError(f"Drop database API failed: {result}")
+            dropped = True
+            # Skip the rest of the UI flow since we used the API
+            page.wait_for_timeout(1000)
+            page.goto(f"{flask_test_server}/entries", timeout=30000)
+            expect(page).to_have_title("Dictionary Entries")
+            entry_count = page.get_by_text("0 entries")
+            expect(entry_count).to_be_visible()
             return
 
         # Open the modal confirm and execute the drop action
-        # The modal confirm button has id 'confirmDropDatabase' and text 'Execute'.
         page.locator('#confirmDropDatabase').click()
 
-        # Wait for either a success toast or an error to be shown, and assert accordingly
+        # Wait for either a success toast or an error to be shown
         dropped = False
         try:
             # Wait for success toast
@@ -277,13 +347,13 @@ class TestDatabaseOperationsE2E:
                     dropped = False
             except Exception:
                 pass
-        
+
         # Give UI time to process the reload if it's going to happen
         page.wait_for_timeout(2000)
 
         # Verify database state by checking entry count
-        page.goto(f"{flask_test_server}/entries", wait_until="networkidle")
-        # Title updated to 'Dictionary Entries' in the UI
+        # Use longer timeout and domcontentloaded instead of networkidle
+        page.goto(f"{flask_test_server}/entries", timeout=30000, wait_until="domcontentloaded")
         expect(page).to_have_title("Dictionary Entries")
 
         if dropped:
@@ -291,18 +361,16 @@ class TestDatabaseOperationsE2E:
             entry_count = page.get_by_text("0 entries")
             expect(entry_count).to_be_visible()
         else:
-            # If drop errored due to being opened by another process, ensure error was shown (done above)
-            # and at least the entries page is accessible
-            # We won't assert on entry count in this case because drop didn't complete
+            # If drop errored, ensure entries page is accessible
             pass
-        
+
     @pytest.mark.e2e
     def test_import_lift_file_workflow(self, page: Page, flask_test_server: str, test_lift_file):
         """Test the complete workflow of importing a LIFT file via UI using the Settings modal."""
         try:
             # Navigate to settings page where the import modal lives
-            page.goto(f"{flask_test_server}/settings")
-            page.wait_for_selector('#dropDatabaseModal', state='attached')
+            page.goto(f"{flask_test_server}/settings", timeout=30000)
+            page.wait_for_selector('#dropDatabaseModal', state='attached', timeout=10000)
 
             # Open the Drop Database (management) modal
             drop_button = page.get_by_role("button", name="Drop Database Content")
@@ -320,20 +388,29 @@ class TestDatabaseOperationsE2E:
             lift_input.set_input_files(test_lift_file)
 
             # Confirm the modal action (this will trigger the import endpoint)
-            # Capture the network response for the import POST so we can assert server-side import success
             def _do_import_click(timeout_ms=30000):
-                with page.expect_response(lambda r: r.url.endswith('/settings/import-lift-replace') and r.request.method == 'POST', timeout=timeout_ms) as resp_info:
+                with page.expect_response(
+                    lambda r: r.url.endswith('/settings/import-lift-replace') and r.request.method == 'POST',
+                    timeout=timeout_ms
+                ) as resp_info:
                     page.locator('#confirmDropDatabase').click()
                 return resp_info.value
 
-            # Initial attempt (allow more time because DB DROP/CREATE can be slow)
+            # Initial attempt
             resp = _do_import_click(timeout_ms=30000)
-            try:
-                resp_json = resp.json()
-            except Exception:
-                resp_json = {}
+            resp_status = resp.status if hasattr(resp, 'status') else 'unknown'
+            resp_json = {}
 
-            # If import failed (often due to DB being open in another process), retry a few times
+            # Try to parse response body
+            try:
+                body = resp.text() if hasattr(resp, 'text') else ''
+                if body:
+                    import json
+                    resp_json = json.loads(body)
+            except Exception:
+                pass
+
+            # If import failed, retry
             if not (resp.ok and resp_json.get('success') is True and resp_json.get('count') == 2):
                 import time
                 success = False
@@ -341,18 +418,23 @@ class TestDatabaseOperationsE2E:
                     time.sleep(1 + attempt)  # backoff
                     try:
                         resp = _do_import_click(timeout_ms=20000)
+                        resp_status = resp.status if hasattr(resp, 'status') else 'unknown'
                         try:
-                            resp_json = resp.json()
+                            body = resp.text() if hasattr(resp, 'text') else ''
+                            if body:
+                                import json
+                                resp_json = json.loads(body)
                         except Exception:
                             resp_json = {}
                         if resp.ok and resp_json.get('success') is True and resp_json.get('count') == 2:
                             success = True
                             break
                     except Exception:
-                        # Continue retrying until attempts exhausted
                         continue
                 if not success:
-                    pytest.fail(f"Import failed after retries. Last response: {getattr(resp, 'status', 'no-response')} {resp_json}")
+                    pytest.fail(
+                        f"Import failed after retries. Last response: {resp_status} {resp_json}"
+                    )
         finally:
             # Clean up test file
             if os.path.exists(test_lift_file):
@@ -362,27 +444,92 @@ class TestDatabaseOperationsE2E:
     def test_drop_and_import_workflow(self, page: Page, flask_test_server: str, test_lift_file):
         """Test the complete workflow of dropping database and importing new content."""
         try:
-            # First, drop database content
-            self.test_drop_database_content_workflow(page, flask_test_server)
-            
+            # First, drop database content (manually, not calling other test method)
+            page.goto(f"{flask_test_server}/settings", timeout=30000)
+            _close_modal_if_present(page)
+
+            drop_button = page.get_by_role("button", name="Drop Database Content")
+            expect(drop_button).to_be_visible()
+            drop_button.click()
+
+            page.locator('#confirmDropDatabase').click()
+
+            # Wait for success
+            try:
+                page.wait_for_selector('.toast.text-bg-success', timeout=15000)
+            except Exception:
+                pass
+
+            page.wait_for_timeout(2000)
+
             # Then import new content
-            self.test_import_lift_file_workflow(page, flask_test_server, test_lift_file)
-            
-            # Verify the final state (entries UI may cache; poll the server-side search until entries are visible)
-            page.goto(f"{flask_test_server}/entries")
+            page.goto(f"{flask_test_server}/settings", timeout=30000)
+            page.wait_for_selector('#dropDatabaseModal', state='attached', timeout=10000)
+
+            drop_button = page.get_by_role("button", name="Drop Database Content")
+            drop_button.click()
+
+            import_radio = page.locator('#importLift')
+            import_radio.check()
+
+            lift_input = page.locator('#liftFile')
+            lift_input.set_input_files(test_lift_file)
+
+            def _do_import_click(timeout_ms=30000):
+                with page.expect_response(
+                    lambda r: r.url.endswith('/settings/import-lift-replace') and r.request.method == 'POST',
+                    timeout=timeout_ms
+                ) as resp_info:
+                    page.locator('#confirmDropDatabase').click()
+                return resp_info.value
+
+            resp = _do_import_click(timeout_ms=30000)
+            try:
+                body = resp.text() if hasattr(resp, 'text') else ''
+                if body:
+                    import json
+                    resp_json = json.loads(body)
+                else:
+                    resp_json = {}
+            except Exception:
+                resp_json = {}
+
+            if not (resp.ok and resp_json.get('success') is True and resp_json.get('count') == 2):
+                import time
+                for attempt in range(4):
+                    time.sleep(1 + attempt)
+                    try:
+                        resp = _do_import_click(timeout_ms=20000)
+                        try:
+                            body = resp.text() if hasattr(resp, 'text') else ''
+                            if body:
+                                import json
+                                resp_json = json.loads(body)
+                            else:
+                                resp_json = {}
+                        except Exception:
+                            resp_json = {}
+                        if resp.ok and resp_json.get('success') is True and resp_json.get('count') == 2:
+                            break
+                    except Exception:
+                        pass
+                else:
+                    pytest.fail(f"Import failed. Last response: {resp_json}")
+
+            # Verify the final state
+            page.goto(f"{flask_test_server}/entries", timeout=30000, wait_until="domcontentloaded")
             expect(page).to_have_title("Dictionary Entries")
 
-            import requests, time
+            import requests
             found = False
-            # Poll longer to allow server-side caches and eventual consistency to settle
             for _ in range(30):
                 resp = requests.get(f"{flask_test_server}/api/search?q=test&limit=10")
                 if resp.ok and len(resp.json().get('entries', [])) > 0:
                     found = True
                     break
+                import time
                 time.sleep(1)
 
-            # If search didn't return results yet, fall back to the entries endpoint
             if not found:
                 for _ in range(10):
                     resp = requests.get(f"{flask_test_server}/api/entries/?limit=20")
@@ -392,7 +539,7 @@ class TestDatabaseOperationsE2E:
                     time.sleep(1)
 
             assert found, "Imported entries not visible via API after retries (waited ~40s)"
-            
+
         finally:
             # Clean up test file
             if os.path.exists(test_lift_file):
@@ -403,19 +550,16 @@ class TestDatabaseOperationsE2E:
         """Test error handling for database operations."""
         # Navigate to settings page
         page.goto(f"{flask_test_server}/settings")
-        
+
         # Try to drop database content
         drop_button = page.get_by_role("button", name="Drop Database Content")
         drop_button.click()
-        
+
         # If there's an error, it should be displayed to the user
         try:
             error_message = page.get_by_text("Error dropping database content", timeout=5000)
             if error_message.is_visible():
-                # If there's an error, at least verify it's displayed properly
                 expect(error_message).to_be_visible()
-                
-                # Check for specific error details
                 error_details = page.get_by_test_id("error-details")
                 if error_details.is_visible():
                     expect(error_details).to_contain_text("Database")

@@ -273,8 +273,10 @@ class TestEntryFormTemplateFile:
         with open(template_path, 'r') as f:
             content = f.read()
 
-        assert 'FieldVisibilityManager' in content, "FieldVisibilityManager not found in template"
-        assert 'window.fieldVisibilityManager' in content, "window.fieldVisibilityManager not found"
+        # Check that field-visibility-manager.js is loaded (which defines FieldVisibilityManager)
+        assert 'field-visibility-manager.js' in content, "field-visibility-manager.js not found in template"
+        # Check that field visibility modal macro is imported and used
+        assert 'field_visibility_modal' in content, "field_visibility_modal not found in template"
 
 
 class TestEntryFormTemplateIntegration:

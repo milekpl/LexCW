@@ -405,9 +405,7 @@ def create_app(config_name=None):
         # Create and bind DictionaryService
         dictionary_service = DictionaryService(
             db_connector=basex_connector,
-            history_service=operation_history_service,
-            backup_manager=backup_manager,
-            backup_scheduler=backup_scheduler
+            history_service=operation_history_service
         )
         
         # Initialize and bind ConfigManager

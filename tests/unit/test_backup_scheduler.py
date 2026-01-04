@@ -210,3 +210,69 @@ class TestBackupScheduler:
         assert len(scheduled_info) == 2
         assert scheduled_info[0]['job_id'] == 'job1'
         assert scheduled_info[1]['job_id'] == 'job2'
+
+    def test_dirty_flag_initial_true(self):
+        """Test that _dirty flag is True initially for first backup."""
+        scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
+        assert scheduler._dirty is True
+
+    def test_skips_backup_when_no_changes(self, monkeypatch):
+        """Backup should not run if _dirty flag is False."""
+        scheduled_backup = ScheduledBackup(
+            db_name='test_db',
+            interval='daily',
+            time_='02:00',
+            type_='full',
+            next_run=datetime(2025, 1, 1, 12, 0)
+        )
+
+        scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
+        # Set dirty to False
+        scheduler._dirty = False
+
+        # Execute the scheduled backup
+        scheduler._execute_scheduled_backup(scheduled_backup)
+
+        # Verify the backup was NOT called
+        self.mock_backup_manager.backup_database.assert_not_called()
+
+    def test_sets_dirty_on_entry_updated(self):
+        """BackupScheduler should set _dirty=True when entry_updated is emitted."""
+        mock_event_bus = Mock()
+        scheduler = BackupScheduler(backup_manager=self.mock_backup_manager, event_bus=mock_event_bus)
+
+        # Get the handler that was registered
+        handler = mock_event_bus.on.call_args_list[0][0][1]
+        handler({'entry_id': 'test'})
+
+        assert scheduler._dirty is True
+
+    def test_resets_dirty_after_successful_backup(self):
+        """_dirty flag should be reset to False after successful backup."""
+        scheduled_backup = ScheduledBackup(
+            db_name='test_db',
+            interval='daily',
+            time_='02:00',
+            type_='full',
+            next_run=datetime(2025, 1, 1, 12, 0)
+        )
+
+        # Mock the backup manager to return success
+        self.mock_backup_manager.backup_database.return_value = Mock()
+
+        # Mock Flask app context
+        mock_app = Mock()
+        mock_app_context = Mock()
+        mock_app.app_context.return_value = mock_app_context
+        mock_app_context.__enter__ = Mock(return_value=mock_app_context)
+        mock_app_context.__exit__ = Mock(return_value=False)
+
+        scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
+        # Ensure dirty is True before backup
+        scheduler._dirty = True
+
+        with patch('flask.current_app', mock_app):
+            scheduler._execute_scheduled_backup(scheduled_backup)
+
+        # Verify dirty flag is reset after backup
+        assert scheduler._dirty is False
