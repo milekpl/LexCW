@@ -51,11 +51,31 @@ class BulkEditor {
      * This is the reliable way to add checkboxes after table is rendered
      */
     setupEntriesRenderedListener() {
-        document.addEventListener('entriesRendered', (event) => {
+        let retryCount = 0;
+        const maxRetries = 5;
+
+        const handleEntriesRendered = (event) => {
             console.log('[BulkEditor] entriesRendered event received, count:', event.detail.entryCount);
+
+            // First try to add checkbox column
             this.addCheckboxColumn();
+
+            // If column wasn't added (no header yet), retry
+            if (!this.checkboxColumnAdded && retryCount < maxRetries) {
+                retryCount++;
+                console.log(`[BulkEditor] Header not ready, will retry (${retryCount}/${maxRetries})`);
+                setTimeout(() => {
+                    this.addCheckboxColumn();
+                    this.addCheckboxToRows();
+                }, 100);
+                return;
+            }
+
+            // Add checkboxes to rows
             this.addCheckboxToRows();
-        });
+        };
+
+        document.addEventListener('entriesRendered', handleEntriesRendered);
 
         // Also check immediately in case entries are already rendered
         if (document.querySelector('#entries-list tr[data-entry-id]')) {
@@ -365,24 +385,38 @@ class BulkEditor {
      */
     addCheckboxColumn() {
         const tableHead = document.getElementById('entries-table-head');
-        if (!tableHead || this.checkboxColumnAdded) return;
-
-        // Add select all checkbox in header if not exists
-        let selectAllTh = tableHead.querySelector('th.bulk-select-header');
-        if (!selectAllTh) {
-            const firstTh = tableHead.querySelector('th');
-            if (firstTh) {
-                selectAllTh = document.createElement('th');
-                selectAllTh.className = 'bulk-select-header';
-                selectAllTh.style.width = '40px';
-                selectAllTh.innerHTML = `
-                    <input type="checkbox" id="bulk-select-all" class="form-check-input" title="Select all">
-                `;
-                tableHead.insertBefore(selectAllTh, firstTh);
-                this.checkboxColumnAdded = true;
-                console.log('[BulkEditor] Checkbox column added to header');
-            }
+        if (!tableHead) {
+            console.log('[BulkEditor] Table head not found, will retry');
+            return;
         }
+
+        // Already added
+        if (this.checkboxColumnAdded) return;
+
+        // Check if checkbox column already exists
+        let selectAllTh = tableHead.querySelector('th.bulk-select-header');
+        if (selectAllTh) {
+            this.checkboxColumnAdded = true;
+            return;
+        }
+
+        // Get the first th - this should exist after renderTableHeaders runs
+        let firstTh = tableHead.querySelector('th');
+        if (!firstTh) {
+            // If no th exists yet, wait for next render
+            console.log('[BulkEditor] No header cells found yet');
+            return;
+        }
+
+        selectAllTh = document.createElement('th');
+        selectAllTh.className = 'bulk-select-header';
+        selectAllTh.style.width = '40px';
+        selectAllTh.innerHTML = `
+            <input type="checkbox" id="bulk-select-all" class="form-check-input" title="Select all">
+        `;
+        tableHead.insertBefore(selectAllTh, firstTh);
+        this.checkboxColumnAdded = true;
+        console.log('[BulkEditor] Checkbox column added to header');
     }
 
     /**
