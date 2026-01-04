@@ -3,11 +3,38 @@
  * Extends existing entries.js patterns and reuses existing components
  */
 
+// Simple notification helper that works without ValidationUI
+function showBulkEditorNotification(message, type = 'info') {
+    // Try to use ValidationUI if available
+    if (typeof window.validationUI !== 'undefined' && window.validationUI) {
+        window.validationUI.showToast('Bulk Editor', message, type);
+        return;
+    }
+
+    // Fallback: use Bootstrap alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.top = '20px';
+    alertDiv.style.right = '20px';
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        <strong>Bulk Editor:</strong> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        alertDiv.classList.remove('show');
+        setTimeout(() => alertDiv.remove(), 300);
+    }, 3000);
+}
+
 class BulkEditor {
     constructor() {
         this.selectedEntries = new Set();
         this.currentOperation = null;
-        this.validationUI = window.validationUI || new ValidationUI();
+        this.checkboxColumnAdded = false; // Track if checkbox column exists
         this.init();
     }
 
@@ -15,7 +42,27 @@ class BulkEditor {
         this.setupSelectionHandlers();
         this.setupOperationHandlers();
         this.setupBulkActionPanel();
+        this.setupEntriesRenderedListener();
         console.log('[BulkEditor] Initialized');
+    }
+
+    /**
+     * Listen for entriesRendered event from entries.js
+     * This is the reliable way to add checkboxes after table is rendered
+     */
+    setupEntriesRenderedListener() {
+        document.addEventListener('entriesRendered', (event) => {
+            console.log('[BulkEditor] entriesRendered event received, count:', event.detail.entryCount);
+            this.addCheckboxColumn();
+            this.addCheckboxToRows();
+        });
+
+        // Also check immediately in case entries are already rendered
+        if (document.querySelector('#entries-list tr[data-entry-id]')) {
+            console.log('[BulkEditor] Entries already present, adding checkboxes');
+            this.addCheckboxColumn();
+            this.addCheckboxToRows();
+        }
     }
 
     setupSelectionHandlers() {
@@ -158,7 +205,7 @@ class BulkEditor {
         const toTrait = document.getElementById('to-trait').value;
 
         if (!fromTrait || !toTrait) {
-            this.validationUI.showError('Please enter both trait values');
+            showBulkEditorNotification('Please enter both trait values', 'error');
             return;
         }
 
@@ -185,7 +232,7 @@ class BulkEditor {
 
             if (response.ok) {
                 const successCount = result.summary.success;
-                this.validationUI.showSuccess(`Successfully updated ${successCount} entries`);
+                showBulkEditorNotification(`Successfully updated ${successCount} entries`, 'success');
                 this.clearSelection();
 
                 const modal = bootstrap.Modal.getInstance(document.getElementById('trait-conversion-modal'));
@@ -198,11 +245,11 @@ class BulkEditor {
                     loadEntries(1, currentSortBy, currentSortOrder);
                 }
             } else {
-                this.validationUI.showError(result.error || 'Bulk operation failed');
+                showBulkEditorNotification(result.error || 'Bulk operation failed', 'error');
             }
         } catch (error) {
             console.error('[BulkEditor] Trait conversion error:', error);
-            this.validationUI.showError('Network error: ' + error.message);
+            showBulkEditorNotification('Network error: ' + error.message, 'error');
         }
     }
 
@@ -260,7 +307,7 @@ class BulkEditor {
         const posTag = document.getElementById('pos-tag').value;
 
         if (!posTag) {
-            this.validationUI.showError('Please select a POS tag');
+            showBulkEditorNotification('Please select a POS tag', 'error');
             return;
         }
 
@@ -286,7 +333,7 @@ class BulkEditor {
 
             if (response.ok) {
                 const successCount = result.summary.success;
-                this.validationUI.showSuccess(`Successfully updated ${successCount} entries`);
+                showBulkEditorNotification(`Successfully updated ${successCount} entries`, 'success');
                 this.clearSelection();
 
                 const modal = bootstrap.Modal.getInstance(document.getElementById('pos-update-modal'));
@@ -299,11 +346,11 @@ class BulkEditor {
                     loadEntries(1, currentSortBy, currentSortOrder);
                 }
             } else {
-                this.validationUI.showError(result.error || 'Bulk operation failed');
+                showBulkEditorNotification(result.error || 'Bulk operation failed', 'error');
             }
         } catch (error) {
             console.error('[BulkEditor] POS update error:', error);
-            this.validationUI.showError('Network error: ' + error.message);
+            showBulkEditorNotification('Network error: ' + error.message, 'error');
         }
     }
 
@@ -318,7 +365,7 @@ class BulkEditor {
      */
     addCheckboxColumn() {
         const tableHead = document.getElementById('entries-table-head');
-        if (!tableHead) return;
+        if (!tableHead || this.checkboxColumnAdded) return;
 
         // Add select all checkbox in header if not exists
         let selectAllTh = tableHead.querySelector('th.bulk-select-header');
@@ -332,6 +379,8 @@ class BulkEditor {
                     <input type="checkbox" id="bulk-select-all" class="form-check-input" title="Select all">
                 `;
                 tableHead.insertBefore(selectAllTh, firstTh);
+                this.checkboxColumnAdded = true;
+                console.log('[BulkEditor] Checkbox column added to header');
             }
         }
     }
@@ -342,6 +391,7 @@ class BulkEditor {
      */
     addCheckboxToRows() {
         const rows = document.querySelectorAll('#entries-list tr[data-entry-id]');
+        let addedCount = 0;
         rows.forEach(row => {
             if (!row.querySelector('.bulk-select-checkbox')) {
                 const firstTd = row.querySelector('td');
@@ -352,9 +402,13 @@ class BulkEditor {
                                 data-entry-id="${row.dataset.entryId}">
                     `;
                     row.insertBefore(checkboxTd, firstTd);
+                    addedCount++;
                 }
             }
         });
+        if (addedCount > 0) {
+            console.log(`[BulkEditor] Added ${addedCount} checkboxes to rows`);
+        }
     }
 }
 
@@ -362,27 +416,6 @@ class BulkEditor {
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('entries-table')) {
         window.bulkEditor = new BulkEditor();
-
-        // Hook into entries.js rendering to add checkboxes
-        // This will be called after loadEntries renders the table
-        const originalRenderTableBody = window.renderTableBody;
-        if (typeof originalRenderTableBody === 'function') {
-            window.renderTableBody = function(entries) {
-                originalRenderTableBody(entries);
-                if (window.bulkEditor) {
-                    window.bulkEditor.addCheckboxColumn();
-                    window.bulkEditor.addCheckboxToRows();
-                }
-            };
-        }
-
-        // Add checkboxes immediately if table is already rendered
-        if (document.querySelector('#entries-list tr[data-entry-id]')) {
-            if (window.bulkEditor) {
-                window.bulkEditor.addCheckboxColumn();
-                window.bulkEditor.addCheckboxToRows();
-            }
-        }
     }
 });
 
