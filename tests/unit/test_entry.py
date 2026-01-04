@@ -43,3 +43,16 @@ def test_convert_trait_raises_on_wrong_value():
 
     with pytest.raises(ValueError, match="Trait 'part-of-speech' does not have value 'noun'"):
         entry.convert_trait('part-of-speech', 'noun', 'verb')
+
+
+def test_update_grammatical_info():
+    """Entry should support updating grammatical info."""
+    entry = Entry(
+        id='test-1',
+        lexical_unit={'en': 'test'},
+        grammatical_info='noun'
+    )
+
+    entry.update_grammatical_info('verb')
+
+    assert entry.grammatical_info == 'verb'
