@@ -565,21 +565,78 @@ document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'audio/*';
-            
-            fileInput.onchange = (event) => {
+
+            fileInput.onchange = async (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
-                
-                // For now, just set the filename (in production, upload to server)
-                // TODO: Implement actual server-side upload
-                const audioPath = `audio/${file.name}`;
-                const pronunciationItem = uploadBtn.closest('.pronunciation-item');
-                const audioPathInput = pronunciationItem.querySelector('input[name*="audio_path"]');
-                audioPathInput.value = audioPath;
 
-                // TODO: Upload file to server and get actual path/URL
+                const pronunciationItem = uploadBtn.closest('.pronunciation-item');
+                const ipaInput = pronunciationItem.querySelector('.ipa-input');
+                const audioPathInput = pronunciationItem.querySelector('input[name*="audio_path"]');
+                const ipaValue = ipaInput ? ipaInput.value.trim() : '';
+
+                // Validate IPA is provided (required by API)
+                if (!ipaValue) {
+                    alert('Please enter an IPA transcription before uploading audio.');
+                    // Clean up file input
+                    if (document.body.contains(fileInput)) {
+                        document.body.removeChild(fileInput);
+                    }
+                    return;
+                }
+
+                // Show loading state
+                const originalText = uploadBtn.innerHTML;
+                uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                uploadBtn.disabled = true;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('audio_file', file);
+                    formData.append('ipa_value', ipaValue);
+                    formData.append('index', index);
+
+                    const response = await fetch('/api/pronunciation/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        // Update the hidden input with the filename
+                        audioPathInput.value = result.filename;
+
+                        // Show success
+                        uploadBtn.innerHTML = '<i class="fas fa-check"></i> Uploaded';
+
+                        // Add audio preview if audio player exists
+                        const audioPlayer = pronunciationItem.querySelector('audio');
+                        if (audioPlayer) {
+                            audioPlayer.src = `/static/audio/${result.filename}`;
+                            audioPlayer.style.display = 'block';
+                        }
+
+                        setTimeout(() => {
+                            uploadBtn.innerHTML = originalText;
+                            uploadBtn.disabled = false;
+                        }, 2000);
+                    } else {
+                        throw new Error(result.message || 'Upload failed');
+                    }
+                } catch (error) {
+                    console.error('Audio upload error:', error);
+                    alert('Failed to upload audio: ' + error.message);
+                    uploadBtn.innerHTML = originalText;
+                    uploadBtn.disabled = false;
+                }
+
+                // Clean up file input
+                if (document.body.contains(fileInput)) {
+                    document.body.removeChild(fileInput);
+                }
             };
-            
+
             fileInput.click();
             return;
         }
