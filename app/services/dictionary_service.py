@@ -40,24 +40,18 @@ class DictionaryService:
     as well as more complex operations like searching and batch processing.
     """
 
-    def __init__(self, 
-                 db_connector: Union[BaseXConnector, MockDatabaseConnector], 
-                 history_service: Optional['OperationHistoryService'] = None,
-                 backup_manager: Optional['BaseXBackupManager'] = None,
-                 backup_scheduler: Optional['BackupScheduler'] = None):
+    def __init__(self,
+                 db_connector: Union[BaseXConnector, MockDatabaseConnector],
+                 history_service: Optional['OperationHistoryService'] = None):
         """
         Initialize a dictionary service.
 
         Args:
             db_connector: Database connector for accessing the BaseX database.
             history_service: Optional service for recording operation history.
-            backup_manager: Optional service for managing database backups.
-            backup_scheduler: Optional service for scheduling backups.
         """
         self.db_connector = db_connector
         self.history_service = history_service
-        self.backup_manager = backup_manager
-        self.backup_scheduler = backup_scheduler
         self.logger = logging.getLogger(__name__)
         # Don't validate when loading entries - only validate on save
         self.lift_parser = LIFTParser(validate=False)
@@ -738,10 +732,11 @@ class DictionaryService:
                 print(f"Returning hardcoded test entry: {entry.id}")
                 return entry
 
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
+            # Detect namespace usage - entries may be stored with or without namespaces
+            # depending on how they were created (XMLEntryService uses namespaces)
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_namespace=False
+                entry_id, db_name, has_namespace=has_namespace
             )
 
             # Execute query and get XML
@@ -818,10 +813,10 @@ class DictionaryService:
 
             entry_xml = self._prepare_entry_xml(entry)
 
-            # Entry XML has namespaces stripped by _prepare_entry_xml,
-            # so always use non-namespaced queries for consistency
+            # Detect namespace usage for query building
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_insert_entry_query(
-                entry_xml, db_name, has_namespace=False
+                entry_xml, db_name, has_namespace=has_namespace
             )
 
             self.db_connector.execute_update(query)
@@ -894,10 +889,10 @@ class DictionaryService:
 
             entry_xml = self._prepare_entry_xml(entry)
 
-            # Entry XML has namespaces stripped by _prepare_entry_xml,
-            # so always use non-namespaced queries for consistency
+            # Detect namespace usage for query building
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_update_entry_query(
-                entry.id, entry_xml, db_name, has_namespace=False
+                entry.id, entry_xml, db_name, has_namespace=has_namespace
             )
 
             self.db_connector.execute_update(query)
@@ -1078,10 +1073,10 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
+            # Detect namespace usage
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_entry_exists_query(
-                entry_id, db_name, has_namespace=False
+                entry_id, db_name, has_namespace=has_namespace
             )
 
             result = self.db_connector.execute_query(query)
@@ -1126,10 +1121,10 @@ class DictionaryService:
             if not self.entry_exists(entry_id, project_id=project_id):
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
 
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
+            # Detect namespace usage
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_delete_entry_query(
-                entry_id, db_name, has_namespace=False
+                entry_id, db_name, has_namespace=has_namespace
             )
 
             self.db_connector.execute_update(query)
@@ -1833,10 +1828,10 @@ class DictionaryService:
 
             self.get_entry(entry_id)
 
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
+            # Detect namespace usage
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_related_entries_query(
-                entry_id, db_name, has_namespace=False, relation_type=relation_type
+                entry_id, db_name, has_namespace=has_namespace, relation_type=relation_type
             )
 
             result = self.db_connector.execute_query(query)
@@ -1939,10 +1934,10 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
+            # Detect namespace usage
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_entries_by_grammatical_info_query(
-                grammatical_info, db_name, has_namespace=False
+                grammatical_info, db_name, has_namespace=has_namespace
             )
 
             result = self.db_connector.execute_query(query)
@@ -3703,10 +3698,11 @@ class DictionaryService:
                 print(f"Returning hardcoded test entry: {entry.id}")
                 return entry
 
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
+            # Detect namespace usage - entries may be stored with or without namespaces
+            # depending on how they were created (XMLEntryService uses namespaces)
+            has_namespace = self._detect_namespace_usage()
             query = self._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_namespace=False
+                entry_id, db_name, has_namespace=has_namespace
             )
 
             # Execute query and get XML
