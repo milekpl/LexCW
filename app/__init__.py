@@ -551,7 +551,7 @@ def create_app(config_name=None):
         # Initialize and bind BulkOperationsService for bulk entry operations
         from app.services.bulk_operations_service import BulkOperationsService
         from app.services.workset_service import WorksetService
-        workset_service = WorksetService(db_connector=basex_connector)
+        workset_service = WorksetService()
         binder.bind(WorksetService, to=workset_service, scope=singleton)
         bulk_operations_service = BulkOperationsService(
             dictionary_service=dictionary_service,
