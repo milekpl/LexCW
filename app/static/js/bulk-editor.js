@@ -400,7 +400,8 @@ class BulkEditor {
             return;
         }
 
-        // Get the first th - this should exist after renderTableHeaders runs
+        // The table uses <tr><th>...</th></tr> structure
+        // FirstTh needs to be a <th> element, not the <tr>
         let firstTh = tableHead.querySelector('th');
         if (!firstTh) {
             // If no th exists yet, wait for next render
@@ -408,13 +409,16 @@ class BulkEditor {
             return;
         }
 
+        // Create the checkbox header
         selectAllTh = document.createElement('th');
         selectAllTh.className = 'bulk-select-header';
         selectAllTh.style.width = '40px';
         selectAllTh.innerHTML = `
             <input type="checkbox" id="bulk-select-all" class="form-check-input" title="Select all">
         `;
-        tableHead.insertBefore(selectAllTh, firstTh);
+
+        // Insert before the first th (they're all in the same tr parent)
+        tableHead.querySelector('tr').insertBefore(selectAllTh, firstTh);
         this.checkboxColumnAdded = true;
         console.log('[BulkEditor] Checkbox column added to header');
     }
