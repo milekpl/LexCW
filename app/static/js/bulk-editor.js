@@ -751,67 +751,91 @@ class BulkEditor {
     }
 
     showAdvancedBulkModal() {
+        const selectedCount = this.selectedEntries.size;
         const modalHtml = `
             <div class="modal fade" id="bulk-editor-modal" tabindex="-1" style="z-index: 1055;">
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Bulk Editor - Advanced Operations</h5>
+                            <h5 class="modal-title">Bulk Editor</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <ul class="nav nav-tabs" id="bulk-editor-tabs" role="tablist">
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" data-bs-toggle="tab"
-                                        data-bs-target="#query-tab" type="button" role="tab">
-                                        Query
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" data-bs-toggle="tab"
-                                        data-bs-target="#actions-tab" type="button" role="tab">
-                                        Actions
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" data-bs-toggle="tab"
-                                        data-bs-target="#pipeline-tab" type="button" role="tab">
-                                        Pipeline
-                                    </button>
-                                </li>
-                            </ul>
-                            <div class="tab-content mt-3" id="bulk-editor-tab-content">
-                                <div class="tab-pane fade show active" id="query-tab" role="tabpanel">
-                                    <div id="condition-builder-container"></div>
+                            <!-- Scope Selector -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-light py-2">
+                                    <strong>Which entries to modify?</strong>
                                 </div>
-                                <div class="tab-pane fade" id="actions-tab" role="tabpanel">
-                                    <div class="mb-3">
-                                        <label class="form-label">Quick Action on Selected Entries</label>
-                                        <div class="row g-2">
-                                            <div class="col-md-4">
-                                                <select class="form-select" id="quick-action-type">
-                                                    <option value="set">Set</option>
-                                                    <option value="clear">Clear</option>
-                                                    <option value="append">Append</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <input type="text" class="form-control"
-                                                    id="quick-action-field" placeholder="Field name">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <input type="text" class="form-control"
-                                                    id="quick-action-value" placeholder="Value">
-                                            </div>
-                                        </div>
+                                <div class="card-body py-2">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="bulk-scope"
+                                            id="scope-selected" value="selected" ${selectedCount > 0 ? 'checked' : ''}>
+                                        <label class="form-check-label" for="scope-selected">
+                                            <strong>Selected entries</strong>
+                                            <span class="text-muted">- operate on ${selectedCount} checked entries</span>
+                                        </label>
                                     </div>
-                                    <div class="alert alert-info">
-                                        <strong>Selected:</strong> ${this.selectedEntries.size} entries
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="bulk-scope"
+                                            id="scope-query" value="query" ${selectedCount === 0 ? 'checked' : ''}>
+                                        <label class="form-check-label" for="scope-query">
+                                            <strong>Find by conditions</strong>
+                                            <span class="text-muted">- query entries matching criteria</span>
+                                        </label>
                                     </div>
                                 </div>
-                                <div class="tab-pane fade" id="pipeline-tab" role="tabpanel">
-                                    <div id="pipeline-editor-container"></div>
+                            </div>
+
+                            <!-- Query Builder (shown when Query scope selected) -->
+                            <div id="query-builder-section" class="${selectedCount > 0 ? 'd-none' : ''}">
+                                <div id="condition-builder-container"></div>
+                            </div>
+
+                            <!-- Actions Section -->
+                            <div class="mt-3">
+                                <label class="form-label fw-bold">What to do:</label>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-4">
+                                        <select class="form-select" id="quick-action-type">
+                                            <option value="set">Set (replace)</option>
+                                            <option value="clear">Clear (remove)</option>
+                                            <option value="append">Append (add to end)</option>
+                                            <option value="prepend">Prepend (add to start)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control"
+                                            id="quick-action-field" placeholder="Field (e.g., trait, lexical_unit)">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control"
+                                            id="quick-action-value" placeholder="Value">
+                                    </div>
                                 </div>
+                            </div>
+
+                            <!-- Advanced Pipeline -->
+                            <div class="mt-3">
+                                <button class="btn btn-link btn-sm p-0" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#pipeline-collapse">
+                                    <i class="bi bi-chevron-right"></i> Advanced: Multi-step pipeline
+                                </button>
+                                <div class="collapse mt-2" id="pipeline-collapse">
+                                    <div class="card card-body">
+                                        <div id="pipeline-editor-container"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Entry Count Info -->
+                            <div class="alert alert-secondary mt-3 mb-0 py-2">
+                                <small>
+                                    <strong>Will affect:</strong>
+                                    <span id="affected-count">${selectedCount}</span> entries
+                                    <span class="text-muted" id="scope-hint">
+                                        (${selectedCount > 0 ? 'selected on current page' : 'matching query'})
+                                    </span>
+                                </small>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -835,6 +859,28 @@ class BulkEditor {
         // Initialize builders after modal is shown
         const modal = document.getElementById('bulk-editor-modal');
         modal.addEventListener('shown.bs.modal', () => {
+            // Scope change handlers
+            const scopeSelected = modal.querySelector('#scope-selected');
+            const scopeQuery = modal.querySelector('#scope-query');
+            const querySection = modal.querySelector('#query-builder-section');
+            const affectedCount = modal.querySelector('#affected-count');
+            const scopeHint = modal.querySelector('#scope-hint');
+
+            const updateScope = () => {
+                if (scopeSelected.checked) {
+                    querySection.classList.add('d-none');
+                    affectedCount.textContent = this.selectedEntries.size;
+                    scopeHint.textContent = '(selected on current page)';
+                } else {
+                    querySection.classList.remove('d-none');
+                    affectedCount.textContent = '?';
+                    scopeHint.textContent = '(matching query - will count when executed)';
+                }
+            };
+
+            scopeSelected?.addEventListener('change', updateScope);
+            scopeQuery?.addEventListener('change', updateScope);
+
             if (!this.conditionBuilder) {
                 this.conditionBuilder = new ConditionBuilder(
                     modal.querySelector('#condition-builder-container')
