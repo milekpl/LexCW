@@ -548,6 +548,18 @@ def create_app(config_name=None):
         event_bus = EventBus()
         binder.bind(EventBus, to=event_bus, scope=singleton)
 
+        # Initialize and bind BulkOperationsService for bulk entry operations
+        from app.services.bulk_operations_service import BulkOperationsService
+        from app.services.workset_service import WorksetService
+        workset_service = WorksetService(db_connector=basex_connector)
+        binder.bind(WorksetService, to=workset_service, scope=singleton)
+        bulk_operations_service = BulkOperationsService(
+            dictionary_service=dictionary_service,
+            workset_service=workset_service,
+            history_service=operation_history_service
+        )
+        binder.bind(BulkOperationsService, to=bulk_operations_service, scope=singleton)
+
     # After DI, set a flag if this is a first-run (no project settings configured)
     with app.app_context():
         try:
