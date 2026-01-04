@@ -7,51 +7,14 @@ set -e
 
 echo -e "\033[32mStarting dictionary services (BaseX and Redis)...\033[0m"
 
-# Check/Start BaseX Server
+# Check/Start BaseX Server using new robust script
 echo -e "\033[36mChecking BaseX Server...\033[0m"
 
-# Check if BaseX is already running
-if nc -z localhost 1984 2>/dev/null || timeout 2 bash -c "</dev/tcp/localhost/1984" 2>/dev/null; then
-    echo -e "\033[32m✓ BaseX Server is already running on port 1984\033[0m"
+if ./basex/bin/status &>/dev/null; then
+    echo -e "\033[32m✓ BaseX Server is running\033[0m"
 else
-    # Start BaseX server in background
     echo -e "\033[36mStarting BaseX Server...\033[0m"
-    
-    # Get script directory
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    
-    # Initialize admin password if this is first time
-    if [ ! -f "$HOME/basex/data/users.xml" ] || ! grep -q "admin" "$HOME/basex/data/users.xml" 2>/dev/null; then
-        echo -e "\033[33mInitializing BaseX admin user...\033[0m"
-        java -cp "$SCRIPT_DIR/BaseX120.jar" org.basex.BaseX -c "ALTER PASSWORD admin admin" > /dev/null 2>&1 || true
-    fi
-    
-    # Start BaseX server as background process
-    nohup "$SCRIPT_DIR/basexserver" > "$SCRIPT_DIR/basex.log" 2>&1 &
-    BASEX_PID=$!
-    
-    # Save PID for later shutdown
-    echo $BASEX_PID > "$SCRIPT_DIR/.basex.pid"
-    
-    # Wait for BaseX to be ready
-    echo -e "\033[33mWaiting for BaseX to be ready...\033[0m"
-    max_wait=30
-    waited=0
-    
-    while [ $waited -lt $max_wait ]; do
-        if nc -z localhost 1984 2>/dev/null || timeout 2 bash -c "</dev/tcp/localhost/1984" 2>/dev/null; then
-            echo -e "\033[32m✓ BaseX Server is ready!\033[0m"
-            break
-        fi
-        sleep 2
-        waited=$((waited + 2))
-    done
-    
-    if [ $waited -ge $max_wait ]; then
-        echo -e "\033[31m✗ BaseX Server failed to start within ${max_wait}s\033[0m"
-        echo -e "\033[37mCheck basex.log for details\033[0m"
-        exit 1
-    fi
+    ./basex/bin/start
 fi
 
 # Check BaseX HTTP interface (optional)
