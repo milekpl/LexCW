@@ -1315,13 +1315,13 @@ class Entry(BaseModel):
     def update_from_dict(self, data: Dict[str, Any]) -> None:
         """
         Update an existing entry from a dictionary, preserving LIFT data.
-        
+
         Args:
             data: Dictionary containing updated data.
         """
         # Store original morph_type if it exists
         original_morph_type = self.morph_type
-        
+
         # Update attributes
         for key, value in data.items():
             if key == 'morph_type':
@@ -1336,3 +1336,20 @@ class Entry(BaseModel):
                 self.lexical_unit = value if isinstance(value, dict) else {'en': value}
             else:
                 setattr(self, key, value)
+
+    def convert_trait(self, trait_type: str, old_value: str, new_value: str) -> None:
+        """
+        Convert a trait value from old_value to new_value.
+
+        Args:
+            trait_type: The key of the trait to convert (e.g., 'part-of-speech')
+            old_value: Current value that should be replaced
+            new_value: New value to set
+
+        Raises:
+            ValueError: If trait_type doesn't exist or old_value doesn't match
+        """
+        if self.traits.get(trait_type) != old_value:
+            raise ValueError(f"Trait '{trait_type}' does not have value '{old_value}'")
+
+        self.traits[trait_type] = new_value
