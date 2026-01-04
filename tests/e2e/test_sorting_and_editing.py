@@ -8,6 +8,230 @@ import pytest
 from playwright.sync_api import Page, expect
 import time
 import re
+import os
+import tempfile
+
+
+# Sample entries that basex_test_connector adds (matching conftest.py)
+SAMPLE_LIFT_CONTENT = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+    <entry id="test_entry_1">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="test_sense_1">
+            <definition>
+                <form lang="en"><text>A test entry</text></form>
+            </definition>
+            <gloss lang="pl"><text>test</text></gloss>
+        </sense>
+        <variant type="spelling">
+            <form lang="en"><text>teest</text></form>
+            <trait name="type" value="spelling"/>
+        </variant>
+        <relation type="_component-lexeme" ref="other">
+            <trait name="variant-type" value="dialectal"/>
+        </relation>
+    </entry>
+</lift>'''
+
+# Comprehensive ranges.xml
+RANGES_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift-ranges>
+    <range id="grammatical-info" href="http://fieldworks.sil.org/lift/grammatical-info">
+        <range-element id="Noun" guid="5049f0e3-12a4-4e9f-97f7-60091082793c">
+            <label>
+                <form lang="en"><text>Noun</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>n</text></form>
+            </abbrev>
+        </range-element>
+        <range-element id="Verb" guid="5049f0e3-12a4-4e9f-97f7-60091082793d">
+            <label>
+                <form lang="en"><text>Verb</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>v</text></form>
+            </abbrev>
+        </range-element>
+        <range-element id="Adjective" guid="5049f0e3-12a4-4e9f-97f7-60091082793e">
+            <label>
+                <form lang="en"><text>Adjective</text></form>
+            </label>
+            <abbrev>
+                <form lang="en"><text>adj</text></form>
+            </abbrev>
+        </range-element>
+    </range>
+    <range id="lexical-relation" href="http://fieldworks.sil.org/lift/lexical-relation">
+        <range-element id="_component-lexeme" guid="4e1c72b2-7430-4eb9-a9d2-4b31c5620804">
+            <label>
+                <form lang="en"><text>Component</text></form>
+            </label>
+        </range-element>
+        <range-element id="_main-entry" guid="45e6b7ef-0e55-448a-a7f2-93d485712c54">
+            <label>
+                <form lang="en"><text>Main Entry</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="semantic-domain-ddp4" href="http://fieldworks.sil.org/lift/semantic-domain-ddp4">
+        <range-element id="1" guid="63403699-07c1-4d82-91ab-f8046c335e11">
+            <label>
+                <form lang="en"><text>Universe, creation</text></form>
+            </label>
+        </range-element>
+        <range-element id="1.1" guid="999581c4-1611-4acb-ae1b-cc1f7e0e18e5" parent="1">
+            <label>
+                <form lang="en"><text>Sky</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="anthro-code" href="http://fieldworks.sil.org/lift/anthro-code">
+        <range-element id="1" guid="d12cf2e5-22c8-4826-9d98-8f669f4c5496">
+            <label>
+                <form lang="en"><text>Social organization</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="domain-type" href="http://fieldworks.sil.org/lift/domain-type">
+        <range-element id="agriculture" guid="0fc97f63-a059-4894-84bf-c29a58f96dc4">
+            <label>
+                <form lang="en"><text>Agriculture</text></form>
+            </label>
+        </range-element>
+        <range-element id="grammar" guid="56d33d26-e0fb-4840-bea6-e7e1b86f3e95">
+            <label>
+                <form lang="en"><text>Grammar</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="usage-type" href="http://fieldworks.sil.org/lift/usage-type">
+        <range-element id="archaic" guid="4f845bbd-1bf4-4c8b-9f50-76f1b69e0d3d">
+            <label>
+                <form lang="en"><text>Archaic</text></form>
+            </label>
+        </range-element>
+        <range-element id="colloquial" guid="cf829d77-cf92-4328-bc86-72a44e42fbf0">
+            <label>
+                <form lang="en"><text>Colloquial</text></form>
+            </label>
+        </range-element>
+    </range>
+    <range id="variant-type" href="http://fieldworks.sil.org/lift/variant-type">
+        <range-element id="spelling" guid="a1b2c3d4-e5f6-7890-abcd-ef0123456789">
+            <label>
+                <form lang="en"><text>Spelling Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="dialectal" guid="b2c3d4e5-f6a7-8901-bcde-f01234567890">
+            <label>
+                <form lang="en"><text>Dialectal Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="free" guid="c3d4e5f6-a7b8-9012-cdef-012345678901">
+            <label>
+                <form lang="en"><text>Free Variant</text></form>
+            </label>
+        </range-element>
+        <range-element id="irregular" guid="d4e5f6a7-b8c9-0123-defa-123456789012">
+            <label>
+                <form lang="en"><text>Irregularly Inflected Form</text></form>
+            </label>
+        </range-element>
+    </range>
+</lift-ranges>'''
+
+
+def _restore_database_content():
+    """Restore ranges.xml AND sample entries to the test database."""
+    import logging
+    from app.database.basex_connector import BaseXConnector
+
+    logger = logging.getLogger(__name__)
+
+    test_db = os.environ.get('TEST_DB_NAME')
+    if not test_db:
+        logger.warning("No TEST_DB_NAME found, skipping database restoration")
+        return False
+
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=test_db,
+    )
+
+    try:
+        connector.connect()
+
+        # Check if test_entry_1 exists
+        check_query = f"xquery exists(collection('{test_db}')//entry[@id='test_entry_1'])"
+        entry_exists = connector.execute_query(check_query)
+        entry_exists_bool = entry_exists.strip().lower() == 'true' if entry_exists else False
+
+        if not entry_exists_bool:
+            logger.info("test_entry_1 missing, restoring database content")
+
+            # Restore sample entries
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                f.write(SAMPLE_LIFT_CONTENT)
+                temp_lift_file = f.name
+
+            try:
+                connector.execute_command(f"ADD {temp_lift_file}")
+                logger.info("Restored sample entries to test database")
+            except Exception as e:
+                logger.warning(f"Failed to restore sample entries: {e}")
+            finally:
+                try:
+                    os.unlink(temp_lift_file)
+                except OSError:
+                    pass
+
+            # Restore ranges.xml
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                f.write(RANGES_XML)
+                temp_ranges_file = f.name
+
+            try:
+                connector.execute_command(f"ADD TO ranges.xml {temp_ranges_file}")
+                logger.info("Restored ranges.xml to test database")
+            except Exception as e:
+                logger.warning(f"Failed to restore ranges.xml: {e}")
+            finally:
+                try:
+                    os.unlink(temp_ranges_file)
+                except OSError:
+                    pass
+
+            return True
+        else:
+            logger.debug("test_entry_1 exists in database, no restoration needed")
+            return False
+
+    except Exception as e:
+        logger.warning(f"Failed to restore database: {e}")
+        return False
+    finally:
+        try:
+            connector.disconnect()
+        except Exception:
+            pass
+
+
+@pytest.fixture(autouse=True)
+def restore_database_for_sorting_tests(flask_test_server):
+    """
+    Restore test_entry_1 after each test in this module.
+
+    Other test modules (like test_database_operations_e2e.py) may drop the database,
+    which breaks these tests that depend on test_entry_1 existing.
+    """
+    yield
+    _restore_database_content()
 
 
 @pytest.mark.integration 
@@ -197,39 +421,39 @@ def test_date_modified_sorting_descending(page: Page, flask_test_server):
 def test_entry_editing_loads_successfully(page: Page, flask_test_server):
     """
     Test that clicking "Edit" on an entry successfully loads the edit form.
-    
+
     This verifies the regression: "Error loading entry: 'list' object has no attribute 'get'"
     """
-    # Navigate to entries list
-    page.goto(f"{flask_test_server}/entries")
+    # Navigate to entries list with longer timeout
+    page.goto(f"{flask_test_server}/entries", timeout=30000)
     expect(page).to_have_url(f"{flask_test_server}/entries")
-    
+
     # Wait for entries to load - use correct selector for actual edit links
-    page.wait_for_selector("tbody tr a[href*='/entries/'][href$='/edit']", timeout=10000)
-    
+    page.wait_for_selector("tbody tr a[href*='/entries/'][href$='/edit']", timeout=15000)
+
     # Find the first entry with an edit button
     first_edit_button = page.locator("tbody tr a[href*='/entries/'][href$='/edit']").first
     expect(first_edit_button).to_be_visible()
-    
+
     # Get the entry ID from the edit button's href attribute
     edit_href = first_edit_button.get_attribute("href")
     assert edit_href, "Edit button should have href attribute"
-    
+
     # Extract entry ID from href like "/entries/some-id/edit"
     entry_id_match = re.search(r"/entries/([^/]+)/edit", edit_href)
     assert entry_id_match, f"Could not extract entry ID from href: {edit_href}"
     entry_id = entry_id_match.group(1)
-    
+
     print(f"Testing edit for entry ID: {entry_id}")
-    
+
     # Click the edit button and navigate
     print("Clicking edit button...")
     first_edit_button.click()
-    
+
     # Wait for navigation to the edit page with error handling
     print("Waiting for edit page navigation...")
     try:
-        page.wait_for_url(f"**/entries/{entry_id}/edit", timeout=5000)
+        page.wait_for_url(f"**/entries/{entry_id}/edit", timeout=10000)
     except Exception:
         # Navigation may not happen immediately, check if we're on the edit page anyway
         print(f"Navigation wait timed out, checking current URL: {page.url}")
@@ -237,33 +461,37 @@ def test_entry_editing_loads_successfully(page: Page, flask_test_server):
         if f"/entries/{entry_id}/edit" not in current_url:
             # Try navigating directly
             print(f"Attempting direct navigation to: {flask_test_server}/entries/{entry_id}/edit")
-            page.goto(f"{flask_test_server}/entries/{entry_id}/edit")
-            page.wait_for_load_state("networkidle", timeout=5000)
-    
+            page.goto(f"{flask_test_server}/entries/{entry_id}/edit", timeout=30000)
+
     print(f"Current URL: {page.url}")
-    
+
     # Verify the edit form loaded successfully (no error message)
     # Check for common error indicators
     error_alert = page.locator(".alert-danger, .error, [class*='error']")
-    
+
     # Get error text if present
     if error_alert.count() > 0:
         error_text = error_alert.first.text_content()
         print(f"ERROR: Error alert visible: {error_text}")
-        # Don't fail here, try to continue
-    
-    # Wait for the form to be ready
-    page.wait_for_load_state("domcontentloaded", timeout=5000)
-    
+
+    # Wait for the form to be ready with longer timeout
+    page.wait_for_load_state("domcontentloaded", timeout=10000)
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+
     # Verify form elements are present
     # Note: lexical_unit fields are multilingual with format: lexical_unit.{lang}
     lexical_unit_field = page.locator("input.lexical-unit-text").first
-    expect(lexical_unit_field).to_be_visible()
-    
+
+    # Wait for field to be visible and have a value
+    expect(lexical_unit_field).to_be_visible(timeout=10000)
+
+    # Give JavaScript time to populate the field
+    page.wait_for_timeout(1000)
+
     # Verify the form has the entry data loaded (not empty)
     lexical_unit_value = lexical_unit_field.input_value()
-    assert lexical_unit_value.strip(), "Lexical unit field should not be empty in edit mode"
-    
+    assert lexical_unit_value.strip(), f"Lexical unit field should not be empty in edit mode. Entry: {entry_id}"
+
     print(f"Edit form loaded successfully with lexical unit: {lexical_unit_value}")
 
 

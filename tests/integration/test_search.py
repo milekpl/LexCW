@@ -17,17 +17,42 @@ logger = logging.getLogger(__name__)
 class TestSearch:
     """Test the search functionality of the DictionaryService."""
 
+    SEARCH_TEST_ENTRY_IDS = [
+        "test_entry_2",
+        "multiple_senses",
+        "similar_word_1",
+        "similar_word_2",
+        "special_chars",
+        "search_update_test",
+    ]
+
     @pytest.fixture(autouse=True)
     def setup_search_data(self, dict_service_with_db: DictionaryService):
         """Initialize service and seed data for each test."""
         self.service = dict_service_with_db
         # Seed additional entries for search testing
         self._create_test_entries()
+        yield
+        # Cleanup: remove search test entries after each test
+        for entry_id in self.SEARCH_TEST_ENTRY_IDS:
+            try:
+                if self.service.entry_exists(entry_id):
+                    self.service.delete_entry(entry_id)
+            except Exception:
+                pass
 
     def _create_test_entries(self) -> None:
         """Create test entries for search testing."""
         # Note: basex_test_connector already adds 'test_entry_1'
-        
+
+        # Clean up first in case previous test run failed
+        for entry_id in self.SEARCH_TEST_ENTRY_IDS:
+            try:
+                if self.service.entry_exists(entry_id):
+                    self.service.delete_entry(entry_id)
+            except Exception:
+                pass
+
         # Entry test_entry_2 (matching the legacy file content)
         entry2 = Entry(
             id_="test_entry_2",

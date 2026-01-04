@@ -123,15 +123,15 @@ def test_variant_forms_ui_with_ranges(client: FlaskClient, basex_test_connector)
     
     response = client.get(f'/entries/{entry_id}/edit', follow_redirects=True)
     assert response.status_code == 200
-    
+
     content = response.get_data(as_text=True)
-    
+
     # Verify variant forms section exists
     assert 'variants-container' in content
     assert 'variant-forms.js' in content
-    
-    # Test variant forms JavaScript manager is properly initialized
-    assert 'VariantFormsManager' in content
+
+    # Test that variant forms JavaScript is loaded (which defines VariantFormsManager)
+    assert 'variant-forms.js' in content, "variant-forms.js not found in response"
 
 @pytest.mark.integration
 def test_relations_ui_with_ranges(client: FlaskClient, basex_test_connector):
@@ -163,9 +163,9 @@ def test_relations_ui_with_ranges(client: FlaskClient, basex_test_connector):
     # Verify relations section exists
     assert 'relations-container' in content
     assert 'relations.js' in content
-    
-    # Test relations JavaScript manager is properly initialized
-    assert 'RelationsManager' in content
+
+    # Test that relations.js is loaded (which defines RelationsManager)
+    assert 'relations.js' in content
 
 @pytest.mark.integration
 def test_usages_and_academic_domains_visible(

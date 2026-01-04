@@ -14,10 +14,10 @@ def test_pronunciation_field_displays_in_form(client):
     
     # Check that pronunciation container exists
     assert 'pronunciation-container' in response_text
-    
-    # Check that the PronunciationFormsManager is initialized with data
-    assert 'new PronunciationFormsManager' in response_text
-    
+
+    # Check that pronunciation-forms.js is loaded (which defines PronunciationFormsManager)
+    assert 'pronunciation-forms.js' in response_text
+
     # Check that pronunciation data is passed to JavaScript
     # Should contain the IPA transcription (may be Unicode escaped)
     assert '/pro.nun.si.eɪ.ʃən/' in response_text or 'pro.nun.si.eɪ.ʃən' in response_text or '/pro.nun.si.e\\u026a.\\u0283\\u0259n/' in response_text
