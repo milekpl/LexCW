@@ -561,8 +561,8 @@ class BulkEditor {
 
     init() {
         this.setupSelectionHandlers();
+        this.setupBulkActionPanel(); // Must come before setupOperationHandlers
         this.setupOperationHandlers();
-        this.setupBulkActionPanel();
         this.setupEntriesRenderedListener();
         this.setupModalHandlers();
         console.log('[BulkEditor] Initialized');
