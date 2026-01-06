@@ -2423,5 +2423,11 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// For deferred scripts: if DOM is already ready, trigger initialization now
+if (document.readyState !== 'loading') {
+    // DOMContentLoaded already fired, re-dispatch to trigger our handler
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+}
+
 
 
