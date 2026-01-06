@@ -467,9 +467,36 @@ def flask_test_server():
     port = sock.getsockname()[1]
     sock.close()
 
-    # Create the app with testing config and ensure BASEX_DATABASE matches TEST_DB_NAME
+    # Load .env for PostgreSQL settings (has correct WSL IP 172.17.96.1)
+    # This is critical for E2E tests that need PostgreSQL for worksets
+    from dotenv import load_dotenv
+    load_dotenv('/mnt/d/Dokumenty/slownik-wielki/flask-app/.env', override=True)
+
+    # Create the app with testing config
     app = create_app(os.getenv('FLASK_CONFIG') or 'testing')
-    app.config['TESTING'] = True
+
+    # Force E2E mode AFTER app creation - this is essential for PostgreSQL
+    # We manually create PostgreSQL connection since TestingConfig has TESTING=True
+    # which would normally skip it
+    import psycopg2
+    try:
+        pg_pool = psycopg2.pool.SimpleConnectionPool(
+            1, 20,
+            user=app.config.get("PG_USER"),
+            password=app.config.get("PG_PASSWORD"),
+            host=app.config.get("PG_HOST"),
+            port=app.config.get("PG_PORT"),
+            database=app.config.get("PG_DATABASE"),
+            connect_timeout=3
+        )
+        app.pg_pool = pg_pool
+        # Create workset tables
+        from app.database.workset_db import create_workset_tables
+        create_workset_tables(pg_pool)
+        print(f"Successfully connected to PostgreSQL at {app.config.get('PG_HOST')}:{app.config.get('PG_PORT')}")
+    except Exception as e:
+        print(f"Warning: Could not connect to PostgreSQL: {e}")
+        app.pg_pool = None
 
     # Prefer explicit TEST_DB_NAME if present
     env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
@@ -477,21 +504,26 @@ def flask_test_server():
         app.config['BASEX_DATABASE'] = env_db
     else:
         # If not provided, ensure tests don't accidentally use production db
-        app.config['BASEX_DATABASE'] = app.config.get('BASEX_DATABASE', 'dictionary_test')
+        # Use a safe name that passes the safety check (starts with 'test_', no protected patterns)
+        app.config['BASEX_DATABASE'] = app.config.get('BASEX_DATABASE', 'test_entries_db')
 
     # Export to environment so other services/readers see the same value
     os.environ['BASEX_DATABASE'] = app.config['BASEX_DATABASE']
     os.environ['TEST_DB_NAME'] = app.config['BASEX_DATABASE']
     
     # Create default project settings in the app's database
+    project_id = None
     with app.app_context():
         from app.config_manager import ConfigManager
         from app.models.project_settings import ProjectSettings
-        
+
         # Check if project exists, if not create it
-        if not ProjectSettings.query.first():
+        existing = ProjectSettings.query.first()
+        if existing:
+            project_id = existing.id
+        else:
             cm = ConfigManager(app.instance_path)
-            cm.create_settings(
+            settings = cm.create_settings(
                 project_name="E2E Test Project",
                 basex_db_name=app.config['BASEX_DATABASE'],
                 settings_json={
@@ -499,6 +531,7 @@ def flask_test_server():
                     'target_languages': [{'code': 'es', 'name': 'Spanish'}]
                 }
             )
+            project_id = settings.id
             # Commit is handled by create_settings
 
     server = make_server('localhost', port, app)
@@ -522,6 +555,10 @@ def flask_test_server():
         else:
             raise RuntimeError(f"Flask test server did not start on {base_url}")
 
+        # Store project_id in a global for the fixture to access
+        # This is a workaround to avoid changing the fixture return type
+        flask_test_server._project_id = project_id  # type: ignore
+
         yield base_url
 
     finally:
@@ -531,6 +568,16 @@ def flask_test_server():
             pass
         if thread and thread.is_alive():
             thread.join(timeout=1)
+
+
+@pytest.fixture
+def flask_test_server_info(flask_test_server) -> tuple:
+    """Return (base_url, project_id) from flask_test_server fixture.
+
+    Use this fixture when you need both the base URL and the project ID.
+    """
+    project_id = getattr(flask_test_server, '_project_id', None)
+    return flask_test_server, project_id
 
 
 

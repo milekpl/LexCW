@@ -103,30 +103,33 @@ class TestCustomFieldsPlaywright:
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
-        
-        # Setup dialog handler for adding language
-        page.on('dialog', lambda dialog: dialog.accept('en'))
-        
+
+        # Use a single dialog handler for both prompt (add) and confirm (remove)
+        def handle_dialog(dialog):
+            if dialog.type == 'prompt':
+                dialog.accept('en')
+            else:
+                dialog.accept()
+
+        page.on('dialog', handle_dialog)
+
         # Add a language first
         add_lang_btn = page.locator('.add-literal-meaning-language-btn').first
         add_lang_btn.click()
         page.wait_for_timeout(300)
-        
+
         # Verify it was added
         lang_form = page.locator('.literal-meaning-forms .language-form-group').first
         expect(lang_form).to_be_visible()
-        
-        # Click remove button
+
+        # Click remove button (confirmation dialog will be handled by the same handler)
         remove_btn = lang_form.locator('button.remove-literal-meaning-language-btn')
         expect(remove_btn).to_be_visible()
-        
-        # Handle confirmation dialog
-        page.on('dialog', lambda dialog: dialog.accept())
         remove_btn.click()
-        
+
         # Wait a bit for removal
         page.wait_for_timeout(500)
-        
+
         # Language form should be removed - check count instead of element visibility
         expect(page.locator('.literal-meaning-forms .language-form-group')).to_have_count(0)
 
@@ -203,30 +206,33 @@ class TestCustomFieldsPlaywright:
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
-        
-        # Setup dialog handler for adding language
-        page.on('dialog', lambda dialog: dialog.accept('en'))
-        
+
+        # Use a single dialog handler for both prompt (add) and confirm (remove)
+        def handle_dialog(dialog):
+            if dialog.type == 'prompt':
+                dialog.accept('en')
+            else:
+                dialog.accept()
+
+        page.on('dialog', handle_dialog)
+
         # Add a language first
         add_lang_btn = page.locator('.add-exemplar-language-btn').first
         add_lang_btn.click()
         page.wait_for_timeout(300)
-        
+
         # Verify it was added
         lang_form = page.locator('.exemplar-forms .language-form-group').first
         expect(lang_form).to_be_visible()
-        
-        # Click remove button
+
+        # Click remove button (confirmation dialog will be handled by the same handler)
         remove_btn = lang_form.locator('button.remove-exemplar-language-btn')
         expect(remove_btn).to_be_visible()
-        
-        # Handle confirmation dialog
-        page.on('dialog', lambda dialog: dialog.accept())
         remove_btn.click()
-        
+
         # Wait for removal
         page.wait_for_timeout(500)
-        
+
         # Language form should be removed - check count instead of element visibility
         expect(page.locator('.exemplar-forms .language-form-group')).to_have_count(0)
 
@@ -303,30 +309,33 @@ class TestCustomFieldsPlaywright:
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
-        
-        # Setup dialog handler for adding language
-        page.on('dialog', lambda dialog: dialog.accept('en'))
-        
+
+        # Use a single dialog handler for both prompt (add) and confirm (remove)
+        def handle_dialog(dialog):
+            if dialog.type == 'prompt':
+                dialog.accept('en')
+            else:
+                dialog.accept()
+
+        page.on('dialog', handle_dialog)
+
         # Add a language first
         add_lang_btn = page.locator('.add-scientific-name-language-btn').first
         add_lang_btn.click()
         page.wait_for_timeout(300)
-        
+
         # Verify it was added
         lang_form = page.locator('.scientific-name-forms .language-form-group').first
         expect(lang_form).to_be_visible()
-        
-        # Click remove button
+
+        # Click remove button (confirmation dialog will be handled by the same handler)
         remove_btn = lang_form.locator('button.remove-scientific-name-language-btn')
         expect(remove_btn).to_be_visible()
-        
-        # Handle confirmation dialog
-        page.on('dialog', lambda dialog: dialog.accept())
         remove_btn.click()
-        
+
         # Wait for removal
         page.wait_for_timeout(500)
-        
+
         # Language form should be removed - check count instead of element visibility
         expect(page.locator('.scientific-name-forms .language-form-group')).to_have_count(0)
 
@@ -356,27 +365,28 @@ class TestCustomFieldsPlaywright:
         # Scroll to see sense section
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         page.wait_for_timeout(500)
-        
+
         # Setup dialog handler - will use different languages for each call
         dialog_count = [0]
         def handle_dialog(dialog):
             langs = ['en', 'fr']
-            dialog.accept(langs[dialog_count[0]])
+            idx = min(dialog_count[0], len(langs) - 1)  # Cap at last language
+            dialog.accept(langs[idx])
             dialog_count[0] += 1
-        
+
         page.on('dialog', handle_dialog)
-        
+
         # Add first language
         add_lang_btn = page.locator('.add-literal-meaning-language-btn').first
         add_lang_btn.click()
         page.wait_for_timeout(200)
-        
+
         # Add second language
         add_lang_btn.click()
         page.wait_for_timeout(200)
-        
-        # Should have two language form groups in the first sense's literal meaning
-        lang_forms = page.locator('.literal-meaning-forms .language-form-group').first.locator('xpath=../..').locator('.language-form-group')
+
+        # Should have two language form groups in the literal meaning container
+        lang_forms = page.locator('.literal-meaning-forms .language-form-group')
         expect(lang_forms).to_have_count(2)
 
     def test_all_custom_fields_visible_together(self, page: Page, app_url: str) -> None:

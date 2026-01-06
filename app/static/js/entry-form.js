@@ -70,15 +70,25 @@ if (!window.applySenseRelationsFromDom) {
     window.applySenseRelationsFromDom = applySenseRelationsFromDom;
 }
 
+// Initialize on DOMContentLoaded or immediately if already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeEntryForm);
+} else {
+    // DOM already loaded, initialize immediately
+    initializeEntryForm();
+}
 
-document.addEventListener('DOMContentLoaded', function() {
+
+// Extract initialization logic into a named function to avoid double-execution
+// when script is loaded after DOMContentLoaded has fired
+function initializeEntryForm() {
     // REFACTOR: Define frequently used elements once to avoid repeated DOM queries.
     const sensesContainer = document.getElementById('senses-container');
     const entryForm = document.getElementById('entry-form');
 
     // Initialize external components if they exist
     window.rangesLoader = window.rangesLoader || new RangesLoader();
-    
+
     // Initialize LIFT XML Serializer
     if (typeof LIFTXMLSerializer !== 'undefined') {
         window.xmlSerializer = new LIFTXMLSerializer();
@@ -1089,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         audioPreviewModal?.hide();
     });
-});
+}
 
 
 /**
@@ -2423,11 +2433,5 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// For deferred scripts: if DOM is already ready, trigger initialization now
-if (document.readyState !== 'loading') {
-    // DOMContentLoaded already fired, re-dispatch to trigger our handler
-    document.dispatchEvent(new Event('DOMContentLoaded'));
-}
 
-
-
+//

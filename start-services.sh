@@ -78,7 +78,7 @@ sys.path.insert(0, '$SCRIPT_DIR')
 try:
     from app.database.basex_connector import BaseXConnector
     from app.services.dictionary_service import DictionaryService
-    connector = BaseXConnector('localhost', 1984, 'admin', 'admin', 'dictionary')
+    connector = BaseXConnector('localhost', 1984, '', '', 'dictionary')
     connector.connect()
     dict_service = DictionaryService(connector)
     _, count = dict_service.list_entries(limit=1)

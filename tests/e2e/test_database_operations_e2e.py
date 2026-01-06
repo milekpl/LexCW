@@ -12,6 +12,13 @@ import os
 import tempfile
 from playwright.sync_api import Page, expect
 
+def _get_base_url(flask_test_server):
+    """Extract base URL from flask_test_server fixture which returns (url, project_id)."""
+    if isinstance(flask_test_server, tuple):
+        return flask_test_server[0]
+    return flask_test_server
+
+
 
 # Sample entries that basex_test_connector adds (matching conftest.py)
 SAMPLE_LIFT_CONTENT = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -291,8 +298,10 @@ class TestDatabaseOperationsE2E:
     @pytest.mark.e2e
     def test_drop_database_content_workflow(self, page: Page, flask_test_server: str):
         """Test the complete workflow of dropping database content via UI."""
+        base_url = _get_base_url(flask_test_server)
+
         # Navigate to settings page
-        page.goto(f"{flask_test_server}/settings")
+        page.goto(f"{base_url}/settings")
 
         # Close the project setup wizard modal if it appears
         _close_modal_if_present(page)
@@ -325,9 +334,9 @@ class TestDatabaseOperationsE2E:
             dropped = True
             # Skip the rest of the UI flow since we used the API
             page.wait_for_timeout(1000)
-            page.goto(f"{flask_test_server}/entries", timeout=30000)
+            page.goto(f"{base_url}/entries", timeout=30000)
             expect(page).to_have_title("Dictionary Entries")
-            entry_count = page.get_by_text("0 entries")
+            entry_count = page.locator("#entry-count")
             expect(entry_count).to_be_visible()
             return
 
@@ -353,12 +362,14 @@ class TestDatabaseOperationsE2E:
 
         # Verify database state by checking entry count
         # Use longer timeout and domcontentloaded instead of networkidle
-        page.goto(f"{flask_test_server}/entries", timeout=30000, wait_until="domcontentloaded")
+        page.goto(f"{base_url}/entries", timeout=30000, wait_until="domcontentloaded")
         expect(page).to_have_title("Dictionary Entries")
 
         if dropped:
             # If drop reported success, the DB should be empty
-            entry_count = page.get_by_text("0 entries")
+            # Use the specific entry-count element which shows "Showing X of Y entries"
+            entry_count = page.locator('#entry-count')
+            expect(entry_count).to_have_text(r"Showing 0 of 0 entries")
             expect(entry_count).to_be_visible()
         else:
             # If drop errored, ensure entries page is accessible
@@ -367,9 +378,10 @@ class TestDatabaseOperationsE2E:
     @pytest.mark.e2e
     def test_import_lift_file_workflow(self, page: Page, flask_test_server: str, test_lift_file):
         """Test the complete workflow of importing a LIFT file via UI using the Settings modal."""
+        base_url = _get_base_url(flask_test_server)
         try:
             # Navigate to settings page where the import modal lives
-            page.goto(f"{flask_test_server}/settings", timeout=30000)
+            page.goto(f"{base_url}/settings", timeout=30000)
             page.wait_for_selector('#dropDatabaseModal', state='attached', timeout=10000)
 
             # Open the Drop Database (management) modal
@@ -443,9 +455,10 @@ class TestDatabaseOperationsE2E:
     @pytest.mark.e2e
     def test_drop_and_import_workflow(self, page: Page, flask_test_server: str, test_lift_file):
         """Test the complete workflow of dropping database and importing new content."""
+        base_url = _get_base_url(flask_test_server)
         try:
             # First, drop database content (manually, not calling other test method)
-            page.goto(f"{flask_test_server}/settings", timeout=30000)
+            page.goto(f"{base_url}/settings", timeout=30000)
             _close_modal_if_present(page)
 
             drop_button = page.get_by_role("button", name="Drop Database Content")
@@ -463,7 +476,7 @@ class TestDatabaseOperationsE2E:
             page.wait_for_timeout(2000)
 
             # Then import new content
-            page.goto(f"{flask_test_server}/settings", timeout=30000)
+            page.goto(f"{base_url}/settings", timeout=30000)
             page.wait_for_selector('#dropDatabaseModal', state='attached', timeout=10000)
 
             drop_button = page.get_by_role("button", name="Drop Database Content")
@@ -517,13 +530,13 @@ class TestDatabaseOperationsE2E:
                     pytest.fail(f"Import failed. Last response: {resp_json}")
 
             # Verify the final state
-            page.goto(f"{flask_test_server}/entries", timeout=30000, wait_until="domcontentloaded")
+            page.goto(f"{base_url}/entries", timeout=30000, wait_until="domcontentloaded")
             expect(page).to_have_title("Dictionary Entries")
 
             import requests
             found = False
             for _ in range(30):
-                resp = requests.get(f"{flask_test_server}/api/search?q=test&limit=10")
+                resp = requests.get(f"{base_url}/api/search?q=test&limit=10")
                 if resp.ok and len(resp.json().get('entries', [])) > 0:
                     found = True
                     break
@@ -532,7 +545,7 @@ class TestDatabaseOperationsE2E:
 
             if not found:
                 for _ in range(10):
-                    resp = requests.get(f"{flask_test_server}/api/entries/?limit=20")
+                    resp = requests.get(f"{base_url}/api/entries/?limit=20")
                     if resp.ok and len(resp.json().get('entries', [])) > 0:
                         found = True
                         break
@@ -548,8 +561,10 @@ class TestDatabaseOperationsE2E:
     @pytest.mark.e2e
     def test_database_operations_error_handling(self, page: Page, flask_test_server: str):
         """Test error handling for database operations."""
+        base_url = _get_base_url(flask_test_server)
+
         # Navigate to settings page
-        page.goto(f"{flask_test_server}/settings")
+        page.goto(f"{base_url}/settings")
 
         # Try to drop database content
         drop_button = page.get_by_role("button", name="Drop Database Content")

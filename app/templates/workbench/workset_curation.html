@@ -1,0 +1,120 @@
+{% extends "workbench/base.html" %}
+
+{% block title %}Curation: {{ workset_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid curation-view" id="curation-view" data-workset-id="{{ workset_id }}">
+    {# Header with workset info and progress #}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h4 class="mb-1">{{ workset_name }}</h4>
+                    <a href="/workbench/worksets" class="text-muted small"><i class="bi bi-arrow-left"></i> Back to Worksets</a>
+                </div>
+                <div class="text-end" style="min-width: 200px;">
+                    <div id="position-display" class="fw-bold">Entry 1 of {{ total_entries }}</div>
+                    <div class="text-muted small">Use arrow keys to navigate</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Progress bar #}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div id="progress-container">
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-success" style="width: 0%"></div>
+                    <div class="progress-bar bg-warning" style="width: 0%"></div>
+                    <div class="progress-bar bg-secondary" style="width: 100%"></div>
+                </div>
+                <div class="d-flex justify-content-between small text-muted mt-1">
+                    <span><i class="bi bi-check-circle text-success"></i> 0 done</span>
+                    <span><i class="bi bi-exclamation-triangle text-warning"></i> 0 review</span>
+                    <span><i class="bi bi-clock text-secondary"></i> 0 pending</span>
+                    <span>0% complete</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Navigation controls #}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary" id="btn-first" title="First (Home)">
+                    <i class="bi bi-skip-backward-fill"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="btn-prev" title="Previous (←)">
+                    <i class="bi bi-caret-left-fill"></i> Prev
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="btn-next" title="Next (→)">
+                    Next <i class="bi bi-caret-right-fill"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="btn-last" title="Last (End)">
+                    <i class="bi bi-skip-forward-fill"></i>
+                </button>
+            </div>
+
+            <div class="btn-group ms-2" role="group">
+                <input type="number" class="form-control form-control-sm" id="jump-position"
+                       placeholder="#" style="width: 60px;" min="1" title="Jump to position">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-jump" title="Go to position">
+                    Go
+                </button>
+            </div>
+
+            <div class="btn-group ms-2" role="group">
+                <button type="button" class="btn btn-outline-warning status-btn" data-status="pending" title="Mark pending (p)">
+                    <i class="bi bi-clock"></i> Pending
+                </button>
+                <button type="button" class="btn btn-outline-success status-btn" data-status="done" title="Mark done (d)">
+                    <i class="bi bi-check-circle"></i> Done
+                </button>
+                <button type="button" class="btn btn-outline-warning status-btn" data-status="review" title="Needs review (r)">
+                    <i class="bi bi-exclamation-triangle"></i> Review
+                </button>
+            </div>
+
+            <button type="button" class="btn btn-outline-warning ms-2" id="btn-favorite" title="Toggle favorite (f)">
+                <i class="bi bi-star"></i> Add to Favorites
+            </button>
+        </div>
+    </div>
+
+    {# Entry display #}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body" id="entry-content">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="mt-2">Loading entry...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Keyboard shortcuts help #}
+    <div class="row mt-3">
+        <div class="col-12">
+            <div class="alert alert-secondary py-2 mb-0 small">
+                <strong>Keyboard shortcuts:</strong>
+                <span class="ms-2">← → Navigate</span>
+                <span class="ms-2"><strong>d</strong> Done</span>
+                <span class="ms-2"><strong>r</strong> Review</span>
+                <span class="ms-2"><strong>p</strong> Pending</span>
+                <span class="ms-2"><strong>f</strong> Favorite</span>
+                <span class="ms-2"><strong>Home</strong> First</span>
+                <span class="ms-2"><strong>End</strong> Last</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/workset-curation.js') }}"></script>
+{% endblock %}

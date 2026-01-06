@@ -10,8 +10,14 @@ def test_delete_entry(page: Page, flask_test_server):  # type: ignore
     """
     Tests that an entry can be successfully deleted from the UI.
     """
+    # Handle flask_test_server which now returns (base_url, project_id)
+    if isinstance(flask_test_server, tuple):
+        base_url = flask_test_server[0]
+    else:
+        base_url = flask_test_server
+
     # First, get an existing entry from the database to use for this test
-    entries_response = requests.get(f"{flask_test_server}/api/entries/?limit=1&offset=0")
+    entries_response = requests.get(f"{base_url}/api/entries/?limit=1&offset=0")
     entries_data = entries_response.json()
     print(f"DEBUG: Available entries: {entries_data}")
 
@@ -23,8 +29,8 @@ def test_delete_entry(page: Page, flask_test_server):  # type: ignore
     print(f"DEBUG: Will delete entry: {entry_id} ({lexical_unit_value})")
 
     # Now navigate to entries list
-    page.goto(f"{flask_test_server}/entries")
-    expect(page).to_have_url(f"{flask_test_server}/entries")
+    page.goto(f"{base_url}/entries")
+    expect(page).to_have_url(f"{base_url}/entries")
 
     # Force reload to bypass cache and wait for entries to load
     page.reload(wait_until="networkidle")

@@ -10,6 +10,13 @@ import os
 import tempfile
 from playwright.sync_api import expect
 
+def _get_base_url(flask_test_server):
+    """Extract base URL from flask_test_server fixture which returns (url, project_id)."""
+    if isinstance(flask_test_server, tuple):
+        return flask_test_server[0]
+    return flask_test_server
+
+
 
 # Sample entries that basex_test_connector adds (matching conftest.py)
 SAMPLE_LIFT_CONTENT = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -251,6 +258,8 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
     # For this test, create an entry with 2 senses via API, then edit it
     import requests
 
+    base_url = _get_base_url(flask_test_server)
+
     print("Creating test entry data...")
     test_entry_data = {
         "id": "sense_deletion_test_" + str(hash("test"))[-8:],
@@ -272,7 +281,7 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
     # Create entry via API
     print(f"Creating entry via API at {flask_test_server}/api/entries/...")
     response = requests.post(
-        f"{flask_test_server}/api/entries/",
+        f"{base_url}/api/entries/",
         json=test_entry_data,
         headers={"Content-Type": "application/json"}
     )
@@ -280,7 +289,7 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
     assert response.status_code in [200, 201], f"Failed to create test entry: {response.text}"
 
     entry_id = test_entry_data["id"]
-    edit_url = f"{flask_test_server}/entries/{entry_id}/edit"
+    edit_url = f"{base_url}/entries/{entry_id}/edit"
 
     # Navigate to edit the entry
     print(f"Navigating to edit URL: {edit_url}")
@@ -382,10 +391,11 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
 @pytest.mark.integration
 def test_default_template_not_serialized(page, flask_test_server):
     """Test that the default-sense-template is never included in serialization."""
+    base_url = _get_base_url(flask_test_server)
     page = page
 
     # Navigate to add entry page
-    page.goto(f"{flask_test_server}/entries/add", timeout=30000)
+    page.goto(f"{base_url}/entries/add", timeout=30000)
     page.wait_for_load_state("networkidle")
 
     # Verify default template exists in DOM
@@ -429,7 +439,7 @@ def test_default_template_not_serialized(page, flask_test_server):
         pytest.skip(f"Save may have failed. Current URL: {current_url}")
 
     # Retrieve the entry from the database via API and verify it has exactly 1 sense
-    response = page.request.get(f"{flask_test_server}/api/xml/entries/{entry_id}")
+    response = page.request.get(f"{base_url}/api/xml/entries/{entry_id}")
     if not response.ok:
         pytest.skip(f"Failed to retrieve entry {entry_id}")
 
@@ -442,6 +452,8 @@ def test_default_template_not_serialized(page, flask_test_server):
 @pytest.mark.integration
 def test_multiple_deletions(page, flask_test_server):
     """Test deleting multiple senses in sequence - verifying deletion persists after save."""
+
+    base_url = _get_base_url(flask_test_server)
 
     # Create a test entry with 2 senses via API
     import requests
@@ -456,14 +468,14 @@ def test_multiple_deletions(page, flask_test_server):
     }
 
     response = requests.post(
-        f"{flask_test_server}/api/entries/",
+        f"{base_url}/api/entries/",
         json=test_entry_data,
         headers={"Content-Type": "application/json"}
     )
     assert response.status_code in [200, 201], f"Failed to create test entry: {response.text}"
 
     entry_id = test_entry_data["id"]
-    edit_url = f"{flask_test_server}/entries/{entry_id}/edit"
+    edit_url = f"{base_url}/entries/{entry_id}/edit"
 
     page.goto(edit_url, timeout=30000)
     page.wait_for_load_state("networkidle")
@@ -518,17 +530,19 @@ def test_multiple_deletions(page, flask_test_server):
 def test_add_and_remove_sense(page, flask_test_server):
     """Test that adding and removing a sense works correctly."""
 
+    base_url = _get_base_url(flask_test_server)
+
     # First ensure test_entry_1 exists
     import requests
 
     # Check if test_entry_1 exists
-    response = requests.get(f"{flask_test_server}/api/xml/entries/test_entry_1")
+    response = requests.get(f"{base_url}/api/xml/entries/test_entry_1")
     if not response.ok:
         pytest.skip("test_entry_1 not available - database not properly initialized")
 
     # Navigate to edit an existing entry - use test_entry_1 from E2E database
     entry_id = "test_entry_1"
-    page.goto(f"{flask_test_server}/entries/{entry_id}/edit", timeout=30000)
+    page.goto(f"{base_url}/entries/{entry_id}/edit", timeout=30000)
 
     # Wait for page to load
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
@@ -560,7 +574,7 @@ def test_add_and_remove_sense(page, flask_test_server):
     page.wait_for_load_state("networkidle", timeout=10000)
 
     # Reload the page to verify persistence
-    page.goto(f"{flask_test_server}/entries/{entry_id}/edit", timeout=30000)
+    page.goto(f"{base_url}/entries/{entry_id}/edit", timeout=30000)
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Verify the sense count persisted
