@@ -405,6 +405,36 @@ class PipelineEditor {
                 this.updateStep(index, field, e.target.value);
             });
         });
+
+        // Initialize EntrySearchSelect for relation steps
+        this.steps.forEach((step, index) => {
+            if (['add_relation', 'remove_relation', 'replace_relation'].includes(step.type)) {
+                this.initEntrySearchSelect(index, step.target);
+            }
+        });
+    }
+
+    initEntrySearchSelect(index, selectedValue) {
+        const containerId = `relation-target-container-${index}`;
+        const container = document.getElementById(containerId);
+        if (!container || typeof EntrySearchSelect === 'undefined') return;
+
+        // Store reference for later access
+        if (!this.searchSelectors) this.searchSelectors = {};
+
+        this.searchSelectors[index] = new EntrySearchSelect(container, {
+            placeholder: 'Search for target entry...',
+            onSelect: (entryId, entryData) => {
+                this.steps[index].target = entryId;
+                // Update hidden input for getPipeline()
+                this.updateStep(index, 'target', entryId);
+            }
+        });
+
+        // If we have an existing target value, try to set it
+        if (selectedValue) {
+            this.searchSelectors[index].setValue(selectedValue, selectedValue);
+        }
     }
 
     renderStepCard(step, index) {
@@ -471,10 +501,7 @@ class PipelineEditor {
                             </select>
                         </div>
                         <div class="col-6">
-                            <input type="text" class="form-control form-control-sm"
-                                placeholder="Target entry ID or lexical unit..."
-                                data-field="target" data-index="${index}"
-                                value="${step.target || ''}">
+                            <div id="relation-target-container-${index}" class="relation-target-selector"></div>
                         </div>
                     </div>
                 `;
@@ -543,6 +570,13 @@ class PipelineEditor {
             target: s.target || ''
         }));
         this.renderSteps();
+
+        // Re-initialize search selectors after render
+        this.steps.forEach((step, index) => {
+            if (['add_relation', 'remove_relation', 'replace_relation'].includes(step.type)) {
+                this.initEntrySearchSelect(index, step.target);
+            }
+        });
     }
 }
 

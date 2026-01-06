@@ -19,22 +19,25 @@ from app.services.event_bus import EventBus
 class BackupScheduler:
     """
     Service for scheduling cyclical backups of BaseX databases.
-    
+
     This service uses APScheduler to manage recurring backup jobs based on configurable
     intervals (hourly, daily, weekly). It supports different backup types and maintains
     scheduling metadata.
     """
 
     def __init__(self, backup_manager: BaseXBackupManager,
+                 app=None,
                  event_bus: Optional[EventBus] = None):
         """
         Initialize the backup scheduler.
 
         Args:
             backup_manager: BaseXBackupManager instance to perform actual backups
+            app: Flask application instance for running in application context
             event_bus: Optional EventBus instance for receiving entry update events
         """
         self.backup_manager = backup_manager
+        self._app = app
         # Defer scheduler initialization to `start()` so tests can patch
         # BackgroundScheduler before it is instantiated in unit tests.
         self.scheduler = None
@@ -173,13 +176,22 @@ class BackupScheduler:
             scheduled_backup.last_run = datetime.utcnow()
 
             # Perform the backup - wrap in app context for background thread safety
-            from flask import current_app
-            with current_app.app_context():
-                backup_result = self.backup_manager.backup_database(
-                    db_name=scheduled_backup.db_name,
-                    backup_type=scheduled_backup.type,
-                    description=f"Scheduled {scheduled_backup.interval} backup"
-                )
+            if self._app is not None:
+                with self._app.app_context():
+                    backup_result = self.backup_manager.backup_database(
+                        db_name=scheduled_backup.db_name,
+                        backup_type=scheduled_backup.type,
+                        description=f"Scheduled {scheduled_backup.interval} backup"
+                    )
+            else:
+                # Fallback if no app provided - try to use current_app
+                from flask import current_app
+                with current_app.app_context():
+                    backup_result = self.backup_manager.backup_database(
+                        db_name=scheduled_backup.db_name,
+                        backup_type=scheduled_backup.type,
+                        description=f"Scheduled {scheduled_backup.interval} backup"
+                    )
 
             # Update last status
             scheduled_backup.last_status = 'success'

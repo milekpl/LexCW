@@ -79,15 +79,25 @@ class BaseXConnector:
                         self._current_db = None
 
                 self._session = BaseXSession(self.host, self.port, self.username, self.password)
-                
+
                 if self.database:
                     # Safety check: Prevent connecting to production databases in test mode
                     if self._is_test_mode() and not self._is_safe_database_name(self.database):
                         raise DatabaseError(f"Refusing to connect to potentially unsafe database in test mode: {self.database}")
-                    
-                    self.logger.info(f"Opening BaseX database: {self.database}")
-                    self._session.execute(f"OPEN {self.database}")
-                    self._current_db = self.database
+
+                    # Check if database exists, create if not
+                    try:
+                        self._session.execute(f"OPEN {self.database}")
+                        self._current_db = self.database
+                        self.logger.info(f"Opened BaseX database: {self.database}")
+                    except Exception as open_error:
+                        # Database doesn't exist, create it
+                        if "not found" in str(open_error).lower() or "unknown database" in str(open_error).lower():
+                            self.logger.info(f"Database '{self.database}' not found, creating empty database")
+                            self._session.execute(f"CREATE DB {self.database}")
+                            self._current_db = self.database
+                        else:
+                            raise
                 else:
                     self.logger.info("No BaseX database configured for this connector")
                     self._current_db = None

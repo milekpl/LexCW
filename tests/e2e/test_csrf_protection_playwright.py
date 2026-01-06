@@ -182,6 +182,126 @@ class TestCSRFProtection:
         page2.close()
         context2.close()
 
+    def test_delete_includes_csrf_on_backup_management(self, page: Page, app_url):
+        """Test that clicking delete on a backup sends the CSRF token in the DELETE request."""
+        # Ensure we have a valid CSRF token
+        page.goto(f'{app_url}/')
+        # Wait for CSRF meta tag like other tests do
+        csrf_meta = page.locator('meta[name="csrf-token"]')
+        expect(csrf_meta).to_have_count(1, timeout=10000)
+        token = csrf_meta.get_attribute('content')
+        assert token and len(token) > 0
+
+        # Create a backup using the API (include CSRF header)
+        created = page.evaluate("""
+            async (token) => {
+                try {
+                    const resp = await fetch('/api/backup/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+                        body: JSON.stringify({ db_name: window.CURRENT_DB_NAME || 'dictionary', description: 'e2e-delete-test', backup_type: 'manual' })
+                    });
+                    const json = await resp.json().catch(() => null);
+                    return { status: resp.status, ok: resp.ok, json };
+                } catch (e) {
+                    return { error: e.message };
+                }
+            }
+        """, token)
+
+        assert 'error' not in created, f"Backup creation failed: {created.get('error')}"
+
+        # If an op_id was returned, wait for it to finish
+        op_id = (created.get('json') or {}).get('op_id')
+        if op_id:
+            for _ in range(40):
+                st = page.evaluate("""
+                    async (op) => {
+                        try {
+                            const r = await fetch('/api/backup/status/' + op);
+                            if (!r.ok) return null;
+                            return await r.json();
+                        } catch (e) { return null; }
+                    }
+                """, op_id)
+                if st and st.get('op') and st['op'].get('status') == 'done':
+                    break
+                page.wait_for_timeout(250)
+
+        # Go to management UI and refresh history
+        page.goto(f'{app_url}/backup/management')
+        # Wait for main UI elements to appear and then refresh history
+        expect(page.locator('#backup-count')).to_have_count(1, timeout=10000)
+        page.click('#refresh-backups')
+        page.wait_for_timeout(500)
+
+        # Simpler and more deterministic approach: call performDelete on the page's BackupManager
+        # and capture the outgoing DELETE request headers. This avoids depending on filesystem state.
+        # Ensure backupManager has been initialized
+        expect(page.locator('#backup-history-table')).to_have_count(1, timeout=10000)
+
+        captured = {}
+        def handle_request(request):
+            if request.method == 'DELETE' and '/api/backup/' in request.url:
+                captured['headers'] = request.headers
+
+        page.on('request', handle_request)
+
+        # Trigger performDelete with a dummy id; we don't care about the response, only the outgoing request
+        page.evaluate("""
+            () => {
+                window.backupManager = window.backupManager || new BackupManager();
+                window.backupManager.currentBackupId = 'dummy-id-for-csrf-test';
+                // Call performDelete (returns a Promise)
+                window.backupManager.performDelete();
+            }
+        """)
+
+        # Wait briefly for the request to be emitted
+        page.wait_for_timeout(500)
+
+        headers = captured.get('headers') or {}
+        assert 'x-csrf-token' in headers or 'X-CSRF-TOKEN' in headers, 'CSRF token should be present in DELETE request headers'
+
+    def test_restore_includes_csrf_on_backup_management(self, page: Page, app_url):
+        """Test that performing restore sends the CSRF token in the restore POST request."""
+        page.goto(f'{app_url}/backup/management')
+        expect(page.locator('#backup-history-table')).to_have_count(1, timeout=10000)
+
+        # Intercept the history GET for our dummy id and return synthetic backup info
+        def handle_route(route, request):
+            if request.url.endswith('/api/backup/history/dummy-restore-id') and request.method == 'GET':
+                route.fulfill(status=200, body='{"id":"dummy-restore-id","db_name":"dictionary","file_path":"/tmp/fake.lift"}', headers={"Content-Type":"application/json"})
+            else:
+                route.continue_()
+
+        # Using page.route with pattern for the history endpoint
+        page.route('**/api/backup/history/*', lambda route, request: handle_route(route, request))
+
+        captured = {}
+        def handle_request(request):
+            if request.method == 'POST' and '/api/backup/restore/' in request.url:
+                captured['headers'] = request.headers
+
+        page.on('request', handle_request)
+
+        # Insert a dummy confirm button so performRestore won't throw when trying to disable it
+        page.evaluate("""
+            () => {
+                const btn = document.createElement('button');
+                btn.id = 'confirm-restore-btn';
+                document.body.appendChild(btn);
+                window.backupManager = window.backupManager || new BackupManager();
+                window.backupManager.currentBackupId = 'dummy-restore-id';
+                window.backupManager.performRestore();
+            }
+        """)
+
+        page.wait_for_timeout(500)
+
+        headers = captured.get('headers') or {}
+        assert 'x-csrf-token' in headers or 'X-CSRF-TOKEN' in headers, 'CSRF token should be present in restore POST request headers'
+
 
 @pytest.mark.integration
 @pytest.mark.playwright

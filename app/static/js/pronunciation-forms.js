@@ -11,16 +11,33 @@ class PronunciationFormsManager {
         this.container = document.getElementById(containerId);
         this.pronunciations = options.pronunciations || [];
         this.languageCode = 'seh-fonipa';
-        
+
         // Defer initialization to ensure DOM is ready
         setTimeout(() => this.init(), 0);
     }
-    
+
+    /**
+     * Get CSRF token from meta tag
+     */
+    getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    /**
+     * Get fetch headers with CSRF token
+     */
+    getHeaders() {
+        return {
+            'X-CSRF-TOKEN': this.getCsrfToken()
+        };
+    }
+
     init() {
         this.setupEventListeners();
         this.renderExistingPronunciations();
     }
-    
+
     setupEventListeners() {
         // Add pronunciation button
         const addButton = document.getElementById('add-pronunciation-btn');
@@ -124,13 +141,21 @@ class PronunciationFormsManager {
                         try {
                             // Delete the file from server
                             const response = await fetch(`/api/pronunciation/delete/${filename}`, {
-                                method: 'DELETE'
+                                method: 'DELETE',
+                                headers: this.getHeaders()
                             });
                             
                             if (response.ok) {
                                 console.log('Audio file deleted from server');
                             } else {
-                                console.warn('Failed to delete audio file from server');
+                                // Try JSON first, then fall back to text for HTML error bodies
+                                try {
+                                    const err = await response.json();
+                                    console.warn('Failed to delete audio file from server', err);
+                                } catch (parseErr) {
+                                    const txt = await response.text();
+                                    console.warn('Failed to delete audio file from server:', txt || response.statusText);
+                                }
                             }
                         } catch (error) {
                             console.warn('Error deleting audio file:', error);
@@ -383,6 +408,7 @@ class PronunciationFormsManager {
                 // Upload the file
                 const response = await fetch('/api/pronunciation/upload', {
                     method: 'POST',
+                    headers: this.getHeaders(),
                     body: formData
                 });
                 
@@ -474,17 +500,20 @@ class PronunciationFormsManager {
             try {
                 // Optional: Delete the file from server
                 const response = await fetch(`/api/pronunciation/delete/${filename}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: this.getHeaders()
                 });
                 
                 if (response.ok) {
                     console.log('Audio file deleted from server');
                 } else {
-                    console.warn('Failed to delete audio file from server');
-                }
-            } catch (error) {
-                console.warn('Error deleting audio file:', error);
-            }
+                    try {
+                        const err = await response.json();
+                        console.warn('Failed to delete audio file from server', err);
+                    } catch (parseErr) {
+                        const txt = await response.text();
+                        console.warn('Failed to delete audio file from server:', txt || response.statusText);
+                    }
             
             // Clear the audio input value
             const audioInput = item.querySelector('input[name$=".audio_path"]');

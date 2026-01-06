@@ -60,25 +60,24 @@ def test_form_submission_with_multilingual_data(page: Page, app_url: str) -> Non
 def test_form_submission_with_grammatical_info(page: Page, app_url: str) -> None:
     """Test form submission with grammatical info (part of speech)."""
     page.goto(f"{app_url}/entries/add")
-    
+
     # Wait for form to load
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
-    
+
     # Fill in basic fields
     page.fill('input.lexical-unit-text', 'test_pos_word')
-    
-    # Select part of speech if available. Wait for options to be loaded, then
-    # prefer selecting "Noun" if present; otherwise select the first non-placeholder option.
+
+    # Select part of speech - fail if options aren't available (critical app failure)
     pos_select = page.locator('#part-of-speech')
     if pos_select.count() > 0:
-        # Wait for options to be populated (allow some retries for async loading)
+        # Wait for options to be populated (ranges must be configured for app to work)
         for _ in range(50):
             option_texts = pos_select.locator('option').all_text_contents()
             if len(option_texts) > 1:
                 break
             page.wait_for_timeout(100)
         else:
-            raise RuntimeError('Timed out waiting for POS options to populate')
+            raise RuntimeError('Timed out waiting for POS options to populate - ranges API may be unavailable')
 
         # Prefer the explicit label 'Noun' if available, otherwise pick first non-empty option
         option_texts = pos_select.locator('option').all_text_contents()

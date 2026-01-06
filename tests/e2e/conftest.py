@@ -335,31 +335,29 @@ def context(browser: Browser) -> Generator[BrowserContext, None, None]:
 
 
 @pytest.fixture(scope="function")
-def page(context: BrowserContext, flask_test_server: str) -> Generator[Page, None, None]:
+def page(context: BrowserContext, flask_test_server) -> Generator[Page, None, None]:
     """Create a new page for each test with base URL."""
+    base_url = flask_test_server  # Now just a string
+
     page = context.new_page()
     page.set_default_timeout(30000)  # 30 seconds
 
     # Automatically select the first project to satisfy project context requirement
     try:
         # Navigate to projects list
-        page.goto(f"{flask_test_server}/settings/projects")
+        page.goto(f"{base_url}/settings/projects")
 
         # Wait for the project list to load
-        # Use a selector that matches the Select button I just added
+        # Use a selector that matches the Select button
         select_button = page.locator("a.btn-success:has-text('Select')").first
 
-        # Check if button exists. If not, maybe we need to create a project?
-        # But setup_e2e_test_database and flask_test_server should have created one.
         if select_button.count() == 0:
-            # Fallback: maybe it's already selected or UI is different
             logger.warning("No project selection button found in E2E page fixture")
         else:
             select_button.click()
             page.wait_for_load_state("networkidle")
 
-            # CRITICAL: Close the wizard modal if it's still open (can happen if it didn't redirect)
-            # or if it was shown on the redirected page.
+            # Close any wizard modals that might be open
             page.evaluate("() => { "
                           "  const m1 = document.getElementById('projectSetupModal'); "
                           "  if (m1) { const inst = bootstrap.Modal.getInstance(m1); if (inst) inst.hide(); } "
@@ -392,9 +390,19 @@ def page(context: BrowserContext, flask_test_server: str) -> Generator[Page, Non
 
 
 @pytest.fixture(scope="function")
-def app_url(flask_test_server: str) -> str:
+def app_url(flask_test_server) -> str:
     """Provide application base URL for tests."""
     return flask_test_server
+
+
+@pytest.fixture(scope="function")
+def app_with_project(flask_test_server_info) -> tuple:
+    """Provide (base_url, project_id) for tests that need project selection.
+
+    Tests should navigate to /settings/projects/{project_id}/select before
+    accessing pages that require a project to be selected.
+    """
+    return flask_test_server_info
 
 
 @pytest.fixture(scope="function")

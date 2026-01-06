@@ -12,6 +12,13 @@ import os
 import tempfile
 
 
+def _get_base_url(flask_test_server):
+    """Extract base URL from flask_test_server fixture which returns (url, project_id)."""
+    if isinstance(flask_test_server, tuple):
+        return flask_test_server[0]
+    return flask_test_server
+
+
 # Sample entries that basex_test_connector adds (matching conftest.py)
 SAMPLE_LIFT_CONTENT = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
@@ -223,7 +230,7 @@ def _restore_database_content():
 
 
 @pytest.fixture(autouse=True)
-def restore_database_for_sorting_tests(flask_test_server):
+def restore_database_for_sorting_tests(base_url):
     """
     Restore test_entry_1 after each test in this module.
 
@@ -234,18 +241,19 @@ def restore_database_for_sorting_tests(flask_test_server):
     _restore_database_content()
 
 
-@pytest.mark.integration 
+@pytest.mark.integration
 def test_date_modified_sorting_ascending(page: Page, flask_test_server):
     """
     Test that sorting by 'Last Modified' in ascending order shows:
     1. Entries with dates first (oldest to newest)
     2. Entries without dates last (empty cells at bottom)
-    
+
     This test verifies Issue #2 from TODO: "Sorting on Last Modified shows '–' at top"
     """
+    base_url = _get_base_url(flask_test_server)
     # Navigate to entries list
-    page.goto(f"{flask_test_server}/entries")
-    expect(page).to_have_url(f"{flask_test_server}/entries")
+    page.goto(f"{base_url}/entries")
+    expect(page).to_have_url(f"{base_url}/entries")
     
     # Wait for entries to finish loading (dynamic content)
     page.wait_for_selector("tbody#entries-list tr[data-entry-id]", timeout=15000)
@@ -329,12 +337,13 @@ def test_date_modified_sorting_ascending(page: Page, flask_test_server):
 def test_date_modified_sorting_descending(page: Page, flask_test_server):
     """
     Test that sorting by 'Last Modified' in descending order shows:
-    1. Entries with dates first (newest to oldest)  
+    1. Entries with dates first (newest to oldest)
     2. Entries without dates last (empty cells at bottom)
     """
+    base_url = _get_base_url(flask_test_server)
     # Navigate to entries list
-    page.goto(f"{flask_test_server}/entries")
-    expect(page).to_have_url(f"{flask_test_server}/entries")
+    page.goto(f"{base_url}/entries")
+    expect(page).to_have_url(f"{base_url}/entries")
     
     # Wait for entries to load
     page.wait_for_selector("table tbody tr", timeout=10000)
@@ -417,16 +426,16 @@ def test_date_modified_sorting_descending(page: Page, flask_test_server):
         print("  (This may happen if the parser adds default dates to all entries)")
 
 
-@pytest.mark.integration
 def test_entry_editing_loads_successfully(page: Page, flask_test_server):
     """
     Test that clicking "Edit" on an entry successfully loads the edit form.
 
     This verifies the regression: "Error loading entry: 'list' object has no attribute 'get'"
     """
+    base_url = _get_base_url(flask_test_server)
     # Navigate to entries list with longer timeout
-    page.goto(f"{flask_test_server}/entries", timeout=30000)
-    expect(page).to_have_url(f"{flask_test_server}/entries")
+    page.goto(f"{base_url}/entries", timeout=30000)
+    expect(page).to_have_url(f"{base_url}/entries")
 
     # Wait for entries to load - use correct selector for actual edit links
     page.wait_for_selector("tbody tr a[href*='/entries/'][href$='/edit']", timeout=15000)
@@ -460,8 +469,8 @@ def test_entry_editing_loads_successfully(page: Page, flask_test_server):
         current_url = page.url
         if f"/entries/{entry_id}/edit" not in current_url:
             # Try navigating directly
-            print(f"Attempting direct navigation to: {flask_test_server}/entries/{entry_id}/edit")
-            page.goto(f"{flask_test_server}/entries/{entry_id}/edit", timeout=30000)
+            print(f"Attempting direct navigation to: {base_url}/entries/{entry_id}/edit")
+            page.goto(f"{base_url}/entries/{entry_id}/edit", timeout=30000)
 
     print(f"Current URL: {page.url}")
 
@@ -495,16 +504,16 @@ def test_entry_editing_loads_successfully(page: Page, flask_test_server):
     print(f"Edit form loaded successfully with lexical unit: {lexical_unit_value}")
 
 
-@pytest.mark.integration  
 def test_entry_editing_save_functionality(page: Page, flask_test_server):
     """
     Test that editing an entry and saving it works without errors.
-    
+
     This is a comprehensive test of the edit workflow.
     """
+    base_url = _get_base_url(flask_test_server)
     # Navigate to entries list
-    page.goto(f"{flask_test_server}/entries")
-    expect(page).to_have_url(f"{flask_test_server}/entries")
+    page.goto(f"{base_url}/entries")
+    expect(page).to_have_url(f"{base_url}/entries")
     
     # Wait for entries to load - entries are dynamically loaded via JavaScript
     # Wait for at least one entry row to have actual data (href links)
@@ -536,7 +545,7 @@ def test_entry_editing_save_functionality(page: Page, flask_test_server):
     except Exception:
         # Navigation may not have occurred, try direct navigation
         print("Navigation wait timed out, attempting direct navigation...")
-        page.goto(f"{flask_test_server}/entries/{entry_id}/edit")
+        page.goto(f"{base_url}/entries/{entry_id}/edit")
         page.wait_for_load_state("networkidle", timeout=5000)
     
     # Get original value
@@ -599,14 +608,14 @@ def test_entry_editing_save_functionality(page: Page, flask_test_server):
     print(f"Entry successfully edited and saved with new value: {new_value}")
 
 
-@pytest.mark.integration
 def test_multiple_entries_sorting_consistency(page: Page, flask_test_server):
     """
     Test that sorting works consistently across multiple clicks and doesn't break.
     """
+    base_url = _get_base_url(flask_test_server)
     # Navigate to entries list
-    page.goto(f"{flask_test_server}/entries")
-    expect(page).to_have_url(f"{flask_test_server}/entries")
+    page.goto(f"{base_url}/entries")
+    expect(page).to_have_url(f"{base_url}/entries")
     
     # Wait for entries to load
     page.wait_for_selector("table tbody tr", timeout=10000)

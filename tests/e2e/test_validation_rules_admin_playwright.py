@@ -14,6 +14,13 @@ import json
 import os
 import time
 
+def _get_base_url(flask_test_server):
+    """Extract base URL from flask_test_server fixture which returns (url, project_id)."""
+    if isinstance(flask_test_server, tuple):
+        return flask_test_server[0]
+    return flask_test_server
+
+
 
 def close_any_modal(page):
     """Close any open modal dialog."""
@@ -39,8 +46,9 @@ class TestValidationRulesAdminPage:
 
     def test_page_loads_successfully(self, page, flask_test_server):
         """Test that the validation rules admin page loads without errors."""
+        base_url = _get_base_url(flask_test_server)
         # Navigate to the validation rules admin page
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         # Check page title
@@ -52,7 +60,8 @@ class TestValidationRulesAdminPage:
 
     def test_project_selector_present(self, page, flask_test_server):
         """Test that project selector dropdown is present."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         project_selector = page.locator("#project-selector")
@@ -64,7 +73,8 @@ class TestValidationRulesAdminPage:
 
     def test_no_project_alert_visible_initially(self, page, flask_test_server):
         """Test that the 'no project selected' alert is visible initially."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         no_project_alert = page.locator("#no-project-alert")
@@ -73,7 +83,8 @@ class TestValidationRulesAdminPage:
 
     def test_rules_editor_container_hidden_initially(self, page, flask_test_server):
         """Test that rules editor container is hidden until project is selected."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         rules_container = page.locator("#rules-editor-container")
@@ -81,7 +92,8 @@ class TestValidationRulesAdminPage:
 
     def test_initialize_from_template_button_present(self, page, flask_test_server):
         """Test that Initialize from Template button is present."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         init_button = page.locator("button:has-text('Initialize from Template')")
@@ -93,7 +105,8 @@ class TestProjectSelection:
 
     def test_selecting_project_shows_editor(self, page, flask_test_server):
         """Test that selecting a project shows the rules editor."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         # Select a project
@@ -113,7 +126,8 @@ class TestProjectSelection:
 
     def test_rules_list_panel_visible(self, page, flask_test_server):
         """Test that rules list panel is visible after project selection."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         # Ensure project is selected
@@ -127,7 +141,8 @@ class TestProjectSelection:
 
     def test_rule_editor_panel_visible(self, page, flask_test_server):
         """Test that rule editor panel is visible after project selection."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
         # Ensure project is selected
@@ -147,7 +162,8 @@ class TestValidationRulesCRUD:
     @pytest.fixture(autouse=True)
     def setup_project(self, page, flask_test_server):
         """Ensure project is selected before each test."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
         close_any_modal(page)
         project_selector = page.locator("#project-selector")
@@ -303,7 +319,8 @@ class TestValidationRulesFilters:
     @pytest.fixture(autouse=True)
     def setup_with_rules(self, page, flask_test_server):
         """Ensure project is selected and we have some rules."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
         close_any_modal(page)
         project_selector = page.locator("#project-selector")
@@ -370,7 +387,8 @@ class TestTemplateInitialization:
     @pytest.fixture(autouse=True)
     def setup_project(self, page, flask_test_server):
         """Ensure project is selected."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
         close_any_modal(page)
         project_selector = page.locator("#project-selector")
@@ -421,7 +439,8 @@ class TestImportExport:
     @pytest.fixture(autouse=True)
     def setup_project(self, page, flask_test_server):
         """Ensure project is selected."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
         close_any_modal(page)
         project_selector = page.locator("#project-selector")
@@ -452,7 +471,8 @@ class TestRuleTesting:
     @pytest.fixture(autouse=True)
     def setup_with_rule(self, page, flask_test_server):
         """Ensure project is selected and a rule is selected."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
         close_any_modal(page)
         project_selector = page.locator("#project-selector")
@@ -540,7 +560,8 @@ class TestSaveDiscard:
     @pytest.fixture(autouse=True)
     def setup_with_changes(self, page, flask_test_server):
         """Ensure project is selected and make some changes."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
         close_any_modal(page)
         project_selector = page.locator("#project-selector")
@@ -586,7 +607,8 @@ class TestRulesStats:
     @pytest.fixture(autouse=True)
     def setup_with_rules(self, page, flask_test_server):
         """Ensure project is selected and add some rules."""
-        page.goto(f"{flask_test_server}/validation-rules-admin")
+        base_url = _get_base_url(flask_test_server)
+        page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
         close_any_modal(page)
         project_selector = page.locator("#project-selector")

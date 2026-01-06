@@ -13,10 +13,28 @@ class InlineValidationManager {
         this.validationTimeouts = new Map();
         this.validationCache = new Map();
         this.activeValidations = new Set();
-        
+
         this.init();
     }
-    
+
+    /**
+     * Get CSRF token from meta tag
+     */
+    getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    /**
+     * Get fetch headers with CSRF token
+     */
+    getHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': this.getCsrfToken()
+        };
+    }
+
     init() {
         this.setupFieldValidation();
         this.setupSectionValidation();
@@ -151,9 +169,7 @@ class InlineValidationManager {
             // Make validation request
             const response = await fetch(this.validationEndpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: this.getHeaders(),
                 body: JSON.stringify({
                     field: fieldId,
                     value: value,
@@ -223,9 +239,7 @@ class InlineValidationManager {
             // Make section validation request
             const response = await fetch(this.sectionEndpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: this.getHeaders(),
                 body: JSON.stringify({
                     section: sectionId,
                     fields: fields,
@@ -461,9 +475,7 @@ class InlineValidationManager {
             
             const response = await fetch('/api/validation/form', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: this.getHeaders(),
                 body: JSON.stringify({
                     entry_data: formData
                 })

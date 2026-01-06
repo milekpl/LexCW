@@ -211,9 +211,11 @@ def create_app(config_name=None):
 
     # Create PostgreSQL connection pool and create tables
     app.pg_pool = None
-    
+
     # Skip PostgreSQL connection in testing mode (uses SQLite in-memory)
-    if not app.config.get('TESTING'):
+    # BUT allow PostgreSQL for E2E tests which need workset functionality
+    is_testing = app.config.get('TESTING') and not app.config.get('E2E_TESTING')
+    if not is_testing:
         try:
             # Add connection timeout to prevent hanging
             pg_pool = psycopg2.pool.SimpleConnectionPool(
@@ -316,7 +318,9 @@ def create_app(config_name=None):
 
 
     # In testing mode, log redirects to help triage UI auth/redirect issues
-    if app.config.get('TESTING'):
+    # (This includes E2E mode)
+    is_testing = app.config.get('TESTING') or app.config.get('E2E_TESTING')
+    if is_testing:
         @app.after_request
         def log_redirects(response):
             try:
@@ -360,8 +364,9 @@ def create_app(config_name=None):
             database=basex_database
         )
         
-        # Only connect during non-test environments
-        if not app.testing:
+        # Only connect during non-test environments (but allow E2E tests to connect)
+        is_testing = app.testing and not app.config.get('E2E_TESTING')
+        if not is_testing:
             try:
                 basex_connector.connect()
                 app.logger.info("Successfully connected to BaseX server")
@@ -370,7 +375,8 @@ def create_app(config_name=None):
 
         # Initialize and bind OperationHistoryService
         from app.services.operation_history_service import OperationHistoryService
-        history_path = os.path.join(app.instance_path, 'operation_history_test.json') if app.testing else os.path.join(app.instance_path, 'operation_history.json')
+        is_testing = app.testing and not app.config.get('E2E_TESTING')
+        history_path = os.path.join(app.instance_path, 'operation_history_test.json') if is_testing else os.path.join(app.instance_path, 'operation_history.json')
         operation_history_service = OperationHistoryService(history_file_path=history_path)
         binder.bind(OperationHistoryService, to=operation_history_service, scope=singleton)
 
@@ -382,14 +388,15 @@ def create_app(config_name=None):
             basex_connector,
             backup_directory=os.path.join(app.instance_path, "backups"),
         )
-        backup_scheduler = BackupScheduler(backup_manager)
+        backup_scheduler = BackupScheduler(backup_manager, app=app)
         
         # Load backup settings: moved after ConfigManager is initialized to avoid
         # accessing the database before an application context is active.
         # (Actual load happens after ConfigManager binding below.)
 
-        # Start the backup scheduler only in non-testing environments
-        if not app.config.get('TESTING'):
+        # Start the backup scheduler only in non-testing environments (but allow E2E tests)
+        is_testing = app.config.get('TESTING') and not app.config.get('E2E_TESTING')
+        if not is_testing:
             backup_scheduler.start()
             app.logger.info("Backup scheduler started")
 
@@ -423,8 +430,9 @@ def create_app(config_name=None):
         binder.bind(BaseXBackupManager, to=backup_manager, scope=singleton)
         binder.bind(BackupScheduler, to=backup_scheduler, scope=singleton)
 
-        # Load backup settings and schedule backups if configured (only in non-testing)
-        if not app.config.get('TESTING'):
+        # Load backup settings and schedule backups if configured (only in non-testing, allow E2E)
+        is_testing = app.config.get('TESTING') and not app.config.get('E2E_TESTING')
+        if not is_testing:
             try:
                 from app.models.project_settings import ProjectSettings
                 from app.models.backup_models import ScheduledBackup
@@ -514,9 +522,10 @@ def create_app(config_name=None):
 
         # After services are configured, attempt an initial scan to populate
         # custom ranges derived from LIFT data. Do this only when not in testing
-        # mode to avoid noise in unit tests.
+        # mode to avoid noise in unit tests (but allow E2E tests).
         try:
-            if not app.testing:
+            is_testing = app.testing and not app.config.get('E2E_TESTING')
+            if not is_testing:
                 # Ensure application context is active for DB access during scan
                 with app.app_context():
                     dictionary_service.scan_and_create_custom_ranges(project_id=1)

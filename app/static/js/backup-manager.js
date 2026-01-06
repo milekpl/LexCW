@@ -10,6 +10,24 @@ class BackupManager {
         this.init();
     }
 
+    /**
+     * Get CSRF token from meta tag
+     */
+    getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    /**
+     * Get fetch headers with CSRF token
+     */
+    getHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': this.getCsrfToken()
+        };
+    }
+
     init() {
         this.bindEvents();
         this.loadBackupHistory();
@@ -127,9 +145,7 @@ class BackupManager {
             }
             const response = await fetch('/api/backup/create', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: this.getHeaders(),
                 body: JSON.stringify({
                     db_name: window.CURRENT_DB_NAME || 'dictionary',
                     description: description || null,
@@ -621,7 +637,8 @@ class BackupManager {
 
         try {
             const response = await fetch(`/api/backup/${this.currentBackupId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: this.getHeaders()
             });
 
             if (response.ok) {
@@ -635,8 +652,14 @@ class BackupManager {
                 }
                 await this.loadBackupHistory();
             } else {
-                const error = await response.json();
-                this.showToast(`Delete failed: ${error.error || 'Unknown error'}`, 'error');
+                // Some servers return HTML error pages when CSRF fails; be robust and try JSON first, then fallback to text
+                try {
+                    const error = await response.json();
+                    this.showToast(`Delete failed: ${error.error || 'Unknown error'}`, 'error');
+                } catch (parseErr) {
+                    const text = await response.text();
+                    this.showToast(`Delete failed: ${text || response.statusText || 'Unknown error'}`, 'error');
+                }
             }
         } catch (error) {
             console.error('Error during delete:', error);
@@ -664,7 +687,7 @@ class BackupManager {
 
             const response = await fetch(`/api/backup/restore/${this.currentBackupId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getHeaders(),
                 body: JSON.stringify({ db_name: backup.db_name, backup_file_path: backup.file_path })
             });
 
@@ -679,8 +702,13 @@ class BackupManager {
                 // Refresh backup history
                 await this.loadBackupHistory();
             } else {
-                const error = await response.json();
-                this.showToast(`Restore failed: ${error.error || 'Unknown error'}`, 'error');
+                try {
+                    const error = await response.json();
+                    this.showToast(`Restore failed: ${error.error || 'Unknown error'}`, 'error');
+                } catch (parseErr) {
+                    const text = await response.text();
+                    this.showToast(`Restore failed: ${text || response.statusText || 'Unknown error'}`, 'error');
+                }
             }
         } catch (error) {
             console.error('Error during restore:', error);

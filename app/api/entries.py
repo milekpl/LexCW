@@ -387,16 +387,7 @@ def update_entry(entry_id: str) -> Any:
         except Exception as e:
             logger.warning(f"[SENSE UPDATE] xml_service update failed, falling back to dict_service: {e}")
 
-        # Process form data to handle field format conversions
-        from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
-        existing_entry_data = {}  # We'll get the actual entry below
-        data = merge_form_data_with_entry_data(data, existing_entry_data)
-
-        # Create entry object
-        # Check if skip_validation parameter is set (extract BEFORE creating Entry)
-        skip_validation = data.pop('skip_validation', False) or request.args.get('skip_validation', 'false').lower() == 'true'
-
-        # Preserve date_created, update date_modified
+        # Get existing entry BEFORE processing form data to preserve fields not in form
         existing_entry = get_dictionary_service().get_entry(entry_id)
         logger.info(f"[SENSE UPDATE] Existing entry has {len(existing_entry.senses) if existing_entry and existing_entry.senses else 0} senses")
         if existing_entry and existing_entry.senses:
@@ -404,6 +395,18 @@ def update_entry(entry_id: str) -> Any:
                 logger.info(f"[SENSE UPDATE] Existing sense {i}: id={sense.id}")
                 logger.info(f"[SENSE UPDATE] Existing sense {i} definition: {sense.definition}")
 
+        # Convert existing entry to dict for merging (must be done before calling merge)
+        existing_entry_data = existing_entry.to_dict() if existing_entry else {}
+
+        # Process form data to handle field format conversions (merge preserves fields not in form)
+        from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
+        data = merge_form_data_with_entry_data(data, existing_entry_data)
+
+        # Create entry object
+        # Check if skip_validation parameter is set (extract BEFORE creating Entry)
+        skip_validation = data.pop('skip_validation', False) or request.args.get('skip_validation', 'false').lower() == 'true'
+
+        # Preserve date_created, update date_modified
         if existing_entry and existing_entry.date_created:
             data['date_created'] = existing_entry.date_created
         data['date_modified'] = datetime.datetime.utcnow().isoformat()

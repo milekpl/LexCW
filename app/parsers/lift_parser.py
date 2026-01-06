@@ -1128,8 +1128,8 @@ class LIFTRangesParser:
             'id': range_id,
             'guid': elem.get('guid', ''),
             'values': self._parse_range_hierarchy(elem, range_id),
-            'labels': self._parse_multitext(elem, './lift:label'),
-            'description': self._parse_multitext(elem, './lift:description')
+            'labels': self._parse_multitext(elem, './/lift:label'),
+            'description': self._parse_multitext(elem, './/lift:description')
         }
 
     def _parse_range_hierarchy(self, parent: ET.Element, range_id: str) -> List[Dict[str, Any]]:

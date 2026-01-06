@@ -77,3 +77,4 @@ basex/.pid
 basex/BaseX.jar
 basex/lib/*.jar
 *.jar
+cookies.txt

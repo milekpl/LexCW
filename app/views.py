@@ -1485,6 +1485,34 @@ def worksets():
         ), 500
 
 
+@workbench_bp.route("/worksets/<int:workset_id>/curate")
+def workset_curate(workset_id: int):
+    """Render the workset curation interface."""
+    try:
+        # Get workset info from database
+        from flask import current_app
+        with current_app.pg_pool.getconn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT name, total_entries FROM worksets WHERE id = %s", (workset_id,))
+                row = cur.fetchone()
+                if not row:
+                    return render_template("error.html", error_message="Workset not found"), 404
+                workset_name = row[0]
+                total_entries = row[1]
+
+        return render_template(
+            "workbench/workset_curation.html",
+            workset_id=workset_id,
+            workset_name=workset_name,
+            total_entries=total_entries
+        )
+    except Exception as e:
+        logger.error(f"Error rendering workset curation: {e}")
+        return render_template(
+            "error.html", error_message="Failed to load workset curation"
+        ), 500
+
+
 @workbench_bp.route("/bulk-operations")
 def bulk_operations():
     """Render the bulk operations interface."""
