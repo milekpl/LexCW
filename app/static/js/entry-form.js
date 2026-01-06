@@ -260,6 +260,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /**
+     * Propagate entry-level POS to senses that don't have a POS set.
+     * Called when user changes the entry-level #part-of-speech select.
+     */
+    function propagatePosToSenses() {
+        const entryPosSelect = document.getElementById('part-of-speech');
+        if (!entryPosSelect) return;
+
+        const entryPos = entryPosSelect.value;
+        if (!entryPos) return;  // Don't propagate empty values
+
+        const sensePosSelects = document.querySelectorAll('#senses-container .dynamic-grammatical-info');
+
+        sensePosSelects.forEach(senseSelect => {
+            // Only set POS on senses that don't have a value yet
+            if (!senseSelect.value || senseSelect.value.trim() === '') {
+                senseSelect.value = entryPos;
+
+                // Trigger change event so any listeners update UI state
+                const event = new Event('change', { bubbles: true });
+                senseSelect.dispatchEvent(event);
+            }
+        });
+
+        // After propagation, update inheritance state to reflect new sense values
+        updateGrammaticalCategoryInheritance();
+    }
+
+    /**
      * Sets up event listeners for the grammatical category inheritance logic.
      */
     function setupGrammaticalInheritanceListeners() {
@@ -269,6 +297,10 @@ document.addEventListener('DOMContentLoaded', function() {
             entryForm.addEventListener('change', function(e) {
                 if (e.target.matches('#senses-container .dynamic-grammatical-info')) {
                     updateGrammaticalCategoryInheritance();
+                }
+                // Listen for entry-level POS changes and propagate to senses
+                if (e.target.id === 'part-of-speech') {
+                    propagatePosToSenses();
                 }
             });
         }
