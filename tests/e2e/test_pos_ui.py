@@ -37,10 +37,11 @@ def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
     else:
         page.click("#add-sense-btn")
 
-    page.wait_for_timeout(1000)
-
-    # Wait for a real sense to appear
-    page.locator('.sense-item:not(#default-sense-template):visible').first.wait_for(state='visible', timeout=5000)
+    # Wait for a visible definition textarea to appear
+    for _ in range(50):
+        if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            break
+        page.wait_for_timeout(100)
 
     # Fill in sense definition
     sense_definition = page.locator(".sense-item .definition-text").first
@@ -48,7 +49,12 @@ def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
 
     # Add second sense
     page.click("#add-sense-btn")
-    page.wait_for_timeout(1000)
+
+    # Wait for a second visible definition textarea to appear
+    for _ in range(50):
+        if page.locator('textarea[name*="definition"]:visible').count() > 1:
+            break
+        page.wait_for_timeout(100)
 
     # Fill in second sense definition
     sense_definitions = page.locator(".sense-item .definition-text")
@@ -72,12 +78,12 @@ def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
 
     # Verify POS propagated to first sense
     sense_pos_selects = page.locator(".sense-item .dynamic-grammatical-info")
-    first_sense_pos = sense_pos_selects.nth(0).get_attribute('value')
+    first_sense_pos = sense_pos_selects.nth(0).input_value()
     print(f"First sense POS: {first_sense_pos}")
     assert first_sense_pos == "Adjective", f"First sense POS should inherit 'Adjective', got '{first_sense_pos}'"
 
     # Verify POS propagated to second sense
-    second_sense_pos = sense_pos_selects.nth(1).get_attribute('value')
+    second_sense_pos = sense_pos_selects.nth(1).input_value()
     print(f"Second sense POS: {second_sense_pos}")
     assert second_sense_pos == "Adjective", f"Second sense POS should inherit 'Adjective', got '{second_sense_pos}'"
 
@@ -133,18 +139,18 @@ def test_entry_pos_propagation_with_existing_sense_pos(page: Page, flask_test_se
     page.wait_for_timeout(1000)
 
     # Verify entry-level POS is "Adjective"
-    entry_pos_value = page.locator("#part-of-speech").get_attribute('value')
+    entry_pos_value = page.locator("#part-of-speech").input_value()
     print(f"Entry-level POS: {entry_pos_value}")
     assert entry_pos_value == "Adjective", f"Entry POS should be 'Adjective', got '{entry_pos_value}'"
 
     # First sense should remain "Verb" (it was set before entry POS)
     sense_pos_selects = page.locator(".sense-item .dynamic-grammatical-info")
-    first_sense_pos = sense_pos_selects.nth(0).get_attribute('value')
+    first_sense_pos = sense_pos_selects.nth(0).input_value()
     print(f"First sense POS: {first_sense_pos}")
     assert first_sense_pos == "Verb", f"First sense POS should remain 'Verb', got '{first_sense_pos}'"
 
     # Second sense should become "Adjective" (inherited from entry)
-    second_sense_pos = sense_pos_selects.nth(1).get_attribute('value')
+    second_sense_pos = sense_pos_selects.nth(1).input_value()
     print(f"Second sense POS: {second_sense_pos}")
     assert second_sense_pos == "Adjective", f"Second sense POS should inherit 'Adjective', got '{second_sense_pos}'"
 
