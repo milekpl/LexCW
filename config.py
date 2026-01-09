@@ -68,10 +68,11 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     """Testing configuration."""
-    
+
     DEBUG = False
     TESTING = True
-    BASEX_DATABASE = os.environ.get('TEST_DB_NAME') or 'dictionary_test'
+    # Use a safe database name that passes the safety check (starts with 'test_', no protected patterns)
+    BASEX_DATABASE = os.environ.get('TEST_DB_NAME') or 'test_entries_db'
     
     # PostgreSQL test configuration
     PG_HOST = os.environ.get('POSTGRES_TEST_HOST') or 'localhost'
