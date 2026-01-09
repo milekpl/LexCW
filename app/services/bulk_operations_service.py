@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional
 from app.services.dictionary_service import DictionaryService
 from app.services.workset_service import WorksetService
 from app.services.operation_history_service import OperationHistoryService
+from app.utils.exceptions import NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -51,17 +52,31 @@ class BulkOperationsService:
         results = []
 
         for entry_id in entry_ids:
+            print(f"=== DEBUG: Processing entry_id={entry_id} ===")
             try:
                 entry = self.dictionary.get_entry(entry_id)
+                print(f"=== DEBUG: get_entry returned type={type(entry).__name__} for {entry_id} ===")
+            except NotFoundError:
+                print(f"=== DEBUG: NotFoundError for {entry_id} ===")
+                results.append({
+                    'id': entry_id,
+                    'status': 'error',
+                    'error': 'Entry not found'
+                })
+                continue
+
+            print(f"=== DEBUG: entry={entry}, id(entry)={id(entry) if entry else None} ===")
+            try:
                 if entry:
                     old_value = entry.traits.get(from_trait)
                     # Apply trait conversion
                     entry.convert_trait(from_trait, old_value, to_trait)
-                    updated = self.dictionary.update_entry(entry)
+                    self.dictionary.update_entry(entry)
+                    # update_entry returns None but modifies entry in place
                     results.append({
                         'id': entry_id,
                         'status': 'success',
-                        'data': {'traits': updated.traits}
+                        'data': {'traits': entry.traits}
                     })
 
                     # Record operation for undo/redo
@@ -110,15 +125,25 @@ class BulkOperationsService:
         for entry_id in entry_ids:
             try:
                 entry = self.dictionary.get_entry(entry_id)
+            except NotFoundError:
+                results.append({
+                    'id': entry_id,
+                    'status': 'error',
+                    'error': 'Entry not found'
+                })
+                continue
+
+            try:
                 if entry:
                     old_pos = entry.grammatical_info
                     # Apply POS update
                     entry.update_grammatical_info(pos_tag)
-                    updated = self.dictionary.update_entry(entry)
+                    self.dictionary.update_entry(entry)
+                    # update_entry returns None but modifies entry in place
                     results.append({
                         'id': entry_id,
                         'status': 'success',
-                        'data': {'grammatical_info': updated.grammatical_info}
+                        'data': {'grammatical_info': entry.grammatical_info}
                     })
 
                     # Record operation for undo/redo

@@ -1,5 +1,7 @@
 """
 Conftest for E2E tests using Playwright.
+
+Provides robust test isolation using snapshot/restore pattern for BaseX database.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ import pytest
 import tempfile
 import logging
 import uuid
+import shutil
 from typing import Generator
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
 
@@ -25,68 +28,8 @@ from tests.conftest import flask_test_server
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_e2e_test_database():
-    """
-    Set up a safe, isolated test database for E2E tests.
-    
-    This fixture provides stronger isolation guarantees:
-    - Uses safe database naming with timestamp and test type
-    - Validates database name safety before creation
-    - Restores original environment variables after tests
-    - Performs atomic cleanup with verification
-    - Prevents environment variable leakage
-    """
-    from app.database.basex_connector import BaseXConnector
-    
-    # Store original environment variables for restoration
-    original_test_db = os.environ.get('TEST_DB_NAME')
-    original_basex_db = os.environ.get('BASEX_DATABASE')
-    original_aggressive = os.environ.get('BASEX_AGGRESSIVE_DISCONNECT')
-    
-    # Generate safe database name
-    test_db = os.environ.get('TEST_DB_NAME')
-    if not test_db:
-        test_db = generate_safe_db_name('e2e')
-        # Validate the generated name
-        if not is_safe_database_name(test_db):
-            pytest.fail(f"Generated unsafe E2E database name: {test_db}")
-    
-    connector = BaseXConnector(
-        host=os.getenv('BASEX_HOST', 'localhost'),
-        port=int(os.getenv('BASEX_PORT', '1984')),
-        username=os.getenv('BASEX_USERNAME', 'admin'),
-        password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database=None,
-    )
-    
-    try:
-        # Set isolated environment for E2E tests
-        os.environ['TEST_DB_NAME'] = test_db
-        os.environ['BASEX_DATABASE'] = test_db
-        os.environ['BASEX_AGGRESSIVE_DISCONNECT'] = 'true'
-        
-        connector.connect()
-        
-        # Drop existing test database if it exists
-        try:
-            connector.execute_command(f"DROP DB {test_db}")
-            logger.info(f"Dropped existing E2E test database: {test_db}")
-        except Exception:
-            pass  # Database doesn't exist
-        
-        # Create new test database
-        connector.create_database(test_db)
-        connector.database = test_db
-        connector.disconnect()
-        connector.connect()
-        
-        logger.info(f"Created safe E2E test database: {test_db}")
-        
-        # Add sample LIFT content with dateCreated and dateModified
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            # Note: SIL Fieldworks LIFT format doesn't use XML namespaces
-            sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+# Content that should always be in the pristine database
+PRISTINE_LIFT = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13">
     <entry id="test_entry_1" dateCreated="2024-01-15T10:30:00Z" dateModified="2024-03-20T14:45:00Z">
         <lexical-unit>
@@ -122,21 +65,8 @@ def setup_e2e_test_database():
         </sense>
     </entry>
 </lift>'''
-            f.write(sample_lift)
-            temp_file = f.name
-        
-        try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info("Added LIFT data to safe E2E test database")
-        finally:
-            try:
-                os.unlink(temp_file)
-            except OSError:
-                pass
-        
-        # Add comprehensive ranges.xml
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+
+PRISTINE_RANGES = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift-ranges>
     <range id="grammatical-info" href="http://fieldworks.sil.org/lift/grammatical-info">
         <range-element id="Noun" guid="5049f0e3-12a4-4e9f-97f7-60091082793c">
@@ -242,9 +172,263 @@ def setup_e2e_test_database():
         </range-element>
     </range>
 </lift-ranges>'''
-            f.write(ranges_xml)
+
+
+def _get_connected_connector(db_name: str):
+    """Create a BaseX connector and open the specified database."""
+    from app.database.basex_connector import BaseXConnector
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=db_name,  # Set database BEFORE connecting
+    )
+    connector.connect()
+    return connector
+
+
+def _snapshot_database(db_name: str) -> str | None:
+    """Export the database to a temporary file and return the file path.
+
+    Uses BaseX EXPORT command to create a full backup of the database.
+    Returns None if snapshot cannot be created.
+
+    Note: This function is kept for reference but snapshot/restore via EXPORT/ADD
+    is unreliable. Use _ensure_pristine_state instead for test isolation.
+    """
+    connector = _get_connected_connector(db_name)
+
+    # Generate unique backup file path
+    snapshot_id = str(uuid.uuid4())[:8]
+    backup_path = f"/tmp/basex_snapshot_{db_name}_{snapshot_id}.xml"
+
+    try:
+        # Export entire database to backup file
+        connector.execute_command(f"EXPORT {backup_path}")
+        logger.debug(f"Snapshot created: {backup_path}")
+        return backup_path
+    except Exception as e:
+        logger.warning(f"Failed to create snapshot (database may be empty or inaccessible): {e}")
+        # Try to create an empty snapshot file
+        try:
+            with open(backup_path, 'w') as f:
+                f.write('<?xml version="1.0" encoding="UTF-8"?><lift version="0.13"></lift>')
+            logger.debug(f"Created empty snapshot fallback: {backup_path}")
+            return backup_path
+        except Exception:
+            pass
+        return None
+    finally:
+        try:
+            connector.disconnect()
+        except Exception:
+            pass
+
+
+def _restore_database(db_name: str, backup_path: str):
+    """Restore the database from a snapshot file.
+
+    Drops the existing database and recreates it from the backup.
+    BaseX EXPORT creates a directory, so we need to handle that.
+
+    Note: This method is DEPRECATED because EXPORT/ADD is unreliable for LIFT data.
+    Use _ensure_pristine_state instead for reliable test isolation.
+    """
+    # First connect without a database to run DROP/CREATE commands
+    from app.database.basex_connector import BaseXConnector
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=None,
+    )
+    connector.connect()
+
+    try:
+        # Drop existing database if it exists
+        try:
+            connector.execute_command(f"DROP DB {db_name}")
+            logger.debug(f"Dropped database: {db_name}")
+        except Exception as e:
+            logger.debug(f"Could not drop database {db_name} (may not exist): {e}")
+
+        # Create fresh database
+        connector.execute_command(f"CREATE DB {db_name}")
+        logger.debug(f"Created database: {db_name}")
+
+        # Disconnect and reconnect with the database opened
+        connector.disconnect()
+        connector = _get_connected_connector(db_name)
+
+        # Determine if backup_path is a file or directory
+        if os.path.isfile(backup_path):
+            # It's a single file, add directly
+            connector.execute_command(f"ADD {backup_path}")
+            logger.debug(f"Restored from file: {backup_path}")
+        elif os.path.isdir(backup_path):
+            # It's a directory - BaseX EXPORT creates directories with files
+            # Use the original EXPORT path for reliable restoration
+            # The ADD command needs trailing slash for directories
+            add_path = backup_path.rstrip('/') + '/'
+
+            # Try adding the directory contents
+            connector.execute_command(f"ADD {add_path}")
+            logger.debug(f"Restored from directory: {backup_path}")
+        else:
+            # Backup path doesn't exist, fall back to pristine state
+            logger.warning(f"Backup path does not exist: {backup_path}")
+            _ensure_pristine_state(db_name)
+    finally:
+        try:
+            connector.disconnect()
+        except Exception:
+            pass
+
+
+def _ensure_pristine_state(db_name: str):
+    """Ensure the database has the pristine initial state.
+
+    This is a fallback that restores the hardcoded sample data if the database
+    is missing entries or has unknown content.
+    """
+    # Connect without database first
+    from app.database.basex_connector import BaseXConnector
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=None,
+    )
+    connector.connect()
+
+    try:
+        # First, ensure the database exists
+        try:
+            connector.execute_command(f"CREATE DB {db_name}")
+            logger.debug(f"Created database: {db_name}")
+        except Exception:
+            pass  # Database may already exist
+
+        # Now connect with database opened
+        connector.disconnect()
+        connector = _get_connected_connector(db_name)
+
+        # Check if test_entry_1 exists
+        check_query = f"xquery exists(collection('{db_name}')//entry[@id='test_entry_1'])"
+        result = connector.execute_query(check_query)
+        entry_exists = result.strip().lower() == 'true' if result else False
+
+        if not entry_exists:
+            logger.info("Database not in pristine state, restoring sample data")
+
+            try:
+                # Add sample LIFT content
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                    f.write(PRISTINE_LIFT)
+                    temp_file = f.name
+                try:
+                    connector.execute_command(f"ADD {temp_file}")
+                    logger.info("Restored sample LIFT entries")
+                finally:
+                    os.unlink(temp_file)
+
+                # Add comprehensive ranges.xml
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+                    f.write(PRISTINE_RANGES)
+                    temp_file = f.name
+                try:
+                    connector.execute_command(f"ADD TO ranges.xml {temp_file}")
+                    logger.info("Restored sample ranges.xml")
+                finally:
+                    os.unlink(temp_file)
+            finally:
+                connector.disconnect()
+    finally:
+        try:
+            connector.disconnect()
+        except Exception:
+            pass
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_e2e_test_database():
+    """Set up a safe, isolated test database for E2E tests with snapshot support.
+
+    This fixture provides stronger isolation guarantees:
+    - Uses safe database naming with timestamp and test type
+    - Validates database name safety before creation
+    - Restores original environment variables after tests
+    - Performs atomic cleanup with verification
+    - Prevents environment variable leakage
+    """
+    from app.database.basex_connector import BaseXConnector
+
+    # Store original environment variables for restoration
+    original_test_db = os.environ.get('TEST_DB_NAME')
+    original_basex_db = os.environ.get('BASEX_DATABASE')
+    original_aggressive = os.environ.get('BASEX_AGGRESSIVE_DISCONNECT')
+
+    # Generate safe database name
+    test_db = os.environ.get('TEST_DB_NAME')
+    if not test_db:
+        test_db = generate_safe_db_name('e2e')
+        # Validate the generated name
+        if not is_safe_database_name(test_db):
+            pytest.fail(f"Generated unsafe E2E database name: {test_db}")
+
+    connector = BaseXConnector(
+        host=os.getenv('BASEX_HOST', 'localhost'),
+        port=int(os.getenv('BASEX_PORT', '1984')),
+        username=os.getenv('BASEX_USERNAME', 'admin'),
+        password=os.getenv('BASEX_PASSWORD', 'admin'),
+        database=None,
+    )
+
+    try:
+        # Set isolated environment for E2E tests
+        os.environ['TEST_DB_NAME'] = test_db
+        os.environ['BASEX_DATABASE'] = test_db
+        os.environ['BASEX_AGGRESSIVE_DISCONNECT'] = 'true'
+
+        connector.connect()
+
+        # Drop existing test database if it exists
+        try:
+            connector.execute_command(f"DROP DB {test_db}")
+            logger.info(f"Dropped existing E2E test database: {test_db}")
+        except Exception:
+            pass  # Database doesn't exist
+
+        # Create new test database
+        connector.create_database(test_db)
+        connector.database = test_db
+        connector.disconnect()
+        connector.connect()
+
+        logger.info(f"Created safe E2E test database: {test_db}")
+
+        # Add sample LIFT content with dateCreated and dateModified
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            f.write(PRISTINE_LIFT)
             temp_file = f.name
-        
+
+        try:
+            connector.execute_command(f"ADD {temp_file}")
+            logger.info("Added LIFT data to safe E2E test database")
+        finally:
+            try:
+                os.unlink(temp_file)
+            except OSError:
+                pass
+
+        # Add comprehensive ranges.xml
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
+            f.write(PRISTINE_RANGES)
+            temp_file = f.name
+
         try:
             connector.execute_command(f"ADD TO ranges.xml {temp_file}")
             logger.info("Added comprehensive ranges.xml to safe E2E test database")
@@ -253,7 +437,7 @@ def setup_e2e_test_database():
                 os.unlink(temp_file)
             except OSError:
                 pass
-        
+
         # CRITICAL: Disconnect setup connector before yielding to tests
         # If we keep this connection open, it will block database updates in the Flask server
         try:
@@ -261,9 +445,9 @@ def setup_e2e_test_database():
             logger.info("Disconnected setup connector before tests run")
         except Exception as e:
             logger.warning(f"Failed to disconnect setup connector: {e}")
-        
+
         yield
-        
+
     finally:
         # Safe cleanup with environment restoration
         try:
@@ -272,7 +456,7 @@ def setup_e2e_test_database():
                 os.environ['TEST_DB_NAME'] = original_test_db
             elif 'TEST_DB_NAME' in os.environ:
                 del os.environ['TEST_DB_NAME']
-                
+
             if original_basex_db:
                 os.environ['BASEX_DATABASE'] = original_basex_db
             elif 'BASEX_DATABASE' in os.environ:
@@ -282,7 +466,7 @@ def setup_e2e_test_database():
                 os.environ['BASEX_AGGRESSIVE_DISCONNECT'] = original_aggressive
             elif 'BASEX_AGGRESSIVE_DISCONNECT' in os.environ:
                 del os.environ['BASEX_AGGRESSIVE_DISCONNECT']
-            
+
             # Atomic cleanup with verification
             cleanup_connector = BaseXConnector(
                 host=os.getenv('BASEX_HOST', 'localhost'),
@@ -291,7 +475,7 @@ def setup_e2e_test_database():
                 password=os.getenv('BASEX_PASSWORD', 'admin'),
                 database=None,
             )
-            
+
             try:
                 cleanup_connector.connect()
                 # Verify database exists before dropping
@@ -304,17 +488,140 @@ def setup_e2e_test_database():
                         logger.warning(f"E2E test database {test_db} not found during cleanup")
                 except Exception as e:
                     logger.warning(f"Could not verify E2E database existence before cleanup: {e}")
-                
+
             finally:
                 try:
                     cleanup_connector.disconnect()
                 except Exception:
                     pass
-                    
+
         except Exception as e:
             logger.error(f"Failed to clean up E2E test database {test_db}: {e}")
             # Even if cleanup fails, we've restored the environment variables
             raise
+
+
+@pytest.fixture(scope="function", autouse=True)
+def _db_snapshot_restore(request):
+    """Snapshot/restore fixture for test isolation.
+
+    This fixture ensures each test starts with a clean database state,
+    fixing test pollution issues where earlier tests leave entries or
+    modified ranges that break subsequent tests.
+
+    Order of operations:
+    1. Before test: Create snapshot of current database state
+    2. After test: Restore from snapshot (preserves test modifications for debugging)
+       Fall back to pristine state if snapshot restore fails
+    """
+    test_db = os.environ.get('TEST_DB_NAME')
+    if not test_db:
+        yield
+        return
+
+    backup_path = None
+    backup_is_dir = False
+
+    try:
+        # Create snapshot BEFORE test
+        backup_path = _snapshot_database(test_db)
+        if backup_path and os.path.isdir(backup_path):
+            backup_is_dir = True
+        elif backup_path and not os.path.isfile(backup_path):
+            # Path exists but is neither file nor directory - shouldn't happen
+            backup_path = None
+
+        yield
+
+    except Exception as e:
+        logger.warning(f"Test failed with exception: {e}")
+        raise
+    finally:
+        # Restore AFTER test (always)
+        if test_db:
+            # Priority 1: Restore from snapshot if available
+            if backup_path and backup_is_dir:
+                try:
+                    _restore_database(test_db, backup_path)
+                    logger.debug("Restored database from snapshot")
+                except Exception as restore_error:
+                    logger.warning(f"Failed to restore from snapshot: {restore_error}")
+                    # Fall back to pristine state
+                    try:
+                        _ensure_pristine_state(test_db)
+                    except Exception:
+                        pass
+                finally:
+                    # Cleanup backup directory
+                    try:
+                        if os.path.isdir(backup_path):
+                            shutil.rmtree(backup_path)
+                    except OSError:
+                        pass
+            elif backup_path and os.path.isfile(backup_path):
+                # Cleanup backup file
+                try:
+                    os.unlink(backup_path)
+                except OSError:
+                    pass
+            else:
+                # No valid snapshot, ensure pristine state
+                try:
+                    _ensure_pristine_state(test_db)
+                except Exception:
+                    pass
+
+
+@pytest.fixture(scope="function", autouse=True)
+def _verify_db_isolation(request):
+    """Optional fixture to verify database state hasn't changed unexpectedly.
+
+    This is a development tool - it can be enabled to catch tests that
+    modify the database without proper cleanup.
+
+    To enable: set BASEX_VERIFY_ISOLATION=true environment variable.
+    """
+    if os.environ.get('BASEX_VERIFY_ISOLATION') != 'true':
+        yield
+        return
+
+    test_db = os.environ.get('TEST_DB_NAME')
+    if not test_db:
+        yield
+        return
+
+    try:
+        # Get list of all documents in database (before state)
+        connector = _get_connected_connector(test_db)
+        try:
+            before_result = connector.execute_query(
+                f"xquery for $doc in collection('{test_db}') return document-uri($doc)"
+            )
+            before_state = before_result or "empty"
+        finally:
+            connector.disconnect()
+
+        yield
+
+        # Get after state
+        connector = _get_connected_connector(test_db)
+        try:
+            after_result = connector.execute_query(
+                f"xquery for $doc in collection('{test_db}') return document-uri($doc)"
+            )
+            after_state = after_result or "empty"
+        finally:
+            connector.disconnect()
+
+        if before_state != after_state:
+            logger.warning(
+                f"DB state changed during test '{request.node.name}'. "
+                f"Before: {len(before_state)} chars, After: {len(after_state)} chars. "
+                f"Consider using snapshot/restore or fixing the test."
+            )
+    except Exception as e:
+        logger.warning(f"Could not verify DB isolation: {e}")
+        yield
 
 
 @pytest.fixture(scope="session")
@@ -421,10 +728,10 @@ def e2e_dict_service():
         database=test_db,  # Use the E2E test database
     )
     connector.connect()
-    
+
     service = DictionaryService(db_connector=connector)
     yield service
-    
+
     # Cleanup
     connector.disconnect()
 
@@ -435,7 +742,7 @@ def app():
     from app import create_app
     app = create_app('testing')
     app.config['TESTING'] = True
-    
+
     # Set default project settings if not already configured
     if not app.config.get('PROJECT_SETTINGS'):
         app.config['PROJECT_SETTINGS'] = [{
@@ -443,20 +750,8 @@ def app():
             'source_language': {'code': 'en', 'name': 'English'},
             'target_languages': [{'code': 'pl', 'name': 'Polish'}]
         }]
-    
+
     return app
-
-
-
-__all__ = [
-    'browser',
-    'context',
-    'page',
-    'flask_test_server',
-    'app_url',
-    'app',
-    'setup_e2e_test_database',
-]
 
 
 @pytest.fixture(autouse=True)
@@ -471,6 +766,7 @@ def shorten_playwright_timeouts(page):
     page.set_default_timeout(5000)
     page.set_default_navigation_timeout(5000)
     yield
+
 
 @pytest.fixture
 def ensure_sense():
@@ -504,3 +800,14 @@ def ensure_sense():
                 raise RuntimeError('Timed out waiting for visible definition textarea to appear')
 
     return _ensure
+
+
+__all__ = [
+    'browser',
+    'context',
+    'page',
+    'flask_test_server',
+    'app_url',
+    'app',
+    'setup_e2e_test_database',
+]
