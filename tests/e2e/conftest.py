@@ -353,8 +353,16 @@ def _ensure_pristine_state(db_name: str):
             pass
 
 
+# Custom marker for destructive database tests that need isolation
+def pytest_configure(config):
+    """Register custom pytest markers."""
+    config.addinivalue_line(
+        "markers", "destructive: marks tests that modify database structure (use separate DB)"
+    )
+
+
 @pytest.fixture(scope="session", autouse=True)
-def setup_e2e_test_database():
+def setup_e2e_test_database(request):
     """Set up a safe, isolated test database for E2E tests with snapshot support.
 
     This fixture provides stronger isolation guarantees:
@@ -363,6 +371,7 @@ def setup_e2e_test_database():
     - Restores original environment variables after tests
     - Performs atomic cleanup with verification
     - Prevents environment variable leakage
+    - Destructive tests (@pytest.mark.destructive) are skipped when mixed with other tests
     """
     from app.database.basex_connector import BaseXConnector
 
@@ -371,10 +380,33 @@ def setup_e2e_test_database():
     original_basex_db = os.environ.get('BASEX_DATABASE')
     original_aggressive = os.environ.get('BASEX_AGGRESSIVE_DISCONNECT')
 
+    # Check if any tests in this session are marked as destructive
+    has_destructive_tests = any(
+        test.get_closest_marker("destructive")
+        for test in request.session.items
+    )
+
+    # Check if there are both destructive and non-destructive tests
+    has_normal_tests = any(
+        not test.get_closest_marker("destructive")
+        for test in request.session.items
+    )
+
+    # If we have both destructive and normal tests, skip destructive ones
+    # They need to be run separately
+    if has_destructive_tests and has_normal_tests:
+        for test in request.session.items:
+            if test.get_closest_marker("destructive"):
+                marker = test.get_closest_marker("destructive")
+                if marker:
+                    marker.kwargs["reason"] = marker.kwargs.get("reason", "") + " (run separately: pytest tests/e2e/test_database_operations_e2e.py)"
+                    test.add_marker(pytest.mark.skip(reason="Destructive tests must run separately"))
+
     # Generate safe database name
     test_db = os.environ.get('TEST_DB_NAME')
     if not test_db:
         test_db = generate_safe_db_name('e2e')
+
         # Validate the generated name
         if not is_safe_database_name(test_db):
             pytest.fail(f"Generated unsafe E2E database name: {test_db}")
@@ -509,11 +541,16 @@ def _db_snapshot_restore(request):
     fixing test pollution issues where earlier tests leave entries or
     modified ranges that break subsequent tests.
 
+    IMPORTANT: This fixture has priority over other restore fixtures.
+    It runs FIRST during teardown to preserve the snapshot for restoration.
+
     Order of operations:
     1. Before test: Create snapshot of current database state
     2. After test: Restore from snapshot (preserves test modifications for debugging)
        Fall back to pristine state if snapshot restore fails
     """
+    # Store the request for use in finally block
+    request_fixture = request
     test_db = os.environ.get('TEST_DB_NAME')
     if not test_db:
         yield

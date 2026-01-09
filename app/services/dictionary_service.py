@@ -2287,13 +2287,21 @@ class DictionaryService:
                     self._add_ranges_file_to_database(self.db_connector, temp_db_name, ranges_path)
 
                 # Rest of the merge logic (namespace detection, counting, etc.)
-                return self._import_lift_merge_continue(temp_db_name)
+                result = self._import_lift_merge_continue(temp_db_name)
+
+                # CRITICAL FIX: Add ranges file to the MAIN database after successful merge
+                # Previously, ranges were only added to temp DB which then got dropped
+                if ranges_path and os.path.exists(ranges_path):
+                    self.logger.info("Adding ranges file to main database after merge: %s", ranges_path)
+                    self._add_ranges_file_to_database(self.db_connector, self.db_connector.database, ranges_path)
+
+                return result
 
             finally:
                 # Clean up temp database
                 try:
                     if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
-                        self.db_connector.execute_command(f"CLOSE {temp_db_name}")
+                        self.db_connector.execute_command("CLOSE")
                         self.db_connector.execute_command(f"DROP DB {temp_db_name}")
                         self.logger.info("Temp database cleaned up: %s", temp_db_name)
                 except Exception as e:
@@ -2535,10 +2543,17 @@ class DictionaryService:
                     temp_entries_path_basex = os.path.abspath(temp_entries_path).replace("\\", "/")
                     self.db_connector.execute_command(f'OPEN {self.db_connector.database}')
                     self.db_connector.execute_command(f'ADD "{temp_entries_path_basex}"')
-                    
+
+                    # CRITICAL FIX: Add ranges file to the MAIN database after successful merge
+                    # Previously, ranges were only added to temp DB which then got dropped
+                    ranges_path = lift_path.replace('.lift', '.lift-ranges')
+                    if os.path.exists(ranges_path):
+                        self.logger.info("Adding ranges file to main database after merge: %s", ranges_path)
+                        self._add_ranges_file_to_database(self.db_connector, self.db_connector.database, ranges_path)
+
                     self.logger.info("Merged %d entries from LIFT file", total_count)
                     return total_count
-                    
+
                 finally:
                     # Clean up temporary file
                     try:
@@ -2550,7 +2565,7 @@ class DictionaryService:
                 # Clean up temp database
                 try:
                     if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
-                        self.db_connector.execute_command(f"CLOSE {temp_db_name}")
+                        self.db_connector.execute_command("CLOSE")
                         self.db_connector.execute_command(f"DROP DB {temp_db_name}")
                         self.logger.info("Temp database cleaned up: %s", temp_db_name)
                 except Exception as e:

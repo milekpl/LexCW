@@ -3,14 +3,15 @@ End-to-end tests for database operations using Playwright.
 Tests the actual UI workflow for dropping database content and importing files.
 
 NOTE: These tests perform destructive operations on the test database.
-They use autouse fixtures to restore the database content after each test
-to ensure subsequent tests have the necessary data.
+They are automatically skipped when run together with other tests.
+Run separately: pytest tests/e2e/test_database_operations_e2e.py
 """
 
 import pytest
 import os
 import tempfile
 from playwright.sync_api import Page, expect
+
 
 def _get_base_url(flask_test_server):
     """Extract base URL from flask_test_server fixture which returns (url, project_id)."""
@@ -19,233 +20,20 @@ def _get_base_url(flask_test_server):
     return flask_test_server
 
 
-
-# Sample entries that basex_test_connector adds (matching conftest.py)
-SAMPLE_LIFT_CONTENT = '''<?xml version="1.0" encoding="UTF-8"?>
-<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
-    <entry id="test_entry_1">
-        <lexical-unit>
-            <form lang="en"><text>test</text></form>
-        </lexical-unit>
-        <sense id="test_sense_1">
-            <definition>
-                <form lang="en"><text>A test entry</text></form>
-            </definition>
-            <gloss lang="pl"><text>test</text></gloss>
-        </sense>
-        <variant type="spelling">
-            <form lang="en"><text>teest</text></form>
-            <trait name="type" value="spelling"/>
-        </variant>
-        <relation type="_component-lexeme" ref="other">
-            <trait name="variant-type" value="dialectal"/>
-        </relation>
-    </entry>
-</lift>'''
-
-# Comprehensive ranges.xml
-RANGES_XML = '''<?xml version="1.0" encoding="UTF-8"?>
-<lift-ranges>
-    <range id="grammatical-info" href="http://fieldworks.sil.org/lift/grammatical-info">
-        <range-element id="Noun" guid="5049f0e3-12a4-4e9f-97f7-60091082793c">
-            <label>
-                <form lang="en"><text>Noun</text></form>
-            </label>
-            <abbrev>
-                <form lang="en"><text>n</text></form>
-            </abbrev>
-        </range-element>
-        <range-element id="Verb" guid="5049f0e3-12a4-4e9f-97f7-60091082793d">
-            <label>
-                <form lang="en"><text>Verb</text></form>
-            </label>
-            <abbrev>
-                <form lang="en"><text>v</text></form>
-            </abbrev>
-        </range-element>
-        <range-element id="Adjective" guid="5049f0e3-12a4-4e9f-97f7-60091082793e">
-            <label>
-                <form lang="en"><text>Adjective</text></form>
-            </label>
-            <abbrev>
-                <form lang="en"><text>adj</text></form>
-            </abbrev>
-        </range-element>
-    </range>
-    <range id="lexical-relation" href="http://fieldworks.sil.org/lift/lexical-relation">
-        <range-element id="_component-lexeme" guid="4e1c72b2-7430-4eb9-a9d2-4b31c5620804">
-            <label>
-                <form lang="en"><text>Component</text></form>
-            </label>
-        </range-element>
-        <range-element id="_main-entry" guid="45e6b7ef-0e55-448a-a7f2-93d485712c54">
-            <label>
-                <form lang="en"><text>Main Entry</text></form>
-            </label>
-        </range-element>
-    </range>
-    <range id="semantic-domain-ddp4" href="http://fieldworks.sil.org/lift/semantic-domain-ddp4">
-        <range-element id="1" guid="63403699-07c1-4d82-91ab-f8046c335e11">
-            <label>
-                <form lang="en"><text>Universe, creation</text></form>
-            </label>
-        </range-element>
-        <range-element id="1.1" guid="999581c4-1611-4acb-ae1b-cc1f7e0e18e5" parent="1">
-            <label>
-                <form lang="en"><text>Sky</text></form>
-            </label>
-        </range-element>
-    </range>
-    <range id="anthro-code" href="http://fieldworks.sil.org/lift/anthro-code">
-        <range-element id="1" guid="d12cf2e5-22c8-4826-9d98-8f669f4c5496">
-            <label>
-                <form lang="en"><text>Social organization</text></form>
-            </label>
-        </range-element>
-    </range>
-    <range id="domain-type" href="http://fieldworks.sil.org/lift/domain-type">
-        <range-element id="agriculture" guid="0fc97f63-a059-4894-84bf-c29a58f96dc4">
-            <label>
-                <form lang="en"><text>Agriculture</text></form>
-            </label>
-        </range-element>
-        <range-element id="grammar" guid="56d33d26-e0fb-4840-bea6-e7e1b86f3e95">
-            <label>
-                <form lang="en"><text>Grammar</text></form>
-            </label>
-        </range-element>
-    </range>
-    <range id="usage-type" href="http://fieldworks.sil.org/lift/usage-type">
-        <range-element id="archaic" guid="4f845bbd-1bf4-4c8b-9f50-76f1b69e0d3d">
-            <label>
-                <form lang="en"><text>Archaic</text></form>
-            </label>
-        </range-element>
-        <range-element id="colloquial" guid="cf829d77-cf92-4328-bc86-72a44e42fbf0">
-            <label>
-                <form lang="en"><text>Colloquial</text></form>
-            </label>
-        </range-element>
-    </range>
-    <range id="variant-type" href="http://fieldworks.sil.org/lift/variant-type">
-        <range-element id="spelling" guid="a1b2c3d4-e5f6-7890-abcd-ef0123456789">
-            <label>
-                <form lang="en"><text>Spelling Variant</text></form>
-            </label>
-        </range-element>
-        <range-element id="dialectal" guid="b2c3d4e5-f6a7-8901-bcde-f01234567890">
-            <label>
-                <form lang="en"><text>Dialectal Variant</text></form>
-            </label>
-        </range-element>
-        <range-element id="free" guid="c3d4e5f6-a7b8-9012-cdef-012345678901">
-            <label>
-                <form lang="en"><text>Free Variant</text></form>
-            </label>
-        </range-element>
-        <range-element id="irregular" guid="d4e5f6a7-b8c9-0123-defa-123456789012">
-            <label>
-                <form lang="en"><text>Irregularly Inflected Form</text></form>
-            </label>
-        </range-element>
-    </range>
-</lift-ranges>'''
-
-
-def _restore_database_content():
-    """Restore ranges.xml AND sample entries to the test database."""
-    import logging
-    from app.database.basex_connector import BaseXConnector
-
-    logger = logging.getLogger(__name__)
-
-    test_db = os.environ.get('TEST_DB_NAME')
-    if not test_db:
-        logger.warning("No TEST_DB_NAME found, skipping database restoration")
-        return False
-
-    connector = BaseXConnector(
-        host=os.getenv('BASEX_HOST', 'localhost'),
-        port=int(os.getenv('BASEX_PORT', '1984')),
-        username=os.getenv('BASEX_USERNAME', 'admin'),
-        password=os.getenv('BASEX_PASSWORD', 'admin'),
-        database=test_db,
-    )
-
-    try:
-        connector.connect()
-
-        # Check if database is empty (no entries at all)
-        check_query = f"xquery count(collection('{test_db}')//entry)"
-        entry_count_result = connector.execute_query(check_query)
-        try:
-            entry_count = int(entry_count_result.strip()) if entry_count_result else 0
-        except (ValueError, TypeError):
-            entry_count = 0
-
-        if entry_count == 0:
-            logger.info(f"Database {test_db} is empty, restoring content")
-
-            # Restore sample entries
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-                f.write(SAMPLE_LIFT_CONTENT)
-                temp_lift_file = f.name
-
-            try:
-                connector.execute_command(f"ADD {temp_lift_file}")
-                logger.info("Restored sample entries to test database")
-            except Exception as e:
-                logger.warning(f"Failed to restore sample entries: {e}")
-            finally:
-                try:
-                    os.unlink(temp_lift_file)
-                except OSError:
-                    pass
-
-            # Restore ranges.xml
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-                f.write(RANGES_XML)
-                temp_ranges_file = f.name
-
-            try:
-                connector.execute_command(f"ADD TO ranges.xml {temp_ranges_file}")
-                logger.info("Restored ranges.xml to test database")
-            except Exception as e:
-                logger.warning(f"Failed to restore ranges.xml: {e}")
-            finally:
-                try:
-                    os.unlink(temp_ranges_file)
-                except OSError:
-                    pass
-
-            return True
-        else:
-            logger.debug(f"Database {test_db} has {entry_count} entries, no restoration needed")
-            return False
-
-    except Exception as e:
-        logger.warning(f"Failed to restore database: {e}")
-        return False
-    finally:
-        try:
-            connector.disconnect()
-        except Exception:
-            pass
-
-
 @pytest.fixture(autouse=True)
 def restore_database_after_test(flask_test_server):
     """
-    Restore ranges.xml AND sample entries after each test in this module.
+    Restore database state after each test in this module.
 
     Database operations tests like dropping content destroy the database content,
-    which breaks subsequent tests that depend on it. This fixture runs after
-    each test to re-add the comprehensive ranges.xml AND sample entries.
+    which breaks subsequent tests that depend on it.
+
+    NOTE: This fixture no longer calls _ensure_pristine_state directly.
+    The _db_snapshot_restore fixture in conftest.py handles database restoration
+    after each test. This ensures proper ordering with other test fixtures.
     """
-    # Yield first to let the test run
+    # Just yield - let _db_snapshot_restore handle restoration
     yield
-    # After test cleanup: restore database content if needed
-    _restore_database_content()
 
 
 @pytest.fixture(scope="function")
@@ -321,16 +109,16 @@ class TestDatabaseOperationsE2E:
             drop_button.click(timeout=5000)
         except Exception:
             # Fallback: perform the drop via fetch to avoid UI modal interception issues
-            result = page.evaluate("""async () => {
-                const resp = await fetch('/settings/drop-database', {
+            result = page.evaluate("""async () => {{
+                const resp = await fetch('/settings/drop-database', {{
                     method: 'POST',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ action: 'drop' })
-                });
-                return { ok: resp.ok, status: resp.status };
-            }""")
+                    headers: {{'Content-Type':'application/json'}},
+                    body: JSON.stringify({{ action: 'drop' }})
+                }});
+                return {{ ok: resp.ok, status: resp.status }};
+            }}""")
             if not result.get('ok'):
-                raise AssertionError(f"Drop database API failed: {result}")
+                raise AssertionError(f"Drop database API failed: {{result}}")
             dropped = True
             # Skip the rest of the UI flow since we used the API
             page.wait_for_timeout(1000)
@@ -445,7 +233,7 @@ class TestDatabaseOperationsE2E:
                         continue
                 if not success:
                     pytest.fail(
-                        f"Import failed after retries. Last response: {resp_status} {resp_json}"
+                        f"Import failed after retries. Last response: {{resp_status}} {{resp_json}}"
                     )
         finally:
             # Clean up test file
@@ -527,7 +315,7 @@ class TestDatabaseOperationsE2E:
                     except Exception:
                         pass
                 else:
-                    pytest.fail(f"Import failed. Last response: {resp_json}")
+                    pytest.fail(f"Import failed. Last response: {{resp_json}}")
 
             # Verify the final state
             page.goto(f"{base_url}/entries", timeout=30000, wait_until="domcontentloaded")
