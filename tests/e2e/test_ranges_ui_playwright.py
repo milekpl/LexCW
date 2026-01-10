@@ -16,7 +16,7 @@ from playwright.sync_api import Page, expect
 class TestRangesUIPlaywright:
     """Test LIFT ranges loading and dropdown population in the UI."""
 
-    def test_grammatical_info_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+    def test_grammatical_info_dropdown_populated(self, page: Page, app_url):
         """Test that grammatical info dropdown is populated with values from LIFT ranges."""
         # Navigate to entry creation/edit page
         page.goto(f'{app_url}/entries/add')
@@ -43,7 +43,7 @@ class TestRangesUIPlaywright:
         has_category = any(cat in options_text for cat in common_categories)
         assert has_category, f"Expected at least one common POS category in: {options}"
 
-    def test_relation_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+    def test_relation_type_dropdown_populated(self, page: Page, app_url):
         """Test that relation type dropdown is populated with values from LIFT ranges."""
         # Navigate to entry edit page (relations are shown in edit mode)
         page.goto(f'{app_url}/entries/add')
@@ -84,7 +84,7 @@ class TestRangesUIPlaywright:
             # by checking via API
             pytest.skip("Relation dropdown not found in UI, needs UI implementation")
 
-    def test_variant_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+    def test_variant_type_dropdown_populated(self, page: Page, app_url):
         """Test that variant type dropdown is populated with values from LIFT ranges."""
         # Navigate to entry add page (variants can be added in new entries too)
         page.goto(f'{app_url}/entries/add')
@@ -134,7 +134,7 @@ class TestRangesUIPlaywright:
         else:
             pytest.skip("Variant dropdown not found in UI after clicking Add Variant")
 
-    def test_ranges_loaded_via_api(self, page: Page, app_url, basex_test_connector):
+    def test_ranges_loaded_via_api(self, page: Page, app_url):
         """Test that ranges are accessible via API endpoint."""
         # Navigate to the ranges API endpoint
         page.goto(f'{app_url}/api/ranges')
