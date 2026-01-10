@@ -22,10 +22,140 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 # Import safety utilities
 from tests.test_db_safety_utils import generate_safe_db_name, is_safe_database_name
 
-# Import fixtures from parent conftest
-from tests.conftest import flask_test_server
+# Import fixtures from parent conftest (we'll override flask_test_server with session-scoped version)
+from tests.conftest import flask_test_server_info
+
+import socket
+import threading
+import time
+from werkzeug.serving import make_server
 
 logger = logging.getLogger(__name__)
+
+
+# Session-scoped Flask server fixture - must be defined before other session fixtures
+@pytest.fixture(scope="session", autouse=True)
+def flask_test_server():
+    """Start the Flask app in-process on a free port for the entire test session.
+
+    This is a session-scoped version that starts the server once and reuses it
+    across all tests, significantly improving test performance.
+    """
+    from werkzeug.serving import make_server
+    from app import create_app
+    import urllib.request
+
+    # Find a free port
+    sock = socket.socket()
+    sock.bind(("localhost", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    # Load .env for PostgreSQL settings
+    from dotenv import load_dotenv
+    load_dotenv('/mnt/d/Dokumenty/slownik-wielki/flask-app/.env', override=True)
+
+    # Create the app with testing config
+    app = create_app(os.getenv('FLASK_CONFIG') or 'testing')
+
+    # Force E2E mode - manually create PostgreSQL connection
+    import psycopg2
+    try:
+        pg_pool = psycopg2.pool.SimpleConnectionPool(
+            1, 20,
+            user=app.config.get("PG_USER"),
+            password=app.config.get("PG_PASSWORD"),
+            host=app.config.get("PG_HOST"),
+            port=app.config.get("PG_PORT"),
+            database=app.config.get("PG_DATABASE"),
+            connect_timeout=3
+        )
+        app.pg_pool = pg_pool
+        from app.database.workset_db import create_workset_tables
+        create_workset_tables(pg_pool)
+        print(f"Successfully connected to PostgreSQL at {app.config.get('PG_HOST')}:{app.config.get('PG_PORT')}")
+    except Exception as e:
+        print(f"Warning: Could not connect to PostgreSQL: {e}")
+        app.pg_pool = None
+
+    # Use the database name already set by setup_e2e_test_database
+    env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
+    if env_db:
+        app.config['BASEX_DATABASE'] = env_db
+    else:
+        app.config['BASEX_DATABASE'] = app.config.get('BASEX_DATABASE', 'test_entries_db')
+
+    # Export to environment
+    os.environ['BASEX_DATABASE'] = app.config['BASEX_DATABASE']
+    os.environ['TEST_DB_NAME'] = app.config['BASEX_DATABASE']
+
+    # Create default project settings
+    project_id = None
+    with app.app_context():
+        from app.config_manager import ConfigManager
+        from app.models.project_settings import ProjectSettings
+
+        existing = ProjectSettings.query.first()
+        if existing:
+            project_id = existing.id
+        else:
+            cm = ConfigManager(app.instance_path)
+            settings = cm.create_settings(
+                project_name="E2E Test Project",
+                basex_db_name=app.config['BASEX_DATABASE'],
+                settings_json={
+                    'source_language': {'code': 'en', 'name': 'English'},
+                    'target_languages': [{'code': 'es', 'name': 'Spanish'}]
+                }
+            )
+            project_id = settings.id
+
+    server = make_server('localhost', port, app)
+    thread = None
+    try:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        base_url = f"http://localhost:{port}"
+
+        # Wait for server to be ready
+        for _ in range(30):
+            try:
+                with urllib.request.urlopen(base_url) as resp:
+                    if resp.status in (200, 404):
+                        break
+            except Exception:
+                time.sleep(0.1)
+        else:
+            raise RuntimeError(f"Flask test server did not start on {base_url}")
+
+        # Store for other fixtures
+        flask_test_server._project_id = project_id  # type: ignore
+
+        # Set the test app reference
+        from tests.test_app_utils import set_test_app
+        set_test_app(app)
+
+        print(f"[E2E-SESSION] Flask server started at {base_url}")
+        yield base_url
+
+    finally:
+        from tests.test_app_utils import reset_test_app
+        reset_test_app()
+
+        try:
+            server.shutdown()
+        except Exception:
+            pass
+        if thread and thread.is_alive():
+            thread.join(timeout=1)
+        print(f"[E2E-SESSION] Flask server stopped")
+
+
+@pytest.fixture(scope="session")
+def flask_test_server_info(flask_test_server) -> tuple:
+    """Provide (base_url, project_id) for tests that need project selection."""
+    return (flask_test_server, getattr(flask_test_server, '_project_id', None))
 
 
 # Content that should always be in the pristine database
@@ -186,6 +316,44 @@ def _get_connected_connector(db_name: str):
     )
     connector.connect()
     return connector
+
+
+def _log_db_state(label: str, db_name: str, sample_size: int = 10) -> None:
+    """Log current database state for debugging isolation issues."""
+    if os.getenv('E2E_DEBUG_STATE', 'false').lower() not in ('1', 'true', 'yes', 'on'):
+        return
+
+    try:
+        connector = _get_connected_connector(db_name)
+    except Exception as exc:  # pragma: no cover - defensive debug path
+        logger.warning("[E2E-DEBUG] %s: could not connect to DB %s: %s", label, db_name, exc)
+        return
+
+    try:
+        try:
+            count_raw = connector.execute_query(
+                f"xquery count(collection('{db_name}')//entry)"
+            )
+            count = int(count_raw.strip()) if count_raw else 0
+        except Exception:
+            count = -1
+
+        try:
+            ids_raw = connector.execute_query(
+                f"xquery for $e in subsequence(collection('{db_name}')//entry/@id, 1, {sample_size}) return string($e)"
+            )
+            ids = ids_raw.split() if ids_raw else []
+        except Exception:
+            ids = []
+
+        msg = f"[E2E-DEBUG] {label} | db={db_name} | entry_count={count} | sample_ids={ids}"
+        logger.info(msg)
+        print(msg)  # Also print to stdout for pytest capture
+    finally:
+        try:
+            connector.disconnect()
+        except Exception:
+            pass
 
 
 def _snapshot_database(db_name: str) -> str | None:
@@ -373,6 +541,7 @@ def setup_e2e_test_database(request):
     - Prevents environment variable leakage
     - Destructive tests (@pytest.mark.destructive) are skipped when mixed with other tests
     """
+    print("[E2E-DEBUG] SESSION FIXTURE ENTERED")
     from app.database.basex_connector import BaseXConnector
 
     # Store original environment variables for restoration
@@ -402,14 +571,15 @@ def setup_e2e_test_database(request):
                     marker.kwargs["reason"] = marker.kwargs.get("reason", "") + " (run separately: pytest tests/e2e/test_database_operations_e2e.py)"
                     test.add_marker(pytest.mark.skip(reason="Destructive tests must run separately"))
 
-    # Generate safe database name
-    test_db = os.environ.get('TEST_DB_NAME')
-    if not test_db:
-        test_db = generate_safe_db_name('e2e')
+    # CRITICAL FIX: Always generate a fresh database name for e2e tests
+    # DO NOT use TEST_DB_NAME from parent conftest.py, which creates an empty database
+    # at module import time. E2e tests MUST start with pristine data (test_entry_1, test_entry_2, test_entry_3).
+    # See E2E_TEST_ISOLATION_ANALYSIS.md for root cause details.
+    test_db = generate_safe_db_name('e2e')
 
-        # Validate the generated name
-        if not is_safe_database_name(test_db):
-            pytest.fail(f"Generated unsafe E2E database name: {test_db}")
+    # Validate the generated name
+    if not is_safe_database_name(test_db):
+        pytest.fail(f"Generated unsafe E2E database name: {test_db}")
 
     connector = BaseXConnector(
         host=os.getenv('BASEX_HOST', 'localhost'),
@@ -419,12 +589,23 @@ def setup_e2e_test_database(request):
         database=None,
     )
 
+    # Store original Redis setting for restoration
+    original_redis_enabled = os.environ.get('REDIS_ENABLED')
+
     try:
         # Set isolated environment for E2E tests
         os.environ['TEST_DB_NAME'] = test_db
         os.environ['BASEX_DATABASE'] = test_db
         os.environ['BASEX_AGGRESSIVE_DISCONNECT'] = 'true'
+        # Disable Redis caching for E2E tests to ensure complete isolation
+        # Each test must start with fresh data, not cached results from previous tests
+        os.environ['REDIS_ENABLED'] = 'false'
+        
+        # Reset CacheService singleton so it picks up the new REDIS_ENABLED setting
+        from app.services.cache_service import CacheService
+        CacheService.reset_singleton()
 
+        print(f"[E2E-DEBUG] SESSION SETUP: Creating database {test_db}")
         connector.connect()
 
         # Drop existing test database if it exists
@@ -464,6 +645,8 @@ def setup_e2e_test_database(request):
         try:
             connector.execute_command(f"ADD TO ranges.xml {temp_file}")
             logger.info("Added comprehensive ranges.xml to safe E2E test database")
+            print(f"[E2E-DEBUG] SESSION SETUP: Added pristine data to {test_db}")
+            _log_db_state("SESSION-SETUP-COMPLETE", test_db)
         finally:
             try:
                 os.unlink(temp_file)
@@ -498,6 +681,12 @@ def setup_e2e_test_database(request):
                 os.environ['BASEX_AGGRESSIVE_DISCONNECT'] = original_aggressive
             elif 'BASEX_AGGRESSIVE_DISCONNECT' in os.environ:
                 del os.environ['BASEX_AGGRESSIVE_DISCONNECT']
+
+            # Restore Redis setting
+            if original_redis_enabled:
+                os.environ['REDIS_ENABLED'] = original_redis_enabled
+            elif 'REDIS_ENABLED' in os.environ:
+                del os.environ['REDIS_ENABLED']
 
             # Atomic cleanup with verification
             cleanup_connector = BaseXConnector(
@@ -560,6 +749,7 @@ def _db_snapshot_restore(request):
     backup_is_dir = False
 
     try:
+        _log_db_state("before-snapshot", test_db)
         # Create snapshot BEFORE test
         backup_path = _snapshot_database(test_db)
         if backup_path and os.path.isdir(backup_path):
@@ -576,6 +766,7 @@ def _db_snapshot_restore(request):
     finally:
         # Restore AFTER test (always)
         if test_db:
+            _log_db_state("after-test-before-restore", test_db)
             # Priority 1: Restore from snapshot if available
             if backup_path and backup_is_dir:
                 try:
@@ -607,6 +798,17 @@ def _db_snapshot_restore(request):
                     _ensure_pristine_state(test_db)
                 except Exception:
                     pass
+
+            # CRITICAL: Invalidate all caches after database restore
+            # This ensures subsequent tests get fresh data instead of stale cache
+            try:
+                from tests.test_app_utils import invalidate_all_caches
+                invalidate_all_caches()
+                logger.debug("Invalidated all caches after database restore")
+            except Exception as cache_error:
+                logger.warning(f"Failed to invalidate caches: {cache_error}")
+
+            _log_db_state("after-restore", test_db)
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -670,65 +872,78 @@ def browser() -> Generator[Browser, None, None]:
         browser.close()
 
 
-@pytest.fixture(scope="function")
+# Session-scoped browser context and page fixtures for performance
+_session_project_selected = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _setup_session_browser_context(request):
+    """Ensure project selection happens once per session."""
+    global _session_project_selected
+    _session_project_selected = False
+    yield request
+
+
+@pytest.fixture(scope="session")
 def context(browser: Browser) -> Generator[BrowserContext, None, None]:
-    """Create a new browser context for each test."""
-    context = browser.new_context()
+    """Create a single browser context for the entire test session."""
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800},
+        java_script_enabled=True,
+    )
     yield context
     context.close()
 
 
-@pytest.fixture(scope="function")
-def page(context: BrowserContext, flask_test_server) -> Generator[Page, None, None]:
-    """Create a new page for each test with base URL."""
-    base_url = flask_test_server  # Now just a string
+def _ensure_project_selected(page: Page, base_url: str):
+    """Select project once per session, not per test."""
+    global _session_project_selected
 
-    page = context.new_page()
-    page.set_default_timeout(30000)  # 30 seconds
+    if _session_project_selected:
+        return
 
-    # Automatically select the first project to satisfy project context requirement
     try:
-        # Navigate to projects list
-        page.goto(f"{base_url}/settings/projects")
-
-        # Wait for the project list to load
-        # Use a selector that matches the Select button
+        page.goto(f"{base_url}/settings/projects", timeout=10000)
         select_button = page.locator("a.btn-success:has-text('Select')").first
 
-        if select_button.count() == 0:
-            logger.warning("No project selection button found in E2E page fixture")
-        else:
+        if select_button.count() > 0:
             select_button.click()
             page.wait_for_load_state("networkidle")
-
-            # Close any wizard modals that might be open
-            page.evaluate("() => { "
-                          "  const m1 = document.getElementById('projectSetupModal'); "
-                          "  if (m1) { const inst = bootstrap.Modal.getInstance(m1); if (inst) inst.hide(); } "
-                          "  const m2 = document.getElementById('projectSetupModalSettings'); "
-                          "  if (m2) { const inst = bootstrap.Modal.getInstance(m2); if (inst) inst.hide(); } "
-                          "}")
-
-            logger.info("Auto-selected project for E2E test")
+            # Close any wizard modals
+            page.evaluate("""() => {
+                const m1 = document.getElementById('projectSetupModal');
+                if (m1) { const inst = bootstrap.Modal.getInstance(m1); if (inst) inst.hide(); }
+                const m2 = document.getElementById('projectSetupModalSettings');
+                if (m2) { const inst = bootstrap.Modal.getInstance(m2); if (inst) inst.hide(); }
+            }""")
+            _session_project_selected = True
     except Exception as e:
-        logger.warning(f"Error during auto-project selection in E2E: {e}")
+        pass
 
-    # Ensure field visibility settings are at defaults (annotations visible)
-    # This prevents tests from failing due to localStorage state
+
+@pytest.fixture(scope="session")
+def page(context: BrowserContext, flask_test_server) -> Generator[Page, None, None]:
+    """Create a single page for the entire test session."""
+    page = context.new_page()
+    page.set_default_timeout(30000)
+    page.set_default_navigation_timeout(30000)
+
+    base_url = flask_test_server
+
+    # Select project ONCE per session
+    _ensure_project_selected(page, base_url)
+
+    # Clear field visibility localStorage once
     page.evaluate("""() => {
         Object.keys(localStorage).forEach(key => {
-            if (key.includes('fieldVisibility') || key.includes('Visibility') || key.includes('entries')) {
+            if (key.includes('fieldVisibility') || key.includes('Visibility')) {
                 localStorage.removeItem(key);
             }
         });
     }""")
-
-    # Force reload so JavaScript re-initializes with cleared localStorage
-    # This is critical for visibleColumns which is loaded at page load time
     page.reload(wait_until="networkidle")
 
-    # Store base URL for tests to use
-    page._base_url = flask_test_server  # type: ignore
+    page._base_url = base_url
     yield page
     page.close()
 
