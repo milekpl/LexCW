@@ -18,7 +18,7 @@ from playwright.sync_api import Page, expect
 class TestAllRangesDropdownsPlaywright:
     """Test all LIFT ranges dropdowns are populated in the UI."""
 
-    def test_grammatical_info_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+    def test_grammatical_info_dropdown_populated(self, page: Page, app_url):
         """Test that grammatical info (part of speech) dropdown is populated."""
         # Navigate to entry edit page
         page.goto(f'{app_url}/entries/add')
@@ -44,7 +44,7 @@ class TestAllRangesDropdownsPlaywright:
         
         print(f"✅ Grammatical info: {len(options)} options loaded")
 
-    def test_domain_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+    def test_domain_type_dropdown_populated(self, page: Page, app_url):
         """Test that domain type dropdown is populated from domain-type range."""
         page.goto(f'{app_url}/entries/add')
         page.wait_for_load_state('networkidle')
@@ -82,7 +82,7 @@ class TestAllRangesDropdownsPlaywright:
                 f"domain type range not accessible via API: {content[:200]}"
             print("⚠️  domain type select not visible on page load, but range accessible via API")
 
-    def test_semantic_domain_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+    def test_semantic_domain_dropdown_populated(self, page: Page, app_url):
         """Test that semantic domain dropdown is populated from semantic-domain-ddp4 range."""
         page.goto(f'{app_url}/entries/add')
         page.wait_for_load_state('networkidle')
@@ -126,7 +126,7 @@ class TestAllRangesDropdownsPlaywright:
                 f"Semantic domain range not accessible via API: {content[:200]}"
             print("⚠️  Semantic domain select exists but not visible (may need UI action to show)")
 
-    def test_usage_type_dropdown_populated(self, page: Page, app_url, basex_test_connector):
+    def test_usage_type_dropdown_populated(self, page: Page, app_url):
         """Test that usage type dropdown is populated from usage-type range."""
         page.goto(f'{app_url}/entries/add')
         page.wait_for_load_state('networkidle')
@@ -170,7 +170,7 @@ class TestAllRangesDropdownsPlaywright:
                 f"Usage type range not accessible via API: {content[:200]}"
             print("⚠️  Usage type select exists but not visible (may need UI action to show)")
 
-    def test_all_ranges_api_accessible(self, page: Page, app_url, basex_test_connector):
+    def test_all_ranges_api_accessible(self, page: Page, app_url):
         """Test that all required ranges are accessible via API."""
         # First check what ranges are actually available
         page.goto(f'{app_url}/api/ranges')
@@ -216,7 +216,7 @@ class TestAllRangesDropdownsPlaywright:
             
             print(f"✅ API accessible: /api/ranges/{range_id}")
 
-    def test_dynamic_lift_range_initialization(self, page: Page, app_url, basex_test_connector):
+    def test_dynamic_lift_range_initialization(self, page: Page, app_url):
         """Test that ALL elements with class 'dynamic-lift-range' are initialized."""
         page.goto(f'{app_url}/entries/add')
         page.wait_for_load_state('networkidle')
