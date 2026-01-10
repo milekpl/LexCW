@@ -32,6 +32,23 @@ from werkzeug.serving import make_server
 
 logger = logging.getLogger(__name__)
 
+# Tests that don't modify the database - skip snapshot/restore for these
+# This significantly speeds up read-only tests by avoiding BaseX EXPORT operations
+SNAPSHOT_SKIP_PATTERNS = [
+    'test_grammatical_info_dropdown_populated',
+    'test_domain_type_dropdown_populated',
+    'test_usage_type_dropdown_populated',
+    'test_semantic_domain_dropdown_populated',
+    'test_relation_type_dropdown_populated',
+    'test_variant_type_dropdown_populated',
+    'test_all_ranges_api_accessible',
+    'test_dynamic_lift_range_initialization',
+    'test_ranges_loaded_via_api',
+    'test_ranges_ui_populated',
+    'test_dropdown_populated',
+    # Read-only tests that just verify UI state
+]
+
 
 # Session-scoped Flask server fixture - must be defined before other session fixtures
 @pytest.fixture(scope="session", autouse=True)
@@ -742,6 +759,15 @@ def _db_snapshot_restore(request):
     request_fixture = request
     test_db = os.environ.get('TEST_DB_NAME')
     if not test_db:
+        yield
+        return
+
+    # Check if this test should skip snapshot/restore (read-only test)
+    test_name = request.node.name
+    should_skip = any(pattern in test_name for pattern in SNAPSHOT_SKIP_PATTERNS)
+
+    if should_skip:
+        # Skip snapshot for read-only tests that don't modify the database
         yield
         return
 
