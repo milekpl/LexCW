@@ -51,8 +51,10 @@ class TestJavaScriptIntegration:
     
     def test_jest_test_execution(self):
         """Test that Jest can execute tests successfully."""
-        # Run Jest on a specific pattern to test Jest functionality
-        result = self.runner.run_jest_tests(test_pattern="**/test_lift_xml_serializer.test.js")
+        # Run Jest on a specific test file to verify it executes correctly
+        test_script_path = os.path.join('tests', 'unit', 'test_lift_xml_serializer.test.js')
+        
+        result = self.runner.run_jest_tests(test_pattern=test_script_path)
         
         assert result['success'], f"Jest execution failed: {result.get('stderr', 'No error message')}"
     

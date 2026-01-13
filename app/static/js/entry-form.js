@@ -1325,6 +1325,21 @@ async function submitForm() {
         const senseMatchesBefore = xmlString.match(/<sense\s+/g);
         const senseCountBefore = senseMatchesBefore ? senseMatchesBefore.length : 0;
 
+        // If E2E capture is enabled, expose the serialized XML to the page context
+        // This is a temporary debug hook for end-to-end tests to assert the outgoing body
+        // It will be removed once the issue is diagnosed and fixed.
+        if (window.__E2E_CAPTURE_XML) {
+            try {
+                // Full XML is stored for test inspection
+                window.__LAST_SERIALIZED_XML = xmlString;
+                // Log a short marker and length for easier capture in console logs
+                console.log('E2E: SERIALIZED_XML_LENGTH', xmlString.length);
+                console.log('E2E: SERIALIZED_XML_SNIPPET', xmlString.slice(0, 1000));
+            } catch (e) {
+                console.warn('E2E capture failed', e);
+            }
+        }
+
         // Set a timeout for the fetch request
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout

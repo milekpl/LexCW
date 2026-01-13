@@ -123,6 +123,11 @@ def update_entry(entry_id: str) -> Any:
         
         logger.info('[XML API] Received UPDATE request for entry: %s', entry_id)
         logger.debug('[XML API] XML length: %d characters', len(xml_string))
+        try:
+            sense_count = xml_string.count('<sense ')
+        except Exception:
+            sense_count = -1
+        logger.info(f"[XML API] Approximate sense count in submitted XML: {sense_count}")
         
         # Get XML entry service
         xml_service = get_xml_entry_service()

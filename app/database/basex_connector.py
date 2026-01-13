@@ -46,13 +46,38 @@ class BaseXConnector:
         self.port = port
         self.username = username
         self.password = password
-        self.database = database
+        self._base_database = database  # Store original database name
         self.logger = logging.getLogger(__name__)
         self._session = None
         self._lock = threading.RLock()
         self._current_db = None
         # NEW: Control aggressive disconnection
         self.aggressive_disconnect = os.environ.get('BASEX_AGGRESSIVE_DISCONNECT') == 'true'
+    
+    @property
+    def database(self) -> Optional[str]:
+        """Get the effective database name.
+
+        Prefer an explicitly configured connector database when provided (constructor
+        argument), otherwise fall back to the TEST_DB_NAME environment variable when
+        present. This avoids surprising overrides when a connector is intentionally
+        constructed for a specific database in unit tests.
+        """
+        # If connector was constructed with an explicit database, prefer that
+        if self._base_database is not None:
+            return self._base_database
+
+        # Otherwise fall back to TEST_DB_NAME env var (used by E2E tests)
+        test_db = os.environ.get('TEST_DB_NAME')
+        if test_db:
+            return test_db
+
+        return self._base_database
+    
+    @database.setter
+    def database(self, value: Optional[str]):
+        """Set the base database name."""
+        self._base_database = value
     
     def connect(self) -> bool:
         """
@@ -161,6 +186,30 @@ class BaseXConnector:
                     self._session = None
                     self._current_db = None
     
+    def _ensure_correct_database(self) -> None:
+        """Ensure the correct database is open, switching if TEST_DB_NAME changed.
+        
+        This is called before each operation to handle dynamic database switching in tests.
+        """
+        if not self._session:
+            return  # Will connect with correct DB later
+        
+        target_db = self.database
+        if target_db and target_db != self._current_db:
+            # Database changed (e.g., TEST_DB_NAME was updated), switch to it
+            try:
+                self.logger.debug(f"Switching database from {self._current_db} to {target_db}")
+                self._session.execute(f"OPEN {target_db}")
+                self._current_db = target_db
+            except Exception as e:
+                # Database might not exist, try creating it
+                if "not found" in str(e).lower() or "unknown database" in str(e).lower():
+                    self.logger.info(f"Database '{target_db}' not found, creating it")
+                    self._session.execute(f"CREATE DB {target_db}")
+                    self._current_db = target_db
+                else:
+                    raise
+    
     def is_connected(self) -> bool:
         """Check if connection is active."""
         with self._lock:
@@ -179,13 +228,18 @@ class BaseXConnector:
         with self._lock:
             if not self._session:
                 self.connect()
+            
+            # Ensure we're using the correct database (handles TEST_DB_NAME changes)
+            self._ensure_correct_database()
 
             # Determine target database priority:
             # 1. Explicit db_name argument
-            # 2. collection('db_name') in query
-            # 3. Connector's default database
+            # 2. Flask request context (g.project_db_name)
+            # 3. collection('db_name') in query
+            # 4. Connector's default database
             
             target_db = None
+            target_db_from_regex = False
             if db_name:
                 target_db = db_name
             else:
@@ -203,6 +257,7 @@ class BaseXConnector:
                         m = _re.search(r"collection\(\s*'([^']+)'\s*\)", query)
                         if m:
                             target_db = m.group(1)
+                            target_db_from_regex = True
                     except Exception:
                         pass
             
@@ -221,7 +276,17 @@ class BaseXConnector:
                     pass
 
             # Log the full query string for debugging
-            self.logger.info("Executing BaseX query on DB '%s':\n%s", self._current_db, query)
+            # Build request context info for tracing
+            request_info = ''
+            try:
+                from flask import has_request_context, g, request
+                if has_request_context():
+                    request_info = f" [request_id={getattr(g, 'request_id', None)} path={request.path}]"
+            except Exception:
+                pass
+
+            # Log the full query string for debugging
+            self.logger.info("Executing BaseX query on DB '%s'%s:\n%s", self._current_db, request_info, query)
 
             # Strip 'xquery ' prefix if present (it's often added by callers but Session.query doesn't want it)
             clean_query = query
@@ -327,6 +392,9 @@ class BaseXConnector:
             if not self._session:
                 self.connect()
             
+            # Ensure we're using the correct database (handles TEST_DB_NAME changes)
+            self._ensure_correct_database()
+            
             try:
                 result = self._session.execute(command)
                 self.logger.debug(f"Command executed successfully: {command}")
@@ -398,13 +466,54 @@ class BaseXConnector:
                     pass
 
             # Log the full query string for debugging
-            self.logger.info("Executing BaseX update on DB '%s':\n%s", self._current_db, query)
+            # Build request context info for tracing
+            request_info = ''
+            try:
+                from flask import has_request_context, g, request
+                if has_request_context():
+                    request_info = f" [request_id={getattr(g, 'request_id', None)} path={request.path}]"
+            except Exception:
+                pass
+
+            # Log the full query string for debugging
+            self.logger.info("Executing BaseX update on DB '%s'%s:\n%s", self._current_db, request_info, query)
 
             # Strip 'xquery ' prefix if present
             clean_query = query
             if query.strip().lower().startswith('xquery '):
                 clean_query = query.strip()[7:].strip()
+            # If the query explicitly references a different database via collection('db'),
+            # and a test DB is active (TEST_DB_NAME or BASEX_DATABASE), substitute the
+            # referenced DB with the active test DB before executing. This prevents stale
+            # queries that were built with a previous DB name from silently returning
+            # results from the wrong database when tests switch DBs mid-run.
+            try:
+                import re as _re
+                m = _re.search(r"collection\(\s*'([^']+)'\s*\)", clean_query)
+                if m:
+                    referenced_db = m.group(1)
+                    # Decide which DB we should target for substitution. Use the
+                    # runtime active DB (TEST_DB_NAME or connector default) so that
+                    # queries built earlier with a stale db reference are corrected
+                    # to the current test DB. This is especially important when the
+                    # session Flask server services multiple tests and TEST_DB_NAME
+                    # changes between requests.
+                    runtime_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE') or self.database
 
+                    if runtime_db and referenced_db != runtime_db:
+                        alt_query = clean_query.replace(f"collection('{referenced_db}')", f"collection('{runtime_db}')")
+                        self.logger.warning(f"Substituting collection('{referenced_db}') -> collection('{runtime_db}') before execution to target current DB")
+                        clean_query = alt_query
+                        # Ensure session is opened to runtime_db for consistency
+                        try:
+                            if self._current_db != runtime_db:
+                                self._session.execute(f"OPEN {runtime_db}")
+                                self._current_db = runtime_db
+                        except Exception:
+                            # If open fails, continue and let query execution handle errors
+                            pass
+            except Exception:
+                pass
             q = None
             try:
                 q = self._session.query(clean_query)
@@ -525,3 +634,22 @@ class BaseXConnector:
                 self._session.close()
             except:
                 pass  # Ignore errors during cleanup
+
+    def get_status(self) -> Dict[str, Any]:
+        """Return a snapshot of the connector's status for diagnostics.
+
+        Returns:
+            A dictionary containing connection status, current DB, configured
+            runtime database (which considers TEST_DB_NAME), and flags such as
+            aggressive_disconnect.
+        """
+        with self._lock:
+            # If TEST_DB_NAME is set in the environment, report it as the configured
+            # runtime database; otherwise report the connector's configured database.
+            configured_db = os.environ.get('TEST_DB_NAME') or self._base_database
+            return {
+                'connected': self._session is not None,
+                'current_db': self._current_db,
+                'configured_database': configured_db,
+                'aggressive_disconnect': self.aggressive_disconnect,
+            }

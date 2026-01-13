@@ -103,8 +103,11 @@ def xml_service(mock_basex_session):
 class TestXMLEntryServiceInit:
     """Test service initialization."""
     
-    def test_init_with_default_params(self, mock_basex_session):
+    def test_init_with_default_params(self, mock_basex_session, monkeypatch):
         """Test initialization with default parameters."""
+        # Ensure any TEST_DB_NAME or BASEX_DATABASE from other tests does not leak into this unit test
+        monkeypatch.delenv('TEST_DB_NAME', raising=False)
+        monkeypatch.delenv('BASEX_DATABASE', raising=False)
         with patch('app.services.xml_entry_service.BaseXClient.Session') as mock_session_class:
             mock_session_class.return_value = mock_basex_session
             service = XMLEntryService()

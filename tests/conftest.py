@@ -559,9 +559,17 @@ def flask_test_server():
         # This is a workaround to avoid changing the fixture return type
         flask_test_server._project_id = project_id  # type: ignore
 
+        # Set the test app reference for test utilities
+        from tests.test_app_utils import set_test_app
+        set_test_app(app)
+
         yield base_url
 
     finally:
+        # Reset the test app reference
+        from tests.test_app_utils import reset_test_app
+        reset_test_app()
+
         try:
             server.shutdown()
         except Exception:

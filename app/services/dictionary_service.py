@@ -673,6 +673,16 @@ class DictionaryService:
         self._skip_auto_range_loading = False
         self.logger.info("Automatic range loading re-enabled")
 
+    def invalidate_ranges_cache(self) -> None:
+        """Invalidate the cached ranges to force a fresh load from the database.
+
+        This should be called when the database content has changed externally
+        (e.g., after snapshot restore in tests) to ensure get_ranges() returns
+        fresh data.
+        """
+        self.ranges = None
+        self.logger.info("Ranges cache invalidated")
+
     def _db_name_from_settings(self, settings) -> Optional[str]:
         """Safely extract a Basex database name from a ProjectSettings-like object.
 
@@ -2943,6 +2953,14 @@ class DictionaryService:
         # Removed nested install_recommended_ranges definition to place it at class level
 
         try:
+            import os as _os
+            # Debug: log environment and connector effective/current db
+            try:
+                conn_db = getattr(self.db_connector, '_current_db', None)
+            except Exception:
+                conn_db = None
+            self.logger.debug(f"DEBUG get_ranges: env TEST_DB_NAME={_os.environ.get('TEST_DB_NAME')}, connector.database={self.db_connector.database}, connector._current_db={conn_db}")
+
             db_name = self.db_connector.database
             if project_id:
                 try:
@@ -2961,10 +2979,9 @@ class DictionaryService:
             # Primary strategy: Use collection() query to find lift-ranges anywhere
             # Use local-name() for namespace-insensitive matching (works for both
             # namespaced FieldWorks ranges and non-namespaced test fixtures)
-            self.logger.debug(f"Querying for ranges using collection('{db_name}')//*[local-name()='lift-ranges']")
-            ranges_xml = self.db_connector.execute_query(
-                f"collection('{db_name}')//*[local-name()='lift-ranges']"
-            )
+            # Query current database for lift-ranges; connector will ensure correct DB is open
+            self.logger.debug("Querying for ranges in current database: //*[local-name()='lift-ranges']")
+            ranges_xml = self.db_connector.execute_query("//*[local-name()='lift-ranges']")
 
             parsed_ranges = {}
             if ranges_xml:

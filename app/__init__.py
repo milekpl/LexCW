@@ -276,6 +276,23 @@ def create_app(config_name=None):
     @app.before_request
     def load_project_context():
         """Load project context from session if available."""
+        import uuid
+        # Ensure each request has a unique ID for tracing across logs
+        try:
+            g.request_id = uuid.uuid4().hex
+            app.logger.debug(f"Assigned request_id {g.request_id} for path {request.path}")
+        except Exception:
+            # Non-request contexts or tests without request may fail here; ignore
+            pass
+
+        # If running under per-test DB mode, prefer TEST_DB_NAME for every request
+        # This prevents session project_id from leaking across test runs and causing
+        # cross-test database access when the server is reused across tests.
+        test_db = os.environ.get('TEST_DB_NAME')
+        if test_db:
+            g.project_db_name = test_db
+            return
+
         # Exempt certain paths from mandatory project context
         exempt_paths = ['/settings/', '/static/', '/health', '/apidocs/', '/apispec.json', '/flasgger_static/', '/favicon.ico']
         
@@ -310,12 +327,42 @@ def create_app(config_name=None):
             except Exception as e:
                 app.logger.error(f"Error loading project context: {e}")
         else:
-            # No project selected, redirect to project list
-            # Skip redirect for API calls to avoid breaking external clients; 
-            # they will fail later with "no database configured" if they don't provide context
-            if not request.path.startswith('/api/'):
-                return redirect(url_for('settings.list_projects', next=request.url))
+            # No project selected. Prefer to set request-local DB from TEST_DB_NAME in
+            # testing/e2e scenarios so API calls can still be executed against the
+            # intended per-test database when the session doesn't carry a project.
+            test_db = os.environ.get('TEST_DB_NAME')
+            if test_db:
+                g.project_db_name = test_db
+            else:
+                # Skip redirect for API calls to avoid breaking external clients; 
+                # they will fail later with "no database configured" if they don't provide context
+                if not request.path.startswith('/api/'):
+                    return redirect(url_for('settings.list_projects', next=request.url))
 
+
+    # Per-request BaseX connector logging: capture DB/session status early for diagnostics
+    @app.before_request
+    def log_basex_status():
+        try:
+            from app.database.basex_connector import BaseXConnector
+            from flask import has_request_context, g, request
+            try:
+                connector = app.injector.get(BaseXConnector)
+            except Exception:
+                connector = None
+
+            if connector:
+                try:
+                    status = connector.get_status()
+                    # Include the intended per-request DB name if present
+                    req_db = getattr(g, 'project_db_name', None)
+                    app.logger.info("BaseX status at request start [request_id=%s path=%s project_db=%s]: %s",
+                                    getattr(g, 'request_id', None), request.path, req_db, status)
+                except Exception:
+                    app.logger.exception("Failed to obtain BaseX connector status")
+        except Exception:
+            # Defensive: avoid breaking request processing if logging fails
+            app.logger.debug("Per-request BaseX status logging skipped (init failure)")
 
     # In testing mode, log redirects to help triage UI auth/redirect issues
     # (This includes E2E mode)

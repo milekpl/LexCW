@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 import json
 import tempfile
 import logging
+import glob
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,42 @@ class JSTestRunner:
         if test_pattern:
             cmd.append(test_pattern)
         
+            # When running a specific test file, constrain Jest's rootDir to the
+            # test's directory to avoid scanning unrelated worktrees that can
+            # cause haste-map collisions in monorepo/worktree setups.
+            if os.path.sep in test_pattern:
+                test_root = os.path.dirname(test_pattern)
+                # If the pattern uses globstar like **/..., Jest will treat that
+                # literally and may complain if the folder doesn't exist. Resolve
+                # the glob to a specific test file under the project root when
+                # possible to avoid running unrelated worktree test suites.
+                if test_root.startswith('**') or test_root == '':
+                    matches = glob.glob(os.path.join(self.project_root, test_pattern))
+                    if matches:
+                        # Use the first match (explicit path relative to project root)
+                        rel = os.path.relpath(matches[0], self.project_root)
+                        # Replace the pattern in the cmd with the resolved file
+                        cmd.append(rel)
+                        # Also add a testPathPattern to restrict Jest to this file
+                        cmd.extend(['--testPathPattern', rel])
+                        test_root = self.project_root
+                    else:
+                        test_root = self.project_root
+
+                # If test_root isn't an existing directory relative to project
+                # root, fall back to project root to avoid Jest validation errors
+                if not os.path.isdir(os.path.join(self.project_root, test_root)):
+                    test_root = self.project_root
+                cmd.extend(['--rootDir', test_root])
+                cmd.append('--runInBand')
+
         # Add JSON output for parsing results
         cmd.extend(['--json'])
-        
-        if coverage:
-            cmd.append('--coverage')
+
+        # Default to single-process runs to reduce complex concurrency issues
+        # in the CI/test environment
+        if '--runInBand' not in cmd:
+            cmd.append('--runInBand')
         
         if verbose:
             cmd.append('--verbose')

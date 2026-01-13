@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ from playwright.sync_api import Page
 
 
 @pytest.mark.integration
-def test_backup_zip_contains_all_artifacts(page: Page, app_url: str, app) -> None:
+def test_backup_zip_contains_all_artifacts(page: Page, app_url: str) -> None:
     """Create a backup via the UI, download the ZIP, and assert required artifacts are present."""
 
     # Capture JS errors
@@ -20,12 +21,18 @@ def test_backup_zip_contains_all_artifacts(page: Page, app_url: str, app) -> Non
     page.on("pageerror", lambda exc: js_errors.append(f"Page error: {exc}"))
 
     # Ensure uploads dir has at least one file so include_media copies something
-    uploads = Path(app.instance_path) / 'uploads'
+    # Create a temp file that will be used as sample media
+    # The Flask app instance path is typically in /tmp, so create sample media there
+    import os
+    instance_path = Path(tempfile.gettempdir()) / 'flask_test_instance'
+    uploads = instance_path / 'uploads'
     uploads.mkdir(parents=True, exist_ok=True)
     sample_media = uploads / 'sample.txt'
     sample_media.write_text('media', encoding='utf-8')
 
     # Navigate to the backup page and create a backup
+    # The Flask server already has the correct BASEX_DATABASE environment variable set
+    # from the setup_e2e_test_database fixture
     page.goto(f"{app_url}/backup/management")
     page.wait_for_selector('#create-backup-btn', state='visible', timeout=10000)
 
@@ -43,28 +50,38 @@ def test_backup_zip_contains_all_artifacts(page: Page, app_url: str, app) -> Non
     # Click the create button
     print("Clicking create backup button...")
     page.click('#create-backup-btn')
+    page.wait_for_timeout(3000)  # Give backup time to be created
 
     # Wait for the backup to be created and appear in history
-    # Poll the history API until we see our backup
-    db_name = app.config.get('BASEX_DATABASE', 'dictionary')
+    # The Flask server has the correct database name from setup_e2e_test_database fixture
+    import os
+    e2e_db_name = os.environ.get('BASEX_DATABASE') or os.environ.get('TEST_DB_NAME', 'dictionary')
+    print(f"Looking for backup in e2e database: {e2e_db_name}")
+    
     backup_id = None
-    for i in range(20):  # Wait up to 10 seconds
+    
+    for i in range(30):  # Wait up to 15 seconds
         page.wait_for_timeout(500)
-        resp = page.context.request.get(f"{app_url}/api/backup/history?db_name={db_name}")
+        
+        # Check the backup history for the e2e database
+        resp = page.context.request.get(f"{app_url}/api/backup/history?db_name={e2e_db_name}")
         if resp.ok:
             data = resp.json()
             backups = data.get('data', [])
-            # Look for our test backup
-            for b in backups:
-                desc = b.get('description', '') or ''
-                if 'e2e backup test' in desc:
-                    backup_id = b.get('id') or b.get('file_path') and Path(b.get('file_path')).name
-                    print(f"Found backup: {backup_id}")
-                    break
-            if backup_id:
-                break
+            if len(backups) > 0:
+                print(f"Found {len(backups)} backups in {e2e_db_name}")
+                # Look for our test backup
+                for b in backups:
+                    desc = b.get('description', '') or ''
+                    if 'e2e backup test' in desc:
+                        backup_id = b.get('id') or (b.get('file_path') and Path(b.get('file_path')).name)
+                        print(f"Found backup: {backup_id}")
+                        break
+        
+        if backup_id:
+            break
 
-    assert backup_id, 'Backup was not created or not found in history'
+    assert backup_id, f'Backup was not created or not found in history for database {e2e_db_name}'
 
     # Check for JS errors after click
     if js_errors:
@@ -97,3 +114,8 @@ def test_backup_zip_contains_all_artifacts(page: Page, app_url: str, app) -> Non
     assert any(n.endswith('.validation_rules.json') or n.endswith('validation_rules.json') for n in names), 'Zip missing validation_rules.json'
     assert any(n.endswith('.meta.json') for n in names), 'Zip missing .meta.json'
     assert any('.media' in n for n in names), 'Zip missing .media directory or media files'
+    
+    # Clean up the backup file using the DELETE API endpoint
+    delete_resp = page.context.request.delete(f"{app_url}/api/backup/{backup_id}")
+    print(f"Backup cleanup status: {delete_resp.status}")
+    assert delete_resp.ok, f"Failed to delete backup: {delete_resp.status}"

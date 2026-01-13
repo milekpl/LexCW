@@ -74,6 +74,10 @@ class TestingConfig(Config):
     # Use a safe database name that passes the safety check (starts with 'test_', no protected patterns)
     BASEX_DATABASE = os.environ.get('TEST_DB_NAME') or 'test_entries_db'
     
+    # Disable Redis caching during tests to ensure test isolation
+    # Each test should start with a clean state without cached data from previous tests
+    REDIS_ENABLED = False
+    
     # PostgreSQL test configuration
     PG_HOST = os.environ.get('POSTGRES_TEST_HOST') or 'localhost'
     PG_PORT = int(os.environ.get('POSTGRES_TEST_PORT') or 5433)

@@ -518,6 +518,35 @@ class XMLEntryService:
             # Use XQueryBuilder for update query
             # Ideally we would use replace node, but delete+insert is safer for complex structures
             
+            # Before inserting, sanitize XML to remove empty/template senses
+            try:
+                root_elem = ET.fromstring(xml_clean)
+                # remove empty <sense> elements: those with no child text or meaningful content
+                removed = []
+                # iterate parents to allow removal
+                for parent in root_elem.iter():
+                    for child in list(parent):
+                        tag_local = child.tag.split('}')[-1]
+                        if tag_local == 'sense':
+                            # Determine if it has meaningful text content in any descendant
+                            has_content = False
+                            for desc in child.iter():
+                                if desc is child:
+                                    continue
+                                text = (desc.text or '').strip()
+                                if text:
+                                    has_content = True
+                                    break
+                            if not has_content:
+                                removed.append(child.attrib.get('id'))
+                                parent.remove(child)
+                if removed:
+                    logger.info(f"Removed empty/template senses during XML update: {removed}")
+                xml_clean = ET.tostring(root_elem, encoding='unicode')
+                logger.info(f"[XML UPDATE] Final sanitized XML (truncated): {xml_clean[:500]}")
+            except ET.ParseError as e:
+                logger.warning(f"Failed to parse XML for sanitization: {e}")
+
             # Delete old entry
             delete_query = XQueryBuilder.build_delete_entry_query(
                 entry_id, self.database, self._has_namespace

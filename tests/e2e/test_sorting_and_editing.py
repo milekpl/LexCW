@@ -230,7 +230,7 @@ def _restore_database_content():
 
 
 @pytest.fixture(autouse=True)
-def restore_database_for_sorting_tests(base_url):
+def restore_database_for_sorting_tests(flask_test_server):
     """
     Restore test_entry_1 after each test in this module.
 

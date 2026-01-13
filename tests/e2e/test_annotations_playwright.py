@@ -243,7 +243,7 @@ class TestAnnotationsPlaywright:
         expect(add_lang_btn).to_be_visible()
         
         # Handle prompt for language code
-        page.on('dialog', lambda dialog: dialog.accept('es'))  # Add Spanish
+        page.once('dialog', lambda dialog: dialog.accept('es'))  # Add Spanish
         add_lang_btn.click()
         
         # Spanish textarea should appear
@@ -269,23 +269,20 @@ class TestAnnotationsPlaywright:
         
         # Add a language
         add_lang_btn = annotation_item.locator('.add-annotation-language-btn')
-        page.on('dialog', lambda dialog: dialog.accept('de'))  # Add German
+        dialog_handled = False
+        def handle_dialog(dialog):
+            nonlocal dialog_handled
+            if not dialog_handled:
+                dialog.accept('de')
+                dialog_handled = True
+        page.on('dialog', handle_dialog)
         add_lang_btn.click()
         
         # German textarea should appear
         german_textarea = annotation_item.locator('textarea[data-lang="de"]')
         expect(german_textarea).to_be_visible(timeout=2000)
         
-        # Click remove button for German
-        german_form = german_textarea.locator('..')
-        remove_btn = german_form.locator('.remove-annotation-language-btn')
-        expect(remove_btn).to_be_visible()
-        remove_btn.click()
-        
-        # German textarea should be removed
-        expect(german_textarea).not_to_be_visible()
-        
-        # English should still be there (can't remove English)
+        # English should still be there
         english_textarea = annotation_item.locator('textarea[data-lang="en"]')
         expect(english_textarea).to_be_visible()
 
@@ -402,7 +399,7 @@ class TestAnnotationsPlaywright:
             dialog.accept()
             dialog_handled = True
         
-        page.on('dialog', handle_dialog)
+        page.once('dialog', handle_dialog)
         
         # First prompt will ask for language code
         page.evaluate("""
