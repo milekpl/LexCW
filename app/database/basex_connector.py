@@ -56,22 +56,15 @@ class BaseXConnector:
     
     @property
     def database(self) -> Optional[str]:
-        """Get the effective database name.
-
-        Prefer an explicitly configured connector database when provided (constructor
-        argument), otherwise fall back to the TEST_DB_NAME environment variable when
-        present. This avoids surprising overrides when a connector is intentionally
-        constructed for a specific database in unit tests.
+        """Get the effective database name, checking TEST_DB_NAME environment variable first.
+        
+        This allows tests to override the database dynamically without recreating the connector.
         """
-        # If connector was constructed with an explicit database, prefer that
-        if self._base_database is not None:
-            return self._base_database
-
-        # Otherwise fall back to TEST_DB_NAME env var (used by E2E tests)
+        # In test mode, prefer TEST_DB_NAME environment variable
         test_db = os.environ.get('TEST_DB_NAME')
         if test_db:
             return test_db
-
+        # Fall back to the base database name
         return self._base_database
     
     @database.setter
@@ -644,12 +637,9 @@ class BaseXConnector:
             aggressive_disconnect.
         """
         with self._lock:
-            # If TEST_DB_NAME is set in the environment, report it as the configured
-            # runtime database; otherwise report the connector's configured database.
-            configured_db = os.environ.get('TEST_DB_NAME') or self._base_database
             return {
                 'connected': self._session is not None,
                 'current_db': self._current_db,
-                'configured_database': configured_db,
+                'configured_database': self.database,
                 'aggressive_disconnect': self.aggressive_disconnect,
             }

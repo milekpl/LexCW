@@ -61,11 +61,11 @@ def test_live_preview_auto_load_with_debug(page: Page, flask_test_server):
     # Wait for it to contain the headword text
     expect(preview_container).to_contain_text("PreviewHeadword", timeout=15000)
 
-    # Check for headword element specifically if needed
+    # Check for headword element specifically and wait for it to be visible
     headword = preview_container.locator(".headword.lexical-unit")
 
-    # Assert that preview loaded correctly
-    assert headword.count() > 0, "Live preview should load automatically with headword"
+    # Assert that preview loaded correctly (wait for the headword element to appear)
+    expect(headword).to_be_visible(timeout=15000)
     assert "PreviewHeadword" in headword.inner_text()
 
 

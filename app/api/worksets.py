@@ -480,7 +480,7 @@ def update_entry_status(workset_id: int, entry_id: str) -> tuple[Dict[str, Any],
 
         notes = data.get('notes', '')
 
-        with pg_conn() as conn:
+        with current_app.pg_pool.getconn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE workset_entries
@@ -515,7 +515,7 @@ def toggle_favorite(workset_id: int, entry_id: str) -> tuple[Dict[str, Any], int
 
         is_favorite = data['is_favorite']
 
-        with pg_conn() as conn:
+        with current_app.pg_pool.getconn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE workset_entries
@@ -543,7 +543,7 @@ def toggle_favorite(workset_id: int, entry_id: str) -> tuple[Dict[str, Any], int
 def get_curation_progress(workset_id: int) -> tuple[Dict[str, Any], int]:
     """Get curation progress for a workset with status counts."""
     try:
-        with pg_conn() as conn:
+        with current_app.pg_pool.getconn() as conn:
             with conn.cursor() as cur:
                 # Get status counts
                 cur.execute("""
@@ -587,7 +587,7 @@ def get_current_entry(workset_id: int) -> tuple[Dict[str, Any], int]:
     try:
         position = request.args.get('position', 0, type=int)
 
-        with pg_conn() as conn:
+        with current_app.pg_pool.getconn() as conn:
             with conn.cursor() as cur:
                 # Get total count first
                 cur.execute("SELECT COUNT(*) FROM workset_entries WHERE workset_id = %s", (workset_id,))
@@ -692,7 +692,7 @@ def navigate_entries(workset_id: int, direction: str) -> tuple[Dict[str, Any], i
         data = request.get_json(silent=True) or {}
         current_position = data.get('position', 0)
 
-        with pg_conn() as conn:
+        with current_app.pg_pool.getconn() as conn:
             with conn.cursor() as cur:
                 # Get total count
                 cur.execute("SELECT COUNT(*) FROM workset_entries WHERE workset_id = %s", (workset_id,))
