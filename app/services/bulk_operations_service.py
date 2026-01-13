@@ -64,6 +64,16 @@ class BulkOperationsService:
                     'error': 'Entry not found'
                 })
                 continue
+            except Exception as e:
+                # Catch generic exceptions (e.g., DB issues) and record as an error result
+                logger.error(f"Error fetching entry {entry_id}: {e}")
+                err_msg = (e.args[0] if getattr(e, 'args', None) and len(e.args) > 0 else str(e))
+                results.append({
+                    'id': entry_id,
+                    'status': 'error',
+                    'error': err_msg
+                })
+                continue
 
             print(f"=== DEBUG: entry={entry}, id(entry)={id(entry) if entry else None} ===")
             try:
@@ -99,10 +109,11 @@ class BulkOperationsService:
                     })
             except Exception as e:
                 logger.error(f"Error converting trait for entry {entry_id}: {e}")
+                err_msg = (e.args[0] if getattr(e, 'args', None) and len(e.args) > 0 else str(e))
                 results.append({
                     'id': entry_id,
                     'status': 'error',
-                    'error': str(e)
+                    'error': err_msg
                 })
 
         return {'results': results, 'total': len(results)}
@@ -130,6 +141,15 @@ class BulkOperationsService:
                     'id': entry_id,
                     'status': 'error',
                     'error': 'Entry not found'
+                })
+                continue
+            except Exception as e:
+                logger.error(f"Error fetching entry {entry_id}: {e}")
+                err_msg = (e.args[0] if getattr(e, 'args', None) and len(e.args) > 0 else str(e))
+                results.append({
+                    'id': entry_id,
+                    'status': 'error',
+                    'error': err_msg
                 })
                 continue
 
@@ -165,10 +185,11 @@ class BulkOperationsService:
                     })
             except Exception as e:
                 logger.error(f"Error updating POS for entry {entry_id}: {e}")
+                err_msg = (e.args[0] if getattr(e, 'args', None) and len(e.args) > 0 else str(e))
                 results.append({
                     'id': entry_id,
                     'status': 'error',
-                    'error': str(e)
+                    'error': err_msg
                 })
 
         return {'results': results, 'total': len(results)}
