@@ -11,6 +11,9 @@
 
     if (typeof document === 'undefined') {
         global.document = {
+            // Keep readyState 'loading' so modules attach DOMContentLoaded listeners
+            // rather than executing initialization immediately on require().
+            readyState: 'loading',
             getElementById: function () { return null; },
             querySelector: function () { return null; },
             querySelectorAll: function () { return []; },
@@ -19,6 +22,25 @@
             addEventListener: function () {},
             documentElement: { lang: 'en' }
         };
+    }
+
+    // Provide a minimal jQuery-like stub so modules that call $(...) don't crash.
+    if (typeof global.$ === 'undefined') {
+        global.$ = function () {
+            // Return an object with commonly used chained methods as no-ops.
+            return {
+                select2: function () { return this; },
+                on: function () { return this; },
+                val: function () { return ''; },
+                find: function () { return []; },
+                closest: function () { return this; },
+                addClass: function () { return this; },
+                removeClass: function () { return this; },
+                text: function () { return ''; },
+                html: function () { return ''; }
+            };
+        };
+        global.jQuery = global.$;
     }
 
     if (typeof localStorage === 'undefined') {
@@ -42,6 +64,14 @@
 
     if (typeof showAppToast === 'undefined') {
         global.showAppToast = function () {};
+    }
+
+    // Provide a minimal RangesLoader stub so server-side syntax checks don't fail
+    if (typeof RangesLoader === 'undefined') {
+        global.RangesLoader = class {
+            constructor() { }
+            load() { return Promise.resolve(); }
+        };
     }
 
     // Some modules expect a global console - ensure it exists

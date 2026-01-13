@@ -1747,9 +1747,25 @@ def live_preview():
             retry_success = False
             initial_html_snippet = (css_html[:500] if css_html else None)
 
+            def _html_contains_headword(html: str) -> bool:
+                """Robust detection for headword presence: look for class attributes
+                containing 'headword' or 'lexical-unit' instead of naive substring
+                matching which can be fooled by text like 'No headword'."""
+                import re
+                if not html:
+                    return False
+                # Match class="... headword ..." or class='... lexical-unit ...'
+                class_pattern = re.compile(r"class\s*=\s*['\"][^'\"]*\b(headword|lexical-unit)\b[^'\"]*['\"]")
+                if class_pattern.search(html):
+                    return True
+                # As a fallback, look for element names commonly used in CSS output
+                if '<span class="headword' in html or '<span class="lexical-unit' in html:
+                    return True
+                return False
+
             if css_html:
                 logger.info(f"Final HTML length: {len(css_html)}")
-                if 'headword' in css_html or 'lexical-unit' in css_html:
+                if _html_contains_headword(css_html):
                     logger.info("Final response contains headword")
                     retry_success = True
                 else:
@@ -1766,7 +1782,7 @@ def live_preview():
                         )
                         logger.info(f"Retry CSS rendering completed, length: {len(css_html_retry) if css_html_retry else 0}")
                         logger.debug(f"Retry CSS HTML: {css_html_retry}")
-                        if css_html_retry and ('headword' in css_html_retry or 'lexical-unit' in css_html_retry):
+                        if css_html_retry and _html_contains_headword(css_html_retry):
                             logger.info("Retry successful: headword found in retry HTML")
                             css_html = css_html_retry
                             retry_success = True
