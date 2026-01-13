@@ -78,3 +78,6 @@ basex/BaseX.jar
 basex/lib/*.jar
 *.jar
 cookies.txt
+main/FlexTools/g2p_output/byt5_checkpoints
+main/FlexTools/g2p_output/byt5_checkpoints/final_model
+main/FlexTools/g2p_output/byt5_checkpoints/final_model/special_tokens_map.json

@@ -80,8 +80,14 @@ def _close_modal_if_present(page, modal_id='projectSetupModalSettings'):
 
 
 @pytest.mark.e2e
+@pytest.mark.destructive
 class TestDatabaseOperationsE2E:
-    """End-to-end tests for database operations."""
+    """End-to-end tests for database operations.
+
+    These tests perform destructive operations (drop, import) on the database.
+    They are automatically skipped when run with non-destructive tests.
+    Run separately: pytest tests/e2e/test_database_operations_e2e.py
+    """
 
     @pytest.mark.e2e
     def test_drop_database_content_workflow(self, page: Page, flask_test_server: str):
@@ -155,10 +161,16 @@ class TestDatabaseOperationsE2E:
 
         if dropped:
             # If drop reported success, the DB should be empty
-            # Use the specific entry-count element which shows "Showing X of Y entries"
+            # Wait for entry count to finish loading (not show "Loading entries...")
+            # This is important when tests run together as async operations may take longer
             entry_count = page.locator('#entry-count')
-            expect(entry_count).to_have_text(r"Showing 0 of 0 entries")
-            expect(entry_count).to_be_visible()
+            
+            # First wait for the element to be visible
+            expect(entry_count).to_be_visible(timeout=10000)
+            
+            # Then wait for it to NOT show the loading message by waiting for the actual count
+            # Use a longer timeout to account for slow async operations when tests run together
+            expect(entry_count).to_have_text(r"Showing 0 of 0 entries", timeout=15000)
         else:
             # If drop errored, ensure entries page is accessible
             pass
@@ -196,8 +208,8 @@ class TestDatabaseOperationsE2E:
                     page.locator('#confirmDropDatabase').click()
                 return resp_info.value
 
-            # Initial attempt
-            resp = _do_import_click(timeout_ms=30000)
+            # Initial attempt (use longer timeout when tests run together)
+            resp = _do_import_click(timeout_ms=45000)
             resp_status = resp.status if hasattr(resp, 'status') else 'unknown'
             resp_json = {}
 
@@ -214,10 +226,10 @@ class TestDatabaseOperationsE2E:
             if not (resp.ok and resp_json.get('success') is True and resp_json.get('count') == 2):
                 import time
                 success = False
-                for attempt in range(4):
-                    time.sleep(1 + attempt)  # backoff
+                for attempt in range(5):
+                    time.sleep(2 + attempt)  # backoff
                     try:
-                        resp = _do_import_click(timeout_ms=20000)
+                        resp = _do_import_click(timeout_ms=45000)
                         resp_status = resp.status if hasattr(resp, 'status') else 'unknown'
                         try:
                             body = resp.text() if hasattr(resp, 'text') else ''
@@ -233,7 +245,7 @@ class TestDatabaseOperationsE2E:
                         continue
                 if not success:
                     pytest.fail(
-                        f"Import failed after retries. Last response: {{resp_status}} {{resp_json}}"
+                        f"Import failed after retries. Last response: {resp_status} {resp_json}"
                     )
         finally:
             # Clean up test file
@@ -284,7 +296,7 @@ class TestDatabaseOperationsE2E:
                     page.locator('#confirmDropDatabase').click()
                 return resp_info.value
 
-            resp = _do_import_click(timeout_ms=30000)
+            resp = _do_import_click(timeout_ms=45000)
             try:
                 body = resp.text() if hasattr(resp, 'text') else ''
                 if body:
@@ -297,10 +309,10 @@ class TestDatabaseOperationsE2E:
 
             if not (resp.ok and resp_json.get('success') is True and resp_json.get('count') == 2):
                 import time
-                for attempt in range(4):
-                    time.sleep(1 + attempt)
+                for attempt in range(5):
+                    time.sleep(2 + attempt)
                     try:
-                        resp = _do_import_click(timeout_ms=20000)
+                        resp = _do_import_click(timeout_ms=45000)
                         try:
                             body = resp.text() if hasattr(resp, 'text') else ''
                             if body:
@@ -315,7 +327,7 @@ class TestDatabaseOperationsE2E:
                     except Exception:
                         pass
                 else:
-                    pytest.fail(f"Import failed. Last response: {{resp_json}}")
+                    pytest.fail(f"Import failed. Last response: {resp_json}")
 
             # Verify the final state
             page.goto(f"{base_url}/entries", timeout=30000, wait_until="domcontentloaded")

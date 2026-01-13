@@ -514,7 +514,11 @@ class PronunciationFormsManager {
                         const txt = await response.text();
                         console.warn('Failed to delete audio file from server:', txt || response.statusText);
                     }
-            
+                }
+            } catch (e) {
+                console.warn('Failed to delete audio file:', e);
+            }
+
             // Clear the audio input value
             const audioInput = item.querySelector('input[name$=".audio_path"]');
             audioInput.value = '';

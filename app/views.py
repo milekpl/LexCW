@@ -442,6 +442,41 @@ def edit_entry(entry_id):
             # Merge form data with existing entry data, processing multilingual notes
             merged_data = merge_form_data_with_entry_data(data, existing_data)
 
+            # SANITIZE: Drop empty/template senses to avoid race conditions where
+            # a rapid delete + save might include a deleted sense in the POST payload
+            try:
+                sanitized_senses = []
+                for s in merged_data.get('senses', []) or []:
+                    has_definition = False
+                    has_gloss = False
+                    defs = s.get('definition') or {}
+                    glosses = s.get('gloss') or {}
+
+                    for val in defs.values() if isinstance(defs, dict) else []:
+                        if isinstance(val, dict) and val.get('text', '').strip():
+                            has_definition = True
+                            break
+                        if isinstance(val, str) and val.strip():
+                            has_definition = True
+                            break
+
+                    for val in glosses.values() if isinstance(glosses, dict) else []:
+                        if isinstance(val, dict) and val.get('text', '').strip():
+                            has_gloss = True
+                            break
+                        if isinstance(val, str) and val.strip():
+                            has_gloss = True
+                            break
+
+                    if has_definition or has_gloss:
+                        sanitized_senses.append(s)
+                    else:
+                        logger.info(f"[EDIT_ENTRY] Dropping empty/template sense from submission: id={s.get('id')}")
+
+                merged_data['senses'] = sanitized_senses
+            except Exception as e:
+                logger.warning(f"[EDIT_ENTRY] Failed to sanitize senses: {e}")
+
             entry = Entry.from_dict(merged_data)
             entry.id = entry_id
             
@@ -1490,8 +1525,8 @@ def workset_curate(workset_id: int):
     """Render the workset curation interface."""
     try:
         # Get workset info from database
-        from flask import current_app
-        with current_app.pg_pool.getconn() as conn:
+        from app.utils.pg_pool import pg_conn
+        with pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT name, total_entries FROM worksets WHERE id = %s", (workset_id,))
                 row = cur.fetchone()
@@ -1586,7 +1621,9 @@ def live_preview():
             if 'senses' in form_data:
                 logger.info(f"Number of senses: {len(form_data['senses']) if form_data['senses'] else 0}")
                 if form_data['senses']:
-                    logger.info(f"First sense keys: {list(form_data['senses'][0].keys()) if form_data['senses'] else 'None'}")
+                    # Senses dict uses __INDEX__ keys, not integer indices
+                    first_sense = next(iter(form_data['senses'].values())) if isinstance(form_data['senses'], dict) else None
+                    logger.info(f"First sense keys: {list(first_sense.keys()) if first_sense else 'None'}")
         
         if not form_data:
             logger.warning("No form data provided in live preview request")
@@ -1683,12 +1720,15 @@ def live_preview():
             
             # Debug: Check if CSS HTML contains expected elements
             if css_html:
-                if '<span class="headword"' in css_html or '<span class="lexical-unit"' in css_html:
+                # More robust presence checks: look for class names to avoid accidental
+                # substring matches such as 'No headword' which include the literal word
+                import re
+                if re.search(r"class=[\"']?[^\"']*\bheadword\b", css_html) or re.search(r"class=[\"']?[^\"']*\blexical-unit\b", css_html):
                     logger.info("CSS HTML contains headword/lexical-unit")
                 else:
                     logger.error("CSS HTML missing headword/lexical-unit elements")
-                
-                if '<div class="sense"' in css_html:
+
+                if re.search(r"class=[\"']?[^\"']*\bsense\b", css_html) or 'definition' in css_html:
                     logger.info("CSS HTML contains senses")
                 else:
                     logger.error("CSS HTML missing sense elements")
@@ -1704,14 +1744,40 @@ def live_preview():
             
             logger.info("Live preview generated successfully")
             
-            # Debug: Check final response
+            # Debug: Check final response and attempt one quick retry if headword is missing
+            retry_attempted = False
+            retry_success = False
+            initial_html_snippet = (css_html[:500] if css_html else None)
+
             if css_html:
                 logger.info(f"Final HTML length: {len(css_html)}")
-                if '<span class="headword"' in css_html or '<span class="lexical-unit"' in css_html:
+                import re
+                if re.search(r"class=[\"']?[^\"']*\bheadword\b", css_html) or re.search(r"class=[\"']?[^\"']*\blexical-unit\b", css_html):
                     logger.info("Final response contains headword")
+                    retry_success = True
                 else:
-                    logger.error("Final response missing headword - this is the issue!")
-            
+                    logger.error("Final response missing headword - attempting one retry")
+                    # Try one quick retry of the CSS renderer to reduce flakiness
+                    try:
+                        retry_attempted = True
+                        import time
+                        time.sleep(0.2)
+                        css_html_retry = css_service.render_entry(
+                            entry_xml,
+                            profile=default_profile,
+                            dict_service=dict_service,
+                        )
+                        logger.info(f"Retry CSS rendering completed, length: {len(css_html_retry) if css_html_retry else 0}")
+                        logger.debug(f"Retry CSS HTML: {css_html_retry}")
+                        if css_html_retry and (re.search(r"class=[\"']?[^\"']*\bheadword\b", css_html_retry) or re.search(r"class=[\"']?[^\"']*\blexical-unit\b", css_html_retry)):
+                            logger.info("Retry successful: headword found in retry HTML")
+                            css_html = css_html_retry
+                            retry_success = True
+                        else:
+                            logger.error("Retry did not produce headword")
+                    except Exception as e:
+                        logger.error(f"Exception during retry render: {e}", exc_info=True)
+
             return jsonify({
                 "success": True,
                 "html": css_html,
@@ -1719,7 +1785,10 @@ def live_preview():
                 "debug": {
                     "has_headword": '<span class="headword"' in css_html if css_html else False,
                     "has_lexical_unit": '<span class="lexical-unit"' in css_html if css_html else False,
-                    "html_length": len(css_html) if css_html else 0
+                    "html_length": len(css_html) if css_html else 0,
+                    "retry_attempted": retry_attempted,
+                    "retry_success": retry_success,
+                    "initial_html_snippet": initial_html_snippet
                 }
             })
         except Exception as e:

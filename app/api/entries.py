@@ -377,6 +377,7 @@ def update_entry(entry_id: str) -> Any:
 
             # Get the entry XML as string
             entry_xml = ET.tostring(entry_elem, encoding='unicode')
+            logger.info(f"[SENSE UPDATE] XML to update (truncated): {entry_xml[:500]}")
 
             # Update via xml service
             result = xml_service.update_entry(entry_id, entry_xml)
@@ -412,6 +413,41 @@ def update_entry(entry_id: str) -> Any:
         data['date_modified'] = datetime.datetime.utcnow().isoformat()
 
         logger.info(f"[SENSE UPDATE] Data before Entry.from_dict: {data.get('senses')}")
+
+        # SANITIZE: Remove empty/template senses that have no meaningful content.
+        # This protects against ghost/default template senses being included in
+        # the submitted data (client-side template elements sometimes leak).
+        try:
+            sanitized_senses = []
+            for s in data.get('senses', []) or []:
+                has_definition = False
+                has_gloss = False
+                defs = s.get('definition') or {}
+                glosses = s.get('gloss') or {}
+                # Check nested structures for non-empty text
+                for val in defs.values() if isinstance(defs, dict) else []:
+                    if isinstance(val, dict) and val.get('text', '').strip():
+                        has_definition = True
+                        break
+                    if isinstance(val, str) and val.strip():
+                        has_definition = True
+                        break
+                for val in glosses.values() if isinstance(glosses, dict) else []:
+                    if isinstance(val, dict) and val.get('text', '').strip():
+                        has_gloss = True
+                        break
+                    if isinstance(val, str) and val.strip():
+                        has_gloss = True
+                        break
+
+                if has_definition or has_gloss:
+                    sanitized_senses.append(s)
+                else:
+                    logger.info(f"[SENSE UPDATE] Dropping empty/template sense from submission: id={s.get('id')}")
+            data['senses'] = sanitized_senses
+        except Exception as e:
+            logger.warning(f"[SENSE UPDATE] Failed to sanitize senses: {e}")
+
         entry = Entry.from_dict(data)
         logger.info(f"[SENSE UPDATE] Entry after from_dict - senses: {[{'id': s.id, 'definitions': s.definitions} for s in entry.senses]}")
 

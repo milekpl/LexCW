@@ -74,7 +74,7 @@ class XQueryBuilder:
 
         # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        for $entry in (collection('{db_name}')//{entry_path}[@id="{entry_id}"])[1]
+        for $entry in (collection()//{entry_path}[@id="{entry_id}"])[1]
         return $entry
         """
 
@@ -101,7 +101,7 @@ class XQueryBuilder:
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
         query = f"""
-        for $entry in collection('{db_name}')//{entry_path}
+        for $entry in collection()//{entry_path}
         """
 
         if offset:
@@ -139,7 +139,7 @@ class XQueryBuilder:
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
         query = f"""
-        for $entry in collection('{db_name}')//{entry_path}
+        for $entry in collection()//{entry_path}
         where contains(string($entry), "{search_term}")
         """
 
@@ -171,7 +171,7 @@ class XQueryBuilder:
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
 
-        base_query = f"collection('{db_name}')//{entry_path}"
+        base_query = f"collection()//{entry_path}"
 
         if search_term:
             query = f"""{prologue}
@@ -209,12 +209,12 @@ class XQueryBuilder:
         # or insert into <lift> element,
         # or directly into collection
         return f"""{prologue}
-        if (collection('{db_name}')/{element_path}) then
-            insert node {entry_xml} after (collection('{db_name}')/{element_path})[1]
-        else if (collection('{db_name}')/{lift_path}) then
-            insert node {entry_xml} as last into (collection('{db_name}')/{lift_path})[1]
+        if (collection()/{element_path}) then
+            insert node {entry_xml} after (collection()/{element_path})[1]
+        else if (collection()/{lift_path}) then
+            insert node {entry_xml} as last into (collection()/{lift_path})[1]
         else
-            insert node {entry_xml} as last into collection('{db_name}')
+            insert node {entry_xml} as last into collection()
         """
 
     @staticmethod
@@ -239,7 +239,7 @@ class XQueryBuilder:
         # Use descendant axis to find entry anywhere in the collection
         # Entries are stored as separate documents, not under a lift root element
         return f"""{prologue}
-        replace node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
+        replace node collection()//{entry_path}[@id="{entry_id}"]
         with {entry_xml}
         """
 
@@ -263,7 +263,7 @@ class XQueryBuilder:
 
         # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        delete node collection('{db_name}')//{entry_path}[@id="{entry_id}"]
+        delete node collection()//{entry_path}[@id="{entry_id}"]
         """
 
     @staticmethod
@@ -286,7 +286,7 @@ class XQueryBuilder:
 
         # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        exists(collection('{db_name}')//{entry_path}[@id="{entry_id}"])
+        exists(collection()//{entry_path}[@id="{entry_id}"])
         """
 
     @staticmethod
@@ -307,9 +307,9 @@ class XQueryBuilder:
         example_path = XQueryBuilder.get_element_path("example", has_namespace)
 
         return f"""{prologue}
-        let $entries := collection('{db_name}')//{entry_path}
-        let $senses := collection('{db_name}')//{sense_path}
-        let $examples := collection('{db_name}')//{example_path}
+        let $entries := collection()//{entry_path}
+        let $senses := collection()//{sense_path}
+        let $examples := collection()//{example_path}
         return
         <statistics>
           <entries>{{count($entries)}}</entries>

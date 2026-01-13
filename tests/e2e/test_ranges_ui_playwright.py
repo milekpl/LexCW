@@ -115,8 +115,22 @@ class TestRangesUIPlaywright:
         
         if variant_type_select.count() > 0:
             # Wait for options to be populated (ranges are loaded asynchronously)
-            page.wait_for_timeout(2000)
-            
+            # Wait until options are present (ranges load async)
+            for _ in range(30):
+                try:
+                    options_count = variant_type_select.first.locator('option').count()
+                except Exception:
+                    options_count = 0
+                if options_count > 1:
+                    break
+                page.wait_for_timeout(200)
+            else:
+                # Diagnostic snapshot on failure
+                options = variant_type_select.first.locator('option').all_text_contents() if variant_type_select.count() > 0 else []
+                print('Variant type options after timeout:', options)
+                print('Page HTML snippet:', page.content()[:2000])
+                raise AssertionError(f"Expected multiple variant type options, got: {options}")
+
             # Wait for it to be visible
             expect(variant_type_select.first).to_be_visible(timeout=5000)
             
@@ -131,6 +145,7 @@ class TestRangesUIPlaywright:
             common_variants = ['spelling', 'dialect', 'free', 'irregular']
             has_variant = any(var in options_text for var in common_variants)
             assert has_variant, f"Expected at least one common variant type in: {options}"
+
         else:
             pytest.skip("Variant dropdown not found in UI after clicking Add Variant")
 

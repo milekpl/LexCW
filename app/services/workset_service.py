@@ -16,6 +16,7 @@ from flask import current_app
 
 from app.models.workset import Workset, WorksetQuery, BulkOperation, WorksetProgress
 from app.api.entries import get_dictionary_service
+from app.utils.pg_pool import pg_conn
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,8 @@ class WorksetService:
 
             workset = Workset.create(name, query)
             workset.total_entries = total_count
-            
-            with current_app.pg_pool.getconn() as conn:
+
+            with pg_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "INSERT INTO worksets (name, query, total_entries) VALUES (%s, %s, %s) RETURNING id, created_at, updated_at",
@@ -49,7 +50,7 @@ class WorksetService:
                             "INSERT INTO workset_entries (workset_id, entry_id) VALUES (%s, %s)",
                             (workset.id, entry_id)
                         )
-                    conn.commit()
+                conn.commit()
 
             logger.info(f"Created workset '{name}' with {total_count} entries")
             return workset
@@ -61,7 +62,7 @@ class WorksetService:
     def get_workset(self, workset_id: int, limit: int = 50, offset: int = 0) -> Optional[Workset]:
         """Retrieve workset with pagination."""
         try:
-            with current_app.pg_pool.getconn() as conn:
+            with pg_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT id, name, query, total_entries, created_at, updated_at FROM worksets WHERE id = %s", (workset_id,))
                     workset_data = cur.fetchone()
@@ -95,7 +96,7 @@ class WorksetService:
     def list_worksets(self) -> List[Workset]:
         """List all available worksets."""
         try:
-            with current_app.pg_pool.getconn() as conn:
+            with pg_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT id, name, query, total_entries, created_at, updated_at FROM worksets")
                     worksets_data = cur.fetchall()
@@ -120,7 +121,7 @@ class WorksetService:
             dictionary_service = get_dictionary_service()
             entries, total_count = self._execute_query(query, dictionary_service)
 
-            with current_app.pg_pool.getconn() as conn:
+            with pg_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE worksets SET query = %s, total_entries = %s, updated_at = %s WHERE id = %s",
@@ -134,7 +135,7 @@ class WorksetService:
                             "INSERT INTO workset_entries (workset_id, entry_id) VALUES (%s, %s)",
                             (workset_id, entry_id)
                         )
-                    conn.commit()
+                conn.commit()
 
             logger.info(f"Updated workset {workset_id} query, now has {total_count} entries")
             return total_count
@@ -146,7 +147,7 @@ class WorksetService:
     def delete_workset(self, workset_id: int) -> bool:
         """Delete a workset."""
         try:
-            with current_app.pg_pool.getconn() as conn:
+            with pg_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM worksets WHERE id = %s", (workset_id,))
                     conn.commit()

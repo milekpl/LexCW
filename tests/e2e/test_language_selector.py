@@ -2,26 +2,17 @@ import pytest
 from playwright.sync_api import Page
 from flask import Flask
 
-# Helper to extract base_url from flask_test_server tuple
-def _get_base_url(flask_test_server):
-    if isinstance(flask_test_server, tuple):
-        return flask_test_server[0]
-    return flask_test_server
-
 
 @pytest.mark.integration
-def test_language_selector_shows_only_configured_languages(page: Page, flask_test_server, app: Flask):
+def test_language_selector_shows_only_configured_languages(page: Page, app_url: str, configured_flask_app):
     """Test that the language selector only shows languages configured in project settings.
 
     Note: The test database is configured with 'en' (English) as source and 'es' (Spanish) as target.
     We test against these default settings since the flask_test_server runs in a subprocess
     and cannot be reconfigured mid-test.
     """
-    base_url = _get_base_url(flask_test_server)
-    page = page
-
     # Navigate to the entry form
-    page.goto(f"{base_url}/entries/add")
+    page.goto(f"{app_url}/entries/add")
 
     # Wait for page to load
     page.wait_for_selector("select.language-select")
@@ -40,10 +31,9 @@ def test_language_selector_shows_only_configured_languages(page: Page, flask_tes
 
 @pytest.mark.integration
 @pytest.mark.skip(reason="Validation warnings for unconfigured languages not yet implemented")
-def test_language_selector_shows_warning_for_unconfigured_languages(page: Page, flask_test_server, app: Flask):
+def test_language_selector_shows_warning_for_unconfigured_languages(page: Page, app_url: str, configured_flask_app):
     """Test that a validation warning is shown for unconfigured languages."""
-    base_url = _get_base_url(flask_test_server)
-    page = page
+    app, _ = configured_flask_app
 
     # Configure project settings to only include 'en'
     with app.app_context():
@@ -51,7 +41,7 @@ def test_language_selector_shows_warning_for_unconfigured_languages(page: Page, 
         app.config_manager.set_target_languages([])
 
     # Navigate to the entry form
-    page.goto(f"{base_url}/entries/add")
+    page.goto(f"{app_url}/entries/add")
 
     # Wait for page to load
     page.wait_for_selector("select.language-select")

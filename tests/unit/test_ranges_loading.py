@@ -63,7 +63,11 @@ class TestRangesLoading:
         assert mock_connector.execute_query.called
         # Check that at least one call used the collection query with local-name() syntax
         calls = [str(call) for call in mock_connector.execute_query.call_args_list]
-        collection_query_found = any("collection('test_db')//*[local-name()='lift-ranges']" in call for call in calls)
+        # Accept either an explicit collection() call or a collection-less local-name() query
+        collection_query_found = any(
+            "collection('test_db')//*[local-name()='lift-ranges']" in call or "//*[local-name()='lift-ranges']" in call
+            for call in calls
+        )
         assert collection_query_found, f"Expected collection query not found in calls: {calls}"
         
         # Verify ranges were parsed correctly

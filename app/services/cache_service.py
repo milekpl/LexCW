@@ -17,6 +17,7 @@ class CacheService:
     # Class-level cache of the instance to avoid repeated Redis connection attempts
     _instance: Optional['CacheService'] = None
     _connection_attempted: ClassVar[bool] = False
+    _last_redis_enabled: ClassVar[Optional[str]] = None  # Track env changes
     
     def __new__(cls) -> 'CacheService':
         """Singleton pattern to avoid repeated Redis connection attempts."""
@@ -24,10 +25,27 @@ class CacheService:
             cls._instance = super().__new__(cls)
         return cls._instance
     
+    @classmethod
+    def reset_singleton(cls) -> None:
+        """Reset the singleton state. Used for testing to allow re-initialization."""
+        cls._instance = None
+        cls._connection_attempted = False
+        cls._last_redis_enabled = None
+    
     def __init__(self):
         """Initialize Redis connection with fallback."""
+        # Check if REDIS_ENABLED env var has changed (important for tests)
+        current_redis_enabled = os.getenv('REDIS_ENABLED', 'true').lower()
+        if (CacheService._last_redis_enabled is not None and 
+            CacheService._last_redis_enabled != current_redis_enabled):
+            # Environment changed, reset and re-initialize
+            self.redis_client = None
+            CacheService._connection_attempted = False
+        
+        CacheService._last_redis_enabled = current_redis_enabled
+        
         # Only initialize once
-        if hasattr(self, '_initialized'):
+        if hasattr(self, '_initialized') and CacheService._connection_attempted:
             return
             
         self.logger = logging.getLogger(__name__)
@@ -41,6 +59,13 @@ class CacheService:
     
     def _connect(self) -> None:
         """Establish Redis connection."""
+        # Check if Redis is explicitly disabled (e.g., during testing)
+        redis_enabled = os.getenv('REDIS_ENABLED', 'true').lower()
+        if redis_enabled in ('false', '0', 'no', 'off'):
+            self.logger.info("Redis caching disabled via REDIS_ENABLED=false")
+            self.redis_client = None
+            return
+        
         try:
             # Redis 8.0 compatible configuration with more reasonable timeouts
             self.redis_client = redis.Redis(

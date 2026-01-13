@@ -43,9 +43,12 @@ def download_backup():
         # Get backup manager service
         backup_manager = current_app.injector.get(BaseXBackupManager)
 
+        # Use configured database name, not hardcoded 'dictionary'
+        db_name = current_app.config.get('BASEX_DATABASE', 'dictionary')
+
         # Create a backup
         backup = backup_manager.create_backup(
-            db_name='dictionary',
+            db_name=db_name,
             backup_type='manual'
         )
 
@@ -62,7 +65,7 @@ def download_backup():
             directory,
             filename,
             as_attachment=True,
-            download_name=f"dictionary_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.lift"
+            download_name=f"{db_name}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.lift"
         )
 
     except Exception as e:

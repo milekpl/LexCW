@@ -16,48 +16,42 @@ from app.models.entry import Entry
 
 
 @pytest.fixture(scope="function")
-def test_entry_with_variants(e2e_dict_service):
-    """Create a test entry with variants for UI testing."""
-    # Use the e2e_dict_service which uses 'dictionary_test' database
-    dict_service = e2e_dict_service
-    
-    # Clean up any existing test entries
-    try:
-        existing_main = dict_service.get_entry('playwright_test_main')
-        if existing_main:
-            dict_service.delete_entry('playwright_test_main')
-    except Exception:
-        pass  # Entry doesn't exist, which is fine
-        
-    try:
-        existing_variant = dict_service.get_entry('playwright_test_variant')
-        if existing_variant:
-            dict_service.delete_entry('playwright_test_variant')
-    except Exception:
-        pass  # Entry doesn't exist, which is fine
-    
-    # Create a main entry
-    main_entry = Entry(
-        id_='playwright_test_main',
-        lexical_unit={'en': 'color'},
-        senses=[{'id': 'sense1', 'glosses': {'en': 'appearance'}}]
-    )
-    dict_service.create_entry(main_entry)
-    
-    # Create a variant entry
-    variant_entry = Entry(
-        id_='playwright_test_variant',
-        lexical_unit={'en': 'colour'},
-        senses=[{'id': 'sense1', 'glosses': {'en': 'British spelling'}}],
-        variant_relations=[{
-            'type': '_component-lexeme',
-            'ref': 'playwright_test_main',
-            'variant_type': 'Spelling Variant'
+def test_entry_with_variants(app_url: str, configured_flask_app):
+    """Create a test entry with variants for UI testing using the API.
+
+    Ensures entries are created in the current test database context.
+    Returns (main_entry_id, variant_entry_id).
+    """
+    import requests
+    app, _ = configured_flask_app
+    base_url = app_url
+
+    # Create main entry
+    main_entry = {
+        "id": "playwright_test_main",
+        "lexical_unit": {"en": "color"},
+        "senses": [{"id": "sense1", "gloss": {"en": "appearance"}}]
+    }
+    r = requests.post(f"{base_url}/api/entries/", json=main_entry, headers={"Content-Type": "application/json"})
+    if r.status_code not in (200, 201):
+        raise RuntimeError(f"Failed to create main test entry: {r.status_code} {r.text}")
+
+    # Create variant entry referencing main
+    variant_entry = {
+        "id": "playwright_test_variant",
+        "lexical_unit": {"en": "colour"},
+        "senses": [{"id": "sense1", "gloss": {"en": "British spelling"}}],
+        "variant_relations": [{
+            "type": "_component-lexeme",
+            "ref": "playwright_test_main",
+            "variant_type": "Spelling Variant"
         }]
-    )
-    dict_service.create_entry(variant_entry)
-    
-    return main_entry.id, variant_entry.id
+    }
+    r2 = requests.post(f"{base_url}/api/entries/", json=variant_entry, headers={"Content-Type": "application/json"})
+    if r2.status_code not in (200, 201):
+        raise RuntimeError(f"Failed to create variant test entry: {r2.status_code} {r2.text}")
+
+    return main_entry["id"], variant_entry["id"]
 
 
 @pytest.mark.integration

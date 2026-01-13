@@ -244,6 +244,46 @@ class TestEntryFormSave:
         assert 'first sense updated' in content
         assert 'second sense' in content
 
+    def test_update_filters_empty_template_sense(self, client: FlaskClient, cleanup_entry):
+        """Ensure that empty/template senses submitted by the client are not persisted."""
+        entry_id = cleanup_entry
+
+        # Create entry with one sense
+        create_xml = f'''<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{entry_id}">
+            <lexical-unit>
+                <form lang="en"><text>templatetest</text></form>
+            </lexical-unit>
+            <sense id="sense_001" order="0">
+                <gloss lang="en"><text>original sense</text></gloss>
+            </sense>
+        </entry>'''
+
+        response = client.post('/api/xml/entries', data=create_xml, content_type='application/xml')
+        assert response.status_code == 201
+
+        # Update entry and include an empty/template sense that should be filtered
+        update_xml = f'''<entry xmlns="http://fieldworks.sil.org/schemas/lift/0.13" id="{entry_id}">
+            <lexical-unit>
+                <form lang="en"><text>templatetest</text></form>
+            </lexical-unit>
+            <sense id="sense_001" order="0">
+                <gloss lang="en"><text>original sense</text></gloss>
+            </sense>
+            <sense id="default-sense-template" order="1">
+            </sense>
+        </entry>'''
+
+        response = client.put(f'/api/xml/entries/{entry_id}', data=update_xml, content_type='application/xml')
+        assert response.status_code == 200
+
+        # Verify that the template sense was not persisted
+        response = client.get(f'/api/xml/entries/{entry_id}')
+        assert response.status_code == 200
+        body = response.data.decode('utf-8')
+        assert 'default-sense-template' not in body, "Template sense id should not be present in saved entry"
+        # Ensure original sense still present
+        assert 'sense_001' in body, "Original sense missing after update"
+
     def test_delete_and_verify_gone(self, client: FlaskClient, cleanup_entry):
         """Test that deleted entries are truly gone."""
         entry_id = cleanup_entry

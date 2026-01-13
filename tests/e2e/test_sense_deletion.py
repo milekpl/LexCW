@@ -241,7 +241,7 @@ def restore_database_for_sense_tests(flask_test_server):
 
 
 @pytest.mark.integration
-def test_sense_deletion_persists_after_save(page, flask_test_server):
+def test_sense_deletion_persists_after_save(page, app_url):
     """
     CRITICAL TEST: Verify that deleted senses don't reappear after save.
 
@@ -258,7 +258,7 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
     # For this test, create an entry with 2 senses via API, then edit it
     import requests
 
-    base_url = _get_base_url(flask_test_server)
+    base_url = app_url
 
     print("Creating test entry data...")
     test_entry_data = {
@@ -278,12 +278,16 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
         ]
     }
 
+    # Get cookies from playwright page to share session with requests
+    cookies = {cookie['name']: cookie['value'] for cookie in page.context.cookies()}
+
     # Create entry via API
-    print(f"Creating entry via API at {flask_test_server}/api/entries/...")
+    print(f"Creating entry via API at {app_url}/api/entries/...")
     response = requests.post(
         f"{base_url}/api/entries/",
         json=test_entry_data,
-        headers={"Content-Type": "application/json"}
+        headers={"Content-Type": "application/json"},
+        cookies=cookies
     )
     print(f"API response status: {response.status_code}")
     assert response.status_code in [200, 201], f"Failed to create test entry: {response.text}"
@@ -339,9 +343,23 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
     # Clear and monitor serialization
     console_logs.clear()
 
+    # Enable E2E client-side XML capture so we can assert the outgoing body
+    page.evaluate("() => { window.__E2E_CAPTURE_XML = true; window.__LAST_SERIALIZED_XML = null; }")
+
     # Save the entry
     print("Clicking Save Entry button...")
     page.click('button[type="submit"]:has-text("Save Entry")')
+
+    # Wait for the client to populate the captured XML (short timeout)
+    try:
+        page.wait_for_function("() => !!window.__LAST_SERIALIZED_XML", timeout=3000)
+        serialized_xml = page.evaluate("() => window.__LAST_SERIALIZED_XML")
+        print('Captured serialized XML (truncated):', serialized_xml[:400])
+        sense_count_in_xml = serialized_xml.count('<sense ')
+        print('Senses in serialized XML:', sense_count_in_xml)
+        assert sense_count_in_xml == 1, f"Client serialized wrong number of senses: {sense_count_in_xml}. XML: {serialized_xml}"
+    except Exception as e:
+        print('No serialized XML captured or timeout:', e)
 
     max_attempts = 30
     for attempt in range(max_attempts):
@@ -360,7 +378,6 @@ def test_sense_deletion_persists_after_save(page, flask_test_server):
         if len(serialized_count_log) > 0:
             assert 'Serialized senses: 1' in serialized_count_log[0], \
                 f"Wrong sense count serialized. Expected 'Serialized senses: 1', got: {serialized_count_log[0]}"
-
     # Wait for form submission to complete
     print("Waiting for form submission to complete...")
     try:
@@ -480,8 +497,22 @@ def test_multiple_deletions(page, flask_test_server):
     page.goto(edit_url, timeout=30000)
     page.wait_for_load_state("networkidle")
 
+    # Setup console monitoring to capture form submit logs
+    console_logs = []
+    page.on("console", lambda msg: console_logs.append(msg.text))
+
+    # Setup request monitoring to capture network requests (AJAX or form posts)
+    requests_made = []
+    page.on("request", lambda req: requests_made.append((req.method, req.url)))
+
     # Check senses
     page.wait_for_timeout(1000)
+
+    # Debug: verify submit handler and xmlSerializer presence
+    has_submit = page.evaluate("() => typeof window.submitForm === 'function'")
+    has_xml_serializer = page.evaluate("() => !!window.xmlSerializer && typeof window.xmlSerializer.serializeEntry === 'function'")
+    print(f"submitForm present: {has_submit}, xmlSerializer present: {has_xml_serializer}")
+
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     sense_count_before = real_senses.count()
 
@@ -511,9 +542,38 @@ def test_multiple_deletions(page, flask_test_server):
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     assert real_senses.count() == 1, f"Expected 1 sense after deletion, got {real_senses.count()}"
 
+    # Enable E2E client-side XML capture so we can assert the outgoing body
+    page.evaluate("() => { window.__E2E_CAPTURE_XML = true; window.__LAST_SERIALIZED_XML = null; }")
+
     # Save
     page.click('button[type="submit"]:has-text("Save Entry")')
     page.wait_for_load_state("networkidle", timeout=10000)
+
+    # Wait for the client to populate the captured XML (short timeout)
+    try:
+        page.wait_for_function("() => !!window.__LAST_SERIALIZED_XML", timeout=3000)
+        serialized_xml = page.evaluate("() => window.__LAST_SERIALIZED_XML")
+        print('Captured serialized XML (truncated):', serialized_xml[:400])
+        sense_count_in_xml = serialized_xml.count('<sense ')
+        print('Senses in serialized XML:', sense_count_in_xml)
+        assert sense_count_in_xml == 1, f"Client serialized wrong number of senses: {sense_count_in_xml}. XML: {serialized_xml}"
+    except Exception as e:
+        print('No serialized XML captured or timeout:', e)
+
+    # Debug: Print console logs captured during save
+    print(f"Console logs during save ({len(console_logs)}):")
+    for cl in console_logs[-50:]:
+        print(cl)
+
+    submit_logs = [log for log in console_logs if 'FORM SUBMIT' in log]
+    if submit_logs:
+        serialized_count_log = [log for log in submit_logs if 'Serialized senses' in log]
+        print('Found submit logs:', serialized_count_log)
+
+    # Debug: print network requests that happened during save
+    print('Network requests during save:')
+    for m, u in requests_made[-50:]:
+        print(m, u)
 
     # Reload and verify deletion persisted
     page.goto(edit_url, timeout=30000)
