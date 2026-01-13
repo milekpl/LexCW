@@ -263,10 +263,6 @@ class TestFlaskApp:
     @pytest.mark.integration
     def test_404_error(self):
         """Test 404 error handling (redirects if no project selected)."""
-        # Ensure any TEST_DB_NAME set by earlier tests does not prevent redirect behavior
-        import os
-        os.environ.pop('TEST_DB_NAME', None)
-
         response = self.client.get('/nonexistent')
         
         # Should redirect to settings/projects because no project is in session

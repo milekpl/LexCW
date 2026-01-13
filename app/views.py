@@ -1525,8 +1525,8 @@ def workset_curate(workset_id: int):
     """Render the workset curation interface."""
     try:
         # Get workset info from database
-        from app.utils.pg_pool import pg_conn
-        with pg_conn() as conn:
+        from flask import current_app
+        with current_app.pg_pool.getconn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT name, total_entries FROM worksets WHERE id = %s", (workset_id,))
                 row = cur.fetchone()
@@ -1720,15 +1720,13 @@ def live_preview():
             
             # Debug: Check if CSS HTML contains expected elements
             if css_html:
-                # More robust presence checks: look for class names to avoid accidental
-                # substring matches such as 'No headword' which include the literal word
-                import re
-                if re.search(r"class=[\"']?[^\"']*\bheadword\b", css_html) or re.search(r"class=[\"']?[^\"']*\blexical-unit\b", css_html):
+                # More robust presence checks: look for class names or generic identifiers
+                if 'headword' in css_html or 'lexical-unit' in css_html:
                     logger.info("CSS HTML contains headword/lexical-unit")
                 else:
                     logger.error("CSS HTML missing headword/lexical-unit elements")
-
-                if re.search(r"class=[\"']?[^\"']*\bsense\b", css_html) or 'definition' in css_html:
+                
+                if 'class="sense"' in css_html or '<div class="sense"' in css_html or 'definition' in css_html:
                     logger.info("CSS HTML contains senses")
                 else:
                     logger.error("CSS HTML missing sense elements")
@@ -1751,8 +1749,7 @@ def live_preview():
 
             if css_html:
                 logger.info(f"Final HTML length: {len(css_html)}")
-                import re
-                if re.search(r"class=[\"']?[^\"']*\bheadword\b", css_html) or re.search(r"class=[\"']?[^\"']*\blexical-unit\b", css_html):
+                if 'headword' in css_html or 'lexical-unit' in css_html:
                     logger.info("Final response contains headword")
                     retry_success = True
                 else:
@@ -1769,7 +1766,7 @@ def live_preview():
                         )
                         logger.info(f"Retry CSS rendering completed, length: {len(css_html_retry) if css_html_retry else 0}")
                         logger.debug(f"Retry CSS HTML: {css_html_retry}")
-                        if css_html_retry and (re.search(r"class=[\"']?[^\"']*\bheadword\b", css_html_retry) or re.search(r"class=[\"']?[^\"']*\blexical-unit\b", css_html_retry)):
+                        if css_html_retry and ('headword' in css_html_retry or 'lexical-unit' in css_html_retry):
                             logger.info("Retry successful: headword found in retry HTML")
                             css_html = css_html_retry
                             retry_success = True

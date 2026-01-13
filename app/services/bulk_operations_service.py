@@ -64,14 +64,6 @@ class BulkOperationsService:
                     'error': 'Entry not found'
                 })
                 continue
-            except Exception as e:
-                logger.error(f"Error fetching entry {entry_id}: {e}")
-                results.append({
-                    'id': entry_id,
-                    'status': 'error',
-                    'error': str(e)
-                })
-                continue
 
             print(f"=== DEBUG: entry={entry}, id(entry)={id(entry) if entry else None} ===")
             try:
@@ -138,14 +130,6 @@ class BulkOperationsService:
                     'id': entry_id,
                     'status': 'error',
                     'error': 'Entry not found'
-                })
-                continue
-            except Exception as e:
-                logger.error(f"Error fetching entry {entry_id}: {e}")
-                results.append({
-                    'id': entry_id,
-                    'status': 'error',
-                    'error': str(e)
                 })
                 continue
 
