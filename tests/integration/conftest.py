@@ -12,8 +12,14 @@ from flask import Flask
 from flask.testing import FlaskClient
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (only if `.env` exists in repo root)
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+dotenv_path = os.path.join(repo_root, '.env')
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path)
+else:
+    # No .env found in the repo root; skip loading to avoid path-walking errors when workspace was moved
+    pass
 
 # Add parent directory to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))

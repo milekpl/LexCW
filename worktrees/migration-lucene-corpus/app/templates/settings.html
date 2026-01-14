@@ -1,0 +1,692 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="fas fa-cog"></i> {{ title }}</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-header">
+            Update Project Configuration
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('settings.manage_settings') }}" novalidate>
+                {{ form.hidden_tag() }}
+
+                <fieldset class="mb-4">
+                    <legend class="h6">Project Details</legend>
+                    {{ render_field(form.project_name, class="form-control", placeholder="Enter project name") }}
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Source Language (Vernacular)
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="This is the primary language of the dictionary, often the local or indigenous language being documented."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.source_language_code, class="form-select") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.source_language_name, class="form-control", placeholder="e.g., Sena, English") }}
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Target Languages
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="These are the languages used for definitions, translations, and glosses. Search from 150+ world languages including indigenous, regional, and sign languages."></i>
+                    </legend>
+                    
+                    <!-- Render the searchable multi-select field -->
+                    {{ form.available_target_languages() }}
+                    
+                    {% if form.available_target_languages.errors %}
+                        <div class="text-danger">
+                            {% for error in form.available_target_languages.errors %}
+                                <small>{{ error }}</small>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Backup Settings
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Configure automatic backups and backup storage options to protect your lexicographic data."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.backup_directory, class="form-control", placeholder="app/static/backup or /absolute/path") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.auto_backup_schedule, class="form-select") }}
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            {{ render_field(form.backup_retention, class="form-control", placeholder="10") }}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                {{ form.backup_compression(class="form-check-input") }}
+                                {{ form.backup_compression.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                {{ form.backup_include_media(class="form-check-input") }}
+                                {{ form.backup_include_media.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div class="mt-4">
+                    {{ form.submit(class="btn btn-primary") }}
+                    <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            Current Settings Overview
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-4">Project Name:</dt>
+                <dd class="col-sm-8">{{ current_settings.project_name }}</dd>
+
+                <dt class="col-sm-4">Source Language (Vernacular):</dt>
+                <dd class="col-sm-8">{{ current_settings.source_language.name }} ({{ current_settings.source_language.code }})</dd>
+
+                <dt class="col-sm-4">Target Languages:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.target_languages %}
+                        {% for lang in current_settings.target_languages %}
+                            {{ lang.name }} ({{ lang.code }}){% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        None configured
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Backup Directory:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.directory %}
+                        {{ current_settings.backup_settings.directory }}
+                    {% else %}
+                        Not configured
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Auto Backup Schedule:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.schedule %}
+                        {{ current_settings.backup_settings.schedule|title }}
+                    {% else %}
+                        Daily
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Backup Retention:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.retention %}
+                        {{ current_settings.backup_settings.retention }} backups
+                    {% else %}
+                        10 backups
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Backup Compression:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.compression %}
+                        Enabled
+                    {% else %}
+                        Disabled
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Include Media in Backups:</dt>
+                <dd class="col-sm-8">
+                    {% if current_settings.backup_settings and current_settings.backup_settings.include_media %}
+                        Enabled
+                    {% else %}
+                        Disabled
+                    {% endif %}
+                </dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">Project Management</div>
+        <div class="card-body">
+            <p class="mb-3">Create and manage multiple projects for different datasets.</p>
+            <a class="btn btn-outline-primary" href="/settings/projects">Manage Projects</a>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">Database Management</div>
+        <div class="card-body">
+            <p class="mb-3">Manage the dictionary database content.</p>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#dropDatabaseModal">
+                <i class="fas fa-trash"></i> Drop Database Content
+            </button>
+        </div>
+    </div>
+
+    <!-- Drop Database Modal -->
+    <div class="modal fade" id="dropDatabaseModal" tabindex="-1" aria-labelledby="dropDatabaseModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dropDatabaseModalLabel">Database Management Options</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Choose what you want to do with the dictionary database:</p>
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Need help? <a href="/help" 
+                                   class="alert-link">
+                            View Import/Export Help
+                        </a>
+                    </div>
+                    <div class="alert alert-warning mb-3">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Important:</strong> Before making major changes, 
+                        <a href="{{ url_for('backup.backup_management') }}" class="alert-link">
+                            create a backup
+                        </a> to preserve your data.
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="dbAction" id="dropBlank" value="drop" checked>
+                        <label class="form-check-label" for="dropBlank">
+                            <strong>Drop all content (blank slate)</strong><br>
+                            <small class="text-muted">Remove all entries and data, leaving an empty database ready for new imports.</small>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="dbAction" id="dropWithRanges" value="drop_ranges">
+                        <label class="form-check-label" for="dropWithRanges">
+                            <strong>Drop all content and install recommended ranges</strong><br>
+                            <small class="text-muted">Remove all entries and data, then install standard linguistic ranges for new projects.</small>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="dbAction" id="importLift" value="import">
+                        <label class="form-check-label" for="importLift">
+                            <strong>Import LIFT file (replace everything)</strong><br>
+                            <small class="text-muted">Replace the entire database with content from a LIFT file.</small>
+                        </label>
+                    </div>
+                    
+                    <div id="liftFileInput" class="mb-3" style="display: none;">
+                        <label for="liftFile" class="form-label">Select LIFT file:</label>
+                        <input type="file" class="form-control" id="liftFile" accept=".lift,.xml">
+                        <small class="form-text text-muted">
+                            You may also upload a companion <code>.lift-ranges</code> file. 
+                            <strong>This is highly recommended</strong> as the application relies on ranges for proper functionality.
+                        </small>
+                        <label for="rangesFile" class="form-label mt-2">
+                            Select LIFT ranges file <span class="text-warning">(Highly Recommended)</span>:
+                        </label>
+                        <input type="file" class="form-control" id="rangesFile" accept=".lift-ranges">
+                        <small class="form-text text-muted">
+                            <a href="/help#ranges-editor" 
+                               class="text-decoration-none">
+                                <i class="fas fa-question-circle me-1"></i> Learn more about ranges
+                            </a>
+                        </small>
+                    </div>
+                    
+                    <div class="alert alert-danger">
+                        <strong>Warning:</strong> These actions cannot be undone! All current data will be permanently deleted.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDropDatabase">
+                        <i class="fas fa-trash"></i> Execute
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show/hide file input based on selected option
+    document.querySelectorAll('input[name="dbAction"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const liftFileInput = document.getElementById('liftFileInput');
+            if (this.value === 'import') {
+                liftFileInput.style.display = 'block';
+            } else {
+                liftFileInput.style.display = 'none';
+            }
+        });
+    });
+
+    document.getElementById('confirmDropDatabase').addEventListener('click', async function() {
+        const selectedAction = document.querySelector('input[name="dbAction"]:checked').value;
+        const button = this;
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+        try {
+            let response;
+            if (selectedAction === 'import') {
+                const fileInput = document.getElementById('liftFile');
+                const rangesInput = document.getElementById('rangesFile');
+                if (!fileInput.files[0]) {
+                    showAppToast('Please select a LIFT file', 'error');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                if (rangesInput && rangesInput.files && rangesInput.files[0]) {
+                    formData.append('ranges', rangesInput.files[0]);
+                }
+                
+                // Get CSRF token for import request
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfHeader = csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {};
+
+                response = await fetch('/settings/import-lift-replace', {
+                    method: 'POST',
+                    headers: csrfHeader,
+                    body: formData
+                });
+            } else {
+                const data = { action: selectedAction };
+                // Get CSRF token for drop database request
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfHeader = csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {};
+
+                response = await fetch('/settings/drop-database', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...csrfHeader
+                    },
+                    body: JSON.stringify(data)
+                });
+            }
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                let message = 'Operation completed successfully!';
+                if (result.count !== undefined) {
+                    message += ` Imported ${result.count} entries.`;
+                }
+                showAppToast(message, 'success');
+                // Safely hide the drop database modal
+                try {
+                    const modalEl = document.getElementById('dropDatabaseModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    if (modal) modal.hide();
+                } catch (e) {
+                    console.warn('Could not hide drop database modal:', e);
+                }
+                // Optionally reload the page to reflect changes
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAppToast('Error: ' + (result.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showAppToast('Error: ' + error.message, 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    });
+});
+</script>
+
+</div>
+{% endblock %}
+
+{% block extra_css %}
+{{ super() }} {# Include CSS from base.html if any #}
+<!-- Font Awesome for icons in the searchable interface -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    /* Enhanced styling for comprehensive language interface */
+    .searchable-language-selector {
+        max-width: 100%;
+    }
+    
+    .language-search-container {
+        position: relative;
+    }
+    
+    .language-search-results {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 0.375rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-height: 400px;
+        overflow-y: auto;
+        z-index: 1050;
+    }
+    
+    .language-search-result {
+        padding: 8px 12px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    
+    .language-search-result:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .language-search-result:last-child {
+        border-bottom: none;
+    }
+    
+    .selected-language-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        background: linear-gradient(135deg, #e7f3ff 0%, #f0f8ff 100%);
+        border: 1px solid #bee5eb;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s ease;
+    }
+    
+    .selected-language-item:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    .selected-language-item .language-name {
+        font-weight: 600;
+        color: #0056b3;
+    }
+    
+    .selected-language-item .language-code {
+        color: #6c757d;
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-left: 8px;
+    }
+    
+    .selected-language-item .language-details {
+        flex: 1;
+        margin-left: 12px;
+    }
+    
+    .selected-language-item .language-details small {
+        color: #495057;
+        font-style: italic;
+    }
+    
+    .selected-language-item .remove-language {
+        margin-left: 8px;
+        min-width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .selected-language-item .remove-language:hover {
+        transform: scale(1.1);
+    }
+    
+    /* Enhanced form styling */
+    .form-select, .form-control {
+        border-radius: 0.5rem;
+        border: 2px solid #e9ecef;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .form-select:focus, .form-control:focus {
+        border-color: #0056b3;
+        box-shadow: 0 0 0 0.2rem rgba(0, 86, 179, 0.15);
+    }
+    
+    /* Responsive design for language interface */
+    @media (max-width: 768px) {
+        .selected-language-item {
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+        
+        .selected-language-item .language-details {
+            margin-left: 0;
+            margin-top: 8px;
+            width: 100%;
+        }
+        
+        .selected-language-item .remove-language {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            margin: 0;
+        }
+    }
+    
+    /* Accessibility improvements */
+    .language-search-input:focus,
+    .remove-language:focus {
+        outline: 2px solid #0056b3;
+        outline-offset: 2px;
+    }
+    
+    /* Loading and empty states */
+    .text-muted {
+        color: #6c757d !important;
+    }
+    
+    .language-search-container .input-group-text {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-left: none;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }} {# Include JS from base.html if any #}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize Bootstrap tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Enhanced functionality for comprehensive language interface
+        console.log('Settings page with comprehensive language support loaded');
+        
+        // Scroll to target languages section if there are validation errors
+        // Use a more compatible selector approach
+        const legends = document.querySelectorAll('legend');
+        let targetLanguagesFieldset = null;
+        for (const legend of legends) {
+            if (legend.textContent.includes('Target Languages')) {
+                targetLanguagesFieldset = legend.closest('fieldset');
+                break;
+            }
+        }
+        if (targetLanguagesFieldset && document.querySelector('.text-danger')) {
+            targetLanguagesFieldset.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // Add keyboard shortcuts for accessibility
+        document.addEventListener('keydown', function(e) {
+            // Alt + S to focus search
+            if (e.altKey && e.key === 's') {
+                e.preventDefault();
+                const searchInput = document.querySelector('.language-search-input');
+                if (searchInput) {
+                    searchInput.focus();
+                }
+            }
+            
+            // Escape to close search results
+            if (e.key === 'Escape') {
+                const resultsContainer = document.querySelector('.language-search-results');
+                if (resultsContainer && resultsContainer.style.display !== 'none') {
+                    resultsContainer.style.display = 'none';
+                }
+            }
+        });
+        
+        // Add form submission enhancement
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Show loading state
+                const submitButton = form.querySelector('input[type="submit"], button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.value = 'Updating...';
+                    
+                    // Re-enable after a timeout in case of errors
+                    setTimeout(() => {
+                        submitButton.disabled = false;
+                        submitButton.value = 'Update Settings';
+                    }, 10000);
+                }
+            });
+        }
+    });
+</script>
+<div id="app-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+<script>
+function showAppToast(message, type='success', timeout=4000) {
+    const container = document.getElementById('app-toast-container');
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-bg-' + (type === 'error' ? 'danger' : 'success') + ' border-0';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+    container.appendChild(toastEl);
+    const bsToast = new bootstrap.Toast(toastEl, { delay: timeout });
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', function () { toastEl.remove(); });
+    return bsToast;
+}
+</script>
+{% if show_wizard %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+        // Show modal to edit current project's settings as wizard
+        const modalHtml = `
+        <div class="modal fade" id="projectSetupModalSettings" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Project Setup</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="settings-wizard-form">
+                            <div class="mb-3">
+                                <label class="form-label">Project Name</label>
+                                <input id="wizard_project_name" class="form-control" value="{{ project_query or current_settings.project_name }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Source Language Code</label>
+                                <input id="wizard_source_code" class="form-control" value="{{ current_settings.source_language.code }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Target Language Code</label>
+                                <input id="wizard_target_code" class="form-control" value="{{ current_settings.target_languages[0].code if current_settings.target_languages else '' }}">
+                            </div>
+                            <div class="form-check mb-3">
+                                <input type="checkbox" class="form-check-input" id="wizard_install_ranges">
+                                <label class="form-check-label" for="wizard_install_ranges">Install recommended ranges</label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" id="wizard_save_btn" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const bsModal = new bootstrap.Modal(document.getElementById('projectSetupModalSettings'));
+        bsModal.show();
+
+        document.getElementById('wizard_save_btn').addEventListener('click', async function(){
+                const name = document.getElementById('wizard_project_name').value;
+                const src = document.getElementById('wizard_source_code').value;
+                const tgt = document.getElementById('wizard_target_code').value;
+                const install = document.getElementById('wizard_install_ranges').checked;
+                try {
+                        // validate language codes quickly on client
+                        const codeRegex = /^[a-zA-Z]{2,3}(-[A-Za-z0-9]+)?$/;
+                        if (!codeRegex.test(src)) { showAppToast('Invalid source language code', 'error'); return; }
+                        const resp = await fetch('/settings/projects/create', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({project_name: name, source_language_code: src, target_language_code: tgt, install_recommended_ranges: install})
+                        });
+                        const data = await resp.json();
+                        if (resp.ok && data.success) {
+                            // Show small success notification and keep wizard open for further settings
+                            showAppToast('Project created successfully. You can continue with setup.', 'success');
+                        } else {
+                            showAppToast('Error: ' + (data.error || 'Unknown'), 'error');
+                        }
+                } catch(e) { alert('Error: ' + e); }
+        });
+});
+</script>
+{% endif %}
+{% endblock %}

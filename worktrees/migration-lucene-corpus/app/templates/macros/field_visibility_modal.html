@@ -1,0 +1,284 @@
+{#
+    Field Visibility Modal Macro
+
+    Reusable modal for controlling field section and field visibility in forms.
+    Supports per-section and per-field visibility with collapsible field groups.
+
+    Usage:
+        {% import "macros/field_visibility_modal.html" as field_visibility_modal %}
+        {{ field_visibility_modal.field_visibility_modal() }}
+
+    Parameters:
+        modal_id: Unique ID for the modal (default: 'fieldVisibilityModal')
+        sections: List of section definitions with id, label, target, and fields
+#}
+{% macro field_visibility_modal(modal_id='fieldVisibilityModal', sections=None) %}
+{% if sections is none %}
+{% set sections = [
+    {
+        'id': 'basic-info',
+        'label': 'Basic Information',
+        'target': '.basic-info-section',
+        'fields': [
+            {'id': 'lexical-unit', 'label': 'Lexical Unit', 'default_visible': True},
+            {'id': 'pronunciation', 'label': 'Pronunciation', 'default_visible': True},
+            {'id': 'variants', 'label': 'Variants', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'custom-fields',
+        'label': 'Custom Fields',
+        'target': '.custom-fields-section',
+        'fields': [
+            {'id': 'custom-fields-all', 'label': 'All Custom Fields', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'notes',
+        'label': 'Entry Notes',
+        'target': '.notes-section',
+        'fields': [
+            {'id': 'notes-all', 'label': 'All Notes', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'pronunciation',
+        'label': 'Pronunciation',
+        'target': '.pronunciation-section',
+        'fields': [
+            {'id': 'pronunciation-all', 'label': 'All Pronunciations', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'variants',
+        'label': 'Variants',
+        'target': '.variants-section',
+        'fields': [
+            {'id': 'variants-all', 'label': 'All Variants', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'direct-variants',
+        'label': 'Direct Variants',
+        'target': '.direct-variants-section',
+        'fields': [
+            {'id': 'direct-variants-all', 'label': 'All Direct Variants', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'relations',
+        'label': 'Relations',
+        'target': '.relations-section',
+        'fields': [
+            {'id': 'relations-all', 'label': 'All Relations', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'annotations',
+        'label': 'Annotations',
+        'target': '.annotations-section-entry',
+        'fields': [
+            {'id': 'annotations-all', 'label': 'All Entry Annotations', 'default_visible': True},
+        ]
+    },
+    {
+        'id': 'senses',
+        'label': 'Senses & Definitions',
+        'target': '.senses-section',
+        'fields': [
+            {'id': 'sense-definition', 'label': 'Definition', 'default_visible': True},
+            {'id': 'sense-gloss', 'label': 'Gloss', 'default_visible': True},
+            {'id': 'sense-grammatical', 'label': 'Part of Speech', 'default_visible': True},
+            {'id': 'sense-domain', 'label': 'Domain/Usage', 'default_visible': True},
+            {'id': 'sense-examples', 'label': 'Examples', 'default_visible': True},
+            {'id': 'sense-illustrations', 'label': 'Illustrations', 'default_visible': True},
+            {'id': 'sense-relations', 'label': 'Sense Relations', 'default_visible': True},
+            {'id': 'sense-variants', 'label': 'Variant Relations', 'default_visible': True},
+            {'id': 'sense-reversals', 'label': 'Reversals', 'default_visible': False},
+            {'id': 'sense-annotations', 'label': 'Sense Annotations', 'default_visible': False},
+        ]
+    },
+] %}
+{% endif %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-labelledby="{{ modal_id }}Label" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="{{ modal_id }}Label">
+                    <i class="fas fa-cog"></i> Field Visibility Settings
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Control which sections and fields appear in the entry form.
+                    Click on a section to expand and select individual fields.
+                    Settings are saved automatically.
+                </p>
+
+                <!-- View Toggle -->
+                <div class="btn-group w-100 mb-3" role="group">
+                    <input type="radio" class="btn-check" name="visibilityViewToggle" id="view-sections" autocomplete="off" checked data-skip-validation="true">
+                    <label class="btn btn-outline-primary" for="view-sections">
+                        <i class="fas fa-th-large"></i> Sections
+                    </label>
+                    <input type="radio" class="btn-check" name="visibilityViewToggle" id="view-fields" autocomplete="off" data-skip-validation="true">
+                    <label class="btn btn-outline-primary" for="view-fields">
+                        <i class="fas fa-list"></i> Individual Fields
+                    </label>
+                </div>
+
+                <!-- Sections View (Default) -->
+                <div id="sections-view" class="visibility-view">
+                    <div class="row">
+                        {% for section in sections %}
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input field-visibility-toggle section-toggle"
+                                       type="checkbox"
+                                       id="show-{{ section.id }}"
+                                       data-section-id="{{ section.id }}"
+                                       data-target="{{ section.target }}"
+                                       data-skip-validation="true"
+                                       checked>
+                                <label class="form-check-label fw-bold" for="show-{{ section.id }}">
+                                    {{ section.label }}
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Fields View (Collapsible) -->
+                <div id="fields-view" class="visibility-view" style="display: none;">
+                    <div class="accordion field-visibility-accordion" id="{{ modal_id }}Accordion">
+                        {% for section in sections %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed py-2"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#collapse-{{ section.id }}"
+                                        aria-expanded="false"
+                                        aria-controls="collapse-{{ section.id }}">
+                                    <div class="form-check ms-2 me-3">
+                                        <input class="form-check-input section-field-toggle"
+                                               type="checkbox"
+                                               id="section-{{ section.id }}"
+                                               data-section-id="{{ section.id }}"
+                                               data-target="{{ section.target }}"
+                                               data-skip-validation="true"
+                                               checked>
+                                    </div>
+                                    <span>{{ section.label }}</span>
+                                </button>
+                            </h2>
+                            <div id="collapse-{{ section.id }}" class="accordion-collapse collapse" data-bs-parent="#{{ modal_id }}Accordion">
+                                <div class="accordion-body py-2 px-3">
+                                    {% for field in section.fields %}
+                                    <div class="form-check mb-2 ms-2">
+                                        <input class="form-check-input field-visibility-toggle field-toggle"
+                                               type="checkbox"
+                                               id="show-{{ section.id }}-{{ field.id }}"
+                                               data-section-id="{{ section.id }}"
+                                               data-field-id="{{ field.id }}"
+                                               data-target="{{ section.target }}"
+                                               data-default-visible="{{ 'true' if field.default_visible else 'false' }}"
+                                               data-skip-validation="true"
+                                               {% if field.default_visible %}checked{% endif %}>
+                                        <label class="form-check-label" for="show-{{ section.id }}-{{ field.id }}">
+                                            {{ field.label }}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Quick Actions -->
+                <div class="d-flex justify-content-between flex-wrap gap-2">
+                    <button type="button" class="btn btn-outline-secondary reset-field-visibility-btn">
+                        <i class="fas fa-undo"></i> Reset to Defaults
+                    </button>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-primary hide-empty-sections-btn">
+                            <i class="fas fa-eye-slash"></i> Hide Empty
+                        </button>
+                        <button type="button" class="btn btn-outline-primary show-all-sections-btn">
+                            <i class="fas fa-eye"></i> Show All
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Field Visibility Modal Styles */
+.field-visibility-accordion .accordion-button {
+    font-size: 0.95rem;
+}
+
+.field-visibility-accordion .accordion-button:not(.collapsed) {
+    background-color: rgba(var(--bs-primary-rgb), 0.08);
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,0.125);
+}
+
+.field-visibility-accordion .accordion-button::after {
+    margin-left: 0.5rem;
+}
+
+.field-visibility-accordion .accordion-button > .form-check {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.field-visibility-accordion .form-check-input {
+    margin-top: 0.15em;
+}
+
+.field-visibility-accordion .form-check-label {
+    font-size: 0.9rem;
+}
+
+.visibility-view .form-check-input[type="checkbox"] {
+    width: 1.2em;
+    height: 1.2em;
+    margin-top: 0.15em;
+}
+
+.visibility-view .form-check-label {
+    font-size: 0.95rem;
+}
+
+.section-toggle:checked + .form-check-label,
+.section-toggle:checked ~ * .form-check-label,
+input.section-field-toggle:checked ~ span {
+    color: var(--bs-primary);
+}
+
+/* Ensure accordion body has proper padding */
+.field-visibility-accordion .accordion-body {
+    background-color: rgba(var(--bs-light-rgb), 0.3);
+}
+
+/* Animation for view toggle */
+.visibility-view {
+    transition: opacity 0.2s ease;
+}
+
+.visibility-view.hidden {
+    display: none;
+}
+</style>
+{% endmacro %}

@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+#
+# BaseX Start Script
+# Robust start with logging, health checks, and auto-restart
+#
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use ~/basex for data directory if it exists, otherwise use local basex directory
+LOCAL_BASEX_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$HOME/basex/.basex" ]; then
+    BASEX_DIR="$HOME/basex"
+else
+    BASEX_DIR="$LOCAL_BASEX_DIR"
+fi
+LOG_DIR="$BASEX_DIR/log"
+LOG_FILE="$LOG_DIR/basex.log"
+ERR_LOG="$LOG_DIR/basex.err.log"
+PID_FILE="$BASEX_DIR/.pid"
+JAR_FILE="$LOCAL_BASEX_DIR/BaseX.jar"
+MAX_RETRIES=3
+RETRY_DELAY=5
+MAX_LOG_SIZE=10485760  # 10MB
+MAX_LOG_FILES=5
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+log() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
+
+    case "$level" in
+        ERROR) echo -e "${RED}[$level] $message${NC}" ;;
+        WARN)  echo -e "${YELLOW}[$level] $message${NC}" ;;
+        INFO)  echo -e "[$level] $message" ;;
+    esac
+}
+
+setup_logging() {
+    mkdir -p "$LOG_DIR"
+
+    # Rotate logs if too large
+    if [ -f "$LOG_FILE" ] && [ $(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE") -gt $MAX_LOG_SIZE ]; then
+        for i in $(seq $MAX_LOG_FILES -1 1); do
+            [ -f "${LOG_FILE}.$i" ] && mv "${LOG_FILE}.$i" "${LOG_FILE}.$((i+1))"
+        done
+        mv "$LOG_FILE" "${LOG_FILE}.1"
+        touch "$LOG_FILE"
+    fi
+
+    touch "$LOG_FILE" "$ERR_LOG"
+}
+
+get_pid() {
+    if [ -f "$PID_FILE" ]; then
+        cat "$PID_FILE"
+    else
+        echo ""
+    fi
+}
+
+is_running() {
+    local pid=$(get_pid)
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+health_check() {
+    local port=1984
+    local timeout=5
+
+    # Level 1: Port open
+    if ! nc -z -w$timeout localhost $port 2>/dev/null; then
+        log "WARN" "Health check level 1 failed: port $port not open"
+        return 1
+    fi
+
+    # Level 2: TCP connection
+    if ! timeout $((timeout*2)) bash -c "echo > /dev/tcp/localhost/$port" 2>/dev/null; then
+        log "WARN" "Health check level 2 failed: cannot connect to port $port"
+        return 1
+    fi
+
+    log "INFO" "Health check passed"
+    return 0
+}
+
+stop_basex() {
+    log "INFO" "Stopping BaseX..."
+    java -cp "$JAR_FILE" org.basex.BaseXServer -s 2>/dev/null || true
+
+    local pid=$(get_pid)
+    if [ -n "$pid" ]; then
+        # Wait for process to stop
+        local waited=0
+        while kill -0 "$pid" 2>/dev/null && [ $waited -lt 30 ]; do
+            sleep 1
+            waited=$((waited + 1))
+        done
+
+        # Force kill if still running
+        if kill -0 "$pid" 2>/dev/null; then
+            log "WARN" "Force killing BaseX process $pid"
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+    fi
+
+    rm -f "$PID_FILE"
+    log "INFO" "BaseX stopped"
+}
+
+start_basex() {
+    local attempt=1
+    local backoff=$RETRY_DELAY
+
+    while [ $attempt -le $MAX_RETRIES ]; do
+        log "INFO" "Attempt $attempt/$MAX_RETRIES to start BaseX..."
+
+        # Start BaseX server
+        nohup java -cp "$JAR_FILE" org.basex.BaseXServer -d > "$LOG_FILE" 2>&1 &
+        local pid=$!
+        echo "$pid" > "$PID_FILE"
+
+        # Wait for startup
+        sleep 3
+
+        # Check if process is running
+        if ! kill -0 "$pid" 2>/dev/null; then
+            log "ERROR" "BaseX process died immediately"
+            attempt=$((attempt + 1))
+            backoff=$((backoff * 2))
+            sleep $backoff
+            continue
+        fi
+
+        # Health check
+        if health_check; then
+            log "INFO" "BaseX started successfully (PID: $pid)"
+            echo "BaseX started (PID: $pid)"
+            return 0
+        else
+            log "WARN" "BaseX started but health check failed"
+            stop_basex
+            attempt=$((attempt + 1))
+            backoff=$((backoff * 2))
+            sleep $backoff
+        fi
+    done
+
+    log "ERROR" "Failed to start BaseX after $MAX_RETRIES attempts"
+    echo -e "${RED}ERROR: Failed to start BaseX after $MAX_RETRIES attempts${NC}"
+    echo "Check $LOG_FILE for details"
+    return 1
+}
+
+show_status() {
+    if is_running; then
+        local pid=$(get_pid)
+        echo -e "${GREEN}BaseX is running (PID: $pid)${NC}"
+        echo "Log: $LOG_FILE"
+        echo "PID file: $PID_FILE"
+
+        # Show last few log lines
+        echo -e "\n${YELLOW}Recent log entries:${NC}"
+        tail -5 "$LOG_FILE" 2>/dev/null || true
+        return 0
+    else
+        echo -e "${RED}BaseX is not running${NC}"
+        if [ -f "$LOG_FILE" ]; then
+            echo -e "\n${YELLOW}Last log entries:${NC}"
+            tail -10 "$LOG_FILE" 2>/dev/null || true
+        fi
+        return 1
+    fi
+}
+
+show_help() {
+    cat << EOF
+Usage: $(basename "$0") [command] [options]
+
+Commands:
+    start       Start BaseX server (default)
+    stop        Stop BaseX server
+    status      Show server status
+    health      Run deep health check
+    restart     Restart the server
+
+Options:
+    --help      Show this help message
+    --force     Force restart (stop first if running)
+
+Examples:
+    $(basename "$0")              # Start BaseX
+    $(basename "$0") stop         # Stop BaseX
+    $(basename "$0") status       # Check status
+    $(basename "$0") restart      # Restart
+EOF
+}
+
+# Main
+main() {
+    setup_logging
+
+    command="${1:-start}"
+    shift || true
+
+    case "$command" in
+        -h|--help|help)
+            show_help
+            exit 0
+            ;;
+        start)
+            if [ "$1" == "--force" ]; then
+                is_running && stop_basex
+            fi
+            if is_running; then
+                log "WARN" "BaseX is already running"
+                echo -e "${YELLOW}BaseX is already running${NC}"
+                exit 0
+            fi
+            start_basex
+            ;;
+        stop)
+            if is_running; then
+                stop_basex
+                echo -e "${GREEN}BaseX stopped${NC}"
+            else
+                echo -e "${YELLOW}BaseX is not running${NC}"
+            fi
+            ;;
+        status)
+            show_status
+            ;;
+        health)
+            if health_check; then
+                echo -e "${GREEN}BaseX health check passed${NC}"
+                exit 0
+            else
+                echo -e "${RED}BaseX health check failed${NC}"
+                exit 1
+            fi
+            ;;
+        restart)
+            is_running && stop_basex
+            sleep 2
+            start_basex
+            ;;
+        *)
+            echo -e "${RED}Unknown command: $command${NC}"
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

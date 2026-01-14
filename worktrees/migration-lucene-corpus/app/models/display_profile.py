@@ -1,0 +1,225 @@
+"""Display profile models for CSS-based entry rendering.
+
+This module defines SQLAlchemy models for managing display profiles,
+which control how LIFT entries are rendered with CSS styling.
+"""
+
+from __future__ import annotations
+
+from typing import List, Optional
+from datetime import datetime, timezone
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy.orm import relationship
+
+from app.models.workset_models import db
+
+
+class DisplayProfile(db.Model):
+    """Display profile for controlling entry rendering with CSS.
+    
+    A display profile defines:
+    - Which LIFT elements to display
+    - CSS classes for each element
+    - Element ordering and visibility
+    - Prefixes/suffixes for elements
+    """
+    
+    __tablename__ = 'display_profiles'
+    __allow_unmapped__ = True
+
+    id: int = Column(Integer, primary_key=True)
+    name: str = Column(String(255), unique=True, nullable=False, index=True)
+    description: Optional[str] = Column(Text, nullable=True)
+    
+    # Custom CSS styles for this profile
+    custom_css: Optional[str] = Column(Text, nullable=True)
+
+    # Global display settings
+    show_subentries: bool = Column(Boolean, default=False, nullable=False)
+    number_senses: bool = Column(Boolean, default=True, nullable=False)  # Auto-number senses with CSS
+    number_senses_if_multiple: bool = Column(Boolean, default=False, nullable=False)  # Only number if multiple senses
+
+    # Global language setting for all elements in this profile
+    # Note: This column may not exist in older databases, so we handle it gracefully
+    default_language: Optional[str] = Column(String(10), default="*", nullable=True)
+    
+    # Profile metadata
+    is_default: bool = Column(Boolean, default=False, nullable=False)
+    is_system: bool = Column(Boolean, default=False, nullable=False)  # System profiles can't be deleted
+    created_at: datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), 
+                                   onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    
+    # Ownership (optional, for future multi-user support)
+    owner_id: Optional[int] = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    
+    # Relationships
+    elements: List['ProfileElement'] = relationship(
+        'ProfileElement',
+        back_populates='profile',
+        cascade='all, delete-orphan',
+        order_by='ProfileElement.display_order'
+    )
+    
+    def __repr__(self) -> str:
+        return f'<DisplayProfile id={self.id} name={self.name}>'
+    
+    def to_dict(self) -> dict:
+        """Convert profile to dictionary representation."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'custom_css': self.custom_css,
+            'show_subentries': self.show_subentries,
+            'number_senses': self.number_senses,
+            'number_senses_if_multiple': self.number_senses_if_multiple,
+            'default_language': self.default_language,
+            'is_default': self.is_default,
+            'is_system': self.is_system,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'elements': [elem.to_dict() for elem in self.elements] if self.elements else []
+        }
+    
+    def to_config(self) -> dict:
+        """Convert profile to configuration format for CSS mapping service."""
+        return {
+            'name': self.name,
+            'description': self.description,
+            'elements': {
+                elem.lift_element: {
+                    'css_class': elem.css_class,
+                    'visibility': elem.visibility,
+                    'order': elem.display_order,
+                    'prefix': elem.prefix or '',
+                    'suffix': elem.suffix or ''
+                }
+                for elem in self.elements
+            }
+        }
+
+
+class ProfileElement(db.Model):
+    """Element configuration within a display profile.
+    
+    Defines how a specific LIFT element should be rendered:
+    - CSS classes to apply
+    - Visibility setting (always/if-content/never)
+    - Display order
+    - Text prefix/suffix
+    """
+    
+    __tablename__ = 'profile_elements'
+    __allow_unmapped__ = True
+
+    id: int = Column(Integer, primary_key=True)
+    profile_id: int = Column(Integer, ForeignKey('display_profiles.id', ondelete='CASCADE'), 
+                             nullable=False, index=True)
+    
+    # LIFT element configuration
+    lift_element: str = Column(String(100), nullable=False)  # e.g., "lexical-unit", "sense"
+    css_class: str = Column(String(255), nullable=False, default='')
+    visibility: str = Column(String(50), nullable=False, default='if-content')  # always/if-content/never
+    display_order: int = Column(Integer, nullable=False, default=0)
+    
+    # Language-specific configuration
+    language_filter: str = Column(String(10), nullable=False, default='*')  # '*' for all, 'en', 'pl', etc.
+    
+    # Optional text decorations
+    prefix: Optional[str] = Column(String(100), nullable=True)
+    suffix: Optional[str] = Column(String(100), nullable=True)
+    
+    # Additional configuration (JSON for future extensibility)
+    config: Optional[dict] = Column(JSON, nullable=True)
+    
+    # Relationships
+    profile: 'DisplayProfile' = relationship('DisplayProfile', back_populates='elements')
+    
+    def __repr__(self) -> str:
+        return f'<ProfileElement id={self.id} element={self.lift_element} order={self.display_order}>'
+    
+    def to_dict(self) -> dict:
+        """Convert element to dictionary representation."""
+        return {
+            'id': self.id,
+            'profile_id': self.profile_id,
+            'lift_element': self.lift_element,
+            'css_class': self.css_class,
+            'visibility': self.visibility,
+            'display_order': self.display_order,
+            'language_filter': self.language_filter,
+            'prefix': self.prefix,
+            'suffix': self.suffix,
+            'config': self.config
+        }
+
+    def set_display_aspect(self, aspect: str) -> None:
+        """Set the display aspect (full, label, abbr).
+        
+        Args:
+            aspect: one of 'full', 'label', 'abbr'
+            
+        Raises:
+            ValueError: if aspect is invalid
+        """
+        valid_aspects = {'full', 'label', 'abbr'}
+        if aspect not in valid_aspects:
+            raise ValueError(f"Invalid display aspect: {aspect}")
+        
+        # Keep an in-memory copy so direct assignments to `config` later
+        # (common in tests) do not obscure the user's intent to set the
+        # display aspect. This avoids losing the aspect when the whole
+        # `config` dict is reassigned after calling this method.
+        self._display_aspect = aspect
+
+        if self.config is None:
+            self.config = {}
+        
+        # Determine if config is mutable dict or needs assignment
+        # SQLAlchemy JSON types sometimes track mutations, sometimes need reassignment
+        new_config = dict(self.config)
+        new_config['display_aspect'] = aspect
+        new_config['abbr_format'] = aspect # Sync both for compatibility
+        self.config = new_config
+
+    def get_display_aspect(self) -> Optional[str]:
+        """Get the current display aspect. Checks in-memory override first, then
+        'display_aspect' and 'abbr_format' in config for backward compatibility."""
+        # Prefer explicit in-memory override (set via `set_display_aspect`) so
+        # direct reassignment of the JSON config won't discard the aspect.
+        if hasattr(self, '_display_aspect') and self._display_aspect:
+            return self._display_aspect
+
+        if not self.config:
+            return None
+        return self.config.get('display_aspect') or self.config.get('abbr_format')
+
+    def set_display_language(self, lang: str) -> None:
+        """Set the display language.
+        
+        Args:
+            lang: language code or '*'
+        """
+        if self.config is None:
+            self.config = {}
+            
+        new_config = dict(self.config)
+        new_config['language'] = lang
+        self.config = new_config
+
+    def get_display_language(self) -> Optional[str]:
+        """Get the current display language.
+
+        Falls back to language_filter field if config doesn't specify a language.
+        Returns None only if neither is set (meaning "use profile default").
+        """
+        # First check config (explicitly set language)
+        if self.config:
+            lang = self.config.get('language')
+            if lang:
+                return lang
+        # Fall back to language_filter field
+        if self.language_filter and self.language_filter != '*':
+            return self.language_filter
+        return None

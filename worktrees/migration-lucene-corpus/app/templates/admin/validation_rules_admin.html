@@ -1,0 +1,1069 @@
+{% extends "base.html" %}
+
+{% block title %}Validation Rules Editor{% endblock %}
+
+{% block content %}
+<div class="validation-rules-admin">
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="page-title">Validation Rules Editor <a href="{{ url_for('main.help_page') }}#validation-rules" class="btn btn-sm btn-outline-secondary ms-2" title="Learn more about validation rules"><i class="bi bi-question-circle"></i> Help</a></h1>
+                <p class="text-muted">Configure validation rules for dictionary entries</p>
+            </div>
+            <div class="btn-group">
+                <select id="project-selector" class="form-select" style="width: auto;">
+                    <option value="">Select a project...</option>
+                    {% for project in projects %}
+                    <option value="{{ project.id }}">{{ project.project_name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn btn-outline-primary" onclick="window.validationRulesApp.initializeFromTemplate()">
+                    <i class="bi bi-magic"></i> Initialize from Template
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info" id="no-project-alert">
+        <i class="bi bi-info-circle"></i>
+        Please select a project to manage its validation rules. You can also initialize rules from a template.
+    </div>
+
+    <div id="rules-editor-container" class="d-none">
+        <!-- Using defaults indicator -->
+        <div id="using-defaults-message" class="alert alert-info mb-3 d-none">
+            <i class="bi bi-info-circle"></i>
+            <strong>Using default rules:</strong> This project has no custom rules. Showing default validation rules from <code>validation_rules_v2.json</code>.
+            Save custom rules to override defaults.
+        </div>
+        <div class="row">
+            <!-- Rules List -->
+            <div class="col-lg-5">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-list-check"></i> Rules</h5>
+                        <div class="rules-stats">
+                            <span class="badge bg-danger">{{ critical_count }} critical</span>
+                            <span class="badge bg-warning text-dark">{{ warning_count }} warning</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="rules-list-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rule Editor & Preview -->
+            <div class="col-lg-7">
+                <div class="row">
+                    <!-- Rule Editor -->
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Rule Editor</h5>
+                            </div>
+                            <div class="card-body" style="overflow: hidden; padding: 0;">
+                                <div id="rule-editor-container" style="height: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rule Preview/Test -->
+                    <div class="col-12 mt-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-play-circle"></i> Test Rule</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="rule-preview-container"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Actions -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card bg-light">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <span id="dirty-indicator" class="badge bg-warning text-dark d-none">Unsaved Changes</span>
+                            <span class="text-muted" id="rules-summary"></span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-secondary" onclick="window.validationRulesApp.discardChanges()">
+                                <i class="bi bi-arrow-counterclockwise"></i> Discard Changes
+                            </button>
+                            <button class="btn btn-secondary" onclick="window.validationRulesApp.exportRules()">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                            <button class="btn btn-primary" onclick="window.validationRulesApp.saveRules()">
+                                <i class="bi bi-check-lg"></i> Save Rules
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Initialize Template Modal -->
+<div class="modal fade" id="init-template-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Initialize Rules from Template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Choose a template to initialize validation rules:</p>
+                <div class="list-group" id="template-list">
+                    <!-- Templates will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Rules Modal -->
+<div class="modal fade" id="import-rules-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Validation Rules</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Upload JSON File</label>
+                    <input type="file" class="form-control" id="import-file-input" accept=".json">
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="import-replace">
+                    <label class="form-check-label" for="import-replace">
+                        Replace existing rules
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="window.validationRulesApp.importFromFile()">
+                    Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Base Admin Layout Styles */
+.validation-rules-admin {
+    --admin-primary: #4a5568;
+    --admin-secondary: #718096;
+    --admin-bg: #f7fafc;
+    --admin-border: #e2e8f0;
+    --admin-accent: #3182ce;
+    --admin-success: #38a169;
+    --admin-warning: #d69e2e;
+    --admin-danger: #e53e3e;
+}
+
+.validation-rules-admin .page-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--admin-border);
+}
+
+.validation-rules-admin .page-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #1a202c;
+    margin-bottom: 0.25rem;
+}
+
+.validation-rules-admin .page-subtitle {
+    color: var(--admin-secondary);
+    margin-bottom: 0;
+}
+
+/* Card Enhancements */
+.validation-rules-admin .card {
+    border: 1px solid var(--admin-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    border-radius: 0.5rem;
+}
+
+.validation-rules-admin .card-header {
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--admin-border);
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+}
+
+.validation-rules-admin .card-header h5,
+.validation-rules-admin .card-header h6 {
+    margin: 0;
+    color: #2d3748;
+}
+
+.validation-rules-admin .card-body {
+    padding: 1rem;
+}
+
+/* Rules List Header */
+.rules-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--admin-border);
+    background-color: #f8fafc;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.rules-list-filters {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.rules-list-filters .form-select {
+    width: auto;
+    min-width: 140px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--admin-border);
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease-in-out;
+}
+
+.rules-list-filters .form-select:focus {
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+    outline: none;
+}
+
+.rules-list-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+/* Buttons */
+.validation-rules-admin .btn {
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.validation-rules-admin .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8125rem;
+}
+
+.validation-rules-admin .btn-primary {
+    background-color: var(--admin-accent);
+    border-color: var(--admin-accent);
+}
+
+.validation-rules-admin .btn-primary:hover {
+    background-color: #2c5aa0;
+    border-color: #2c5aa0;
+}
+
+/* Rules List Search */
+.rules-list-search {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--admin-border);
+    background-color: #fff;
+}
+
+.rules-list-search .form-control {
+    border: 1px solid var(--admin-border);
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.rules-list-search .form-control:focus {
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+    outline: none;
+}
+
+/* Rules List Empty State */
+.rules-list-empty {
+    padding: 3rem 1.5rem;
+    text-align: center;
+    background-color: #fafbfc;
+}
+
+.rules-list-empty p {
+    color: var(--admin-secondary);
+    margin-bottom: 1rem;
+}
+
+/* Rules Table */
+.rules-list-table {
+    margin-bottom: 0;
+    width: 100%;
+}
+
+.rules-list-table thead th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--admin-secondary);
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    white-space: nowrap;
+    background-color: #f8fafc;
+    border-bottom: 2px solid var(--admin-border);
+}
+
+.rules-list-table tbody td {
+    padding: 0.75rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--admin-border);
+}
+
+.rules-list-table tbody tr {
+    transition: background-color 0.15s ease-in-out;
+    cursor: pointer;
+}
+
+.rules-list-table tbody tr:hover {
+    background-color: #f0f4f8;
+}
+
+.rules-list-table tbody tr.table-primary {
+    background-color: #ebf8ff;
+}
+
+.rules-list-table tbody tr.table-primary:hover {
+    background-color: #d6eaff;
+}
+
+/* Table checkboxes */
+.rules-list-table input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    accent-color: var(--admin-accent);
+}
+
+/* Rule ID code styling */
+.rules-list-table code {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.8125rem;
+    background-color: #edf2f7;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    color: #2d3748;
+}
+
+/* Priority badges */
+.validation-rules-admin .badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+/* Rules List Footer */
+.rules-list-footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--admin-border);
+    font-size: 0.875rem;
+    color: var(--admin-secondary);
+    display: flex;
+    justify-content: space-between;
+    background-color: #f8fafc;
+}
+
+/* Rule Editor Empty State */
+.rule-editor-empty {
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #fafbfc;
+    border-radius: 0.5rem;
+    border: 2px dashed var(--admin-border);
+}
+
+.rule-editor-empty .bi {
+    color: #cbd5e0;
+    margin-bottom: 0.75rem;
+}
+
+.rule-editor-empty p {
+    color: var(--admin-secondary);
+    margin: 0;
+}
+
+.rule-editor-empty .text-muted {
+    font-size: 0.875rem;
+}
+
+/* Rule Editor */
+.rule-editor {
+    height: 100%;
+    background-color: #fff;
+    border-radius: 0.5rem;
+    border: 1px solid var(--admin-border);
+}
+
+.rule-editor-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--admin-border);
+    background-color: #f8fafc;
+}
+
+.rule-editor-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0;
+}
+
+.rule-editor-header h5 code {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.875rem;
+    background-color: #edf2f7;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    color: #4a5568;
+}
+
+.rule-editor-body {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    max-height: calc(100vh - 400px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.rule-editor-form {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.rule-editor-preview {
+    width: 320px;
+    flex-shrink: 0;
+    max-height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Form Sections */
+.rule-form-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.rule-form-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.rule-form-section h6 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+/* Form Controls */
+.validation-rules-admin .form-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #4a5568;
+    margin-bottom: 0.25rem;
+}
+
+.validation-rules-admin .form-control,
+.validation-rules-admin .form-select {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.375rem;
+    background-color: #fff;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.validation-rules-admin .form-control:focus,
+.validation-rules-admin .form-select:focus {
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+    outline: none;
+}
+
+.validation-rules-admin .form-control.font-monospace,
+.validation-rules-admin .form-select.font-monospace {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.8125rem;
+}
+
+.validation-rules-admin .form-text {
+    font-size: 0.75rem;
+    color: var(--admin-secondary);
+    margin-top: 0.25rem;
+}
+
+/* Rule Editor Footer */
+.rule-editor-footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--admin-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    background-color: #f8fafc;
+}
+
+/* JSON Preview */
+.json-preview {
+    border: 1px solid var(--admin-border);
+    border-radius: 0.375rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+}
+
+.json-preview-header {
+    padding: 0.5rem 0.75rem;
+    background-color: #edf2f7;
+    border-bottom: 1px solid var(--admin-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #4a5568;
+    flex-shrink: 0;
+}
+
+.json-preview-content {
+    margin: 0;
+    padding: 0.75rem;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    background-color: #f8fafc;
+    overflow: auto;
+    flex: 1;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #2d3748;
+    line-height: 1.5;
+}
+
+/* Rule Preview/Test Panel */
+.rule-preview {
+    border: 1px solid var(--admin-border);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+}
+
+.rule-preview-header {
+    padding: 0.75rem 1rem;
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--admin-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.rule-preview-header h6 {
+    margin: 0;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.rule-preview-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Test Data Editor */
+.test-data-editor textarea {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    resize: vertical;
+    min-height: 150px;
+}
+
+.test-controls {
+    margin: 0.75rem 0;
+}
+
+.test-results {
+    margin-top: 1rem;
+}
+
+.test-results-empty {
+    border: 2px dashed var(--admin-border);
+    border-radius: 0.375rem;
+    padding: 2rem;
+    text-align: center;
+    background-color: #fafbfc;
+}
+
+.test-results-empty .bi {
+    color: #cbd5e0;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.test-results-empty p {
+    color: var(--admin-secondary);
+    margin: 0;
+}
+
+/* Test Issues */
+.test-issues-list {
+    margin-top: 1rem;
+}
+
+.test-issue {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.test-issue-error {
+    background-color: #fed7d7;
+    color: #c53030;
+    border-left: 3px solid #c53030;
+}
+
+.test-issue-warning {
+    background-color: #fefcbf;
+    color: #975a16;
+    border-left: 3px solid #d69e2e;
+}
+
+.test-issue-info {
+    background-color: #bee3f8;
+    color: #2b6cb0;
+    border-left: 3px solid #3182ce;
+}
+
+.test-issue .bi {
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+/* Template List Items */
+.template-list-item {
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background-color: #fff;
+}
+
+.template-list-item:hover {
+    background-color: #f7fafc;
+    border-color: var(--admin-accent);
+}
+
+.template-list-item.selected {
+    background-color: #ebf8ff;
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+}
+
+.template-list-item h6 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 0.25rem;
+}
+
+.template-list-item p {
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--admin-secondary);
+    line-height: 1.4;
+}
+
+.template-list-item .badge {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.2rem;
+}
+
+/* Stats badges in header */
+.rules-stats .badge {
+    margin-left: 0.25rem;
+    font-weight: 500;
+}
+
+/* Dirty indicator */
+#dirty-indicator {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+    .rule-editor-body {
+        flex-direction: column;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .rule-editor-preview {
+        width: 100%;
+        max-height: 400px;
+    }
+}
+
+@media (max-width: 768px) {
+    .rules-list-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .rules-list-filters {
+        justify-content: flex-start;
+    }
+
+    .rules-list-actions {
+        justify-content: flex-end;
+    }
+
+    .validation-rules-admin .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+}
+
+/* Scrollbar styling */
+.validation-rules-admin ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.validation-rules-admin ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.validation-rules-admin ::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 4px;
+}
+
+.validation-rules-admin ::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/validation-rules-manager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/validation-rules-list.js') }}"></script>
+<script src="{{ url_for('static', filename='js/validation-rule-editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/validation-rule-preview.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize manager
+    window.validationRulesManager = new ValidationRulesManager();
+
+    // Initialize components
+    window.validationRulesList = new ValidationRulesList(window.validationRulesManager, 'rules-list-container');
+    window.validationRulesEditor = new ValidationRuleEditor(window.validationRulesManager, 'rule-editor-container');
+    window.validationRulesPreview = new ValidationRulePreview(window.validationRulesManager, 'rule-preview-container');
+
+    // Listen for dirty state changes
+    window.validationRulesManager.on('dirty-changed', function(isDirty) {
+        const indicator = document.getElementById('dirty-indicator');
+        if (indicator) {
+            indicator.classList.toggle('d-none', !isDirty);
+        }
+    });
+
+    // Listen for rules changes to update stats
+    window.validationRulesManager.on('rules-changed', function(rules) {
+        const critical = rules.filter(r => r.priority === 'critical').length;
+        const warning = rules.filter(r => r.priority === 'warning').length;
+
+        const statsEl = document.querySelector('.rules-stats');
+        if (statsEl) {
+            statsEl.innerHTML = `
+                <span class="badge bg-danger">${critical} critical</span>
+                <span class="badge bg-warning text-dark">${warning} warning</span>
+            `;
+        }
+
+        const summaryEl = document.getElementById('rules-summary');
+        if (summaryEl) {
+            summaryEl.textContent = `${rules.length} rule(s) configured`;
+        }
+    });
+
+    // Project selector handler
+    const projectSelector = document.getElementById('project-selector');
+    if (projectSelector) {
+        projectSelector.addEventListener('change', async function() {
+            const projectId = this.value;
+
+            if (!projectId) {
+                document.getElementById('no-project-alert').classList.remove('d-none');
+                document.getElementById('rules-editor-container').classList.add('d-none');
+                return;
+            }
+
+            document.getElementById('no-project-alert').classList.add('d-none');
+            document.getElementById('rules-editor-container').classList.remove('d-none');
+
+            try {
+                // Load rules with defaults if project has none
+                const result = await window.validationRulesManager.loadRules(projectId, true);
+
+                // Show indicator if using default rules
+                const usingDefaultsMsg = document.getElementById('using-defaults-message');
+                if (usingDefaultsMsg) {
+                    usingDefaultsMsg.style.display = (result.source === 'defaults') ? 'block' : 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load rules:', error);
+                alert('Failed to load validation rules: ' + error.message);
+            }
+        });
+    }
+
+    // Load templates for init modal
+    async function loadTemplates() {
+        try {
+            const response = await fetch('/api/projects/validation-rule-templates');
+            const data = await response.json();
+
+            const templateList = document.getElementById('template-list');
+            if (templateList && data.templates) {
+                templateList.innerHTML = data.templates.map(t => `
+                    <div class="list-group-item template-list-item" data-template-id="${t.template_id}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">${t.name}</h6>
+                                <p class="mb-1 text-muted small">${t.description || ''}</p>
+                                <span class="badge bg-secondary">${t.category || 'custom'}</span>
+                                <span class="badge bg-info">${Array.isArray(t.rules) ? t.rules.length : 0} rules</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Add click handlers
+                templateList.querySelectorAll('.template-list-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const templateId = this.dataset.templateId;
+                        window.validationRulesApp.initializeFromTemplate(templateId);
+                        bootstrap.Modal.getInstance(document.getElementById('init-template-modal')).hide();
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load templates:', error);
+        }
+    }
+
+    loadTemplates();
+
+    // Global app interface
+    window.validationRulesApp = {
+        manager: window.validationRulesManager,
+
+        addRule: function() {
+            const newRule = this.manager.addRule({
+                name: 'New Rule',
+                description: '',
+                category: 'entry_level',
+                priority: 'warning',
+                path: '$.',
+                condition: { type: 'if_present' },
+                validation: { type: 'string' },
+                error_message: 'Validation failed'
+            });
+            this.manager.selectRule(newRule);
+            window.validationRulesList.refresh();
+        },
+
+        saveRules: async function() {
+            const projectId = document.getElementById('project-selector')?.value;
+            if (!projectId) {
+                alert('Please select a project first');
+                return;
+            }
+
+            try {
+                const result = await this.manager.saveRules(projectId, this.manager.rules);
+                if (result.success) {
+                    alert(`Successfully saved ${result.rules_saved} rules`);
+                } else {
+                    alert('Failed to save rules: ' + (result.errors?.join(', ') || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Failed to save rules: ' + error.message);
+            }
+        },
+
+        discardChanges: async function() {
+            if (confirm('Discard all unsaved changes?')) {
+                const projectId = document.getElementById('project-selector')?.value;
+                if (projectId) {
+                    await this.manager.discardAndReload(projectId);
+                    window.validationRulesList.refresh();
+                }
+            }
+        },
+
+        duplicateRule: function(ruleId) {
+            const newRule = this.manager.duplicateRule(ruleId);
+            if (newRule) {
+                this.manager.selectRule(newRule);
+                window.validationRulesList.refresh();
+            }
+        },
+
+        deleteRule: function(ruleId) {
+            this.manager.deleteRule(ruleId);
+            window.validationRulesList.refresh();
+        },
+
+        toggleRuleActive: function(ruleId) {
+            this.manager.toggleRuleActive(ruleId);
+            window.validationRulesList.refresh();
+        },
+
+        exportRules: function() {
+            const projectId = document.getElementById('project-selector')?.value;
+            if (!projectId) {
+                alert('Please select a project first');
+                return;
+            }
+            this.manager.exportRules(projectId);
+        },
+
+        importRules: function() {
+            const modal = new bootstrap.Modal(document.getElementById('import-rules-modal'));
+            modal.show();
+        },
+
+        importFromFile: async function() {
+            const fileInput = document.getElementById('import-file-input');
+            const replace = document.getElementById('import-replace').checked;
+            const projectId = document.getElementById('project-selector')?.value;
+
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+
+            if (!projectId) {
+                alert('Please select a project first');
+                return;
+            }
+
+            try {
+                const text = await fileInput.files[0].text();
+                const data = JSON.parse(text);
+
+                const result = await this.manager.importRules(projectId, data, replace);
+                if (result.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('import-rules-modal')).hide();
+                    alert(`Successfully imported ${result.rules_count} rules`);
+                } else {
+                    alert('Failed to import: ' + result.message);
+                }
+            } catch (error) {
+                alert('Failed to import: ' + error.message);
+            }
+        },
+
+        initializeFromTemplate: function(templateId) {
+            const modalEl = document.getElementById('init-template-modal');
+
+            if (!templateId) {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+                return;
+            }
+
+            const projectId = document.getElementById('project-selector')?.value;
+            if (!projectId) {
+                alert('Please select a project first');
+                return;
+            }
+
+            if (confirm('This will replace all existing rules. Continue?')) {
+                this.manager.initializeFromTemplate(projectId, templateId)
+                    .then(result => {
+                        if (result.success) {
+                            alert(`Initialized ${result.rules_count} rules from template`);
+                            window.validationRulesList.refresh();
+                        } else {
+                            alert('Failed: ' + result.message);
+                        }
+                    })
+                    .catch(error => {
+                        alert('Failed to initialize: ' + error.message);
+                    });
+            }
+        },
+
+        openTestModal: function(rule) {
+            // The preview component handles testing
+            window.validationRulesPreview.setTestData({
+                id: 'entry-001',
+                lexical_unit: { 'en': 'test' },
+                senses: [],
+                relations: [],
+                notes: {}
+            });
+        }
+    };
+});
+</script>
+{% endblock %}

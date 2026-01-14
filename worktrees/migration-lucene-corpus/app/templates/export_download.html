@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Export Download{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Export Download</h1>
+    
+    <div class="alert alert-success">
+        <i class="fa fa-check-circle"></i> Export completed successfully
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            {% if export_type == 'kindle' %}
+                <h3>Kindle Dictionary Export</h3>
+            {% elif export_type == 'sqlite' %}
+                <h3>SQLite Database Export</h3>
+            {% elif export_type == 'lift' %}
+                <h3>LIFT Format Export</h3>
+            {% else %}
+                <h3>Export Files</h3>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <p>The following files are available for download:</p>
+            
+            <div class="list-group">
+                {% if export_type == 'kindle' %}
+                    <a href="{{ url_for('main.download_export', directory=directory, filename='dictionary.opf') }}" class="list-group-item list-group-item-action">
+                        <i class="fa fa-file-code"></i> dictionary.opf
+                        <span class="badge bg-secondary float-end">OPF</span>
+                    </a>
+                    <a href="{{ url_for('main.download_export', directory=directory, filename='dictionary.html') }}" class="list-group-item list-group-item-action">
+                        <i class="fa fa-file-code"></i> dictionary.html
+                        <span class="badge bg-secondary float-end">HTML</span>
+                    </a>
+                    {% if files.mobi %}
+                    <a href="{{ url_for('main.download_export', directory=directory, filename='dictionary.mobi') }}" class="list-group-item list-group-item-action">
+                        <i class="fa fa-book"></i> dictionary.mobi
+                        <span class="badge bg-primary float-end">MOBI</span>
+                    </a>
+                    {% endif %}
+                {% elif export_type == 'sqlite' %}
+                    <a href="{{ url_for('main.download_export', filename=files.sqlite) }}" class="list-group-item list-group-item-action">
+                        <i class="fa fa-database"></i> {{ files.sqlite }}
+                        <span class="badge bg-primary float-end">SQLite</span>
+                    </a>
+                {% elif export_type == 'lift' %}
+                    <a href="{{ url_for('main.download_export', filename=files.lift) }}" class="list-group-item list-group-item-action">
+                        <i class="fa fa-file-code"></i> {{ files.lift }}
+                        <span class="badge bg-primary float-end">LIFT</span>
+                    </a>
+                {% endif %}
+            </div>
+            
+            <div class="mt-4">
+                <h4>Instructions</h4>
+                {% if export_type == 'kindle' %}
+                    <p>To use this dictionary on your Kindle device:</p>
+                    <ol>
+                        <li>If available, download the <code>.mobi</code> file and transfer it to your Kindle via USB or email.</li>
+                        <li>If <code>.mobi</code> is not available, you'll need to convert using Amazon's KindleGen tool:
+                            <ol type="a">
+                                <li>Download the <code>.opf</code> and <code>.html</code> files</li>
+                                <li>Download <a href="https://www.amazon.com/gp/feature.html?docId=1000765211" target="_blank" rel="noopener noreferrer">KindleGen</a> from Amazon</li>
+                                <li>Run <code>kindlegen dictionary.opf -c2</code> to create the <code>.mobi</code> file</li>
+                            </ol>
+                        </li>
+                        <li>After transferring to your Kindle, the dictionary should be available in your library.</li>
+                    </ol>
+                {% elif export_type == 'sqlite' %}
+                    <p>To use this SQLite database with a mobile app:</p>
+                    <ol>
+                        <li>Download the <code>.db</code> file</li>
+                        <li>Transfer it to your mobile device</li>
+                        <li>Configure your dictionary app to use this database file</li>
+                    </ol>
+                {% elif export_type == 'lift' %}
+                    <p>This LIFT file can be used with:</p>
+                    <ul>
+                        <li>SIL Fieldworks Explorer</li>
+                        <li>Other LIFT-compatible dictionary applications</li>
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-footer">
+            <a href="{{ url_for('main.export_options') }}" class="btn btn-secondary">
+                <i class="fa fa-arrow-left"></i> Back to Export Options
+            </a>
+            <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                <i class="fa fa-home"></i> Return to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

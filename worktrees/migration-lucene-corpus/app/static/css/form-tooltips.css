@@ -1,0 +1,56 @@
+/* Form Tooltips Styles */
+
+/* Style the help icons */
+.form-tooltip {
+    cursor: help;
+    opacity: 0.7;
+    font-size: 0.8em;
+    color: #6c757d;
+    transition: opacity 0.2s ease;
+}
+
+.form-tooltip:hover {
+    opacity: 1;
+    color: #495057;
+}
+
+/* Header tooltip icons in card headers */
+.card-header .form-tooltip {
+    opacity: 0.8;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.card-header .form-tooltip:hover {
+    opacity: 1;
+    color: white;
+}
+
+/* Bootstrap tooltip customization */
+.tooltip {
+    font-size: 0.85rem;
+}
+
+.tooltip-inner {
+    max-width: 300px;
+    text-align: left;
+    padding: 8px 12px;
+    background-color: #2c3e50;
+    color: white;
+}
+
+.tooltip .tooltip-arrow {
+    border-top-color: #2c3e50;
+}
+
+/* Dark tooltip arrow for other placements */
+.bs-tooltip-bottom .tooltip-arrow {
+    border-bottom-color: #2c3e50;
+}
+
+.bs-tooltip-start .tooltip-arrow {
+    border-left-color: #2c3e50;
+}
+
+.bs-tooltip-end .tooltip-arrow {
+    border-right-color: #2c3e50;
+}

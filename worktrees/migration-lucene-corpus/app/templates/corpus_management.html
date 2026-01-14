@@ -1,0 +1,709 @@
+{% extends "base.html" %}
+
+{% block title %}Corpus Management - Lexicographic Curation Workbench{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 40px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    .upload-area.dragover {
+        border-color: #0d6efd;
+        background-color: #e7f3ff;
+    }
+    .progress-container {
+        display: none;
+        margin-top: 20px;
+    }
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+    .file-format-info {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .action-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    .action-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <h1 class="mb-4">
+                    <i class="fas fa-database"></i> Corpus Management
+                </h1>
+                <!-- PostgreSQL Connection Status -->
+                <div class="alert alert-info" role="alert" id="postgres-status">
+                    <strong><i class="fas fa-database"></i> PostgreSQL Status:</strong>
+                    <span id="connection-status">
+                        <i class="fas fa-spinner fa-spin"></i> Checking connection...
+                    </span>
+                    <div id="connection-error" class="mt-2" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Corpus Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-chart-bar"></i> Current Corpus Statistics
+                        </h5>
+                        <div class="row" id="stats-container">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="mb-0" id="total-records">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
+                                    <small>Total Records</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="mb-0" id="avg-source-length">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
+                                    <small>Avg Source Length</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="mb-0" id="avg-target-length">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
+                                    <small>Avg Target Length</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h3 class="mb-0" id="last-updated">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
+                                    <small>Last Updated</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12 text-center">
+                                <button type="button" class="btn btn-light btn-sm" id="refresh-stats-btn" onclick="refreshStats()">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- File Upload Section -->
+            <div class="col-md-8">
+                <div class="action-card">
+                    <h4 class="mb-3">
+                        <i class="fas fa-upload"></i> Upload Corpus Data
+                    </h4>
+                    
+                    <div class="file-format-info">
+                        <h6><i class="fas fa-info-circle"></i> Supported Formats:</h6>
+                        <ul class="mb-0">
+                            <li><strong>TMX:</strong> Translation Memory Exchange format (multilingual parallel corpus)</li>
+                            <li><strong>CSV:</strong> Comma-separated values with 'source_text,target_text' columns</li>
+                            <li><strong>SQLite DB:</strong> SQLite database with parallel corpus tables</li>
+                        </ul>
+                    </div>
+
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <div class="upload-area" id="upload-area">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                            <h5>Drag & Drop files here</h5>
+                            <p class="text-muted">or click to browse</p>
+                            <input type="file" id="file-input" name="file" accept=".tmx,.csv,.db" style="display: none;">
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <label for="source-lang" class="form-label">Source Language</label>
+                                <select class="form-select" id="source-lang" name="source_lang">
+                                    <option value="en" selected>English (en)</option>
+                                    <option value="pl">Polish (pl)</option>
+                                    <option value="de">German (de)</option>
+                                    <option value="fr">French (fr)</option>
+                                    <option value="es">Spanish (es)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="target-lang" class="form-label">Target Language</label>
+                                <select class="form-select" id="target-lang" name="target_lang">
+                                    <option value="pl" selected>Polish (pl)</option>
+                                    <option value="en">English (en)</option>
+                                    <option value="de">German (de)</option>
+                                    <option value="fr">French (fr)</option>
+                                    <option value="es">Spanish (es)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="drop-existing" name="drop_existing">
+                                    <label class="form-check-label" for="drop-existing">
+                                        Replace existing data
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-container">
+                            <div class="progress mb-2">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%" id="upload-progress"></div>
+                            </div>
+                            <div class="text-center">
+                                <small class="text-muted" id="upload-status">Preparing upload...</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary btn-lg" id="upload-btn" disabled>
+                                <i class="fas fa-upload"></i> Upload and Import
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="clearUpload()">
+                                <i class="fas fa-times"></i> Clear
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tools and Actions -->
+            <div class="col-md-4">
+                <div class="action-card">
+                    <h5 class="mb-3">
+                        <i class="fas fa-tools"></i> Corpus Tools
+                    </h5>
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-info" onclick="showTmxConverter()">
+                            <i class="fas fa-exchange-alt"></i> TMX to CSV Converter
+                        </button>
+                        
+                        <button class="btn btn-warning" onclick="deduplicateCorpus()">
+                            <i class="fas fa-compress-alt"></i> Remove Duplicates
+                        </button>
+                        
+                        <button class="btn btn-danger" onclick="cleanupCorpus()">
+                            <i class="fas fa-trash-alt"></i> Clear All Data
+                        </button>
+                        
+                        <a href="/api/corpus/stats" target="_blank" class="btn btn-outline-primary">
+                            <i class="fas fa-download"></i> Export Stats (JSON)
+                        </a>
+                    </div>
+                </div>
+
+                <div class="action-card">
+                    <h6 class="mb-3">
+                        <i class="fas fa-history"></i> Recent Operations
+                    </h6>
+                    <div id="recent-operations">
+                        <small class="text-muted">No recent operations</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TMX Converter Modal -->
+    <div class="modal fade" id="tmx-converter-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">TMX to CSV Converter</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="converter-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="tmx-file" class="form-label">Select TMX File</label>
+                            <input type="file" class="form-control" id="tmx-file" name="file" accept=".tmx" required>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="conv-source-lang" class="form-label">Source Language</label>
+                                <select class="form-select" id="conv-source-lang" name="source_lang">
+                                    <option value="en" selected>English (en)</option>
+                                    <option value="pl">Polish (pl)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="conv-target-lang" class="form-label">Target Language</label>
+                                <select class="form-select" id="conv-target-lang" name="target_lang">
+                                    <option value="pl" selected>Polish (pl)</option>
+                                    <option value="en">English (en)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <div id="conversion-result" style="display: none;" class="mt-3">
+                        <h6>Conversion Result:</h6>
+                        <div class="alert alert-success">
+                            <strong id="conversion-stats"></strong>
+                        </div>
+                        <button class="btn btn-success" onclick="downloadCsv()">
+                            <i class="fas fa-download"></i> Download CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="convertTmx()">
+                        <i class="fas fa-exchange-alt"></i> Convert to CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notification-toast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-info-circle text-primary me-2"></i>
+                <strong class="me-auto">Corpus Management</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toast-message">
+                <!-- Message content -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let csvData = null;
+        let csvFilename = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStats();
+            setupUploadArea();
+        });
+
+        function setupUploadArea() {
+            const uploadArea = document.getElementById('upload-area');
+            const fileInput = document.getElementById('file-input');
+            const uploadBtn = document.getElementById('upload-btn');
+
+            // Click to browse
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // File selection
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    selectedFile = e.target.files[0];
+                    updateUploadUI();
+                }
+            });
+
+            // Drag and drop
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    selectedFile = e.dataTransfer.files[0];
+                    fileInput.files = e.dataTransfer.files;
+                    updateUploadUI();
+                }
+            });
+
+            // Form submission
+            document.getElementById('upload-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                uploadFile();
+            });
+        }
+
+        function updateUploadUI() {
+            const uploadArea = document.getElementById('upload-area');
+            const uploadBtn = document.getElementById('upload-btn');
+            
+            if (selectedFile) {
+                uploadArea.innerHTML = `
+                    <i class="fas fa-file fa-2x text-success mb-2"></i>
+                    <h6>${selectedFile.name}</h6>
+                    <p class="text-muted">${formatFileSize(selectedFile.size)} - ${getFileType(selectedFile.name)}</p>
+                `;
+                uploadBtn.disabled = false;
+            } else {
+                uploadBtn.disabled = true;
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const types = {
+                'tmx': 'Translation Memory Exchange',
+                'csv': 'Comma-Separated Values',
+                'db': 'SQLite Database'
+            };
+            return types[ext] || 'Unknown';
+        }
+
+        function clearUpload() {
+            selectedFile = null;
+            document.getElementById('file-input').value = '';
+            document.getElementById('upload-area').innerHTML = `
+                <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                <h5>Drag & Drop files here</h5>
+                <p class="text-muted">or click to browse</p>
+            `;
+            document.getElementById('upload-btn').disabled = true;
+            document.querySelector('.progress-container').style.display = 'none';
+        }
+
+        async function uploadFile() {
+            if (!selectedFile) return;
+
+            const formData = new FormData(document.getElementById('upload-form'));
+            const progressContainer = document.querySelector('.progress-container');
+            const progressBar = document.getElementById('upload-progress');
+            const statusText = document.getElementById('upload-status');
+            
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '10%';
+            statusText.textContent = 'Starting upload...';
+
+            try {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 70; // 70% for upload
+                        progressBar.style.width = percentComplete + '%';
+                        statusText.textContent = `Uploading... ${Math.round(percentComplete)}%`;
+                    }
+                });
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            progressBar.style.width = '100%';
+                            statusText.textContent = 'Upload completed successfully!';
+                            progressBar.classList.remove('progress-bar-animated');
+                            
+                            showToast(`Successfully imported ${response.stats.records_processed.toLocaleString()} records`, 'success');
+                            addRecentOperation(`Uploaded ${selectedFile.name} - ${response.stats.records_processed.toLocaleString()} records`);
+                            refreshStats();
+                            
+                            setTimeout(() => {
+                                clearUpload();
+                            }, 3000);
+                        } else {
+                            throw new Error(response.error || 'Upload failed');
+                        }
+                    } else {
+                        throw new Error(`Upload failed with status ${xhr.status}`);
+                    }
+                };
+
+                xhr.onerror = function() {
+                    throw new Error('Network error during upload');
+                };
+
+                progressBar.style.width = '30%';
+                statusText.textContent = 'Processing on server...';
+
+                xhr.open('POST', '/api/corpus/upload');
+                xhr.send(formData);
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                progressBar.classList.add('bg-danger');
+                statusText.textContent = 'Upload failed: ' + error.message;
+                showToast('Upload failed: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshStats() {
+            // Show loading indicators
+            document.getElementById('total-records').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            document.getElementById('avg-source-length').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            document.getElementById('avg-target-length').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            document.getElementById('last-updated').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            try {
+                const response = await fetch('/api/corpus/stats/ui');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update connection status
+                    const statusAlert = document.getElementById('postgres-status');
+                    const connectionStatus = document.getElementById('connection-status');
+                    const connectionError = document.getElementById('connection-error');
+                    
+                    if (data.postgres_status.connected) {
+                        statusAlert.className = 'alert alert-success';
+                        connectionStatus.innerHTML = '<span class="text-success">Connected</span>';
+                        connectionError.style.display = 'none';
+                    } else {
+                        statusAlert.className = 'alert alert-warning';
+                        connectionStatus.innerHTML = '<span class="text-danger">Not Connected</span>';
+                        if (data.postgres_status.error) {
+                            connectionError.innerHTML = `<small>${data.postgres_status.error}</small>`;
+                            connectionError.style.display = 'block';
+                        }
+                    }
+                    
+                    // Update stats
+                    document.getElementById('total-records').textContent = data.corpus_stats.total_records;
+                    document.getElementById('avg-source-length').textContent = data.corpus_stats.avg_source_length;
+                    document.getElementById('avg-target-length').textContent = data.corpus_stats.avg_target_length;
+                    document.getElementById('last-updated').textContent = data.corpus_stats.last_updated;
+                    
+                    console.log('Corpus stats loaded successfully', data.cached ? '(cached)' : '(fresh)');
+                } else {
+                    console.error('Failed to load corpus stats:', data.error);
+                    // Show error in stats
+                    document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
+                }
+            } catch (error) {
+                console.error('Error loading corpus stats:', error);
+                // Show error in stats
+                document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
+            }
+        }
+
+        async function deduplicateCorpus() {
+            if (!confirm('This will remove duplicate entries from the corpus. Continue?')) return;
+            
+            try {
+                const response = await fetch('/api/corpus/deduplicate', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`Removed ${data.duplicates_removed} duplicate entries`, 'success');
+                    addRecentOperation(`Deduplicated corpus - removed ${data.duplicates_removed} duplicates`);
+                    refreshStats();
+                } else {
+                    showToast('Deduplication failed: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Deduplication failed: ' + error.message, 'error');
+            }
+        }
+
+        async function cleanupCorpus() {
+            if (!confirm('This will permanently delete ALL corpus data. This action cannot be undone. Continue?')) return;
+            
+            try {
+                const response = await fetch('/api/corpus/cleanup', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Corpus data cleared successfully', 'success');
+                    addRecentOperation('Cleared all corpus data');
+                    refreshStats();
+                } else {
+                    showToast('Cleanup failed: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Cleanup failed: ' + error.message, 'error');
+            }
+        }
+
+        function showTmxConverter() {
+            const modal = new bootstrap.Modal(document.getElementById('tmx-converter-modal'));
+            modal.show();
+        }
+
+        async function convertTmx() {
+            const form = document.getElementById('converter-form');
+            const formData = new FormData(form);
+            
+            try {
+                const response = await fetch('/api/corpus/convert/tmx-to-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    csvData = data.csv_content;
+                    csvFilename = data.filename;
+                    
+                    document.getElementById('conversion-stats').textContent = 
+                        `Converted ${data.records_converted} records successfully`;
+                    document.getElementById('conversion-result').style.display = 'block';
+                    
+                    showToast(`TMX converted successfully - ${data.records_converted} records`, 'success');
+                } else {
+                    showToast('Conversion failed: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Conversion failed: ' + error.message, 'error');
+            }
+        }
+
+        function downloadCsv() {
+            if (!csvData || !csvFilename) return;
+            
+            const blob = new Blob([csvData], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = csvFilename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('notification-toast');
+            const toastMessage = document.getElementById('toast-message');
+            
+            toastMessage.textContent = message;
+            
+            // Update toast styling based on type
+            toast.className = 'toast';
+            if (type === 'success') {
+                toast.classList.add('bg-success', 'text-white');
+            } else if (type === 'error') {
+                toast.classList.add('bg-danger', 'text-white');
+            }
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+
+        function addRecentOperation(operation) {
+            const container = document.getElementById('recent-operations');
+            const timestamp = new Date().toLocaleString();
+            
+            const operationElement = document.createElement('div');
+            operationElement.className = 'mb-2 p-2 border-start border-primary border-3';
+            operationElement.innerHTML = `
+                <small class="text-muted">${timestamp}</small><br>
+                <small>${operation}</small>
+            `;
+            
+            if (container.textContent.includes('No recent operations')) {
+                container.innerHTML = '';
+            }
+            
+            container.insertBefore(operationElement, container.firstChild);
+            
+            // Keep only last 5 operations
+            while (container.children.length > 5) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Load corpus statistics asynchronously
+        async function loadCorpusStats() {
+            try {
+                const response = await fetch('/api/corpus/stats/ui');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update connection status
+                    const statusAlert = document.getElementById('postgres-status');
+                    const connectionStatus = document.getElementById('connection-status');
+                    const connectionError = document.getElementById('connection-error');
+                    
+                    if (data.postgres_status.connected) {
+                        statusAlert.className = 'alert alert-success';
+                        connectionStatus.innerHTML = '<span class="text-success">Connected</span>';
+                        connectionError.style.display = 'none';
+                    } else {
+                        statusAlert.className = 'alert alert-warning';
+                        connectionStatus.innerHTML = '<span class="text-danger">Not Connected</span>';
+                        if (data.postgres_status.error) {
+                            connectionError.innerHTML = `<small>${data.postgres_status.error}</small>`;
+                            connectionError.style.display = 'block';
+                        }
+                    }
+                    
+                    // Update stats
+                    document.getElementById('total-records').textContent = data.corpus_stats.total_records;
+                    document.getElementById('avg-source-length').textContent = data.corpus_stats.avg_source_length;
+                    document.getElementById('avg-target-length').textContent = data.corpus_stats.avg_target_length;
+                    document.getElementById('last-updated').textContent = data.corpus_stats.last_updated;
+                    
+                    console.log('Corpus stats loaded successfully', data.cached ? '(cached)' : '(fresh)');
+                } else {
+                    console.error('Failed to load corpus stats:', data.error);
+                    // Show error in stats
+                    document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                    document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
+                }
+            } catch (error) {
+                console.error('Error loading corpus stats:', error);
+                // Show error in stats
+                document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
+                document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
+            }
+        }
+
+        // Load stats when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStats();
+        });
+    </script>
+{% endblock %}

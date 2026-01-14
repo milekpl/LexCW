@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Worksets - Dictionary Workbench{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h4 class="mb-0"><i class="bi bi-layer-group"></i> Worksets</h4>
+                    <p class="text-muted small mb-0">Collections of entries based on search criteria</p>
+                </div>
+                <div class="btn-group">
+                    <a href="/workbench/query-builder" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> New Workset
+                    </a>
+                    <a href="/workbench/bulk-operations" class="btn btn-outline-success">
+                        <i class="bi bi-gear"></i> Bulk Operations
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div id="workset-list">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading worksets...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/workset-curation.js') }}"></script>
+{% endblock %}

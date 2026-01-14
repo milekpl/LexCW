@@ -1,0 +1,1182 @@
+[
+  {
+    "endpoint": "api.entries.list_entries",
+    "url": "/api/entries/",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "list_entries",
+    "source_file": "app/api/entries.py",
+    "start_line": 31,
+    "end_line": 229
+  },
+  {
+    "endpoint": "api.entries.get_entry",
+    "url": "/api/entries/<string:entry_id>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_entry",
+    "source_file": "app/api/entries.py",
+    "start_line": 232,
+    "end_line": 321
+  },
+  {
+    "endpoint": "api.entries.create_entry",
+    "url": "/api/entries/",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "create_entry",
+    "source_file": "app/api/entries.py",
+    "start_line": 324,
+    "end_line": 489
+  },
+  {
+    "endpoint": "api.entries.update_entry",
+    "url": "/api/entries/<string:entry_id>",
+    "methods": [
+      "PUT"
+    ],
+    "function_name": "update_entry",
+    "source_file": "app/api/entries.py",
+    "start_line": 492,
+    "end_line": 650
+  },
+  {
+    "endpoint": "api.entries.delete_entry",
+    "url": "/api/entries/<string:entry_id>",
+    "methods": [
+      "DELETE"
+    ],
+    "function_name": "delete_entry",
+    "source_file": "app/api/entries.py",
+    "start_line": 653,
+    "end_line": 677
+  },
+  {
+    "endpoint": "api.entries.get_related_entries",
+    "url": "/api/entries/<string:entry_id>/related",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_related_entries",
+    "source_file": "app/api/entries.py",
+    "start_line": 680,
+    "end_line": 715
+  },
+  {
+    "endpoint": "api.entries.clear_entries_cache",
+    "url": "/api/entries/clear-cache",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "clear_entries_cache",
+    "source_file": "app/api/entries.py",
+    "start_line": 718,
+    "end_line": 746
+  },
+  {
+    "endpoint": "api.search.search_entries",
+    "url": "/api/search/",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "search_entries",
+    "source_file": "app/api/search.py",
+    "start_line": 48,
+    "end_line": 201
+  },
+  {
+    "endpoint": "api.search.search_by_grammatical_info",
+    "url": "/api/search/grammatical",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "search_by_grammatical_info",
+    "source_file": "app/api/search.py",
+    "start_line": 204,
+    "end_line": 237
+  },
+  {
+    "endpoint": "api.search.get_ranges",
+    "url": "/api/search/ranges",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_ranges",
+    "source_file": "app/api/search.py",
+    "start_line": 240,
+    "end_line": 266
+  },
+  {
+    "endpoint": "api.search.get_range_values",
+    "url": "/api/search/ranges/<range_id>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_range_values",
+    "source_file": "app/api/search.py",
+    "start_line": 269,
+    "end_line": 313
+  },
+  {
+    "endpoint": "api.search.get_relation_types",
+    "url": "/api/search/ranges/lexical-relation",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_relation_types",
+    "source_file": "app/api/search.py",
+    "start_line": 316,
+    "end_line": 357
+  },
+  {
+    "endpoint": "api.search.get_variant_types",
+    "url": "/api/search/ranges/variant-type",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_variant_types",
+    "source_file": "app/api/search.py",
+    "start_line": 360,
+    "end_line": 401
+  },
+  {
+    "endpoint": "api.export_api.export_lift",
+    "url": "/api/export/lift",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "export_lift",
+    "source_file": "app/api/export.py",
+    "start_line": 45,
+    "end_line": 110
+  },
+  {
+    "endpoint": "api.export_api.export_kindle",
+    "url": "/api/export/kindle",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "export_kindle",
+    "source_file": "app/api/export.py",
+    "start_line": 113,
+    "end_line": 177
+  },
+  {
+    "endpoint": "api.export_api.export_sqlite",
+    "url": "/api/export/sqlite",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "export_sqlite",
+    "source_file": "app/api/export.py",
+    "start_line": 180,
+    "end_line": 228
+  },
+  {
+    "endpoint": "api.export_api.download_export",
+    "url": "/api/export/download/<path:filename>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "download_export",
+    "source_file": "app/api/export.py",
+    "start_line": 231,
+    "end_line": 287
+  },
+  {
+    "endpoint": "api.dashboard_api.get_dashboard_stats",
+    "url": "/api/dashboard/stats",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_dashboard_stats",
+    "source_file": "app/api/dashboard.py",
+    "start_line": 19,
+    "end_line": 141
+  },
+  {
+    "endpoint": "api.dashboard_api.clear_dashboard_cache",
+    "url": "/api/dashboard/clear-cache",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "clear_dashboard_cache",
+    "source_file": "app/api/dashboard.py",
+    "start_line": 144,
+    "end_line": 172
+  },
+  {
+    "endpoint": "validation_bp.validate_entry",
+    "url": "/api/validation/entry/<string:entry_id>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "validate_entry",
+    "source_file": "app/api/validation.py",
+    "start_line": 12,
+    "end_line": 49
+  },
+  {
+    "endpoint": "validation_bp.validate_dictionary",
+    "url": "/api/validation/dictionary",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "validate_dictionary",
+    "source_file": "app/api/validation.py",
+    "start_line": 51,
+    "end_line": 89
+  },
+  {
+    "endpoint": "validation_bp.check_entry_data",
+    "url": "/api/validation/check",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "check_entry_data",
+    "source_file": "app/api/validation.py",
+    "start_line": 91,
+    "end_line": 151
+  },
+  {
+    "endpoint": "validation_bp.validate_batch",
+    "url": "/api/validation/batch",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validate_batch",
+    "source_file": "app/api/validation.py",
+    "start_line": 153,
+    "end_line": 218
+  },
+  {
+    "endpoint": "validation_bp.get_validation_schema",
+    "url": "/api/validation/schema",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_validation_schema",
+    "source_file": "app/api/validation.py",
+    "start_line": 221,
+    "end_line": 255
+  },
+  {
+    "endpoint": "validation_bp.get_validation_rules",
+    "url": "/api/validation/rules",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_validation_rules",
+    "source_file": "app/api/validation.py",
+    "start_line": 258,
+    "end_line": 285
+  },
+  {
+    "endpoint": "validation_bp.validation_check",
+    "url": "/validation/check",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validation_check",
+    "source_file": "app/api/validation.py",
+    "start_line": 287,
+    "end_line": 303
+  },
+  {
+    "endpoint": "validation_bp.validation_batch",
+    "url": "/validation/batch",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validation_batch",
+    "source_file": "app/api/validation.py",
+    "start_line": 305,
+    "end_line": 319
+  },
+  {
+    "endpoint": "validation_bp.validation_schema",
+    "url": "/validation/schema",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "validation_schema",
+    "source_file": "app/api/validation.py",
+    "start_line": 321,
+    "end_line": 331
+  },
+  {
+    "endpoint": "validation_bp.validation_rules",
+    "url": "/validation/rules",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "validation_rules",
+    "source_file": "app/api/validation.py",
+    "start_line": 333,
+    "end_line": 343
+  },
+  {
+    "endpoint": "ranges.get_all_ranges",
+    "url": "/api/ranges",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_all_ranges",
+    "source_file": "app/api/ranges.py",
+    "start_line": 19,
+    "end_line": 91
+  },
+  {
+    "endpoint": "ranges.get_specific_range",
+    "url": "/api/ranges/<range_id>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_specific_range",
+    "source_file": "app/api/ranges.py",
+    "start_line": 94,
+    "end_line": 224
+  },
+  {
+    "endpoint": "ranges.get_grammatical_info_range",
+    "url": "/api/ranges/grammatical-info",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_grammatical_info_range",
+    "source_file": "app/api/ranges.py",
+    "start_line": 227,
+    "end_line": 249
+  },
+  {
+    "endpoint": "ranges.get_variant_types_range",
+    "url": "/api/ranges/variant-type",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_variant_types_range",
+    "source_file": "app/api/ranges.py",
+    "start_line": 252,
+    "end_line": 343
+  },
+  {
+    "endpoint": "ranges.get_relation_types_range",
+    "url": "/api/ranges/lexical-relation",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_relation_types_range",
+    "source_file": "app/api/ranges.py",
+    "start_line": 346,
+    "end_line": 368
+  },
+  {
+    "endpoint": "ranges.get_semantic_domains_range",
+    "url": "/api/ranges/semantic-domain-ddp4",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_semantic_domains_range",
+    "source_file": "app/api/ranges.py",
+    "start_line": 371,
+    "end_line": 393
+  },
+  {
+    "endpoint": "ranges.get_etymology_range",
+    "url": "/api/ranges/etymology",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_etymology_range",
+    "source_file": "app/api/ranges.py",
+    "start_line": 396,
+    "end_line": 450
+  },
+  {
+    "endpoint": "ranges.get_variant_types_from_traits",
+    "url": "/api/ranges/variant-type",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_variant_types_from_traits",
+    "source_file": "app/api/ranges.py",
+    "start_line": 453,
+    "end_line": 526
+  },
+  {
+    "endpoint": "ranges.get_language_codes",
+    "url": "/api/ranges/language-codes",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_language_codes",
+    "source_file": "app/api/ranges.py",
+    "start_line": 529,
+    "end_line": 584
+  },
+  {
+    "endpoint": "pronunciation.upload_audio",
+    "url": "/api/pronunciation/upload",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "upload_audio",
+    "source_file": "app/api/pronunciation.py",
+    "start_line": 29,
+    "end_line": 153
+  },
+  {
+    "endpoint": "pronunciation.delete_audio",
+    "url": "/api/pronunciation/delete/<filename>",
+    "methods": [
+      "DELETE"
+    ],
+    "function_name": "delete_audio",
+    "source_file": "app/api/pronunciation.py",
+    "start_line": 156,
+    "end_line": 208
+  },
+  {
+    "endpoint": "pronunciation.get_audio_info",
+    "url": "/api/pronunciation/info/<filename>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_audio_info",
+    "source_file": "app/api/pronunciation.py",
+    "start_line": 211,
+    "end_line": 265
+  },
+  {
+    "endpoint": "main.corpus_management",
+    "url": "/corpus-management",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "corpus_management",
+    "source_file": "app/views.py",
+    "start_line": 22,
+    "end_line": 39
+  },
+  {
+    "endpoint": "main.index",
+    "url": "/",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "index",
+    "source_file": "app/views.py",
+    "start_line": 42,
+    "end_line": 136
+  },
+  {
+    "endpoint": "main.entries",
+    "url": "/entries",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "entries",
+    "source_file": "app/views.py",
+    "start_line": 139,
+    "end_line": 144
+  },
+  {
+    "endpoint": "main.view_entry",
+    "url": "/entries/<entry_id>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "view_entry",
+    "source_file": "app/views.py",
+    "start_line": 147,
+    "end_line": 171
+  },
+  {
+    "endpoint": "main.edit_entry",
+    "url": "/entries/<entry_id>/edit",
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "function_name": "edit_entry",
+    "source_file": "app/views.py",
+    "start_line": 174,
+    "end_line": 331
+  },
+  {
+    "endpoint": "main.add_entry",
+    "url": "/entries/add",
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "function_name": "add_entry",
+    "source_file": "app/views.py",
+    "start_line": 334,
+    "end_line": 471
+  },
+  {
+    "endpoint": "main.search",
+    "url": "/search",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "search",
+    "source_file": "app/views.py",
+    "start_line": 474,
+    "end_line": 512
+  },
+  {
+    "endpoint": "main.import_lift",
+    "url": "/import/lift",
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "function_name": "import_lift",
+    "source_file": "app/views.py",
+    "start_line": 515,
+    "end_line": 558
+  },
+  {
+    "endpoint": "main.export_lift",
+    "url": "/export/lift",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "export_lift",
+    "source_file": "app/views.py",
+    "start_line": 561,
+    "end_line": 594
+  },
+  {
+    "endpoint": "main.export_kindle",
+    "url": "/export/kindle",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "export_kindle",
+    "source_file": "app/views.py",
+    "start_line": 597,
+    "end_line": 653
+  },
+  {
+    "endpoint": "main.export_sqlite",
+    "url": "/export/sqlite",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "export_sqlite",
+    "source_file": "app/views.py",
+    "start_line": 656,
+    "end_line": 696
+  },
+  {
+    "endpoint": "main.export_options",
+    "url": "/export",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "export_options",
+    "source_file": "app/views.py",
+    "start_line": 699,
+    "end_line": 704
+  },
+  {
+    "endpoint": "main.download_export",
+    "url": "/export/download/<path:filename>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "download_export",
+    "source_file": "app/views.py",
+    "start_line": 707,
+    "end_line": 757
+  },
+  {
+    "endpoint": "main.batch_edit",
+    "url": "/tools/bulk-edit",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "batch_edit",
+    "source_file": "app/views.py",
+    "start_line": 760,
+    "end_line": 771
+  },
+  {
+    "endpoint": "main.validation",
+    "url": "/tools/validation",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "validation",
+    "source_file": "app/views.py",
+    "start_line": 770,
+    "end_line": 777
+  },
+  {
+    "endpoint": "main.pronunciation",
+    "url": "/tools/pronunciation",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "pronunciation",
+    "source_file": "app/views.py",
+    "start_line": 780,
+    "end_line": 787
+  },
+  {
+    "endpoint": "main.settings",
+    "url": "/settings",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "settings",
+    "source_file": "app/views.py",
+    "start_line": 790,
+    "end_line": 797
+  },
+  {
+    "endpoint": "main.activity_log",
+    "url": "/activity-log",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "activity_log",
+    "source_file": "app/views.py",
+    "start_line": 800,
+    "end_line": 807
+  },
+  {
+    "endpoint": "main.audio_file",
+    "url": "/audio/<filename>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "audio_file",
+    "source_file": "app/views.py",
+    "start_line": 810,
+    "end_line": 821
+  },
+  {
+    "endpoint": "main.api_stats",
+    "url": "/api/stats",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "api_stats",
+    "source_file": "app/views.py",
+    "start_line": 826,
+    "end_line": 843
+  },
+  {
+    "endpoint": "main.api_system_status",
+    "url": "/api/system/status",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "api_system_status",
+    "source_file": "app/views.py",
+    "start_line": 846,
+    "end_line": 856
+  },
+  {
+    "endpoint": "main.api_activity",
+    "url": "/api/activity",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "api_activity",
+    "source_file": "app/views.py",
+    "start_line": 859,
+    "end_line": 876
+  },
+  {
+    "endpoint": "main.api_generate_pronunciation",
+    "url": "/api/pronunciations/generate",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "api_generate_pronunciation",
+    "source_file": "app/views.py",
+    "start_line": 879,
+    "end_line": 910
+  },
+  {
+    "endpoint": "main.test_search",
+    "url": "/test-search",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "test_search",
+    "source_file": "app/views.py",
+    "start_line": 913,
+    "end_line": 944
+  },
+  {
+    "endpoint": "main.api_test_search",
+    "url": "/api/test-search",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "api_test_search",
+    "source_file": "app/views.py",
+    "start_line": 947,
+    "end_line": 979
+  },
+  {
+    "endpoint": "main.debug_ranges",
+    "url": "/debug/ranges",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "debug_ranges",
+    "source_file": "app/views.py",
+    "start_line": 1016,
+    "end_line": 1019
+  },
+  {
+    "endpoint": "corpus.upload_corpus",
+    "url": "/api/corpus/upload",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "upload_corpus",
+    "source_file": "app/routes/corpus_routes.py",
+    "start_line": 51,
+    "end_line": 118
+  },
+  {
+    "endpoint": "corpus.get_corpus_stats",
+    "url": "/api/corpus/stats",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_corpus_stats",
+    "source_file": "app/routes/corpus_routes.py",
+    "start_line": 121,
+    "end_line": 176
+  },
+  {
+    "endpoint": "corpus.get_corpus_stats_ui",
+    "url": "/api/corpus/stats/ui",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_corpus_stats_ui",
+    "source_file": "app/routes/corpus_routes.py",
+    "start_line": 179,
+    "end_line": 303
+  },
+  {
+    "endpoint": "corpus.cleanup_corpus",
+    "url": "/api/corpus/cleanup",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "cleanup_corpus",
+    "source_file": "app/routes/corpus_routes.py",
+    "start_line": 306,
+    "end_line": 327
+  },
+  {
+    "endpoint": "corpus.deduplicate_corpus",
+    "url": "/api/corpus/deduplicate",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "deduplicate_corpus",
+    "source_file": "app/routes/corpus_routes.py",
+    "start_line": 330,
+    "end_line": 347
+  },
+  {
+    "endpoint": "corpus.convert_tmx_to_csv",
+    "url": "/api/corpus/convert/tmx-to-csv",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "convert_tmx_to_csv",
+    "source_file": "app/routes/corpus_routes.py",
+    "start_line": 350,
+    "end_line": 406
+  },
+  {
+    "endpoint": "additional_api.search_entries",
+    "url": "/api/search",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "search_entries",
+    "source_file": "app/routes/api_routes.py",
+    "start_line": 21,
+    "end_line": 58
+  },
+  {
+    "endpoint": "additional_api.list_entries",
+    "url": "/api/entries",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "list_entries",
+    "source_file": "app/routes/api_routes.py",
+    "start_line": 61,
+    "end_line": 90
+  },
+  {
+    "endpoint": "additional_api.get_entry",
+    "url": "/api/entries/<entry_id>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_entry",
+    "source_file": "app/routes/api_routes.py",
+    "start_line": 93,
+    "end_line": 109
+  },
+  {
+    "endpoint": "additional_api.get_all_ranges",
+    "url": "/api/ranges",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_all_ranges",
+    "source_file": "app/routes/api_routes.py",
+    "start_line": 113,
+    "end_line": 127
+  },
+  {
+    "endpoint": "additional_api.get_range_by_type",
+    "url": "/api/ranges/<range_type>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_range_by_type",
+    "source_file": "app/routes/api_routes.py",
+    "start_line": 130,
+    "end_line": 189
+  },
+  {
+    "endpoint": "additional_api.get_language_codes",
+    "url": "/api/ranges/language-codes",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_language_codes",
+    "source_file": "app/routes/api_routes.py",
+    "start_line": 192,
+    "end_line": 217
+  },
+  {
+    "endpoint": "additional_api.validate_query",
+    "url": "/api/queries/validate",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validate_query",
+    "source_file": "app/routes/api_routes.py",
+    "start_line": 221,
+    "end_line": 253
+  },
+  {
+    "endpoint": "worksets.create_workset",
+    "url": "/api/worksets",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "create_workset",
+    "source_file": "app/routes/worksets_routes.py",
+    "start_line": 16,
+    "end_line": 44
+  },
+  {
+    "endpoint": "worksets.get_workset",
+    "url": "/api/worksets/<workset_id>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_workset",
+    "source_file": "app/routes/worksets_routes.py",
+    "start_line": 47,
+    "end_line": 69
+  },
+  {
+    "endpoint": "worksets.update_workset_query",
+    "url": "/api/worksets/<workset_id>/query",
+    "methods": [
+      "PUT"
+    ],
+    "function_name": "update_workset_query",
+    "source_file": "app/routes/worksets_routes.py",
+    "start_line": 72,
+    "end_line": 91
+  },
+  {
+    "endpoint": "worksets.delete_workset",
+    "url": "/api/worksets/<workset_id>",
+    "methods": [
+      "DELETE"
+    ],
+    "function_name": "delete_workset",
+    "source_file": "app/routes/worksets_routes.py",
+    "start_line": 94,
+    "end_line": 106
+  },
+  {
+    "endpoint": "worksets.bulk_update_workset",
+    "url": "/api/worksets/<workset_id>/bulk-update",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "bulk_update_workset",
+    "source_file": "app/routes/worksets_routes.py",
+    "start_line": 109,
+    "end_line": 134
+  },
+  {
+    "endpoint": "worksets.get_workset_progress",
+    "url": "/api/worksets/<workset_id>/progress",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_workset_progress",
+    "source_file": "app/routes/worksets_routes.py",
+    "start_line": 137,
+    "end_line": 157
+  },
+  {
+    "endpoint": "query_builder.validate_query",
+    "url": "/api/query-builder/validate",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validate_query",
+    "source_file": "app/api/query_builder.py",
+    "start_line": 23,
+    "end_line": 70
+  },
+  {
+    "endpoint": "query_builder.preview_query",
+    "url": "/api/query-builder/preview",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "preview_query",
+    "source_file": "app/api/query_builder.py",
+    "start_line": 73,
+    "end_line": 117
+  },
+  {
+    "endpoint": "query_builder.save_query",
+    "url": "/api/query-builder/save",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "save_query",
+    "source_file": "app/api/query_builder.py",
+    "start_line": 120,
+    "end_line": 167
+  },
+  {
+    "endpoint": "query_builder.get_saved_queries",
+    "url": "/api/query-builder/saved",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "get_saved_queries",
+    "source_file": "app/api/query_builder.py",
+    "start_line": 170,
+    "end_line": 208
+  },
+  {
+    "endpoint": "query_builder.execute_query",
+    "url": "/api/query-builder/execute",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "execute_query",
+    "source_file": "app/api/query_builder.py",
+    "start_line": 211,
+    "end_line": 258
+  },
+  {
+    "endpoint": "workbench.query_builder",
+    "url": "/workbench/query-builder",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "query_builder",
+    "source_file": "app/views.py",
+    "start_line": 983,
+    "end_line": 991
+  },
+  {
+    "endpoint": "workbench.worksets",
+    "url": "/workbench/worksets",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "worksets",
+    "source_file": "app/views.py",
+    "start_line": 994,
+    "end_line": 1002
+  },
+  {
+    "endpoint": "workbench.bulk_operations",
+    "url": "/workbench/bulk-operations",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "bulk_operations",
+    "source_file": "app/views.py",
+    "start_line": 1005,
+    "end_line": 1013
+  },
+  {
+    "endpoint": "autosave.autosave_entry",
+    "url": "/api/entry/autosave",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "autosave_entry",
+    "source_file": "app/api/entry_autosave_working.py",
+    "start_line": 18,
+    "end_line": 97
+  },
+  {
+    "endpoint": "autosave.test_autosave",
+    "url": "/api/entry/autosave/test",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "test_autosave",
+    "source_file": "app/api/entry_autosave_working.py",
+    "start_line": 100,
+    "end_line": 107
+  },
+  {
+    "endpoint": "validation_api.validate_field",
+    "url": "/api/validation/field",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validate_field",
+    "source_file": "app/api/validation_endpoints.py",
+    "start_line": 203,
+    "end_line": 224
+  },
+  {
+    "endpoint": "validation_api.validate_section",
+    "url": "/api/validation/section",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validate_section",
+    "source_file": "app/api/validation_endpoints.py",
+    "start_line": 226,
+    "end_line": 247
+  },
+  {
+    "endpoint": "validation_api.validate_form",
+    "url": "/api/validation/form",
+    "methods": [
+      "POST"
+    ],
+    "function_name": "validate_form",
+    "source_file": "app/api/validation_endpoints.py",
+    "start_line": 249,
+    "end_line": 265
+  },
+  {
+    "endpoint": "validation_api.health_check",
+    "url": "/api/validation/health",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "health_check",
+    "source_file": "app/api/validation_endpoints.py",
+    "start_line": 268,
+    "end_line": 279
+  },
+  {
+    "endpoint": "flasgger.static",
+    "url": "/flasgger_static/<path:filename>",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "send_static_file",
+    "source_file": "/home/jules/.pyenv/versions/3.12.11/lib/python3.12/site-packages/flask/scaffold.py",
+    "start_line": 303,
+    "end_line": 319
+  },
+  {
+    "endpoint": "flasgger.apidocs",
+    "url": "/apidocs/",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "apidocs",
+    "source_file": "/home/jules/.pyenv/versions/3.12.11/lib/python3.12/site-packages/flask/views.py",
+    "start_line": 105,
+    "end_line": 109
+  },
+  {
+    "endpoint": "flasgger.oauth_redirect",
+    "url": "/oauth2-redirect.html",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "oauth_redirect",
+    "source_file": "/home/jules/.pyenv/versions/3.12.11/lib/python3.12/site-packages/flask/views.py",
+    "start_line": 105,
+    "end_line": 109
+  },
+  {
+    "endpoint": "flasgger.<lambda>",
+    "url": "/apidocs/index.html",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "<lambda>",
+    "source_file": "/home/jules/.pyenv/versions/3.12.11/lib/python3.12/site-packages/flasgger/base.py",
+    "start_line": 661,
+    "end_line": 661
+  },
+  {
+    "endpoint": "flasgger.apispec",
+    "url": "/apispec.json",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "apispec",
+    "source_file": "/home/jules/.pyenv/versions/3.12.11/lib/python3.12/site-packages/flask/views.py",
+    "start_line": 105,
+    "end_line": 109
+  },
+  {
+    "endpoint": "index",
+    "url": "/",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "index",
+    "source_file": "app/__init__.py",
+    "start_line": 175,
+    "end_line": 182
+  },
+  {
+    "endpoint": "health_check",
+    "url": "/health",
+    "methods": [
+      "GET"
+    ],
+    "function_name": "health_check",
+    "source_file": "app/__init__.py",
+    "start_line": 185,
+    "end_line": 188
+  }
+]

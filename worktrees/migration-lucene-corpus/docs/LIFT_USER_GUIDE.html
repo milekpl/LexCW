@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIFT Format User Guide</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #7f8c8d;
+            margin-top: 20px;
+        }
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+            color: #e74c3c;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border-left: 4px solid #3498db;
+        }
+        pre code {
+            color: #2c3e50;
+            background-color: transparent;
+            padding: 0;
+        }
+        .info-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .feature-card h4 {
+            margin-top: 0;
+            color: #3498db;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .toc {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 8px 0;
+        }
+        .toc a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .badge-required {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .badge-optional {
+            background-color: #95a5a6;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📖 LIFT Format User Guide</h1>
+        <p><strong>Lexicon Interchange FormaT (LIFT)</strong> - A Standard for Dictionary Data Exchange</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#what-is-lift">What is LIFT?</a></li>
+                <li><a href="#why-lift">Why Use LIFT?</a></li>
+                <li><a href="#structure">LIFT File Structure</a></li>
+                <li><a href="#elements">Main Elements</a></li>
+                <li><a href="#examples">Common Examples</a></li>
+                <li><a href="#import-export">Importing & Exporting</a></li>
+                <li><a href="#best-practices">Best Practices</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+            </ul>
+        </div>
+
+        <h2 id="what-is-lift">What is LIFT?</h2>
+        <p>LIFT (Lexicon Interchange FormaT) is an open XML standard for exchanging dictionary data between different software applications. It was developed by SIL International to enable seamless collaboration on lexicography projects.</p>
+
+        <div class="info-box">
+            <strong>📌 Key Points:</strong>
+            <ul>
+                <li>Open standard maintained by SIL International</li>
+                <li>XML-based format (human-readable and machine-readable)</li>
+                <li>Supported by major linguistic software (FieldWorks, WeSay, Lexique Pro)</li>
+                <li>Version 0.13 is the current standard</li>
+            </ul>
+        </div>
+
+        <h2 id="why-lift">Why Use LIFT?</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h4>🔄 Interoperability</h4>
+                <p>Share dictionary data between different applications without data loss</p>
+            </div>
+            <div class="feature-card">
+                <h4>💾 Data Preservation</h4>
+                <p>Long-term archival format for linguistic data</p>
+            </div>
+            <div class="feature-card">
+                <h4>🌍 Multilingual Support</h4>
+                <p>Native support for multiple writing systems and languages</p>
+            </div>
+            <div class="feature-card">
+                <h4>📚 Rich Metadata</h4>
+                <p>Store complex linguistic information (grammar, semantics, pronunciation)</p>
+            </div>
+        </div>
+
+        <h2 id="structure">LIFT File Structure</h2>
+        <p>A LIFT file consists of a header and multiple entries:</p>
+
+        <pre><code>&lt;?xml version="1.0" encoding="UTF-8" ?&gt;
+&lt;lift version="0.13"&gt;
+    &lt;header&gt;
+        &lt;!-- Metadata, ranges, custom fields --&gt;
+    &lt;/header&gt;
+    
+    &lt;entry id="word_001"&gt;
+        &lt;!-- Entry content --&gt;
+    &lt;/entry&gt;
+    
+    &lt;entry id="word_002"&gt;
+        &lt;!-- Entry content --&gt;
+    &lt;/entry&gt;
+&lt;/lift&gt;</code></pre>
+
+        <h3>Header Section</h3>
+        <p>The header contains:</p>
+        <ul>
+            <li><strong>Ranges</strong>: Define controlled vocabularies (parts of speech, semantic domains)</li>
+            <li><strong>Fields</strong>: Define custom fields used in the dictionary</li>
+            <li><strong>Metadata</strong>: Producer information, descriptions</li>
+        </ul>
+
+        <h2 id="elements">Main Elements</h2>
+
+        <h3>Entry <span class="badge badge-required">Required</span></h3>
+        <p>Represents a single dictionary entry (word or phrase).</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>lexical-unit</code></td>
+                    <td>The word/phrase itself</td>
+                    <td>cat, run, in spite of</td>
+                </tr>
+                <tr>
+                    <td><code>pronunciation</code></td>
+                    <td>Phonetic representation</td>
+                    <td>kæt (IPA)</td>
+                </tr>
+                <tr>
+                    <td><code>sense</code></td>
+                    <td>Meaning(s) of the word</td>
+                    <td>Multiple senses per entry</td>
+                </tr>
+                <tr>
+                    <td><code>etymology</code></td>
+                    <td>Word origin</td>
+                    <td>From Latin "cattus"</td>
+                </tr>
+                <tr>
+                    <td><code>note</code></td>
+                    <td>Editorial notes</td>
+                    <td>Usage notes, comments</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Sense <span class="badge badge-required">Required</span></h3>
+        <p>A distinct meaning of a word.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>definition</code></td>
+                    <td>Explanation of meaning</td>
+                    <td>"A small domesticated carnivore"</td>
+                </tr>
+                <tr>
+                    <td><code>gloss</code></td>
+                    <td>Brief translation</td>
+                    <td>"animal", "pet"</td>
+                </tr>
+                <tr>
+                    <td><code>example</code></td>
+                    <td>Usage examples</td>
+                    <td>"The cat sat on the mat"</td>
+                </tr>
+                <tr>
+                    <td><code>grammatical-info</code></td>
+                    <td>Part of speech, etc.</td>
+                    <td>Noun, Verb, Adjective</td>
+                </tr>
+                <tr>
+                    <td><code>illustration</code></td>
+                    <td>Images</td>
+                    <td>Picture of a cat</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Example <span class="badge badge-optional">Optional</span></h3>
+        <p>Usage examples showing the word in context.</p>
+
+        <pre><code>&lt;example source="corpus-123"&gt;
+    &lt;form lang="en"&gt;&lt;text&gt;The cat is sleeping&lt;/text&gt;&lt;/form&gt;
+    &lt;translation&gt;
+        &lt;form lang="pl"&gt;&lt;text&gt;Kot śpi&lt;/text&gt;&lt;/form&gt;
+    &lt;/translation&gt;
+&lt;/example&gt;</code></pre>
+
+        <h2 id="examples">Common Examples</h2>
+
+        <h3>Basic Entry</h3>
+        <pre><code>&lt;entry id="cat_001"&gt;
+    &lt;lexical-unit&gt;
+        &lt;form lang="en"&gt;&lt;text&gt;cat&lt;/text&gt;&lt;/form&gt;
+    &lt;/lexical-unit&gt;
+    
+    &lt;pronunciation&gt;
+        &lt;form lang="en-fonipa"&gt;&lt;text&gt;kæt&lt;/text&gt;&lt;/form&gt;
+    &lt;/pronunciation&gt;
+    
+    &lt;sense id="sense_001"&gt;
+        &lt;grammatical-info value="Noun"/&gt;
+        &lt;definition&gt;
+            &lt;form lang="en"&gt;&lt;text&gt;A small domesticated carnivore&lt;/text&gt;&lt;/form&gt;
+        &lt;/definition&gt;
+        
+        &lt;example&gt;
+            &lt;form lang="en"&gt;&lt;text&gt;The cat sat on the mat&lt;/text&gt;&lt;/form&gt;
+        &lt;/example&gt;
+    &lt;/sense&gt;
+&lt;/entry&gt;</code></pre>
+
+        <h3>Entry with Multiple Senses</h3>
+        <pre><code>&lt;entry id="bank_001"&gt;
+    &lt;lexical-unit&gt;
+        &lt;form lang="en"&gt;&lt;text&gt;bank&lt;/text&gt;&lt;/form&gt;
+    &lt;/lexical-unit&gt;
+    
+    &lt;sense id="sense_001"&gt;
+        &lt;grammatical-info value="Noun"/&gt;
+        &lt;definition&gt;
+            &lt;form lang="en"&gt;&lt;text&gt;Financial institution&lt;/text&gt;&lt;/form&gt;
+        &lt;/definition&gt;
+    &lt;/sense&gt;
+    
+    &lt;sense id="sense_002"&gt;
+        &lt;grammatical-info value="Noun"/&gt;
+        &lt;definition&gt;
+            &lt;form lang="en"&gt;&lt;text&gt;Edge of a river&lt;/text&gt;&lt;/form&gt;
+        &lt;/definition&gt;
+    &lt;/sense&gt;
+&lt;/entry&gt;</code></pre>
+
+        <h3>Entry with Etymology</h3>
+        <pre><code>&lt;entry id="etymology_example"&gt;
+    &lt;lexical-unit&gt;
+        &lt;form lang="en"&gt;&lt;text&gt;telephone&lt;/text&gt;&lt;/form&gt;
+    &lt;/lexical-unit&gt;
+    
+    &lt;etymology type="borrowing" source="Greek"&gt;
+        &lt;form lang="grc"&gt;&lt;text&gt;τῆλε φωνή&lt;/text&gt;&lt;/form&gt;
+        &lt;gloss lang="en"&gt;&lt;text&gt;far voice&lt;/text&gt;&lt;/gloss&gt;
+        &lt;field type="comment"&gt;
+            &lt;form lang="en"&gt;&lt;text&gt;Coined in the 19th century&lt;/text&gt;&lt;/form&gt;
+        &lt;/field&gt;
+    &lt;/etymology&gt;
+    
+    &lt;sense id="sense_001"&gt;
+        &lt;definition&gt;
+            &lt;form lang="en"&gt;&lt;text&gt;Device for voice communication&lt;/text&gt;&lt;/form&gt;
+        &lt;/definition&gt;
+    &lt;/sense&gt;
+&lt;/entry&gt;</code></pre>
+
+        <h2 id="import-export">Importing & Exporting</h2>
+
+        <h3>Importing LIFT Files</h3>
+        <div class="info-box">
+            <strong>Steps:</strong>
+            <ol>
+                <li>Navigate to <strong>Import/Export</strong> section</li>
+                <li>Click <strong>Import LIFT File</strong></li>
+                <li>Select your <code>.lift</code> file</li>
+                <li>Review import summary</li>
+                <li>Confirm import</li>
+            </ol>
+        </div>
+
+        <div class="warning-box">
+            <strong>⚠️ Before Importing:</strong>
+            <ul>
+                <li>Back up your current dictionary data</li>
+                <li>Verify the LIFT file is valid XML</li>
+                <li>Check for duplicate entries</li>
+                <li>Review custom fields and ranges</li>
+            </ul>
+        </div>
+
+        <h3>Exporting LIFT Files</h3>
+        <p>Export options:</p>
+        <ul>
+            <li><strong>Full Export</strong>: All entries with complete metadata</li>
+            <li><strong>Filtered Export</strong>: Selected entries or date range</li>
+            <li><strong>Include Ranges</strong>: Export with <code>.lift-ranges</code> file</li>
+        </ul>
+
+        <h2 id="best-practices">Best Practices</h2>
+
+        <h3>1. Use Consistent IDs</h3>
+        <pre><code>&lt;!-- Good: Descriptive, unique IDs --&gt;
+&lt;entry id="cat_noun_001"&gt;
+
+&lt;!-- Avoid: Generic IDs --&gt;
+&lt;entry id="entry1"&gt;</code></pre>
+
+        <h3>2. Specify Languages</h3>
+        <pre><code>&lt;!-- Always specify language codes --&gt;
+&lt;form lang="en"&gt;&lt;text&gt;cat&lt;/text&gt;&lt;/form&gt;
+&lt;form lang="pl"&gt;&lt;text&gt;kot&lt;/text&gt;&lt;/form&gt;</code></pre>
+
+        <h3>3. Use Appropriate Elements</h3>
+        <ul>
+            <li>Use <code>&lt;definition&gt;</code> for full explanations</li>
+            <li>Use <code>&lt;gloss&gt;</code> for brief translations</li>
+            <li>Use <code>&lt;example&gt;</code> for usage contexts</li>
+            <li>Use <code>&lt;note&gt;</code> for editorial comments</li>
+        </ul>
+
+        <h3>4. Maintain Metadata</h3>
+        <pre><code>&lt;entry dateCreated="2025-12-06T10:30:00Z" 
+       dateModified="2025-12-06T15:45:00Z"
+       id="unique_id"&gt;</code></pre>
+
+        <h3>5. Version Control</h3>
+        <ul>
+            <li>Keep backup copies of LIFT files</li>
+            <li>Use descriptive filenames with dates: <code>dictionary_2025-12-06.lift</code></li>
+            <li>Track changes in a version control system (Git)</li>
+        </ul>
+
+        <h2 id="troubleshooting">Troubleshooting</h2>
+
+        <h3>Common Issues</h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Problem</th>
+                    <th>Cause</th>
+                    <th>Solution</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Import fails</td>
+                    <td>Invalid XML syntax</td>
+                    <td>Validate XML structure, check for unclosed tags</td>
+                </tr>
+                <tr>
+                    <td>Missing data</td>
+                    <td>Namespace issues</td>
+                    <td>Ensure proper LIFT namespace declaration</td>
+                </tr>
+                <tr>
+                    <td>Encoding errors</td>
+                    <td>Non-UTF-8 encoding</td>
+                    <td>Save file with UTF-8 encoding</td>
+                </tr>
+                <tr>
+                    <td>Duplicate entries</td>
+                    <td>Repeated IDs</td>
+                    <td>Use unique IDs for all entries</td>
+                </tr>
+                <tr>
+                    <td>Lost formatting</td>
+                    <td>Unsupported elements</td>
+                    <td>Use standard LIFT 0.13 elements only</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Validation Tools</h3>
+        <ul>
+            <li><strong>XML Validators</strong>: Check syntax errors</li>
+            <li><strong>LIFT Validators</strong>: Verify LIFT compliance</li>
+            <li><strong>Schema Validators</strong>: Validate against LIFT XSD schema</li>
+        </ul>
+
+        <h2>Additional Resources</h2>
+        <ul>
+            <li><strong>LIFT Standard</strong>: <a href="https://github.com/sillsdev/lift-standard" target="_blank">https://github.com/sillsdev/lift-standard</a></li>
+            <li><strong>FieldWorks</strong>: <a href="https://software.sil.org/fieldworks/" target="_blank">https://software.sil.org/fieldworks/</a></li>
+            <li><strong>SIL International</strong>: <a href="https://www.sil.org/" target="_blank">https://www.sil.org/</a></li>
+        </ul>
+
+        <div class="info-box" style="margin-top: 30px;">
+            <strong>💡 Need Help?</strong>
+            <p>Contact your system administrator or refer to the application documentation for specific features and workflows.</p>
+        </div>
+
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #dee2e6;">
+        <p style="text-align: center; color: #7f8c8d; font-size: 0.9em;">
+            Last updated: December 6, 2025 | LIFT Version 0.13
+        </p>
+    </div>
+</body>
+</html>

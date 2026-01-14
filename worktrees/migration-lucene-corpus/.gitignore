@@ -1,0 +1,83 @@
+# Existing entries
+.history
+.history\**
+/.vscode
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Flask
+instance/
+.webassets-cache
+.env
+.flaskenv
+
+# Virtual Environment
+venv/
+ENV/
+.venv/
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+*.cover
+/.zencoder/docs
+/.history/*/*.*
+.history/app/views_20250623215605.py
+sample_2
+sample_3
+'/home/milek/backup_dir/**
+app/app/static/backup/**
+app/static/backup/**
+node_modules
+.basex.pid
+.basexlogs/
+.worktrees/
+
+# BaseX
+basex/log/
+basex/data/
+basex/.pid
+basex/BaseX.jar
+basex/lib/*.jar
+*.jar
+cookies.txt
+main/FlexTools/g2p_output/byt5_checkpoints
+main/FlexTools/g2p_output/byt5_checkpoints/final_model
+main/FlexTools/g2p_output/byt5_checkpoints/final_model/special_tokens_map.json

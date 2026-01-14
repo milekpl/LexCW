@@ -1,0 +1,588 @@
+# GitHub Actions CI/CD Pipeline for Lexicographic Curation Workbench
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-basex-manual:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'  # Manual trigger only
+    steps:
+    # ...existing code...
+    - name: Manual BaseX setup test
+      run: |
+        echo "🧪 Testing manual BaseX installation..."
+        sudo apt-get update
+        sudo apt-get install -y curl wget unzip openjdk-11-jdk
+        cd /tmp
+        wget https://files.basex.org/releases/12.0/BaseX120.zip
+        unzip BaseX120.zip
+        sudo mv basex /opt/
+        sudo chmod +x /opt/basex/bin/*
+        /opt/basex/bin/basex -c "INFO"
+        echo "✅ BaseX installation test completed"
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      matrix:
+        python-version: [3.12.5]
+
+    steps:      
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl wget unzip openjdk-11-jdk netstat-nat
+
+    - name: Download and install BaseX
+      run: |
+        # Download BaseX
+        cd /tmp
+        wget https://files.basex.org/releases/12.0/BaseX120.zip
+        unzip BaseX120.zip
+        
+        # Install BaseX
+        sudo mv basex /opt/
+        sudo chmod +x /opt/basex/bin/*
+        
+        # Create BaseX data directory
+        sudo mkdir -p /opt/basex/data
+        sudo chmod 777 /opt/basex/data
+
+    - name: Start BaseX server
+      run: |
+        # Start BaseX HTTP server in background
+        /opt/basex/bin/basexhttp -S -p1984 -h8984 &
+        BASEX_PID=$!
+        echo "BASEX_PID=$BASEX_PID" >> $GITHUB_ENV
+        
+        # Wait for BaseX to start
+        echo "Waiting for BaseX to start..."
+        sleep 20
+        
+        # Check if BaseX is running
+        for i in {1..30}; do
+          # Use basexclient to check the connection
+          if /opt/basex/bin/basexclient -Uadmin -Padmin -c"INFO" > /dev/null 2>&1; then
+            echo "✅ BaseX server is ready for commands."
+            break
+          fi
+          if curl -f http://localhost:8984/rest 2>/dev/null; then
+            echo "✅ BaseX HTTP interface is ready"
+            break
+          fi
+          if netstat -tlnp 2>/dev/null | grep -q ":1984"; then
+            echo "✅ BaseX database port is listening"
+            break
+          fi
+          echo "⏳ Waiting for BaseX... ($i/30)"
+          sleep 5
+        done
+
+    - name: Test BaseX connectivity
+      run: |
+        # Test REST interface
+        echo "Testing BaseX REST interface..."
+        curl -X GET "http://admin:admin@localhost:8984/rest" || echo "REST GET failed"
+        
+        # Try to create a test database
+        echo "Creating test database..."
+        curl -X PUT "http://admin:admin@localhost:8984/rest/test_ci" \
+             -H "Content-Type: application/xml" \
+             -d "<root><test>CI Test</test></root>" || echo "Database creation failed"
+        
+        # Verify ports are listening
+        netstat -tlnp | grep 1984 || echo "❌ BaseX database port not listening"
+        netstat -tlnp | grep 8984 || echo "❌ BaseX HTTP port not listening"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt || pip install pytest pytest-cov pytest-mock pytest-asyncio
+
+    - name: Set up test environment
+      run: |
+        echo "BASEX_HOST=localhost" >> $GITHUB_ENV
+        echo "BASEX_PORT=1984" >> $GITHUB_ENV
+        echo "BASEX_USERNAME=admin" >> $GITHUB_ENV
+        echo "BASEX_PASSWORD=admin" >> $GITHUB_ENV
+        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
+        echo "REDIS_PORT=6379" >> $GITHUB_ENV
+        echo "POSTGRES_HOST=localhost" >> $GITHUB_ENV
+        echo "POSTGRES_PORT=5432" >> $GITHUB_ENV
+        echo "POSTGRES_USER=test_user" >> $GITHUB_ENV
+        echo "POSTGRES_PASSWORD=test_password" >> $GITHUB_ENV
+        echo "POSTGRES_DB=test_db" >> $GITHUB_ENV
+        echo "FLASK_ENV=testing" >> $GITHUB_ENV
+        echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> $GITHUB_ENV
+
+    - name: Run linting
+      run: |
+        pip install flake8 black isort
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 app tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 app tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    - name: Check code formatting
+      run: |
+        black --check app tests || echo "Code formatting issues found (non-blocking)"
+        isort --check-only app tests || echo "Import sorting issues found (non-blocking)"
+
+    - name: Run security checks
+      run: |
+        pip install bandit safety
+        bandit -r app -f json -o bandit-report.json || echo "Security issues found (non-blocking)"
+        safety check || echo "Dependency vulnerabilities found (non-blocking)"
+
+    - name: Run unit tests
+      run: |
+        pytest tests/test_basic.py tests/test_dashboard.py -v --tb=short
+
+    - name: Run integration tests
+      run: |
+        pytest tests/test_real_integration.py -v --tb=short
+
+    - name: Run test coverage
+      run: |
+        pytest --cov=app --cov-report=xml --cov-report=html --cov-report=term tests/
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Run performance benchmarks
+      run: |
+        pytest tests/test_performance_benchmarks.py::TestPerformanceRegression::test_baseline_operations -v || echo "Performance tests failed (non-blocking)"
+
+  test-e2e:
+    runs-on: ubuntu-latest
+    needs: test
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-e2e-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-e2e-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl wget unzip openjdk-11-jdk netstat-nat
+
+    - name: Download and install BaseX
+      run: |
+        cd /tmp
+        wget https://files.basex.org/releases/12.0/BaseX120.zip
+        unzip BaseX120.zip
+        sudo mv basex /opt/
+        sudo chmod +x /opt/basex/bin/*
+        sudo mkdir -p /opt/basex/data
+        sudo chmod 777 /opt/basex/data
+
+    - name: Start BaseX server
+      run: |
+        /opt/basex/bin/basexhttp -S -p1984 -h8984 &
+        BASEX_PID=$!
+        echo "BASEX_PID=$BASEX_PID" >> $GITHUB_ENV
+        echo "Waiting for BaseX to start..."
+        sleep 20
+        for i in {1..30}; do
+          if /opt/basex/bin/basexclient -Uadmin -Padmin -c"INFO" > /dev/null 2>&1; then
+            echo "BaseX server is ready"
+            break
+          fi
+          echo "Waiting for BaseX... ($i/30)"
+          sleep 5
+        done
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install playwright
+        playwright install --with-deps chromium
+
+    - name: Set environment variables
+      run: |
+        echo "BASEX_HOST=localhost" >> $GITHUB_ENV
+        echo "BASEX_PORT=1984" >> $GITHUB_ENV
+        echo "BASEX_USERNAME=admin" >> $GITHUB_ENV
+        echo "BASEX_PASSWORD=admin" >> $GITHUB_ENV
+        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
+        echo "REDIS_PORT=6379" >> $GITHUB_ENV
+        echo "POSTGRES_HOST=localhost" >> $GITHUB_ENV
+        echo "POSTGRES_PORT=5432" >> $GITHUB_ENV
+        echo "POSTGRES_USER=test_user" >> $GITHUB_ENV
+        echo "POSTGRES_PASSWORD=test_password" >> $GITHUB_ENV
+        echo "POSTGRES_DB=test_db" >> $GITHUB_ENV
+        echo "FLASK_ENV=testing" >> $GITHUB_ENV
+
+    - name: Run e2e tests (shard 1 of 2)
+      run: |
+        npx playwright test --shard=1/2 --reporter=line
+
+    - name: Run e2e tests (shard 2 of 2)
+      run: |
+        npx playwright test --shard=2/2 --reporter=line
+
+    - name: Stop BaseX server
+      if: always()
+      run: |
+        # Stop BaseX server gracefully
+        echo "Stopping BaseX server..."
+        
+        # Try to stop using PID if available
+        if [ ! -z "$BASEX_PID" ]; then
+          kill $BASEX_PID 2>/dev/null || echo "BaseX PID not found or already stopped"
+        fi
+        
+        # Force kill any remaining BaseX processes
+        pkill -f basex 2>/dev/null || echo "No BaseX processes found"
+        
+        # Clean up any remaining processes
+        ps aux | grep -i basex | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null || echo "No remaining BaseX processes"
+        
+        # Verify BaseX is stopped
+        if ! pgrep -f basex > /dev/null; then
+          echo "✅ BaseX server stopped successfully"
+        else
+          echo "⚠️ Some BaseX processes may still be running"
+        fi
+
+    - name: Archive test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          htmlcov/
+          bandit-report.json
+          coverage.xml
+
+  test-additional:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: slownik_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.12.5
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12.5'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl wget unzip openjdk-11-jdk netstat-nat
+
+    - name: Download and install BaseX
+      run: |
+        cd /tmp
+        wget https://files.basex.org/releases/12.0/BaseX120.zip
+        unzip BaseX120.zip
+        sudo mv basex /opt/
+        sudo chmod +x /opt/basex/bin/*
+        sudo mkdir -p /opt/basex/data
+        sudo chmod 777 /opt/basex/data
+
+    - name: Start BaseX server
+      run: |
+        /opt/basex/bin/basexhttp -S -p1984 -h8984 &
+        BASEX_PID=$!
+        echo "BASEX_PID=$BASEX_PID" >> $GITHUB_ENV
+        echo "Waiting for BaseX to start..."
+        sleep 20
+        for i in {1..30}; do
+          if /opt/basex/bin/basexclient -Uadmin -Padmin -c"INFO" > /dev/null 2>&1; then
+            echo "✅ BaseX server is ready for commands."
+            break
+          fi
+          if curl -f http://localhost:8984/rest 2>/dev/null; then
+            echo "✅ BaseX HTTP interface is ready"
+            break
+          fi
+          if netstat -tlnp 2>/dev/null | grep -q ":1984"; then
+            echo "✅ BaseX database port is listening"
+            break
+          fi
+          echo "⏳ Waiting for BaseX... ($i/30)"
+          sleep 5
+        done
+
+    - name: Test BaseX connectivity
+      run: |
+        echo "Testing BaseX REST interface..."
+        curl -X GET "http://admin:admin@localhost:8984/rest" || echo "REST GET failed"
+        echo "Creating test database..."
+        curl -X PUT "http://admin:admin@localhost:8984/rest/test_ci" \
+             -H "Content-Type: application/xml" \
+             -d "<root><test>CI Test</test></root>" || echo "Database creation failed"
+        netstat -tlnp | grep 1984 || echo "❌ BaseX database port not listening"
+        netstat -tlnp | grep 8984 || echo "❌ BaseX HTTP port not listening"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest-cov
+
+    - name: Wait for PostgreSQL to be ready
+      run: |
+        echo "Waiting for PostgreSQL to be healthy..."
+        for i in {1..30}; do
+          if pg_isready -h localhost -p 5432 -U postgres; then
+            echo "✅ PostgreSQL is ready"
+            break
+          fi
+          echo "⏳ Waiting for PostgreSQL... ($i/30)"
+          sleep 2
+        done
+
+    - name: Set environment variables for tests
+      run: |
+        echo "BASEX_HOST=localhost" >> $GITHUB_ENV
+        echo "BASEX_PORT=1984" >> $GITHUB_ENV
+        echo "BASEX_USERNAME=admin" >> $GITHUB_ENV
+        echo "BASEX_PASSWORD=admin" >> $GITHUB_ENV
+        echo "FLASK_ENV=testing" >> $GITHUB_ENV
+        echo "POSTGRES_HOST=localhost" >> $GITHUB_ENV
+        echo "POSTGRES_PORT=5432" >> $GITHUB_ENV
+        echo "POSTGRES_DB=slownik_ci" >> $GITHUB_ENV
+        echo "POSTGRES_USER=postgres" >> $GITHUB_ENV
+        echo "POSTGRES_PASSWORD=postgres" >> $GITHUB_ENV
+
+    - name: Run unit tests
+      run: |
+        python -m pytest tests/unit/ -v --tb=short
+
+    - name: Run integration tests with coverage
+      run: |
+        python -m pytest tests/integration/ --cov=app --cov-report=xml --cov-report=term-missing -v --tb=short
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  build:
+    needs: [test, test-additional]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12.5
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Archive build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+  deploy-staging:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Add staging deployment steps here
+        # Example: Deploy to staging server, update staging database, etc.
+
+  deploy-production:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment..."
+        # Add production deployment steps here
+        # Example: Deploy to production server, backup database, etc.
+
+  quality-gate:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Check test results
+      run: |
+        echo "Checking quality gate..."
+        if [[ "${{ needs.test.result }}" == "success" ]]; then
+          echo "✅ All tests passed"
+        else
+          echo "❌ Tests failed"
+          exit 1
+        fi
+
+    - name: Post status to PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const botComment = comments.find(comment => 
+            comment.user.type === 'Bot' && comment.body.includes('CI/CD Pipeline Results')
+          );
+          
+          const body = `## CI/CD Pipeline Results
+          
+          **Test Status**: ${{ needs.test.result == 'success' && '✅ Passed' || '❌ Failed' }}
+          **Build Status**: Available in workflow
+          
+          - Unit Tests: ${{ needs.test.result }}
+          - Integration Tests: ${{ needs.test.result }}
+          - Code Coverage: Available in artifacts
+          - Security Scan: Completed
+          - Performance Tests: Baseline checked
+          
+          View detailed results in the [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          `;
+          
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }

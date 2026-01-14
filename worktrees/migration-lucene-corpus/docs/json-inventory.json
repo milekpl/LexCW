@@ -1,0 +1,76 @@
+[
+  {
+    "file": "./app/api/entries.py",
+    "decorator": "@entries_bp.route('/', methods=['GET'])",
+    "function": "list_entries",
+    "uses_get_json": false,
+    "uses_get_data": false,
+    "returns_json": true,
+    "returns_xml": false,
+    "checks_content_type_json": false
+  },
+  {
+    "file": "./app/api/entry_autosave_simple.py",
+    "decorator": "@autosave_bp.route('/api/entry/autosave', methods=['POST'])",
+    "function": "autosave_entry",
+    "uses_get_json": false,
+    "uses_get_data": false,
+    "returns_json": true,
+    "returns_xml": false,
+    "checks_content_type_json": true,
+    "converted_to_service": true
+  },
+  {
+    "file": "./app/api/entry_autosave_working.py",
+    "decorator": "@autosave_bp.route('/api/entry/autosave', methods=['POST'])",
+    "function": "autosave_entry",
+    "uses_get_json": false,
+    "uses_get_data": false,
+    "returns_json": true,
+    "returns_xml": false,
+    "checks_content_type_json": true,
+    "converted_to_service": true
+  }
+]
+[
+  {
+    "file": "./app/api/entries.py",
+    "decorator": "@entries_bp.route('/', methods=['GET'])",
+    "function": "list_entries",
+    "uses_get_json": false,
+    "uses_get_data": false,
+    "returns_json": true,
+    "returns_xml": false,
+    "checks_content_type_json": false
+  },
+  {
+    "file": "./app/api/entry_autosave_simple.py",
+    "decorator": "@autosave_bp.route('/api/entry/autosave', methods=['POST'])",
+    "function": "autosave_entry",
+    "uses_get_json": true,
+    "uses_get_data": false,
+    "returns_json": true,
+    "returns_xml": false,
+    "checks_content_type_json": false
+  },
+  {
+    "file": "./app/api/entry_autosave_working.py",
+    "decorator": "@autosave_bp.route('/api/entry/autosave', methods=['POST'])",
+    "function": "autosave_entry",
+    "uses_get_json": true,
+    "uses_get_data": false,
+    "returns_json": true,
+    "returns_xml": false,
+    "checks_content_type_json": false
+  },
+  {
+    "file": "./app/api/export.py",
+    "decorator": "@export_bp.route('/lift', methods=['GET'])",
+    "function": "export_lift",
+    "uses_get_json": true,
+    "uses_get_data": false,
+    "returns_json": true,
+    "returns_xml": true,
+    "checks_content_type_json": false
+  }
+]
