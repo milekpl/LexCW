@@ -1,0 +1,38 @@
+# Recommended Variant-Types and Complex-Form-Type for New Projects
+# This YAML file defines best-practice sets for lexicographic values that will be
+# automatically created as custom ranges when encountered in LIFT entries.
+# It can be loaded by the install procedure to seed the database with common values.
+
+variant-type:
+  - id: dialectal
+    label: Dialectal Variant
+    definition: "A regional or social variety of a language."
+  - id: free
+    label: Free Variant
+    definition: "Interchangeable forms used by the same speaker without discernible conditioning."
+  - id: irregular
+    label: Irregularly Inflected Form
+    definition: "Forms that deviate from standard rules, such as 'men' for the plural of 'man'."
+  - id: spelling
+    label: Spelling Variant
+    definition: "Purely orthographic differences (e.g., color vs. colour)."
+
+complex-form-type:
+  - id: compound
+    label: Compound
+    definition: "A word formed from two or more stems."
+  - id: derivative
+    label: Derivative
+    definition: "A stem that is made up of a root plus an affix that adds a non-inflectional component of meaning."
+  - id: idiom
+    label: Idiom
+    definition: "A multi-word expression that is recognized as a semantic unit."
+  - id: phrasal-verb
+    label: Phrasal Verb
+    definition: "A combination of a lexical verb and a verbal particle that forms a single semantic and syntactic unit."
+  - id: contraction
+    label: Contraction
+    definition: "A combination of two lexemes that are phonologically reduced."
+  - id: saying
+    label: Saying
+    definition: "Any pithy phrasal expression of wisdom or truth; esp., an adage, proverb, or maxim."

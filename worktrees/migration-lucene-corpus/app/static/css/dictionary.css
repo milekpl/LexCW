@@ -1,0 +1,490 @@
+/*
+ * Dictionary Display CSS
+ * Styles for rendering LIFT dictionary entries with various display profiles
+ */
+
+/* =================================================================
+   Entry Container Styles
+   ================================================================= */
+
+.lift-entry-rendered {
+    font-family: var(--font-family, 'Roboto', 'Helvetica Neue', Arial, sans-serif);
+    line-height: 1.6;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: #ffffff;
+    border-radius: var(--border-radius, 0.25rem);
+    box-shadow: var(--box-shadow, 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075));
+}
+
+.lift-entry-rendered.compact {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+}
+
+/* =================================================================
+   Headword / Lexical Unit Styles
+   ================================================================= */
+
+.lexical-unit,
+.headword {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+    font-family: var(--headword-font, 'Georgia', serif);
+}
+
+.lexical-unit .text,
+.headword .text {
+    display: inline-block;
+}
+
+/* Citation form */
+.citation-form {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #34495e;
+    margin-left: 0.5rem;
+    font-style: italic;
+}
+
+/* =================================================================
+   Pronunciation Styles
+   ================================================================= */
+
+.pronunciation {
+    color: #7f8c8d;
+    font-family: 'Courier New', monospace;
+    margin: 0.5rem 0;
+}
+
+.pronunciation::before {
+    content: '/';
+    color: #bdc3c7;
+}
+
+.pronunciation::after {
+    content: '/';
+    color: #bdc3c7;
+}
+
+.pronunciation .media {
+    margin-left: 0.5rem;
+}
+
+.pronunciation .media-link {
+    color: #3498db;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.pronunciation .media-link:hover {
+    text-decoration: underline;
+}
+
+/* CV Pattern and Tone */
+.cv-pattern,
+.tone {
+    display: inline-block;
+    margin-left: 1rem;
+    font-size: 0.85rem;
+    color: #95a5a6;
+    font-family: monospace;
+}
+
+.cv-pattern::before {
+    content: 'CV: ';
+    font-weight: 600;
+}
+
+.tone::before {
+    content: 'Tone: ';
+    font-weight: 600;
+}
+
+/* =================================================================
+   Grammatical Information
+   ================================================================= */
+
+.grammatical-info,
+.gram-info {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0.25rem 0.5rem 0.25rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.grammatical-info.noun { background-color: #e8f5e9; color: #2e7d32; }
+.grammatical-info.verb { background-color: #e3f2fd; color: #1565c0; }
+.grammatical-info.adjective { background-color: #fff3e0; color: #e65100; }
+.grammatical-info.adverb { background-color: #f3e5f5; color: #6a1b9a; }
+
+/* =================================================================
+   Sense Styles
+   ================================================================= */
+
+.sense {
+    margin: 1rem 0 1rem 1.5rem;
+    padding-left: 1rem;
+    border-left: 3px solid #e0e0e0;
+}
+
+.sense-number {
+    font-weight: 700;
+    color: #3498db;
+    margin-right: 0.5rem;
+}
+
+/* Subsenses */
+.subsense {
+    margin: 0.75rem 0 0.75rem 1.5rem;
+    padding-left: 1rem;
+    border-left: 2px solid #ecf0f1;
+    font-size: 0.95rem;
+}
+
+.subsense .subsense {
+    font-size: 0.9rem;
+    margin-left: 1rem;
+    border-left: 1px solid #f5f5f5;
+}
+
+/* =================================================================
+   Definition and Gloss Styles
+   ================================================================= */
+
+.definition {
+    color: #2c3e50;
+    margin: 0.5rem 0;
+    line-height: 1.5;
+}
+
+.gloss {
+    color: #34495e;
+    font-style: italic;
+    margin: 0.25rem 0;
+}
+
+.gloss::before {
+    content: '"';
+    color: #bdc3c7;
+}
+
+.gloss::after {
+    content: '"';
+    color: #bdc3c7;
+}
+
+/* =================================================================
+   Example Styles
+   ================================================================= */
+
+.example {
+    margin: 0.75rem 0 0.75rem 1rem;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-left: 3px solid #3498db;
+    border-radius: 3px;
+}
+
+.example-source {
+    font-style: italic;
+    color: #555;
+}
+
+.example-translation {
+    color: #666;
+    margin-top: 0.25rem;
+    font-size: 0.95rem;
+}
+
+.example-translation::before {
+    content: '→ ';
+    color: #3498db;
+    font-weight: 600;
+}
+
+/* =================================================================
+   Etymology Styles
+   ================================================================= */
+
+.etymology {
+    margin: 1rem 0;
+    padding: 0.75rem;
+    background-color: #fef5e7;
+    border-left: 3px solid: #f39c12;
+    border-radius: 3px;
+    font-size: 0.9rem;
+}
+
+.etymology::before {
+    content: 'Etymology: ';
+    font-weight: 700;
+    color: #d68910;
+}
+
+.etymology .source {
+    font-weight: 600;
+    color: #d68910;
+}
+
+.etymology .etymon {
+    font-style: italic;
+    margin: 0 0.5rem;
+}
+
+.etymology .gloss {
+    color: #7f8c8d;
+}
+
+/* =================================================================
+   Variant Styles
+   ================================================================= */
+
+.variant {
+    margin: 0.5rem 0;
+    color: #34495e;
+    font-size: 0.95rem;
+}
+
+.variant::before {
+    content: 'Variant: ';
+    font-weight: 600;
+    color: #7f8c8d;
+}
+
+.variant-form {
+    font-weight: 500;
+}
+
+/* =================================================================
+   Relation Styles
+   ================================================================= */
+
+.relation {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.lexical-relation {
+    font-weight: 600;
+    color: #3498db;
+    margin-right: 0.5rem;
+    text-transform: capitalize;
+}
+
+.relation-ref {
+    color: #2c3e50;
+    text-decoration: none;
+}
+
+.relation-ref:hover {
+    text-decoration: underline;
+    color: #3498db;
+}
+
+/* Specific relation types */
+.relation.synonym .lexical-relation { color: #27ae60; }
+.relation.antonym .lexical-relation { color: #e74c3c; }
+.relation.hypernym .lexical-relation { color: #9b59b6; }
+.relation.hyponym .lexical-relation { color: #16a085; }
+
+/* =================================================================
+   Reversal Styles
+   ================================================================= */
+
+.reversal {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background-color: #e8f8f5;
+    border-left: 3px solid #1abc9c;
+    border-radius: 3px;
+}
+
+.reversal-main {
+    font-weight: 600;
+    color: #16a085;
+}
+
+/* =================================================================
+   Illustration Styles
+   ================================================================= */
+
+.illustration {
+    margin: 1rem 0;
+    text-align: center;
+}
+
+.illustration img {
+    max-width: 300px;
+    max-height: 200px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.illustration-label {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+/* =================================================================
+   Note and Annotation Styles
+   ================================================================= */
+
+.note {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background-color: #fff9e6;
+    border-left: 3px solid #f1c40f;
+    border-radius: 3px;
+    font-size: 0.9rem;
+}
+
+.annotation {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background-color: #fef5f1;
+    border-left: 3px solid #e67e22;
+    border-radius: 3px;
+    font-size: 0.85rem;
+}
+
+.annotation-meta {
+    color: #95a5a6;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+/* =================================================================
+   Custom Field Styles
+   ================================================================= */
+
+.field {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.field-label {
+    font-weight: 600;
+    color: #7f8c8d;
+    margin-right: 0.5rem;
+}
+
+.field-content {
+    color: #2c3e50;
+}
+
+/* Specific custom fields */
+.exemplar {
+    font-style: italic;
+    color: #16a085;
+}
+
+.scientific-name {
+    font-style: italic;
+    color: #8e44ad;
+    font-family: 'Georgia', serif;
+}
+
+.literal-meaning {
+    color: #c0392b;
+}
+
+/* =================================================================
+   Trait Styles
+   ================================================================= */
+
+.trait {
+    display: inline-block;
+    margin: 0 0.25rem;
+    padding: 0.1rem 0.4rem;
+    background-color: #f0f0f0;
+    border-radius: 2px;
+    font-size: 0.75rem;
+    color: #555;
+}
+
+/* =================================================================
+   Prefix and Suffix Styles
+   ================================================================= */
+
+.prefix,
+.suffix {
+    color: #95a5a6;
+    font-size: 0.85rem;
+    margin: 0 0.25rem;
+}
+
+/* =================================================================
+   Error States
+   ================================================================= */
+
+.entry-render-error,
+.entry-error,
+.parse-error {
+    padding: 1rem;
+    background-color: #fee;
+    border: 1px solid #fcc;
+    border-radius: 4px;
+    color: #c00;
+    margin: 1rem 0;
+}
+
+.entry-empty {
+    padding: 1rem;
+    color: #95a5a6;
+    font-style: italic;
+    text-align: center;
+}
+
+/* =================================================================
+   Print Styles
+   ================================================================= */
+
+@media print {
+    .lift-entry-rendered {
+        box-shadow: none;
+        border: 1px solid #ddd;
+        page-break-inside: avoid;
+    }
+
+    .pronunciation .media-link {
+        display: none;
+    }
+
+    .illustration img {
+        max-width: 200px;
+        max-height: 150px;
+    }
+}
+
+/* =================================================================
+   Responsive Styles
+   ================================================================= */
+
+@media (max-width: 768px) {
+    .lexical-unit,
+    .headword {
+        font-size: 1.25rem;
+    }
+
+    .sense,
+    .subsense {
+        margin-left: 0.5rem;
+        padding-left: 0.5rem;
+    }
+
+    .example {
+        margin-left: 0.25rem;
+    }
+}

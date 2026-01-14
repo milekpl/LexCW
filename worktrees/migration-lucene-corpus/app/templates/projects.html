@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Projects{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="fas fa-folder-open"></i> Projects</h2>
+    <div class="mb-3">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#projectSetupModal">Add Project</button>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Existing Projects</div>
+        <div class="card-body">
+            {% if projects %}
+                <ul class="list-group">
+                    {% for p in projects %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ p.project_name }}</strong>
+                                <div class="small text-muted">Source: {{ p.source_language.code }}</div>
+                            </div>
+                            <div>
+                                <a href="{{ url_for('settings.select_project', project_id=p.id, next=request.args.get('next')) }}" class="btn btn-sm btn-success me-2">Select</a>
+                                <a href="/settings/?project={{ p.project_name }}" class="btn btn-sm btn-outline-primary me-2">Edit</a>
+                                <button class="btn btn-sm btn-danger delete-project-btn" data-project-id="{{ p.id }}">Delete</button>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="text-muted">No projects yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Project Setup Modal (wizard) -->
+    <div class="modal fade" id="projectSetupModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Project</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="project-create-form">
+                        <div class="mb-3">
+                            <label class="form-label">Project Name</label>
+                            <input id="project_name_modal" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Source Language Code</label>
+                            <input id="source_lang_modal" class="form-control" placeholder="en" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Target Language Code</label>
+                            <input id="target_lang_modal" class="form-control" placeholder="es">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="install_ranges_modal" checked>
+                            <label class="form-check-label" for="install_ranges_modal">Install recommended ranges</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="submit-create-project" class="btn btn-primary">Create Project</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Toast container -->
+    <div id="app-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+    <script>
+    // Simple app toast utility
+    function showAppToast(message, type='success', timeout=4000) {
+        const container = document.getElementById('app-toast-container');
+        const toastEl = document.createElement('div');
+        toastEl.className = 'toast align-items-center text-bg-' + (type === 'error' ? 'danger' : 'success') + ' border-0';
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+        toastEl.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>`;
+        container.appendChild(toastEl);
+        const bsToast = new bootstrap.Toast(toastEl, { delay: timeout });
+        bsToast.show();
+        toastEl.addEventListener('hidden.bs.toast', function () { toastEl.remove(); });
+        return bsToast;
+    }
+    document.getElementById('submit-create-project').addEventListener('click', async function() {
+        const name = document.getElementById('project_name_modal').value;
+        const src = document.getElementById('source_lang_modal').value;
+        const tgt = document.getElementById('target_lang_modal').value;
+        const install = document.getElementById('install_ranges_modal').checked;
+        try {
+            const codeRegex = /^[a-zA-Z]{2,3}(-[A-Za-z0-9]+)?$/;
+            if (!codeRegex.test(src)) { showAppToast('Invalid source language code', 'error'); return; }
+            const resp = await fetch('/settings/projects/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({project_name: name, source_language_code: src, target_language_code: tgt, install_recommended_ranges: install})
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                // Close modal and show success toast. Keep user on the page so they can continue setting up
+                const modalEl = document.getElementById('projectSetupModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+                showAppToast('Project created successfully', 'success');
+                // Optionally refresh project list via reload to show new project
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                alert('Error: ' + (data.error || 'Unknown'));
+            }
+        } catch(e){
+            alert('Error: ' + e);
+        }
+    });
+
+    // Handle deletes
+    document.querySelectorAll('.delete-project-btn').forEach(btn => {
+        btn.addEventListener('click', async function(){
+            const id = this.dataset.projectId;
+            if (!confirm('Delete project?')) return;
+            try {
+                const resp = await fetch(`/settings/projects/${id}/delete`, {method: 'POST'});
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown'));
+                }
+            } catch(e){ alert('Error: ' + e); }
+        });
+    });
+    </script>
+</div>
+{% endblock %}

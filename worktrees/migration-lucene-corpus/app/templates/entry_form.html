@@ -1,0 +1,1080 @@
+{% extends "base.html" %}
+
+{% import "macros/form_macros.html" as form_macros %}
+{% import "macros/new_form_macros.html" as new_macros %}
+
+{% block title %}{% if entry.id %}Edit Entry: {{ entry.lexical_unit.values()|join(', ') }}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}{% else %}Add New Entry{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/form-tooltips.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/validation-feedback.css') }}">
+<style>
+#delete-warning { display: none !important; }
+#delete-warning.visible { display: inline !important; }
+</style>
+{% endblock %}
+
+
+
+{% block content %}
+{% if validation_result and not validation_result.is_valid %}
+<!-- Validation Guidance Section -->
+<div class="alert alert-warning mb-4" role="alert">
+    <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Entry Validation Guidance</h5>
+    <p class="mb-3">This entry has validation issues that should be addressed. You can still edit and save the entry, but fixing these issues will improve data quality.</p>
+    
+    {% if validation_result.errors %}
+    <div class="validation-errors mb-3">
+        <h6><i class="fas fa-times-circle text-danger"></i> Critical Issues:</h6>
+        <ul class="mb-0">
+        {% for error in validation_result.errors %}
+            <li class="text-danger">{{ error.message }} <small class="text-muted">({{ error.rule_id }})</small></li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    {% if validation_result.warnings %}
+    <div class="validation-warnings">
+        <h6><i class="fas fa-exclamation-circle text-warning"></i> Warnings:</h6>
+        <ul class="mb-0">
+        {% for warning in validation_result.warnings %}
+            <li class="text-warning">{{ warning.message }} <small class="text-muted">({{ warning.rule_id }})</small></li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            {% if entry.id %}
+            <i class="fas fa-edit"></i> Edit Entry: <span class="text-primary">{{ entry.lexical_unit.values()|join(', ') }}{% if entry.homograph_number %}<sub>{{ entry.homograph_number }}</sub>{% endif %}</span>
+            {% else %}
+            <i class="fas fa-plus"></i> Add New Entry
+            {% endif %}
+        </h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <button type="button" class="btn btn-outline-info me-2" data-bs-toggle="modal" data-bs-target="#fieldVisibilityModal">
+            <i class="fas fa-cog"></i> Field Settings
+        </button>
+        {% if entry.id %}
+        <a href="{{ url_for('main.view_entry', entry_id=entry.id) }}" class="btn btn-outline-primary">
+            <i class="fas fa-eye"></i> View Entry
+        </a>
+        <div class="d-flex flex-column" style="vertical-align: middle; width: fit-content;">
+            <button type="button" class="btn btn-outline-danger me-2" id="delete-entry-btn">
+                <i class="fas fa-trash-alt"></i> DELETE ENTRY
+            </button>
+            <span class="text-danger small mt-1" id="delete-warning" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i> Click again to confirm deletion
+            </span>
+        </div>
+        {% endif %}
+        <a href="{{ url_for('main.entries') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-list"></i> All Entries
+        </a>
+    </div>
+</div>
+
+{% if not ranges %}
+<div class="alert alert-warning mb-4" role="alert">
+    <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Ranges Not Configured</h5>
+    <p class="mb-2">This project currently has no LIFT ranges loaded. To populate dropdowns and other type/category fields, use the Ranges Editor to add ranges.</p>
+    <div>
+        <a href="/ranges-editor" class="btn btn-sm btn-outline-primary me-2">Open Ranges Editor</a>
+        <button type="button" id="install-recommended-ranges-btn" class="btn btn-sm btn-primary">Install recommended ranges</button>
+    </div>
+</div>
+{% endif %}
+
+{% set source_lang = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.source_language else 'en' %}
+{% set target_lang = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.target_language else 'en' %}
+<form id="entry-form" method="post" data-source-language="{{ source_lang }}" novalidate>
+    {% if entry.id %}
+        <input type="hidden" name="id" value="{{ entry.id }}">
+    {% endif %}
+    <div class="row">
+<div class="col-md-4">
+            {% include 'entry_form_partials/_basic_info.html' with context %}
+
+            {% include 'entry_form_partials/_custom_fields.html' with context %}
+            
+            {% include 'entry_form_partials/_notes.html' with context %}
+            
+            {% include 'entry_form_partials/_pronunciations.html' with context %}
+            
+            {% include 'entry_form_partials/_variants.html' with context %}
+
+            {% include 'entry_form_partials/_direct_variants.html' with context %}
+
+            {% include 'entry_form_partials/_components.html' with context %}
+            
+            {% include 'entry_form_partials/_subentries.html' with context %}
+            
+            {% include 'entry_form_partials/_relations.html' with context %}
+
+            {% include 'entry_form_partials/_etymology.html' with context %}
+
+            <!-- LIFT 0.13: Literal Meaning (Entry-Level Custom Field - Day 28) -->
+            <!-- MOVED TO SENSE LEVEL -->
+            
+        </div>
+        
+        <div class="col-md-8">
+            {% include 'entry_form_partials/_senses.html' with context %}
+        
+            <!-- LIFT 0.13: Entry-Level Annotations Section (Day 26-27) -->
+            <div class="card mt-4 annotations-section-entry">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-clipboard-list"></i> Entry Annotations</h5>
+                        <button type="button" class="btn btn-sm btn-outline-warning add-annotation-btn" 
+                                data-container-type="entry" data-index="0"
+                                title="Add an annotation for editorial workflow (review status, comments, etc.)">
+                            <i class="fas fa-plus"></i> Add Annotation
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="annotations-container" data-container-type="entry" data-index="0">
+                        {% if entry.annotations %}
+                            {% for annotation in entry.annotations %}
+                                <div class="annotation-item card mb-3 border-warning" data-annotation-index="{{ loop.index0 }}">
+                                    <div class="card-header bg-warning bg-opacity-10">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span><i class="fas fa-tag"></i> Annotation {{ loop.index }}</span>
+                                            <button type="button" class="btn btn-sm btn-outline-danger remove-annotation-btn"
+                                                    data-container-type="entry" data-index="0" data-annotation-index="{{ loop.index0 }}">
+                                                <i class="fas fa-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- Annotation Name (required) -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control annotation-name-input" 
+                                                   name="annotations[{{ loop.index0 }}].name"
+                                                   value="{{ annotation.name }}"
+                                                   placeholder="e.g., review-status, comment, flagged"
+                                                   required>
+                                            <small class="form-text text-muted">
+                                                Common names: review-status, comment, reviewer-comment, approval-status, flagged, priority, needs-revision
+                                            </small>
+                                        </div>
+                                        
+                                        <!-- Annotation Value (optional) -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Value</label>
+                                            <input type="text" class="form-control" 
+                                                   name="annotations[{{ loop.index0 }}].value"
+                                                   value="{{ annotation.value }}"
+                                                   placeholder="e.g., approved, pending, rejected">
+                                        </div>
+                                        
+                                        <!-- Annotation Who (optional) -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Who</label>
+                                            <input type="text" class="form-control" 
+                                                   name="annotations[{{ loop.index0 }}].who"
+                                                   value="{{ annotation.who }}"
+                                                   placeholder="e.g., editor@example.com, John Doe">
+                                            <small class="form-text text-muted">Person or email who created this annotation (will be auto-filled with username when user management is implemented)</small>
+                                        </div>
+                                        
+                                        <!-- Annotation When (auto-populated) -->
+                                        <div class="mb-3">
+                                            <label class="form-label">When</label>
+                                            <input type="datetime-local" class="form-control" 
+                                                   name="annotations[{{ loop.index0 }}].when"
+                                                   value="{{ annotation.when }}"
+                                                   readonly>
+                                            <small class="form-text text-muted">Timestamp when this annotation was created (auto-generated)</small>
+                                        </div>
+                                        
+                                        <!-- Annotation Content (collapsible) -->
+                                        <div class="annotation-content-section">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <label class="form-label mb-0">Content</label>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary toggle-content-btn"
+                                                        data-bs-toggle="collapse" 
+                                                        data-bs-target="#annotation-content-entry-{{ loop.index0 }}">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </button>
+                                            </div>
+                                            <div class="collapse {% if annotation.content %}show{% endif %}" 
+                                                 id="annotation-content-entry-{{ loop.index0 }}">
+                                                <div class="card bg-light">
+                                                    <div class="card-body">
+                                                        <div class="annotation-content-forms">
+                                                            {% set content_items = annotation.content.items() if annotation.content else [] %}
+                                                            {% for lang, text in content_items %}
+                                                                <div class="input-group mb-2">
+                                                                    <span class="input-group-text">{{ lang }}</span>
+                                                                    <textarea class="form-control" 
+                                                                           name="annotations[{{ loop.index0 }}].content.{{ lang }}"
+                                                                           data-lang="{{ lang }}"
+                                                                           rows="2"
+                                                                           placeholder="Enter comment or description in {{ lang }}">{{ text }}</textarea>
+                                                                    {% if lang != 'en' %}
+                                                                    <button type="button" class="btn btn-outline-danger remove-annotation-language-btn" title="Remove this language">
+                                                                        <i class="fas fa-times"></i>
+                                                                    </button>
+                                                                    {% endif %}
+                                                                </div>
+                                                            {% endfor %}
+                                                            {% if not content_items %}
+                                                                <div class="input-group mb-2">
+                                                                    <span class="input-group-text">en</span>
+                                                                    <textarea class="form-control" 
+                                                                           name="annotations[{{ loop.index0 }}].content.en"
+                                                                           data-lang="en"
+                                                                           rows="2"
+                                                                           placeholder="Enter comment or description in English"></textarea>
+                                                                </div>
+                                                            {% endif %}
+                                                        </div>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary mt-2 add-annotation-language-btn">
+                                                            <i class="fas fa-plus"></i> Add Language
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="no-annotations text-center text-muted py-3 border border-warning border-opacity-25 rounded">
+                                <p class="mb-2"><small>No entry-level annotations yet. Add annotations for editorial workflow (review status, comments, etc.).</small></p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Submit Buttons Card -->
+            <div class="card mt-4 mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="btn-group" role="group" aria-label="Undo/Redo controls">
+                                <button type="button" id="undo-btn" class="btn btn-outline-secondary"
+                                        title="Undo last operation" disabled>
+                                    <i class="fas fa-undo"></i> Undo
+                                </button>
+                                <button type="button" id="redo-btn" class="btn btn-outline-secondary"
+                                        title="Redo last undone operation" disabled>
+                                    <i class="fas fa-redo"></i> Redo
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                                            id="operationHistoryDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-history"></i>
+                                    </button>
+                                    <ul class="dropdown-menu" aria-labelledby="operationHistoryDropdown" id="operation-history-list">
+                                        <li><a class="dropdown-item disabled">No operations yet</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="cancel-btn">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button type="button" class="btn btn-primary" id="validate-btn">
+                                <i class="fas fa-check-circle"></i> Validate
+                            </button>
+                            <button type="submit" class="btn btn-success" id="save-btn">
+                                <i class="fas fa-save"></i> Save Entry
+                            </button>
+                            <div class="form-check form-check-inline ms-2 mb-0">
+                                <input class="form-check-input" type="checkbox" id="skip-validation-checkbox">
+                                <label class="form-check-label" for="skip-validation-checkbox">
+                                    <small>Skip validation</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dictionary Preview (Live Preview) -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-palette"></i> Dictionary Preview (Live)</h5>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('main.display_profiles') }}" class="btn btn-sm btn-light" target="_blank">
+                            <i class="fas fa-cog"></i> Configure Display
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-light" id="refresh-preview-btn" title="Refresh preview">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" id="live-preview-container">
+                    {% if css_html %}
+                        {{ css_html|safe }}
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            Live preview will appear here as you edit the entry.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- XML Preview Toggle (Moved to bottom) -->
+            <div class="text-center mb-2">
+                <button type="button" class="btn btn-sm btn-link text-muted text-decoration-none" id="toggle-xml-preview-btn">
+                    <i class="fas fa-code"></i> Show/Hide XML Preview (Debug)
+                </button>
+            </div>
+
+            <!-- XML Preview Panel (Debug Mode) -->
+            <div class="card mb-3" id="xml-preview-panel" style="display: none;">
+                <div class="card-header bg-info text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="fas fa-code"></i> Generated LIFT XML</h6>
+                        <button type="button" class="btn btn-sm btn-light" id="copy-xml-btn" title="Copy XML to clipboard">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <pre id="xml-preview-content" class="mb-0 p-3" style="max-height: 400px; overflow-y: auto; font-size: 0.85rem; background-color: #f8f9fa;"></pre>
+                </div>
+                <div class="card-footer">
+                    <small class="text-muted">This is the XML that will be sent to the server</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Templates for JavaScript -->
+<template id="pronunciation-template">
+    <div class="pronunciation-item mb-3 border-bottom pb-3">
+        <div class="row">
+            <div class="col-md-8">
+                <label class="form-label">IPA</label>
+                <input type="text" class="form-control ipa-input" name="pronunciations[INDEX].value" 
+                       value="" placeholder="IPA transcription">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Type</label>
+                <input type="hidden" name="pronunciations[INDEX].type" value="seh-fonipa">
+                <input type="text" class="form-control" value="seh-fonipa" disabled
+                       title="Only seh-fonipa is supported for IPA pronunciations">
+                <div class="form-text">International Phonetic Alphabet (IPA)</div>
+            </div>
+        </div>
+        
+        <div class="mt-2 mb-2">
+            <label class="form-label">Audio File</label>
+            <div class="input-group">
+                <input type="text" class="form-control" name="pronunciations[INDEX].audio_path" 
+                       value="" readonly placeholder="No audio file">
+                <button class="btn btn-outline-secondary upload-audio-btn" type="button" 
+                        data-index="INDEX" title="Upload audio file">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+                <button class="btn btn-outline-secondary generate-audio-btn" type="button" 
+                        data-index="INDEX" title="Generate audio from IPA">
+                    <i class="fas fa-magic"></i> Generate
+                </button>
+            </div>
+        </div>
+        
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="1" 
+                   id="pron-default-INDEX" name="pronunciations[INDEX].is_default">
+            <label class="form-check-label" for="pron-default-INDEX">
+                Default pronunciation
+            </label>
+        </div>
+        
+        <div class="mt-2">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-pronunciation-btn" 
+                    data-index="INDEX">
+                <i class="fas fa-trash"></i> Remove
+            </button>
+        </div>
+    </div>
+</template>
+
+<template id="sense-template">
+    <div class="sense-item card mb-4" data-sense-index="INDEX">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <div class="drag-handle me-2" title="Drag to reorder" style="cursor: grab;">
+                        <i class="fas fa-grip-vertical text-muted"></i>
+                    </div>
+                    <h6 class="mb-0">Sense NUMBER</h6>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-sm btn-secondary move-sense-up" title="Move Up">↑</button>
+                    <button type="button" class="btn btn-sm btn-secondary move-sense-down" title="Move Down">↓</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-sense-btn" 
+                            data-index="INDEX">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Hidden field for sense ID (will be populated when adding new senses) -->
+            <input type="hidden" name="senses[INDEX].id" value="">
+            
+            <div class="mb-3">
+                <label class="form-label">Definition <span class="text-danger">*</span></label>
+                <div class="multilingual-forms definition-forms">
+                    <div class="mb-3 language-form" data-language="{{ source_lang }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">Language</label>
+                                <select class="form-select language-select"
+                                        name="senses[INDEX].definition.{{ source_lang }}.lang"
+                                        data-field-name="senses[INDEX].definition.{{ source_lang }}">
+                                    {% set project_lang_codes = project_languages|map(attribute=0)|list %}
+                                    {% if source_lang not in project_lang_codes %}
+                                        <option value="{{ source_lang }}" selected>{{ source_lang }} (original)</option>
+                                    {% endif %}
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == source_lang %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Definition Text</label>
+                                <textarea class="form-control definition-text"
+                                          name="senses[INDEX].definition.{{ source_lang }}.text"
+                                          rows="2"
+                                          required
+                                          placeholder="Enter definition in {{ source_lang }}"></textarea>
+                            </div>
+                            <div class="col-md-1">
+                                <!-- No remove button for primary language -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Gloss</label>
+                <div class="multilingual-forms gloss-forms">
+                    {% set default_lang_code = target_lang %}
+                    <div class="mb-3 language-form" data-language="{{ default_lang_code }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">Language</label>
+                                <select class="form-select language-select"
+                                        name="senses[INDEX].gloss.{{ default_lang_code }}.lang"
+                                        data-field-name="senses[INDEX].gloss.{{ default_lang_code }}">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Gloss Text</label>
+                                <input type="text" class="form-control gloss-text" 
+                                       name="senses[INDEX].gloss.{{ default_lang_code }}.text"
+                                       value=""
+                                       placeholder="Enter gloss in {{ default_lang_code }}">
+                            </div>
+                            <div class="col-md-1">
+                                <!-- No remove button for primary language -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-gloss-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+                <div class="form-text">A short equivalent in another language.</div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Part of Speech</label>
+                <select class="form-select dynamic-grammatical-info" name="senses[INDEX].grammatical_info"
+                        data-range-id="grammatical-info"
+                        data-hierarchical="true"
+                        data-searchable="true">
+                    <option value="">Select part of speech</option>
+                </select>
+            </div>
+
+            <!-- LIFT Ranges: Domain type (sense-level) -->
+            <div class="mb-3">
+                <label class="form-label">Domain type</label>
+                <select class="form-select dynamic-lift-range" name="senses[INDEX].domain_type"
+                        data-range-id="domain-type"
+                        data-hierarchical="true"
+                        data-searchable="true"
+                        multiple>
+                    <!-- Multiple domain types supported -->
+                </select>
+                <div class="form-text">Academic or disciplinary domain this sense belongs to.</div>
+            </div>
+
+            <!-- LIFT Ranges: Semantic Domain (sense-level) -->
+            <div class="mb-3">
+                <label class="form-label">Semantic Domain</label>
+                <select class="form-select dynamic-lift-range"
+                        name="senses[INDEX].semantic_domain_"
+                        data-range-id="semantic-domain-ddp4"
+                        data-hierarchical="true"
+                        data-searchable="true"
+                        multiple>
+                    <option value="">Select semantic domain(s)</option>
+                </select>
+                <div class="form-text">Semantic categorization for this sense (can select multiple).</div>
+            </div>
+            
+            <!-- LIFT Ranges: Usage Type (sense-level) -->
+            <div class="mb-3">
+                <label class="form-label">Usage Type</label>
+                <select class="form-select dynamic-lift-range" 
+                        name="senses[INDEX].usage_type" 
+                        data-range-id="usage-type"
+                        data-hierarchical="true"
+                        data-searchable="true"
+                        multiple>
+                    <option value="">Select usage type(s)</option>
+                </select>
+                <div class="form-text">Usage classification for this sense (can select multiple).</div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Sense Note</label>
+                <textarea class="form-control" name="senses[INDEX].note" rows="2"></textarea>
+            </div>
+            
+            <!-- LIFT 0.13: Literal Meaning (Sense-Level Custom Field - Day 28) -->
+            <div class="mb-3">
+                <label class="form-label">
+                    Literal Meaning
+                    <i class="fas fa-info-circle ms-1 form-tooltip" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       title="<strong>About Literal Meaning:</strong><br>The literal meaning of compounds or idioms. For example, 'sunflower' literally means 'sun-flower', or 'kick the bucket' literally means 'strike a pail with your foot'."></i>
+                </label>
+                <div class="multilingual-forms literal-meaning-forms"></div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-literal-meaning-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+                <div class="form-text">The literal/compositional meaning of idioms or compound words.</div>
+            </div>
+            
+            <!-- LIFT 0.13: Exemplar (Sense-Level Custom Field - Day 28) -->
+            <div class="mb-3">
+                <label class="form-label">
+                    Exemplar
+                    <i class="fas fa-info-circle ms-1 form-tooltip" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       title="<strong>About Exemplar:</strong><br>Shows the specific inflected form that this sense applies to."></i>
+                </label>
+                <div class="multilingual-forms exemplar-forms"></div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-exemplar-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+                <div class="form-text">Specific inflected form this sense applies to.</div>
+            </div>
+
+            <!-- LIFT 0.13: Scientific Name (Sense-Level Custom Field - Day 28) -->
+            <div class="mb-3">
+                <label class="form-label">
+                    Scientific Name
+                    <i class="fas fa-info-circle ms-1 form-tooltip" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top"
+                       data-bs-html="true"
+                       title="<strong>About Scientific Name:</strong><br>The scientific (Latin/binomial) name for biological terms."></i>
+                </label>
+                <div class="multilingual-forms scientific-name-forms"></div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-scientific-name-language-btn" 
+                            data-sense-index="INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+                <div class="form-text">Scientific/Latin name for biological or taxonomic terms.</div>
+            </div>
+            
+            <div class="examples-section mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6><i class="fas fa-quote-left"></i> Examples</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" 
+                            data-sense-index="INDEX">
+                        <i class="fas fa-plus"></i> Add Example
+                    </button>
+                </div>
+                
+                <div class="examples-container">
+                    <div class="no-examples text-center text-muted py-3 border rounded">
+                        <p>No examples added yet</p>
+                        <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" 
+                                data-sense-index="INDEX">
+                            <i class="fas fa-plus"></i> Add Example
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LIFT 0.13: Annotations Section (Day 26-27) -->
+            <div class="annotations-section mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6><i class="fas fa-clipboard-list"></i> Annotations</h6>
+                    <button type="button" class="btn btn-sm btn-outline-warning add-annotation-btn" 
+                            data-container-type="sense" data-index="INDEX"
+                            title="Add an annotation for editorial workflow (review status, comments, etc.)">
+                        <i class="fas fa-plus"></i> Add Annotation
+                    </button>
+                </div>
+                
+                <div class="annotations-container ms-3" data-container-type="sense" data-index="INDEX">
+                    <div class="no-annotations text-center text-muted py-2 border border-warning border-opacity-25 rounded">
+                        <p class="mb-2"><small>No annotations yet. Add annotations for editorial workflow (review status, comments, etc.).</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="example-template">
+    <div class="example-item card mb-3">
+        <div class="card-header bg-light py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <small>Example NUMBER</small>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-example-btn" 
+                        data-sense-index="SENSE_INDEX" data-example-index="EXAMPLE_INDEX">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="mb-2">
+                <label class="form-label">Example Text <span class="text-danger">*</span></label>
+                <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].text" 
+                          rows="2" required></textarea>
+            </div>
+            
+            <div class="mb-2">
+                <label class="form-label">Translation</label>
+                <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].translation" 
+                          rows="2"></textarea>
+            </div>
+            
+            <div class="mb-2">
+                <label class="form-label">Translation Type
+                    <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                        <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" 
+                           title="Specify the type of translation: 'literal' for word-for-word translation, 'free' for natural/idiomatic translation."></i>
+                    </span>
+                </label>
+                <select class="form-select dynamic-lift-range" 
+                        name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].translation_type"
+                        data-range-id="translation-type"
+                        data-hierarchical="false"
+                        data-searchable="true">
+                    <option value="">Select translation type</option>
+                    <option value="literal">Literal</option>
+                    <option value="free">Free/Idiomatic</option>
+                </select>
+            </div>
+            
+            <div class="mb-2">
+                <label class="form-label">Reference</label>
+                <input type="text" class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].reference" 
+                       value="">
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Subsense Template (LIFT 0.13 - Day 22) -->
+<template id="subsense-template">
+    <div class="subsense-item card mb-3 border-success" data-subsense-index="SUBSENSE_INDEX">
+        <div class="card-header bg-success bg-opacity-10 py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <small><i class="fas fa-level-down-alt"></i> Subsense NUMBER</small>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-subsense-btn" 
+                        data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX">
+                    <i class="fas fa-times"></i> Remove
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-3">
+            <!-- Hidden subsense ID -->
+            <input type="hidden" name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].id" value="">
+            
+            <!-- Subsense Definition (multilingual) -->
+            <div class="mb-3">
+                <label class="form-label">Definition <span class="text-danger">*</span></label>
+                <div class="multilingual-forms definition-forms">
+                    <div class="mb-2 language-form" data-language="{{ source_lang }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label small">Language</label>
+                                <select class="form-select form-select-sm language-select"
+                                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ source_lang }}.lang"
+                                        data-field-name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ source_lang }}">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == source_lang %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-9">
+                                <label class="form-label small">Definition Text</label>
+                                <textarea class="form-control form-control-sm definition-text"
+                                          name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].definition.{{ source_lang }}.text"
+                                          rows="2"
+                                          required
+                                          placeholder="Enter more specific definition"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-1">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-subsense-definition-language-btn" 
+                            data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Subsense Gloss (multilingual) -->
+            <div class="mb-3">
+                <label class="form-label">Gloss</label>
+                <div class="multilingual-forms gloss-forms">
+                    {% set default_gloss_lang = target_lang %}
+                    <div class="mb-2 language-form" data-language="{{ default_gloss_lang }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label small">Language</label>
+                                <select class="form-select form-select-sm language-select"
+                                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}.lang"
+                                        data-field-name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == default_gloss_lang %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-9">
+                                <label class="form-label small">Gloss Text</label>
+                                <input type="text" class="form-control form-control-sm gloss-text" 
+                                       name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].gloss.{{ default_gloss_lang }}.text"
+                                       placeholder="Enter short equivalent">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-1">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-subsense-gloss-language-btn" 
+                            data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX"
+                            title="Add another language">
+                        <i class="fas fa-plus"></i> Add Language
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Subsense Grammatical Info -->
+            <div class="mb-3">
+                <label class="form-label">Part of Speech</label>
+                <select class="form-select form-select-sm dynamic-grammatical-info" 
+                        name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].grammatical_info"
+                        data-range-id="grammatical-info">
+                    <option value="">Select part of speech</option>
+                </select>
+            </div>
+            
+            <!-- Subsense Note -->
+            <div class="mb-2">
+                <label class="form-label">Note</label>
+                <textarea class="form-control form-control-sm" 
+                          name="senses[SENSE_INDEX].subsenses[SUBSENSE_INDEX].note" 
+                          rows="2"
+                          placeholder="Additional notes about this subsense"></textarea>
+            </div>
+            
+            <!-- Nested Subsenses Support (Recursive) -->
+            <div class="mt-3 p-2 border-start border-success border-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted"><i class="fas fa-sitemap"></i> Nested Subsenses</small>
+                    <button type="button" class="btn btn-sm btn-outline-success add-nested-subsense-btn" 
+                            data-sense-index="SENSE_INDEX" data-subsense-index="SUBSENSE_INDEX"
+                            title="Add even more specific meaning">
+                        <i class="fas fa-plus"></i> Add
+                    </button>
+                </div>
+                <div class="nested-subsenses-container" data-parent-subsense="SUBSENSE_INDEX">
+                    <small class="text-muted">No nested subsenses yet</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- LIFT 0.13: Reversal Template (Day 24-25) -->
+<template id="reversal-template">
+    <div class="reversal-item card mb-3 border-info" data-reversal-index="REVERSAL_INDEX">
+        <div class="card-header bg-info bg-opacity-10 py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <small><i class="fas fa-language"></i> Reversal NUMBER</small>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-reversal-btn" 
+                        data-sense-index="SENSE_INDEX" data-reversal-index="REVERSAL_INDEX">
+                    <i class="fas fa-times"></i> Remove
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-3">
+            <!-- Reversal Type (Language) -->
+            <div class="mb-3">
+                <label class="form-label">Type (Language)</label>
+                <select class="form-select reversal-type-select dynamic-reversal-type" 
+                        name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].type">
+                    <option value="">-- Select Language --</option>
+                </select>
+            </div>
+            
+            <!-- Reversal Forms (Multitext) -->
+            <div class="mb-3">
+                <label class="form-label">Forms</label>
+                <div class="reversal-forms-container">
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">{{ target_lang }}</span>
+                        <input type="text" class="form-control"
+                               name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].forms.{{ target_lang }}"
+                               placeholder="Enter text in {{ target_lang }}">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reversal Grammatical Info -->
+            <div class="mb-3">
+                <label class="form-label">Grammatical Info</label>
+                <select class="form-select dynamic-grammatical-info" 
+                        name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].grammatical_info">
+                    <option value="">-- Select --</option>
+                </select>
+            </div>
+            
+            <!-- Reversal Main Element (Collapsible) -->
+            <div class="reversal-main-section">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label mb-0">Main Element (Optional)</label>
+                    <button type="button" class="btn btn-sm btn-outline-secondary toggle-main-btn"
+                            data-bs-toggle="collapse" 
+                            data-bs-target="#reversal-main-SENSE_INDEX-REVERSAL_INDEX">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
+                <div class="collapse" id="reversal-main-SENSE_INDEX-REVERSAL_INDEX">
+                    <div class="card bg-light">
+                        <div class="card-body p-2">
+                            <!-- Main Forms -->
+                            <div class="mb-2">
+                                <label class="form-label"><small>Forms</small></label>
+                                <div class="input-group mb-1">
+                                    <span class="input-group-text input-group-text-sm">{{ target_lang }}</span>
+                                    <input type="text" class="form-control form-control-sm"
+                                           name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].main.forms.{{ target_lang }}"
+                                           placeholder="Enter main form">
+                                </div>
+                            </div>
+                            
+                            <!-- Main Grammatical Info -->
+                            <div class="mb-2">
+                                <label class="form-label"><small>Grammatical Info</small></label>
+                                <select class="form-select form-select-sm dynamic-grammatical-info" 
+                                        name="senses[SENSE_INDEX].reversals[REVERSAL_INDEX].main.grammatical_info">
+                                    <option value="">-- Select --</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Validation Error Modal -->
+<div class="modal fade" id="validationModal" tabindex="-1" aria-labelledby="validationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="validationModalLabel">Validation Errors</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul id="validation-errors-list">
+                    <!-- Errors will be populated here -->
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'macros/merge_split_modals.html' %}
+
+{% import "macros/field_visibility_modal.html" as field_visibility_modal %}
+{{ field_visibility_modal.field_visibility_modal() }}
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Select2 for enhanced dropdowns -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- Core utilities (must load first) -->
+<script defer src="{{ url_for('static', filename='js/core/logger.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/ui/toast.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/api-utils.js') }}"></script>
+<!-- Event system -->
+<script defer src="{{ url_for('static', filename='js/core/form-event-bus.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/core/form-component.js') }}"></script>
+<!-- CSRF Helper -->
+<script defer src="{{ url_for('static', filename='js/core/csrf-helper.js') }}"></script>
+<!-- LIFT XML Serializer -->
+<script defer src="{{ url_for('static', filename='js/lift-xml-serializer.js') }}"></script>
+<!-- Form serialization utilities -->
+<script defer src="{{ url_for('static', filename='js/normalize-indexed-array.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/form-serializer.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/sense-relations-utils.js') }}"></script>
+<!-- Form state management -->
+<script defer src="{{ url_for('static', filename='js/form-state-manager.js') }}"></script>
+<!-- Client validation -->
+<script defer src="{{ url_for('static', filename='js/client-validation-engine.js') }}"></script>
+<!-- Auto-save functionality -->
+<script defer src="{{ url_for('static', filename='js/auto-save-manager.js') }}"></script>
+<!-- Validation UI -->
+<script defer src="{{ url_for('static', filename='js/validation-ui.js') }}"></script>
+<!-- Inline validation -->
+<script defer src="{{ url_for('static', filename='js/inline-validation.js') }}"></script>
+<!-- Ranges loader -->
+<script defer src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
+<!-- SortableJS for drag-and-drop reordering -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<!-- Pronunciation management -->
+<script defer src="{{ url_for('static', filename='js/pronunciation-forms.js') }}"></script>
+<!-- Variant relationships management -->
+<script defer src="{{ url_for('static', filename='js/variant-forms.js') }}"></script>
+<!-- Sense-level variant relations management -->
+<script defer src="{{ url_for('static', filename='js/sense-variant-relations.js') }}"></script>
+<!-- Direct variants (allomorphs) management -->
+<!-- Field Visibility Manager -->
+<script defer src="{{ url_for('static', filename='js/field-visibility-manager.js') }}"></script>
+<!-- Direct Variants (Allomorphs) Management -->
+<script defer src="{{ url_for('static', filename='js/direct-variants.js') }}"></script>
+
+<script>
+    // Initialize Direct Variants Manager
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('direct-variants-container');
+        if (container && typeof DirectVariantsManager !== 'undefined') {
+            window.directVariantsManager = new DirectVariantsManager('#direct-variants-container');
+        }
+    });
+</script>
+<!-- Relations management -->
+<script defer src="{{ url_for('static', filename='js/relations.js') }}"></script>
+<!-- Etymology management -->
+<script defer src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
+<!-- Multilingual fields management -->
+<script defer src="{{ url_for('static', filename='js/multilingual-sense-fields.js') }}"></script>
+<!-- Sense relation search functionality -->
+<script defer src="{{ url_for('static', filename='js/sense-relation-search.js') }}"></script>
+<!-- Component search functionality -->
+<script defer src="{{ url_for('static', filename='js/component-search.js') }}"></script>
+<!-- Reordering manager for multi-item lists -->
+<script defer src="{{ url_for('static', filename='js/reordering-manager.js') }}"></script>
+<!-- Undo/Redo functionality -->
+<script defer src="{{ url_for('static', filename='js/entry-form-undo-redo.js') }}"></script>
+<!-- Entry form functionality (must be last) -->
+<script defer src="{{ url_for('static', filename='js/entry-form.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/entry_form_setup.js') }}"></script>
+<!-- Live preview functionality -->
+<script defer src="{{ url_for('static', filename='js/live-preview.js') }}"></script>
+
+<script>
+/**
+ * DictionaryApp Namespace
+ * Encapsulates all global application state to avoid pollution of window object.
+ * MUST be initialized before entry-form-init.js runs.
+ */
+(function() {
+    'use strict';
+    try {
+        window.DictionaryApp = window.DictionaryApp || {};
+        window.DictionaryApp.data = {
+            ranges: {{ ranges | tojson | safe }},
+            componentRelations: {{ (forward_component_relations | default([])) | tojson | safe }}
+        };
+        // Get CSRF token from meta tag or form
+        var csrfToken = '';
+        var metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+            csrfToken = metaTag.getAttribute('content');
+        }
+        window.DictionaryApp.config = {
+            entryId: '{{ entry.id | default("") }}',
+            csrfToken: csrfToken
+        };
+    } catch (e) {
+        Logger.error('Failed to initialize DictionaryApp namespace:', e);
+    }
+})();
+</script>
+<!-- Entry form initialization (extracted to separate file) -->
+<script defer src="{{ url_for('static', filename='js/entry/entry-form-init.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize entry form managers after all modules are loaded
+    if (typeof initEntryForm === 'function') {
+        initEntryForm({
+            variantRelations: {{ (variant_relations | default([])) | tojson | safe }},
+            entriesUrl: '{{ url_for("main.entries") }}'
+        });
+    }
+});
+</script>
+
+{% endblock %}

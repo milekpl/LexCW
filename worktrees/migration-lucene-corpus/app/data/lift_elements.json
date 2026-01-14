@@ -1,0 +1,537 @@
+{
+  "version": "0.13",
+  "description": "LIFT 0.13 Element Registry - Complete metadata for all LIFT elements",
+  "elements": [
+    {
+      "name": "entry",
+      "display_name": "Entry",
+      "category": "root",
+      "description": "Root element for a dictionary entry",
+      "level": 0,
+      "parent": null,
+      "allowed_children": ["lexical-unit", "citation", "pronunciation", "variant", "sense", "note", "field", "trait", "relation", "etymology"],
+      "required": false,
+      "attributes": {
+        "id": {"type": "string", "required": true, "description": "Unique identifier"},
+        "guid": {"type": "string", "required": false, "description": "GUID identifier"},
+        "dateCreated": {"type": "datetime", "required": false, "description": "Creation timestamp"},
+        "dateModified": {"type": "datetime", "required": false, "description": "Modification timestamp"},
+        "order": {"type": "integer", "required": false, "description": "Display order"}
+      },
+      "default_css": "lift-entry",
+      "default_visibility": "always",
+      "typical_order": 0
+    },
+    {
+      "name": "lexical-unit",
+      "display_name": "Lexical Unit / Headword",
+      "category": "entry",
+      "description": "The headword or main lexical form of the entry",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["form"],
+      "required": true,
+      "attributes": {},
+      "default_css": "headword lexical-unit",
+      "default_visibility": "always",
+      "typical_order": 1
+    },
+    {
+      "name": "citation",
+      "display_name": "Citation Form",
+      "category": "entry",
+      "description": "Alternative citation form of the entry",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {},
+      "default_css": "citation-form",
+      "default_visibility": "if-content",
+      "typical_order": 2
+    },
+    {
+      "name": "pronunciation",
+      "display_name": "Pronunciation",
+      "category": "entry",
+      "description": "Phonetic pronunciation of the entry",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["form", "media", "field", "trait"],
+      "required": false,
+      "attributes": {},
+      "default_css": "pronunciation",
+      "default_visibility": "if-content",
+      "typical_order": 3
+    },
+    {
+      "name": "variant",
+      "display_name": "Variant Form (Allomorph)",
+      "category": "entry",
+      "description": "Variant forms of the entry (allomorphs, spelling variants, pronunciational variants). Use variant-type trait to distinguish types.",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["form", "pronunciation", "note", "field", "trait", "relation"],
+      "required": false,
+      "attributes": {
+        "ref": {"type": "string", "required": false, "description": "Reference to another entry"}
+      },
+      "default_css": "variant",
+      "default_visibility": "if-content",
+      "typical_order": 4
+    },
+    {
+      "name": "sense",
+      "display_name": "Sense",
+      "category": "entry",
+      "description": "A meaning or sense of the entry",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["grammatical-info", "gloss", "definition", "example", "reversal", "note", "field", "trait", "illustration", "relation", "subsense"],
+      "required": true,
+      "attributes": {
+        "id": {"type": "string", "required": false, "description": "Sense identifier"},
+        "order": {"type": "integer", "required": false, "description": "Display order"}
+      },
+      "default_css": "sense",
+      "default_visibility": "always",
+      "typical_order": 10
+    },
+    {
+      "name": "subsense",
+      "display_name": "Subsense",
+      "category": "sense",
+      "description": "A subordinate sense within a sense",
+      "level": 2,
+      "parent": "sense",
+      "allowed_children": ["grammatical-info", "gloss", "definition", "example", "reversal", "note", "field", "trait", "illustration", "relation", "subsense"],
+      "required": false,
+      "attributes": {
+        "id": {"type": "string", "required": false, "description": "Subsense identifier"}
+      },
+      "default_css": "subsense",
+      "default_visibility": "if-content",
+      "typical_order": 15
+    },
+    {
+      "name": "grammatical-info",
+      "display_name": "Grammatical Information",
+      "category": "sense",
+      "description": "Part of speech and grammatical information",
+      "level": 2,
+      "parent": "sense",
+      "allowed_children": ["trait"],
+      "required": false,
+      "attributes": {
+        "value": {"type": "string", "required": true, "description": "Grammatical category"}
+      },
+      "default_css": "grammatical-info pos",
+      "default_visibility": "if-content",
+      "typical_order": 11
+    },
+    {
+      "name": "gloss",
+      "display_name": "Gloss",
+      "category": "sense",
+      "description": "Brief translation or gloss",
+      "level": 2,
+      "parent": "sense",
+      "allowed_children": ["text"],
+      "required": false,
+      "attributes": {
+        "lang": {"type": "string", "required": true, "description": "Language code"}
+      },
+      "default_css": "gloss",
+      "default_visibility": "if-content",
+      "typical_order": 12
+    },
+    {
+      "name": "definition",
+      "display_name": "Definition",
+      "category": "sense",
+      "description": "Full definition of the sense",
+      "level": 2,
+      "parent": "sense",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {},
+      "default_css": "definition",
+      "default_visibility": "if-content",
+      "typical_order": 13
+    },
+    {
+      "name": "example",
+      "display_name": "Example",
+      "category": "sense",
+      "description": "Usage example for the sense",
+      "level": 2,
+      "parent": "sense",
+      "allowed_children": ["form", "translation", "note", "field"],
+      "required": false,
+      "attributes": {
+        "source": {"type": "string", "required": false, "description": "Source of the example"}
+      },
+      "default_css": "example",
+      "default_visibility": "if-content",
+      "typical_order": 14
+    },
+    {
+      "name": "reversal",
+      "display_name": "Reversal",
+      "category": "sense",
+      "description": "Reversal index entry",
+      "level": 2,
+      "parent": "sense",
+      "allowed_children": ["form", "grammatical-info", "main"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": false, "description": "Reversal type"}
+      },
+      "default_css": "reversal",
+      "default_visibility": "if-content",
+      "typical_order": 16
+    },
+    {
+      "name": "illustration",
+      "display_name": "Illustration",
+      "category": "sense",
+      "description": "Image or illustration for the sense",
+      "level": 2,
+      "parent": "sense",
+      "allowed_children": ["label", "caption"],
+      "required": false,
+      "attributes": {
+        "href": {"type": "string", "required": true, "description": "Image file path"}
+      },
+      "default_css": "illustration",
+      "default_visibility": "if-content",
+      "typical_order": 17
+    },
+    {
+      "name": "relation",
+      "display_name": "Relation",
+      "category": "entry",
+      "description": "Lexical relation to another entry",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["field", "trait"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": true, "description": "Relation type (synonym, antonym, etc.)"},
+        "ref": {"type": "string", "required": true, "description": "Referenced entry ID"}
+      },
+      "default_css": "relation",
+      "default_visibility": "if-content",
+      "typical_order": 18
+    },
+    {
+      "name": "variant-relation",
+      "display_name": "Variant Relationship",
+      "category": "entry",
+      "description": "Relation to a variant form (allomorph, spelling variant, etc.) of this entry. Rendered separately from semantic relations.",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["field", "trait"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": true, "description": "Variant type (e.g., variant-type)"},
+        "ref": {"type": "string", "required": true, "description": "Referenced entry ID"}
+      },
+      "default_css": "variant-relation",
+      "default_visibility": "if-content",
+      "typical_order": 4.5
+    },
+    {
+      "name": "etymology",
+      "display_name": "Etymology",
+      "category": "entry",
+      "description": "Etymological information",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["form", "gloss", "field", "trait"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": false, "description": "Etymology type"},
+        "source": {"type": "string", "required": false, "description": "Source language"}
+      },
+      "default_css": "etymology",
+      "default_visibility": "if-content",
+      "typical_order": 19
+    },
+    {
+      "name": "note",
+      "display_name": "Note",
+      "category": "annotation",
+      "description": "General note or annotation",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": false, "description": "Note type (grammar, encyclopedic, etc.)"}
+      },
+      "default_css": "note",
+      "default_visibility": "if-content",
+      "typical_order": 20
+    },
+    {
+      "name": "field",
+      "display_name": "Custom Field",
+      "category": "extensibility",
+      "description": "Custom field for extensibility",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": true, "description": "Field type identifier"}
+      },
+      "default_css": "custom-field",
+      "default_visibility": "if-content",
+      "typical_order": 21
+    },
+    {
+      "name": "trait",
+      "display_name": "Trait",
+      "category": "extensibility",
+      "description": "Trait or property",
+      "level": 1,
+      "parent": "entry",
+      "allowed_children": [],
+      "required": false,
+      "attributes": {
+        "name": {"type": "string", "required": true, "description": "Trait name"},
+        "value": {"type": "string", "required": true, "description": "Trait value"}
+      },
+      "default_css": "trait",
+      "default_visibility": "if-content",
+      "typical_order": 22
+    },
+    {
+      "name": "form",
+      "display_name": "Form",
+      "category": "basic",
+      "description": "Multilingual form container",
+      "level": 2,
+      "parent": "lexical-unit",
+      "allowed_children": ["text", "annotation"],
+      "required": false,
+      "attributes": {
+        "lang": {"type": "string", "required": true, "description": "Language code"}
+      },
+      "default_css": "form",
+      "default_visibility": "always",
+      "typical_order": 100
+    },
+    {
+      "name": "text",
+      "display_name": "Text",
+      "category": "basic",
+      "description": "Text content",
+      "level": 3,
+      "parent": "form",
+      "allowed_children": ["span"],
+      "required": false,
+      "attributes": {},
+      "default_css": "text-content",
+      "default_visibility": "always",
+      "typical_order": 101
+    },
+    {
+      "name": "span",
+      "display_name": "Span",
+      "category": "annotation",
+      "description": "Inline annotation span",
+      "level": 4,
+      "parent": "text",
+      "allowed_children": [],
+      "required": false,
+      "attributes": {
+        "lang": {"type": "string", "required": false, "description": "Language for span"},
+        "class": {"type": "string", "required": false, "description": "Style class"},
+        "href": {"type": "string", "required": false, "description": "Hyperlink reference"}
+      },
+      "default_css": "span-annotation",
+      "default_visibility": "always",
+      "typical_order": 102
+    },
+    {
+      "name": "annotation",
+      "display_name": "Annotation",
+      "category": "annotation",
+      "description": "Form-level annotation",
+      "level": 3,
+      "parent": "form",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {
+        "name": {"type": "string", "required": true, "description": "Annotation type"},
+        "value": {"type": "string", "required": false, "description": "Annotation value"},
+        "who": {"type": "string", "required": false, "description": "Annotator"},
+        "when": {"type": "datetime", "required": false, "description": "Annotation timestamp"}
+      },
+      "default_css": "annotation",
+      "default_visibility": "if-content",
+      "typical_order": 103
+    },
+    {
+      "name": "translation",
+      "display_name": "Translation",
+      "category": "example",
+      "description": "Translation of an example",
+      "level": 3,
+      "parent": "example",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {
+        "type": {"type": "string", "required": false, "description": "Translation type"}
+      },
+      "default_css": "translation",
+      "default_visibility": "if-content",
+      "typical_order": 104
+    },
+    {
+      "name": "media",
+      "display_name": "Media",
+      "category": "multimedia",
+      "description": "Media file reference (audio, video)",
+      "level": 2,
+      "parent": "pronunciation",
+      "allowed_children": ["label"],
+      "required": false,
+      "attributes": {
+        "href": {"type": "string", "required": true, "description": "Media file path"}
+      },
+      "default_css": "media",
+      "default_visibility": "if-content",
+      "typical_order": 105
+    },
+    {
+      "name": "label",
+      "display_name": "Label",
+      "category": "basic",
+      "description": "Label for media or illustration",
+      "level": 3,
+      "parent": "media",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {},
+      "default_css": "label",
+      "default_visibility": "if-content",
+      "typical_order": 106
+    },
+    {
+      "name": "caption",
+      "display_name": "Caption",
+      "category": "basic",
+      "description": "Caption for illustration",
+      "level": 3,
+      "parent": "illustration",
+      "allowed_children": ["form"],
+      "required": false,
+      "attributes": {},
+      "default_css": "caption",
+      "default_visibility": "if-content",
+      "typical_order": 107
+    },
+    {
+      "name": "main",
+      "display_name": "Main Entry Reference",
+      "category": "reversal",
+      "description": "Reference to main entry in reversal",
+      "level": 3,
+      "parent": "reversal",
+      "allowed_children": [],
+      "required": false,
+      "attributes": {},
+      "default_css": "main-entry-ref",
+      "default_visibility": "if-content",
+      "typical_order": 108
+    }
+  ],
+  "categories": {
+    "root": {
+      "name": "Root Elements",
+      "description": "Top-level container elements"
+    },
+    "entry": {
+      "name": "Entry Elements",
+      "description": "Direct children of entry element"
+    },
+    "sense": {
+      "name": "Sense Elements",
+      "description": "Elements within sense or subsense"
+    },
+    "example": {
+      "name": "Example Elements",
+      "description": "Elements within example"
+    },
+    "basic": {
+      "name": "Basic Elements",
+      "description": "Fundamental building blocks"
+    },
+    "annotation": {
+      "name": "Annotation Elements",
+      "description": "Annotations and metadata"
+    },
+    "multimedia": {
+      "name": "Multimedia Elements",
+      "description": "Media files and illustrations"
+    },
+    "reversal": {
+      "name": "Reversal Elements",
+      "description": "Reversal index elements"
+    },
+    "extensibility": {
+      "name": "Extensibility Elements",
+      "description": "Custom fields and traits"
+    }
+  },
+  "visibility_options": [
+    {
+      "value": "always",
+      "label": "Always Show",
+      "description": "Element is always displayed"
+    },
+    {
+      "value": "if-content",
+      "label": "Show If Has Content",
+      "description": "Element is only shown when it has content"
+    },
+    {
+      "value": "never",
+      "label": "Never Show",
+      "description": "Element is hidden from display"
+    }
+  ],
+  "relation_types": [
+    "_component-lexeme"
+  ],
+  "note_types": [
+    "grammar",
+    "phonology",
+    "semantics",
+    "discourse",
+    "anthropology",
+    "sociolinguistics",
+    "bibliography",
+    "encyclopedic",
+    "general"
+  ],
+  "grammatical_categories": [
+    "Noun",
+    "Verb",
+    "Adjective",
+    "Adverb",
+    "Pronoun",
+    "Preposition",
+    "Conjunction",
+    "Interjection",
+    "Determiner",
+    "Particle",
+    "Numeral",
+    "Classifier",
+    "Affix",
+    "Clitic"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"path": ".",
+			"name": "flask-app"
+		},
+		{
+			"path": "../flextools-main",
+			"name": "flextools-main"
+		}
+	],
+	"settings": {
+		"python.testing.pytestEnabled": true,
+		"python.testing.pytestPath": "${workspaceFolder:flask-app}/.venv/bin/pytest",
+		"python.testing.pytestArgs": [
+			"tests",
+			"-v"
+		],
+		"yaml.schemaStore.enable": false,
+		"Codegeex.RepoIndex": true,
+		"Codegeex.CommitMessageStyle": "Default"
+	}
+}

@@ -322,14 +322,47 @@ def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, requ
         os.environ['TEST_DB_NAME'] = safe_test_db_name
         os.environ['BASEX_DATABASE'] = safe_test_db_name
         
-        # Connect and create database
+        # Connect and create database (retry with unique suffix if DB is in use)
         connector.connect()
-        connector.create_database(safe_test_db_name)
-        connector.database = safe_test_db_name
+        chosen_db = safe_test_db_name
+        max_attempts = 3
+        from app.utils.exceptions import DatabaseError
+        for attempt in range(1, max_attempts + 1):
+            try:
+                connector.create_database(chosen_db)
+                break
+            except Exception as e:  # Be tolerant and try alternate name on typical collisions
+                err_text = str(e)
+                logger.warning(f"Attempt {attempt} to create DB {chosen_db} failed: {err_text}")
+                # If DB is opened by another process or already exists in a conflicting state,
+                # try a new name with a short random suffix to avoid collision.
+                if 'opened by another process' in err_text or 'already exists' in err_text.lower():
+                    chosen_db = f"{safe_test_db_name}_{uuid.uuid4().hex[:6]}"
+                    # update env vars so subsequent operations use the tentative name
+                    os.environ['TEST_DB_NAME'] = chosen_db
+                    os.environ['BASEX_DATABASE'] = chosen_db
+                    # wait briefly before retrying to allow transient locks to clear
+                    time.sleep(0.2)
+                    connector = BaseXConnector(
+                        host=os.getenv('BASEX_HOST', 'localhost'),
+                        port=int(os.getenv('BASEX_PORT', '1984')),
+                        username=os.getenv('BASEX_USERNAME', 'admin'),
+                        password=os.getenv('BASEX_PASSWORD', 'admin'),
+                        database=None,
+                    )
+                    connector.connect()
+                    continue
+                # otherwise, propagate the unexpected error
+                raise
+        else:
+            raise DatabaseError(f"Failed to create an isolated test database after {max_attempts} attempts")
+
+        # Use the chosen database name going forward and ensure connector uses it
+        connector.database = chosen_db
         connector.disconnect()
         connector.connect()  # Reconnect with database
         
-        logger.info(f"Created isolated test database: {safe_test_db_name}")
+        logger.info(f"Created isolated test database: {chosen_db}")
         
         # Add sample LIFT content
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:

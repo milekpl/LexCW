@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIFT XML Serializer - Demo & Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            color: #555;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border-left: 4px solid #4CAF50;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:active {
+            background: #3d8b40;
+        }
+        .validation-result {
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+        .validation-result.valid {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .validation-result.invalid {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .error-list {
+            margin-top: 10px;
+        }
+        .error-item {
+            margin: 5px 0;
+            padding: 5px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 3px;
+        }
+        #xmlOutput {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 LIFT XML Serializer - Demo & Test</h1>
+    
+    <div class="container">
+        <div class="panel">
+            <h2>📝 Sample Form Data</h2>
+            <p>This represents data collected from an entry form:</p>
+            <pre id="formDataDisplay"></pre>
+            <button onclick="generateXML()">🔄 Generate LIFT XML</button>
+            <button onclick="validateXML()">✅ Validate XML</button>
+            <button onclick="testComplexEntry()">🧪 Test Complex Entry</button>
+        </div>
+
+        <div class="panel">
+            <h2>🎯 Generated LIFT XML</h2>
+            <pre id="xmlOutput"></pre>
+            <div id="validationResult"></div>
+        </div>
+    </div>
+
+    <script src="lift-xml-serializer.js"></script>
+    <script>
+        const serializer = new LIFTXMLSerializer();
+        let currentXML = '';
+
+        // Sample form data matching actual entry form structure
+        const sampleFormData = {
+            id: 'achievement_test_demo_001',
+            guid: 'demo-guid-12345',
+            dateCreated: '2024-11-30T10:00:00Z',
+            lexicalUnit: {
+                'en': 'achievement test',
+                'pl': 'test osiągnięć'
+            },
+            morphType: 'phrase',
+            grammaticalInfo: 'Countable Noun',
+            pronunciations: [
+                {
+                    forms: {
+                        'seh-fonipa': 'əˈtʃiːvmənt test'
+                    }
+                }
+            ],
+            senses: [
+                {
+                    id: 'sense_001',
+                    grammaticalInfo: 'Noun',
+                    glosses: {
+                        'en': { text: 'test measuring achievement' },
+                        'pl': { text: 'sprawdzian wiadomości' }
+                    },
+                    definitions: {
+                        'en': { text: 'A standardized test designed to measure the knowledge or skills acquired by students.' },
+                        'pl': { text: 'Standaryzowany test mierzący wiedzę lub umiejętności nabyte przez uczniów.' }
+                    },
+                    academicDomain: 'education',
+                    semanticDomain: '3.6.2.1',
+                    examples: [
+                        {
+                            forms: {
+                                'en': 'Students took an achievement test at the end of the semester.'
+                            },
+                            translations: {
+                                'pl': 'Studenci przystąpili do testu osiągnięć na koniec semestru.'
+                            }
+                        }
+                    ]
+                },
+                {
+                    id: 'sense_002',
+                    grammaticalInfo: 'Noun',
+                    glosses: {
+                        'en': { text: 'psychological assessment' },
+                        'pl': { text: 'ocena psychologiczna' }
+                    },
+                    definitions: {
+                        'en': { text: 'A test used in psychology to measure knowledge and skills.' }
+                    },
+                    domainType: 'psychology',
+                    usageType: 'technical'
+                }
+            ],
+            relations: [
+                {
+                    type: '_component-lexeme',
+                    ref: 'achievement_demo_base',
+                    order: 0,
+                    traits: {
+                        'is-primary': 'true',
+                        'complex-form-type': 'Compound'
+                    }
+                }
+            ],
+            notes: {
+                'general': {
+                    'en': 'Commonly used in educational contexts.'
+                }
+            }
+        };
+
+        // Display initial form data
+        document.getElementById('formDataDisplay').textContent = 
+            JSON.stringify(sampleFormData, null, 2);
+
+        function generateXML() {
+            try {
+                currentXML = serializer.serializeEntry(sampleFormData);
+                
+                // Pretty print XML
+                const formatted = formatXML(currentXML);
+                document.getElementById('xmlOutput').textContent = formatted;
+                document.getElementById('xmlOutput').style.color = '#2e7d32';
+                
+                // Clear validation result
+                document.getElementById('validationResult').innerHTML = '';
+            } catch (error) {
+                document.getElementById('xmlOutput').textContent = 
+                    `❌ Error generating XML:\n${error.message}\n\nStack:\n${error.stack}`;
+                document.getElementById('xmlOutput').style.color = '#c62828';
+            }
+        }
+
+        function validateXML() {
+            if (!currentXML) {
+                alert('Please generate XML first!');
+                return;
+            }
+
+            const result = serializer.validate(currentXML);
+            const resultDiv = document.getElementById('validationResult');
+            
+            if (result.valid) {
+                resultDiv.className = 'validation-result valid';
+                resultDiv.innerHTML = '<strong>✅ Valid LIFT XML!</strong><br>All basic validation checks passed.';
+            } else {
+                resultDiv.className = 'validation-result invalid';
+                let html = '<strong>❌ Invalid XML</strong>';
+                html += '<div class="error-list">';
+                result.errors.forEach(err => {
+                    html += `<div class="error-item"><strong>${err.type}:</strong> ${err.message}</div>`;
+                });
+                html += '</div>';
+                resultDiv.innerHTML = html;
+            }
+        }
+
+        function testComplexEntry() {
+            const complexData = {
+                id: 'complex_test_entry',
+                lexicalUnit: {
+                    'en': 'test',
+                    'pl': 'test',
+                    'de': 'Test'
+                },
+                morphType: 'root',
+                grammaticalInfo: 'Noun',
+                pronunciations: [
+                    {
+                        forms: {
+                            'seh-fonipa': 'test',
+                            'seh-x-ipa': 'tɛst'
+                        }
+                    }
+                ],
+                variants: [
+                    {
+                        forms: {
+                            'en': 'tests'
+                        },
+                        traits: {
+                            'variant-type': 'plural'
+                        }
+                    }
+                ],
+                etymologies: [
+                    {
+                        type: 'borrowed',
+                        source: 'Latin',
+                        form: {
+                            'la': 'testum'
+                        },
+                        gloss: {
+                            'en': 'earthen pot'
+                        }
+                    }
+                ],
+                senses: [
+                    {
+                        id: 'sense_test_001',
+                        grammaticalInfo: 'Noun',
+                        glosses: {
+                            'en': { text: 'examination' },
+                            'pl': { text: 'egzamin' },
+                            'de': { text: 'Prüfung' }
+                        },
+                        definitions: {
+                            'en': { text: 'A procedure to assess knowledge, skill, or ability.' },
+                            'pl': { text: 'Procedura oceny wiedzy, umiejętności lub zdolności.' }
+                        },
+                        academicDomain: 'education',
+                        semanticDomain: '3.6.2',
+                        examples: [
+                            {
+                                forms: {
+                                    'en': 'I have a test tomorrow.'
+                                },
+                                translations: {
+                                    'pl': 'Jutro mam test.'
+                                }
+                            },
+                            {
+                                forms: {
+                                    'en': 'She passed the test with flying colors.'
+                                },
+                                translations: {
+                                    'pl': 'Zdała test celująco.'
+                                },
+                                source: 'corpus'
+                            }
+                        ],
+                        relations: [
+                            {
+                                type: 'synonym',
+                                ref: 'exam_entry_001'
+                            }
+                        ],
+                        notes: {
+                            'usage': {
+                                'en': 'Common in educational contexts'
+                            }
+                        }
+                    },
+                    {
+                        id: 'sense_test_002',
+                        grammaticalInfo: 'Noun',
+                        glosses: {
+                            'en': { text: 'trial' },
+                            'pl': { text: 'próba' }
+                        },
+                        definitions: {
+                            'en': { text: 'A trial or experiment to discover something or test a hypothesis.' }
+                        },
+                        domainType: 'science',
+                        usageType: 'technical'
+                    }
+                ],
+                relations: [
+                    {
+                        type: 'derivation',
+                        ref: 'testing_entry_001',
+                        traits: {
+                            'derivation-type': 'gerund'
+                        }
+                    }
+                ],
+                notes: {
+                    'general': {
+                        'en': 'One of the most common words in English.'
+                    },
+                    'etymology': {
+                        'en': 'From Latin testum via Old French.'
+                    }
+                }
+            };
+
+            // Update display
+            document.getElementById('formDataDisplay').textContent = 
+                JSON.stringify(complexData, null, 2);
+            
+            // Generate XML
+            try {
+                currentXML = serializer.serializeEntry(complexData);
+                const formatted = formatXML(currentXML);
+                document.getElementById('xmlOutput').textContent = formatted;
+                document.getElementById('xmlOutput').style.color = '#2e7d32';
+                
+                console.log('✅ Complex entry XML generated successfully!');
+                console.log('Character count:', currentXML.length);
+                
+                // Auto-validate
+                validateXML();
+            } catch (error) {
+                document.getElementById('xmlOutput').textContent = 
+                    `❌ Error generating complex XML:\n${error.message}\n\nStack:\n${error.stack}`;
+                document.getElementById('xmlOutput').style.color = '#c62828';
+            }
+        }
+
+        function formatXML(xml) {
+            let formatted = '';
+            let indent = '';
+            const tab = '  ';
+            
+            xml.split(/>\s*</).forEach(node => {
+                if (node.match(/^\/\w/)) {
+                    indent = indent.substring(tab.length);
+                }
+                formatted += indent + '<' + node + '>\n';
+                if (node.match(/^<?\w[^>]*[^\/]$/)) {
+                    indent += tab;
+                }
+            });
+            
+            return formatted.substring(1, formatted.length - 2);
+        }
+
+        // Auto-generate on load
+        window.onload = function() {
+            generateXML();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,963 @@
+{% extends "base.html" %}
+
+{% block title %}Validation Tool - Lexicographic Curation Workbench{% endblock %}
+
+{% block extra_css %}
+<style>
+    .validation-tool-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .validation-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .validation-header h1 {
+        margin-bottom: 0.5rem;
+    }
+
+    .validation-header p {
+        opacity: 0.9;
+        margin-bottom: 0;
+    }
+
+    .stats-card {
+        background: white;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .stats-card.valid {
+        border-top: 4px solid #28a745;
+    }
+
+    .stats-card.invalid {
+        border-top: 4px solid #dc3545;
+    }
+
+    .stats-card.total {
+        border-top: 4px solid #007bff;
+    }
+
+    .stats-card .stat-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        line-height: 1;
+    }
+
+    .stats-card .stat-label {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+    }
+
+    .stats-card.valid .stat-value { color: #28a745; }
+    .stats-card.invalid .stat-value { color: #dc3545; }
+    .stats-card.total .stat-value { color: #007bff; }
+
+    .filter-section {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .results-table {
+        background: white;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .results-table thead {
+        background: #343a40;
+        color: white;
+    }
+
+    .results-table th {
+        font-weight: 500;
+        padding: 1rem;
+    }
+
+    .results-table td {
+        padding: 0.75rem 1rem;
+        vertical-align: top;
+    }
+
+    .results-table tbody tr {
+        transition: background-color 0.2s;
+    }
+
+    .results-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-badge.valid {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .status-badge.invalid {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .priority-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .priority-badge.critical {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .priority-badge.warning {
+        background-color: #ffc107;
+        color: #212529;
+    }
+
+    .priority-badge.informational {
+        background-color: #17a2b8;
+        color: white;
+    }
+
+    .issue-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .issue-list li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .issue-list li:last-child {
+        border-bottom: none;
+    }
+
+    .issue-message {
+        font-size: 0.875rem;
+        color: #495057;
+    }
+
+    .issue-path {
+        font-size: 0.75rem;
+        color: #6c757d;
+        font-family: monospace;
+    }
+
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .loading-overlay.hidden {
+        display: none;
+    }
+
+    .spinner {
+        width: 4rem;
+        height: 4rem;
+        border: 4px solid #e9ecef;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .no-entries {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+
+    .no-entries i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .entry-preview {
+        font-family: monospace;
+        font-size: 0.75rem;
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .progress-ring {
+        width: 120px;
+        height: 120px;
+    }
+
+    .progress-ring circle {
+        transition: stroke-dashoffset 0.35s;
+    }
+
+    .validation-summary {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .validation-summary .progress {
+        flex: 1;
+        height: 1.5rem;
+    }
+
+    .validation-summary .progress-bar {
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="validation-tool-container">
+    <div class="validation-header">
+        <h1><i class="fas fa-check-circle"></i> Validation Tool <a href="{{ url_for('main.help_page') }}#validation-rules" class="btn btn-sm btn-light ms-2" title="Learn more about validation rules"><i class="bi bi-question-circle"></i> Help</a></h1>
+        <p>Run validation rules against entries and identify issues that need attention</p>
+    </div>
+
+    <!-- Project Selection -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="input-group">
+                <label class="input-group-text" for="project-selector">Project</label>
+                <select class="form-select" id="project-selector">
+                    <option value="">Select a project...</option>
+                    {% for project in projects %}
+                    <option value="{{ project.id }}" {% if project.id == selected_project_id %}selected{% endif %}>
+                        {{ project.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="btn-group float-end" role="group">
+                <button type="button" class="btn btn-outline-primary" id="refresh-btn">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button type="button" class="btn btn-primary" id="run-validation-btn">
+                    <i class="fas fa-play"></i> Run Validation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="stats-row" style="display: none;">
+        <div class="col-md-3">
+            <div class="stats-card total">
+                <div class="stat-value" id="total-count">0</div>
+                <div class="stat-label">Total Entries</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card valid">
+                <div class="stat-value" id="valid-count">0</div>
+                <div class="stat-label">Valid Entries</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card invalid">
+                <div class="stat-value" id="invalid-count">0</div>
+                <div class="stat-label">Invalid Entries</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stat-value" id="issues-count">0</div>
+                <div class="stat-label">Total Issues</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Validation Summary Progress -->
+    <div class="row mb-4" id="summary-row" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Validation Summary</h5>
+                    <div class="validation-summary">
+                        <div class="progress">
+                            <div class="progress-bar bg-success" id="valid-progress" style="width: 0%">0%</div>
+                            <div class="progress-bar bg-danger" id="invalid-progress" style="width: 0%">0%</div>
+                        </div>
+                        <span class="ms-2" id="summary-text">No validation run yet</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section" id="filter-section" style="display: none;">
+        <div class="row align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="status-filter">
+                    <option value="all">All Entries</option>
+                    <option value="valid">Valid Only</option>
+                    <option value="invalid">Invalid Only</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Priority</label>
+                <select class="form-select" id="priority-filter">
+                    <option value="all">All Priorities</option>
+                    <option value="critical">Critical Only</option>
+                    <option value="warning">Warning Only</option>
+                    <option value="informational">Informational Only</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" id="search-filter" placeholder="Search by entry ID or issue...">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-secondary w-100" id="clear-filters-btn">
+                    <i class="fas fa-times"></i> Clear
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="results-table-container" id="results-container" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-hover results-table" id="results-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Status</th>
+                        <th style="width: 150px;">Entry ID</th>
+                        <th style="width: 100px;">Issues</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="results-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- No Entries State -->
+    <div class="no-entries" id="no-entries-message">
+        <i class="fas fa-clipboard-check"></i>
+        <h4>No Validation Results</h4>
+        <p>Select a project and click "Run Validation" to check entries against validation rules.</p>
+    </div>
+
+    <!-- Pagination -->
+    <nav aria-label="Results pagination" class="mt-4" id="pagination-nav" style="display: none;">
+        <ul class="pagination justify-content-center" id="pagination">
+        </ul>
+    </nav>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay hidden" id="loading-overlay">
+    <div style="text-align: center;">
+        <div class="spinner"></div>
+        <p class="mt-3" id="loading-text">Running validation...</p>
+    </div>
+</div>
+
+<!-- Entry Detail Modal -->
+<div class="modal fade" id="entry-detail-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Validation Results</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="entry-detail-body">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Core utilities -->
+<script defer src="{{ url_for('static', filename='js/core/logger.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/api-utils.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/ui/toast.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // State
+    let validationResults = [];
+    let filteredResults = [];
+    let currentPage = 1;
+    const entriesPerPage = 25;
+    let projectId = null;
+    let entryCache = new Map(); // Cache entry data by ID
+
+    // Elements
+    const projectSelector = document.getElementById('project-selector');
+    const runValidationBtn = document.getElementById('run-validation-btn');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    const statsRow = document.getElementById('stats-row');
+    const summaryRow = document.getElementById('summary-row');
+    const filterSection = document.getElementById('filter-section');
+    const resultsContainer = document.getElementById('results-container');
+    const noEntriesMessage = document.getElementById('no-entries-message');
+    const statusFilter = document.getElementById('status-filter');
+    const priorityFilter = document.getElementById('priority-filter');
+    const searchFilter = document.getElementById('search-filter');
+    const clearFiltersBtn = document.getElementById('clear-filters-btn');
+
+    // Event Listeners
+    projectSelector.addEventListener('change', function() {
+        projectId = this.value;
+        if (projectId) {
+            loadProjectEntries(projectId);
+        }
+    });
+
+    runValidationBtn.addEventListener('click', runValidation);
+    refreshBtn.addEventListener('click', function() {
+        if (projectId) {
+            loadProjectEntries(projectId);
+        }
+    });
+
+    statusFilter.addEventListener('change', applyFilters);
+    priorityFilter.addEventListener('change', applyFilters);
+    searchFilter.addEventListener('input', debounce(applyFilters, 300));
+    clearFiltersBtn.addEventListener('click', clearFilters);
+
+    // Initialize
+    checkProjectSelection();
+
+    function checkProjectSelection() {
+        const selectedProject = projectSelector.value;
+        if (selectedProject) {
+            projectId = selectedProject;
+            loadProjectEntries(projectId);
+        }
+    }
+
+    async function loadProjectEntries(projectId) {
+        showLoading('Loading entries...');
+        entryCache.clear();
+        validationResults = [];
+        filteredResults = [];
+
+        try {
+            // Fetch entries from the entries API
+            const response = await fetch(`/api/entries?project_id=${projectId}&limit=500`);
+
+            // Check content type to handle HTML error pages
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error('Server returned non-JSON response: ' + (text.substring(0, 100) || response.statusText));
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to load entries');
+            }
+
+            const data = await response.json();
+            const entries = data.entries || [];
+
+            // Cache entries by ID for quick lookup
+            entries.forEach(entry => {
+                entryCache.set(entry.id, entry);
+            });
+
+            if (entries.length === 0) {
+                hideLoading();
+                showEmptyState();
+                return;
+            }
+
+            // Run validation on all entries
+            await runValidation(entries);
+        } catch (error) {
+            Logger.error('Error loading entries:', error);
+            hideLoading();
+            showEmptyState();
+            flashMessage('Error loading entries: ' + error.message, 'danger');
+        }
+    }
+
+    async function runValidation(entries = null) {
+        if (!projectId) {
+            flashMessage('Please select a project first', 'warning');
+            return;
+        }
+
+        let entriesToValidate = entries;
+
+        // If no entries provided, get from cache
+        if (!entriesToValidate) {
+            entriesToValidate = Array.from(entryCache.values());
+        }
+
+        if (entriesToValidate.length === 0) {
+            flashMessage('No entries to validate', 'info');
+            return;
+        }
+
+        showLoading('Running validation on ' + entriesToValidate.length + ' entries...');
+        const csrfToken = getCsrfToken();
+
+        try {
+            const response = await fetch('/api/validation/batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify({
+                    entries: entriesToValidate,
+                    priority_filter: 'all'
+                })
+            });
+
+            // Check content type to handle HTML error pages
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                throw new Error('Server returned non-JSON response: ' + (text.substring(0, 100) || response.statusText));
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Validation failed with status: ' + response.status);
+            }
+
+            let result;
+            try {
+                result = await response.json();
+            } catch (e) {
+                const text = await response.text();
+                throw new Error('Failed to parse JSON response: ' + e.message + '. Response: ' + text.substring(0, 200));
+            }
+
+            // Check if the response contains an error
+            if (result.error) {
+                Logger.error('API returned error:', result);
+                throw new Error(result.error);
+            }
+
+            // Validate result structure
+            if (!result.results || !Array.isArray(result.results)) {
+                Logger.error('Invalid response format:', result);
+                throw new Error('Invalid response format from server. Expected results array but got: ' + JSON.stringify(result).substring(0, 200));
+            }
+
+            validationResults = result.results || [];
+            filteredResults = [...validationResults];
+
+            hideLoading();
+            updateStats(result);
+            applyFilters();
+
+            if (validationResults.length > 0) {
+                showResults();
+            } else {
+                showEmptyState();
+            }
+        } catch (error) {
+            Logger.error('Validation error:', error);
+            hideLoading();
+            flashMessage('Validation error: ' + error.message, 'danger');
+        }
+    }
+
+    function updateStats(result) {
+        document.getElementById('total-count').textContent = result.total_entries || 0;
+        document.getElementById('valid-count').textContent = result.valid_entries || 0;
+        document.getElementById('invalid-count').textContent = result.invalid_entries || 0;
+
+        // Count total issues
+        let totalIssues = 0;
+        if (result.results && Array.isArray(result.results)) {
+            result.results.forEach(r => {
+                totalIssues += (r.errors?.length || 0) + (r.warnings?.length || 0) + (r.info?.length || 0);
+            });
+        }
+        document.getElementById('issues-count').textContent = totalIssues;
+
+        // Update progress bar
+        const validPercent = result.total_entries > 0
+            ? Math.round((result.valid_entries / result.total_entries) * 100)
+            : 0;
+        const invalidPercent = 100 - validPercent;
+
+        const validProgress = document.getElementById('valid-progress');
+        const invalidProgress = document.getElementById('invalid-progress');
+
+        validProgress.style.width = validPercent + '%';
+        validProgress.textContent = validPercent > 10 ? validPercent + '%' : '';
+
+        invalidProgress.style.width = invalidPercent + '%';
+        invalidProgress.textContent = invalidPercent > 10 ? invalidPercent + '%' : '';
+
+        document.getElementById('summary-text').textContent =
+            `${result.valid_entries} valid / ${result.invalid_entries} invalid out of ${result.total_entries} entries`;
+    }
+
+    function applyFilters() {
+        const status = statusFilter.value;
+        const priority = priorityFilter.value;
+        const search = searchFilter.value.toLowerCase();
+
+        filteredResults = validationResults.filter(result => {
+            // Status filter
+            if (status === 'valid' && !result.valid) return false;
+            if (status === 'invalid' && result.valid) return false;
+
+            // Priority filter
+            if (priority !== 'all') {
+                const hasPriority = result.errors.some(e => e.priority === priority) ||
+                                   result.warnings.some(e => e.priority === priority) ||
+                                   result.info.some(e => e.priority === priority);
+                if (!hasPriority) return false;
+            }
+
+            // Search filter
+            if (search) {
+                const matchesId = result.entry_id.toLowerCase().includes(search);
+                const matchesErrors = result.errors.some(e =>
+                    e.message.toLowerCase().includes(search) ||
+                    e.path?.toLowerCase().includes(search)
+                );
+                const matchesWarnings = result.warnings.some(e =>
+                    e.message.toLowerCase().includes(search) ||
+                    e.path?.toLowerCase().includes(search)
+                );
+                if (!matchesId && !matchesErrors && !matchesWarnings) return false;
+            }
+
+            return true;
+        });
+
+        currentPage = 1;
+        renderResults();
+    }
+
+    function clearFilters() {
+        statusFilter.value = 'all';
+        priorityFilter.value = 'all';
+        searchFilter.value = '';
+        filteredResults = [...validationResults];
+        currentPage = 1;
+        renderResults();
+    }
+
+    function renderResults() {
+        const tbody = document.getElementById('results-body');
+        tbody.innerHTML = '';
+
+        const startIndex = (currentPage - 1) * entriesPerPage;
+        const endIndex = startIndex + entriesPerPage;
+        const pageResults = filteredResults.slice(startIndex, endIndex);
+
+        pageResults.forEach(result => {
+            const tr = document.createElement('tr');
+
+            // Get top issues
+            const allIssues = [
+                ...result.errors.map(e => ({...e, type: 'error'})),
+                ...result.warnings.map(e => ({...e, type: 'warning'})),
+                ...result.info.map(e => ({...e, type: 'info'}))
+            ].slice(0, 3);
+
+            const issuesHtml = allIssues.map(issue => `
+                <li class="issue-item">
+                    <span class="priority-badge ${issue.priority}">${issue.priority}</span>
+                    <span class="issue-message">${escapeHtml(issue.message)}</span>
+                    ${issue.path ? `<div class="issue-path">${escapeHtml(issue.path)}</div>` : ''}
+                </li>
+            `).join('');
+
+            const moreCount = (result.errors.length + result.warnings.length + result.info.length) - 3;
+            const moreHtml = moreCount > 0 ? `<li class="issue-item text-muted">+${moreCount} more...</li>` : '';
+
+            tr.innerHTML = `
+                <td>
+                    <span class="status-badge ${result.valid ? 'valid' : 'invalid'}">
+                        <i class="fas ${result.valid ? 'fa-check' : 'fa-times'} me-1"></i>
+                        ${result.valid ? 'Valid' : 'Invalid'}
+                    </span>
+                </td>
+                <td><code>${escapeHtml(result.entry_id)}</code></td>
+                <td>
+                    <span class="badge bg-${result.valid ? 'success' : 'danger'}">${result.error_count + result.warnings.length + result.info.length}</span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary view-details-btn" data-entry-id="${escapeHtml(result.entry_id)}">
+                        <i class="fas fa-eye"></i> View
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+
+        // Add event listeners to detail buttons
+        tbody.querySelectorAll('.view-details-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const entryId = this.dataset.entryId;
+                showEntryDetails(entryId);
+            });
+        });
+
+        renderPagination();
+    }
+
+    function renderPagination() {
+        const pagination = document.getElementById('pagination');
+        const totalPages = Math.ceil(filteredResults.length / entriesPerPage);
+
+        if (totalPages <= 1) {
+            document.getElementById('pagination-nav').style.display = 'none';
+            return;
+        }
+
+        document.getElementById('pagination-nav').style.display = 'flex';
+
+        let html = `
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>
+            </li>
+        `;
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                html += `
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${i}">${i}</a>
+                    </li>
+                `;
+            } else if (i === currentPage - 3 || i === currentPage + 3) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+
+        html += `
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>
+            </li>
+        `;
+
+        pagination.innerHTML = html;
+
+        pagination.querySelectorAll('.page-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = parseInt(this.dataset.page);
+                if (page > 0 && page <= totalPages) {
+                    currentPage = page;
+                    renderResults();
+                    // Scroll to top of results
+                    resultsContainer.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    }
+
+    function showEntryDetails(entryId) {
+        const entry = entryCache.get(entryId);
+        const result = validationResults.find(r => r.entry_id === entryId);
+
+        if (!entry || !result) {
+            flashMessage('Entry details not found', 'warning');
+            return;
+        }
+
+        const modal = new bootstrap.Modal(document.getElementById('entry-detail-modal'));
+        const modalBody = document.getElementById('entry-detail-body');
+
+        // Build issues HTML
+        const allIssues = [
+            ...result.errors.map(e => ({...e, type: 'error', priority: 'critical'})),
+            ...result.warnings.map(e => ({...e, type: 'warning', priority: 'warning'})),
+            ...result.info.map(e => ({...e, type: 'info', priority: 'informational'}))
+        ];
+
+        const issuesHtml = allIssues.map(issue => `
+            <div class="mb-3 p-2 ${issue.type === 'error' ? 'bg-danger-light' : issue.type === 'warning' ? 'bg-warning-light' : 'bg-info-light'} rounded">
+                <div class="d-flex align-items-start">
+                    <span class="priority-badge ${issue.priority} me-2">${issue.priority}</span>
+                    <div>
+                        <div class="fw-medium">${escapeHtml(issue.message)}</div>
+                        ${issue.path ? `<div class="text-muted small font-monospace">${escapeHtml(issue.path)}</div>` : ''}
+                        ${issue.rule_id ? `<div class="text-muted small">Rule: ${escapeHtml(issue.rule_id)}</div>` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        modalBody.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Entry Information</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td class="fw-medium">Entry ID:</td>
+                            <td><code>${escapeHtml(entry.id)}</code></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium">Lexical Unit:</td>
+                            <td>${getLexicalUnit(entry) || '<em class="text-muted">Not set</em>'}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-medium">Senses:</td>
+                            <td>${entry.senses?.length || 0}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Validation Status</h6>
+                    <div class="mb-2">
+                        <span class="status-badge ${result.valid ? 'valid' : 'invalid'} mb-2">
+                            <i class="fas ${result.valid ? 'fa-check' : 'fa-times'} me-1"></i>
+                            ${result.valid ? 'Valid' : 'Invalid'}
+                        </span>
+                    </div>
+                    <ul class="list-unstyled mb-0">
+                        <li><span class="badge bg-danger">${result.errors.length} Errors</span></li>
+                        <li><span class="badge bg-warning text-dark">${result.warnings.length} Warnings</span></li>
+                        <li><span class="badge bg-info">${result.info.length} Info</span></li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <h6>Validation Issues (${allIssues.length})</h6>
+            ${issuesHtml || '<p class="text-muted">No issues found.</p>'}
+            <hr>
+            <h6>Raw Entry Data</h6>
+            <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow: auto;"><code>${JSON.stringify(entry, null, 2)}</code></pre>
+        `;
+
+        modal.show();
+    }
+
+    function getLexicalUnit(entry) {
+        if (entry.lexical_unit) {
+            const langs = Object.keys(entry.lexical_unit);
+            if (langs.length > 0) {
+                return entry.lexical_unit[langs[0]]?.text || null;
+            }
+        }
+        return null;
+    }
+
+    function showResults() {
+        statsRow.style.display = 'flex';
+        summaryRow.style.display = 'flex';
+        filterSection.style.display = 'block';
+        resultsContainer.style.display = 'block';
+        noEntriesMessage.style.display = 'none';
+    }
+
+    function showEmptyState() {
+        statsRow.style.display = 'none';
+        summaryRow.style.display = 'none';
+        filterSection.style.display = 'none';
+        resultsContainer.style.display = 'none';
+        noEntriesMessage.style.display = 'block';
+    }
+
+    function showLoading(message) {
+        loadingText.textContent = message;
+        loadingOverlay.classList.remove('hidden');
+    }
+
+    function hideLoading() {
+        loadingOverlay.classList.add('hidden');
+    }
+
+    function flashMessage(message, type = 'info') {
+        const container = document.querySelector('.container.mt-3');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        container.appendChild(alert);
+
+        setTimeout(() => {
+            alert.classList.remove('show');
+            setTimeout(() => alert.remove(), 300);
+        }, 5000);
+    }
+
+    function escapeHtml(text) {
+        if (text == null) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+});
+</script>
+{% endblock %}

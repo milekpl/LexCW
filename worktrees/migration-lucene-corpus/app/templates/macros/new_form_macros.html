@@ -1,0 +1,104 @@
+{#
+This file contains a collection of generic and reusable Jinja2 macros designed to
+streamline the creation of complex form elements within the application. These macros
+help enforce consistency, reduce code duplication (DRY), and improve the overall
+maintainability of the templates.
+
+Macros included:
+- render_dynamic_select: Renders a <select> dropdown that is dynamically populated
+  from LIFT ranges via JavaScript.
+- render_multilingual_item: Renders a single language row for a multilingual field,
+  including language selection and a text input/textarea.
+- render_card: A simple wrapper for creating standardized card-based sections with
+  a header and body.
+- render_tooltip: Renders a small tooltip icon.
+#}
+
+{% macro render_dynamic_select(name, range_id, label, id=None, selected_value="", is_multiple=false, is_hierarchical=false, is_searchable=true, custom_classes="", placeholder="Select...", required=false, tooltip="") %}
+    {% set sanitized_id = id or name.replace('.', '-') %}
+    <div class="mb-3">
+        <label for="{{ sanitized_id }}" class="form-label">
+            {{ label }}
+            {% if required %}<span class="text-danger">*</span>{% endif %}
+            {% if tooltip %}{{ render_tooltip(tooltip) }}{% endif %}
+        </label>
+        <select class="form-select dynamic-lift-range {{ custom_classes }}" 
+                id="{{ sanitized_id }}"
+                name="{{ name }}"
+                data-range-id="{{ range_id }}"
+                data-selected="{{ selected_value|join(';') if selected_value is sequence and selected_value is not string else selected_value }}"
+                data-hierarchical="{{ 'true' if is_hierarchical else 'false' }}"
+                data-searchable="{{ 'true' if is_searchable else 'false' }}"
+                {% if is_multiple %}multiple{% endif %}
+                {% if required %}required{% endif %}>
+            <option value="">{{ placeholder }}</option>
+            <!-- Options will be dynamically loaded from LIFT ranges -->
+        </select>
+    </div>
+{% endmacro %}
+
+
+{% macro render_multilingual_item(base_name, lang, text, languages, field_label, field_type='textarea', removable=True, is_required=false, placeholder_lang=None) %}
+    <div class="row">
+        <div class="col-md-3">
+            <label class="form-label">Language</label>
+            <select class="form-select language-select" name="{{ base_name }}.lang">
+                {% set lang_codes = languages|map(attribute=0)|list %}
+                {% if lang not in lang_codes %}
+                    <option value="{{ lang }}" selected>{{ lang }} (original)</option>
+                {% endif %}
+                {% for code, label in languages %}
+                    <option value="{{ code }}" {% if lang == code %}selected{% endif %}>{{ label|safe }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-8">
+            <label class="form-label">{{ field_label }}</label>
+            {% set resolved_placeholder_lang = placeholder_lang or lang %}
+            {% if field_type == 'textarea' %}
+                <textarea class="form-control" 
+                          name="{{ base_name }}.text" 
+                          rows="2" 
+                          {% if is_required %}required{% endif %}
+                          placeholder="Enter text in {{ resolved_placeholder_lang }}">{{ text }}</textarea>
+            {% else %}
+                <input type="text" 
+                       class="form-control" 
+                       name="{{ base_name }}.text" 
+                       value="{{ text }}"
+                       {% if is_required %}required{% endif %}
+                       placeholder="Enter text in {{ resolved_placeholder_lang }}">
+            {% endif %}
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+            {% if removable %}
+            <button type="button" class="btn btn-sm btn-outline-danger remove-language-btn" title="Remove language">
+                <i class="fas fa-times"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+{% endmacro %}
+
+
+{% macro render_card(id, title, icon_class, extra_header_buttons='', classes='', header_classes='bg-primary text-white') %}
+<div class="card mb-4 {{ classes }}" id="{{ id }}">
+    <div class="card-header {{ header_classes }}">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas {{ icon_class }}"></i> {{ title }}</h5>
+            {% if extra_header_buttons %}
+                <div>{{ extra_header_buttons|safe }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+{% macro render_tooltip(text) %}
+    <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+        <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ text }}"></i>
+    </span>
+{% endmacro %}

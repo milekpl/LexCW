@@ -1,0 +1,130 @@
+<div class="card mb-4 basic-info-section">
+    <div class="card-header bg-primary text-white">
+        <h5><i class="fas fa-book"></i> Basic Information</h5>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label">Lexical Unit <span class="text-danger">*</span></label>
+            <div class="multilingual-forms lexical-unit-forms">
+                {% set default_lang_code = source_lang %}
+                {% if entry.lexical_unit %}
+                    {% for lang_code, text in entry.lexical_unit.items() %}
+                        <div class="mb-2 language-form" data-language="{{ lang_code }}">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <label class="form-label">Language</label>
+                                    <select class="form-select language-select" 
+                                            name="lexical_unit_lang.{{ lang_code }}"
+                                            data-current-lang="{{ lang_code }}">
+                                        {% for code, label in project_languages %}
+                                            <option value="{{ code }}" {% if code == lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Headword Text</label>
+                                    <input type="text" class="form-control lexical-unit-text" 
+                                           name="lexical_unit.{{ lang_code }}"
+                                           value="{{ text }}"
+                                           {% if lang_code == default_lang_code %}required{% endif %}
+                                           placeholder="Enter headword in {{ lang_code }}">
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    {% if lang_code != default_lang_code %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-lexical-unit-language-btn" 
+                                                title="Remove language">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="mb-2 language-form" data-language="{{ default_lang_code }}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">Language</label>
+                                <select class="form-select language-select" 
+                                        name="lexical_unit_lang.{{ default_lang_code }}"
+                                        data-current-lang="{{ default_lang_code }}">
+                                    {% for code, label in project_languages %}
+                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Headword Text</label>
+                                <input type="text" class="form-control lexical-unit-text" 
+                                       name="lexical_unit.{{ default_lang_code }}"
+                                       required
+                                       placeholder="Enter headword in {{ default_lang_code }}">
+                            </div>
+                            <div class="col-md-1">
+                                <!-- No remove button for primary language -->
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2 add-lexical-unit-language-btn">
+                <i class="fas fa-plus"></i> Add Translation
+            </button>
+            <div class="form-text">The headword as it appears in the dictionary.</div>
+        </div>
+
+        <!-- Homograph Number Display - Only show if entry has a homograph number -->
+        {% if entry.homograph_number %}
+        <div class="mb-3">
+            <label for="homograph-number" class="form-label">
+                Homograph Number
+                <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                    <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top" title="This entry is assigned homograph number {{ entry.homograph_number }} to distinguish it from other entries with the same lexical unit."></i>
+                </span>
+            </label>
+            <input type="text" class="form-control" id="homograph-number" name="homograph_number" 
+                   value="{{ entry.homograph_number }}" readonly>
+            <div class="form-text">Automatically assigned to distinguish homographs (entries sharing the same headword).</div>
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+            <label for="citation-form" class="form-label">Citation Form</label>
+            <input type="text" class="form-control" id="citation-form" name="citation_form" 
+                   value="{{ entry.citation_form }}">
+            <div class="form-text">Optional citation form if different from the headword.</div>
+        </div>
+
+        {{ new_macros.render_dynamic_select(
+            name='grammatical_info.part_of_speech',
+            id='part-of-speech',
+            range_id='grammatical-info',
+            label='Part of Speech',
+            selected_value=entry.grammatical_info,
+            placeholder='Select part of speech',
+            custom_classes='dynamic-grammatical-info',
+            tooltip='This field is automatically inherited from senses. If all senses have the same grammatical category, it will be set automatically. If there are discrepancies, you\'ll need to resolve them manually.'
+        ) }}
+
+        {{ new_macros.render_dynamic_select(
+            name='status',
+            id='status',
+            range_id='status',
+            label='Status',
+            selected_value=entry.status,
+            is_hierarchical=true,
+            placeholder='Select status'
+        ) }}
+
+        {{ new_macros.render_dynamic_select(
+            name='morph_type',
+            id='morph-type',
+            range_id='morph-type',
+            label='Morphological Type',
+            selected_value=entry.morph_type,
+            is_hierarchical=true,
+            placeholder='Select morphological type',
+            tooltip='Automatically classified based on headword form: contains whitespace=phrase, ends with hyphen=prefix, starts with hyphen=suffix, both=infix, default=stem.'
+        ) }}
+    </div>
+</div>

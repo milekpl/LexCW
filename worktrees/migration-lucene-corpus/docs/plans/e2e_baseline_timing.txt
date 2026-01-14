@@ -1,0 +1,4 @@
+Baseline timing: 2026-01-10_11:12:38
+Tests: 4 tests from test_ranges_ui_playwright.py
+Duration: 26.542s total (~6.6s per test)
+Run date: 2026-01-10

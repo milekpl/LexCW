@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Tools - Lexicographic Curation Workbench{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4"><i class="fas fa-tools me-2"></i>Tools</h1>
+    <p>A collection of tools to help manage the dictionary.</p>
+    <div class="list-group">
+        <a href="{{ url_for('main.clear_cache') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-sync-alt me-2"></i>Clear Cache
+        </a>
+        <a href="{{ url_for('main.batch_edit') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-edit me-2"></i>Bulk Edit
+        </a>
+        <a href="{{ url_for('main.validation_rules_admin') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-list-check me-2"></i>Validation Rules Editor
+        </a>
+        <a href="{{ url_for('main.validation_tool') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-clipboard-check me-2"></i>Batch Validation
+        </a>
+        <a href="{{ url_for('main.pronunciation') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-volume-up me-2"></i>Pronunciation Management
+        </a>
+        <a href="{{ url_for('main.ranges_editor') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-list me-2"></i>Ranges Editor
+        </a>
+        <a href="{{ url_for('main.display_profiles') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-palette me-2"></i>Display Profiles
+        </a>
+        <a href="{{ url_for('main.activity_log') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-history me-2"></i>Activity Log
+        </a>
+        <a href="{{ url_for('backup.backup_management') }}" class="list-group-item list-group-item-action">
+            <i class="fas fa-save me-2"></i>Backup Management
+        </a>
+    </div>
+</div>
+{% endblock %}

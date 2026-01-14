@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ranges Loader Test</title>
+</head>
+<body>
+    <h1>Ranges Loader Debug Test</h1>
+    <select id="test-select" class="dynamic-grammatical-info" data-range-id="grammatical-info">
+        <option value="">Loading...</option>
+    </select>
+    
+    <script>
+    console.log('[TEST] Starting ranges loader test');
+    </script>
+    <script src="/static/js/ranges-loader-debug.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        console.log('[TEST] DOM loaded, rangesLoader available:', !!window.rangesLoader);
+        
+        if (window.rangesLoader) {
+            const select = document.getElementById('test-select');
+            console.log('[TEST] Found select element:', select);
+            
+            try {
+                await window.rangesLoader.populateSelect(select, 'grammatical-info', {
+                    emptyOption: 'Select part of speech',
+                    selectedValue: '',
+                    valueField: 'value',
+                    labelField: 'value'
+                });
+                console.log('[TEST] Successfully populated select');
+            } catch (error) {
+                console.error('[TEST] Error populating select:', error);
+            }
+        } else {
+            console.error('[TEST] rangesLoader not available!');
+        }
+    });
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@ TDD Test for Auto-Save System - Phase 2 Implementation
 import pytest
 import json
 from unittest.mock import patch, MagicMock
-from app.api.entry_autosave import autosave_bp
+from app.api.entry_autosave_working import autosave_bp
 from app.services.validation_engine import ValidationEngine
 from flask import Flask
 

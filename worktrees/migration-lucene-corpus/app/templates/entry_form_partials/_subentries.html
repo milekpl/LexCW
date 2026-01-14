@@ -1,0 +1,63 @@
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">
+            <i class="fas fa-sitemap"></i> Subentries (Complex Forms of This Entry)
+            <i class="fas fa-info-circle ms-2 form-tooltip" 
+               data-bs-toggle="tooltip" 
+               data-bs-placement="top"
+               data-bs-html="true"
+               title="<strong>About Subentries:</strong><br>These are complex forms (compounds, phrases, idioms) that use this entry as one of their components. For example, if this entry is 'ball', subentries might include 'basketball', 'ball game', etc."></i>
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if subentries and subentries|length > 0 %}
+            <div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>This entry is a component</strong> of the following complex forms:
+            </div>
+            
+            <div class="list-group">
+                {% for subentry in subentries %}
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">
+                                <a href="{{ url_for('main.edit_entry', entry_id=subentry.id) }}" 
+                                   class="text-decoration-none"
+                                   title="Edit subentry">
+                                    {{ subentry.display_text|safe }}
+                                </a>
+                                {% if subentry.is_primary %}
+                                <span class="badge bg-success ms-2">Primary Component</span>
+                                {% endif %}
+                            </h6>
+                            <small class="text-muted">
+                                <strong>Type:</strong> {{ subentry.complex_form_type }} 
+                                | <strong>Order:</strong> {{ subentry.order if subentry.order is not none else 'N/A' }}
+                            </small>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('main.view_entry', entry_id=subentry.id) }}" 
+                               class="btn btn-sm btn-outline-primary" 
+                               title="View subentry">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                            <a href="{{ url_for('main.edit_entry', entry_id=subentry.id) }}" 
+                               class="btn btn-sm btn-outline-secondary" 
+                               title="Edit subentry">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state text-center py-4">
+                <i class="fas fa-sitemap fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Subentries</h5>
+                <p class="text-muted">This entry is not used as a component in any complex forms.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>

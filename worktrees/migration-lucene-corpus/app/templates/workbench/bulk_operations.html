@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Operations - Dictionary Workbench{% endblock %}
+
+{% block extra_css %}
+<style>
+    .condition-builder, .pipeline-editor {
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 1rem;
+    }
+    .pipeline-step {
+        background: white;
+        border: 1px solid #dee2e6 !important;
+    }
+    .condition-row {
+        padding: 0.5rem;
+        background: white;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+    }
+    .match-preview {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h4 class="mb-0"><i class="bi bi-gear"></i> Bulk Operations</h4>
+                    <p class="text-muted small mb-0">Apply transformations to multiple entries at once</p>
+                </div>
+                <div class="btn-group">
+                    <a href="/workbench/query-builder" class="btn btn-outline-primary">
+                        <i class="bi bi-funnel"></i> Query Builder
+                    </a>
+                    <a href="/workbench/worksets" class="btn btn-outline-primary">
+                        <i class="bi bi-layer-group"></i> Worksets
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        {# Left column: Conditions #}
+        <div class="col-lg-5 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> 1. Which entries?</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Define conditions to select which entries to modify.</p>
+                    <div id="condition-builder"></div>
+                    <button class="btn btn-outline-primary mt-3" id="preview-btn">
+                        <i class="bi bi-eye"></i> Preview Match
+                    </button>
+                    <div class="mt-3">
+                        <span class="text-muted">Would affect: </span>
+                        <span class="match-preview" id="match-count-badge">-</span>
+                        <span class="text-muted"> entries</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Right column: Pipeline #}
+        <div class="col-lg-7 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-arrow-right-circle"></i> 2. What to do?</h5>
+                    <button class="btn btn-sm btn-light" id="save-pipeline-btn">
+                        <i class="bi bi-save"></i> Save Pipeline
+                    </button>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Build a pipeline of actions to apply to matching entries.</p>
+                    <div id="pipeline-editor"></div>
+                    <div class="mt-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="preview-mode">
+                            <label class="form-check-label" for="preview-mode">
+                                Preview only (no changes)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-success btn-lg w-100" id="execute-pipeline-btn">
+                        <i class="bi bi-play-fill"></i> Execute Pipeline
+                    </button>
+                    <small class="text-muted d-block mt-1 text-center">
+                        Ctrl+Enter to execute | Ctrl+S to save
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Saved pipelines section #}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-collection"></i> Saved Pipelines</h5>
+                </div>
+                <div class="card-body">
+                    <div id="saved-pipelines-list">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                            <p class="mt-2">Loading saved pipelines...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Save Pipeline Modal #}
+<div class="modal fade" id="save-pipeline-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Save Pipeline Template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="pipeline-name" class="form-label">Pipeline Name</label>
+                    <input type="text" class="form-control" id="pipeline-name" placeholder="e.g., Add pronunciation to nouns">
+                </div>
+                <div class="mb-3">
+                    <label for="pipeline-description" class="form-label">Description (optional)</label>
+                    <textarea class="form-control" id="pipeline-description" rows="3" placeholder="What does this pipeline do?"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-save-pipeline">Save Pipeline</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/entry-search-select.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bulk-editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bulk-operations.js') }}"></script>
+{% endblock %}
