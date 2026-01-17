@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 def corpus_management():
     """Render corpus management interface with async stats loading."""
     # Return page immediately with loading indicators
-    # Stats will be loaded via AJAX
-    postgres_status = {"connected": False, "error": None}
+    # Stats will be loaded via AJAX from Lucene service
+    lucene_status = {"connected": False, "error": None}
     corpus_stats = {
         "total_records": 0,
         "avg_source_length": "0.00",
@@ -48,7 +48,7 @@ def corpus_management():
     return render_template(
         "corpus_management.html",
         corpus_stats=corpus_stats,
-        postgres_status=postgres_status,
+        lucene_status=lucene_status,
     )
 
 

@@ -1,8 +1,20 @@
 """
-PostgreSQL connector for word sketch and corpus analysis functionality.
+PostgreSQL connector for workset and project settings storage.
 
-Implements database operations for word sketches, SUBTLEX norms, and 
-sentence-aligned corpus processing with PostgreSQL backend.
+NOTE: Word sketch and corpus analysis functionality has been migrated to Lucene.
+The following PostgreSQL tables are no longer used and should be removed:
+- word_sketches (replaced by Lucene word-sketch index at port 8083)
+- sketch_grammars
+- subtlex_norms
+- frequency_analysis
+- corpus_sentences
+- linguistic_cache
+- processing_batches
+- parallel_corpus (replaced by Lucene corpus index at port 8082)
+
+This connector now only handles:
+- Workset management (worksets, workset_entries)
+- Project settings
 """
 from __future__ import annotations
 
@@ -31,10 +43,12 @@ class PostgreSQLConfig:
 
 class PostgreSQLConnector:
     """
-    PostgreSQL database connector for advanced linguistics analytics.
-    
-    Provides connection management, query execution, and transaction support
-    for word sketch functionality, corpus analysis, and SUBTLEX integration.
+    PostgreSQL database connector for worksets and project settings.
+
+    NOTE: Word sketch and corpus-related methods are deprecated.
+    Use Lucene services instead:
+    - Corpus queries: app.lucene_corpus_client (port 8082)
+    - Word sketches: Will be available via Lucene at port 8083
     """
     
     def __init__(self, config: Optional[PostgreSQLConfig] = None) -> None:
@@ -229,181 +243,73 @@ class PostgreSQLConnector:
             self._connection.autocommit = old_autocommit
     
     def create_word_sketch_tables(self) -> None:
-        """Create all word sketch related tables."""
-        tables_sql = [
-            self._create_word_sketches_table(),
-            self._create_sketch_grammars_table(),
-            self._create_subtlex_norms_table(),
-            self._create_frequency_analysis_table(),
-            self._create_corpus_sentences_table(),
-            self._create_linguistic_cache_table(),
-            self._create_processing_batches_table()
-        ]
-        
-        for sql in tables_sql:
-            self.execute_query(sql)
-        
-        # Create indexes for performance
-        self._create_performance_indexes()
+        """
+        DEPRECATED: Word sketch tables are no longer created.
+
+        Word sketch functionality has been migrated to Lucene (port 8083).
+        This method is kept for backwards compatibility but does nothing.
+
+        Raises:
+            DeprecationWarning: Always raised to indicate deprecated usage.
+        """
+        import warnings
+        warnings.warn(
+            "create_word_sketch_tables() is deprecated. "
+            "Word sketch functionality is now handled by Lucene service.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # No-op: tables are no longer created in PostgreSQL
     
     def _create_word_sketches_table(self) -> str:
-        """SQL for word sketches table creation."""
-        return """
-        CREATE TABLE IF NOT EXISTS word_sketches (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            headword TEXT NOT NULL,
-            headword_lemma TEXT NOT NULL,
-            headword_pos TEXT,
-            collocate TEXT NOT NULL,
-            collocate_lemma TEXT NOT NULL,
-            collocate_pos TEXT,
-            grammatical_relation TEXT NOT NULL,
-            relation_pattern TEXT,
-            frequency INTEGER DEFAULT 1,
-            logdice_score FLOAT NOT NULL,
-            mutual_information FLOAT,
-            t_score FLOAT,
-            sentence_ids UUID[],
-            corpus_source TEXT DEFAULT 'parallel_corpus',
-            confidence_level FLOAT DEFAULT 1.0,
-            sketch_grammar_version TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-    
+        """DEPRECATED: Word sketch tables are no longer used."""
+        raise NotImplementedError(
+            "Word sketch tables are no longer created. "
+            "Use Lucene word-sketch service (port 8083) instead."
+        )
+
     def _create_sketch_grammars_table(self) -> str:
-        """SQL for sketch grammars table creation."""
-        return """
-        CREATE TABLE IF NOT EXISTS sketch_grammars (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            pattern_name TEXT NOT NULL,
-            pattern_cqp TEXT NOT NULL,
-            pattern_description TEXT,
-            language TEXT DEFAULT 'en',
-            pos_constraints JSONB,
-            bidirectional BOOLEAN DEFAULT false,
-            priority INTEGER DEFAULT 1,
-            grammar_source TEXT,
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-    
+        """DEPRECATED: Sketch grammars are no longer stored in PostgreSQL."""
+        raise NotImplementedError(
+            "Sketch grammars are no longer stored in PostgreSQL. "
+            "Use Lucene word-sketch service (port 8083) instead."
+        )
+
     def _create_subtlex_norms_table(self) -> str:
-        """SQL for SUBTLEX norms table creation."""
-        return """
-        CREATE TABLE IF NOT EXISTS subtlex_norms (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            word TEXT NOT NULL,
-            pos_tag TEXT,
-            frequency_per_million FLOAT NOT NULL,
-            context_diversity FLOAT,
-            word_length INTEGER,
-            log_frequency FLOAT,
-            zipf_score FLOAT,
-            phonological_neighbors INTEGER,
-            orthographic_neighbors INTEGER,
-            age_of_acquisition FLOAT,
-            concreteness_rating FLOAT,
-            valence_rating FLOAT,
-            arousal_rating FLOAT,
-            dominance_rating FLOAT,
-            subtlex_dataset TEXT DEFAULT 'subtlex_us',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT unique_subtlex_entry UNIQUE(word, pos_tag, subtlex_dataset)
-        );
-        """
-    
+        """DEPRECATED: SUBTLEX norms are no longer stored in PostgreSQL."""
+        raise NotImplementedError(
+            "SUBTLEX norms are no longer stored in PostgreSQL."
+        )
+
     def _create_frequency_analysis_table(self) -> str:
-        """SQL for frequency analysis table creation."""
-        return """
-        CREATE TABLE IF NOT EXISTS frequency_analysis (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            word TEXT NOT NULL,
-            lemma TEXT,
-            pos_tag TEXT,
-            corpus_frequency INTEGER DEFAULT 0,
-            corpus_relative_freq FLOAT,
-            subtlex_frequency FLOAT,
-            subtlex_context_diversity FLOAT,
-            frequency_ratio FLOAT,
-            psychological_accessibility FLOAT,
-            corpus_source TEXT,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-    
+        """DEPRECATED: Frequency analysis is no longer stored in PostgreSQL."""
+        raise NotImplementedError(
+            "Frequency analysis is no longer stored in PostgreSQL. "
+            "Use Lucene corpus service (port 8082) instead."
+        )
+
     def _create_corpus_sentences_table(self) -> str:
-        """SQL for corpus sentences table creation."""
-        return """
-        CREATE TABLE IF NOT EXISTS corpus_sentences (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            document_id UUID,
-            sentence_number INTEGER,
-            source_text TEXT NOT NULL,
-            target_text TEXT NOT NULL,
-            source_tokens TEXT[],
-            target_tokens TEXT[],
-            source_lemmas TEXT[],
-            target_lemmas TEXT[],
-            source_pos_tags TEXT[],
-            target_pos_tags TEXT[],
-            alignment_score FLOAT DEFAULT 1.0,
-            linguistic_processed BOOLEAN DEFAULT false,
-            processing_timestamp TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-    
+        """DEPRECATED: Corpus sentences are no longer stored in PostgreSQL."""
+        raise NotImplementedError(
+            "Corpus sentences are no longer stored in PostgreSQL. "
+            "Use Lucene corpus service (port 8082) instead."
+        )
+
     def _create_linguistic_cache_table(self) -> str:
-        """SQL for linguistic analysis cache table creation."""
-        return """
-        CREATE TABLE IF NOT EXISTS linguistic_cache (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            text_hash TEXT UNIQUE NOT NULL,
-            original_text TEXT NOT NULL,
-            language TEXT NOT NULL,
-            tokens TEXT[],
-            lemmas TEXT[],
-            pos_tags TEXT[],
-            dependencies JSONB,
-            processor_version TEXT,
-            cache_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-    
+        """DEPRECATED: Linguistic cache is no longer stored in PostgreSQL."""
+        raise NotImplementedError(
+            "Linguistic cache is no longer stored in PostgreSQL."
+        )
+
     def _create_processing_batches_table(self) -> str:
-        """SQL for processing batches table creation."""
-        return """
-        CREATE TABLE IF NOT EXISTS processing_batches (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            batch_type TEXT NOT NULL,
-            document_ids UUID[],
-            sentence_range_start INTEGER,
-            sentence_range_end INTEGER,
-            status TEXT DEFAULT 'pending',
-            started_at TIMESTAMP,
-            completed_at TIMESTAMP,
-            error_message TEXT,
-            processing_stats JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-    
+        """DEPRECATED: Processing batches are no longer tracked in PostgreSQL."""
+        raise NotImplementedError(
+            "Processing batches are no longer tracked in PostgreSQL."
+        )
+
     def _create_performance_indexes(self) -> None:
-        """Create performance indexes for word sketch tables."""
-        indexes = [
-            "CREATE INDEX IF NOT EXISTS idx_word_sketches_headword ON word_sketches(headword_lemma);",
-            "CREATE INDEX IF NOT EXISTS idx_word_sketches_relation ON word_sketches(grammatical_relation);",
-            "CREATE INDEX IF NOT EXISTS idx_word_sketches_logdice ON word_sketches(logdice_score DESC);",
-            "CREATE INDEX IF NOT EXISTS idx_subtlex_word ON subtlex_norms(word, pos_tag);",
-            "CREATE INDEX IF NOT EXISTS idx_frequency_analysis_lemma ON frequency_analysis(lemma, pos_tag);",
-            "CREATE INDEX IF NOT EXISTS idx_corpus_sentences_processed ON corpus_sentences(linguistic_processed);",
-            "CREATE INDEX IF NOT EXISTS idx_linguistic_cache_hash ON linguistic_cache(text_hash);"
-        ]
-        
-        for index_sql in indexes:
-            self.execute_query(index_sql)
+        """DEPRECATED: Performance indexes are no longer needed."""
+        pass  # No-op
     
     def close(self) -> None:
         """Close database connection."""

@@ -19,11 +19,23 @@ def app():
     test_app = Flask(__name__)
     test_app.config['TESTING'] = True
     test_app.register_blueprint(corpus_bp)
-    
-    # Ensure injector is available on the app  
+
+    # Ensure injector is available on the app
     from app import injector
     test_app.injector = injector  # type: ignore
-    
+
+    # Create mock Lucene corpus client for routes that need it
+    from unittest.mock import Mock
+    mock_client = Mock()
+    mock_client.stats.return_value = {
+        'total_documents': 1000,
+        'avg_source_length': 50.5,
+        'avg_target_length': 48.2
+    }
+    mock_client.clear.return_value = {'documentsDeleted': 0}
+    mock_client.optimize.return_value = {'segmentsMerged': 0, 'docs': 0}
+    test_app.lucene_corpus_client = mock_client
+
     return test_app
 
 
@@ -123,24 +135,19 @@ class TestCorpusStats:
     
     @pytest.mark.integration
     def test_get_corpus_stats_success(self, client):
-        """Test successful retrieval of corpus statistics."""
-        mock_stats = {
-            'total_records': 1000,
-            'avg_source_length': 50.5,
-            'avg_target_length': 48.2
-        }
-        
+        """Test successful retrieval of corpus statistics from Lucene."""
         with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator:
             mock_instance = Mock()
             mock_migrator.return_value = mock_instance
-            mock_instance.get_corpus_stats.return_value = mock_stats
-            
+
             response = client.get('/api/corpus/stats')
-            
+
             assert response.status_code == 200
             data = response.get_json()
             assert data['success'] is True
-            assert data['stats'] == mock_stats
+            # Lucene route returns flat structure with total_records
+            assert data['total_records'] == 1000
+            assert data['source'] == 'lucene'
 
 
 
@@ -150,35 +157,25 @@ class TestCorpusCleanup:
     
     @pytest.mark.integration
     def test_cleanup_corpus_success(self, client):
-        """Test successful corpus cleanup."""
-        with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator:
-            mock_instance = Mock()
-            mock_migrator.return_value = mock_instance
-            mock_instance.drop_database.return_value = None
-            mock_instance.create_database_if_not_exists.return_value = None
-            mock_instance.create_schema.return_value = None
-            
-            response = client.post('/api/corpus/cleanup')
-            
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data['success'] is True
-            assert 'cleaned up successfully' in data['message']
-    
+        """Test successful corpus cleanup via Lucene clear."""
+        response = client.post('/api/corpus/cleanup')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        # Lucene route returns message about cleared documents
+        assert 'Cleared' in data['message'] or 'documents' in data['message'].lower()
+
     @pytest.mark.integration
     def test_deduplicate_corpus_success(self, client):
-        """Test successful corpus deduplication."""
-        with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator:
-            mock_instance = Mock()
-            mock_migrator.return_value = mock_instance
-            mock_instance.deduplicate_corpus.return_value = 50
-            
-            response = client.post('/api/corpus/deduplicate')
-            
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data['success'] is True
-            assert data['duplicates_removed'] == 50
+        """Test successful corpus deduplication via Lucene optimize."""
+        response = client.post('/api/corpus/deduplicate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        # Lucene route returns segments_merged and documents_remaining
+        assert 'segments_merged' in data or 'documents_remaining' in data
 
 
 

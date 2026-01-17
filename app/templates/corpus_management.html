@@ -56,9 +56,9 @@
                 <h1 class="mb-4">
                     <i class="fas fa-database"></i> Corpus Management
                 </h1>
-                <!-- PostgreSQL Connection Status -->
-                <div class="alert alert-info" role="alert" id="postgres-status">
-                    <strong><i class="fas fa-database"></i> PostgreSQL Status:</strong>
+                <!-- Lucene Connection Status -->
+                <div class="alert alert-info" role="alert" id="lucene-status">
+                    <strong><i class="fas fa-search"></i> Lucene Corpus Service:</strong>
                     <span id="connection-status">
                         <i class="fas fa-spinner fa-spin"></i> Checking connection...
                     </span>
@@ -76,7 +76,7 @@
                             <i class="fas fa-chart-bar"></i> Current Corpus Statistics
                         </h5>
                         <div class="row" id="stats-container">
-                            <div class="col-md-3">
+                            <div class="col-md-6">
                                 <div class="text-center">
                                     <h3 class="mb-0" id="total-records">
                                         <i class="fas fa-spinner fa-spin"></i>
@@ -84,23 +84,7 @@
                                     <small>Total Records</small>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h3 class="mb-0" id="avg-source-length">
-                                        <i class="fas fa-spinner fa-spin"></i>
-                                    </h3>
-                                    <small>Avg Source Length</small>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h3 class="mb-0" id="avg-target-length">
-                                        <i class="fas fa-spinner fa-spin"></i>
-                                    </h3>
-                                    <small>Avg Target Length</small>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-6">
                                 <div class="text-center">
                                     <h3 class="mb-0" id="last-updated">
                                         <i class="fas fa-spinner fa-spin"></i>
@@ -177,6 +161,14 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="row mt-3" id="table-name-row" style="display: none;">
+                            <div class="col-md-12">
+                                <label for="table-name" class="form-label">SQLite Table Name</label>
+                                <input type="text" class="form-control" id="table-name" name="table_name" placeholder="e.g., parallel_corpus">
+                                <small class="text-muted">Required for SQLite imports. Table must have source_text and target_text columns.</small>
+                            </div>
+                        </div>
                         
                         <div class="progress-container">
                             <div class="progress mb-2">
@@ -213,7 +205,7 @@
                         </button>
                         
                         <button class="btn btn-warning" onclick="deduplicateCorpus()">
-                            <i class="fas fa-compress-alt"></i> Remove Duplicates
+                            <i class="fas fa-compress-alt"></i> Optimize
                         </button>
                         
                         <button class="btn btn-danger" onclick="cleanupCorpus()">
@@ -364,8 +356,19 @@
         function updateUploadUI() {
             const uploadArea = document.getElementById('upload-area');
             const uploadBtn = document.getElementById('upload-btn');
-            
+            const tableNameRow = document.getElementById('table-name-row');
+
             if (selectedFile) {
+                const ext = selectedFile.name.split('.').pop().toLowerCase();
+                const isSqlite = ext === 'db';
+
+                // Show/hide table name field for SQLite files
+                if (isSqlite) {
+                    tableNameRow.style.display = 'flex';
+                } else {
+                    tableNameRow.style.display = 'none';
+                }
+
                 uploadArea.innerHTML = `
                     <i class="fas fa-file fa-2x text-success mb-2"></i>
                     <h6>${selectedFile.name}</h6>
@@ -374,6 +377,7 @@
                 uploadBtn.disabled = false;
             } else {
                 uploadBtn.disabled = true;
+                tableNameRow.style.display = 'none';
             }
         }
 
@@ -398,6 +402,8 @@
         function clearUpload() {
             selectedFile = null;
             document.getElementById('file-input').value = '';
+            document.getElementById('table-name').value = '';
+            document.getElementById('table-name-row').style.display = 'none';
             document.getElementById('upload-area').innerHTML = `
                 <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
                 <h5>Drag & Drop files here</h5>
@@ -410,11 +416,21 @@
         async function uploadFile() {
             if (!selectedFile) return;
 
+            // Validate table_name for SQLite files
+            const ext = selectedFile.name.split('.').pop().toLowerCase();
+            if (ext === 'db') {
+                const tableName = document.getElementById('table-name').value.trim();
+                if (!tableName) {
+                    showToast('Please enter the SQLite table name', 'error');
+                    return;
+                }
+            }
+
             const formData = new FormData(document.getElementById('upload-form'));
             const progressContainer = document.querySelector('.progress-container');
             const progressBar = document.getElementById('upload-progress');
             const statusText = document.getElementById('upload-status');
-            
+
             progressContainer.style.display = 'block';
             progressBar.style.width = '10%';
             statusText.textContent = 'Starting upload...';
@@ -474,87 +490,96 @@
         async function refreshStats() {
             // Show loading indicators
             document.getElementById('total-records').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            document.getElementById('avg-source-length').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            document.getElementById('avg-target-length').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             document.getElementById('last-updated').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            
+
             try {
                 const response = await fetch('/api/corpus/stats/ui');
                 const data = await response.json();
-                
+
                 if (data.success) {
                     // Update connection status
-                    const statusAlert = document.getElementById('postgres-status');
+                    const statusAlert = document.getElementById('lucene-status');
                     const connectionStatus = document.getElementById('connection-status');
                     const connectionError = document.getElementById('connection-error');
-                    
-                    if (data.postgres_status.connected) {
+
+                    // Support both lucene_status and postgres_status (backward compat)
+                    const status = data.lucene_status || data.postgres_status;
+
+                    if (status && status.connected) {
                         statusAlert.className = 'alert alert-success';
-                        connectionStatus.innerHTML = '<span class="text-success">Connected</span>';
+                        connectionStatus.innerHTML = '<span class="text-success"><i class="fas fa-check"></i> Connected</span>';
                         connectionError.style.display = 'none';
                     } else {
                         statusAlert.className = 'alert alert-warning';
-                        connectionStatus.innerHTML = '<span class="text-danger">Not Connected</span>';
-                        if (data.postgres_status.error) {
-                            connectionError.innerHTML = `<small>${data.postgres_status.error}</small>`;
+                        connectionStatus.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Not Connected</span>';
+                        if (status && status.error) {
+                            connectionError.textContent = status.error;
                             connectionError.style.display = 'block';
                         }
                     }
-                    
+
                     // Update stats
                     document.getElementById('total-records').textContent = data.corpus_stats.total_records;
-                    document.getElementById('avg-source-length').textContent = data.corpus_stats.avg_source_length;
-                    document.getElementById('avg-target-length').textContent = data.corpus_stats.avg_target_length;
                     document.getElementById('last-updated').textContent = data.corpus_stats.last_updated;
-                    
+
                     console.log('Corpus stats loaded successfully', data.cached ? '(cached)' : '(fresh)');
                 } else {
                     console.error('Failed to load corpus stats:', data.error);
                     // Show error in stats
                     document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
-                    document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
-                    document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
                     document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
                 }
             } catch (error) {
                 console.error('Error loading corpus stats:', error);
                 // Show error in stats
                 document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
-                document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
-                document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
                 document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
             }
         }
 
         async function deduplicateCorpus() {
-            if (!confirm('This will remove duplicate entries from the corpus. Continue?')) return;
-            
+            if (!confirm('This will optimize the corpus index. Continue?')) return;
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
             try {
-                const response = await fetch('/api/corpus/deduplicate', { method: 'POST' });
+                const response = await fetch('/api/corpus/deduplicate', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
                 const data = await response.json();
                 
                 if (data.success) {
-                    showToast(`Removed ${data.duplicates_removed} duplicate entries`, 'success');
-                    addRecentOperation(`Deduplicated corpus - removed ${data.duplicates_removed} duplicates`);
+                    showToast(`Optimized index: ${data.message}`, 'success');
+                    addRecentOperation(`Optimized corpus - ${data.message}`);
                     refreshStats();
                 } else {
-                    showToast('Deduplication failed: ' + data.error, 'error');
+                    showToast('Optimization failed: ' + data.error, 'error');
                 }
             } catch (error) {
-                showToast('Deduplication failed: ' + error.message, 'error');
+                showToast('Optimization failed: ' + error.message, 'error');
             }
         }
 
         async function cleanupCorpus() {
             if (!confirm('This will permanently delete ALL corpus data. This action cannot be undone. Continue?')) return;
-            
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
             try {
-                const response = await fetch('/api/corpus/cleanup', { method: 'POST' });
+                const response = await fetch('/api/corpus/cleanup', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
                 const data = await response.json();
-                
+
                 if (data.success) {
-                    showToast('Corpus data cleared successfully', 'success');
-                    addRecentOperation('Cleared all corpus data');
+                    showToast(`Cleared ${data.documents_deleted} documents from index`, 'success');
+                    addRecentOperation(`Cleared ${data.documents_deleted} documents`);
                     refreshStats();
                 } else {
                     showToast('Cleanup failed: ' + data.error, 'error');
@@ -656,47 +681,44 @@
             try {
                 const response = await fetch('/api/corpus/stats/ui');
                 const data = await response.json();
-                
+
                 if (data.success) {
                     // Update connection status
-                    const statusAlert = document.getElementById('postgres-status');
+                    const statusAlert = document.getElementById('lucene-status');
                     const connectionStatus = document.getElementById('connection-status');
                     const connectionError = document.getElementById('connection-error');
-                    
-                    if (data.postgres_status.connected) {
+
+                    // Support both lucene_status and postgres_status (backward compat)
+                    const status = data.lucene_status || data.postgres_status;
+
+                    if (status && status.connected) {
                         statusAlert.className = 'alert alert-success';
-                        connectionStatus.innerHTML = '<span class="text-success">Connected</span>';
+                        connectionStatus.innerHTML = '<span class="text-success"><i class="fas fa-check"></i> Connected</span>';
                         connectionError.style.display = 'none';
                     } else {
                         statusAlert.className = 'alert alert-warning';
-                        connectionStatus.innerHTML = '<span class="text-danger">Not Connected</span>';
-                        if (data.postgres_status.error) {
-                            connectionError.innerHTML = `<small>${data.postgres_status.error}</small>`;
+                        connectionStatus.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Not Connected</span>';
+                        if (status && status.error) {
+                            connectionError.textContent = status.error;
                             connectionError.style.display = 'block';
                         }
                     }
-                    
+
                     // Update stats
                     document.getElementById('total-records').textContent = data.corpus_stats.total_records;
-                    document.getElementById('avg-source-length').textContent = data.corpus_stats.avg_source_length;
-                    document.getElementById('avg-target-length').textContent = data.corpus_stats.avg_target_length;
                     document.getElementById('last-updated').textContent = data.corpus_stats.last_updated;
-                    
+
                     console.log('Corpus stats loaded successfully', data.cached ? '(cached)' : '(fresh)');
                 } else {
                     console.error('Failed to load corpus stats:', data.error);
                     // Show error in stats
                     document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
-                    document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
-                    document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
                     document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
                 }
             } catch (error) {
                 console.error('Error loading corpus stats:', error);
                 // Show error in stats
                 document.getElementById('total-records').innerHTML = '<span class="text-danger">Error</span>';
-                document.getElementById('avg-source-length').innerHTML = '<span class="text-danger">Error</span>';
-                document.getElementById('avg-target-length').innerHTML = '<span class="text-danger">Error</span>';
                 document.getElementById('last-updated').innerHTML = '<span class="text-danger">Error</span>';
             }
         }

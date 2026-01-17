@@ -13,9 +13,9 @@ def test_corpus_management_uses_analytics_database():
     # Mock render_template to avoid template file dependencies
     with patch('app.views.render_template') as mock_render:
         mock_render.return_value = 'rendered_corpus_management_template'
-        
+
         result = corpus_management()
-        
+
         # Verify the template was rendered with correct arguments
         mock_render.assert_called_once_with(
             'corpus_management.html',
@@ -25,9 +25,9 @@ def test_corpus_management_uses_analytics_database():
                 'avg_target_length': '0.00',
                 'last_updated': 'Loading...'
             },
-            postgres_status={'connected': False, 'error': None}
+            lucene_status={'connected': False, 'error': None}
         )
-        
+
         # Verify the result is the mocked template
         assert result == 'rendered_corpus_management_template'
 

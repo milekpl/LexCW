@@ -653,4 +653,10 @@ def create_app(config_name=None):
     app.merge_split_service = injector.get(MergeSplitService)
     app.validation_rules_service = injector.get(ValidationRulesService)
 
+    # Initialize Lucene corpus client
+    from app.services.lucene_corpus_client import LuceneCorpusClient
+    app.lucene_corpus_client = LuceneCorpusClient(
+        base_url=app.config.get('LUCENE_CORPUS_URL', 'http://localhost:8082')
+    )
+
     return app

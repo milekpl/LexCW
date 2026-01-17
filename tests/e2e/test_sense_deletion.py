@@ -575,8 +575,8 @@ def test_multiple_deletions(page, flask_test_server):
     for m, u in requests_made[-50:]:
         print(m, u)
 
-    # Reload and verify deletion persisted
-    page.goto(edit_url, timeout=30000)
+    # Reload and verify deletion persisted - use reload() instead of goto() to avoid navigation issues
+    page.reload(timeout=30000)
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(1000)
 

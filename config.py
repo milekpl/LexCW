@@ -41,6 +41,9 @@ class Config:
     
     # Export configuration
     EXPORT_PATH = os.environ.get('EXPORT_PATH') or 'instance/exports'
+
+    # Lucene Corpus Service configuration
+    LUCENE_CORPUS_URL = os.environ.get('LUCENE_CORPUS_URL') or 'http://localhost:8082'
     
     @staticmethod
     def init_app(app):

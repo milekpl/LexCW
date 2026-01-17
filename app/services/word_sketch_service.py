@@ -1,8 +1,15 @@
 """
-Word Sketch service for PostgreSQL-backed grammatical collocation analysis.
+Word Sketch service - DEPRECATED.
 
-Implements word sketch functionality based on Sketch Engine methodology,
-integrated with PostgreSQL for performance and SUBTLEX for psychological validity.
+This module is deprecated until the Lucene word-sketch service is available.
+The PostgreSQL-based implementation has been replaced by a Lucene-based service
+at port 8083.
+
+To use word sketches, wait for the Lucene word-sketch service to be deployed,
+then use:
+    from app.services.word_sketch_client import WordSketchClient
+    client = WordSketchClient(base_url="http://localhost:8083")
+    sketch = client.word_sketch("lemma")
 """
 from __future__ import annotations
 
@@ -24,19 +31,31 @@ from app.utils.exceptions import DatabaseError, ValidationError
 
 class WordSketchService:
     """
-    Service for managing word sketches, SUBTLEX integration, and corpus processing.
-    
-    Provides high-level operations for word sketch extraction, frequency analysis,
-    and sentence-aligned corpus processing with PostgreSQL backend.
+    DEPRECATED: Use Lucene word-sketch service instead.
+
+    This service is deprecated because the underlying PostgreSQL tables
+    (word_sketches, sketch_grammars, etc.) are no longer created or used.
+
+    Word sketch functionality will be available via Lucene at port 8083.
     """
-    
+
     def __init__(self, postgres_connector: PostgreSQLConnector) -> None:
         """
         Initialize word sketch service.
-        
+
         Args:
-            postgres_connector: PostgreSQL database connector
+            postgres_connector: DEPRECATED - no longer used.
+
+        Raises:
+            DeprecationWarning: Always raised to indicate deprecated usage.
         """
+        import warnings
+        warnings.warn(
+            "WordSketchService is deprecated. "
+            "Use Lucene word-sketch service (port 8083) instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.db = postgres_connector
         self.logger = logging.getLogger(__name__)
         self._nlp_model: Any = None  # Lazy-loaded spaCy model
