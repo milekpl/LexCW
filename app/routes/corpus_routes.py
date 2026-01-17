@@ -56,42 +56,46 @@ def upload_corpus():
         # Check if file is present
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
-        
+
         if not _allowed_file(file.filename):
             return jsonify({'error': 'File type not supported. Use TMX, CSV, or SQLite DB files.'}), 400
-        
+
         # Get options
         source_lang = request.form.get('source_lang', 'en')
         target_lang = request.form.get('target_lang', 'pl')
+        table_name = request.form.get('table_name')
         drop_existing = request.form.get('drop_existing', 'false').lower() == 'true'
-        
+
         # Secure filename and save temporarily
         filename = secure_filename(file.filename or 'corpus')
-        
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=f'_{filename}') as temp_file:
             file.save(temp_file.name)
             temp_path = Path(temp_file.name)
-        
+
         try:
             # Initialize migrator
             postgres_config = _get_postgres_config()
             migrator = CorpusMigrator(postgres_config)
-            
+
             # Drop existing database if requested
             if drop_existing:
                 migrator.drop_database()
-            
+
             # Detect format and migrate
             file_ext = temp_path.suffix.lower()
             if filename.endswith('.db'):
                 file_ext = '.db'
-            
+
             if file_ext == '.db':
-                stats = migrator.migrate_sqlite_corpus(temp_path, cleanup_temp=True)
+                # For SQLite, table_name is required
+                if not table_name:
+                    return jsonify({'error': 'table_name parameter is required for SQLite imports'}), 400
+                stats = migrator.migrate_sqlite_corpus(temp_path, table_name=table_name, cleanup_temp=True)
             elif file_ext == '.tmx':
                 stats = migrator.migrate_tmx_corpus(temp_path, source_lang, target_lang, cleanup_temp=True)
             elif file_ext == '.csv':
@@ -102,18 +106,18 @@ def upload_corpus():
                 stats = migrator.stats
             else:
                 return jsonify({'error': 'Unsupported file format'}), 400
-            
+
             return jsonify({
                 'success': True,
                 'message': 'Corpus migrated successfully',
                 'stats': _format_migration_stats(stats)
             })
-        
+
         finally:
             # Clean up temporary file
             if temp_path.exists():
                 temp_path.unlink()
-    
+
     except Exception as e:
         current_app.logger.error(f"Corpus migration failed: {e}")
         return jsonify({'error': f'Migration failed: {str(e)}'}), 500
@@ -121,59 +125,44 @@ def upload_corpus():
 
 @corpus_bp.route('/stats', methods=['GET'])
 def get_corpus_stats():
-    """Get current corpus statistics - bypasses cache for fresh data."""
+    """Get current corpus statistics from Lucene - bypasses cache for fresh data."""
     import json
     from datetime import datetime
     from ..services.cache_service import CacheService
-    
+
     try:
-        postgres_config = _get_postgres_config()
-        migrator = CorpusMigrator(postgres_config)
-        stats = migrator.get_corpus_stats()
-        
-        # Format stats for frontend compatibility
-        formatted_stats = {
-            'total_records': stats.get('total_records', 0),
-            'avg_source_length': float(stats.get('avg_source_length', 0)) if stats.get('avg_source_length') else 0,
-            'avg_target_length': float(stats.get('avg_target_length', 0)) if stats.get('avg_target_length') else 0,
-        }
-        
+        # Get stats from Lucene corpus client
+        stats = current_app.lucene_corpus_client.stats()
+
+        total_records = stats.get('total_documents', stats.get('total_records', 0))
+        last_updated = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         # Update cache with fresh data
         cache = CacheService()
         if cache.is_available():
-            # Format last_updated for cache
-            last_record = stats.get('last_record')
-            if isinstance(last_record, datetime):
-                last_updated = last_record.strftime('%Y-%m-%d %H:%M:%S')
-            elif last_record:
-                last_updated = str(last_record)
-            else:
-                last_updated = 'N/A'
-                
             cache_data = {
-                'total_records': formatted_stats['total_records'],
-                'avg_source_length': f"{formatted_stats['avg_source_length']:.2f}",
-                'avg_target_length': f"{formatted_stats['avg_target_length']:.2f}",
-                'last_updated': last_updated
+                'total_records': total_records,
+                'last_updated': last_updated,
+                'source': 'lucene'
             }
             cache.set('corpus_stats', json.dumps(cache_data), ttl=1800)
-            current_app.logger.info("Updated cache with fresh corpus stats")
-        
+            current_app.logger.info("Updated cache with fresh corpus stats from Lucene")
+
         return jsonify({
             'success': True,
-            'stats': formatted_stats
+            'total_records': total_records,
+            'last_updated': last_updated,
+            'source': 'lucene'
         })
-    
+
     except Exception as e:
-        current_app.logger.error(f"Failed to get corpus stats: {e}")
+        current_app.logger.error(f"Failed to get corpus stats from Lucene: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
-            'stats': {
-                'total_records': 0,
-                'avg_source_length': 0,
-                'avg_target_length': 0
-            }
+            'total_records': 0,
+            'last_updated': None,
+            'source': 'lucene'
         }), 500
 
 
@@ -181,6 +170,7 @@ def get_corpus_stats():
 def get_corpus_stats_ui():
     """
     Get corpus statistics and connection status for UI display with caching.
+    Returns simplified stats: total_records and last_updated only.
     ---
     tags:
       - Corpus
@@ -193,12 +183,12 @@ def get_corpus_stats_ui():
             success:
               type: boolean
               description: Request success status
-            postgres_status:
+            lucene_status:
               type: object
               properties:
                 connected:
                   type: boolean
-                  description: PostgreSQL connection status
+                  description: Lucene service connection status
                 error:
                   type: string
                   description: Error message if connection failed
@@ -208,12 +198,6 @@ def get_corpus_stats_ui():
                 total_records:
                   type: integer
                   description: Total number of corpus records
-                avg_source_length:
-                  type: string
-                  description: Average source text length (formatted)
-                avg_target_length:
-                  type: string
-                  description: Average target text length (formatted)
                 last_updated:
                   type: string
                   description: Last update timestamp
@@ -224,15 +208,13 @@ def get_corpus_stats_ui():
     import json
     from datetime import datetime
     from ..services.cache_service import CacheService
-    
-    postgres_status = {'connected': False, 'error': None}
+
+    lucene_status = {'connected': False, 'error': None}
     corpus_stats = {
         'total_records': 0,
-        'avg_source_length': '0.00',
-        'avg_target_length': '0.00',
         'last_updated': 'N/A'
     }
-    
+
     # Try to get cached corpus stats first
     cache = CacheService()
     # Skip cache during tests to avoid stale statistics
@@ -242,65 +224,49 @@ def get_corpus_stats_ui():
         if cached_stats:
             try:
                 stats_data = json.loads(cached_stats)
-                postgres_status['connected'] = True
-                
+                lucene_status['connected'] = True
+
                 # Use cached data
                 corpus_stats.update(stats_data)
-                
+
                 current_app.logger.info("Using cached corpus stats for UI")
                 return jsonify({
                     'success': True,
-                    'postgres_status': postgres_status,
+                    'lucene_status': lucene_status,
                     'corpus_stats': corpus_stats,
                     'cached': True
                 })
             except (json.JSONDecodeError, KeyError) as e:
                 current_app.logger.warning(f"Invalid cached corpus stats: {e}")
-    
-    # If no cache or cache miss, fetch fresh data
+
+    # If no cache or cache miss, fetch fresh data from Lucene
     try:
-        postgres_config = _get_postgres_config()
-        migrator = CorpusMigrator(postgres_config)
-        
-        # Test connection by attempting to get stats
-        try:
-            stats = migrator.get_corpus_stats()
-            postgres_status['connected'] = True
-            
-            # Format stats for template
-            corpus_stats['total_records'] = stats.get('total_records', 0)
-            
-            avg_source_length = stats.get('avg_source_length')
-            corpus_stats['avg_source_length'] = f"{avg_source_length:.2f}" if avg_source_length else "0.00"
-            
-            avg_target_length = stats.get('avg_target_length')
-            corpus_stats['avg_target_length'] = f"{avg_target_length:.2f}" if avg_target_length else "0.00"
+        stats = current_app.lucene_corpus_client.stats()
 
-            last_record = stats.get('last_record')
-            if isinstance(last_record, datetime):
-                corpus_stats['last_updated'] = last_record.strftime('%Y-%m-%d %H:%M:%S')
-            elif last_record:
-                corpus_stats['last_updated'] = str(last_record)
-            else:
-                corpus_stats['last_updated'] = 'N/A'
-            
-            # Cache the stats for 30 minutes (1800 seconds)
-            if use_cache:
-                cache.set('corpus_stats', json.dumps(corpus_stats), ttl=1800)
-                current_app.logger.info("Cached fresh corpus stats for 30 minutes")
+        # Check if Lucene returned valid data
+        if stats.get('status') == 'unhealthy':
+            raise Exception(stats.get('error', 'Lucene service unhealthy'))
 
-        except Exception as e:
-            current_app.logger.warning(f"Could not fetch corpus statistics: {e}")
-            postgres_status['connected'] = False
-            postgres_status['error'] = f"Could not fetch stats: {e}"
-            
+        lucene_status['connected'] = True
+
+        # Format stats for template
+        total_records = stats.get('total_documents', stats.get('total_records', 0))
+        corpus_stats['total_records'] = total_records
+        corpus_stats['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Cache the stats for 30 minutes (1800 seconds)
+        if use_cache:
+            cache.set('corpus_stats', json.dumps(corpus_stats), ttl=1800)
+            current_app.logger.info("Cached fresh corpus stats from Lucene for 30 minutes")
+
     except Exception as e:
-        current_app.logger.error(f"PostgreSQL connection error: {e}")
-        postgres_status['error'] = str(e)
-    
+        current_app.logger.warning(f"Could not fetch corpus statistics from Lucene: {e}")
+        lucene_status['connected'] = False
+        lucene_status['error'] = str(e)
+
     return jsonify({
         'success': True,
-        'postgres_status': postgres_status,
+        'lucene_status': lucene_status,
         'corpus_stats': corpus_stats,
         'cached': False
     })
@@ -308,46 +274,47 @@ def get_corpus_stats_ui():
 
 @corpus_bp.route('/cleanup', methods=['POST'])
 def cleanup_corpus():
-    """Clean up corpus database - drop and recreate."""
+    """Clear all documents from the Lucene index via /clear endpoint."""
     try:
-        postgres_config = _get_postgres_config()
-        migrator = CorpusMigrator(postgres_config)
-        
-        # Drop database
-        migrator.drop_database()
-        
-        # Recreate database and schema
-        migrator.create_database_if_not_exists()
-        migrator.create_schema()
-        
+        data = current_app.lucene_corpus_client.clear()
+
         return jsonify({
             'success': True,
-            'message': 'Corpus database cleaned up successfully'
+            'message': f"Cleared {data.get('documentsDeleted', 0)} documents from index",
+            'documents_deleted': data.get('documentsDeleted', 0)
         })
-    
+
     except Exception as e:
-        current_app.logger.error(f"Corpus cleanup failed: {e}")
-        return jsonify({'error': f'Cleanup failed: {str(e)}'}), 500
+        current_app.logger.error(f"Clear failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @corpus_bp.route('/deduplicate', methods=['POST'])
 def deduplicate_corpus():
-    """Remove duplicate entries from corpus."""
+    """Optimize Lucene index via /optimize endpoint.
+
+    Note: True deduplication requires index rebuild. This endpoint
+    optimizes the index which may help with duplicate handling.
+    """
     try:
-        postgres_config = _get_postgres_config()
-        migrator = CorpusMigrator(postgres_config)
-        
-        duplicates_removed = migrator.deduplicate_corpus()
-        
+        data = current_app.lucene_corpus_client.optimize()
+
         return jsonify({
             'success': True,
-            'message': f'Removed {duplicates_removed} duplicate entries',
-            'duplicates_removed': duplicates_removed
+            'message': data.get('message', 'Index optimized'),
+            'segments_merged': data.get('segmentsMerged', 0),
+            'documents_remaining': data.get('docs', 0)
         })
-    
+
     except Exception as e:
-        current_app.logger.error(f"Corpus deduplication failed: {e}")
-        return jsonify({'error': f'Deduplication failed: {str(e)}'}), 500
+        current_app.logger.error(f"Optimization failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @corpus_bp.route('/convert/tmx-to-csv', methods=['POST'])

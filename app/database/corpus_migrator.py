@@ -325,20 +325,26 @@ class CorpusMigrator:
         finally:
             conn.close()
     
-    def export_sqlite_to_csv(self, sqlite_path: Path, csv_path: Path) -> int:
-        """Export SQLite corpus to CSV with text cleaning."""
-        self.logger.info(f"Exporting SQLite {sqlite_path} to CSV {csv_path}")
-        
+    def export_sqlite_to_csv(self, sqlite_path: Path, csv_path: Path, table_name: str = "parallel_corpus") -> int:
+        """Export SQLite corpus to CSV with text cleaning.
+
+        Args:
+            sqlite_path: Path to SQLite database file
+            csv_path: Path to output CSV file
+            table_name: Name of table to export from (default: parallel_corpus)
+        """
+        self.logger.info(f"Exporting SQLite {sqlite_path} to CSV {csv_path} (table: {table_name})")
+
         conn = sqlite3.connect(str(sqlite_path))
         conn.row_factory = sqlite3.Row
-        
+
         try:
             with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
                 writer.writerow(['source_text', 'target_text'])  # Header
-                
-                # Use the correct table and column names for para_crawl format
-                cursor = conn.execute("SELECT c0en, c1pl FROM tmdata_content")
+
+                # Query source_text and target_text columns from specified table
+                cursor = conn.execute(f"SELECT source_text, target_text FROM {table_name}")
                 
                 # Use generator for memory efficiency
                 def record_generator():
@@ -429,22 +435,28 @@ class CorpusMigrator:
         finally:
             conn.close()
     
-    def migrate_sqlite_corpus(self, sqlite_path: Path, cleanup_temp: bool = True) -> MigrationStats:
-        """Complete migration workflow: SQLite -> CSV -> PostgreSQL with indexes."""
+    def migrate_sqlite_corpus(self, sqlite_path: Path, table_name: str = "parallel_corpus", cleanup_temp: bool = True) -> MigrationStats:
+        """Complete migration workflow: SQLite -> CSV -> PostgreSQL with indexes.
+
+        Args:
+            sqlite_path: Path to SQLite database file
+            table_name: Name of table to export from (default: parallel_corpus)
+            cleanup_temp: Whether to delete temporary CSV file after import
+        """
         self.stats.start_time = time.time()
-        
+
         try:
             # Create database and schema
             self.create_database_if_not_exists()
             self.create_schema()
-            
+
             # Export to temporary CSV
             with tempfile.NamedTemporaryFile(mode='w+', suffix='.csv', delete=False, encoding='utf-8') as temp_csv:
                 csv_path = Path(temp_csv.name)
-            
+
             try:
                 # Export SQLite to CSV
-                self.export_sqlite_to_csv(sqlite_path, csv_path)
+                self.export_sqlite_to_csv(sqlite_path, csv_path, table_name)
                 
                 # Import CSV to PostgreSQL
                 self.import_csv_to_postgres(csv_path)

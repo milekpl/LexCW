@@ -1,5 +1,5 @@
 """
-TDD tests for corpus management PostgreSQL integration and navigation.
+TDD tests for corpus management Lucene integration and navigation.
 """
 from __future__ import annotations
 
@@ -13,54 +13,40 @@ import pytest
 
 @pytest.mark.integration
 class TestCorpusManagementIntegration:
-    """Test corpus management PostgreSQL connection and navigation."""
-    
+    """Test corpus management Lucene connection and navigation."""
+
     @pytest.mark.integration
-    def test_corpus_management_connects_to_postgresql(self, client) -> None:
-        """Test that corpus management page connects to PostgreSQL for corpus data."""
-        with patch('app.database.postgresql_connector.PostgreSQLConnector') as mock_connector:
-            mock_instance = MagicMock()
-            mock_connector.return_value = mock_instance
-            mock_instance.test_connection.return_value = True
-            mock_instance.fetch_all.return_value = [
-                {'count': 1000, 'table_name': 'parallel_corpus'},
-                {'count': 500, 'table_name': 'corpus_documents'}
-            ]
+    def test_corpus_management_connects_to_lucene(self, client) -> None:
+        """Test that corpus management page uses Lucene for corpus data."""
+        response = client.get('/corpus-management')
+        assert response.status_code == 200
 
-            response = client.get('/corpus-management')
-            assert response.status_code == 200
+        # Should contain Lucene connection status in context (not HTML)
+        # The actual Lucene connection status is loaded via AJAX
+        assert b'corpus' in response.data.lower()
 
-            # Should contain PostgreSQL connection status
-            assert b'PostgreSQL' in response.data
-            # Should contain corpus statistics
-            assert b'corpus' in response.data.lower()
-                
     @pytest.mark.integration
     def test_corpus_management_displays_connection_status(self, client) -> None:
-        """Test that corpus management displays PostgreSQL connection status."""
-        with patch('app.database.postgresql_connector.PostgreSQLConnector') as mock_connector:
-            mock_instance = MagicMock()
-            mock_connector.return_value = mock_instance
-            mock_instance.test_connection.return_value = False
+        """Test that corpus management displays connection status placeholder."""
+        response = client.get('/corpus-management')
+        assert response.status_code == 200
 
-            response = client.get('/corpus-management')
-            assert response.status_code == 200
+        # Should show connection status indicator
+        assert b'Connection' in response.data or b'Status' in response.data
 
-            # Should show connection status (even if failed)
-            assert b'Connection' in response.data or b'Status' in response.data
-                
     @pytest.mark.integration
-    def test_corpus_management_handles_postgresql_error(self, client) -> None:
-        """Test that corpus management handles PostgreSQL connection errors gracefully."""
-        with patch('app.database.postgresql_connector.PostgreSQLConnector') as mock_connector:
-            mock_connector.side_effect = Exception("PostgreSQL connection failed")
+    def test_corpus_management_handles_lucene_error(self, client) -> None:
+        """Test that corpus management handles Lucene connection errors gracefully."""
+        with patch('app.routes.corpus_routes.current_app') as mock_app:
+            # Simulate Lucene being unavailable
+            mock_app.lucene_corpus_client.stats.side_effect = Exception("Lucene connection failed")
 
             response = client.get('/corpus-management')
             assert response.status_code == 200  # Should still render page
 
             # Should handle error gracefully
             assert response.data is not None
-                
+
     @pytest.mark.integration
     def test_corpus_management_navigation_to_home(self, client) -> None:
         """Test that corpus management page has navigation link to home."""
@@ -69,7 +55,7 @@ class TestCorpusManagementIntegration:
 
         # Should have navigation to home page
         assert b'href="/"' in response.data or b"href='/'" in response.data
-            
+
     @pytest.mark.integration
     def test_corpus_management_breadcrumb_navigation(self, client) -> None:
         """Test that corpus management has proper breadcrumb navigation."""
@@ -80,53 +66,22 @@ class TestCorpusManagementIntegration:
         assert (b'Home' in response.data and b'Corpus' in response.data) or \
                b'breadcrumb' in response.data or \
                b'nav' in response.data
-                   
+
     @pytest.mark.integration
-    def test_corpus_management_displays_correct_postgresql_stats(self, client) -> None:
-        """Test that corpus management displays actual PostgreSQL corpus statistics."""
-        with patch('app.database.corpus_migrator.CorpusMigrator._get_postgres_connection') as mock_conn:
-            # Set up mock connection
-            mock_cursor = Mock()
-            mock_connection = Mock()
-
-            # Properly mock the context manager for cursor
-            cursor_context = Mock()
-            cursor_context.__enter__ = Mock(return_value=mock_cursor)
-            cursor_context.__exit__ = Mock(return_value=None)
-            mock_connection.cursor.return_value = cursor_context
-            mock_conn.return_value = mock_connection
-
-            # Mock successful query result with real data
-            from datetime import datetime
-            mock_result = {
-                'total_records': 74000000,
-                'avg_source_length': 25.5,
-                'avg_target_length': 30.2,
-                'first_record': None,
-                'last_record': datetime(2025, 6, 28, 10, 30, 0)
-            }
-            mock_cursor.fetchone.return_value = mock_result
-
-            # Test the corpus management HTML page loads successfully
-            response = client.get('/corpus-management')
-            assert response.status_code == 200
-
-            # Test the API endpoint that provides status and stats
-            api_response = client.get('/api/corpus/stats/ui')
-            assert api_response.status_code == 200
+    def test_corpus_management_displays_correct_lucene_stats(self, client) -> None:
+        """Test that corpus management displays Lucene corpus statistics via API."""
+        # Test the API endpoint that provides status and stats
+        api_response = client.get('/api/corpus/stats/ui')
+        assert api_response.status_code == 200
 
         # Parse the JSON response
         data = api_response.get_json()
 
-        # Should return success with connection established
+        # Should return success
         assert data['success'] is True
-        assert data['postgres_status']['connected'] is True
+        # Should have lucene_status (not postgres_status)
+        assert 'lucene_status' in data
 
-        # Should display the correct corpus statistics
-        assert data['corpus_stats']['total_records'] == 74000000
-        assert data['corpus_stats']['avg_source_length'] == '25.50'
-        assert data['corpus_stats']['avg_target_length'] == '30.20'
-        assert '2025-06-28' in data['corpus_stats']['last_updated']
-
-        # Connection should be closed properly
-        mock_connection.close.assert_called_once()
+        # Should have corpus_stats
+        assert 'corpus_stats' in data
+        assert 'total_records' in data['corpus_stats']

@@ -4,11 +4,8 @@ API endpoints for corpus management operations.
 
 import json
 import logging
-import os
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, current_app
 from flasgger import swag_from
-from app.database.postgresql_connector import PostgreSQLConfig
-from app.database.corpus_migrator import CorpusMigrator
 from app.services.cache_service import CacheService
 from datetime import datetime
 
@@ -20,7 +17,7 @@ logger = logging.getLogger(__name__)
 @swag_from({
     'tags': ['Corpus'],
     'summary': 'Get corpus statistics',
-    'description': 'Retrieve fresh corpus statistics from PostgreSQL database, bypassing cache. Supports both new corpus schema and legacy public schema locations.',
+    'description': 'Retrieve corpus statistics from Lucene index.',
     'responses': {
         200: {
             'description': 'Corpus statistics retrieved successfully',
@@ -28,14 +25,9 @@ logger = logging.getLogger(__name__)
                 'type': 'object',
                 'properties': {
                     'success': {'type': 'boolean', 'example': True},
-                    'stats': {
-                        'type': 'object',
-                        'properties': {
-                            'total_records': {'type': 'integer', 'example': 74740856, 'description': 'Total number of parallel corpus records'},
-                            'avg_source_length': {'type': 'number', 'example': 67.22, 'description': 'Average character length of source texts'},
-                            'avg_target_length': {'type': 'number', 'example': 68.56, 'description': 'Average character length of target texts'}
-                        }
-                    }
+                    'total_records': {'type': 'integer', 'example': 74740856, 'description': 'Total number of corpus documents'},
+                    'last_updated': {'type': 'string', 'example': '2024-01-15 10:30:00', 'description': 'Last update timestamp'},
+                    'source': {'type': 'string', 'example': 'lucene'}
                 }
             }
         },
@@ -45,15 +37,9 @@ logger = logging.getLogger(__name__)
                 'type': 'object',
                 'properties': {
                     'success': {'type': 'boolean', 'example': False},
-                    'error': {'type': 'string', 'example': 'Database connection failed'},
-                    'stats': {
-                        'type': 'object',
-                        'properties': {
-                            'total_records': {'type': 'integer', 'example': 0},
-                            'avg_source_length': {'type': 'number', 'example': 0},
-                            'avg_target_length': {'type': 'number', 'example': 0}
-                        }
-                    }
+                    'error': {'type': 'string', 'example': 'Lucene service unavailable'},
+                    'total_records': {'type': 'integer', 'example': 0},
+                    'last_updated': {'type': 'string', 'example': None}
                 }
             }
         }
@@ -61,65 +47,42 @@ logger = logging.getLogger(__name__)
 })
 def get_corpus_stats():
     """
-    Get fresh corpus statistics, bypassing cache.
-    Used by the refresh button in corpus management UI.
+    Get corpus statistics from Lucene index.
+    Returns document count and last update timestamp.
     """
     try:
-        # Create PostgreSQL config from environment
-        config = PostgreSQLConfig(
-            host=os.getenv('POSTGRES_HOST', 'localhost'),
-            port=int(os.getenv('POSTGRES_PORT', 5432)),
-            database=os.getenv('POSTGRES_DB', 'dictionary_analytics'),
-            username=os.getenv('POSTGRES_USER', 'dict_user'),
-            password=os.getenv('POSTGRES_PASSWORD', 'dict_pass')
-        )
-        
-        migrator = CorpusMigrator(config)
-        stats = migrator.get_corpus_stats()
-        
-        # Format stats for JSON response
-        response_stats = {
-            'total_records': stats.get('total_records', 0),
-            'avg_source_length': float(stats.get('avg_source_length', 0)) if stats.get('avg_source_length') else 0,
-            'avg_target_length': float(stats.get('avg_target_length', 0)) if stats.get('avg_target_length') else 0,
-        }
-        
+        # Get stats from Lucene corpus client
+        lucene_stats = current_app.lucene_corpus_client.stats()
+
+        total_records = lucene_stats.get('total_documents', 0)
+        last_updated = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         # Update cache with fresh data
         cache = CacheService()
         if cache.is_available():
-            # Format last_updated for cache
-            last_record = stats.get('last_record')
-            if isinstance(last_record, datetime):
-                last_updated = last_record.strftime('%Y-%m-%d %H:%M:%S')
-            elif last_record:
-                last_updated = str(last_record)
-            else:
-                last_updated = 'N/A'
-                
             cache_data = {
-                'total_records': response_stats['total_records'],
-                'avg_source_length': f"{response_stats['avg_source_length']:.2f}",
-                'avg_target_length': f"{response_stats['avg_target_length']:.2f}",
-                'last_updated': last_updated
+                'total_records': total_records,
+                'last_updated': last_updated,
+                'source': 'lucene'
             }
             cache.set('corpus_stats', json.dumps(cache_data), ttl=1800)
-            logger.info("Updated cache with fresh corpus stats")
-        
+            logger.info("Updated cache with fresh corpus stats from Lucene")
+
         return jsonify({
             'success': True,
-            'stats': response_stats
+            'total_records': total_records,
+            'last_updated': last_updated,
+            'source': 'lucene'
         })
-        
+
     except Exception as e:
-        logger.error(f"Error fetching corpus stats: {e}")
+        logger.error(f"Error fetching corpus stats from Lucene: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
-            'stats': {
-                'total_records': 0,
-                'avg_source_length': 0,
-                'avg_target_length': 0
-            }
+            'total_records': 0,
+            'last_updated': None,
+            'source': 'lucene'
         }), 500
 
 
