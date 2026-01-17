@@ -1,0 +1,189 @@
+/**
+ * Corpus Search Modal Styles
+ */
+
+/* Modal sizing */
+.corpus-search-modal .modal-dialog {
+    max-width: 800px;
+}
+
+.corpus-search-modal .modal-body {
+    padding: 1.5rem;
+}
+
+/* Results container - scrollable with large max-height */
+.corpus-search-results {
+    max-height: 60vh;
+    min-height: 200px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    border: 1px solid #e0e0e0;
+    border-radius: 0.375rem;
+    background-color: #fff;
+}
+
+/* Individual result item */
+.corpus-result {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.corpus-result:last-child {
+    border-bottom: none;
+}
+
+.corpus-result:hover {
+    background-color: #f8f9fa;
+}
+
+.corpus-result:focus-within {
+    background-color: #e7f1ff;
+    outline: 2px solid #0d6efd;
+    outline-offset: -2px;
+}
+
+/* KWIC display */
+.corpus-kwic {
+    font-family: 'Roboto Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #212529;
+    word-break: break-word;
+}
+
+.corpus-kwic em {
+    font-style: normal;
+    background-color: #fff3cd;
+    font-weight: 600;
+    padding: 1px 3px;
+    border-radius: 2px;
+    color: #495057;
+}
+
+/* Result actions */
+.corpus-result-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+}
+
+.corpus-result:hover .corpus-result-actions,
+.corpus-result:focus-within .corpus-result-actions {
+    opacity: 1;
+}
+
+/* Loading state */
+.corpus-search-loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+}
+
+.corpus-search-loading .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Error state */
+.corpus-error {
+    text-align: center;
+    padding: 60px 20px;
+    color: #dc3545;
+}
+
+.corpus-error i {
+    margin-bottom: 16px;
+}
+
+/* Results info header */
+#corpusResultsInfo {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 12px;
+}
+
+/* Search input group */
+.corpus-search-modal .input-group-text {
+    background-color: #f8f9fa;
+    border-right: none;
+}
+
+.corpus-search-modal #corpusSearchInput {
+    border-left: none;
+}
+
+.corpus-search-modal #corpusSearchInput:focus {
+    border-color: #ced4da;
+    box-shadow: none;
+}
+
+.corpus-search-modal #corpusSearchInput:focus + .input-group-text {
+    border-color: #86b7fe;
+}
+
+/* Button styling */
+.corpus-result-actions .btn {
+    font-size: 0.8125rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Empty state */
+.corpus-search-results .text-center {
+    color: #6c757d;
+}
+
+.corpus-search-results .text-center i {
+    color: #dee2e6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .corpus-search-modal .modal-dialog {
+        max-width: 95%;
+        margin: 0.5rem auto;
+    }
+
+    .corpus-search-results {
+        max-height: 50vh;
+    }
+
+    .corpus-result-actions {
+        opacity: 1; /* Always show on mobile */
+        flex-wrap: wrap;
+    }
+}
+
+/* Accessibility improvements */
+.corpus-result:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: -2px;
+}
+
+.corpus-result-actions .btn:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .corpus-result {
+        border-bottom: 2px solid #000;
+    }
+
+    .corpus-kwic em {
+        background-color: #fff;
+        border: 2px solid #000;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .corpus-result,
+    .corpus-result-actions,
+    .corpus-search-results {
+        transition: none;
+    }
+}

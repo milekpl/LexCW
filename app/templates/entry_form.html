@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/form-tooltips.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/validation-feedback.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/corpus-search.css') }}">
 <style>
 #delete-warning { display: none !important; }
 #delete-warning.visible { display: inline !important; }
@@ -467,11 +468,16 @@
                         </div>
                     </div>
                 </div>
-                <div class="mt-2">
-                    <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn" 
+                <div class="mt-2 d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-definition-language-btn"
                             data-sense-index="INDEX"
                             title="Add another language">
                         <i class="fas fa-plus"></i> Add Language
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary search-corpus-btn"
+                            data-sense-index="INDEX" data-field="definition"
+                            title="Search corpus for usage examples">
+                        <i class="fas fa-search"></i> Search Corpus
                     </button>
                 </div>
             </div>
@@ -637,16 +643,23 @@
             <div class="examples-section mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6><i class="fas fa-quote-left"></i> Examples</h6>
-                    <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" 
-                            data-sense-index="INDEX">
-                        <i class="fas fa-plus"></i> Add Example
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary search-corpus-btn"
+                                data-sense-index="INDEX" data-field="example"
+                                title="Search corpus for usage examples">
+                            <i class="fas fa-search"></i> Search Corpus
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary add-example-btn"
+                                data-sense-index="INDEX">
+                            <i class="fas fa-plus"></i> Add Example
+                        </button>
+                    </div>
                 </div>
-                
+
                 <div class="examples-container">
                     <div class="no-examples text-center text-muted py-3 border rounded">
                         <p>No examples added yet</p>
-                        <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" 
+                        <button type="button" class="btn btn-sm btn-outline-primary add-example-btn"
                                 data-sense-index="INDEX">
                             <i class="fas fa-plus"></i> Add Example
                         </button>
@@ -959,6 +972,8 @@
 {% import "macros/field_visibility_modal.html" as field_visibility_modal %}
 {{ field_visibility_modal.field_visibility_modal() }}
 
+{% include 'corpus_search_modal.html' %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -1033,6 +1048,8 @@
 <script defer src="{{ url_for('static', filename='js/entry_form_setup.js') }}"></script>
 <!-- Live preview functionality -->
 <script defer src="{{ url_for('static', filename='js/live-preview.js') }}"></script>
+<!-- Corpus Search -->
+<script defer src="{{ url_for('static', filename='js/corpus-search.js') }}"></script>
 
 <script>
 /**
@@ -1072,6 +1089,50 @@ document.addEventListener('DOMContentLoaded', function() {
         initEntryForm({
             variantRelations: {{ (variant_relations | default([])) | tojson | safe }},
             entriesUrl: '{{ url_for("main.entries") }}'
+        });
+    }
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize CorpusSearch module
+    if (typeof CorpusSearch !== 'undefined') {
+        var corpusSearch = CorpusSearch.getInstance();
+        corpusSearch.init();
+
+        // Handle corpusExampleSelected events from the search modal
+        document.addEventListener('corpusExampleSelected', function(e) {
+            var senseIndex = e.detail.senseIndex;
+            var sentence = e.detail.sentence;
+
+            Logger.info('Corpus example selected', { senseIndex: senseIndex, sentence: sentence });
+
+            // Find the examples container for this sense
+            var examplesContainer = document.querySelector(
+                '[data-sense-index="' + senseIndex + '"] .examples-container'
+            );
+
+            if (examplesContainer) {
+                // Trigger adding a new example with the sentence pre-filled
+                var addBtn = examplesContainer.querySelector('.add-example-btn');
+                if (addBtn) {
+                    // First, trigger the add example action
+                    addBtn.click();
+
+                    // Then, after a short delay, fill in the example text
+                    setTimeout(function() {
+                        // Find the newly added example
+                        var newExample = examplesContainer.querySelector(
+                            '.example-item:not([data-example-id]) .example-text, ' +
+                            '.example-item:last-child textarea[name*="text"]'
+                        );
+                        if (newExample && sentence) {
+                            newExample.value = sentence;
+                            newExample.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }, 100);
+                }
+            }
         });
     }
 });
