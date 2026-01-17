@@ -140,10 +140,14 @@ def create_app(config_name=None):
     
     from app.views import main_bp
     app.register_blueprint(main_bp)
-    
+
     from app.routes.corpus_routes import corpus_bp
     app.register_blueprint(corpus_bp)
-    
+
+    # Register corpus search API
+    from app.api.corpus_search import corpus_search_bp
+    app.register_blueprint(corpus_search_bp)
+
     # Register additional API routes
     from app.routes.api_routes import api_bp as additional_api_bp
     app.register_blueprint(additional_api_bp)

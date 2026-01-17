@@ -1,0 +1,66 @@
+<!-- Corpus Search Modal -->
+<!-- Included in entry_form.html or base.html -->
+
+<div class="modal fade corpus-search-modal" id="corpusSearchModal"
+     tabindex="-1" aria-labelledby="corpusSearchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="corpusSearchModalLabel">
+                    <i class="fas fa-search"></i> Search Corpus Examples
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Search Input -->
+                <div class="input-group mb-3">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" id="corpusSearchInput"
+                           placeholder="Search corpus for examples..."
+                           aria-label="Search corpus">
+                    <button class="btn btn-primary" type="button" id="corpusSearchBtn">
+                        Search
+                    </button>
+                </div>
+
+                <!-- Results Info -->
+                <div id="corpusResultsInfo" class="text-muted mb-2" style="display: none;">
+                    <small>Found <span id="corpusResultCount">0</span> examples</small>
+                </div>
+
+                <!-- Results Container -->
+                <div id="corpusSearchResults" class="corpus-search-results">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <p>Enter a search term to find corpus examples</p>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="corpusSearchLoading" class="corpus-search-loading" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Searching corpus...</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="corpusSearchError" class="corpus-error" style="display: none;">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <p class="mt-2" id="corpusErrorMessage">An error occurred</p>
+                    <button class="btn btn-outline-primary mt-2" id="corpusRetryBtn">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
