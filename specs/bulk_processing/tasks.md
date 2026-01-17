@@ -21,3 +21,11 @@ This document outlines the implementation tasks for the Bulk Processing feature,
     1.4. [ ] **Create Rollback and Recovery Mechanisms**
         *   Implement mechanisms for rolling back and recovering from failed bulk operations.
         *   **Requirements**: `3.2.1`, `5.4.3`, `18.2`
+
+
+## Decision: remove Postgres-backed FastCorpusProcessor (2026-01-17)
+
+- Summary: The `FastCorpusProcessor` and its PostgreSQL-backed integration tests were removed because corpus processing is implemented without Postgres (Lucene-based pipeline). Keeping the old Postgres-centric implementation caused test/coverage noise and confusion.
+- Files affected: `app/services/fast_corpus_processor.py`, `app/models/corpus_batch.py`, `tests/integration/test_fast_corpus_processing.py`, `.env.example` (removed `CORPUS_BATCH_SIZE`).
+- Rationale: no production code depends on the Postgres implementation; the feature is covered by the Lucene-based implementation and CI should not carry dead, skipped integration suites.
+- Follow-up: create an issue/PR to delete demo scripts and docs that reference the removed implementation if any remain.
