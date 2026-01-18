@@ -26,8 +26,6 @@ class WorksetCuration {
     }
 
     init() {
-        console.log('[WorksetCuration] Initializing...');
-
         // Check if we're on workset list or curation page
         if (document.getElementById('workset-list')) {
             this.loadWorksets();
@@ -37,8 +35,6 @@ class WorksetCuration {
 
         // Set up keyboard shortcuts
         this.setupKeyboardShortcuts();
-
-        console.log('[WorksetCuration] Initialized');
     }
 
     // ============ WORKSET LIST ============

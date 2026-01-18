@@ -10,6 +10,7 @@ from __future__ import annotations
 from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
 import logging
+import json
 from typing import Dict, Any, List
 from datetime import datetime
 
@@ -352,47 +353,6 @@ def bulk_update_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
     except Exception as e:
         logger.error(f"Error bulk updating workset {workset_id}: {e}")
         return {'error': 'Failed to perform bulk update'}, 500
-
-
-@worksets_bp.route('/api/worksets/<int:workset_id>/progress', methods=['GET'])
-@swag_from({
-    'tags': ['Worksets'],
-    'summary': 'Get bulk operation progress',
-    'description': 'Track progress of long-running bulk operations',
-    'parameters': [
-        {'name': 'workset_id', 'in': 'path', 'type': 'integer', 'required': True}
-    ],
-    'responses': {
-        200: {
-            'description': 'Progress information',
-            'schema': {
-                'type': 'object',
-                'properties': {
-                    'status': {'type': 'string', 'enum': ['pending', 'running', 'completed', 'failed']},
-                    'progress': {'type': 'number', 'minimum': 0, 'maximum': 100},
-                    'total_items': {'type': 'integer'},
-                    'completed_items': {'type': 'integer'}
-                }
-            }
-        },
-        404: {'description': 'Workset not found'},
-        500: {'description': 'Internal server error'}
-    }
-})
-def get_workset_progress(workset_id: int) -> tuple[Dict[str, Any], int]:
-    """Get progress of bulk operations on workset."""
-    try:
-        workset_service = WorksetService()
-        progress = workset_service.get_workset_progress(workset_id)
-
-        if not progress:
-            return {'error': 'Workset not found'}, 404
-
-        return progress, 200
-
-    except Exception as e:
-        logger.error(f"Error getting workset progress {workset_id}: {e}")
-        return {'error': 'Failed to get progress'}, 500
 
 
 @worksets_bp.route('/api/queries/validate', methods=['POST'])
@@ -905,6 +865,68 @@ def bulk_delete_worksets() -> tuple[Dict[str, Any], int]:
     except Exception as e:
         logger.error(f"Error bulk deleting worksets: {e}")
         return {'error': 'Failed to delete worksets'}, 500
+
+
+@worksets_bp.route('/api/worksets/<int:workset_id>/add-entry', methods=['POST'])
+def add_entry_to_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
+    """Add an entry to a workset."""
+    try:
+        data = request.get_json()
+        if not data or 'entry_id' not in data:
+            return {'error': 'Missing entry_id field'}, 400
+
+        entry_id = data['entry_id']
+
+        with current_app.pg_pool.getconn() as conn:
+            with conn.cursor() as cur:
+                # Check if workset exists
+                cur.execute("SELECT id, name FROM worksets WHERE id = %s", (workset_id,))
+                ws_row = cur.fetchone()
+                if not ws_row:
+                    return {'error': 'Workset not found'}, 404
+
+                workset_name = ws_row[1]
+
+                # Check if entry exists in dictionary
+                cur.execute("SELECT id FROM entries WHERE id = %s", (entry_id,))
+                if not cur.fetchone():
+                    return {'error': 'Entry not found'}, 404
+
+                # Check if entry is already in workset
+                cur.execute("SELECT id FROM workset_entries WHERE workset_id = %s AND entry_id = %s",
+                           (workset_id, entry_id))
+                if cur.fetchone():
+                    return {'error': 'Entry already in workset'}, 400
+
+                # Get current max position
+                cur.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM workset_entries WHERE workset_id = %s",
+                           (workset_id,))
+                position = cur.fetchone()[0]
+
+                # Insert the entry
+                cur.execute("""
+                    INSERT INTO workset_entries (workset_id, entry_id, status, is_favorite, position, created_at, modified_at)
+                    VALUES (%s, %s, 'pending', FALSE, %s, %s, %s)
+                """, (workset_id, entry_id, position, datetime.now(), datetime.now()))
+
+                # Update total_entries count
+                cur.execute("""
+                    UPDATE worksets SET total_entries = total_entries + 1, updated_at = %s
+                    WHERE id = %s
+                """, (datetime.now(), workset_id))
+
+                conn.commit()
+
+        return {
+            'success': True,
+            'workset_id': workset_id,
+            'workset_name': workset_name,
+            'entry_id': entry_id
+        }, 201
+
+    except Exception as e:
+        logger.error(f"Error adding entry to workset: {e}")
+        return {'error': 'Failed to add entry to workset'}, 500
 
 
 # ============ PIPELINE TEMPLATE ENDPOINTS ============
