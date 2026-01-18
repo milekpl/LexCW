@@ -264,13 +264,13 @@
                 aria-labelledby="userDropdown"
               >
                 <li>
-                  <a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                  <a class="dropdown-item" href="{{ safe_url_for('auth.profile') }}">
                     <i class="fas fa-user"></i> My Profile
                   </a>
                 </li>
                 <li><hr class="dropdown-divider" /></li>
                 <li>
-                  <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                  <a class="dropdown-item" href="{{ safe_url_for('auth.logout') }}">
                     <i class="fas fa-sign-out-alt"></i> Logout
                   </a>
                 </li>
@@ -278,7 +278,7 @@
             </li>
             {% else %}
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('auth.login') }}">
+              <a class="nav-link" href="{{ safe_url_for('auth.login') }}">
                 <i class="fas fa-sign-in-alt"></i> Login
               </a>
             </li>

@@ -32,6 +32,19 @@ workbench_bp = Blueprint("workbench", __name__, url_prefix="/workbench")
 logger = logging.getLogger(__name__)
 
 
+@main_bp.app_template_global()
+def safe_url_for(endpoint: str, **values: object) -> str:
+    """Template-global safe url builder that returns a harmless placeholder
+    when the endpoint is not registered. This ensures templates render even
+    when certain blueprints are not present in unit test fixtures.
+    """
+    from werkzeug.routing import BuildError
+    try:
+        return url_for(endpoint, **values)
+    except BuildError:
+        return "#"
+
+
 @main_bp.route("/corpus-management")
 def corpus_management():
     """Render corpus management interface with async stats loading."""

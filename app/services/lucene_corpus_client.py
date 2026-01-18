@@ -18,10 +18,24 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ConcordanceHit:
-    """Represents a single corpus search result from parallel corpus (TMX format)."""
-    source: str  # Source language text
-    target: str  # Target language translation
+    """Represents a single corpus search result in KWIC-like format.
+
+    Backwards-compatible with older code that expects attributes `left`,
+    `match` and `right`. Also provides `source` and `target` as aliases
+    for `left` and `right` respectively.
+    """
+    left: str
+    match: str
+    right: str
     sentence_id: Optional[str] = None
+
+    @property
+    def source(self) -> str:
+        return self.left
+
+    @property
+    def target(self) -> str:
+        return self.right
 
 
 class LuceneCorpusClient:
@@ -86,14 +100,13 @@ class LuceneCorpusClient:
             response.raise_for_status()
             data = response.json()
 
-            hits = [
-                ConcordanceHit(
-                    source=h.get("source", ""),
-                    target=h.get("target", ""),
-                    sentence_id=h.get("sentence_id")
-                )
-                for h in data.get("hits", [])
-            ]
+            hits = []
+            for h in data.get("hits", []):
+                left = h.get("left") or h.get("source") or ""
+                match = h.get("match") or h.get("token") or ""
+                right = h.get("right") or h.get("target") or ""
+                sentence_id = h.get("sentence_id")
+                hits.append(ConcordanceHit(left=left, match=match, right=right, sentence_id=sentence_id))
             return data.get("total", len(hits)), hits
 
         except RequestException as e:

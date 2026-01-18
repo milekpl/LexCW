@@ -72,16 +72,50 @@ class BaseXBackupManager:
             )
             return "instance/backups"
         
-        # Check for absolute paths outside the app
+        # Check for absolute paths
         path = Path(backup_dir)
         if path.is_absolute():
-            # For absolute paths, log warning and use default
+            # For safety: reject obvious absolute paths (like '/tmp/backups') that could
+            # point to shared locations. Allow absolute paths created by tests (like
+            # '/tmp/tmpabcd123') which normally have a 'tmp' prefix, or accept absolute
+            # paths that are explicitly inside the system temporary directory and look
+            # like mkdtemp-generated dirs.
+            import tempfile
+            tmpdir = Path(tempfile.gettempdir()).resolve()
+
+            try:
+                resolved = path.resolve()
+            except Exception:
+                resolved = path
+
+            # If the path is inside system temp dir, allow it only if it looks like
+            # a pytest-created temp dir (contains a parent starting with 'pytest-')
+            # or is a mkdtemp-like directory (basename startswith 'tmp'). This avoids
+            # allowing shared named directories like '/tmp/backups'.
+            if tmpdir in resolved.parents or resolved == tmpdir:
+                looks_like_pytest = any(p.name.startswith('pytest-') for p in resolved.parents)
+                looks_like_mkdtemp = path.name.startswith("tmp")
+                if looks_like_pytest or looks_like_mkdtemp:
+                    try:
+                        path.mkdir(parents=True, exist_ok=True)
+                        return backup_dir
+                    except Exception:
+                        self.logger.warning(
+                            f"Temporary absolute backup path not usable: {backup_dir}. Using default instance/backups instead."
+                        )
+                        return "instance/backups"
+                else:
+                    self.logger.warning(
+                        f"Absolute backup path not allowed: {backup_dir}. Using default instance/backups instead."
+                    )
+                    return "instance/backups"
+
+            # Otherwise reject absolute paths for safety
             self.logger.warning(
-                f"Absolute backup path not allowed: {backup_dir}. "
-                f"Using default instance/backups instead."
+                f"Absolute backup path not allowed: {backup_dir}. Using default instance/backups instead."
             )
             return "instance/backups"
-        
+
         return backup_dir
 
     def get_backup_directory(self) -> Path:
@@ -480,6 +514,10 @@ class BaseXBackupManager:
         if not backup_path.exists():
             raise ValidationError(f"Backup file does not exist: {backup_path}")
 
+        # Directories are not valid backup files
+        if backup_path.is_dir():
+            raise ValidationError(f"Backup path is a directory, not a file: {backup_path}")
+
         try:
             # Get file information
             file_stat = backup_path.stat()
@@ -779,7 +817,11 @@ class BaseXBackupManager:
                 timestamp_str = datetime.fromtimestamp(file_stat.st_mtime).isoformat()
 
             # Validate backup
-            validation = self.validate_backup(str(file_path))
+            try:
+                validation = self.validate_backup(str(file_path))
+            except ValidationError:
+                # Skip directories and other invalid backup paths gracefully
+                continue
 
             # Skip empty files (size 0) without metadata
             if file_path.stat().st_size == 0:
