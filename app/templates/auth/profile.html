@@ -1,0 +1,173 @@
+{% extends "base.html" %} {% block title %}Profile - {{ user.username }}{%
+endblock %} {% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <div class="card shadow mb-4">
+      <div class="card-body text-center">
+        <div class="mb-3">
+          {% if user.avatar_url %}
+          <img
+            src="{{ user.avatar_url }}"
+            class="rounded-circle"
+            width="120"
+            height="120"
+            alt="Profile picture"
+          />
+          {% else %}
+          <div
+            class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center"
+            style="width: 120px; height: 120px; font-size: 48px"
+          >
+            {{ user.first_name[0] if user.first_name else user.username[0] }}
+          </div>
+          {% endif %}
+        </div>
+        <h4>
+          {{ user.first_name }} {{ user.last_name if user.last_name else '' }}
+        </h4>
+        <p class="text-muted">@{{ user.username }}</p>
+
+        {% if user.is_admin %}
+        <span class="badge bg-danger mb-2">System Administrator</span>
+        {% endif %}
+
+        <div class="mb-3">
+          <small class="text-muted">
+            <i class="fas fa-envelope"></i> {{ user.email }}
+          </small>
+        </div>
+
+        {% if user.bio %}
+        <p class="text-muted">{{ user.bio }}</p>
+        {% endif %}
+
+        <div class="d-grid gap-2">
+          <a
+            href="{{ url_for('auth.edit_profile') }}"
+            class="btn btn-primary btn-sm"
+          >
+            <i class="fas fa-edit"></i> Edit Profile
+          </a>
+          <a
+            href="{{ url_for('auth.change_password') }}"
+            class="btn btn-outline-secondary btn-sm"
+          >
+            <i class="fas fa-key"></i> Change Password
+          </a>
+        </div>
+      </div>
+      <div class="card-footer text-center">
+        <small class="text-muted">
+          Member since {{ user.created_at.strftime('%B %Y') }}
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <!-- Projects -->
+    <div class="card shadow mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-project-diagram"></i> My Projects</h5>
+      </div>
+      <div class="card-body">
+        {% if projects %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Role</th>
+                <th>Database</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for project in projects %}
+              <tr>
+                <td>
+                  <strong>{{ project.project.project_name }}</strong>
+                </td>
+                <td>
+                  {% if project.role == 'admin' %}
+                  <span class="badge bg-danger">Admin</span>
+                  {% elif project.role == 'member' %}
+                  <span class="badge bg-success">Member</span>
+                  {% else %}
+                  <span class="badge bg-info">Viewer</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <code>{{ project.project.basex_db_name }}</code>
+                </td>
+                <td>
+                  <a
+                    href="{{ url_for('main.index') }}?project={{ project.project.id }}"
+                    class="btn btn-sm btn-outline-primary"
+                  >
+                    <i class="fas fa-arrow-right"></i> Open
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          You are not a member of any projects yet. Contact an administrator to
+          be added to a project.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-history"></i> Recent Activity</h5>
+      </div>
+      <div class="card-body">
+        {% if recent_activity %}
+        <div class="list-group list-group-flush">
+          {% for activity in recent_activity %}
+          <div class="list-group-item">
+            <div class="d-flex w-100 justify-content-between">
+              <h6 class="mb-1">
+                {% if activity.action == 'login' %}
+                <i class="fas fa-sign-in-alt text-success"></i> Logged in {%
+                elif activity.action == 'logout' %}
+                <i class="fas fa-sign-out-alt text-muted"></i> Logged out {%
+                elif activity.action == 'create' %}
+                <i class="fas fa-plus text-primary"></i> Created {{
+                activity.resource_type }} {% elif activity.action == 'update' %}
+                <i class="fas fa-edit text-info"></i> Updated {{
+                activity.resource_type }} {% elif activity.action == 'delete' %}
+                <i class="fas fa-trash text-danger"></i> Deleted {{
+                activity.resource_type }} {% else %}
+                <i class="fas fa-circle text-secondary"></i> {{ activity.action
+                }} {% endif %}
+              </h6>
+              <small class="text-muted"
+                >{{ activity.timestamp.strftime('%b %d, %H:%M') }}</small
+              >
+            </div>
+            {% if activity.resource_id %}
+            <p class="mb-1">
+              <small class="text-muted">
+                {{ activity.resource_type }} ID: {{ activity.resource_id }}
+              </small>
+            </p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No recent activity to display.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

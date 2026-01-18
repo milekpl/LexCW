@@ -30,7 +30,6 @@
             this.headword = null;
             this.results = [];
             this.defaultLimit = 500;
-            this.defaultContext = 8;
             this.currentQuery = '';
             this.modalElement = null;
             this.searchInput = null;
@@ -143,16 +142,28 @@
          * @returns {string} The headword or empty string
          */
         _getHeadword() {
-            // Try to get from the lexical unit input
-            const lexicalUnitInput = document.querySelector('[name^="lexical_unit"]');
-            if (lexicalUnitInput && lexicalUnitInput.value) {
-                return lexicalUnitInput.value.trim();
+            // Try to get from the lexical unit input using class selector
+            const lexicalUnitInputs = document.querySelectorAll('.lexical-unit-text');
+            if (lexicalUnitInputs && lexicalUnitInputs.length > 0) {
+                // Get the first non-empty value from primary language input
+                for (const input of lexicalUnitInputs) {
+                    if (input.value && input.value.trim()) {
+                        return input.value.trim();
+                    }
+                }
             }
 
             // Fallback: look for the entry title/heading
+            // The h2 contains "Edit Entry: headword" so we need to extract just the headword
             const entryTitle = document.querySelector('h2 .text-primary');
             if (entryTitle && entryTitle.textContent) {
-                return entryTitle.textContent.trim();
+                const text = entryTitle.textContent.trim();
+                // If the title contains "Edit Entry: ", extract just the headword
+                const match = text.match(/^Edit Entry:\s*(.+)$/);
+                if (match) {
+                    return match[1].trim();
+                }
+                return text;
             }
 
             return '';
@@ -262,9 +273,8 @@
 
             try {
                 const limit = this.defaultLimit;
-                const context = this.defaultContext;
 
-                const url = `/api/corpus/search?q=${encodeURIComponent(query)}&limit=${limit}&context=${context}`;
+                const url = `/api/corpus/search?q=${encodeURIComponent(query)}&limit=${limit}`;
 
                 const response = await fetch(url);
 
@@ -385,33 +395,31 @@
             div.className = 'corpus-result';
             div.dataset.index = index;
 
-            const fullSentence = `${result.left || ''} ${result.match || ''} ${result.right || ''}`.trim();
+            // Use source text as the sentence for insertion
+            const fullSentence = result.source || '';
             div.dataset.sentence = fullSentence;
 
-            // KWIC display
-            const kwicDiv = document.createElement('div');
-            kwicDiv.className = 'corpus-kwic';
+            // Parallel corpus display (source/target)
+            const parallelDiv = document.createElement('div');
+            parallelDiv.className = 'corpus-parallel';
 
-            // Left context
-            if (result.left) {
-                const leftSpan = document.createElement('span');
-                leftSpan.textContent = result.left;
-                kwicDiv.appendChild(leftSpan);
+            // Source text
+            if (result.source) {
+                const sourceDiv = document.createElement('div');
+                sourceDiv.className = 'corpus-source mb-1';
+                sourceDiv.textContent = result.source;
+                parallelDiv.appendChild(sourceDiv);
             }
 
-            // Match (highlighted)
-            const matchEm = document.createElement('em');
-            matchEm.textContent = result.match || '';
-            kwicDiv.appendChild(matchEm);
-
-            // Right context
-            if (result.right) {
-                const rightSpan = document.createElement('span');
-                rightSpan.textContent = result.right;
-                kwicDiv.appendChild(rightSpan);
+            // Target translation
+            if (result.target) {
+                const targetDiv = document.createElement('div');
+                targetDiv.className = 'corpus-target text-muted small';
+                targetDiv.textContent = result.target;
+                parallelDiv.appendChild(targetDiv);
             }
 
-            div.appendChild(kwicDiv);
+            div.appendChild(parallelDiv);
 
             // Actions
             const actionsDiv = document.createElement('div');

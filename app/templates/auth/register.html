@@ -1,0 +1,145 @@
+{% extends "base.html" %} {% block title %}Register - Lexicographic Curation
+Workbench{% endblock %} {% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8 col-lg-6">
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white">
+        <h4 class="mb-0"><i class="fas fa-user-plus"></i> Create Account</h4>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('auth.register') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="first_name" class="form-label">First Name</label>
+              <input
+                type="text"
+                class="form-control"
+                id="first_name"
+                name="first_name"
+                placeholder="John"
+              />
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="last_name" class="form-label">Last Name</label>
+              <input
+                type="text"
+                class="form-control"
+                id="last_name"
+                name="last_name"
+                placeholder="Doe"
+              />
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="username" class="form-label">
+              Username <span class="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              id="username"
+              name="username"
+              required
+              autofocus
+              placeholder="Choose a unique username"
+              pattern="[a-zA-Z0-9_-]{3,30}"
+              title="Username must be 3-30 characters, letters, numbers, underscores, and hyphens only"
+            />
+            <div class="form-text">
+              3-30 characters, letters, numbers, underscores, and hyphens only
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="email" class="form-label">
+              Email <span class="text-danger">*</span>
+            </label>
+            <input
+              type="email"
+              class="form-control"
+              id="email"
+              name="email"
+              required
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div class="mb-3">
+            <label for="password" class="form-label">
+              Password <span class="text-danger">*</span>
+            </label>
+            <input
+              type="password"
+              class="form-control"
+              id="password"
+              name="password"
+              required
+              minlength="8"
+              placeholder="Create a strong password"
+            />
+            <div class="form-text">
+              At least 8 characters with uppercase, lowercase, number, and
+              special character
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="password_confirm" class="form-label">
+              Confirm Password <span class="text-danger">*</span>
+            </label>
+            <input
+              type="password"
+              class="form-control"
+              id="password_confirm"
+              name="password_confirm"
+              required
+              placeholder="Re-enter your password"
+            />
+          </div>
+
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>Note:</strong> Your account will be created with viewer
+            permissions. Contact an administrator to gain access to projects.
+          </div>
+
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-user-plus"></i> Create Account
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="card-footer text-center">
+        <small class="text-muted">
+          Already have an account?
+          <a href="{{ url_for('auth.login') }}">Login here</a>
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block extra_js %}
+<script>
+  // Client-side password confirmation validation
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.querySelector("form");
+    const password = document.getElementById("password");
+    const passwordConfirm = document.getElementById("password_confirm");
+
+    form.addEventListener("submit", function (e) {
+      if (password.value !== passwordConfirm.value) {
+        e.preventDefault();
+        alert("Passwords do not match. Please check and try again.");
+        passwordConfirm.focus();
+        return false;
+      }
+    });
+  });
+</script>
+{% endblock %}

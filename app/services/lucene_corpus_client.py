@@ -18,10 +18,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ConcordanceHit:
-    """Represents a single KWIC concordance hit."""
-    left: str
-    match: str
-    right: str
+    """Represents a single corpus search result from parallel corpus (TMX format)."""
+    source: str  # Source language text
+    target: str  # Target language translation
     sentence_id: Optional[str] = None
 
 
@@ -68,12 +67,12 @@ class LuceneCorpusClient:
         context_size: int = 5
     ) -> tuple[int, List[ConcordanceHit]]:
         """
-        Search for concordance/KWIC matches.
+        Search for parallel corpus matches (source/target format).
 
         Args:
             query: Search query
             limit: Maximum number of results
-            context_size: Number of words before/after match
+            context_size: Reserved for KWIC context (not used in parallel format)
 
         Returns:
             Tuple of (total_count, list of ConcordanceHit)
@@ -81,7 +80,7 @@ class LuceneCorpusClient:
         try:
             response = self._session.get(
                 f"{self.base_url}/concordance",
-                params={"q": query, "limit": limit, "context": context_size},
+                params={"q": query, "limit": limit},
                 timeout=30
             )
             response.raise_for_status()
@@ -89,9 +88,8 @@ class LuceneCorpusClient:
 
             hits = [
                 ConcordanceHit(
-                    left=h.get("left", ""),
-                    match=h.get("match", ""),
-                    right=h.get("right", ""),
+                    source=h.get("source", ""),
+                    target=h.get("target", ""),
                     sentence_id=h.get("sentence_id")
                 )
                 for h in data.get("hits", [])

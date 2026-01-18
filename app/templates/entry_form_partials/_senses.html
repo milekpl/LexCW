@@ -84,6 +84,11 @@
                                             title="Add another language">
                                         <i class="fas fa-plus"></i> Add Language
                                     </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary search-corpus-btn ms-1"
+                                            data-sense-index="{{ loop.index0 }}" data-field="definition"
+                                            title="Search corpus for usage examples">
+                                        <i class="fas fa-search"></i> Search Corpus
+                                    </button>
                                 </div>
                             </div>
 
@@ -405,10 +410,17 @@
                                             <div class="examples-section mt-4" data-section-id="senses" data-field-id="sense-examples">
                                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                                     <h6><i class="fas fa-quote-left"></i> Examples</h6>
-                                                    <button type="button" class="btn btn-sm btn-outline-primary add-example-btn"
-                                                            data-sense-index="{{ loop.index0 }}">
-                                                        <i class="fas fa-plus"></i> Add Example
-                                                    </button>
+                                                    <div>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary search-corpus-btn me-1"
+                                                                data-sense-index="{{ loop.index0 }}" data-field="example"
+                                                                title="Search corpus for example sentences">
+                                                            <i class="fas fa-search"></i> Search Corpus
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary add-example-btn"
+                                                                data-sense-index="{{ loop.index0 }}">
+                                                            <i class="fas fa-plus"></i> Add Example
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <div class="examples-container">

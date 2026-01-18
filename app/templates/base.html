@@ -1,125 +1,314 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Lexicographic Curation Workbench{% endblock %}</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      {% block title %}Lexicographic Curation Workbench{% endblock %}
+    </title>
     <!-- CSRF Token for AJAX requests - always available when CSRF protection is enabled -->
-    <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
+    <meta
+      name="csrf-token"
+      content="{{ csrf_token() if csrf_token else '' }}"
+    />
     <!-- Favicon -->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.png') }}">
+    <link
+      rel="shortcut icon"
+      type="image/x-icon"
+      href="{{ url_for('static', filename='images/favicon.png') }}"
+    />
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
+    />
     <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/main.css') }}"
+    />
     {% block extra_css %}{% endblock %}
-</head>
-<body>
+  </head>
+  <body>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('main.index') }}">
-                <i class="fas fa-book"></i>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}" 
-                           href="{{ url_for('main.index') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'main.entries' %}active{% endif %}" 
-                           href="{{ url_for('main.entries') }}">Entries</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'main.search' %}active{% endif %}" 
-                           href="{{ url_for('main.search') }}">Search</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'main.corpus_management' %}active{% endif %}" 
-                           href="{{ url_for('main.corpus_management') }}">Corpus Management</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="importExportDropdown" role="button" 
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            Import/Export
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="importExportDropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('main.import_lift') }}">Import LIFT</a></li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('main.export_lift') }}">Export to LIFT (Dual Files)</a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.export_kindle') }}">Export for Kindle</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.export_sqlite') }}">Export for Mobile App</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button"
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            Tools
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('main.tools') }}"><i class="fas fa-tools"></i> Tools</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.batch_edit') }}"><i class="fas fa-edit"></i> Bulk Edit</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.validation_tool') }}"><i class="fas fa-tasks"></i> Batch Validation</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.validation_rules_admin') }}"><i class="fas fa-clipboard-check"></i> Rule Editor</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.pronunciation') }}"><i class="fas fa-volume-up"></i> Pronunciation</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.ranges_editor') }}"><i class="fas fa-list"></i> Ranges Editor</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.display_profiles') }}"><i class="fas fa-palette"></i> Display Profiles</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.activity_log') }}"><i class="fas fa-history"></i> Activity Log</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('backup.backup_management') }}"><i class="fas fa-save"></i> Backup Management</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'main.help_page' %}active{% endif %}" 
-                           href="{{ url_for('main.help_page') }}">
-                            <i class="fas fa-question-circle"></i> Help
-                        </a>
-                    </li>
-                </ul>
-                <form class="d-flex" action="{{ url_for('main.search') }}" method="get">
-                    <input class="form-control me-2" type="search" name="q" placeholder="Quick search..." aria-label="Search">
-                    <button class="btn btn-outline-light" type="submit">Search</button>
-                </form>
-            </div>
+      <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('main.index') }}">
+          <i class="fas fa-book"></i>
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}"
+                href="{{ url_for('main.index') }}"
+                >Home</a
+              >
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.endpoint == 'main.entries' %}active{% endif %}"
+                href="{{ url_for('main.entries') }}"
+                >Entries</a
+              >
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.endpoint == 'main.search' %}active{% endif %}"
+                href="{{ url_for('main.search') }}"
+                >Search</a
+              >
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.endpoint == 'main.corpus_management' %}active{% endif %}"
+                href="{{ url_for('main.corpus_management') }}"
+                >Corpus Management</a
+              >
+            </li>
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="importExportDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                Import/Export
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="importExportDropdown">
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.import_lift') }}"
+                    >Import LIFT</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.export_lift') }}"
+                    >Export to LIFT (Dual Files)</a
+                  >
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.export_kindle') }}"
+                    >Export for Kindle</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.export_sqlite') }}"
+                    >Export for Mobile App</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="toolsDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                Tools
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('main.tools') }}"
+                    ><i class="fas fa-tools"></i> Tools</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.batch_edit') }}"
+                    ><i class="fas fa-edit"></i> Bulk Edit</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.validation_tool') }}"
+                    ><i class="fas fa-tasks"></i> Batch Validation</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.validation_rules_admin') }}"
+                    ><i class="fas fa-clipboard-check"></i> Rule Editor</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.pronunciation') }}"
+                    ><i class="fas fa-volume-up"></i> Pronunciation</a
+                  >
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.ranges_editor') }}"
+                    ><i class="fas fa-list"></i> Ranges Editor</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.display_profiles') }}"
+                    ><i class="fas fa-palette"></i> Display Profiles</a
+                  >
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('main.settings') }}"
+                    ><i class="fas fa-cog"></i> Settings</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.activity_log') }}"
+                    ><i class="fas fa-history"></i> Activity Log</a
+                  >
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('backup.backup_management') }}"
+                    ><i class="fas fa-save"></i> Backup Management</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.endpoint == 'main.help_page' %}active{% endif %}"
+                href="{{ url_for('main.help_page') }}"
+              >
+                <i class="fas fa-question-circle"></i> Help
+              </a>
+            </li>
+          </ul>
+          <form
+            class="d-flex me-3"
+            action="{{ url_for('main.search') }}"
+            method="get"
+          >
+            <input
+              class="form-control me-2"
+              type="search"
+              name="q"
+              placeholder="Quick search..."
+              aria-label="Search"
+            />
+            <button class="btn btn-outline-light" type="submit">Search</button>
+          </form>
+
+          <!-- User Menu -->
+          <ul class="navbar-nav">
+            {% if session.get('user_id') %}
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="userDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="fas fa-user-circle"></i> {{ session.get('username',
+                'User') }}
+              </a>
+              <ul
+                class="dropdown-menu dropdown-menu-end"
+                aria-labelledby="userDropdown"
+              >
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                    <i class="fas fa-user"></i> My Profile
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                  </a>
+                </li>
+              </ul>
+            </li>
+            {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('auth.login') }}">
+                <i class="fas fa-sign-in-alt"></i> Login
+              </a>
+            </li>
+            {% endif %}
+          </ul>
         </div>
+      </div>
     </nav>
 
     <!-- Flash messages -->
     <div class="container mt-3">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %} {% for category, message in messages %}
+      <div
+        class="alert alert-{{ category }} alert-dismissible fade show"
+        role="alert"
+      >
+        {{ message }}
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="alert"
+          aria-label="Close"
+        ></button>
+      </div>
+      {% endfor %} {% endif %} {% endwith %}
     </div>
 
     <!-- Main content -->
-    <div class="container mt-4">
-        {% block content %}{% endblock %}
-    </div>        <!-- Footer -->
-        <footer class="footer mt-auto py-3 bg-light">
-            <div class="container text-center">
-                <span class="text-muted">Lexicographic Curation Workbench &copy; 2025</span>
-            </div>
-        </footer>
+    <div class="container mt-4">{% block content %}{% endblock %}</div>
+    <!-- Footer -->
+    <footer class="footer mt-auto py-3 bg-light">
+      <div class="container text-center">
+        <span class="text-muted"
+          >Lexicographic Curation Workbench &copy; 2025</span
+        >
+      </div>
+    </footer>
 
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -128,29 +317,31 @@
     <!-- Common JS -->
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     <script src="{{ url_for('static', filename='js/api-utils.js') }}"></script>
-    {% block extra_js %}{% endblock %}
-    {% if FIRST_RUN_SETUP %}
+    {% block extra_js %}{% endblock %} {% if FIRST_RUN_SETUP %}
     <script>
-    // If first-run, display a small non-intrusive modal linking to setup wizard
-    document.addEventListener('DOMContentLoaded', function() {
-        if (localStorage.getItem('first_run_dismissed') === 'true') return;
+      // If first-run, display a small non-intrusive modal linking to setup wizard
+      document.addEventListener("DOMContentLoaded", function () {
+        if (localStorage.getItem("first_run_dismissed") === "true") return;
         // Show a transient banner and a button to open setup wizard
-        const banner = document.createElement('div');
-        banner.className = 'alert alert-info alert-dismissible fade show';
-        banner.style.position = 'fixed';
-        banner.style.right = '20px';
-        banner.style.top = '80px';
+        const banner = document.createElement("div");
+        banner.className = "alert alert-info alert-dismissible fade show";
+        banner.style.position = "fixed";
+        banner.style.right = "20px";
+        banner.style.top = "80px";
         banner.style.zIndex = 1050;
         banner.innerHTML = `<div><strong>Welcome!</strong> It looks like this project needs initial setup. <a href='/setup' class='alert-link'>Open Setup Wizard</a></div>`;
-        const closeBtn = document.createElement('button');
-        closeBtn.type = 'button';
-        closeBtn.className = 'btn-close';
-        closeBtn.setAttribute('aria-label', 'Close');
-        closeBtn.addEventListener('click', () => { banner.remove(); localStorage.setItem('first_run_dismissed', 'true'); });
+        const closeBtn = document.createElement("button");
+        closeBtn.type = "button";
+        closeBtn.className = "btn-close";
+        closeBtn.setAttribute("aria-label", "Close");
+        closeBtn.addEventListener("click", () => {
+          banner.remove();
+          localStorage.setItem("first_run_dismissed", "true");
+        });
         banner.appendChild(closeBtn);
         document.body.appendChild(banner);
-    });
+      });
     </script>
     {% endif %}
-</body>
+  </body>
 </html>
