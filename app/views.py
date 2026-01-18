@@ -1164,6 +1164,52 @@ def export_sqlite():
         return redirect(url_for("main.export_options"))
 
 
+@main_bp.route("/export/html")
+def export_html():
+    """
+    Export the dictionary to HTML format with alphabetical navigation.
+    """
+    try:
+        # Get dictionary service
+        dict_service = current_app.injector.get(DictionaryService)
+
+        # Get CSS mapping service
+        from app.services.css_mapping_service import CSSMappingService
+        css_service = CSSMappingService()
+
+        # Create exports directory if it doesn't exist
+        exports_dir = os.path.join(current_app.instance_path, "exports")
+        os.makedirs(exports_dir, exist_ok=True)
+
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"dictionary_export_{timestamp}.zip"
+
+        # Get title from query params or use default
+        title = request.args.get("title", "Dictionary")
+
+        # Import and use the HTML exporter
+        from app.exporters.html_exporter import HTMLExporter
+        exporter = HTMLExporter(dict_service, css_service)
+        output_path = os.path.join(exports_dir, filename)
+        exporter.export(
+            output_path=output_path,
+            title=title
+        )
+
+        flash(f"Dictionary exported to HTML format as {filename}", "success")
+
+        # Return the download page for the exported file
+        return render_template(
+            "export_download.html", export_type="html", files={"html": filename}
+        )
+
+    except Exception as e:
+        logger.error(f"Error exporting to HTML format: {e}")
+        flash(f"Error exporting to HTML format: {str(e)}", "danger")
+        return redirect(url_for("main.export_options"))
+
+
 @main_bp.route("/export")
 def export_options():
     """

@@ -4,8 +4,10 @@ import os
 import logging
 import zipfile
 import io
+import tempfile
 
 from app.services.dictionary_service import DictionaryService
+from app.services.css_mapping_service import CSSMappingService
 from app.utils.exceptions import DatabaseError
 
 # Set up logging
@@ -198,10 +200,10 @@ def export_kindle():
 def download_export(filename):
     """
     Download an exported file.
-    
+
     Args:
         filename: Name of the file to download
-        
+
     Returns:
         File download response.
     """
@@ -209,24 +211,105 @@ def download_export(filename):
         # Get exports directory
         exports_dir = os.path.join(current_app.instance_path, 'exports')
         filepath = os.path.join(exports_dir, filename)
-        
+
         # Check if file exists
         if not os.path.exists(filepath):
             return jsonify({
                 'success': False,
                 'message': 'File not found'
             }), 404
-        
+
         # Return file for download
         return send_from_directory(
             directory=exports_dir,
             path=filename,
             as_attachment=True
         )
-        
+
     except Exception as e:
         logger.error("Error downloading export file: %s", str(e))
         return jsonify({
             'success': False,
             'message': f"Error downloading export file: {str(e)}"
         }), 500
+
+
+@export_bp.route('/html', methods=['POST'])
+def export_html():
+    """
+    Export the dictionary to HTML format with alphabetical navigation.
+
+    Query Parameters (JSON body):
+        output_path: Directory to save the exported ZIP file (default: instance/exports)
+        title: Title of the dictionary (default: Dictionary)
+        profile_id: Display profile ID to use for rendering (optional)
+
+    Returns:
+        JSON response with the path to the exported ZIP file.
+    """
+    try:
+        # Get dictionary service
+        dict_service = get_dictionary_service()
+
+        # Get CSS mapping service
+        css_service = CSSMappingService()
+
+        # Get request parameters
+        data = request.get_json() or {}
+        output_path = data.get('output_path', 'instance/exports')
+        title = data.get('title', 'Dictionary')
+        profile_id = data.get('profile_id')
+
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"dictionary_export_{timestamp}.zip"
+        full_output_path = os.path.join(output_path, filename)
+
+        # Ensure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+
+        # Import here to avoid circular imports
+        from app.exporters.html_exporter import HTMLExporter
+
+        # Create exporter and run export
+        exporter = HTMLExporter(dict_service, css_service)
+        result_path = exporter.export(
+            output_path=full_output_path,
+            title=title,
+            profile_id=profile_id
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'HTML export completed successfully',
+            'result_path': result_path,
+            'filename': filename
+        })
+
+    except Exception as e:
+        logger.error("Error exporting to HTML format: %s", str(e), exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f"Error exporting to HTML format: {str(e)}"
+        }), 500
+
+
+@export_bp.route('/html', methods=['GET'])
+def export_html_info():
+    """Get information about HTML export endpoint."""
+    return jsonify({
+        'name': 'HTML Export',
+        'description': 'Export dictionary entries to HTML format with alphabetical navigation',
+        'method': 'POST',
+        'parameters': {
+            'output_path': {'type': 'string', 'description': 'Directory to save exported ZIP file'},
+            'title': {'type': 'string', 'description': 'Title for the dictionary'},
+            'profile_id': {'type': 'integer', 'description': 'Display profile ID for rendering (optional)'}
+        },
+        'returns': {
+            'success': 'boolean',
+            'message': 'Success or error message',
+            'result_path': 'Path to exported ZIP file',
+            'filename': 'Name of exported file'
+        }
+    })

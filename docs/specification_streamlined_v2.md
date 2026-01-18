@@ -259,6 +259,7 @@ Complete display profile system for customizable entry rendering.
 The LCW implements a sophisticated CSS-based display profile system that allows lexicographers to customize how dictionary entries are rendered without modifying code. This feature enables project-specific formatting conventions while maintaining data integrity.
 
 **Key Features**:
+
 - **Profile Management**: Create, edit, and manage multiple display profiles
 - **CSS Mapping**: Map LIFT XML elements to CSS classes and styles
 - **Field Visibility Control**: Show/hide specific fields per profile
@@ -299,6 +300,7 @@ For detailed CSS mapping configuration, see Section 7.5.
 #### 4.2.2 Data Integrity Validation
 
 **LIFT Format Compliance**:
+
 - XML schema validation
 - Round-trip testing (import → modify → export)
 - Data loss prevention testing
@@ -391,11 +393,13 @@ BaseX is an XML database management system optimized for storing, querying, and 
 #### 7.2.1 UI/UX Standards and Consistency
 
 **Homograph Number Field**:
+
 - Only displays when entry has an actual homograph number
 - No placeholder text for entries without homograph numbers
 - Reduces visual clutter and confusion for non-homograph entries
 
 **Tooltip Icon Standardization**:
+
 - Primary tooltips use `fa-info-circle` icons consistently
 - `fa-question-circle` reserved only for warning/error contexts in alerts
 - Improved visual hierarchy and user experience
@@ -404,51 +408,51 @@ BaseX is an XML database management system optimized for storing, querying, and 
 
 The entry editor implements the following logic to ensure data consistency and improve user experience:
 
--   **Grammatical Category Inheritance**:
-    -   The entry-level grammatical category (Part of Speech) shall be automatically derived from the categories of its senses.
-    -   If all senses share the same grammatical category, the entry-level field will be automatically set to this value.
-    -   If there is a discrepancy in grammatical categories among the senses, the entry-level field will display a clear error message (e.g., highlighted in red) to prompt the lexicographer for manual resolution.
+- **Grammatical Category Inheritance**:
+  - The entry-level grammatical category (Part of Speech) shall be automatically derived from the categories of its senses.
+  - If all senses share the same grammatical category, the entry-level field will be automatically set to this value.
+  - If there is a discrepancy in grammatical categories among the senses, the entry-level field will display a clear error message (e.g., highlighted in red) to prompt the lexicographer for manual resolution.
 
--  **Obligatory Fields**
-    - The system will not require any definitions or senses to be present in entries that are marked AS VARIANTS. If any content exists in such entries, there should be a warning message there that it won't be displayed.
-    - Part of speech fields are *NOT* obligatory. They can remain empty.
+- **Obligatory Fields**
+  - The system will not require any definitions or senses to be present in entries that are marked AS VARIANTS. If any content exists in such entries, there should be a warning message there that it won't be displayed.
+  - Part of speech fields are _NOT_ obligatory. They can remain empty.
 
--   **Automatic Morph Type Classification (for new entries)**:
-    -   The morphological type (`morph-type`) for new entries shall be automatically determined based on the headword's form:
-        -   Contains whitespace: `phrase`
-        -   Ends with a hyphen (`-`): `prefix`
-        -   Starts with a hyphen (`-`): `suffix`
-        -   Starts and ends with a hyphen (`-`): `infix`
-        -   Default: `stem`
-    -   For existing entries, the `morph-type` value from the LIFT data (`trait` element) will be preserved and displayed.
+- **Automatic Morph Type Classification (for new entries)**:
+  - The morphological type (`morph-type`) for new entries shall be automatically determined based on the headword's form:
+    - Contains whitespace: `phrase`
+    - Ends with a hyphen (`-`): `prefix`
+    - Starts with a hyphen (`-`): `suffix`
+    - Starts and ends with a hyphen (`-`): `infix`
+    - Default: `stem`
+  - For existing entries, the `morph-type` value from the LIFT data (`trait` element) will be preserved and displayed.
 
--   **Homograph Number Handling**:
-    -   Homograph numbers shall be displayed within the entry form as subscripts.
-    -   Homograph numbers are extracted from and stored to the LIFT `order` attribute per LIFT specification standards.
-    -   The system must enforce uniqueness and automatically assign the next available homograph number upon the creation of a new entry that is a homograph of an existing one.
-    -   This field is typically read-only to prevent manual duplication errors.
-    -   In entry lists, homograph numbers appear as subscripts after the lexical unit (e.g., "bank₁", "bank₂").
+- **Homograph Number Handling**:
+  - Homograph numbers shall be displayed within the entry form as subscripts.
+  - Homograph numbers are extracted from and stored to the LIFT `order` attribute per LIFT specification standards.
+  - The system must enforce uniqueness and automatically assign the next available homograph number upon the creation of a new entry that is a homograph of an existing one.
+  - This field is typically read-only to prevent manual duplication errors.
+  - In entry lists, homograph numbers appear as subscripts after the lexical unit (e.g., "bank₁", "bank₂").
 
--   **Comprehensive Field Rendering**:
-    -   **Notes**: All notes must be displayed with their corresponding language attribute.
-    -   **Custom Fields**: All custom fields defined within the `<field>` tag in the LIFT data must be rendered and editable in the entry form.
-    -   **Example Translation Types**: The form must allow specifying a `type` for example translations (e.g., 'literal', 'free'), populated from the corresponding LIFT range.
+- **Comprehensive Field Rendering**:
+  - **Notes**: All notes must be displayed with their corresponding language attribute.
+  - **Custom Fields**: All custom fields defined within the `<field>` tag in the LIFT data must be rendered and editable in the entry form.
+  - **Example Translation Types**: The form must allow specifying a `type` for example translations (e.g., 'literal', 'free'), populated from the corresponding LIFT range.
 
--   **Enhanced Relation Editor**:
-    -   The interface for adding/editing lexical relations must not require the user to know or enter an entry's GUID.
-    -   It must feature a progressive search component that allows the user to search for entries by their lexical form.
-    -   The search results will be displayed as a selectable list of matching entries and/or senses, simplifying the linking process.
+- **Enhanced Relation Editor**:
+  - The interface for adding/editing lexical relations must not require the user to know or enter an entry's GUID.
+  - It must feature a progressive search component that allows the user to search for entries by their lexical form.
+  - The search results will be displayed as a selectable list of matching entries and/or senses, simplifying the linking process.
 
--   **Customizable Field Visibility**:
-    -   Users must have control over the visibility of fields within the entry editor. Each field or field group should support three visibility states:
-        1.  **Always Visible**: The field is always displayed.
-        2.  **Hide When Empty**: The field is automatically hidden if it contains no data, reducing clutter.
-        3.  **Always Hidden**: The field is hidden by default, but can be toggled into view by the user via a UI control (e.g., a settings menu or a small handle next to the field group).
+- **Customizable Field Visibility**:
+  - Users must have control over the visibility of fields within the entry editor. Each field or field group should support three visibility states:
+    1.  **Always Visible**: The field is always displayed.
+    2.  **Hide When Empty**: The field is automatically hidden if it contains no data, reducing clutter.
+    3.  **Always Hidden**: The field is hidden by default, but can be toggled into view by the user via a UI control (e.g., a settings menu or a small handle next to the field group).
 
--   **Real-time Pronunciation Validation**:
-    -   The pronunciation field must perform real-time validation against a set of admissible IPA characters and sequences.
-    -   This set of rules shall be configurable per dictionary, based on the definitions in Section 15.3.
-    -   Any characters or sequences that violate the rules must be visually marked as errors (e.g., underlined in red) to provide immediate feedback to the lexicographer.
+- **Real-time Pronunciation Validation**:
+  - The pronunciation field must perform real-time validation against a set of admissible IPA characters and sequences.
+  - This set of rules shall be configurable per dictionary, based on the definitions in Section 15.3.
+  - Any characters or sequences that violate the rules must be visually marked as errors (e.g., underlined in red) to provide immediate feedback to the lexicographer.
 
 ### 7.1 UI Optimization and Accessibility
 
@@ -596,16 +600,19 @@ The LCW v2.0 represents a fundamental shift from traditional single-entry editin
 #### 17.1.1 Key Architectural Innovations
 
 **Hybrid Database Architecture**:
+
 - BaseX for hierarchical XML storage (LIFT format preservation)
 - PostgreSQL for analytical and relational data
 - Unified repository pattern for seamless data access
 
 **Workbench-Centered Design**:
+
 - Query-driven entry collections replacing manual entry browsing
 - Bulk operations as primary workflow (not secondary)
 - AI-assisted curation workflows with human oversight
 
 **Test-Driven Development Framework**:
+
 - Mandatory 90%+ test coverage for all features
 - Red-Green-Refactor cycle enforcement
 - Performance benchmarks as acceptance criteria
@@ -619,6 +626,7 @@ Based on the existing codebase analysis, the following features have been implem
 #### **COMPLETED FEATURES**
 
 **Core Infrastructure (Foundation)**:
+
 - Flask application structure with blueprints
 - BaseX database connector with XQuery support
 - Basic LIFT format parsing and XML handling
@@ -629,37 +637,96 @@ Based on the existing codebase analysis, the following features have been implem
 - Development environment setup (.env, requirements.txt)
 
 **Basic Dictionary Operations**:
+
 - Entry CRUD operations (Create, Read, Update, Delete)
 - Search functionality with pagination
 - Basic entry display with formatted dictionary layout
 - LIFT format import/export capabilities
 - Basic grammatical information parsing
 - Namespace handling for LIFT XML elements
+- **User Management System** - Complete authentication and authorization framework
+- **Security and Authentication** - Role-based access control with project permissions
+- **Activity Logging and Audit Trails** - Comprehensive user action tracking
+- **Message/Notification System** - Entry-level discussions and user notifications
+- **Project Member Management** - ADMIN/MEMBER/VIEWER roles with fine-grained permissions
 
 **Web Interface**:
+
 - Dashboard with basic statistics
 - Entry browsing and search interface
 - Individual entry view and editing
 - Search results display with pagination
 - Basic responsive design framework
+- **User Authentication UI** - Login, registration, profile pages with Bootstrap 5
 
 **Export Capabilities**:
+
 - Kindle dictionary export (.opf/.mobi format)
 - SQLite export for Flutter mobile apps
 - LIFT format export for interoperability
 
 **Testing Framework**:
+
 - Unit tests for core models and services
 - Integration tests for database operations
 - Search functionality tests
 - Basic API endpoint tests
 - Test fixtures and data management
+- **User Management Tests** - Comprehensive test suite for authentication and authorization
+- **Security Tests** - Authentication bypass attempts and permission enforcement
+- **API Integration Tests** - All user management endpoints tested
 
-### 18.2 Implementation Roadmap by Priority
+### 18.2 User Management System Implementation Status
+
+### 18.2.1 Complete Implementation
+
+The User Management and Authentication System has been **fully implemented** as a core production feature, transforming LCW from single-user to multi-user collaborative platform.
+
+#### Core Features Delivered
+
+- **Authentication Framework**: Session-based auth with PBKDF2-SHA256 password security
+- **Role-Based Access Control**: Hierarchical permissions (System Admin > Project Admin > Member > Viewer)
+- **Project-Based Authorization**: Users can belong to multiple projects with different roles per project
+- **Complete REST APIs**: 20+ endpoints for auth, users, messages, project management
+- **Web UI Integration**: Login, registration, profile pages with Bootstrap 5 styling
+- **Activity Logging**: Comprehensive audit trail for all user actions
+- **Entry Messaging**: Threaded discussions on dictionary entries with notifications
+- **Database Migration**: All tables created with proper relationships and indexing
+
+#### Database Schema Implementation
+
+```sql
+-- Enhanced User Model
+users (id, username, email, password_hash, first_name, last_name,
+       is_admin, is_active, avatar_url, bio, preferences, timestamps)
+
+-- Project Membership
+project_roles (id, user_id, project_id, role, timestamps)
+
+-- Activity Tracking
+activity_logs (id, user_id, action, resource_type, details, ip_address, timestamps)
+
+-- Entry Messaging
+messages (id, entry_id, user_id, content, thread, read_status, timestamps)
+
+-- User Notifications
+notifications (id, user_id, title, message, type, read_status, timestamps)
+```
+
+#### Technical Implementation
+
+- **Services**: AuthenticationService, UserManagementService, MessageService
+- **Decorators**: @login_required, @admin_required, @role_required, @project_access_required
+- **API Blueprints**: auth_api, users_api, messages_api, project_members_api
+- **Web Routes**: Complete authentication workflow with form validation
+- **Security**: CSRF protection, SQL injection prevention, input validation
+
+### 18.2.2 Implementation Roadmap by Priority
 
 **PHASE 2: Workbench Features** (Most completed)
 
 **Week 5-6: Query Builder and Worksets**
+
 - Dynamic Query Builder
 - Project Language Settings
 - Enhanced Entry Editing UI
@@ -667,46 +734,61 @@ Based on the existing codebase analysis, the following features have been implem
 - Workset Management APIs
 
 **Week 7-8: Enhanced Entry Editing UI**
+
 - LIFT-Compliant Entry Editing Interface
 - Pronunciation Display and LIFT Ranges Integration
 - Audio File Upload System
 - Field Rendering & Usability
 
 **Week 9-10: CSS Mapping System**
+
 - CSS Mapping Configuration
 - Enhanced Entry Display
 
 **Week 11-12: Search and Analysis Enhancement**
+
 - Advanced Search Features
 - Analysis Tools
 
 **PHASE 3: AI Integration** (High priority - next focus)
 **Week 13-14: AI Infrastructure**
+
 - LLM Integration Framework
 - Content Generation Pipeline
 
 **Week 15-16: Machine Learning Models**
+
 - POS Tagging Integration
 - Pronunciation Systems
 
 **Week 17-18: AI-Augmented Workflows**
+
 - Content Review Workbench
 - Quality Control Automation
 
 **Week 19-20: Advanced Linguistic Analysis**
+
 - Semantic Relationship Management
 - Example-Sense Association
 
 **PHASE 4: Production Features** (Medium priority)
-**Week 21-22: Security and Authentication**
-- User Management System
-- Security Framework
+**Week 21-22: Security and Authentication** ✅ **COMPLETED**
+
+- ✅ **User Management System** - Full implementation with comprehensive authentication and authorization
+- ✅ **Security Framework** - Session-based auth with role-based access control
+- ✅ **Database Migration** - All user management tables successfully created and populated
+- ✅ **Web UI Integration** - Login, registration, profile pages with Bootstrap 5
+- ✅ **REST APIs** - 20+ endpoints for authentication, users, messages, project management
+- ✅ **Activity Logging** - Complete audit trail system for all user actions
+- ✅ **Project-Based Access Control** - ADMIN/MEMBER/VIEWER roles with fine-grained permissions
 
 **Week 23-24: Enhanced Export System**
+
 - Export Enhancement
 - Publication Workflows
 
 **Week 25-26: Collaboration Features**
+
 - Multi-user Editing
 - Project Management
 
@@ -723,11 +805,72 @@ PostgreSQL integration has been successfully completed with:
 - Sketch grammar pattern matching system
 
 **Architecture Overview**:
+
 - **BaseX**: Primary LIFT XML storage (dictionary structure integrity)
 - **PostgreSQL**: Advanced analytics, word sketches, parallel corpus, SUBTLEX norms
 - **Word Sketch Engine**: Grammatically enriched collocations using logDice scoring
 - **Sentence-Aligned Optimization**: Leverage pre-aligned corpus for efficiency
 
-## 20. Namespace and XQuery Fixes (Completed)
+## 20. User Management System - Complete Implementation
+
+### 20.1 Overview
+
+The User Management and Authentication System has been **fully implemented** as a core production feature, transforming LCW from single-user to multi-user collaborative platform with enterprise-grade security.
+
+### 20.2 Implemented Features
+
+#### 20.2.1 Authentication Framework
+
+- **Session-Based Authentication**: Flask session management with secure cookie handling
+- **Password Security**: PBKDF2-SHA256 hashing with salt rounds
+- **Role-Based Access Control**: Hierarchical permissions (System Admin > Project Admin > Member > Viewer)
+- **Project-Based Authorization**: Users can belong to multiple projects with different roles per project
+
+#### 20.2.2 User Management System
+
+- **Complete REST APIs**: 20+ endpoints for auth, users, messages, project management
+- **Web UI Integration**: Login, registration, profile pages with Bootstrap 5 styling
+- **Activity Logging**: Comprehensive audit trail for all user actions
+- **Entry Messaging**: Threaded discussions on dictionary entries with notifications
+- **Database Migration**: All tables created with proper relationships and indexing
+
+#### 20.2.3 Database Schema
+
+```sql
+-- Enhanced User Model
+users (id, username, email, password_hash, first_name, last_name,
+       is_admin, is_active, avatar_url, bio, preferences, timestamps)
+
+-- Project Membership
+project_roles (id, user_id, project_id, role, timestamps)
+
+-- Activity Tracking
+activity_logs (id, user_id, action, resource_type, details, ip_address, timestamps)
+
+-- Entry Messaging
+messages (id, entry_id, user_id, content, thread, read_status, timestamps)
+
+-- User Notifications
+notifications (id, user_id, title, message, type, read_status, timestamps)
+```
+
+#### 20.2.4 Files Created
+
+- `app/models/user_models.py` (170 lines) - User management models
+- `app/services/auth_service.py` (380 lines) - Authentication business logic
+- `app/services/user_service.py` (310 lines) - User management operations
+- `app/services/message_service.py` (290 lines) - Messaging system
+- `app/utils/auth_decorators.py` (180 lines) - Authorization decorators
+- `app/api/auth_api.py` (230 lines) - Authentication REST API
+- `app/api/users_api.py` (240 lines) - User management API
+- `app/api/messages_api.py` (290 lines) - Messaging API
+- `app/api/project_members_api.py` (230 lines) - Project membership API
+- `app/routes/auth_routes.py` (new) - Web authentication routes
+- `app/templates/auth/login.html` (new) - Login page template
+- `app/templates/auth/register.html` (new) - Registration template
+- `app/templates/auth/profile.html` (new) - User profile template
+- `migrations/add_user_management_system.py` (410 lines) - Database migration
+
+## 21. Namespace and XQuery Fixes (Completed)
 
 ## 21. Comprehensive LIFT Ranges Support (Complete)

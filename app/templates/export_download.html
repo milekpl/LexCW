@@ -18,6 +18,8 @@
                 <h3>SQLite Database Export</h3>
             {% elif export_type == 'lift' %}
                 <h3>LIFT Format Export</h3>
+            {% elif export_type == 'html' %}
+                <h3>HTML Export</h3>
             {% else %}
                 <h3>Export Files</h3>
             {% endif %}
@@ -51,6 +53,11 @@
                         <i class="fa fa-file-code"></i> {{ files.lift }}
                         <span class="badge bg-primary float-end">LIFT</span>
                     </a>
+                {% elif export_type == 'html' %}
+                    <a href="{{ url_for('main.download_export', filename=files.html) }}" class="list-group-item list-group-item-action">
+                        <i class="fa fa-file-zipper"></i> {{ files.html }}
+                        <span class="badge bg-warning float-end">ZIP</span>
+                    </a>
                 {% endif %}
             </div>
             
@@ -81,6 +88,19 @@
                     <ul>
                         <li>SIL Fieldworks Explorer</li>
                         <li>Other LIFT-compatible dictionary applications</li>
+                    </ul>
+                {% elif export_type == 'html' %}
+                    <p>To use this HTML export:</p>
+                    <ol>
+                        <li>Download the <code>.zip</code> file</li>
+                        <li>Extract it to a folder</li>
+                        <li>Open <code>index.html</code> in a web browser</li>
+                    </ol>
+                    <p>The export includes:</p>
+                    <ul>
+                        <li><code>index.html</code> - Main index page with navigation</li>
+                        <li><code>A.html</code>, <code>B.html</code>, etc. - Letter-indexed pages</li>
+                        <li><code>css/dictionary.css</code> - Single CSS file for styling</li>
                     </ul>
                 {% endif %}
             </div>

@@ -113,6 +113,34 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="card-title">HTML Export</h3>
+                </div>
+                <div class="card-body">
+                    <p>Export the dictionary to HTML format with alphabetical navigation.</p>
+                    <p>This format creates:</p>
+                    <ul>
+                        <li>Letter-indexed pages (A.html, B.html, etc.)</li>
+                        <li>Single CSS file for consistent styling</li>
+                        <li>Index page with navigation</li>
+                    </ul>
+                    <form action="{{ url_for('main.export_html') }}" method="get">
+                        <div class="mb-3">
+                            <label for="html_title" class="form-label">Dictionary Title</label>
+                            <input type="text" class="form-control" id="html_title" name="title" value="Dictionary">
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fa fa-globe"></i> Export to HTML
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
     
     <div class="mt-3">
