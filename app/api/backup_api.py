@@ -532,68 +532,53 @@ def download_backup(backup_id: str):
         p = Path(file_path)
         # If backup is a directory (BaseX exported a directory), create a zip on demand
         if p.is_dir():
-            zip_path = p.with_suffix('.zip')
-            # If zip doesn't exist or is older than dir, (re)create it
-            if not zip_path.exists() or zip_path.stat().st_mtime < p.stat().st_mtime:
-                # Create zip including only relevant files (non-empty .lift/.xml, excluding test artifacts)
-                import shutil
-                base_name = str(zip_path.with_suffix(''))
-                # create a temp dir to copy filtered files
-                import tempfile
-                with tempfile.TemporaryDirectory() as tmpd:
-                    tmpd_path = Path(tmpd)
-                    for f in p.rglob('*'):
-                        if not f.is_file():
+            # Build an in-memory ZIP of the directory backup to avoid filesystem
+            # write permission issues and to ensure atomic delivery.
+            import io
+            import zipfile
+            import shutil
+
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, mode='w', compression=zipfile.ZIP_DEFLATED) as z:
+                # Walk the directory and include relevant files
+                for f in p.rglob('*'):
+                    if not f.is_file():
+                        continue
+
+                    # Only include LIFT files ('.lift') and skip tiny/test artifacts
+                    if f.suffix.lower() == '.lift' and f.stat().st_size > 0 and not f.name.startswith('test_'):
+                        z.write(f, arcname=str(f.relative_to(p)))
+
+                    # Include supplementary project files (canonical lift-ranges + sidecars)
+                    if (f.name == 'lift-ranges' or
+                        f.name.endswith('.display_profiles.json') or
+                        f.name.endswith('.settings.json') or f.name.endswith('.validation_rules.json')):
+                        z.write(f, arcname=str(f.relative_to(p)))
+
+                # Also include canonical lift-ranges if it exists alongside the directory
+                sibling_lift_ranges = p.parent / 'lift-ranges'
+                if sibling_lift_ranges.exists() and sibling_lift_ranges.is_file():
+                    z.write(sibling_lift_ranges, arcname=sibling_lift_ranges.name)
+
+                # Also include any supplementary files that live alongside the backup directory
+                try:
+                    parent = p.parent
+                    base = p.name
+                    for candidate in parent.iterdir():
+                        if not candidate.is_file():
                             continue
+                        if candidate.name.startswith('test_'):
+                            continue
+                        # Only include files that are clearly related to this backup
+                        if candidate.name.startswith(base + '.') or candidate.name == base + '.meta.json' or candidate.name == base + '.lift-ranges' or candidate.name == base + '.validation_rules.json':
+                            if (any(candidate.name.endswith(sfx) for sfx in ['.settings.json', '.display_profiles.json', '.validation_rules.json', '.meta.json'])
+                                or candidate.name == 'lift-ranges'):
+                                z.write(candidate, arcname=candidate.name)
+                except Exception:
+                    pass
 
-                        # Only include LIFT files ('.lift') and skip tiny/test artifacts
-                        if f.suffix.lower() == '.lift' and f.stat().st_size > 0 and not f.name.startswith('test_'):
-                            rel = f.relative_to(p)
-                            target = tmpd_path / rel
-                            target.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(f, target)
-
-                        # Include supplementary project files (canonical lift-ranges + sidecars)
-                        if (f.name == 'lift-ranges' or
-                            f.name.endswith('.display_profiles.json') or
-                            f.name.endswith('.settings.json') or f.name.endswith('.validation_rules.json')):
-                            rel = f.relative_to(p)
-                            target = tmpd_path / rel
-                            target.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(f, target)
-
-                    # Also include canonical lift-ranges if it exists alongside the directory
-                    sibling_lift_ranges = p.parent / 'lift-ranges'
-                    if sibling_lift_ranges.exists() and sibling_lift_ranges.is_file():
-                        shutil.copy2(sibling_lift_ranges, tmpd_path / sibling_lift_ranges.name)
-
-                    # Also include media directory if present
-                    media_dir = p / '.media'
-                    if media_dir.exists() and media_dir.is_dir():
-                        shutil.copytree(media_dir, tmpd_path / '.media', dirs_exist_ok=True)
-
-                    # Also include any supplementary files that live alongside the backup directory
-                    # (some backup exporters put .settings/.ranges/.display_profiles next to the .lift dir)
-                    try:
-                        parent = p.parent
-                        base = p.name
-                        for candidate in parent.iterdir():
-                            if not candidate.is_file():
-                                continue
-                            if candidate.name.startswith('test_'):
-                                continue
-                            # Only include files that are clearly related to this backup (start with base name + '.')
-                            if candidate.name.startswith(base + '.') or candidate.name == base + '.meta.json' or candidate.name == base + '.lift-ranges' or candidate.name == base + '.validation_rules.json':
-                                # filter by known suffixes or exact known names
-                                if (any(candidate.name.endswith(sfx) for sfx in ['.settings.json', '.display_profiles.json', '.validation_rules.json', '.meta.json'])
-                                    or candidate.name == 'lift-ranges'):
-                                        tgt = tmpd_path / candidate.name
-                                        shutil.copy2(candidate, tgt)
-                    except Exception:
-                        pass
-
-                    shutil.make_archive(base_name, 'zip', root_dir=tmpd)
-            return send_file(str(zip_path), as_attachment=True)
+            buf.seek(0)
+            return send_file(buf, mimetype='application/zip', as_attachment=True, download_name=f"{p.name}.zip")
         # If backup is a regular file, check for supplementary files and
         # create a zip containing the .lift and any supplementary files
         if not p.exists():
@@ -651,6 +636,7 @@ def download_backup(backup_id: str):
 
         return send_file(str(p), as_attachment=True)
     except Exception as e:
+        current_app.logger.exception('Error downloading backup %s: %s', backup_id, e)
         return jsonify({'success': False, 'error': str(e)}), 404
 
 

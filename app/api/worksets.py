@@ -501,8 +501,35 @@ def toggle_favorite(workset_id: int, entry_id: str) -> tuple[Dict[str, Any], int
 
 @worksets_bp.route('/api/worksets/<int:workset_id>/progress', methods=['GET'])
 def get_curation_progress(workset_id: int) -> tuple[Dict[str, Any], int]:
-    """Get curation progress for a workset with status counts."""
+    """Get curation progress for a workset with status counts.
+
+    Returns a normalized schema expected by the frontend and integration tests:
+    {
+        'status': 'pending'|'running'|'completed'|'failed',
+        'progress': float,  # percent
+        'total_items': int,
+        'completed_items': int
+    }
+    """
     try:
+        # Prefer service-level progress tracking if available
+        try:
+            workset_service = WorksetService()
+            svc_progress = workset_service.get_workset_progress(workset_id)
+            if svc_progress:
+                # If service returns the structured progress dict, normalize keys
+                # to the expected naming convention for the API
+                normalized = {
+                    'status': svc_progress.get('status'),
+                    'progress': float(svc_progress.get('progress', svc_progress.get('progress_percent', 0.0))),
+                    'total_items': int(svc_progress.get('total_items', svc_progress.get('total', 0))),
+                    'completed_items': int(svc_progress.get('completed_items', svc_progress.get('done', 0)))
+                }
+                return normalized, 200
+        except Exception:
+            # Fall back to database-derived counts if the service cannot provide progress
+            pass
+
         with current_app.pg_pool.getconn() as conn:
             with conn.cursor() as cur:
                 # Get status counts
@@ -524,17 +551,19 @@ def get_curation_progress(workset_id: int) -> tuple[Dict[str, Any], int]:
                 total, pending, done, review, favorites = row
 
                 # Calculate progress percentage
-                progress_pct = (done / total * 100) if total > 0 else 0
+                progress_pct = (done / total * 100) if total > 0 else 0.0
 
-                return {
-                    'workset_id': workset_id,
-                    'total': total,
-                    'pending': pending,
-                    'done': done,
-                    'review': review,
-                    'favorites': favorites,
-                    'progress_percent': round(progress_pct, 1)
-                }, 200
+                # Derive a simple status
+                status = 'completed' if total > 0 and done >= total else 'pending' if pending > 0 else 'completed'
+
+                normalized = {
+                    'status': status,
+                    'progress': round(progress_pct, 1),
+                    'total_items': total,
+                    'completed_items': done
+                }
+
+                return normalized, 200
 
     except Exception as e:
         logger.error(f"Error getting curation progress: {e}")
