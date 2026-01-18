@@ -36,11 +36,53 @@ class BaseXBackupManager:
         """
         self.basex_connector = basex_connector
         self.config_manager = config_manager
-        self.backup_directory = Path(backup_directory)
         self.logger = logging.getLogger(__name__)
+        
+        # Validate and set backup directory
+        validated_backup_dir = self._validate_backup_directory(backup_directory)
+        self.backup_directory = Path(validated_backup_dir)
         
         # Ensure backup directory exists
         self.backup_directory.mkdir(parents=True, exist_ok=True)
+
+    def _validate_backup_directory(self, backup_dir: str) -> str:
+        """
+        Validate the backup directory to prevent directory traversal attacks.
+        
+        Rejects any path containing '..' to prevent escaping the app directory.
+        For absolute paths outside the app, defaults to instance/backups.
+        
+        Args:
+            backup_dir: The backup directory path to validate
+            
+        Returns:
+            Validated backup directory path
+            
+        Raises:
+            ValidationError: If validation fails
+        """
+        if not backup_dir:
+            return "instance/backups"
+        
+        # Reject any path containing '..' (parent directory traversal)
+        if ".." in backup_dir:
+            self.logger.warning(
+                f"Backup directory rejected due to parent traversal pattern: {backup_dir}. "
+                f"Using default instance/backups instead."
+            )
+            return "instance/backups"
+        
+        # Check for absolute paths outside the app
+        path = Path(backup_dir)
+        if path.is_absolute():
+            # For absolute paths, log warning and use default
+            self.logger.warning(
+                f"Absolute backup path not allowed: {backup_dir}. "
+                f"Using default instance/backups instead."
+            )
+            return "instance/backups"
+        
+        return backup_dir
 
     def get_backup_directory(self) -> Path:
         """
@@ -817,6 +859,16 @@ class BaseXBackupManager:
         ]:
             try:
                 if stale.exists():
+                    # SECURITY: Ensure we only delete within backup directory
+                    try:
+                        stale.resolve().relative_to(self.backup_directory.resolve())
+                    except ValueError:
+                        # Path is outside backup_directory, skip deletion
+                        self.logger.warning(
+                            f"Skipped deletion of file outside backup directory: {stale}"
+                        )
+                        continue
+                    
                     if stale.is_dir():
                         shutil.rmtree(stale, ignore_errors=True)
                     else:
