@@ -37,6 +37,10 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/main.css') }}"
     />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/keyboard-manager.css') }}"
+    />
     {% block extra_css %}{% endblock %}
   </head>
   <body>
@@ -134,6 +138,14 @@
                     class="dropdown-item"
                     href="{{ url_for('main.export_html') }}"
                     ><i class="fa fa-globe"></i> Export to HTML</a
+                  >
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.export_options') }}"
+                    ><i class="fa fa-cog"></i> Export Options</a
                   >
                 </li>
               </ul>
@@ -325,6 +337,8 @@
     <!-- Common JS -->
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     <script src="{{ url_for('static', filename='js/api-utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/keyboard-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/entry-creation-manager.js') }}"></script>
     {% block extra_js %}{% endblock %} {% if FIRST_RUN_SETUP %}
     <script>
       // If first-run, display a small non-intrusive modal linking to setup wizard

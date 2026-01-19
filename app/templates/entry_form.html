@@ -275,11 +275,11 @@
                         <div class="d-flex align-items-center gap-2">
                             <div class="btn-group" role="group" aria-label="Undo/Redo controls">
                                 <button type="button" id="undo-btn" class="btn btn-outline-secondary"
-                                        title="Undo last operation" disabled>
+                                        title="Undo last operation" data-shortcut="ctrl+z" disabled>
                                     <i class="fas fa-undo"></i> Undo
                                 </button>
                                 <button type="button" id="redo-btn" class="btn btn-outline-secondary"
-                                        title="Redo last undone operation" disabled>
+                                        title="Redo last undone operation" data-shortcut="ctrl+y" disabled>
                                     <i class="fas fa-redo"></i> Redo
                                 </button>
                                 <div class="dropdown">
@@ -298,10 +298,10 @@
                             <button type="button" class="btn btn-outline-secondary" id="cancel-btn">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
-                            <button type="button" class="btn btn-primary" id="validate-btn">
+                            <button type="button" class="btn btn-primary" id="validate-btn" data-shortcut="ctrl+enter">
                                 <i class="fas fa-check-circle"></i> Validate
                             </button>
-                            <button type="submit" class="btn btn-success" id="save-btn">
+                            <button type="submit" class="btn btn-success" id="save-btn" data-shortcut="ctrl+s">
                                 <i class="fas fa-save"></i> Save Entry
                             </button>
                             <div class="form-check form-check-inline ms-2 mb-0">
@@ -709,8 +709,8 @@
         </div>
         <div class="card-body">
             <div class="mb-2">
-                <label class="form-label">Example Text <span class="text-danger">*</span></label>
-                <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].text" 
+                <label class="form-label">Example Sentence <span class="text-danger">*</span></label>
+                <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].sentence"
                           rows="2" required></textarea>
             </div>
             
@@ -1115,32 +1115,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
             Logger.info('Corpus example selected', { senseIndex: senseIndex, sentence: sentence });
 
-            // Find the examples container for this sense
-            var examplesContainer = document.querySelector(
-                '[data-sense-index="' + senseIndex + '"] .examples-container'
+            // Find the examples section for this sense
+            var examplesSection = document.querySelector(
+                '.sense-item[data-sense-index="' + senseIndex + '"] .examples-section'
             );
 
-            if (examplesContainer) {
-                // Trigger adding a new example with the sentence pre-filled
-                var addBtn = examplesContainer.querySelector('.add-example-btn');
-                if (addBtn) {
-                    // First, trigger the add example action
-                    addBtn.click();
-
-                    // Then, after a short delay, fill in the example text
-                    setTimeout(function() {
-                        // Find the newly added example
-                        var newExample = examplesContainer.querySelector(
-                            '.example-item:not([data-example-id]) .example-text, ' +
-                            '.example-item:last-child textarea[name*="text"]'
-                        );
-                        if (newExample && sentence) {
-                            newExample.value = sentence;
-                            newExample.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                    }, 100);
-                }
+            if (!examplesSection) {
+                Logger.warn('Examples section not found', { senseIndex: senseIndex });
+                return;
             }
+
+            // Find the examples container (where textarea will be added)
+            var examplesContainer = examplesSection.querySelector('.examples-container');
+
+            // Find the add-example-btn (it's in the button bar, not in container)
+            var addBtn = examplesSection.querySelector('.add-example-btn');
+
+            if (!addBtn) {
+                Logger.warn('Add example button not found', { senseIndex: senseIndex });
+                return;
+            }
+
+            // Click the add button
+            addBtn.click();
+
+            // After a short delay, fill in the example text
+            setTimeout(function() {
+                // Find the newly added example textarea - look for the one with ".sentence" in name
+                // The template uses: senses[SENSE_INDEX].examples[EXAMPLE_INDEX].sentence
+                var exampleTextareas = examplesContainer.querySelectorAll('textarea[name*="examples"]');
+
+                // Get the textarea that ends with ".sentence" (the example content field)
+                var newExample = null;
+                for (var i = 0; i < exampleTextareas.length; i++) {
+                    if (exampleTextareas[i].name.endsWith('.sentence')) {
+                        newExample = exampleTextareas[i];
+                        break;
+                    }
+                }
+
+                if (newExample && sentence) {
+                    newExample.value = sentence;
+                    newExample.dispatchEvent(new Event('input', { bubbles: true }));
+                    Logger.info('Corpus example filled in', newExample.name);
+                } else {
+                    Logger.warn('Could not find example textarea to fill', { senseIndex: senseIndex });
+                }
+            }, 200);
         });
     }
 

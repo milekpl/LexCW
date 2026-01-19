@@ -1198,8 +1198,14 @@ def export_html():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"dictionary_export_{timestamp}.zip"
 
-        # Get title from query params or use default
+        # Get options from query params
         title = request.args.get("title", "Dictionary")
+        column_layout = request.args.get("column_layout", "single")
+        show_subentries = request.args.get("show_subentries", "true").lower() == "true"
+
+        # Validate column_layout
+        if column_layout not in ("single", "two"):
+            column_layout = "single"
 
         # Import and use the HTML exporter
         from app.exporters.html_exporter import HTMLExporter
@@ -1207,7 +1213,9 @@ def export_html():
         output_path = os.path.join(exports_dir, filename)
         exporter.export(
             output_path=output_path,
-            title=title
+            title=title,
+            column_layout=column_layout,
+            show_subentries=show_subentries
         )
 
         flash(f"Dictionary exported to HTML format as {filename}", "success")

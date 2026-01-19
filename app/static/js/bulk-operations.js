@@ -95,16 +95,49 @@ class BulkOperationsHub {
             }
         });
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
+        // Keyboard shortcuts via KeyboardManager
+        if (window.keyboardManager) {
+            // Ctrl+Enter to execute pipeline
+            window.keyboardManager.registerShortcut('ctrl+enter', () => {
                 this.executePipeline();
-            } else if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
+            }, {
+                context: '#bulk-operations-container',
+                description: 'Execute pipeline',
+                priority: 100
+            });
+
+            // Ctrl+S to save pipeline
+            window.keyboardManager.registerShortcut('ctrl+s', () => {
                 this.showSavePipelineModal();
-            }
-        });
+            }, {
+                context: '#bulk-operations-container',
+                description: 'Save pipeline',
+                priority: 90
+            });
+
+            // Ctrl+P to preview matches
+            window.keyboardManager.registerShortcut('ctrl+p', () => {
+                this.previewMatch();
+            }, {
+                context: '#bulk-operations-container',
+                description: 'Preview matches',
+                priority: 80
+            });
+        } else {
+            // Fallback if KeyboardManager not available
+            document.addEventListener('keydown', (e) => {
+                const container = document.getElementById('bulk-operations-container');
+                if (!container || !container.contains(document.activeElement)) return;
+
+                if (e.ctrlKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    this.executePipeline();
+                } else if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    this.showSavePipelineModal();
+                }
+            });
+        }
     }
 
     async previewMatch() {
@@ -216,7 +249,22 @@ class BulkOperationsHub {
     }
 
     showExecutionResults(data) {
-        // Could show a modal with execution summary
+        // Show execution summary in a results container or notification
+        const changed = data.summary?.total_success || 0;
+        const failed = data.summary?.total_failed || 0;
+        const skipped = data.summary?.total_skipped || 0;
+
+        let message = `Pipeline executed: ${changed} entries changed`;
+        if (failed > 0) {
+            message += `, ${failed} failed`;
+        }
+        if (skipped > 0) {
+            message += `, ${skipped} skipped`;
+        }
+
+        showNotification(message, changed > 0 ? 'success' : 'warning');
+
+        // Could show a modal with execution summary - for now just log
         console.log('[BulkOperationsHub] Execution results:', data);
     }
 

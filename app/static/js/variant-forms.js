@@ -9,16 +9,57 @@ class VariantFormsManager {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
         this.variantRelations = [];
-        
+
         // Accept variant relations from options (passed during initialization)
         if (options.variantRelations && Array.isArray(options.variantRelations)) {
             console.log('[VARIANT DEBUG] Received variant relations via options:', options.variantRelations);
             this.variantRelations = options.variantRelations;
         }
-        
+
+        // Get source language from form data attribute
+        this.sourceLanguage = this._getSourceLanguage();
+
+        // Get current entry ID for circular reference detection
+        this.currentEntryId = this._getCurrentEntryId();
+
+        // Initialize EntryCreationManager for creating entries from search results
+        this.entryCreationManager = new EntryCreationManager({
+            sourceLanguage: this.sourceLanguage,
+            onSenseSelected: (senseId, entryId, context) => {
+                this._handleCreatedEntrySelected(senseId, entryId, context);
+            },
+            onError: (error) => {
+                console.error('[VariantFormsManager] Entry creation error:', error);
+                alert(`Failed to create entry: ${error.message}`);
+            }
+        });
+
+        // Set current entry ID for circular reference detection
+        if (this.currentEntryId) {
+            this.entryCreationManager.setCurrentEntryId(this.currentEntryId);
+        }
+
         this.init();
     }
-    
+
+    /**
+     * Get source language from entry form data attribute
+     * @private
+     */
+    _getSourceLanguage() {
+        const form = document.getElementById('entry-form');
+        return form?.dataset.sourceLanguage || 'en';
+    }
+
+    /**
+     * Get current entry ID for circular reference detection
+     * @private
+     */
+    _getCurrentEntryId() {
+        const entryIdInput = document.querySelector('input[name="id"]');
+        return entryIdInput?.value || null;
+    }
+
     async init() {
         this.setupEventListeners();
         
@@ -377,22 +418,47 @@ class VariantFormsManager {
         const searchTerm = input.value.trim();
         const variantIndex = input.dataset.variantIndex;
         const resultsContainer = document.getElementById(`variant-search-results-${variantIndex}`);
-        
+
         if (searchTerm.length < 2) {
             resultsContainer.style.display = 'none';
             return;
         }
-        
+
         try {
-            // Search for entries using the API
-            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=5`);
+            // Search for entries using the API with higher limit
+            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=100`);
             if (response.ok) {
                 const result = await response.json();
-                this.displaySearchResults(result.entries || [], resultsContainer, variantIndex);
+                const prioritizedEntries = this._prioritizeSearchResults(result.entries || [], searchTerm);
+                this.displaySearchResults(prioritizedEntries, resultsContainer, variantIndex);
             }
         } catch (error) {
             console.warn('[VariantFormsManager] Entry search failed:', error);
         }
+    }
+
+    /**
+     * Prioritize search results by placing exact matches at the top
+     * @private
+     */
+    _prioritizeSearchResults(entries, searchTerm) {
+        const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+        const exactMatches = [];
+        const partialMatches = [];
+        const otherMatches = [];
+
+        entries.forEach(entry => {
+            const headword = this.getEntryDisplayText(entry).toLowerCase();
+            if (headword === normalizedSearchTerm) {
+                exactMatches.push(entry);
+            } else if (headword.includes(normalizedSearchTerm)) {
+                partialMatches.push(entry);
+            } else {
+                otherMatches.push(entry);
+            }
+        });
+
+        return [...exactMatches, ...partialMatches, ...otherMatches];
     }
     
     getEntryDisplayText(entry) {
@@ -426,57 +492,139 @@ class VariantFormsManager {
     }
     
     displaySearchResults(entries, container, variantIndex) {
-        if (entries.length === 0) {
-            container.innerHTML = `
-                <div class="text-muted p-2 border rounded">No entries found</div>
-            `;
+        // Get the search input element to access the current search term
+        const input = document.querySelector(
+            `.variant-search-input[data-variant-index="${variantIndex}"]`
+        );
+        const currentSearchTerm = input ? input.value.trim() : '';
+
+        // Add "Create new entry" option at the top (if search term is long enough)
+        if (currentSearchTerm.length >= 2) {
+            this.entryCreationManager.addCreateOptionToResults(
+                currentSearchTerm,
+                container,
+                { variantIndex, type: 'variant' }
+            );
+        }
+
+        if (entries.length === 0 && !container.querySelector('.create-entry-option')) {
+            container.innerHTML = '<div class="text-muted p-2 border rounded">No entries found</div>';
             container.style.display = 'block';
             return;
         }
 
-        const resultsHtml = entries.map(entry => {
-            // Extract display text from headword or lexical_unit (which may be an object)
-            const displayText = this.getEntryDisplayText(entry);
-            return `
-            <div class="search-result-item p-2 border-bottom"
-                 data-entry-id="${entry.id}"
-                 data-entry-headword="${displayText}"
-                 data-variant-index="${variantIndex}">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="fw-bold">${displayText}</div>
-                        ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
-                    </div>
-                    <i class="fas fa-plus-circle text-success" title="Select this entry" style="cursor: pointer;"></i>
-                </div>
-            </div>
-        `}).join('');
+        // Create scrollable container with better styling
+        const maxResultsToShow = 50;
+        const resultsToShow = entries.slice(0, maxResultsToShow);
+        const remainingCount = entries.length - maxResultsToShow;
 
-        container.innerHTML = `
-            <div class="border rounded bg-white shadow-sm">
-                ${resultsHtml}
-            </div>
-        `;
+        // Build results HTML with proper escaping
+        const resultsContainer = document.createElement('div');
+        resultsContainer.className = 'search-results-container bg-white shadow-sm';
+        resultsContainer.style.maxHeight = '400px';
+        resultsContainer.style.overflowY = 'auto';
+
+        resultsToShow.forEach(entry => {
+            const displayText = this.getEntryDisplayText(entry);
+            const isExactMatch = displayText.toLowerCase() === currentSearchTerm.toLowerCase();
+            const matchBadge = isExactMatch
+                ? '<span class="badge bg-success ms-2">Exact Match</span>'
+                : '';
+
+            const item = document.createElement('div');
+            item.className = 'search-result-item p-2 border-bottom cursor-pointer';
+            item.dataset.entryId = entry.id;
+            item.dataset.entryHeadword = displayText;
+            item.dataset.variantIndex = variantIndex;
+
+            // Build inner HTML safely - all user content is escaped
+            item.innerHTML =
+                '<div class="d-flex justify-content-between align-items-start">' +
+                '<div>' +
+                '<div class="fw-bold">' + this._escapeHtml(displayText) + '</div>' +
+                (entry.definition
+                    ? '<div class="text-muted small">' + this._escapeHtml(entry.definition) + '</div>'
+                    : '') +
+                '</div>' +
+                '<div>' + matchBadge + '</div>' +
+                '</div>';
+
+            resultsContainer.appendChild(item);
+        });
+
+        // Clear container and rebuild with create option (if present) + results
+        const createOption = container.querySelector('.create-entry-option');
+        container.innerHTML = '';
+
+        if (createOption) {
+            container.appendChild(createOption);
+        }
+        container.appendChild(resultsContainer);
+
+        if (remainingCount > 0) {
+            const remainingDiv = document.createElement('div');
+            remainingDiv.className = 'text-center text-muted p-2';
+            remainingDiv.textContent = `+ ${remainingCount} more results (refine search for better results)`;
+            container.appendChild(remainingDiv);
+        }
+
         container.style.display = 'block';
 
-        // Add click handlers for search results and selection icons
-        container.querySelectorAll('.search-result-item').forEach(item => {
-            // Click on the entire item selects the result
-            item.addEventListener('click', (e) => {
-                if (!e.target.classList.contains('fa-plus-circle')) {
-                    this.selectSearchResult(item);
-                }
+        // Add click handlers for search results (excluding create option)
+        container.querySelectorAll('.search-result-item:not(.create-entry-option)').forEach(item => {
+            item.addEventListener('click', () => {
+                this.selectSearchResult(item);
             });
-
-            // Click on the plus icon also selects the result
-            const plusIcon = item.querySelector('.fa-plus-circle');
-            if (plusIcon) {
-                plusIcon.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.selectSearchResult(item);
-                });
-            }
         });
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     * @private
+     */
+    _escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Handle when a newly created entry is selected from the sense selection modal
+     * @private
+     */
+    _handleCreatedEntrySelected(senseId, entryId, context) {
+        const { variantIndex } = context;
+
+        // Update the hidden input with the selected sense/entry ID
+        const hiddenInput = this.container.querySelector(
+            `input[name="variant_relations[${variantIndex}][ref]"]`
+        );
+        if (hiddenInput) {
+            hiddenInput.value = senseId;
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Update search input to show entry info
+        const searchInput = this.container.querySelector(
+            `input[data-variant-index="${variantIndex}"]`
+        );
+        if (searchInput) {
+            searchInput.value = entryId;
+        }
+
+        // Hide search results
+        const resultsContainer = document.getElementById(`variant-search-results-${variantIndex}`);
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        // Trigger XML preview update if it exists
+        if (window.updateXmlPreview) {
+            window.updateXmlPreview();
+        }
+
+        console.log(`[VariantFormsManager] Created entry selected: "${entryId}" (sense: ${senseId}) for variant ${variantIndex}`);
     }
     
     selectSearchResult(resultItem) {

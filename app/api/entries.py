@@ -466,7 +466,16 @@ def update_entry(entry_id: str) -> Any:
         if cache.is_available():
             cache.clear_pattern('entries:*')
             logger.info(f"Cleared entries cache after updating entry {entry_id}")
-        
+
+        # Invalidate validation cache for this entry
+        try:
+            from app.services.validation_cache_service import invalidate_entry_cache
+            invalidated = invalidate_entry_cache(entry_id)
+            if invalidated > 0:
+                logger.info(f"Invalidated {invalidated} validation cache entries for entry {entry_id}")
+        except Exception as cache_err:
+            logger.warning(f"Failed to invalidate validation cache: {cache_err}")
+
         # Return response
         return jsonify({'success': True})
         
@@ -524,7 +533,16 @@ def delete_entry(entry_id: str) -> Any:
         if cache.is_available():
             cache.clear_pattern('entries:*')
             logger.info(f"Cleared entries cache after deleting entry {entry_id}")
-        
+
+        # Invalidate validation cache for this entry
+        try:
+            from app.services.validation_cache_service import invalidate_entry_cache
+            invalidated = invalidate_entry_cache(entry_id)
+            if invalidated > 0:
+                logger.info(f"Invalidated {invalidated} validation cache entries for entry {entry_id}")
+        except Exception as cache_err:
+            logger.warning(f"Failed to invalidate validation cache: {cache_err}")
+
         # Return response
         return jsonify({'success': True})
         

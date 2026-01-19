@@ -597,3 +597,393 @@ def batch_validate_entries() -> tuple[Dict[str, Any], int]:
     except Exception as e:
         current_app.logger.error(f"Error in batch validation endpoint: {str(e)}")
         return {'error': f'Batch validation error: {str(e)}'}, 500
+
+
+# === Spell Check and LanguageTool Endpoints ===
+
+@validation_service_bp.route('/api/validation/spell-check', methods=['POST'])
+@swag_from({
+    'tags': 'Validation',
+    'summary': 'Check spelling using Hunspell',
+    'description': 'Validates text spelling using Hunspell with caching support',
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'text': {'type': 'string', 'description': 'Text to check'},
+                    'lang': {'type': 'string', 'description': 'Language code (e.g., en, pl)', 'default': 'en'},
+                    'entry_id': {'type': 'string', 'description': 'Optional entry ID for caching'},
+                    'date_modified': {'type': 'string', 'description': 'Entry date_modified for cache validation'}
+                },
+                'required': ['text']
+            }
+        }
+    ],
+    'responses': {
+        '200': {'description': 'Spell check results'},
+        '400': {'description': 'Invalid request'},
+        '500': {'description': 'Server error'}
+    }
+})
+def spell_check():
+    """Check spelling using Hunspell with caching."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        text = data.get('text', '')
+        lang = data.get('lang', 'en')
+        entry_id = data.get('entry_id')
+        date_modified = data.get('date_modified')
+
+        if not text:
+            return jsonify({
+                'is_valid': True,
+                'misspellings': [],
+                'suggestions': [],
+                'word_count': 0
+            })
+
+        from app.services.validation_cache_service import get_validation_service
+        service = get_validation_service()
+
+        result = service.validate(
+            entry_id=entry_id or 'unknown',
+            text=text,
+            validator_types=['hunspell'],
+            lang=lang,
+            date_modified=date_modified
+        )
+
+        hunspell_result = result.get('hunspell')
+        if hunspell_result:
+            return jsonify({
+                'is_valid': hunspell_result.is_valid,
+                'misspellings': hunspell_result.metadata.get('misspellings', []),
+                'suggestions': hunspell_result.suggestions,
+                'cached': hunspell_result.metadata.get('cached', False),
+                'word_count': hunspell_result.metadata.get('word_count', 0)
+            })
+
+        return jsonify({
+            'is_valid': True,
+            'misspellings': [],
+            'suggestions': [],
+            'cached': False,
+            'message': 'Hunspell validator not available'
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Spell check error: {str(e)}")
+        return jsonify({'error': f'Spell check error: {str(e)}'}), 500
+
+
+@validation_service_bp.route('/api/validation/languagetool-check', methods=['POST'])
+@swag_from({
+    'tags': 'Validation',
+    'summary': 'Check text using LanguageTool',
+    'description': 'Validates text using LanguageTool with grammar, spelling, and bitext checking',
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'text': {'type': 'string', 'description': 'Text to check'},
+                    'lang': {'type': 'string', 'description': 'Source language code'},
+                    'target_lang': {'type': 'string', 'description': 'Target language for bitext checking'},
+                    'entry_id': {'type': 'string', 'description': 'Optional entry ID for caching'},
+                    'date_modified': {'type': 'string', 'description': 'Entry date_modified for cache validation'}
+                },
+                'required': ['text', 'lang']
+            }
+        }
+    ],
+    'responses': {
+        '200': {'description': 'LanguageTool check results'},
+        '400': {'description': 'Invalid request'},
+        '500': {'description': 'Server error'}
+    }
+})
+def languagetool_check():
+    """Check text using LanguageTool with caching."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        text = data.get('text', '')
+        lang = data.get('lang')
+        target_lang = data.get('target_lang')
+        entry_id = data.get('entry_id')
+        date_modified = data.get('date_modified')
+
+        if not text:
+            return jsonify({
+                'is_valid': True,
+                'matches': [],
+                'suggestions': [],
+                'cached': False
+            })
+
+        if not lang:
+            return jsonify({'error': 'Language code is required'}), 400
+
+        from app.services.validation_cache_service import get_validation_service
+        service = get_validation_service()
+
+        result = service.validate(
+            entry_id=entry_id or 'unknown',
+            text=text,
+            validator_types=['languagetool'],
+            lang=lang,
+            target_lang=target_lang,
+            date_modified=date_modified
+        )
+
+        lt_result = result.get('languagetool')
+        if lt_result:
+            return jsonify({
+                'is_valid': lt_result.is_valid,
+                'matches': lt_result.matches,
+                'suggestions': lt_result.suggestions,
+                'bitext_quality': lt_result.bitext_quality,
+                'cached': lt_result.metadata.get('cached', False),
+                'target_lang': lt_result.metadata.get('target_lang')
+            })
+
+        return jsonify({
+            'is_valid': True,
+            'matches': [],
+            'suggestions': [],
+            'cached': False,
+            'message': 'LanguageTool validator not available'
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"LanguageTool check error: {str(e)}")
+        return jsonify({'error': f'LanguageTool check error: {str(e)}'}), 500
+
+
+@validation_service_bp.route('/api/validation/spell-check-batch', methods=['POST'])
+@swag_from({
+    'tags': 'Validation',
+    'summary': 'Batch spell check multiple entries',
+    'description': 'Validates spelling for multiple entries with caching',
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'entries': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'id': {'type': 'string'},
+                                'text': {'type': 'string'}
+                            }
+                        }
+                    },
+                    'lang': {'type': 'string', 'description': 'Language code', 'default': 'en'}
+                },
+                'required': ['entries']
+            }
+        }
+    ],
+    'responses': {
+        '200': {'description': 'Batch spell check results'},
+        '400': {'description': 'Invalid request'},
+        '500': {'description': 'Server error'}
+    }
+})
+def spell_check_batch():
+    """Batch spell check multiple entries."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        entries = data.get('entries', [])
+        lang = data.get('lang', 'en')
+
+        if not entries:
+            return jsonify({'error': 'No entries provided'}), 400
+
+        from app.services.validation_cache_service import get_validation_service
+        service = get_validation_service()
+
+        # Convert entries to expected format
+        entry_data_list = [
+            {'id': e.get('id', f'unknown-{i}'), 'text': e.get('text', '')}
+            for i, e in enumerate(entries)
+        ]
+
+        results = service.validate_batch(
+            entries=entry_data_list,
+            validator_types=['hunspell'],
+            lang=lang
+        )
+
+        return jsonify({
+            'total_entries': len(entries),
+            'results': {
+                entry_id: {
+                    'is_valid': r.is_valid,
+                    'misspellings': r.metadata.get('misspellings', []),
+                    'suggestions': r.suggestions,
+                    'cached': r.metadata.get('cached', False)
+                }
+                for entry_id, r in results.items()
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Batch spell check error: {str(e)}")
+        return jsonify({'error': f'Batch spell check error: {str(e)}'}), 500
+
+
+@validation_service_bp.route('/api/validation/validate-entry', methods=['POST'])
+@swag_from({
+    'tags': 'Validation',
+    'summary': 'Validate a complete entry with all validators',
+    'description': 'Validates an entry using Hunspell and LanguageTool with full caching',
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'entry': {'type': 'object', 'description': 'Full entry data dictionary'},
+                    'validators': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'Validator types to use (hunspell, languagetool)',
+                        'default': ['hunspell', 'languagetool']
+                    },
+                    'lang': {'type': 'string', 'description': 'Primary language code', 'default': 'en'},
+                    'target_lang': {'type': 'string', 'description': 'Target language for bitext'}
+                },
+                'required': ['entry']
+            }
+        }
+    ],
+    'responses': {
+        '200': {'description': 'Full validation results'},
+        '400': {'description': 'Invalid request'},
+        '500': {'description': 'Server error'}
+    }
+})
+def validate_entry_full():
+    """Validate a complete entry with all validators."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        entry = data.get('entry')
+        if not entry:
+            return jsonify({'error': 'Entry data is required'}), 400
+
+        validators = data.get('validators', ['hunspell', 'languagetool'])
+        lang = data.get('lang', 'en')
+        target_lang = data.get('target_lang')
+
+        from app.services.validation_cache_service import get_validation_service
+        service = get_validation_service()
+
+        entry_id = entry.get('id', 'unknown')
+        summary = service.get_validation_summary(entry_id, entry)
+
+        return jsonify(summary)
+
+    except Exception as e:
+        current_app.logger.error(f"Entry validation error: {str(e)}")
+        return jsonify({'error': f'Entry validation error: {str(e)}'}), 500
+
+
+@validation_service_bp.route('/api/validation/cache-stats', methods=['GET'])
+@swag_from({
+    'tags': 'Validation',
+    'summary': 'Get validation cache statistics',
+    'description': 'Returns statistics about the validation cache',
+    'responses': {
+        '200': {'description': 'Cache statistics'}
+    }
+})
+def cache_stats():
+    """Get validation cache statistics."""
+    try:
+        from app.services.validation_cache_service import get_validation_service
+        service = get_validation_service()
+        return jsonify(service.get_cache_stats())
+    except Exception as e:
+        current_app.logger.error(f"Cache stats error: {str(e)}")
+        return jsonify({'error': f'Cache stats error: {str(e)}'}), 500
+
+
+@validation_service_bp.route('/api/validation/cache-invalidate', methods=['POST'])
+@swag_from({
+    'tags': 'Validation',
+    'summary': 'Invalidate validation cache',
+    'description': 'Clears validation cache for specific entries or all entries',
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'entry_ids': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'Entry IDs to invalidate (all if not provided)'
+                    },
+                    'invalidate_all': {'type': 'boolean', 'description': 'Invalidate all cache if true'}
+                }
+            }
+        }
+    ],
+    'responses': {
+        '200': {'description': 'Invalidation results'},
+        '400': {'description': 'Invalid request'}
+    }
+})
+def invalidate_cache():
+    """Invalidate validation cache."""
+    try:
+        data = request.get_json() or {}
+        entry_ids = data.get('entry_ids', [])
+        invalidate_all = data.get('invalidate_all', False)
+
+        from app.services.validation_cache_service import get_validation_service
+        service = get_validation_service()
+
+        if invalidate_all:
+            count = service.invalidate_all()
+        elif entry_ids:
+            count = service.invalidate_entries(entry_ids)
+        else:
+            return jsonify({'error': 'No entry_ids or invalidate_all specified'}), 400
+
+        return jsonify({
+            'success': True,
+            'invalidated_count': count
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Cache invalidation error: {str(e)}")
+        return jsonify({'error': f'Cache invalidation error: {str(e)}'}), 500

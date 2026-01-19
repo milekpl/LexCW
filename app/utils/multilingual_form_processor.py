@@ -531,7 +531,7 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                     elif char == ']':
                         in_bracket = False
                         if current:
-                            parts.append(current)
+                            parts.append(current.lstrip('.'))  # Strip leading dot after bracket
                             current = ''
                     elif char == '.' and not in_bracket:
                         if current:
@@ -627,22 +627,39 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                             senses_data[sense_index][field_name][third_part] = value.strip()
                     
                     elif len(parts) == 4 and parts[1] == 'examples':
-                        # Example field: senses[0][examples][0][text]
+                        # Example field: senses[0][examples][0][sentence]
+                        # Map form field names to Example model attributes:
+                        # - 'sentence' -> 'form' (with language code)
+                        # - 'translation' -> 'translations' (with language code)
                         try:
                             example_index = int(parts[2])
                             example_field = parts[3]
-                            
+
+                            # Map template field names to Example model attributes
+                            field_mapping = {
+                                'sentence': 'form',
+                                'translation': 'translations'
+                            }
+                            mapped_field = field_mapping.get(example_field, example_field)
+
                             # Initialize examples list if not exists
                             if 'examples' not in senses_data[sense_index]:
                                 senses_data[sense_index]['examples'] = []
-                            
+
                             # Extend examples list if needed
                             while len(senses_data[sense_index]['examples']) <= example_index:
                                 senses_data[sense_index]['examples'].append({})
-                            
-                            logger.debug(f"[SENSES DEBUG] Setting example: senses[{sense_index}][examples][{example_index}][{example_field}] = {value}")
-                            senses_data[sense_index]['examples'][example_index][example_field] = value.strip()
-                        
+
+                            # For form/translations, store as {lang: value} format
+                            if mapped_field in ('form', 'translations'):
+                                if mapped_field not in senses_data[sense_index]['examples'][example_index]:
+                                    senses_data[sense_index]['examples'][example_index][mapped_field] = {}
+                                # Use 'en' as default language for examples
+                                senses_data[sense_index]['examples'][example_index][mapped_field]['en'] = value.strip()
+                            else:
+                                logger.debug(f"[SENSES DEBUG] Setting example: senses[{sense_index}][examples][{example_index}][{mapped_field}] = {value}")
+                                senses_data[sense_index]['examples'][example_index][mapped_field] = value.strip()
+
                         except ValueError:
                             logger.debug(f"[SENSES DEBUG] Invalid example index in: {key}")
                             # Invalid example index, skip

@@ -1194,7 +1194,7 @@ function validateForm(showSummaryModal = false) {
 
             // Validate Examples
             sense.querySelectorAll('.example-item').forEach((example, exIndex) => {
-                const exampleTextEl = example.querySelector(`textarea[name*="examples"][name*="text"]`);
+                const exampleTextEl = example.querySelector(`textarea[name*="examples"][name*="sentence"]`);
                 if (exampleTextEl && !exampleTextEl.value.trim()) {
                     invalidate(exampleTextEl, `Sense ${index + 1}, Example ${exIndex + 1}: Example text is required.`);
                 }
@@ -1521,6 +1521,63 @@ function addExample(senseIndex) {
     tempDiv.innerHTML = template;
     examplesContainer.appendChild(tempDiv.firstElementChild);
 }
+
+// Make addExample globally accessible for event handlers
+window.addExampleForCorpus = function(senseIndex, sentence, translation) {
+    addExample(senseIndex);
+
+    // Find the newly added example textarea and fill it in
+    const examplesContainer = document.querySelector(`.sense-item[data-sense-index="${senseIndex}"] .examples-container`);
+    if (!examplesContainer) {
+        Logger.warn('addExampleForCorpus: Examples container not found', { senseIndex });
+        return;
+    }
+
+    // Find the sentence and translation textareas
+    const textareas = examplesContainer.querySelectorAll('textarea[name*="examples"]');
+    let filledSentence = false;
+    let filledTranslation = false;
+
+    for (let i = 0; i < textareas.length; i++) {
+        const textarea = textareas[i];
+        if (textarea.name.endsWith('.sentence') && !textarea.value.trim()) {
+            textarea.value = sentence || '';
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.dispatchEvent(new Event('change', { bubbles: true }));
+            Logger.info('addExampleForCorpus: Filled example sentence', { senseIndex, sentenceLength: (sentence || '').length });
+            filledSentence = true;
+        } else if (textarea.name.endsWith('.translation') && !textarea.value.trim()) {
+            textarea.value = translation || '';
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.dispatchEvent(new Event('change', { bubbles: true }));
+            Logger.info('addExampleForCorpus: Filled example translation', { senseIndex, translationLength: (translation || '').length });
+            filledTranslation = true;
+        }
+    }
+
+    if (!filledSentence) {
+        Logger.warn('addExampleForCorpus: Could not find example sentence textarea to fill', { senseIndex });
+    }
+    if (!filledTranslation) {
+        Logger.warn('addExampleForCorpus: Could not find example translation textarea to fill', { senseIndex });
+    }
+};
+
+/**
+ * Handle corpusExampleSelected event from CorpusSearch.
+ * Adds a new example with the selected sentence and translation.
+ */
+function handleCorpusExampleSelected(event) {
+    const { senseIndex, sentence, translation } = event.detail;
+    if (senseIndex === undefined || senseIndex === null) {
+        Logger.warn('handleCorpusExampleSelected: Missing senseIndex', { senseIndex });
+        return;
+    }
+    window.addExampleForCorpus(senseIndex, sentence, translation);
+}
+
+// Initialize event listener for corpus example selection
+document.addEventListener('corpusExampleSelected', handleCorpusExampleSelected);
 
 /**
  * Adds a new sense relation field group to a specific sense.

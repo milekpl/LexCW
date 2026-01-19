@@ -6,7 +6,7 @@
                 <button type="button" class="btn btn-sm btn-outline-light me-2" id="merge-senses-btn" title="Merge senses within this entry">
                     <i class="fas fa-layer-group"></i> Merge Senses
                 </button>
-                <button type="button" class="btn btn-sm btn-light" id="add-sense-btn">
+                <button type="button" class="btn btn-sm btn-light" id="add-sense-btn" data-shortcut="ctrl+shift+n">
                     <i class="fas fa-plus"></i> Add Sense
                 </button>
             </div>
@@ -438,12 +438,12 @@
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Example Sentence</label>
                                                                     <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].sentence"
-                                                                              rows="2">{{ example.sentence }}</textarea>
+                                                                              rows="2">{{ example.form_text }}</textarea>
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Translation</label>
                                                                     <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation"
-                                                                              rows="2">{{ example.translation }}</textarea>
+                                                                              rows="2">{{ example.translation_text }}</textarea>
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Translation Type

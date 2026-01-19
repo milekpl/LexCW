@@ -17,11 +17,50 @@ class RelationsManager {
         this.rangeId = 'lexical-relation'; // Use lexical-relation range for relation types
         this.relationTypes = [];
         this.relations = options.relations || [];
-        
+
+        // Get source language from form for entry creation
+        this.sourceLanguage = this._getSourceLanguage();
+
+        // Initialize EntryCreationManager for creating entries from search results
+        this.entryCreationManager = new EntryCreationManager({
+            sourceLanguage: this.sourceLanguage,
+            onSenseSelected: (senseId, entryId, context) => {
+                this._handleCreatedEntrySelected(senseId, entryId, context);
+            },
+            onError: (error) => {
+                console.error('[RelationsManager] Entry creation error:', error);
+                alert(`Failed to create entry: ${error.message}`);
+            }
+        });
+
         this.init();
     }
-    
+
+    /**
+     * Get source language from entry form data attribute
+     * @private
+     */
+    _getSourceLanguage() {
+        const form = document.getElementById('entry-form');
+        return form?.dataset.sourceLanguage || 'en';
+    }
+
+    /**
+     * Get current entry ID for circular reference detection
+     * @private
+     */
+    _getCurrentEntryId() {
+        const entryIdInput = document.querySelector('input[name="id"]');
+        return entryIdInput?.value || null;
+    }
+
     async init() {
+        // Set current entry ID for circular reference detection
+        const currentEntryId = this._getCurrentEntryId();
+        if (currentEntryId) {
+            this.entryCreationManager.setCurrentEntryId(currentEntryId);
+        }
+
         await this.loadRelationTypes();
         this.setupEventListeners();
         this.initializeExistingRelationDropdowns();
@@ -384,10 +423,23 @@ class RelationsManager {
     }
     
     displaySearchResults(entries, container, relationIndex) {
-        if (entries.length === 0) {
-            container.innerHTML = `
-                <div class="text-muted p-2 border rounded">No entries found</div>
-            `;
+        // Get the search input element to access the current search term
+        const input = document.querySelector(
+            `.relation-search-input[data-relation-index="${relationIndex}"]`
+        );
+        const currentSearchTerm = input ? input.value.trim() : '';
+
+        // Add "Create new entry" option at the top (if search term is long enough)
+        if (currentSearchTerm.length >= 2) {
+            this.entryCreationManager.addCreateOptionToResults(
+                currentSearchTerm,
+                container,
+                { relationIndex, type: 'relation' }
+            );
+        }
+
+        if (entries.length === 0 && !container.querySelector('.create-entry-option')) {
+            container.innerHTML = '<div class="text-muted p-2 border rounded">No entries found</div>';
             container.style.display = 'block';
             return;
         }
@@ -397,55 +449,74 @@ class RelationsManager {
         const resultsToShow = entries.slice(0, maxResultsToShow);
         const remainingCount = entries.length - maxResultsToShow;
 
-        // Get the search input element to access the current search term
-        const input = document.querySelector(
-            `.relation-search-input[data-relation-index="${relationIndex}"]`
-        );
-        const currentSearchTerm = input ? input.value.trim().toLowerCase() : '';
+        // Build results HTML with proper escaping
+        const resultsContainer = document.createElement('div');
+        resultsContainer.className = 'search-results-container bg-white shadow-sm';
+        resultsContainer.style.maxHeight = '400px';
+        resultsContainer.style.overflowY = 'auto';
 
-        const resultsHtml = resultsToShow.map(entry => {
+        resultsToShow.forEach(entry => {
             const displayText = this.getEntryDisplayText(entry);
-            const isExactMatch = displayText.toLowerCase() === currentSearchTerm;
-            const matchIndicator = isExactMatch ? '<span class="badge bg-success ms-2">Exact Match</span>' : '';
+            const isExactMatch = displayText.toLowerCase() === currentSearchTerm.toLowerCase();
+            const matchBadge = isExactMatch
+                ? '<span class="badge bg-success ms-2">Exact Match</span>'
+                : '';
 
-            return `
-            <div class="search-result-item p-2 border-bottom cursor-pointer"
-                 data-entry-id="${entry.id}"
-                 data-entry-headword="${displayText}"
-                 data-relation-index="${relationIndex}">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="fw-bold">${displayText}</div>
-                        ${entry.definition ? `<div class="text-muted small">${entry.definition}</div>` : ''}
-                    </div>
-                    <div>
-                        ${matchIndicator}
-                    </div>
-                </div>
-            </div>
-        `}).join('');
+            const item = document.createElement('div');
+            item.className = 'search-result-item p-2 border-bottom cursor-pointer';
+            item.dataset.entryId = entry.id;
+            item.dataset.entryHeadword = displayText;
+            item.dataset.relationIndex = relationIndex;
 
-        container.innerHTML = `
-            <div class="search-results-container bg-white shadow-sm" style="max-height: 400px; overflow-y: auto;">
-                ${resultsHtml}
-            </div>
-        `;
+            item.innerHTML =
+                '<div class="d-flex justify-content-between align-items-start">' +
+                '<div>' +
+                '<div class="fw-bold">' + this._escapeHtml(displayText) + '</div>' +
+                (entry.definition
+                    ? '<div class="text-muted small">' + this._escapeHtml(entry.definition) + '</div>'
+                    : '') +
+                '</div>' +
+                '<div>' + matchBadge + '</div>' +
+                '</div>';
+
+            resultsContainer.appendChild(item);
+        });
+
+        // Clear container and rebuild with create option (if present) + results
+        const createOption = container.querySelector('.create-entry-option');
+        container.innerHTML = '';
+
+        if (createOption) {
+            container.appendChild(createOption);
+        }
+        container.appendChild(resultsContainer);
 
         if (remainingCount > 0) {
             const remainingDiv = document.createElement('div');
             remainingDiv.className = 'text-center text-muted p-2';
-            remainingDiv.innerHTML = `+ ${remainingCount} more results (refine search for better results)`;
-            container.querySelector('.search-results-container').appendChild(remainingDiv);
+            remainingDiv.textContent = `+ ${remainingCount} more results (refine search for better results)`;
+            container.appendChild(remainingDiv);
         }
 
         container.style.display = 'block';
 
-        // Add click handlers for search results
-        container.querySelectorAll('.search-result-item').forEach(item => {
+        // Add click handlers for search results (excluding create option)
+        container.querySelectorAll('.search-result-item:not(.create-entry-option)').forEach(item => {
             item.addEventListener('click', () => {
                 this.selectSearchResult(item);
             });
         });
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     * @private
+     */
+    _escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     
     selectSearchResult(resultItem) {
@@ -481,7 +552,44 @@ class RelationsManager {
 
         console.log(`[RelationsManager] Selected entry "${entryHeadword}" (${entryId}) for relation ${relationIndex}`);
     }
-    
+
+    /**
+     * Handle when a newly created entry is selected from the sense selection modal
+     * @private
+     */
+    _handleCreatedEntrySelected(senseId, entryId, context) {
+        // Update the hidden input with the selected sense/entry ID
+        const hiddenInput = this.container.querySelector(
+            `input[name="relations[${context.relationIndex}].ref"]`
+        );
+        if (hiddenInput) {
+            hiddenInput.value = senseId;
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Update search input to show entry info
+        const searchInput = this.container.querySelector(
+            `input[data-relation-index="${context.relationIndex}"]`
+        );
+        if (searchInput) {
+            // Get the headword from the entry creation manager
+            searchInput.value = entryId;
+        }
+
+        // Hide search results
+        const resultsContainer = document.getElementById(`search-results-${context.relationIndex}`);
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        // Trigger XML preview update
+        if (window.updateXmlPreview) {
+            window.updateXmlPreview();
+        }
+
+        console.log(`[RelationsManager] Created entry selected: "${entryId}" (sense: ${senseId}) for relation ${context.relationIndex}`);
+    }
+
     openEntrySearchModal(relationIndex) {
         // For now, just focus on the search input
         // Could be extended to open a more sophisticated search modal

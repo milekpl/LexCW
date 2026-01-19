@@ -797,19 +797,17 @@ notifications (id, user_id, title, message, type, read_status, timestamps)
 PostgreSQL integration has been successfully completed with:
 
 - PostgreSQL connector implemented with strict typing (`app/database/postgresql_connector.py`)
-- Word sketch models and service implemented (`app/models/word_sketch.py`, `app/services/word_sketch_service.py`)
-- Comprehensive TDD test suite with 12 passing tests (`tests/test_word_sketch_integration.py`)
-- SUBTLEX frequency norms integration
-- Sentence-aligned corpus processing with linguistic caching
-- LogDice score calculation for collocation strength
-- Sketch grammar pattern matching system
+- Parallel corpus processing with linguistic caching
+- Basic corpus analysis and indexing
 
 **Architecture Overview**:
 
 - **BaseX**: Primary LIFT XML storage (dictionary structure integrity)
-- **PostgreSQL**: Advanced analytics, word sketches, parallel corpus, SUBTLEX norms
-- **Word Sketch Engine**: Grammatically enriched collocations using logDice scoring
-- **Sentence-Aligned Optimization**: Leverage pre-aligned corpus for efficiency
+- **PostgreSQL**: Relational data storage for project settings, user management, worksets
+- **Lucene Corpus Service**: Advanced analytics, word sketches, SUBTLEX norms, frequency distribution
+- **Word Sketch Preparation**: Standalone Lucene index REST API (being prepared)
+
+**Note**: Word sketch and SUBTLEX functionality has been migrated from PostgreSQL to a dedicated Lucene corpus service. Frequency distribution and corpus analysis are available via the Lucene API when the service is running.
 
 ## 20. User Management System - Complete Implementation
 

@@ -70,7 +70,7 @@ class Example(BaseModel):
     def form_text(self, value: str) -> None:
         """
         Set the form text. Updates the form dict with the provided text.
-        
+
         Args:
             value: The form text to set.
         """
@@ -81,6 +81,37 @@ class Example(BaseModel):
             # Update the first available language
             first_lang = next(iter(self.form.keys()))
             self.form[first_lang] = value
+
+    @property
+    def translation_text(self) -> str:
+        """
+        Get the first available translation text.
+
+        Returns:
+            The first translation text if translations is a dict, otherwise empty string.
+        """
+        if not self.translations:
+            return ''
+        if isinstance(self.translations, dict):
+            return next(iter(self.translations.values())) if self.translations else ''
+        else:
+            return str(self.translations)
+
+    @translation_text.setter
+    def translation_text(self, value: str) -> None:
+        """
+        Set the translation text. Updates the translations dict with the provided text.
+
+        Args:
+            value: The translation text to set.
+        """
+        # Set to default language 'en' if no specific language is set
+        if not self.translations:
+            self.translations['en'] = value
+        else:
+            # Update the first available language
+            first_lang = next(iter(self.translations.keys()))
+            self.translations[first_lang] = value
 
     def to_dict(self) -> Dict[str, Any]:
         """

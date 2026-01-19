@@ -573,7 +573,7 @@
             const button = this;
             const originalText = button.innerHTML;
 
-            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Validating...';
+            button.innerHTML = '<i class="bi bi-hourglass"></i> Validating...';
             button.disabled = true;
 
             try {
@@ -608,7 +608,7 @@
             const button = this;
             const originalText = button.innerHTML;
 
-            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading...';
+            button.innerHTML = '<i class="bi bi-hourglass"></i> Loading...';
             button.disabled = true;
 
             try {
@@ -653,7 +653,7 @@
                 return;
             }
 
-            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Creating...';
+            button.innerHTML = '<i class="bi bi-hourglass"></i> Creating...';
             button.disabled = true;
 
             try {
@@ -690,6 +690,51 @@
         // Save query button
         document.getElementById('save-query-btn').addEventListener('click', function() {
             new bootstrap.Modal(document.getElementById('saveQueryModal')).show();
+        });
+
+        // Confirm save query
+        document.getElementById('confirm-save-query').addEventListener('click', async function() {
+            const queryName = document.getElementById('query-name-input').value.trim();
+            const queryDescription = document.getElementById('query-description-input').value.trim();
+            const button = this;
+            const originalText = button.textContent;
+
+            if (!queryName) {
+                showValidationResult('warning', 'Please enter a query name');
+                return;
+            }
+
+            button.textContent = 'Saving...';
+            button.disabled = true;
+
+            try {
+                const query = getCurrentQuery();
+                const response = await fetch('/api/query-builder/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({ name: queryName, description: queryDescription, query: query })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('saveQueryModal'));
+                    modal.hide();
+                    document.getElementById('query-name-input').value = '';
+                    document.getElementById('query-description-input').value = '';
+                    showValidationResult('success', `Query "${result.name}" saved successfully!`);
+                } else {
+                    showValidationResult('danger', `Failed to save query: ${result.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                showValidationResult('danger', `Failed to save query: ${error.message}`);
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+            }
         });
 
         // Initialize

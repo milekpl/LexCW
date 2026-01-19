@@ -370,20 +370,17 @@ BaseX is an XML database management system optimized for storing, querying, and 
 PostgreSQL integration has been successfully completed with:
 
 - PostgreSQL connector implemented with strict typing (`app/database/postgresql_connector.py`)
-- Word sketch models implemented (`app/models/word_sketch.py`)
-- Word sketch service implemented (`app/services/word_sketch_service.py`)
-- Comprehensive TDD test suite with 12 passing tests (`tests/test_word_sketch_integration.py`)
-- SUBTLEX frequency norms models and integration
-- Sentence-aligned corpus processing with linguistic caching
-- LogDice score calculation for collocation strength
-- Sketch grammar pattern matching system
+- Parallel corpus processing with linguistic caching
+- Basic corpus analysis and indexing
 
 **Architecture Overview**:
 
 - **BaseX**: Primary LIFT XML storage (dictionary structure integrity)
-- **PostgreSQL**: Advanced analytics, word sketches, parallel corpus, SUBTLEX norms
-- **Word Sketch Engine**: Grammatically enriched collocations using logDice scoring
-- **Sentence-Aligned Optimization**: Leverage pre-aligned corpus for efficiency
+- **PostgreSQL**: Relational data storage for project settings, user management, worksets
+- **Lucene Corpus Service**: Advanced analytics, word sketches, SUBTLEX norms, frequency distribution
+- **Word Sketch Preparation**: Standalone Lucene index REST API (being prepared)
+
+**Note**: Word sketch and SUBTLEX functionality has been migrated from PostgreSQL to a dedicated Lucene corpus service. Frequency distribution and corpus analysis are available via the Lucene API when the service is running.
 
 **Core Dictionary Tables**:
 
@@ -1294,7 +1291,6 @@ This release represents a significant step forward in the LCW's user interface d
 - LIFT format handling and XML manipulation
 - All dynamic range loading from LIFT ranges file
 - Project-based language settings
-- Word sketches and SUBTLEX integration with full data models
 - Parallel corpus processing in PostgreSQL
 - Advanced search and query builder
 - Entry form with tooltips and validation
@@ -1302,6 +1298,25 @@ This release represents a significant step forward in the LCW's user interface d
 - Bulk operations and workset management
 - Audio pronunciation support
 - Customizable display profiles
+- **User Management System** - Complete authentication and authorization framework
+- **Security and Authentication** - Role-based access control with project permissions
+- **Activity Logging and Audit Trails** - Comprehensive user action tracking
+- **Message/Notification System** - Entry-level discussions and user notifications
+- **Project Member Management** - ADMIN/MEMBER/VIEWER roles with fine-grained permissions
+
+### 🔄 **Partially Implemented Features**
+
+- AI content generation (in progress)
+- Advanced validation systems (some parts implemented)
+- Multi-user collaboration features (early stages)
+- Word sketch analysis (Lucene REST API being prepared, SUBTLEX norms available via corpus service)
+
+### 🔴 **Not Yet Implemented Features**
+
+- Full multi-user editing with real-time collaboration
+- Advanced AI/ML features (LLM integration)
+- Workflow management systems
+- Advanced publishing formats beyond Kindle/Flutter
 
 ### ✅ **Fully Implemented Features**
 
@@ -1309,8 +1324,9 @@ This release represents a significant step forward in the LCW's user interface d
 - LIFT format handling and XML manipulation
 - All dynamic range loading from LIFT ranges file
 - Project-based language settings
-- Word sketches and SUBTLEX integration with full data models
 - Parallel corpus processing in PostgreSQL
+- **User Management System** - Complete authentication and authorization framework
+- **Security and Authentication** - Role-based access control with project permissions
 - Advanced search and query builder
 - Entry form with tooltips and validation
 - Export capabilities (Kindle, Flutter, LIFT)

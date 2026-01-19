@@ -593,7 +593,7 @@ class LIFTXMLSerializer {
 
     /**
      * Serialize example data to LIFT XML example element
-     * 
+     *
      * @param {Document} doc - XML document
      * @param {Object} exampleData - Example data object
      * @returns {Element} Example element
@@ -605,9 +605,24 @@ class LIFTXMLSerializer {
             example.setAttribute('source', exampleData.source);
         }
 
-        // Add example forms (the actual example sentences)
-        if (exampleData.forms && Object.keys(exampleData.forms).length > 0) {
-            Object.entries(exampleData.forms).forEach(([lang, text]) => {
+        // Add example form (the actual example sentence)
+        // Support multiple field naming conventions:
+        // - 'form' (singular, from Example model/LIFT format): {en: "text"}
+        // - 'forms' (legacy): {en: "text"}
+        // - 'sentence' (from HTML form): "text" or {en: "text"}
+        let exampleForm = exampleData.form || exampleData.forms;
+
+        // Handle 'sentence' field from HTML form - could be string or dict
+        if (!exampleForm && exampleData.sentence) {
+            if (typeof exampleData.sentence === 'string') {
+                exampleForm = { en: exampleData.sentence };
+            } else if (typeof exampleData.sentence === 'object') {
+                exampleForm = exampleData.sentence;
+            }
+        }
+
+        if (exampleForm && Object.keys(exampleForm).length > 0) {
+            Object.entries(exampleForm).forEach(([lang, text]) => {
                 if (text) {
                     const form = this.createForm(doc, lang, text);
                     example.appendChild(form);
@@ -616,9 +631,19 @@ class LIFTXMLSerializer {
         }
 
         // Add translations
-        if (exampleData.translations && Object.keys(exampleData.translations).length > 0) {
+        // Support 'translations' (standard) and 'translation' (from HTML form)
+        let exampleTranslations = exampleData.translations;
+        if (!exampleTranslations && exampleData.translation) {
+            if (typeof exampleData.translation === 'string') {
+                exampleTranslations = { en: exampleData.translation };
+            } else if (typeof exampleData.translation === 'object') {
+                exampleTranslations = exampleData.translation;
+            }
+        }
+
+        if (exampleTranslations && Object.keys(exampleTranslations).length > 0) {
             const translation = doc.createElementNS(this.LIFT_NS, 'translation');
-            Object.entries(exampleData.translations).forEach(([lang, text]) => {
+            Object.entries(exampleTranslations).forEach(([lang, text]) => {
                 if (text) {
                     const form = this.createForm(doc, lang, text);
                     translation.appendChild(form);

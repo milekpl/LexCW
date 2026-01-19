@@ -493,19 +493,28 @@
             const result = this.results[index];
             if (!result) return;
 
-            const fullSentence = `${result.left || ''} ${result.match || ''} ${result.right || ''}`.trim();
+            // Build full sentence - support both source field and left/match/right fields
+            let fullSentence = '';
+            if (result.source) {
+                fullSentence = result.source;
+            } else if (result.left !== undefined || result.match !== undefined || result.right !== undefined) {
+                fullSentence = `${result.left || ''} ${result.match || ''} ${result.right || ''}`.trim();
+            } else {
+                Logger.warn('_insertAsExample: Result has no sentence data', { result });
+            }
 
             if (this.targetField === 'example' && this.targetIndex !== null) {
                 // Trigger add example event
                 const event = new CustomEvent('corpusExampleSelected', {
                     detail: {
                         senseIndex: this.targetIndex,
-                        sentence: fullSentence
+                        sentence: fullSentence,
+                        translation: result.target || ''
                     }
                 });
                 document.dispatchEvent(event);
 
-                Logger.info('CorpusSearch: Example selected', { senseIndex: this.targetIndex });
+                Logger.info('CorpusSearch: Example selected', { senseIndex: this.targetIndex, hasTranslation: !!result.target });
             } else {
                 // For definitions, copy to clipboard
                 navigator.clipboard.writeText(fullSentence).then(() => {

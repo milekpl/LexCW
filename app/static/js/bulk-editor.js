@@ -339,14 +339,6 @@ class PipelineEditor {
                     </button>
                 </div>
                 <div id="pipeline-steps"></div>
-                ${this.steps.length > 0 ? `
-                    <div class="mt-3 border-top pt-2">
-                        <div class="d-flex gap-2 align-items-center">
-                            <input type="checkbox" class="form-check-input" id="preview-mode">
-                            <label class="form-check-label" for="preview-mode">Preview only (no changes)</label>
-                        </div>
-                    </div>
-                ` : ''}
             </div>
         `;
 
@@ -508,7 +500,7 @@ class PipelineEditor {
                 break;
 
             case 'clear':
-                valueInput = '<small class="text-mast">Clears the field value</small>';
+                valueInput = '<small class="text-muted">Clears the field value</small>';
                 break;
         }
 

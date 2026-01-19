@@ -132,6 +132,21 @@
                             <label for="html_title" class="form-label">Dictionary Title</label>
                             <input type="text" class="form-control" id="html_title" name="title" value="Dictionary">
                         </div>
+                        <div class="mb-3">
+                            <label for="html_column_layout" class="form-label">Column Layout</label>
+                            <select class="form-select" id="html_column_layout" name="column_layout">
+                                <option value="single">Single Column</option>
+                                <option value="two">Two Columns</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="html_show_subentries" name="show_subentries" value="true" checked>
+                                <label class="form-check-label" for="html_show_subentries">
+                                    Show subentries under main entry
+                                </label>
+                            </div>
+                        </div>
                         <div class="card-footer">
                             <button type="submit" class="btn btn-warning">
                                 <i class="fa fa-globe"></i> Export to HTML
