@@ -390,6 +390,81 @@ class ValidationRulesService:
                 'source': 'template' if template_id else 'defaults'
             }
 
+    def add_rules_from_template(
+        self,
+        project_id: str,
+        template_id: str,
+        created_by: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Add validation rules from a template to existing project rules.
+
+        This method MERGES template rules with existing rules - it does NOT
+        replace existing rules. Template rules with matching rule_ids will
+        be skipped (existing rules preserved).
+
+        Args:
+            project_id: The project identifier
+            template_id: Template to add rules from
+            created_by: User who added the rules
+
+        Returns:
+            Summary of added rules
+        """
+        if not self.app:
+            raise RuntimeError("Service not initialized with Flask app")
+
+        with self.app.app_context():
+            # Get existing rules for the project (returns list of dicts)
+            existing_rules = ProjectValidationRule.get_rules_for_project(project_id)
+            existing_rule_ids = {r['rule_id'] for r in existing_rules}
+
+            # Get template (checks both database and filesystem)
+            template = self.get_template(template_id)
+            if not template:
+                return {
+                    'success': False,
+                    'message': f'Template not found: {template_id}'
+                }
+
+            template_rules = template.get('rules', [])
+            if not template_rules:
+                return {
+                    'success': False,
+                    'message': f'Template has no rules: {template_id}'
+                }
+
+            # Filter out rules that already exist (preserve existing rules)
+            new_rules = [r for r in template_rules if r.get('rule_id') and r.get('rule_id') not in existing_rule_ids]
+
+            if not new_rules:
+                return {
+                    'success': True,
+                    'message': 'All template rules already exist in project',
+                    'rules_added': 0,
+                    'rules_skipped': len(template_rules),
+                    'template_name': template.get('name', template_id)
+                }
+
+            # Use add_rules_for_project which only creates new rules without modifying existing ones
+            count = ProjectValidationRule.add_rules_for_project(
+                project_id=project_id,
+                rules=new_rules,
+                created_by=created_by
+            )
+
+            # Get total count of active rules
+            total_rules = ProjectValidationRule.get_rules_for_project(project_id)
+
+            return {
+                'success': True,
+                'message': f'Added {count} rules from template',
+                'rules_added': count,
+                'rules_skipped': len(template_rules) - count,
+                'total_rules': len(total_rules),
+                'template_name': template.get('name', template_id)
+            }
+
     def test_rule(
         self,
         rule_config: Dict[str, Any],

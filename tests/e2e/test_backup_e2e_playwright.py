@@ -50,9 +50,8 @@ def test_backup_zip_contains_all_artifacts(page: Page, app_url: str) -> None:
     # Click the create button
     print("Clicking create backup button...")
     page.click('#create-backup-btn')
-    page.wait_for_timeout(3000)  # Give backup time to be created
 
-    # Wait for the backup to be created and appear in history
+    # Wait for the backup to be created and appear in history (polling follows)
     # The Flask server has the correct database name from setup_e2e_test_database fixture
     import os
     e2e_db_name = os.environ.get('BASEX_DATABASE') or os.environ.get('TEST_DB_NAME', 'dictionary')

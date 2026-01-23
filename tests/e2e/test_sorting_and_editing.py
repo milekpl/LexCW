@@ -494,8 +494,8 @@ def test_entry_editing_loads_successfully(page: Page, flask_test_server):
     # Wait for field to be visible and have a value
     expect(lexical_unit_field).to_be_visible(timeout=10000)
 
-    # Give JavaScript time to populate the field
-    page.wait_for_timeout(1000)
+    # Wait for the lexical unit field to be populated (avoid arbitrary sleep)
+    page.wait_for_function("selector => { const f = document.querySelector(selector); return f && f.value && f.value.trim().length > 0; }", arg='input.lexical-unit-text', timeout=5000)
 
     # Verify the form has the entry data loaded (not empty)
     lexical_unit_value = lexical_unit_field.input_value()
@@ -580,7 +580,8 @@ def test_entry_editing_save_functionality(page: Page, flask_test_server):
         if current_url.endswith('/entries'):
             # Redirected to entries list, extract entry ID and navigate to view
             print("Redirected to entries list, waiting for entry to appear...")
-            page.wait_for_timeout(2000)
+            # Wait for entries table rows to appear instead of sleeping
+            page.wait_for_selector("table tbody tr, h2 span.text-primary", timeout=5000)
     
     # Check for success toast message (more specific selector to avoid card headers)
     try:

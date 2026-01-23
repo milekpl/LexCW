@@ -344,6 +344,69 @@ def initialize_project_validation_rules(project_id: str):
         return jsonify({"error": str(e)}), 500
 
 
+@validation_rules_bp.route("/<project_id>/validation-rules/add-from-template", methods=["POST"])
+def add_project_validation_rules_from_template(project_id: str):
+    """
+    Add validation rules from a template to existing project rules.
+
+    This endpoint MERGES template rules with existing rules - it does NOT
+    replace existing rules. Template rules with matching rule_ids are skipped.
+
+    ---
+    tags:
+      - Validation Rules
+    parameters:
+      - name: project_id
+        in: path
+        type: string
+        required: true
+        description: Project identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              template_id:
+                type: string
+                required: true
+                description: Template to add rules from
+              created_by:
+                type: string
+                description: User who added the rules
+    responses:
+      200:
+        description: Rules added successfully
+      400:
+        description: Error adding rules
+    """
+    try:
+        data = request.get_json() or {}
+        template_id = data.get('template_id')
+        if not template_id:
+            return jsonify({"error": "template_id is required"}), 400
+        created_by = data.get('created_by')
+
+        service = get_service()
+        result = service.add_rules_from_template(
+            project_id=project_id,
+            template_id=template_id,
+            created_by=created_by
+        )
+
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Error adding validation rules from template for project {project_id}: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
+
+
 @validation_rules_bp.route("/validation-rule-templates", methods=["GET"])
 def get_validation_rule_templates():
     """

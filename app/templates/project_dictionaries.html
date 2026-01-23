@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+{% block title %}Dictionary Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-book"></i> Spell-Check Dictionaries</h2>
+        <div class="btn-group">
+            <a href="{{ url_for('main.validation_rules_admin', project=project.project_name) }}" class="btn btn-outline-primary">
+                <i class="fas fa-magic"></i> Enable Spelling Validation
+            </a>
+            <a href="{{ url_for('settings.manage_settings', project=project.project_name) }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Settings
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>To enable spelling validation in entry forms:</strong>
+        1. Upload hunspell dictionaries using the button below
+        2. Go to <a href="{{ url_for('main.validation_rules_admin', project=project.project_name) }}">Validation Rules Editor</a>
+        3. Click "Initialize from Template" and select "Spelling Validation"
+    </div>
+
+    <div class="row">
+        <!-- Project Dictionaries Column -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-folder"></i> Project Dictionaries</span>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uploadDictModal">
+                        <i class="fas fa-upload"></i> Upload Dictionary
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if dictionaries %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Language</th>
+                                        <th>Words</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for dict in dictionaries %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ dict.name }}</strong>
+                                            {% if dict.id == ipa_dictionary_id %}
+                                                <span class="badge bg-info text-dark">IPA</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><code>{{ dict.lang_code }}</code></td>
+                                        <td>{{ dict.file_size or 'N/A' }}</td>
+                                        <td>
+                                            {% if dict.is_default %}
+                                                <span class="badge bg-success">Default</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Active</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                {% if not dict.is_default %}
+                                                <button class="btn btn-outline-success" onclick="setDefault('{{ dict.id }}')" title="Set as default">
+                                                    <i class="fas fa-star"></i>
+                                                </button>
+                                                {% endif %}
+                                                <button class="btn btn-outline-info" onclick="setIpa('{{ dict.id }}')" title="Set as IPA dictionary">
+                                                    <i class="fas fa-microphone"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" onclick="deleteDict('{{ dict.id }}')" title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-book fa-3x mb-3"></i>
+                            <p>No dictionaries uploaded yet.</p>
+                            <p class="small">Upload .dic and .aff files to enable spell-checking for this project.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- User Personal Dictionaries -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-user"></i> My Personal Dictionaries
+                </div>
+                <div class="card-body">
+                    {% if user_dictionaries %}
+                        <ul class="list-group">
+                            {% for dict in user_dictionaries %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ dict.name }}</strong>
+                                    <span class="badge bg-secondary ms-2">{{ dict.lang_code }}</span>
+                                    {% if dict.word_count %}
+                                        <span class="text-muted small">({{ dict.word_count }} words)</span>
+                                    {% endif %}
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteUserDict('{{ dict.id }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <p>No personal dictionaries.</p>
+                            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addWordsModal">
+                                <i class="fas fa-plus"></i> Add Custom Words
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar: Info & System Dictionaries -->
+        <div class="col-lg-4">
+            <!-- System Dictionaries -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-server"></i> Available System Dictionaries
+                </div>
+                <div class="card-body">
+                    {% if system_dictionaries %}
+                        <div class="list-group list-group-flush">
+                            {% for sys_dict in system_dictionaries %}
+                            <div class="list-group-item">
+                                <code>{{ sys_dict.lang_code }}</code>
+                                <span class="badge bg-success float-end">Available</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted small">No system dictionaries found.</p>
+                    {% endif %}
+                    <hr>
+                    <p class="small text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        System dictionaries are hunspell dictionaries installed on this server.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Help Card -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-question-circle"></i> About Dictionaries
+                </div>
+                <div class="card-body">
+                    <h6>Hunspell Dictionaries</h6>
+                    <p class="small">
+                        Dictionaries consist of two files: a <code>.dic</code> file containing words
+                        and an <code>.aff</code> file containing affix rules.
+                    </p>
+                    <h6>IPA Fields</h6>
+                    <p class="small">
+                        For IPA/pronunciation fields, use the <code>seh-fonipa</code> language code.
+                        Create a dictionary with IPA symbols for validating pronunciations.
+                    </p>
+                    <h6>Personal Dictionaries</h6>
+                    <p class="small">
+                        Your personal dictionaries apply across all projects you work on.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Dictionary Modal -->
+<div class="modal fade" id="uploadDictModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Hunspell Dictionary</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="upload-dict-form" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Dictionary Name</label>
+                        <input type="text" class="form-control" name="name" placeholder="e.g., English (US)">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Language Code</label>
+                        <input type="text" class="form-control" name="lang_code" placeholder="e.g., en_US, seh-fonipa">
+                        <div class="form-text">RFC 4646 format: language_SCRIPT or language_COUNTRY</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">.dic File <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" name="dic_file" accept=".dic" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">.aff File <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" name="aff_file" accept=".aff" required>
+                    </div>
+                </form>
+                <div id="upload-progress" class="d-none">
+                    <div class="progress">
+                        <div class="progress-bar" style="width: 100%">Uploading...</div>
+                    </div>
+                </div>
+                <div id="upload-error" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submit-upload" onclick="uploadDictionary()">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Custom Words Modal -->
+<div class="modal fade" id="addWordsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Custom Words</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-words-form">
+                    <div class="mb-3">
+                        <label class="form-label">Dictionary Name</label>
+                        <input type="text" class="form-control" name="name" placeholder="e.g., My Technical Terms">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Language Code</label>
+                        <input type="text" class="form-control" name="lang_code" placeholder="e.g., en_US">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Words (one per line)</label>
+                        <textarea class="form-control" name="words" rows="6" placeholder="lexicographic&#10;morpheme&#10;allomorph"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addCustomWords()">
+                    <i class="fas fa-plus"></i> Add Words
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div id="app-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+<script>
+function showToast(message, type) {
+    var container = document.getElementById('app-toast-container');
+    var toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-bg-' + (type === 'error' ? 'danger' : 'success') + ' border-0';
+    var btnClose = '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>';
+    toastEl.innerHTML = '<div class="d-flex">' + '<div class="toast-body">' + message + '</div>' + btnClose + '</div>';
+    container.appendChild(toastEl);
+    var bsToast = new bootstrap.Toast(toastEl);
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', function() { toastEl.remove(); });
+}
+
+function uploadDictionary() {
+    var form = document.getElementById('upload-dict-form');
+    var formData = new FormData(form);
+    var progress = document.getElementById('upload-progress');
+    var errorEl = document.getElementById('upload-error');
+    var submitBtn = document.getElementById('submit-upload');
+
+    if (!formData.get('dic_file').name || !formData.get('aff_file').name) {
+        errorEl.textContent = 'Both .dic and .aff files are required';
+        errorEl.classList.remove('d-none');
+        return;
+    }
+
+    progress.classList.remove('d-none');
+    submitBtn.disabled = true;
+    errorEl.classList.add('d-none');
+
+    fetch('{{ url_for("dictionaries.upload_project_dictionary", project_id=project.id) }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+        if (data.success) {
+            var modal = bootstrap.Modal.getInstance(document.getElementById('uploadDictModal'));
+            modal.hide();
+            showToast('Dictionary uploaded successfully');
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            errorEl.textContent = data.error || 'Upload failed';
+            errorEl.classList.remove('d-none');
+        }
+    })
+    .catch(function(e) {
+        errorEl.textContent = 'Error: ' + e.message;
+        errorEl.classList.remove('d-none');
+    })
+    .finally(function() {
+        progress.classList.add('d-none');
+        submitBtn.disabled = false;
+    });
+}
+
+function addCustomWords() {
+    var form = document.getElementById('add-words-form');
+    var formData = new FormData(form);
+    var words = formData.get('words').split('\n').map(function(w) { return w.trim(); }).filter(function(w) { return w; });
+
+    if (!formData.get('lang_code')) {
+        showToast('Language code is required', 'error');
+        return;
+    }
+    if (words.length === 0) {
+        showToast('At least one word is required', 'error');
+        return;
+    }
+
+    fetch('{{ url_for("dictionaries.add_custom_words") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: formData.get('name') || 'Custom Words',
+            lang_code: formData.get('lang_code'),
+            words: words
+        })
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+        if (data.success) {
+            var modal = bootstrap.Modal.getInstance(document.getElementById('addWordsModal'));
+            modal.hide();
+            showToast('Words added successfully');
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            showToast(data.error || 'Failed to add words', 'error');
+        }
+    })
+    .catch(function(e) {
+        showToast('Error: ' + e.message, 'error');
+    });
+}
+
+function setDefault(dictId) {
+    if (!confirm('Set this as the default dictionary?')) return;
+    var url = '{{ url_for("dictionaries.set_default_dictionary", project_id=project.id, dict_id="DICT_ID") }}'.replace('DICT_ID', dictId);
+    fetch(url, { method: 'PUT' })
+    .then(function(resp) {
+        if (resp.ok) {
+            showToast('Default dictionary set');
+            setTimeout(function() { window.location.reload(); }, 500);
+        } else {
+            showToast('Failed to set default', 'error');
+        }
+    })
+    .catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
+function setIpa(dictId) {
+    var url = '{{ url_for("dictionaries.set_ipa_dictionary", project_id=project.id, dict_id="DICT_ID") }}'.replace('DICT_ID', dictId);
+    fetch(url, { method: 'PUT' })
+    .then(function(resp) {
+        if (resp.ok) {
+            showToast('IPA dictionary set');
+            setTimeout(function() { window.location.reload(); }, 500);
+        } else {
+            showToast('Failed to set IPA dictionary', 'error');
+        }
+    })
+    .catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
+function deleteDict(dictId) {
+    if (!confirm('Delete this dictionary? This cannot be undone.')) return;
+    var url = '{{ url_for("dictionaries.delete_project_dictionary", project_id=project.id, dict_id="DICT_ID") }}'.replace('DICT_ID', dictId);
+    fetch(url, { method: 'DELETE' })
+    .then(function(resp) {
+        if (resp.ok) {
+            showToast('Dictionary deleted');
+            setTimeout(function() { window.location.reload(); }, 500);
+        } else {
+            showToast('Failed to delete', 'error');
+        }
+    })
+    .catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
+function deleteUserDict(dictId) {
+    if (!confirm('Delete this personal dictionary?')) return;
+    var url = '{{ url_for("dictionaries.delete_user_dictionary", dict_id="DICT_ID") }}'.replace('DICT_ID', dictId);
+    fetch(url, { method: 'DELETE' })
+    .then(function(resp) {
+        if (resp.ok) {
+            showToast('Dictionary deleted');
+            setTimeout(function() { window.location.reload(); }, 500);
+        } else {
+            showToast('Failed to delete', 'error');
+        }
+    })
+    .catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+</script>
+{% endblock %}

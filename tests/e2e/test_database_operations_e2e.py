@@ -151,9 +151,6 @@ class TestDatabaseOperationsE2E:
             except Exception:
                 pass
 
-        # Give UI time to process the reload if it's going to happen
-        page.wait_for_timeout(2000)
-
         # Verify database state by checking entry count
         # Use longer timeout and domcontentloaded instead of networkidle
         page.goto(f"{base_url}/entries", timeout=30000, wait_until="domcontentloaded")
@@ -273,7 +270,12 @@ class TestDatabaseOperationsE2E:
             except Exception:
                 pass
 
-            page.wait_for_timeout(2000)
+            # Wait for entries list to be accessible instead of sleeping
+            # Navigate to entries page and wait for entry count to be visible
+            page.goto(f"{base_url}/entries", timeout=30000, wait_until="domcontentloaded")
+            expect(page).to_have_title("Dictionary Entries")
+            entry_count = page.locator('#entry-count')
+            expect(entry_count).to_be_visible(timeout=15000)
 
             # Then import new content
             page.goto(f"{base_url}/settings", timeout=30000)

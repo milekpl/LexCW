@@ -328,6 +328,45 @@ class ValidationRulesManager {
     }
 
     /**
+     * Add rules from a template to existing project rules (MERGE, not replace)
+     * @param {string} projectId - Project identifier
+     * @param {string} templateId - Template to add rules from
+     * @param {string} createdBy - User who added the rules
+     */
+    async addFromTemplate(projectId, templateId, createdBy = null) {
+        this._setLoading(true);
+        this._setError(null);
+        const csrfToken = getCsrfToken();
+
+        try {
+            const response = await fetch(`${this._apiBase}/${projectId}/validation-rules/add-from-template`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify({
+                    template_id: templateId,
+                    created_by: createdBy
+                })
+            });
+
+            const data = await this._handleApiResponse(response);
+
+            if (data.success) {
+                await this.loadRules(projectId);
+            }
+
+            return data;
+        } catch (error) {
+            this._setError(error.message);
+            throw error;
+        } finally {
+            this._setLoading(false);
+        }
+    }
+
+    /**
      * Test a rule against sample data
      * @param {Object} ruleConfig - Rule configuration
      * @param {Object} testData - Sample data to validate

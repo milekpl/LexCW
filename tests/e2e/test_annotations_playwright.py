@@ -24,7 +24,8 @@ def expand_collapsible(page: Page, section_locator: Locator) -> None:
     toggle_btn = section_locator.locator('.toggle-content-btn')
     if toggle_btn.is_visible():
         toggle_btn.click()
-        page.wait_for_timeout(500)  # Wait for animation
+        # Wait for content to be visible after animation
+        section_locator.locator('.annotation-content-section, textarea[data-lang="en"]').wait_for(state='visible', timeout=2000)
 
 
 @pytest.mark.integration
@@ -104,7 +105,8 @@ class TestAnnotationsPlaywright:
         toggle_btn = content_section.locator('.toggle-content-btn')
         if toggle_btn.is_visible():
             toggle_btn.click()
-            page.wait_for_timeout(500)  # Wait for animation
+            # Wait for the textarea to be visible instead of sleeping
+            content_section.locator('textarea[data-lang="en"]').wait_for(state='visible', timeout=2000)
         
         # Now the English textarea should be visible
         english_textarea = content_section.locator('textarea[data-lang="en"]')
@@ -124,8 +126,8 @@ class TestAnnotationsPlaywright:
         add_btn = page.locator('.annotations-section-entry .add-annotation-btn')
         add_btn.click()
 
-        # Wait for annotation to be added
-        page.wait_for_timeout(500)
+        # Wait for annotation item to appear
+        expect(page.locator('.annotations-section-entry .annotation-item').first).to_be_visible(timeout=3000)
 
         # Check how many annotations exist
         annotation_count = page.locator('.annotations-section-entry .annotation-item').count()
@@ -137,8 +139,8 @@ class TestAnnotationsPlaywright:
             annotations.forEach(a => a.remove());
         """)
 
-        # Wait for removal
-        page.wait_for_timeout(500)
+        # Wait until no annotation items remain
+        page.wait_for_function("() => document.querySelectorAll('.annotations-section-entry .annotation-item').length === 0", timeout=3000)
 
         # Verify no annotations remain
         remaining_count = page.locator('.annotations-section-entry .annotation-item').count()
@@ -195,7 +197,7 @@ class TestAnnotationsPlaywright:
         # Add an annotation first
         add_btn = sense_item.locator('.add-annotation-btn').first
         add_btn.click()
-        page.wait_for_timeout(500)
+        expect(sense_item.locator('.annotation-item').first).to_be_visible(timeout=3000)
 
         # Verify annotation was added
         annotations_before = sense_item.locator('.annotation-item').count()
@@ -213,7 +215,8 @@ class TestAnnotationsPlaywright:
         expect(remove_btn).to_be_visible()
         remove_btn.click()
 
-        page.wait_for_timeout(500)
+        # Wait until annotation count decreases
+        page.wait_for_function("(before) => document.querySelectorAll('.annotation-item').length < before", arg=annotations_before, timeout=3000)
 
         # Restore confirm
         page.evaluate("""() => {

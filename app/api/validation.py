@@ -122,6 +122,7 @@ def validate_batch():
 
         entries = entries_data.get('entries', [])
         priority_filter = entries_data.get('priority_filter', 'all')
+        project_id = entries_data.get('project_id')
 
         # First pass: collect all entry IDs for relation target validation
         existing_entry_ids: set = set()
@@ -141,8 +142,8 @@ def validate_batch():
                     existing_entry_ids.add(entry_id)
             parsed_entries.append((entry_data, entry))
 
-        # Initialize validation engine with existing entry IDs
-        engine = ValidationEngine(existing_entry_ids=existing_entry_ids)
+        # Initialize validation engine with existing entry IDs and project_id for project-specific rules
+        engine = ValidationEngine(existing_entry_ids=existing_entry_ids, project_id=project_id)
 
         results = []
         valid_count = 0

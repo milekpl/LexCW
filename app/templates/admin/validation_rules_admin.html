@@ -17,8 +17,8 @@
                     <option value="{{ project.id }}">{{ project.project_name }}</option>
                     {% endfor %}
                 </select>
-                <button class="btn btn-outline-primary" onclick="window.validationRulesApp.initializeFromTemplate()">
-                    <i class="bi bi-magic"></i> Initialize from Template
+                <button class="btn btn-outline-primary" onclick="window.validationRulesApp.addFromTemplate()">
+                    <i class="bi bi-plus-circle"></i> Add Rules from Template
                 </button>
             </div>
         </div>
@@ -115,13 +115,17 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Initialize Rules from Template</h5>
+                <h5 class="modal-title">Add Rules from Template</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted">Choose a template to initialize validation rules:</p>
+                <p class="text-muted mb-3">Select a template to add spelling validation rules to your project:</p>
                 <div class="list-group" id="template-list">
                     <!-- Templates will be loaded here -->
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>New rules will be added</strong> - Your existing rules will be preserved.
                 </div>
             </div>
             <div class="modal-footer">
@@ -899,7 +903,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 templateList.querySelectorAll('.template-list-item').forEach(item => {
                     item.addEventListener('click', function() {
                         const templateId = this.dataset.templateId;
-                        window.validationRulesApp.initializeFromTemplate(templateId);
+                        window.validationRulesApp.addFromTemplate(templateId);
                         bootstrap.Modal.getInstance(document.getElementById('init-template-modal')).hide();
                     });
                 });
@@ -1022,7 +1026,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
 
-        initializeFromTemplate: function(templateId) {
+        addFromTemplate: function(templateId) {
             const modalEl = document.getElementById('init-template-modal');
 
             if (!templateId) {
@@ -1037,20 +1041,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            if (confirm('This will replace all existing rules. Continue?')) {
-                this.manager.initializeFromTemplate(projectId, templateId)
-                    .then(result => {
-                        if (result.success) {
-                            alert(`Initialized ${result.rules_count} rules from template`);
-                            window.validationRulesList.refresh();
-                        } else {
-                            alert('Failed: ' + result.message);
-                        }
-                    })
-                    .catch(error => {
-                        alert('Failed to initialize: ' + error.message);
-                    });
-            }
+            // No confirmation dialog - we're adding, not replacing
+            this.manager.addFromTemplate(projectId, templateId)
+                .then(result => {
+                    if (result.success) {
+                        const msg = result.rules_added > 0
+                            ? `Added ${result.rules_added} rules from "${result.template_name}" (${result.rules_skipped} skipped)`
+                            : `All rules from "${result.template_name}" already exist`;
+                        alert(msg);
+                        window.validationRulesList.refresh();
+                    } else {
+                        alert('Failed: ' + result.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Failed to add rules: ' + error.message);
+                });
         },
 
         openTestModal: function(rule) {

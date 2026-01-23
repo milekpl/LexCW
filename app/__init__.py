@@ -267,6 +267,10 @@ def create_app(config_name=None):
 
     app.register_blueprint(project_members_api_bp)
 
+    # Register dictionary management API
+    from app.api.dictionary_api import dictionary_bp
+    app.register_blueprint(dictionary_bp)
+
     # Register authentication web routes
     from app.routes.auth_routes import auth_bp
 

@@ -162,8 +162,12 @@ class TestBulkOperationsPage:
         # Click preview - should not cause JS errors
         page.click("button:has-text('Preview Match')")
 
-        # Wait a bit for API call
-        page.wait_for_timeout(1000)
+        # Wait for an API request or UI update instead of sleeping
+        try:
+            page.wait_for_response(lambda r: 'preview' in r.url or '/api/' in r.url, timeout=5000)
+        except Exception:
+            # Fallback to a short network idle if no matching response observed
+            page.wait_for_load_state('networkidle')
 
         # Verify page is still functional
         expect(page.locator("body")).to_be_visible()

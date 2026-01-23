@@ -20,7 +20,8 @@ class TestCacheService:
     
     def test_cache_service_initialization(self):
         """Test that cache service initializes properly."""
-        with patch('redis.Redis') as mock_redis:
+        # Ensure the service attempts to use Redis even if the environment disables it
+        with patch.dict('os.environ', {'REDIS_ENABLED': 'true'}), patch('redis.Redis') as mock_redis:
             mock_redis.return_value.ping.return_value = True
             
             cache_service = CacheService()
@@ -28,7 +29,7 @@ class TestCacheService:
     
     def test_cache_set_get(self):
         """Test basic cache set and get operations."""
-        with patch('redis.Redis') as mock_redis:
+        with patch.dict('os.environ', {'REDIS_ENABLED': 'true'}), patch('redis.Redis') as mock_redis:
             mock_client = Mock()
             mock_redis.return_value = mock_client
             mock_client.ping.return_value = True
@@ -47,7 +48,7 @@ class TestCacheService:
     
     def test_cache_delete(self):
         """Test cache deletion."""
-        with patch('redis.Redis') as mock_redis:
+        with patch.dict('os.environ', {'REDIS_ENABLED': 'true'}), patch('redis.Redis') as mock_redis:
             mock_client = Mock()
             mock_redis.return_value = mock_client
             mock_client.ping.return_value = True
@@ -65,7 +66,7 @@ class TestCacheService:
         CacheService._instance = None
         CacheService._connection_attempted = False
         
-        with patch('redis.Redis') as mock_redis:
+        with patch.dict('os.environ', {'REDIS_ENABLED': 'true'}), patch('redis.Redis') as mock_redis:
             mock_client = Mock()
             mock_redis.return_value = mock_client
             mock_client.ping.return_value = True

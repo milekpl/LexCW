@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -59,7 +59,6 @@ class CacheEntry:
     cached_at: datetime = field(default_factory=datetime.utcnow)
 
 
-@runtime_checkable
 class Validator(ABC):
     """
     Abstract base class for all validators.

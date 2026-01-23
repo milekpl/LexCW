@@ -87,9 +87,7 @@ class TestRangesEditorCRUD:
 
         # Click on the Elements tab to reveal elements container
         page.click('#elements-tab')
-        page.wait_for_timeout(500)
-
-        # Wait for elements container to be visible
+        # Wait for elements container to be visible (replacing sleep)
         elements_container = page.locator('#elementsContainer')
         expect(elements_container).to_be_visible(timeout=5000)
 
@@ -118,8 +116,8 @@ class TestRangesEditorCRUD:
         elements_container = page.locator('#elementsContainer')
         expect(elements_container).to_be_visible(timeout=5000)
 
-        # Wait for elements to load
-        page.wait_for_timeout(1000)
+        # Wait for nested elements to appear instead of sleeping
+        elements_container.locator('.list-group .list-group').first.wait_for(state='visible', timeout=5000)
 
         # The elements should show hierarchy (nested divs)
         nested_elements = elements_container.locator('.list-group .list-group')
@@ -189,8 +187,8 @@ class TestRangesEditorCRUD:
         # Wait for modal to close (Bootstrap modal fade out)
         modal.wait_for(state="hidden", timeout=5000)
 
-        # Wait for the table to reload and the new row to appear
-        page.wait_for_timeout(1000)
+        # Wait for the table to reload and the new row to appear instead of sleeping
+        page.wait_for_selector('tr[data-range-id="test-custom-range"]', timeout=5000)
 
         # Verify the range now appears in the list
         row = page.locator('tr[data-range-id="test-custom-range"]')
@@ -218,7 +216,7 @@ class TestRangesEditorCRUD:
         expect(elements_container).to_be_visible(timeout=5000)
 
         # Wait for elements to actually load
-        page.wait_for_timeout(1000)
+        page.wait_for_selector('#elementsContainer .list-group-item', timeout=5000)
 
         # Click new element button
         new_elem_btn = page.locator('#btnNewElement')
@@ -238,8 +236,8 @@ class TestRangesEditorCRUD:
         # Submit
         page.click('#btnSaveElement')
 
-        # Check for success
-        page.wait_for_timeout(1000)
+        # Check for success - wait for the element to appear
+        page.wait_for_selector('#elementsContainer strong:has-text("test-element-e2e")', timeout=5000)
 
         # Verify element now appears by checking for the strong element with the ID
         element = elements_container.locator('strong:has-text("test-element-e2e")')
@@ -292,7 +290,8 @@ class TestRangesEditorCRUD:
                 # Accept confirmation
                 page.once('dialog', lambda dialog: dialog.accept())
                 delete_btn.click()
-                page.wait_for_timeout(1000)
+                # Wait for the element to be removed
+                page.wait_for_function("() => !document.querySelector('#elementsContainer') || !document.querySelector('#elementsContainer').innerText.includes('test-element-e2e')", timeout=5000)
 
                 # Verify element is gone
                 test_elem = elements_container.locator('text=test-element-e2e')

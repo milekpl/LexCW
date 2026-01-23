@@ -12,6 +12,7 @@ from app.models.workset_models import Workset, WorksetEntry
 from app.models.display_profile import DisplayProfile, ProfileElement
 from app.models.custom_ranges import CustomRange, CustomRangeValue
 from app.models.validation_models import ProjectValidationRule, ValidationRuleTemplate
+from app.models.dictionary_models import ProjectDictionary, UserDictionary, SystemDictionary
 
 
 __all__ = [
@@ -29,5 +30,8 @@ __all__ = [
     'CustomRange',
     'CustomRangeValue',
     'ProjectValidationRule',
-    'ValidationRuleTemplate'
+    'ValidationRuleTemplate',
+    'ProjectDictionary',
+    'UserDictionary',
+    'SystemDictionary'
 ]

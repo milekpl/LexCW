@@ -40,10 +40,9 @@ def login():
             return render_template("auth/login.html")
 
         # Authenticate user
-        result = AuthenticationService.authenticate_user(username, password)
+        user, error = AuthenticationService.authenticate_user(username, password)
 
-        if result["success"]:
-            user = result["user"]
+        if user:
             # Set session
             session["user_id"] = user.id
             session["username"] = user.username
@@ -56,8 +55,10 @@ def login():
             log = ActivityLog(
                 user_id=user.id,
                 action="login",
-                resource_type="auth",
-                details={"ip_address": request.remote_addr},
+                entity_type="auth",
+                entity_id=str(user.id),
+                description=f"User {user.username} logged in",
+                ip_address=request.remote_addr,
             )
             db.session.add(log)
             db.session.commit()
@@ -70,7 +71,7 @@ def login():
                 return redirect(next_page)
             return redirect(url_for("main.index"))
         else:
-            flash(result["message"], "error")
+            flash(error or "Authentication failed", "error")
 
     return render_template("auth/login.html")
 
@@ -96,7 +97,7 @@ def register():
             return render_template("auth/register.html")
 
         # Register user
-        result = AuthenticationService.register_user(
+        user, error = AuthenticationService.register_user(
             username=username,
             email=email,
             password=password,
@@ -104,8 +105,7 @@ def register():
             last_name=last_name,
         )
 
-        if result["success"]:
-            user = result["user"]
+        if user:
             # Auto-login after registration
             session["user_id"] = user.id
             session["username"] = user.username
@@ -116,7 +116,7 @@ def register():
             )
             return redirect(url_for("main.index"))
         else:
-            flash(result["message"], "error")
+            flash(error or "Registration failed", "error")
 
     return render_template("auth/register.html")
 

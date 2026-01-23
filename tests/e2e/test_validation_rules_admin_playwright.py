@@ -96,8 +96,8 @@ class TestValidationRulesAdminPage:
         page.goto(f"{base_url}/validation-rules-admin")
         page.wait_for_load_state("networkidle")
 
-        init_button = page.locator("button:has-text('Initialize from Template')")
-        assert init_button.is_visible()
+        init_button = page.locator("button:has-text('Initialize from Template'), button:has-text('Add Rules from Template')")
+        assert init_button.count() > 0 and init_button.first.is_visible()
 
 
 class TestProjectSelection:
@@ -176,7 +176,7 @@ class TestValidationRulesCRUD:
         close_any_modal(page)
 
         # Click Add Rule button
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         add_button.click()
 
         # Wait for rule to appear in list
@@ -191,7 +191,7 @@ class TestValidationRulesCRUD:
         close_any_modal(page)
 
         # First, add a rule if none exists
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         if page.locator("#rules-list-container tbody tr").count() == 0:
             add_button.click()
             page.wait_for_timeout(500)
@@ -210,7 +210,7 @@ class TestValidationRulesCRUD:
         close_any_modal(page)
 
         # First, add a rule
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         add_button.click()
         page.wait_for_timeout(500)
 
@@ -239,7 +239,7 @@ class TestValidationRulesCRUD:
         close_any_modal(page)
 
         # Add a new rule first
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         add_button.click()
         page.wait_for_timeout(500)
 
@@ -268,7 +268,7 @@ class TestValidationRulesCRUD:
         close_any_modal(page)
 
         # Add a new rule first
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         add_button.click()
         page.wait_for_timeout(500)
 
@@ -293,7 +293,7 @@ class TestValidationRulesCRUD:
         close_any_modal(page)
 
         # Add a new rule first
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         add_button.click()
         page.wait_for_timeout(500)
 
@@ -331,7 +331,7 @@ class TestValidationRulesFilters:
         # Add a few rules
         for _ in range(3):
             close_any_modal(page)
-            add_button = page.locator("button:has-text('Add Rule')")
+            add_button = page.locator("button#rules-list-add")
             add_button.click()
             page.wait_for_timeout(300)
 
@@ -401,9 +401,9 @@ class TestTemplateInitialization:
         close_any_modal(page)
 
         # Click Initialize from Template button
-        init_button = page.locator("button:has-text('Initialize from Template')")
-        assert init_button.is_visible()
-        init_button.click()
+        init_button = page.locator("button:has-text('Initialize from Template'), button:has-text('Add Rules from Template')")
+        assert init_button.count() > 0 and init_button.first.is_visible()
+        init_button.first.click()
 
         # Check modal element exists (visibility depends on Bootstrap state)
         modal = page.locator("#init-template-modal")
@@ -418,8 +418,9 @@ class TestTemplateInitialization:
         close_any_modal(page)
 
         # Open the template modal
-        init_button = page.locator("button:has-text('Initialize from Template')")
-        init_button.click()
+        init_button = page.locator("button:has-text('Initialize from Template'), button:has-text('Add Rules from Template')")
+        assert init_button.count() > 0 and init_button.first.is_visible()
+        init_button.first.click()
 
         # Wait for modal to appear
         page.wait_for_timeout(1000)
@@ -482,7 +483,7 @@ class TestRuleTesting:
 
         # Add a rule and select it
         close_any_modal(page)
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         add_button.click()
         page.wait_for_timeout(500)
 
@@ -571,7 +572,7 @@ class TestSaveDiscard:
 
         # Add a rule
         close_any_modal(page)
-        add_button = page.locator("button:has-text('Add Rule')")
+        add_button = page.locator("button#rules-list-add")
         add_button.click()
         page.wait_for_timeout(500)
 
@@ -619,7 +620,7 @@ class TestRulesStats:
         # Add some rules with different priorities
         for _ in range(2):
             close_any_modal(page)
-            add_button = page.locator("button:has-text('Add Rule')")
+            add_button = page.locator("button#rules-list-add")
             add_button.click()
             page.wait_for_timeout(300)
 

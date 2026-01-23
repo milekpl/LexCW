@@ -42,6 +42,7 @@ class ValidationCategory(Enum):
     RELATION_VALIDATION = "relation_validation"
     HIERARCHICAL_VALIDATION = "hierarchical_validation"
     GENERAL = "general"
+    SPELLING = "spelling"
 
 
 @dataclass
@@ -216,11 +217,10 @@ class ValidationEngine:
             from app.models.workset_models import db
             from app.models.validation_models import ProjectValidationRule
 
-            # Import Flask app if needed for context
-            from flask import Flask
-            app = Flask(__name__)
+            # Use current_app for proper Flask context
+            from flask import current_app
 
-            with app.app_context():
+            with current_app.app_context():
                 rules = ProjectValidationRule.get_rules_for_project(self.project_id)
                 if not rules:
                     return None
@@ -632,7 +632,31 @@ class ValidationEngine:
         elif val_type == 'boolean':
             if not isinstance(value, bool):
                 return False
-                
+
+        elif val_type == 'hunspell':
+            # Hunspell spelling validation
+            lang_code = validation.get('lang_code', 'en_US')
+            min_word_length = validation.get('minWordLength', 3)
+            ignore_words = validation.get('ignoreWords', [])
+
+            # Extract words from value
+            import re
+            words = re.findall(r"\b[a-zA-Z]+(?:'[a-zA-Z]+)?\b", str(value))
+
+            for word in words:
+                if len(word) < min_word_length:
+                    continue
+                if word.lower() in [w.lower() for w in ignore_words]:
+                    continue
+
+                # Check spelling using hunspell
+                from app.services.dictionary_loader import get_dictionary_loader
+                loader = get_dictionary_loader()
+                hunspell = loader.load_system_dictionary(lang_code)
+
+                if hunspell and not hunspell.spell(word):
+                    return False  # Misspelling found
+
         return True
 
     def _evaluate_condition(self, condition: Dict[str, Any], data: Dict[str, Any]) -> bool:
@@ -754,6 +778,8 @@ class ValidationEngine:
             errors.extend(self._validate_no_double_stress(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_no_double_length':
             errors.extend(self._validate_no_double_length(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_hunspell_spelling':
+            errors.extend(self._validate_hunspell_spelling(rule_id, rule_config, data, matches))
 
         return errors
     
@@ -1575,6 +1601,133 @@ class ValidationEngine:
                     category=ValidationCategory(rule_config['category']),
                     value=pron_value
                 ))
+
+        return errors
+
+    def _get_hunspell_for_language(self, lang_code: str) -> Optional[Any]:
+        """Get hunspell dictionary for a language code with fallback logic.
+
+        Tries the following in order:
+        1. Exact match (e.g., 'en_US')
+        2. Base language + '_' + common variants (e.g., 'en' -> 'en_US')
+        3. Base language alone (e.g., 'en')
+
+        Args:
+            lang_code: Language code to look up
+
+        Returns:
+            Hunspell instance or None if not found
+        """
+        from app.services.dictionary_loader import get_dictionary_loader
+        loader = get_dictionary_loader()
+
+        hunspell = loader.load_system_dictionary(lang_code)
+        if hunspell:
+            return hunspell
+
+        # Try common locale variants for 2-letter codes
+        if len(lang_code) == 2:
+            common_variants = [f'{lang_code}_US', f'{lang_code}_GB', f'{lang_code}_{lang_code.upper()}']
+            for variant in common_variants:
+                hunspell = loader.load_system_dictionary(variant)
+                if hunspell:
+                    return hunspell
+
+        # Try base language alone (e.g., 'en' from 'en_US')
+        if '_' in lang_code:
+            base_lang = lang_code.split('_')[0]
+            hunspell = loader.load_system_dictionary(base_lang)
+            if hunspell:
+                return hunspell
+
+        return None
+
+    def _validate_hunspell_spelling(self, rule_id: str, rule_config: Dict[str, Any],
+                                     data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """Custom validation: Check spelling using hunspell dictionaries.
+
+        Configuration:
+        - lang_code: Language code for dictionary (default: en_US, ignored if auto_detect_languages is true)
+        - auto_detect_languages: Extract language code from JSON path (default: true for multilingual support)
+        - minWordLength: Minimum word length to check (default: 3)
+        - ignoreWords: List of words to ignore
+        - targetField: JSONPath to the field to validate (if matches not provided)
+
+        Returns list of ValidationError for any misspellings found.
+        """
+        import re
+        errors: List[ValidationError] = []
+
+        # Get configuration
+        validation_config = rule_config.get('validation', {})
+        lang_code = validation_config.get('lang_code', 'en_US')
+        auto_detect = validation_config.get('auto_detect_languages', True)  # Default to True for multilingual
+        min_word_length = validation_config.get('minWordLength', 3)
+        ignore_words = validation_config.get('ignoreWords', [])
+        error_message = rule_config.get('error_message', 'Spelling error detected')
+
+        # Build ignore set for fast lookup
+        ignore_set = {w.lower() for w in ignore_words}
+
+        # Process each match
+        for match in matches:
+            value = match.value
+            if not isinstance(value, str):
+                continue
+
+            # Determine which language dictionary to use
+            if auto_detect:
+                # Extract language code from the match path (e.g., "lexical_unit.en" -> "en")
+                path_str = str(match.full_path)
+                path_parts = path_str.split('.')
+                # Try to find a language code pattern (e.g., "en", "en_US", "pl", "seh")
+                detected_lang = None
+                for part in reversed(path_parts):
+                    # Check if it looks like a language code
+                    if part and (len(part) in (2, 5) or '-' in part):
+                        # Simple heuristic: language codes are 2 chars (en, pl) or 5 chars (en_US)
+                        # or contain hyphen (seh-fonipa)
+                        detected_lang = part
+                        break
+                target_lang = detected_lang if detected_lang else lang_code
+            else:
+                target_lang = lang_code
+
+            # Load the dictionary for this specific language with fallback logic
+            hunspell = self._get_hunspell_for_language(target_lang)
+
+            if not hunspell:
+                # Dictionary not available for this language, skip validation
+                # This is intentional - we don't want to flag errors for languages without dictionaries
+                continue
+
+            # Extract words
+            words = re.findall(r"\b[a-zA-Z]+(?:'[a-zA-Z]+)?\b", value)
+
+            for word in words:
+                word_lower = word.lower()
+
+                # Skip short words and ignored words
+                if len(word_lower) < min_word_length:
+                    continue
+                if word_lower in ignore_set:
+                    continue
+
+                # Check spelling
+                if not hunspell.spell(word):
+                    # Get suggestions
+                    suggestions = hunspell.suggest(word)[:3]
+                    suggestion_text = f" (suggestions: {', '.join(suggestions)})" if suggestions else ""
+
+                    errors.append(ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config['name'],
+                        message=f"{error_message}: '{word}'{suggestion_text}",
+                        path=str(match.full_path),
+                        priority=ValidationPriority(rule_config.get('priority', 'warning')),
+                        category=ValidationCategory(rule_config.get('category', 'language_validation')),
+                        value=word
+                    ))
 
         return errors
 

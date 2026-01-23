@@ -378,3 +378,208 @@ class TestValidationRuleLoading:
             
             # Priority should be valid
             assert rule_config['priority'] in ['critical', 'warning', 'informational']
+
+
+class TestHunspellSpellingValidation:
+    """Test hunspell spelling validation with language-aware detection.
+
+    These tests verify that:
+    1. Spelling errors are detected for languages with installed dictionaries
+    2. Validation is skipped for languages without installed dictionaries
+    3. Language codes are properly detected from JSON paths
+    4. Fallback logic works when exact dictionary is not available
+    """
+
+    def test_hunspell_detects_spelling_errors_in_english(self):
+        """Test that hunspell detects spelling errors when English dictionary is available."""
+        engine = ValidationEngine()
+
+        # Entry with intentional spelling errors in English
+        entry_with_errors = {
+            "id": "test-entry-1",
+            "lexical_unit": {"en": "helllo wrld"},
+            "senses": [{"id": "sense-1", "definition": {"en": "A defnition error"}}]
+        }
+
+        result = engine.validate_json(entry_with_errors)
+
+        # Should have warnings for lexical unit and info for definition
+        spelling_warnings = [w for w in result.warnings if 'spelling' in w.message.lower()]
+        spelling_info = [i for i in result.info if 'spelling' in i.message.lower()]
+
+        assert len(spelling_warnings) > 0, "Should detect spelling errors in English lexical unit"
+        assert len(spelling_info) > 0, "Should detect spelling errors in English definition"
+
+    def test_hunspell_skips_validation_for_missing_dictionary(self):
+        """Test that hunspell skips validation when dictionary is not installed."""
+        engine = ValidationEngine()
+
+        # Entry with language that has no dictionary installed
+        entry_no_dictionary = {
+            "id": "test-entry-2",
+            "lexical_unit": {
+                "xx": "sometext here",  # No dictionary for 'xx'
+                "pl": "dzień dobry"     # No Polish dictionary
+            },
+            "senses": [{"id": "sense-1", "definition": {"pl": "To jest definicja"}}]
+        }
+
+        result = engine.validate_json(entry_no_dictionary)
+
+        # Should NOT have spelling errors for languages without dictionaries
+        spelling_errors = [e for e in result.errors + result.warnings + result.info
+                          if 'spelling' in e.message.lower()]
+
+        assert len(spelling_errors) == 0, \
+            "Should NOT flag spelling errors for languages without installed dictionaries"
+
+    def test_hunspell_multilingual_entry_mixed_availability(self):
+        """Test multilingual entry where some languages have dictionaries and some don't."""
+        engine = ValidationEngine()
+
+        # Mixed: English (has dict) + Polish (no dict)
+        entry_mixed = {
+            "id": "test-entry-3",
+            "lexical_unit": {
+                "en": "helllo wrld",    # Should flag errors (en_US dict available)
+                "pl": "dzień dobry"     # Should skip (no pl dict)
+            },
+            "senses": [
+                {"id": "sense-1", "definition": {"en": "A defnition error"}},
+                {"id": "sense-2", "definition": {"pl": "To jest definicja"}}
+            ]
+        }
+
+        result = engine.validate_json(entry_mixed)
+
+        # Should only have errors for English
+        english_errors = [e for e in result.warnings + result.info
+                         if 'spelling' in e.message.lower() and 'en' in e.path.lower()]
+        polish_errors = [e for e in result.warnings + result.info
+                        if 'spelling' in e.message.lower() and 'pl' in e.path.lower()]
+
+        assert len(english_errors) > 0, "Should detect spelling errors in English"
+        assert len(polish_errors) == 0, "Should NOT detect spelling errors in Polish (no dict)"
+
+    def test_hunspell_validates_correct_words(self):
+        """Test that hunspell accepts correctly spelled words."""
+        engine = ValidationEngine()
+
+        entry_valid = {
+            "id": "test-entry-4",
+            "lexical_unit": {"en": "hello world"},
+            "senses": [{"id": "sense-1", "definition": {"en": "A valid definition"}}]
+        }
+
+        result = engine.validate_json(entry_valid)
+
+        # Should have no spelling warnings
+        spelling_warnings = [w for w in result.warnings if 'spelling' in w.message.lower()]
+        assert len(spelling_warnings) == 0, "Should not flag correctly spelled words"
+
+    def test_hunspell_language_code_extraction(self):
+        """Test that language codes are correctly extracted from JSON paths."""
+        engine = ValidationEngine()
+
+        # Test with various language codes
+        entry = {
+            "id": "test-entry-5",
+            "lexical_unit": {
+                "en": "hello",     # Should use en_US dict
+                "en_GB": "hello",  # Should fall back to en_US (only en_US available)
+            },
+            "senses": [
+                {"id": "sense-1", "gloss": [{"lang": "en", "text": "greeting"}]}
+            ]
+        }
+
+        result = engine.validate_json(entry)
+
+        # Should validate correctly (both English variants map to en_US)
+        assert result.is_valid or len([w for w in result.warnings if 'spelling' in w.message.lower()]) == 0
+
+    def test_hunspell_ignores_ignored_words(self):
+        """Test that ignored words are not flagged as spelling errors."""
+        engine = ValidationEngine()
+
+        # Entry with words in the ignore list
+        entry_ignored = {
+            "id": "test-entry-6",
+            "lexical_unit": {"en": "test demo example word"},
+            "senses": [{"id": "sense-1", "definition": {"en": "A test example."}}]
+        }
+
+        result = engine.validate_json(entry_ignored)
+
+        # Should not flag ignored words
+        for w in result.warnings:
+            assert 'test' not in w.message.lower(), "Should ignore 'test'"
+            assert 'demo' not in w.message.lower(), "Should ignore 'demo'"
+            assert 'example' not in w.message.lower(), "Should ignore 'example'"
+
+    def test_hunspell_provides_suggestions(self):
+        """Test that hunspell provides spelling suggestions."""
+        engine = ValidationEngine()
+
+        entry = {
+            "id": "test-entry-7",
+            "lexical_unit": {"en": "helllo"},
+            "senses": [{"id": "sense-1", "definition": {"en": "A defnition."}}]
+        }
+
+        result = engine.validate_json(entry)
+
+        # Find spelling errors with suggestions
+        spelling_warnings = [w for w in result.warnings if 'spelling' in w.message.lower()]
+
+        assert len(spelling_warnings) > 0, "Should detect spelling errors"
+        # Check that suggestions are mentioned in the message
+        warning_messages = [w.message for w in spelling_warnings]
+        assert any('suggestions:' in msg for msg in warning_messages), \
+            "Should provide spelling suggestions"
+
+    def test_hunspell_skip_validation_with_no_dictionary(self):
+        """Integration test: Verify validation behavior when dictionary is unavailable.
+
+        This test simulates the scenario where a user has entries in multiple languages
+        but only some have hunspell dictionaries installed. The system should:
+        1. Validate languages with available dictionaries
+        2. Silently skip languages without dictionaries
+        3. Not report false positives for missing dictionaries
+        """
+        engine = ValidationEngine()
+
+        # Realistic multilingual entry
+        # Note: 'naxha' is accidentally valid in English (typo of 'naphtha')
+        # Use words that are clearly language-specific
+        entry = {
+            "id": "test-entry-8",
+            "lexical_unit": {
+                "en": "thsi is a tset",          # English with errors (has dict)
+                "de": "dies ist ein test",       # German - no dictionary
+                "fr": "ceci est un test",        # French - no dictionary
+                "seh": "naxha malaxha"           # No dictionary - 'naxha' is accidentally valid in en_US
+            },
+            "senses": [
+                {
+                    "id": "sense-1",
+                    "definition": {"en": "A tset definision"},
+                    "examples": [{"text": "This is an exmple"}]
+                }
+            ]
+        }
+
+        result = engine.validate_json(entry)
+
+        # Count spelling issues
+        spelling_issues = [e for e in result.warnings + result.info if 'spelling' in e.message.lower()]
+
+        # Should have issues for English (errors in thsi, tset, definision, exmple)
+        # Should NOT have issues for de, fr (no dictionaries)
+        # Note: seh might have issues if words happen to match English dictionary
+        english_issues = [i for i in spelling_issues if 'lexical_unit.en' in i.path or 'definition.en' in i.path]
+        non_english_issues = [i for i in spelling_issues
+                             if any(lang in i.path for lang in ['lexical_unit.de', 'lexical_unit.fr'])]
+
+        assert len(english_issues) > 0, "Should detect English spelling errors"
+        assert len(non_english_issues) == 0, "Should NOT detect errors for languages without dictionaries"

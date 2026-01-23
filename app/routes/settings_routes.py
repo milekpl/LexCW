@@ -9,6 +9,7 @@ from flasgger import swag_from
 from app.forms.settings_form import SettingsForm
 from app.config_manager import ConfigManager
 from app.services.dictionary_service import DictionaryService
+from app.models.project_settings import ProjectSettings
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 logger = logging.getLogger(__name__)
@@ -45,10 +46,14 @@ def manage_settings() -> Any:
 
     project_query = request.args.get('project')
     show_wizard = request.args.get('wizard', 'false').lower() == 'true'
+    project_settings = None
+    project_id = None
+
     if project_query:
         project_settings = config_manager.get_settings(project_query)
         if project_settings:
             current_settings = project_settings.settings_json
+            project_id = project_settings.id
         else:
             current_settings = {
                 'project_name': config_manager.get_project_name(),
@@ -65,6 +70,10 @@ def manage_settings() -> Any:
             'backup_settings': getattr(config_manager, 'get_backup_settings', lambda: {})(),
             'basex_db_name': config_manager.get_setting('basex_db_name', 'dictionary')
         }
+        # Get the current project ID from the first project
+        first_project = ProjectSettings.query.first()
+        if first_project:
+            project_id = first_project.id
 
     # Resolve ranges defensively so missing services do not crash the page
     ranges: Dict[str, Any] = {}
@@ -87,7 +96,9 @@ def manage_settings() -> Any:
                            title='Project Settings',
                            current_settings=current_settings,
                            show_wizard=show_wizard,
-                           project_query=project_query)
+                           project_query=project_query,
+                           spell_check_settings=current_settings.get('spell_check', {}),
+                           project_id=project_id)
 
 
 @settings_bp.route('/projects', methods=['GET'])
@@ -225,10 +236,14 @@ def manage_settings() -> Any:
 
     project_query = request.args.get('project')
     show_wizard = request.args.get('wizard', 'false').lower() == 'true'
+    project_settings = None
+    project_id = None
+
     if project_query:
         project_settings = config_manager.get_settings(project_query)
         if project_settings:
             current_settings = project_settings.settings_json
+            project_id = project_settings.id
         else:
             current_settings = {
                 'project_name': config_manager.get_project_name(),
@@ -245,6 +260,10 @@ def manage_settings() -> Any:
             'backup_settings': getattr(config_manager, 'get_backup_settings', lambda: {})(),
             'basex_db_name': config_manager.get_setting('basex_db_name', 'dictionary')
         }
+        # Get the current project ID from the first project
+        first_project = ProjectSettings.query.first()
+        if first_project:
+            project_id = first_project.id
 
     # Resolve ranges defensively so missing services do not crash the page
     ranges: Dict[str, Any] = {}
@@ -267,7 +286,9 @@ def manage_settings() -> Any:
                            title='Project Settings',
                            current_settings=current_settings,
                            show_wizard=show_wizard,
-                           project_query=project_query)
+                           project_query=project_query,
+                           spell_check_settings=current_settings.get('spell_check', {}),
+                           project_id=project_id)
 
 
 @settings_bp.route('/projects', methods=['GET'])
@@ -390,10 +411,14 @@ def register_blueprints(app) -> None:
 
     project_query = request.args.get('project')
     show_wizard = request.args.get('wizard', 'false').lower() == 'true'
+    project_settings = None
+    project_id = None
+
     if project_query:
         project_settings = config_manager.get_settings(project_query)
         if project_settings:
             current_settings = project_settings.settings_json
+            project_id = project_settings.id
         else:
             current_settings = {
                 'project_name': config_manager.get_project_name(),
@@ -410,6 +435,10 @@ def register_blueprints(app) -> None:
             'backup_settings': getattr(config_manager, 'get_backup_settings', lambda: {})(),
             'basex_db_name': config_manager.get_setting('basex_db_name', 'dictionary')
         }
+        # Get the current project ID from the first project
+        first_project = ProjectSettings.query.first()
+        if first_project:
+            project_id = first_project.id
 
     # Resolve ranges defensively so missing services do not crash the page
     ranges: Dict[str, Any] = {}
@@ -432,7 +461,9 @@ def register_blueprints(app) -> None:
                            title='Project Settings',
                            current_settings=current_settings,
                            show_wizard=show_wizard,
-                           project_query=project_query)
+                           project_query=project_query,
+                           spell_check_settings=current_settings.get('spell_check', {}),
+                           project_id=project_id)
 
 @settings_bp.route('/projects', methods=['GET'])
 @swag_from({

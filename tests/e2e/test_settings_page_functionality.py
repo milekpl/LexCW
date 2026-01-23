@@ -87,8 +87,8 @@ class TestSettingsPageUX:
         expect(submit_button).to_be_visible()
         submit_button.click()
         
-        # Wait for response
-        page.wait_for_timeout(2000)
+        # Wait for response / navigation to complete
+        page.wait_for_load_state('networkidle')
         
         # Should not show error page
         expect(page).not_to_have_title(re.compile(r"Error|500|404"))
@@ -132,7 +132,8 @@ class TestSettingsLanguageUXRequirements:
         
         # Test 1: Search for African language
         search_input.fill("Swahili")
-        page.wait_for_timeout(500)  # Wait for search results
+        # Wait for results to appear
+        page.wait_for_selector('.language-search-result:has-text("Swahili")', timeout=3000)
         swahili_result = page.locator('.language-search-result:has-text("Swahili")')
         expect(swahili_result).to_be_visible()
         
@@ -143,33 +144,33 @@ class TestSettingsLanguageUXRequirements:
         
         # Test 2: Search for Asian language by code
         search_input.fill("zh")
-        page.wait_for_timeout(500)
+        page.wait_for_selector('.language-search-result:has-text("Chinese")', timeout=3000)
         chinese_result = page.locator('.language-search-result:has-text("Chinese")')
         expect(chinese_result).to_be_visible()
         chinese_result.click()
         
         # Test 3: Search for Indigenous American language
         search_input.fill("Quechua")
-        page.wait_for_timeout(500)
+        page.wait_for_selector('.language-search-result:has-text("Quechua")', timeout=3000)
         quechua_result = page.locator('.language-search-result:has-text("Quechua")')
         expect(quechua_result).to_be_visible()
         quechua_result.click()
         
         # Test 4: Search for Sign Language (accessibility)
         search_input.fill("Sign Language")
-        page.wait_for_timeout(500)
+        page.wait_for_selector('.language-search-result:has-text("Sign Language")', timeout=3000)
         sign_result = page.locator('.language-search-result:has-text("Sign Language")').first
         expect(sign_result).to_be_visible()
         
         # Test 5: Search by language family
         search_input.fill("Niger-Congo")
-        page.wait_for_timeout(500)
+        page.wait_for_selector('.language-search-result', timeout=3000)
         family_results = page.locator('.language-search-result')
         expect(family_results.first).to_be_visible()
         
         # Clear search to hide results before testing removal
         search_input.fill("")
-        page.wait_for_timeout(300)
+        page.wait_for_selector('.language-search-result', state='hidden', timeout=2000)
         
         # Should now have multiple selected languages (at least the ones we added)
         selected_languages = page.locator('.selected-language-item')
@@ -214,7 +215,7 @@ class TestSettingsLanguageUXRequirements:
         
         for family, languages in test_families.items():
             search_input.fill(family)
-            page.wait_for_timeout(500)
+            page.wait_for_selector('.language-search-result', timeout=3000)
             
             # Should find languages from this family
             results = page.locator('.language-search-result')
@@ -224,7 +225,7 @@ class TestSettingsLanguageUXRequirements:
             # Test specific languages from family
             for lang in languages[:2]:  # Test first 2 languages from each family
                 search_input.fill(lang)
-                page.wait_for_timeout(500)
+                page.wait_for_selector(f'.language-search-result:has-text("{lang}")', timeout=3000)
                 lang_result = page.locator(f'.language-search-result:has-text("{lang}")')
                 if lang_result.count() > 0:
                     # Language found - this is good

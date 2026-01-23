@@ -107,6 +107,88 @@
                     </div>
                 </fieldset>
 
+                <!-- Spell-Check Dictionaries Section -->
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Spell-Check Dictionaries
+                        <i class="fas fa-book text-primary ms-1"></i>
+                    </legend>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Configure Hunspell dictionaries for spell-checking entry fields.
+                        {% if project_id %}
+                        <a href="{{ url_for('dictionaries.project_dictionaries_page', project_id=project_id) }}" class="alert-link">
+                            Manage dictionaries
+                        </a>
+                        {% else %}
+                        <span class="text-muted">Select a project to manage dictionaries</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title">Enable Spelling Validation</h6>
+                            <p class="small text-muted mb-2">
+                                To enable spelling validation, load the "Spelling Validation" template
+                                in the Validation Rules Editor.
+                            </p>
+                            {% if project_id %}
+                            <a href="{{ url_for('main.validation_rules_admin', project=project_id) }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-magic"></i> Enable Spelling Validation
+                            </a>
+                            {% else %}
+                            <button class="btn btn-outline-primary btn-sm" disabled>
+                                <i class="fas fa-magic"></i> Enable Spelling Validation
+                            </button>
+                            {% endif %}
+
+                            <hr class="my-3">
+
+                            <h6 class="card-title">Quick Actions</h6>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {% if project_id %}
+                                <a href="{{ url_for('dictionaries.project_dictionaries_page', project_id=project_id) }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-book"></i> Manage Dictionaries
+                                </a>
+                                <button class="btn btn-outline-success btn-sm" disabled title="Select a project first">
+                                    <i class="fas fa-upload"></i> Upload New Dictionary
+                                </button>
+                                {% else %}
+                                <button class="btn btn-outline-primary btn-sm" disabled>
+                                    <i class="fas fa-book"></i> Manage Dictionaries
+                                </button>
+                                {% endif %}
+                            </div>
+
+                            {% if spell_check_settings and spell_check_settings.get('default_dictionary_id') %}
+                            <div class="mt-3">
+                                <strong>Default Dictionary:</strong>
+                                <span class="badge bg-success">Configured</span>
+                            </div>
+                            {% else %}
+                            <div class="mt-3">
+                                <strong>Default Dictionary:</strong>
+                                <span class="badge bg-warning text-dark">Not Set</span>
+                                <small class="text-muted">Upload a dictionary and set it as default</small>
+                            </div>
+                            {% endif %}
+
+                            {% if spell_check_settings and spell_check_settings.get('ipa_dictionary_id') %}
+                            <div class="mt-2">
+                                <strong>IPA Dictionary:</strong>
+                                <span class="badge bg-info">Configured</span>
+                            </div>
+                            {% else %}
+                            <div class="mt-2">
+                                <strong>IPA Dictionary:</strong>
+                                <span class="badge bg-secondary">Not Set</span>
+                                <small class="text-muted">For pronunciation fields</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </fieldset>
+
                 <div class="mt-4">
                     {{ form.submit(class="btn btn-primary") }}
                     <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary ms-2">Cancel</a>

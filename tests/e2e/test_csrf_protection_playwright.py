@@ -126,14 +126,16 @@ class TestCSRFProtection:
         page.click('#btnAddLabel')
         page.fill('#labelsContainer .lang-text', 'Test CSRF Range')
 
-        # Submit and wait for request
-        page.click('#btnCreateRange')
-        page.wait_for_timeout(2000)  # Wait for the API request
+        # Submit and wait for the POST request to be observed using Playwright's expect_request context manager
+        with page.expect_request(lambda req: '/api/ranges-editor/' in req.url and req.method == 'POST', timeout=10000) as req_info:
+            page.click('#btnCreateRange')
+        req = req_info.value
 
-        # Check that X-CSRF-TOKEN was included
-        assert 'x-csrf-token' in captured_headers or 'X-CSRF-TOKEN' in captured_headers, \
+        # Check that X-CSRF-TOKEN was included in request headers
+        headers = req.headers or {}
+        assert 'x-csrf-token' in headers or 'X-CSRF-TOKEN' in headers, \
             "CSRF token should be included in POST request headers"
-        token = captured_headers.get('x-csrf-token') or captured_headers.get('X-CSRF-TOKEN')
+        token = headers.get('x-csrf-token') or headers.get('X-CSRF-TOKEN')
         assert token and len(token) > 0, "CSRF token should not be empty"
 
     def test_csrf_token_works_with_api_utils(self, page: Page, app_url):

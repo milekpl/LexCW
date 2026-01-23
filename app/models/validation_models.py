@@ -154,6 +154,60 @@ class ProjectValidationRule(db.Model):
         return saved_count
 
     @staticmethod
+    def add_rules_for_project(
+        project_id: str,
+        rules: List[Dict[str, Any]],
+        created_by: Optional[str] = None
+    ) -> int:
+        """
+        Add new rules for a project without modifying existing rules.
+
+        This method ONLY creates new rules - it does NOT update or deactivate
+        existing rules. Use this when you want to merge rules without losing
+        existing configurations.
+
+        Args:
+            project_id: The project identifier
+            rules: List of new rule configurations to add
+            created_by: User who made the changes
+
+        Returns:
+            Number of rules added
+        """
+        existing_rules = db.session.query(ProjectValidationRule).filter(
+            ProjectValidationRule.project_id == project_id
+        ).all()
+
+        existing_by_id = {r.rule_id: r for r in existing_rules}
+
+        added_count = 0
+
+        # Only create new rules, don't touch existing ones
+        for rule_config in rules:
+            rule_id = rule_config.get('rule_id')
+            if not rule_id:
+                continue
+
+            if rule_id in existing_by_id:
+                # Skip - rule already exists
+                continue
+
+            # Create new rule
+            rule = ProjectValidationRule.create_from_config(
+                project_id=project_id,
+                rule_id=rule_id,
+                config=rule_config,
+                created_by=created_by
+            )
+            db.session.add(rule)
+            added_count += 1
+
+        if added_count > 0:
+            db.session.commit()
+
+        return added_count
+
+    @staticmethod
     def delete_rules_for_project(project_id: str) -> int:
         """
         Delete all rules for a project.

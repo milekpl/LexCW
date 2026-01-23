@@ -12,7 +12,50 @@ Tests that:
 from __future__ import annotations
 
 import pytest
+import os
+import requests
 from playwright.sync_api import Page, expect
+import time
+
+
+@pytest.fixture(autouse=True)
+def _skip_if_no_corpus():
+    """Skip corpus integration tests if Lucene corpus service is not reachable.
+
+    This avoids timeouts when the external corpus service (configured by
+    LUCENE_CORPUS_URL) is not running in the test environment.
+    """
+    url = os.getenv('LUCENE_CORPUS_URL', 'http://localhost:8082')
+    try:
+        # quick lightweight check - timeout kept small so tests don't hang
+        requests.get(url, timeout=1)
+    except Exception:
+        pytest.skip("Lucene corpus service not available; skipping corpus integration tests")
+
+
+def wait_for_corpus_results(page: Page, timeout: int = 10000) -> None:
+    """Poll until corpus results appear or an empty-state message is shown.
+
+    This avoids relying on fixed sleeps which can cause flaky tests.
+    """
+    deadline = time.time() + (timeout / 1000.0)
+    while time.time() < deadline:
+        try:
+            # If a result row is present, we're done
+            if page.locator('.corpus-result').count() > 0:
+                return
+            # If results info is visible, consider it done
+            if page.locator('#corpusResultsInfo').count() > 0 and page.locator('#corpusResultsInfo').first.is_visible():
+                return
+            # Check for common empty state messages
+            html = page.locator('#corpusSearchResults').inner_html() or ''
+            if 'No examples found' in html or 'Enter a search term' in html:
+                return
+        except Exception:
+            # Ignore transient DOM read errors and retry
+            pass
+        page.wait_for_timeout(200)
+    raise AssertionError('Timed out waiting for corpus search results or empty state')
 
 
 @pytest.mark.integration
@@ -87,8 +130,8 @@ def test_search_corpus_api_returns_source_target(page: Page, app_url: str, ensur
     search_btn = page.locator('#corpusSearchBtn')
     search_btn.click()
 
-    # Wait for results to appear (or empty state)
-    page.wait_for_timeout(2000)
+    # Wait for results or an empty-state indicator (polling)
+    wait_for_corpus_results(page, timeout=10000)
 
     # Results container should be visible
     results_container = page.locator('#corpusSearchResults')
@@ -113,8 +156,8 @@ def test_corpus_results_display_format(page: Page, app_url: str, ensure_sense) -
     search_btn = page.locator('#corpusSearchBtn')
     search_btn.click()
 
-    # Wait for results
-    page.wait_for_timeout(2000)
+    # Wait for results or empty state using polling helper
+    wait_for_corpus_results(page, timeout=10000)
 
     # Results container should be visible
     results_container = page.locator('#corpusSearchResults')
@@ -199,8 +242,8 @@ def test_corpus_search_with_enter_key(page: Page, app_url: str, ensure_sense) ->
     # Press Enter
     search_input.press('Enter')
 
-    # Wait for results
-    page.wait_for_timeout(2000)
+    # Wait for results or empty state using polling helper
+    wait_for_corpus_results(page, timeout=10000)
 
     # Results container should be visible
     results_container = page.locator('#corpusSearchResults')
@@ -224,9 +267,10 @@ def test_corpus_results_info_shows_count(page: Page, app_url: str, ensure_sense)
     search_btn = page.locator('#corpusSearchBtn')
     search_btn.click()
 
-    page.wait_for_timeout(2000)
+    # Wait for results or empty state
+    wait_for_corpus_results(page, timeout=10000)
 
-    # Results info should be visible
+    # Results info should be visible (if results exist)
     results_info = page.locator('#corpusResultsInfo')
     expect(results_info).to_be_visible()
 
@@ -253,13 +297,10 @@ def test_corpus_search_uses_empty_query_gracefully(page: Page, app_url: str, ens
     search_btn = page.locator('#corpusSearchBtn')
     search_btn.click()
 
-    # Wait a moment for any error handling
-    page.wait_for_timeout(1000)
-
     # The page should still be functional (no crash)
     # Modal should still be visible
     modal = page.locator('#corpusSearchModal')
-    expect(modal).to_be_visible()
+    expect(modal).to_be_visible(timeout=2000)
 
 
 @pytest.mark.integration

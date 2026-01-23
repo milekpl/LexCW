@@ -16,10 +16,12 @@ def test_debug_click_handlers(page: Page, app_url: str):
     add_sense_btn = page.locator('#add-sense-btn')
     if add_sense_btn.is_visible():
         add_sense_btn.click()
-        page.wait_for_timeout(500)
+        # Wait for a definition textarea to appear instead of sleeping
+        page.wait_for_selector('textarea[name*="definition"]:visible', timeout=3000)
     
     page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    page.wait_for_timeout(500)
+    # Wait for the add-literal-meaning-language button to be visible after scrolling
+    page.wait_for_selector('.add-literal-meaning-language-btn', timeout=3000)
     
     # Check for multiple buttons
     all_buttons = page.locator('.add-literal-meaning-language-btn')
