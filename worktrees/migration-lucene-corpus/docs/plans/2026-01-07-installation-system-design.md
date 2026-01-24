@@ -67,7 +67,7 @@ flask-app/
 #### Docker Mode (Recommended)
 
 All services run in containers:
-- PostgreSQL (ports 5432, 5433)
+- PostgreSQL (port 5432)
 - Redis (port 6379)
 - BaseX (ports 1984, 8984)
 - Flask application (port 5000)
@@ -201,7 +201,7 @@ basex/
 | Service | Check | Port |
 |---------|-------|------|
 | PostgreSQL | `pg_isready` | 5432 |
-| PostgreSQL (test) | `pg_isready` | 5433 |
+| PostgreSQL (test) | `pg_isready` | 5432 |
 | BaseX Server | TCP connection | 1984 |
 | BaseX HTTP | HTTP request | 8984 |
 | Redis | `redis-cli ping` | 6379 |
@@ -212,7 +212,7 @@ basex/
 === Service Health Check ===
 
 PostgreSQL (dictionary_analytics):  ✓ Running (port 5432)
-PostgreSQL (dictionary_test):       ✓ Running (port 5433)
+PostgreSQL (dictionary_test):       ✓ Running (port 5432)
 BaseX Server:                       ✓ Running (port 1984)
 BaseX HTTP:                         ○ Not running (optional)
 Redis:                              ✓ Running (port 6379)

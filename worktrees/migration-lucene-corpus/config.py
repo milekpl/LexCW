@@ -80,7 +80,7 @@ class TestingConfig(Config):
     
     # PostgreSQL test configuration
     PG_HOST = os.environ.get('POSTGRES_TEST_HOST') or 'localhost'
-    PG_PORT = int(os.environ.get('POSTGRES_TEST_PORT') or 5433)
+    PG_PORT = int(os.environ.get('POSTGRES_TEST_PORT') or 5432)
     PG_USER = os.environ.get('POSTGRES_TEST_USER') or 'dict_user'
     PG_PASSWORD = os.environ.get('POSTGRES_TEST_PASSWORD') or 'dict_pass'
     PG_DATABASE = os.environ.get('POSTGRES_TEST_DB') or 'dictionary_test'

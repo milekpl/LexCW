@@ -45,7 +45,7 @@ class TestBasicPostgreSQLSetup:
         """Test loading configuration from environment variables."""
         env_vars = {
             'POSTGRES_HOST': 'test-host',
-            'POSTGRES_PORT': '5433',
+            'POSTGRES_PORT': '5432',
             'POSTGRES_DB': 'test-database',
             'POSTGRES_USER': 'test-username',
             'POSTGRES_PASSWORD': 'test-password'
@@ -55,7 +55,7 @@ class TestBasicPostgreSQLSetup:
             connector = PostgreSQLConnector()
             
             assert connector.config.host == 'test-host'
-            assert connector.config.port == 5433
+            assert connector.config.port == 5432
             assert connector.config.database == 'test-database'
             assert connector.config.username == 'test-username'
             assert connector.config.password == 'test-password'

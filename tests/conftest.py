@@ -512,24 +512,33 @@ def flask_test_server():
     # We manually create PostgreSQL connection since TestingConfig has TESTING=True
     # which would normally skip it
     import psycopg2
-    try:
-        pg_pool = psycopg2.pool.SimpleConnectionPool(
-            1, 20,
-            user=app.config.get("PG_USER"),
-            password=app.config.get("PG_PASSWORD"),
-            host=app.config.get("PG_HOST"),
-            port=app.config.get("PG_PORT"),
-            database=app.config.get("PG_DATABASE"),
-            connect_timeout=3
-        )
-        app.pg_pool = pg_pool
-        # Create workset tables
-        from app.database.workset_db import create_workset_tables
-        create_workset_tables(pg_pool)
-        print(f"Successfully connected to PostgreSQL at {app.config.get('PG_HOST')}:{app.config.get('PG_PORT')}")
-    except Exception as e:
-        print(f"Warning: Could not connect to PostgreSQL: {e}")
-        app.pg_pool = None
+    # Retry connecting to PostgreSQL a few times to handle transient network issues
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            pg_pool = psycopg2.pool.SimpleConnectionPool(
+                1, 20,
+                user=app.config.get("PG_USER"),
+                password=app.config.get("PG_PASSWORD"),
+                host=app.config.get("PG_HOST"),
+                port=app.config.get("PG_PORT"),
+                database=app.config.get("PG_DATABASE"),
+                connect_timeout=5
+            )
+            app.pg_pool = pg_pool
+            # Create workset tables (may raise if DB not ready)
+            from app.database.workset_db import create_workset_tables
+            create_workset_tables(pg_pool)
+            print(f"Successfully connected to PostgreSQL at {app.config.get('PG_HOST')}:{app.config.get('PG_PORT')} (attempt {attempt})")
+            break
+        except Exception as e:
+            print(f"Warning: Attempt {attempt} to connect to PostgreSQL failed: {e}")
+            app.pg_pool = None
+            if attempt < max_attempts:
+                import time
+                time.sleep(1)
+            else:
+                print("Warning: Could not connect to PostgreSQL after multiple attempts; continuing with app.pg_pool=None")
 
     # Prefer explicit TEST_DB_NAME if present
     env_db = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')

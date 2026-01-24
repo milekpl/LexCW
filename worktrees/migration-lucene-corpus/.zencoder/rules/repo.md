@@ -58,7 +58,7 @@ python run.py
 - flask_app: Main application container
 - basex: BaseX XML database (port 1984)
 - postgres: PostgreSQL database for analytics (port 5432)
-- postgres_test: PostgreSQL for testing (port 5433)
+- postgres_test: PostgreSQL for testing (port 5432)
 - redis: Redis for caching (port 6379)
 - test_runner: Container for running tests
 
