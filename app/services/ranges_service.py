@@ -130,6 +130,46 @@ def reload_custom_ranges_config() -> None:
 class RangesService:
     """Service for CRUD operations on LIFT ranges."""
 
+    # Class-level cache for parsed ranges to avoid redundant XML parsing
+    # Key: (database_name, project_id), Value: (parsed_ranges_dict, timestamp)
+    _ranges_cache: Dict[tuple, tuple] = {}
+    _CACHE_TTL_SECONDS = 60  # 1 minute TTL
+
+    def _get_cached_ranges(self, project_id: Optional[int] = None) -> tuple[Dict, float]:
+        """Get ranges from cache or fetch from database.
+
+        Returns:
+            Tuple of (parsed_ranges_dict, timestamp)
+        """
+        import time
+        db_name = self.db_connector.database or 'dictionary'
+        cache_key = (db_name, project_id or 0)
+        current_time = time.time()
+
+        # Check cache
+        if cache_key in self._ranges_cache:
+            cached_ranges, cached_time = self._ranges_cache[cache_key]
+            if current_time - cached_time < self._CACHE_TTL_SECONDS:
+                self.logger.debug(f"Returning cached ranges for {db_name}")
+                return cached_ranges, cached_time
+
+        # Cache miss - fetch and parse
+        return None, 0
+
+    def _set_cached_ranges(self, ranges: Dict, project_id: Optional[int] = None) -> None:
+        """Store parsed ranges in cache."""
+        import time
+        db_name = self.db_connector.database or 'dictionary'
+        cache_key = (db_name, project_id or 0)
+        self._ranges_cache[cache_key] = (ranges, time.time())
+
+    def _invalidate_cache(self, project_id: Optional[int] = None) -> None:
+        """Invalidate the ranges cache for this database."""
+        db_name = self.db_connector.database or 'dictionary'
+        cache_key = (db_name, project_id or 0)
+        self._ranges_cache.pop(cache_key, None)
+        self.logger.debug(f"Invalidated ranges cache for {db_name}")
+
     def save_custom_ranges(self, custom_ranges: Dict[str, List[Dict[str, Any]]]) -> None:
         """
         Save custom trait-based ranges to config/custom_ranges.json, merging with any existing values.
@@ -195,15 +235,11 @@ class RangesService:
             project_id: Project ID for custom ranges
 
         Returns:
-            Dict mapping range IDs to range data with structure:
-            {
-                'range_id': {
-                    'id': str,
-                    'guid': str,
-                    'description': Dict[str, str],  # lang -> text
-                    'values': List[Dict]  # hierarchical elements
-                }
-            }
+            Dict mapping range_id to range data dict with keys:
+                'id': str,
+                'guid': str,
+                'description': Dict[str, str],  # lang -> text
+                'values': List[Dict]  # hierarchical elements
         """
         # Ensure config-driven metadata is up-to-date (reload if the config file changed)
         try:
@@ -211,6 +247,14 @@ class RangesService:
         except Exception:
             pass
 
+        # Check cache first - return cached result if valid
+        cached_ranges, cached_time = self._get_cached_ranges(project_id)
+        if cached_ranges is not None:
+            self.logger.debug(f"Using cached ranges (age: {cached_time:.1f}s)")
+            # Return a copy to prevent external modification of cached data
+            return dict(cached_ranges)
+
+        # Cache miss - fetch from database
         self._ensure_connection()
         db_name = self.db_connector.database
 
@@ -229,6 +273,9 @@ class RangesService:
                 ranges = {}
         else:
             self.logger.warning("No ranges found in database")
+
+        # Cache the parsed ranges (without metadata processing)
+        self._set_cached_ranges(ranges, project_id)
 
         # Annotate parsed ranges with helpful UI metadata: human-friendly
         # label (preferred language 'en') and whether the range is a standard
@@ -532,9 +579,12 @@ class RangesService:
         
         self.db_connector.execute_update(query)
         self.logger.info(f"Created range '{range_id}' with GUID {guid}")
-        
+
+        # Invalidate cache
+        self._invalidate_cache()
+
         return guid
-    
+
     def update_range(self, range_id: str, range_data: Dict[str, Any]) -> None:
         """
         Update existing range.
@@ -581,7 +631,10 @@ class RangesService:
         
         self.db_connector.execute_update(insert_query)
         self.logger.info(f"Updated range '{range_id}'")
-    
+
+        # Invalidate cache
+        self._invalidate_cache()
+
     def delete_range(self, range_id: str, migration: Optional[Dict] = None) -> None:
         """
         Delete range with optional data migration.
@@ -643,7 +696,10 @@ class RangesService:
         except Exception as e:
             # Log but do not fail deletion if SQL DB not available or table missing
             self.logger.debug(f"Error deleting custom ranges from SQL DB for '{range_id}': {e}")
-    
+
+        # Invalidate cache
+        self._invalidate_cache()
+
     # --- Range Element CRUD ---
     
     def create_range_element(
@@ -706,9 +762,12 @@ class RangesService:
         
         self.db_connector.execute_update(query)
         self.logger.info(f"Created element '{element_id}' in range '{range_id}' with GUID {guid}")
-        
+
+        # Invalidate cache
+        self._invalidate_cache()
+
         return guid
-    
+
     def update_range_element(
         self, range_id: str, element_id: str, element_data: Dict[str, Any]
     ) -> None:
@@ -763,7 +822,10 @@ class RangesService:
         
         self.db_connector.execute_update(insert_query)
         self.logger.info(f"Updated element '{element_id}' in range '{range_id}'")
-    
+
+        # Invalidate cache
+        self._invalidate_cache()
+
     def delete_range_element(
         self, range_id: str, element_id: str, migration: Optional[Dict] = None
     ) -> None:
@@ -806,7 +868,10 @@ class RangesService:
         
         self.db_connector.execute_update(query)
         self.logger.info(f"Deleted element '{element_id}' from range '{range_id}'")
-    
+
+        # Invalidate cache
+        self._invalidate_cache()
+
     # --- Validation ---
     
     def validate_range_id(self, range_id: str) -> bool:

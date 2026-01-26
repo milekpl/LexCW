@@ -27,6 +27,14 @@ def ranges_service(mock_connector: Mock) -> RangesService:
     return RangesService(db_connector=mock_connector)
 
 
+@pytest.fixture(autouse=True)
+def clear_ranges_cache():
+    """Clear the class-level cache before each test."""
+    RangesService._ranges_cache.clear()
+    yield
+    RangesService._ranges_cache.clear()
+
+
 class TestMultilingualElementCreation:
     """Test creating range elements with multilingual properties."""
     

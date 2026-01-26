@@ -4,10 +4,14 @@ Entry model representing a dictionary entry in LIFT format.
 
 from __future__ import annotations
 
+import logging
+
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from app.models.base import BaseModel
 from app.utils.exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.models.sense import Sense
@@ -492,81 +496,21 @@ class Entry(BaseModel):
     def variant_relations(self) -> List[Dict[str, Any]]:
         """
         Get variant relations for template access.
-        
+
         Returns:
             List of variant relation dictionaries.
         """
         return self.get_variant_relations()
 
-    def get_lexical_unit(self, lang: Optional[str] = None) -> str:
+    @property
+    def grouped_relations(self) -> 'RelationGroups':
         """
-        Get the lexical unit in the specified language.
-
-        Args:
-            lang: Language code to retrieve. If None, returns the first available.
+        Group relations by type for template display.
 
         Returns:
-            The lexical unit text in the specified language, or an empty string if not found.
+            RelationGroups object with synonyms, antonyms, and related attributes.
         """
-        # If a specific language is requested
-        if lang:
-            # Return the requested language or empty string if not found
-            return self.lexical_unit.get(lang, "")
-
-        # If no specific language is requested, return default
-        if self.lexical_unit:
-            # Default to primary language if available
-            if 'en' in self.lexical_unit:
-                return self.lexical_unit['en']
-            # Otherwise return first available
-            return next(iter(self.lexical_unit.values()))
-        return ""
-
-    def get_language_list(self) -> List[str]:
-        """
-        Get a list of languages available for this entry's lexical unit.
-
-        Returns:
-            List of language codes.
-        """
-        return list(self.lexical_unit.keys())
-
-    def add_relation(self, relation_type: str, target_id: str) -> None:
-        """
-        Add a semantic relation to the entry.
-
-        Args:
-            relation_type: Type of relation (e.g., 'synonym', 'antonym').
-            target_id: ID of the target entry.
-        """
-        self.relations.append(Relation(type=relation_type, ref=target_id))
-
-    def add_bidirectional_relation(self, relation_type: str, target_id: str, source_id: str, dict_service=None) -> None:
-        """
-        Add a bidirectional semantic relation (both forward and reverse) to the entry.
-
-        Args:
-            relation_type: Type of relation (e.g., 'synonim', 'antonim').
-            target_id: ID of the target entry.
-            source_id: ID of the source entry (for the reverse relation).
-            dict_service: Dictionary service to access ranges if needed.
-        """
-        from app.utils.bidirectional_relations import is_relation_bidirectional, get_reverse_relation_type
-
-        # Add the forward relation
-        self.add_relation(relation_type, target_id)
-
-        # Check if this relation type should be bidirectional
-        if is_relation_bidirectional(relation_type, dict_service):
-            # For symmetric relations (like synonyms), use the same relation type
-            if relation_type in ['synonim', 'antonim', 'Porównaj', 'porownaj']:
-                reverse_relation_type = relation_type
-            else:
-                # For asymmetric but bidirectional relations, get the reverse type
-                reverse_relation_type = get_reverse_relation_type(relation_type)
-
-            # Note: Adding reverse relation would require the target object which is not available here
-            # This method is most useful when called with both source and target objects available
+        return RelationGroups(self.relations)
 
     def add_etymology(self, etymology_type: str, source: str, form: Dict[str, str], gloss: Dict[str, str]) -> None:
         """
@@ -766,13 +710,13 @@ class Entry(BaseModel):
                                 component_info['ref_display_text'] = display_text
                         except Exception as e:
                             # Log but don't fail - continue without enrichment
-                            print(f"[Entry] Warning: Could not enrich component relation {component_info['ref']}: {e}")
+                            logger.warning("[Entry] Warning: Could not enrich component relation %s: %s", component_info['ref'], e)
                     
                     component_relations.append(component_info)
                     
             except Exception as e:
                 # Log but continue processing other relations
-                print(f"[Entry] Warning: Error processing component relation: {e}")
+                logger.warning("[Entry] Warning: Error processing component relation: %s", e)
         
         # Sort by order if available
         component_relations.sort(key=lambda x: x.get('order', 0))
@@ -836,16 +780,35 @@ class Entry(BaseModel):
                             continue
                         
                         # Find the specific relation to this entry
+                        # The variant-type trait is on the SUBENTRY's relation TO this (main) entry,
+                        # so we check subentry.relations for a relation pointing to self.id
+                        has_variant_trait = False
                         relation_info = None
+
+                        logger.debug(f"Checking subentry {subentry_id} relations for variant-type trait pointing to main entry {self.id}")
+
+                        # Check SUBENTRY's relations for a relation TO this main entry with variant-type trait
                         for rel in subentry.relations:
-                            if (hasattr(rel, 'type') and rel.type == '_component-lexeme' and
-                                hasattr(rel, 'ref') and rel.ref == self.id):
-                                relation_info = {
-                                    'complex_form_type': rel.traits.get('complex-form-type', 'Unknown') if rel.traits else 'Unknown',
-                                    'is_primary': rel.traits.get('is-primary') == 'true' if rel.traits else False,
-                                    'order': int(rel.order) if hasattr(rel, 'order') and rel.order is not None else 0
-                                }
-                                break
+                            # Check if this is a relation from subentry TO this main entry with variant-type trait
+                            if (hasattr(rel, 'ref') and rel.ref == self.id):
+                                logger.debug(f"   Found subentry relation to main: type={rel.type}, ref={rel.ref}, traits={rel.traits}")
+                                if (rel.traits and isinstance(rel.traits, dict) and 'variant-type' in rel.traits):
+                                    has_variant_trait = True
+                                    logger.debug(f"     -> SKIP: subentry has variant-type trait: {rel.traits['variant-type']}")
+                                    break
+                                # Found the relation - get its info
+                                if (hasattr(rel, 'type') and rel.type == '_component-lexeme'):
+                                    relation_info = {
+                                        'complex_form_type': rel.traits.get('complex-form-type', 'Unknown') if rel.traits else 'Unknown',
+                                        'is_primary': rel.traits.get('is-primary') == 'true' if rel.traits else False,
+                                        'order': int(rel.order) if hasattr(rel, 'order') and rel.order is not None else 0
+                                    }
+                                    logger.debug(f"     -> INCLUDE: complex_form_type={relation_info['complex_form_type']}")
+                                    break
+
+                        # Skip this entry entirely if it's a variant (has variant-type trait)
+                        if has_variant_trait:
+                            continue
                         
                         if not relation_info:
                             relation_info = {'complex_form_type': 'Unknown', 'is_primary': False, 'order': 0}
@@ -877,11 +840,11 @@ class Entry(BaseModel):
                         })
                         
                     except Exception as e:
-                        print(f"[Entry] Warning: Error processing subentry: {e}")
+                        logger.warning("[Entry] Warning: Error processing subentry: %s", e)
                         continue
-        
+
         except Exception as e:
-            print(f"[Entry] Warning: Could not query subentries: {e}")
+            logger.warning("[Entry] Warning: Could not query subentries: %s", e)
         
         # Sort by order
         subentries.sort(key=lambda x: x.get('order', 0))
@@ -977,10 +940,10 @@ class Entry(BaseModel):
     def get_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
         """
         Extract variant information from relations with variant-type traits.
-        
+
         Args:
             dict_service: DictionaryService instance for enriching variant data
-        
+
         Returns:
             List of dictionaries containing variant information extracted from relations.
             Each dictionary contains:
@@ -992,15 +955,23 @@ class Entry(BaseModel):
             - ref_display_text: Display text from target entry (if found)
         """
         variant_relations = []
-        
+
+        logger.debug("[get_variant_relations] Entry %s - Checking %d relations for variant-type trait", self.id, len(self.relations))
+        logger.debug("[get_variant_relations] Entry relations: %s", [(r.type, r.ref, r.traits) for r in self.relations])
+
         for relation in self.relations:
             try:
+                # Debug: log relation details
+                logger.debug("  Relation: type=%s, ref=%s, traits=%s", relation.type, relation.ref, relation.traits)
+
                 # Ensure relation has required attributes and they're not None/Undefined
-                if (hasattr(relation, 'traits') and relation.traits and 
+                if (hasattr(relation, 'traits') and relation.traits and
                     isinstance(relation.traits, dict) and 'variant-type' in relation.traits and
                     hasattr(relation, 'ref') and relation.ref and
                     hasattr(relation, 'type') and relation.type):
-                    
+
+                    logger.debug("    -> Found variant-type trait: %s", relation.traits['variant-type'])
+
                     variant_info = {
                         'ref': str(relation.ref),  # Ensure string
                         'variant_type': str(relation.traits['variant-type']),  # Ensure string
@@ -1021,8 +992,8 @@ class Entry(BaseModel):
                         try:
                             target_entry = dict_service.get_entry(variant_info['ref'])
                             if target_entry:
-                                variant_info['ref_lexical_unit'] = target_entry.get_lexical_unit()
-                                variant_info['ref_display_text'] = target_entry.get_lexical_unit()
+                                variant_info['ref_lexical_unit'] = target_entry.headword
+                                variant_info['ref_display_text'] = target_entry.headword
                         except Exception:
                             # If we can't find the target entry, leave it without enrichment
                             # The template will show an error marker for missing targets
@@ -1062,74 +1033,119 @@ class Entry(BaseModel):
     def get_reverse_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
         """
         Find entries that are variants of this entry (reverse lookup).
-        
+
         Args:
             dict_service: DictionaryService instance for searching entries
-            
+
         Returns:
             List of dictionaries containing reverse variant information.
             Each dictionary contains:
             - ref: Reference from the variant entry (the entry that is a variant of this one)
-            - variant_type: The variant type from the trait value  
+            - variant_type: The variant type from the trait value
             - type: The relation type
             - order: The relation order (if present)
             - direction: 'incoming' to indicate this is a reverse relation
         """
         if not dict_service:
-            # If no service provided, we can't search - return empty list
+            logger.debug("[get_reverse_variant_relations] Entry %s - No dict_service, returning empty", self.id)
             return []
-            
+
+        logger.debug("[get_reverse_variant_relations] Entry %s - Looking for entries with variant-type relation pointing to this entry", self.id)
+
         reverse_relations = []
-        
+
         try:
-            # Search all entries to find those with variant relations pointing to this entry
-            all_entries, _ = dict_service.list_entries(limit=None)  # Get all entries
-            
-            for entry in all_entries:
-                if entry.id == self.id:
-                    continue  # Skip self
-                    
-                # Check if this entry has variant relations
-                for relation in entry.relations:
+            # Use targeted XQuery instead of loading all entries
+            # Find entries with a variant-type trait pointing to this entry
+            db = dict_service.db_connector
+            if not db:
+                logger.debug("[get_reverse_variant_relations] No db connection")
+                return []
+
+            # Query for entries with variant-type trait pointing to this entry
+            # IMPORTANT: Must match the SAME relation element, not just any relation in the entry
+            query = f"""
+                for $entry in collection('dictionary')//entry
+                where $entry/relation[@ref='{self.id}']/trait[@name='variant-type' and @value!='']
+                return $entry
+            """
+
+            logger.debug("[get_reverse_variant_relations] XQuery: %s", query)
+            result = db.execute_query(query)
+            logger.debug("[get_reverse_variant_relations] XQuery result length: %d", len(result) if result else 0)
+
+            if result:
+                # Parse the result to extract entry data
+                # We need to parse each entry individually
+                import re
+                from app.parsers.lift_parser import LIFTParser
+
+                logger.debug("[get_reverse_variant_relations] Raw XQuery result: %s...", result[:500])
+
+                parser = LIFTParser()
+
+                # Find individual entry elements in the result
+                entry_matches = re.findall(r'<entry[^>]*>.*?</entry>', result, re.DOTALL)
+                logger.debug("[get_reverse_variant_relations] Found %d entry matches via regex", len(entry_matches))
+
+                for entry_xml in entry_matches:
                     try:
-                        if (hasattr(relation, 'traits') and relation.traits and 
-                            isinstance(relation.traits, dict) and 'variant-type' in relation.traits and
-                            hasattr(relation, 'ref') and relation.ref and
-                            hasattr(relation, 'type') and relation.type):
-                            
-                            # Check if the relation points to our current entry
-                            if str(relation.ref) == self.id:
+                        entry = parser.parse_entry(entry_xml)
+                        logger.debug("[get_reverse] Parsed entry: %s", entry.id)
+                        if entry.id == self.id:
+                            logger.debug("[get_reverse] Skipping self")
+                            continue  # Skip self
+
+                        logger.debug("[get_reverse] Checking %d relations for variant-type pointing to %s", len(entry.relations), self.id)
+                        # Check if this entry has a variant relation pointing to us
+                        for relation in entry.relations:
+                            logger.debug("[get_reverse]   Relation: type=%s, ref=%s, traits=%s", relation.type, relation.ref, relation.traits)
+                            has_variant = relation.traits and 'variant-type' in relation.traits
+                            ref_matches = relation.ref == self.id
+                            logger.debug("[get_reverse]   has_variant=%s, ref_matches=%s", has_variant, ref_matches)
+                            cond1 = bool(relation.traits)
+                            cond2 = 'variant-type' in relation.traits if relation.traits else False
+                            cond3 = relation.ref == self.id
+                            logger.debug("[get_reverse]   cond1 (relation.traits)=%s, cond2 ('variant-type' in)=%s, cond3 (ref==self.id)=%s", cond1, cond2, cond3)
+                            logger.debug("[get_reverse]   full condition = %s", cond1 and cond2 and cond3)
+                            if (relation.traits and 'variant-type' in relation.traits and
+                                relation.ref == self.id):
+                                logger.debug("[get_reverse]   *** INSIDE IF BLOCK ***")
+                                logger.debug("[get_reverse]   -> FOUND variant relation!")
                                 variant_info = {
-                                    'ref': entry.id,  # The entry that IS a variant of this one
-                                    'ref_lexical_unit': entry.get_lexical_unit(),  # Add human-readable text
-                                    'ref_display_text': entry.get_lexical_unit(),  # Add display text for template
+                                    'ref': entry.id,
+                                    'ref_lexical_unit': entry.headword,
+                                    'ref_display_text': entry.headword,
                                     'variant_type': str(relation.traits['variant-type']),
                                     'type': str(relation.type),
-                                    'direction': 'incoming'  # Mark as reverse relation
+                                    'direction': 'incoming'
                                 }
-                                
-                                # Include order if available
-                                if (hasattr(relation, 'order') and relation.order is not None and 
-                                    isinstance(relation.order, (int, str))):
+
+                                if relation.order is not None:
                                     try:
                                         variant_info['order'] = int(relation.order)
                                     except (ValueError, TypeError):
                                         pass
-                                        
+
                                 reverse_relations.append(variant_info)
-                    except (AttributeError, TypeError, KeyError):
+                                logger.debug("[get_reverse]   -> Added to reverse_relations, now have %d", len(reverse_relations))
+                                break  # Only one variant relation per entry matters for this purpose
+                    except Exception as e:
+                        logger.debug("[get_reverse] Exception: %s", e)
                         continue
-                        
+
         except Exception:
             # If search fails, just return empty list - don't break the page
+            import traceback
+            logger.debug("[get_reverse] OUTER EXCEPTION: %s", traceback.format_exc())
             pass
-            
+
         # Sort by lexical unit for consistent display
         try:
             reverse_relations.sort(key=lambda x: (x.get('order', 999), x.get('ref_lexical_unit', x['ref'])))
         except (TypeError, KeyError):
             pass
-            
+
         return reverse_relations
 
     def get_complete_variant_relations(self, dict_service=None) -> List[Dict[str, Any]]:
@@ -1137,15 +1153,18 @@ class Entry(BaseModel):
         Get complete variant relations including both directions:
         - Outgoing: entries this entry is a variant of
         - Incoming: entries that are variants of this entry
-        
+
         Args:
             dict_service: DictionaryService instance for searching entries
-            
+
         Returns:
             List of all variant relations with direction markers
         """
+        logger.debug("[get_complete_variant_relations] Entry %s - dict_service: %s", self.id, dict_service)
+
         # Get outgoing relations (this entry IS a variant of others)
         outgoing = self.get_variant_relations(dict_service)
+        logger.debug("[get_complete_variant_relations] outgoing variants: %d", len(outgoing))
         for relation in outgoing:
             relation['direction'] = 'outgoing'
             
@@ -1214,7 +1233,7 @@ class Entry(BaseModel):
             inherited_pos = next(iter(sense_pos_values))
             self.grammatical_info = inherited_pos
             # Log this for debugging
-            print(f"[DEBUG] Entry {self.id} inherited POS '{inherited_pos}' from senses")
+            logger.debug("Entry %s inherited POS '%s' from senses", self.id, inherited_pos)
 
     def _validate_pos_consistency(self, errors: List[str]) -> None:
         """
@@ -1362,3 +1381,44 @@ class Entry(BaseModel):
             grammatical_info: New grammatical info string (e.g., 'noun', 'verb')
         """
         self.grammatical_info = grammatical_info
+
+
+class RelationGroups:
+    """
+    Container for grouped relations that supports both dict access and attribute access.
+    Used by templates to display relations organized by type.
+    """
+
+    def __init__(self, relations: List[Relation]):
+        self.synonyms: List[str] = []
+        self.antonyms: List[str] = []
+        self.related: List[str] = []
+
+        for rel in relations:
+            # Check variant-type trait FIRST - if present, it's a variant relation, not semantic
+            if rel.traits and 'variant-type' in rel.traits:
+                continue
+
+            # Skip internal component relations (not variants)
+            if rel.type == '_component-lexeme':
+                continue
+
+            if rel.type == 'synonym':
+                self.synonyms.append(rel.ref)
+            elif rel.type == 'antonym':
+                self.antonyms.append(rel.ref)
+            else:
+                # All other relation types go to "related"
+                self.related.append(rel.ref)
+
+    def __bool__(self) -> bool:
+        """Return True if any relations exist."""
+        return bool(self.synonyms or self.antonyms or self.related)
+
+    def __getitem__(self, key: str) -> List[str]:
+        """Allow dict-style access for Jinja2 compatibility."""
+        return getattr(self, key, [])
+
+    def get(self, key: str, default: List[str] = None) -> List[str]:
+        """Allow dict-style .get() access."""
+        return getattr(self, key, default or [])

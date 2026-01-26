@@ -123,24 +123,61 @@ def validate_batch():
         entries = entries_data.get('entries', [])
         priority_filter = entries_data.get('priority_filter', 'all')
         project_id = entries_data.get('project_id')
+        validate_all = entries_data.get('validate_all', False)
 
         # First pass: collect all entry IDs for relation target validation
         existing_entry_ids: set = set()
         parsed_entries: list = []
 
-        for entry_data in entries:
-            # Parse string entries as JSON
-            entry = entry_data
-            if isinstance(entry_data, str):
-                try:
-                    entry = json.loads(entry_data)
-                except json.JSONDecodeError:
-                    entry = None
-            if entry and isinstance(entry, dict):
-                entry_id = entry.get('id')
-                if entry_id:
-                    existing_entry_ids.add(entry_id)
-            parsed_entries.append((entry_data, entry))
+        # If validate_all is True or entries list seems partial, fetch all entry IDs from database
+        # This ensures R5.3.1 relation validation works correctly
+        if validate_all or len(entries) < 500:
+            try:
+                from app.database.basex_connector import BaseXConnector
+                from flask import current_app
+                db = BaseXConnector(
+                    host=current_app.config.get('BASEX_HOST', 'localhost'),
+                    port=current_app.config.get('BASEX_PORT', 1984),
+                    username=current_app.config.get('BASEX_USER', 'admin'),
+                    password=current_app.config.get('BASEX_PASSWORD', 'admin'),
+                    database=current_app.config.get('BASEX_DB', 'dictionary')
+                )
+                db.connect()
+                result = db.execute_query('XQUERY collection("dictionary")//entry/@id')
+                if result:
+                    # Parse all entry IDs from the result
+                    import re
+                    all_ids = re.findall(r'id="([^"]+)"', result)
+                    existing_entry_ids = set(all_ids)
+                    current_app.logger.info(f"Loaded {len(existing_entry_ids)} entry IDs from database for validation")
+            except Exception as e:
+                current_app.logger.warning(f"Failed to load all entry IDs from database: {e}")
+
+        # If we couldn't load from DB, collect from batch
+        if not existing_entry_ids:
+            for entry_data in entries:
+                # Parse string entries as JSON
+                entry = entry_data
+                if isinstance(entry_data, str):
+                    try:
+                        entry = json.loads(entry_data)
+                    except json.JSONDecodeError:
+                        entry = None
+                if entry and isinstance(entry, dict):
+                    entry_id = entry.get('id')
+                    if entry_id:
+                        existing_entry_ids.add(entry_id)
+                parsed_entries.append((entry_data, entry))
+        else:
+            # Already loaded from DB, just parse entries
+            for entry_data in entries:
+                entry = entry_data
+                if isinstance(entry_data, str):
+                    try:
+                        entry = json.loads(entry_data)
+                    except json.JSONDecodeError:
+                        entry = None
+                parsed_entries.append((entry_data, entry))
 
         # Initialize validation engine with existing entry IDs and project_id for project-specific rules
         engine = ValidationEngine(existing_entry_ids=existing_entry_ids, project_id=project_id)

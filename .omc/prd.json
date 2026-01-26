@@ -1,0 +1,111 @@
+{
+  "project": "Bidirectional Variant Relation Management",
+  "branchName": "ralph/bidirectional-variants",
+  "description": "Implement UI and backend support for both directions of variant relations: 'This entry has a variant' (outgoing) and 'This entry is a variant of another entry' (incoming), with comprehensive test coverage for all bug fixes.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Design bidirectional variant UI",
+      "description": "As a lexicographer, I want a clear UI for adding variants in either direction, so that I can model both 'entry has variant' and 'entry is variant of' relationships.",
+      "acceptanceCriteria": [
+        "UI clearly distinguishes 'Has Variant' vs 'Is a Variant of' when adding",
+        "'Has Variant' is the default and primary action",
+        "Visual indicators show relation direction in add dialog",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "title": "Implement backend 'Has Variant' API",
+      "description": "As a developer, I need backend API support for creating 'Has Variant' relations, so that the frontend can persist variant relations where this entry has another entry as a variant.",
+      "acceptanceCriteria": [
+        "API endpoint accepts 'Has Variant' (outgoing) relation creation",
+        "Creates variant-type relation on THIS entry pointing to target",
+        "Backend validation ensures target entry exists",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "title": "Implement backend 'Is a Variant of' API",
+      "description": "As a developer, I need backend API support for creating 'Is a Variant of' relations, so that the frontend can persist variant relations where this entry is a variant of another entry.",
+      "acceptanceCriteria": [
+        "API endpoint accepts 'Is a Variant of' (incoming) relation creation",
+        "Creates variant-type relation on TARGET entry pointing back to this entry",
+        "Backend validation ensures target entry exists",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "title": "Update JavaScript variant manager",
+      "description": "As a developer, I need the VariantFormsManager to support both direction modes, so that the UI can collect and validate both types of variant relations.",
+      "acceptanceCriteria": [
+        "Add Variant dialog has direction selector (Has Variant / Is a Variant of)",
+        "Proper direction validation before API call",
+        "Handles responses for both directions correctly",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "title": "Write unit tests for variant relations",
+      "description": "As a QA engineer, I need comprehensive unit tests for variant relation functionality, so that regressions can be caught early.",
+      "acceptanceCriteria": [
+        "Tests for get_subentries() variant-type detection",
+        "Tests for get_reverse_variant_relations()",
+        "Tests for variant direction logic",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "title": "Write integration tests for variant API",
+      "description": "As a QA engineer, I need integration tests for variant relation API endpoints, so that the full request/response cycle is tested.",
+      "acceptanceCriteria": [
+        "Tests for adding 'Has Variant' relation via API",
+        "Tests for adding 'Is a Variant of' relation via API",
+        "Tests for error handling (missing target, invalid type)",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "title": "Write E2E tests for variant UI",
+      "description": "As a QA engineer, I need end-to-end tests for the variant relation UI, so that the complete user workflow is verified.",
+      "acceptanceCriteria": [
+        "E2E test for adding a variant the entry HAS",
+        "E2E test for adding a variant the entry IS of",
+        "E2E test for verifying variants display correctly",
+        "E2E tests pass"
+      ],
+      "priority": 7,
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "title": "Add regression tests for bug fixes",
+      "description": "As a developer, I need regression tests for the bugs fixed earlier (direction labels, subentries filtering, JS direction handling), so they don't recur.",
+      "acceptanceCriteria": [
+        "Test: incoming variants show 'Has Variant' label",
+        "Test: outgoing variants show 'Is a Variant' label",
+        "Test: subentries don't include variant relations",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false
+    }
+  ]
+}

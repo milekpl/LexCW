@@ -625,3 +625,359 @@ def clear_entries_cache() -> Any:
     except Exception as e:
         logger.error(f"Error clearing entries cache: {e}")
         return jsonify({'status': 'error', 'message': f'Error clearing cache: {e}'}), 500
+
+
+@entries_bp.route('/<string:entry_id>/variants', methods=['POST'])
+@swag_from({
+    'tags': ['Entries'],
+    'summary': 'Create a bidirectional variant relation between entries',
+    'parameters': [
+        {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the source entry'},
+        {'name': 'body', 'in': 'body', 'required': True, 'schema': {
+            'type': 'object',
+            'required': ['target_entry_id', 'variant_type', 'direction'],
+            'properties': {
+                'target_entry_id': {'type': 'string', 'description': 'ID of the target entry to create variant relation with'},
+                'variant_type': {'type': 'string', 'description': 'Type of variant relation (e.g., spelling, dialectal, archaic)'},
+                'direction': {'type': 'string', 'enum': ['outgoing', 'incoming'], 'description': 'Direction of relation: outgoing (this entry HAS target as variant) or incoming (this entry IS a variant of target)'}
+            }
+        }}
+    ],
+    'responses': {
+        '201': {'description': 'Variant relation created successfully'},
+        '400': {'description': 'Invalid input data'},
+        '404': {'description': 'Entry not found'},
+        '409': {'description': 'Variant relation already exists'},
+        '500': {'description': 'Internal server error'}
+    }
+})
+def create_variant_relation(entry_id: str) -> Any:
+    """
+    Create a bidirectional variant relation between two entries.
+
+    For "outgoing" direction: Creates a relation on THIS entry pointing to target with variant-type trait.
+    For "incoming" direction: Creates a relation on TARGET entry pointing back to this with variant-type trait.
+
+    LIFT format: <relation type="_component-lexeme" ref="target-id"><trait name="variant-type" value="..."/></relation>
+    """
+    try:
+        # Get request data
+        try:
+            data = request.get_json()
+        except Exception as json_error:
+            return jsonify({'error': f'Invalid JSON: {str(json_error)}'}), 400
+
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # Validate required fields
+        target_entry_id = data.get('target_entry_id')
+        variant_type = data.get('variant_type')
+        direction = data.get('direction', 'outgoing')
+
+        if not target_entry_id:
+            return jsonify({'error': 'target_entry_id is required'}), 400
+        if not variant_type:
+            return jsonify({'error': 'variant_type is required'}), 400
+        if direction not in ('outgoing', 'incoming'):
+            return jsonify({'error': 'direction must be "outgoing" or "incoming"'}), 400
+        if entry_id == target_entry_id:
+            return jsonify({'error': 'Cannot create variant relation to self'}), 400
+
+        # Get XML entry service
+        from app.api.xml_entries import get_xml_entry_service
+        xml_service = get_xml_entry_service()
+
+        # Check if source entry exists
+        if not xml_service.entry_exists(entry_id):
+            return jsonify({'error': f"Entry '{entry_id}' not found"}), 404
+
+        # Check if target entry exists
+        if not xml_service.entry_exists(target_entry_id):
+            return jsonify({'error': f"Target entry '{target_entry_id}' not found"}), 404
+
+        # Get existing entry XML
+        source_xml_data = xml_service.get_entry(entry_id)
+        source_xml = source_xml_data['xml']
+
+        # Determine which entry(s) to modify based on direction
+        if direction == 'outgoing':
+            # Create relation on source entry pointing to target
+            modified_xml = _add_variant_relation_to_xml(source_xml, target_entry_id, variant_type)
+            xml_service.update_entry(entry_id, modified_xml)
+            return jsonify({
+                'success': True,
+                'message': f"Created outgoing variant relation from '{entry_id}' to '{target_entry_id}'",
+                'relation': {
+                    'source_entry_id': entry_id,
+                    'target_entry_id': target_entry_id,
+                    'variant_type': variant_type,
+                    'direction': 'outgoing'
+                }
+            }), 201
+        else:  # incoming
+            # Create relation on target entry pointing to source
+            target_xml_data = xml_service.get_entry(target_entry_id)
+            target_xml = target_xml_data['xml']
+            modified_target_xml = _add_variant_relation_to_xml(target_xml, entry_id, variant_type)
+            xml_service.update_entry(target_entry_id, modified_target_xml)
+            return jsonify({
+                'success': True,
+                'message': f"Created incoming variant relation from '{target_entry_id}' to '{entry_id}'",
+                'relation': {
+                    'source_entry_id': entry_id,
+                    'target_entry_id': target_entry_id,
+                    'variant_type': variant_type,
+                    'direction': 'incoming'
+                }
+            }), 201
+
+    except XMLEntryNotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error("Error creating variant relation: %s", str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+def _add_variant_relation_to_xml(xml_string: str, target_id: str, variant_type: str) -> str:
+    """
+    Add a variant relation element to LIFT XML.
+
+    Args:
+        xml_string: LIFT XML string for the entry
+        target_id: ID of the target entry to reference
+        variant_type: Type of variant relation
+
+    Returns:
+        Modified XML string with the new relation added
+    """
+    import xml.etree.ElementTree as ET
+    from app.utils.namespace_manager import LIFTNamespaceManager
+
+    # Normalize and parse the XML
+    xml_string = LIFTNamespaceManager.normalize_lift_xml(
+        xml_string, LIFTNamespaceManager.LIFT_NAMESPACE
+    )
+
+    try:
+        root = ET.fromstring(xml_string)
+    except ET.ParseError as e:
+        raise ValueError(f"Invalid XML: {e}")
+
+    # Find the entry element
+    ns = {'lift': 'http://fieldworks.sil.org/schemas/lift/0.13'}
+    entry_elem = root.find('.//{http://fieldworks.sil.org/schemas/lift/0.13}entry')
+    if entry_elem is None:
+        entry_elem = root.find('.//entry')
+        ns = {}
+
+    if entry_elem is None:
+        raise ValueError("No entry element found in XML")
+
+    # Check if relation already exists to prevent duplicates
+    for rel in entry_elem.findall('.//{http://fieldworks.sil.org/schemas/lift/0.13}relation', ns):
+        if rel.get('ref') == target_id:
+            # Check if it has variant-type trait
+            for trait in rel.findall('.//{http://fieldworks.sil.org/schemas/lift/0.13}trait', ns):
+                if trait.get('name') == 'variant-type':
+                    raise ValueError(f"Variant relation to '{target_id}' already exists")
+
+    # Create the relation element
+    relation_attrib = {'type': '_component-lexeme', 'ref': target_id}
+    relation_ns = '{%s}' % 'http://fieldworks.sil.org/schemas/lift/0.13' if ns else ''
+    relation_elem = ET.SubElement(entry_elem, f"{relation_ns}relation", relation_attrib)
+
+    # Add the variant-type trait
+    ET.SubElement(relation_elem, f"{relation_ns}trait", {
+        'name': 'variant-type',
+        'value': variant_type
+    })
+
+    # Convert back to string
+    return ET.tostring(root, encoding='unicode')
+
+
+@entries_bp.route('/<string:entry_id>/variants', methods=['GET'])
+@swag_from({
+    'tags': ['Entries'],
+    'summary': 'Get all variant relations for an entry',
+    'parameters': [
+        {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the entry'}
+    ],
+    'responses': {
+        '200': {'description': 'List of variant relations'},
+        '404': {'description': 'Entry not found'}
+    }
+})
+def get_variant_relations(entry_id: str) -> Any:
+    """
+    Get all variant relations for an entry (both outgoing and incoming).
+    """
+    try:
+        from app.api.xml_entries import get_xml_entry_service
+        xml_service = get_xml_entry_service()
+
+        # Check if entry exists
+        if not xml_service.entry_exists(entry_id):
+            return jsonify({'error': f"Entry '{entry_id}' not found"}), 404
+
+        # Get the entry
+        entry_data = xml_service.get_entry(entry_id)
+        source_xml = entry_data['xml']
+
+        # Parse to get variant relations
+        from app.parsers.lift_parser import LIFTParser
+        lift_parser = LIFTParser(validate=False)
+        entries = lift_parser.parse_string(f"<lift>{source_xml}</lift>")
+
+        if not entries:
+            return jsonify({'variants': []})
+
+        entry = entries[0]
+
+        # Get both outgoing and incoming relations
+        outgoing = entry.get_variant_relations()
+        incoming = entry.get_reverse_variant_relations()
+
+        # Add direction markers
+        for v in outgoing:
+            v['direction'] = 'outgoing'
+        for v in incoming:
+            v['direction'] = 'incoming'
+
+        all_variants = outgoing + incoming
+
+        # Sort by direction, then by lexical unit
+        all_variants.sort(key=lambda x: (
+            0 if x.get('direction') == 'outgoing' else 1,
+            x.get('order', 999),
+            x.get('ref_lexical_unit', x.get('ref', ''))
+        ))
+
+        return jsonify({
+            'entry_id': entry_id,
+            'variants': all_variants
+        })
+
+    except Exception as e:
+        logger.error("Error getting variant relations: %s", str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+@entries_bp.route('/<string:entry_id>/variants/<string:target_entry_id>', methods=['DELETE'])
+@swag_from({
+    'tags': ['Entries'],
+    'summary': 'Delete a variant relation between entries',
+    'parameters': [
+        {'name': 'entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the source entry'},
+        {'name': 'target_entry_id', 'in': 'path', 'type': 'string', 'required': True, 'description': 'ID of the target entry'}
+    ],
+    'responses': {
+        '200': {'description': 'Variant relation deleted successfully'},
+        '404': {'description': 'Entry or relation not found'},
+        '500': {'description': 'Internal server error'}
+    }
+})
+def delete_variant_relation(entry_id: str, target_entry_id: str) -> Any:
+    """
+    Delete a variant relation between two entries.
+    """
+    try:
+        from app.api.xml_entries import get_xml_entry_service
+        xml_service = get_xml_entry_service()
+
+        # Check if source entry exists
+        if not xml_service.entry_exists(entry_id):
+            return jsonify({'error': f"Entry '{entry_id}' not found"}), 404
+
+        # Get the entry XML
+        entry_data = xml_service.get_entry(entry_id)
+        source_xml = entry_data['xml']
+
+        # Try to remove the relation from source entry
+        modified_xml = _remove_variant_relation_from_xml(source_xml, target_entry_id)
+
+        if modified_xml == source_xml:
+            # No relation found on source, check if target has relation to source
+            if xml_service.entry_exists(target_entry_id):
+                target_data = xml_service.get_entry(target_entry_id)
+                target_xml = target_data['xml']
+                modified_target_xml = _remove_variant_relation_from_xml(target_xml, entry_id)
+                if modified_target_xml != target_xml:
+                    xml_service.update_entry(target_entry_id, modified_target_xml)
+                    return jsonify({
+                        'success': True,
+                        'message': f"Deleted incoming variant relation from '{target_entry_id}' to '{entry_id}'"
+                    }), 200
+            return jsonify({'error': f"No variant relation found between '{entry_id}' and '{target_entry_id}'"}), 404
+
+        xml_service.update_entry(entry_id, modified_xml)
+        return jsonify({
+            'success': True,
+            'message': f"Deleted variant relation from '{entry_id}' to '{target_entry_id}'"
+        }), 200
+
+    except Exception as e:
+        logger.error("Error deleting variant relation: %s", str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+def _remove_variant_relation_from_xml(xml_string: str, target_id: str) -> str:
+    """
+    Remove a variant relation element from LIFT XML.
+
+    Args:
+        xml_string: LIFT XML string for the entry
+        target_id: ID of the target entry to remove relation for
+
+    Returns:
+        Modified XML string with the relation removed (or original if not found)
+    """
+    import xml.etree.ElementTree as ET
+    from app.utils.namespace_manager import LIFTNamespaceManager
+
+    # Normalize and parse the XML
+    xml_string = LIFTNamespaceManager.normalize_lift_xml(
+        xml_string, LIFTNamespaceManager.LIFT_NAMESPACE
+    )
+
+    try:
+        root = ET.fromstring(xml_string)
+    except ET.ParseError as e:
+        raise ValueError(f"Invalid XML: {e}")
+
+    # Find the entry element
+    ns_uri = 'http://fieldworks.sil.org/schemas/lift/0.13'
+    ns = {'lift': ns_uri}
+    entry_elem = root.find(f'.//{{{ns_uri}}}entry')
+    if entry_elem is None:
+        entry_elem = root.find('.//entry')
+        ns = {}
+
+    if entry_elem is None:
+        raise ValueError("No entry element found in XML")
+
+    # Find and remove the relation with variant-type trait pointing to target_id
+    relations_to_remove = []
+    for rel in entry_elem.findall(f'.//{{{ns_uri}}}relation', ns):
+        if rel.get('ref') == target_id:
+            # Check if it has variant-type trait
+            for trait in rel.findall(f'.//{{{ns_uri}}}trait', ns):
+                if trait.get('name') == 'variant-type':
+                    relations_to_remove.append(rel)
+                    break
+
+    # Also check non-namespaced relations
+    for rel in entry_elem.findall('.//relation'):
+        if rel.get('ref') == target_id:
+            for trait in rel.findall('.//trait'):
+                if trait.get('name') == 'variant-type':
+                    relations_to_remove.append(rel)
+                    break
+
+    # Remove found relations
+    for rel in relations_to_remove:
+        entry_elem.remove(rel)
+
+    # Convert back to string
+    return ET.tostring(root, encoding='unicode')

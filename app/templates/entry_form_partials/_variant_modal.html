@@ -1,0 +1,108 @@
+<!-- Add Variant Modal -->
+<!-- Included at the bottom of _variants.html -->
+
+<div class="modal fade" id="add-variant-modal"
+     tabindex="-1" aria-labelledby="add-variant-modal-label" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="add-variant-modal-label">
+                    <i class="fas fa-code-branch"></i> Add Variant Relationship
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Direction Selection -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Relationship Direction</label>
+                    <div class="btn-group w-100" role="group" id="variant-direction-group">
+                        <input type="radio" class="btn-check" name="variant-direction"
+                               id="direction-has-variant" value="outgoing" checked autocomplete="off">
+                        <label class="btn btn-outline-success" for="direction-has-variant">
+                            <i class="fas fa-arrow-right me-1"></i> Has Variant
+                        </label>
+
+                        <input type="radio" class="btn-check" name="variant-direction"
+                               id="direction-is-variant" value="incoming" autocomplete="off">
+                        <label class="btn btn-outline-success" for="direction-is-variant">
+                            <i class="fas fa-arrow-left me-1"></i> Is a Variant of
+                        </label>
+                    </div>
+                    <div class="form-text mt-2" id="variant-direction-description">
+                        <strong>"Has Variant":</strong> This entry has another entry as its variant
+                        (e.g., "protestor" has variant "protester").
+                    </div>
+                </div>
+
+                <!-- Target Entry Search -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold" for="modal-variant-search">
+                        Target Entry <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="modal-variant-search"
+                               placeholder="Search for an entry..."
+                               autocomplete="off">
+                        <button type="button" class="btn btn-outline-secondary"
+                                id="modal-variant-search-btn">
+                            Search
+                        </button>
+                    </div>
+                    <div class="form-text">Search by headword, definition, or entry ID</div>
+
+                    <!-- Search Results -->
+                    <div class="search-results mt-2" id="modal-variant-search-results"
+                         style="display: none;">
+                    </div>
+
+                    <!-- Selected Entry Display -->
+                    <div id="modal-selected-entry" class="mt-3" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Selected:</strong>
+                            <span id="modal-selected-entry-text"></span>
+                        </div>
+                    </div>
+
+                    <!-- Hidden input for selected entry ID -->
+                    <input type="hidden" id="modal-variant-entry-id" value="">
+                </div>
+
+                <!-- Variant Type Selection -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold" for="modal-variant-type">
+                        Variant Type <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-control dynamic-lift-range" id="modal-variant-type"
+                            data-range-id="variant-type" data-selected="">
+                        <option value="">Select variant type</option>
+                        <!-- Options will be populated dynamically from LIFT ranges -->
+                    </select>
+                    <div class="form-text">Type of variant relationship</div>
+                </div>
+
+                <!-- Error Message Container -->
+                <div id="modal-variant-error" class="alert alert-danger mt-3"
+                     style="display: none;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-success" id="modal-variant-save-btn">
+                    <i class="fas fa-save me-1"></i> Save Variant
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden data attribute for current entry ID -->
+<span id="modal-variant-current-entry-id" style="display: none;"
+      data-entry-id="{{ entry_id if entry_id else '' }}">
+</span>

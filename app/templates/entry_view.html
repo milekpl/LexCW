@@ -296,34 +296,34 @@
                 <h5><i class="fas fa-link"></i> Related Entries</h5>
             </div>
             <div class="card-body">
-                {% if entry.relations and (entry.relations.synonyms or entry.relations.antonyms or entry.relations.related) %}
-                    {% if entry.relations.synonyms %}
+                {% if entry.grouped_relations and (entry.grouped_relations.synonyms or entry.grouped_relations.antonyms or entry.grouped_relations.related) %}
+                    {% if entry.grouped_relations.synonyms %}
                         <div class="mb-3">
                             <h6>Synonyms</h6>
                             <div>
-                                {% for synonym in entry.relations.synonyms %}
+                                {% for synonym in entry.grouped_relations.synonyms %}
                                     <a href="{{ url_for('main.search', q=synonym) }}" class="badge bg-primary text-decoration-none me-1 mb-1">{{ synonym }}</a>
                                 {% endfor %}
                             </div>
                         </div>
                     {% endif %}
-                    
-                    {% if entry.relations.antonyms %}
+
+                    {% if entry.grouped_relations.antonyms %}
                         <div class="mb-3">
                             <h6>Antonyms</h6>
                             <div>
-                                {% for antonym in entry.relations.antonyms %}
+                                {% for antonym in entry.grouped_relations.antonyms %}
                                     <a href="{{ url_for('main.search', q=antonym) }}" class="badge bg-danger text-decoration-none me-1 mb-1">{{ antonym }}</a>
                                 {% endfor %}
                             </div>
                         </div>
                     {% endif %}
-                    
-                    {% if entry.relations.related %}
+
+                    {% if entry.grouped_relations.related %}
                         <div class="mb-3">
                             <h6>Related Words</h6>
                             <div>
-                                {% for related in entry.relations.related %}
+                                {% for related in entry.grouped_relations.related %}
                                     <a href="{{ url_for('main.search', q=related) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">{{ related }}</a>
                                 {% endfor %}
                             </div>

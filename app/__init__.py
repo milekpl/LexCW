@@ -110,14 +110,21 @@ def create_app(config_name=None):
 
         db.create_all()
 
-    # Configure logging
-    logging.basicConfig(
-        level=logging.DEBUG if app.debug else logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    # File-based logging is disabled to prevent file locking issues
-    # with the Werkzeug reloader on Windows. Logging will go to the console.
+    # Configure logging - write to file for debugging
+    log_path = os.path.join(app.instance_path, 'debug.log')
+    file_handler = logging.FileHandler(log_path, mode='w', delay=True)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+
+    # Get root logger and add file handler
+    root_logger = logging.getLogger()
+    # Remove existing handlers to avoid duplicate output
+    root_logger.handlers = []
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(logging.DEBUG if app.debug else logging.INFO)
 
     # Create instance directories
     os.makedirs(os.path.join(app.instance_path, "audio"), exist_ok=True)
@@ -270,6 +277,14 @@ def create_app(config_name=None):
     # Register dictionary management API
     from app.api.dictionary_api import dictionary_bp
     app.register_blueprint(dictionary_bp)
+
+    # Register word sketch API
+    from app.api.word_sketch_api import word_sketch_bp
+    app.register_blueprint(word_sketch_bp, url_prefix='/api/word-sketch')
+
+    # Register word sketch browser page
+    from app.routes.word_sketch_routes import word_sketch_browser_bp
+    app.register_blueprint(word_sketch_browser_bp)
 
     # Register authentication web routes
     from app.routes.auth_routes import auth_bp

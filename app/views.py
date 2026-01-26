@@ -26,10 +26,11 @@ from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 from app.utils.language_utils import get_project_languages, get_language_choices_for_forms
 
+logger = logging.getLogger(__name__)
+
 # Create blueprints
 main_bp = Blueprint("main", __name__)
 workbench_bp = Blueprint("workbench", __name__, url_prefix="/workbench")
-logger = logging.getLogger(__name__)
 
 
 @main_bp.app_template_global()
@@ -315,7 +316,7 @@ def view_entry(entry_id):
                         css_html += '\n'.join(subentry_html_parts)
                         
         except Exception as e:
-            logger.warning(f"Error rendering entry with CSS: {e}")
+            logger.warning("Error rendering entry with CSS: %s", e)
 
         return render_template("entry_view.html", entry=entry, css_html=css_html, 
                              component_relations=component_relations, subentries=subentries)
@@ -416,15 +417,17 @@ def edit_entry(entry_id):
     """
     """
     Render the entry edit page.
-    
+
     Args:
         entry_id: ID of the entry to edit.
     """
-    print(f"EDIT_ENTRY CALLED FOR {entry_id}")
+    logger.debug("="*60)
+    logger.debug("EDIT_ENTRY CALLED FOR %s", entry_id)
+    logger.debug("="*60)
     try:
         dict_service = current_app.injector.get(DictionaryService)
-        print(f"Flask app database name: {dict_service.db_connector.database}")
-        print(f"Environment TEST_DB_NAME: {os.environ.get('TEST_DB_NAME')}")
+        logger.debug("Flask app database name: %s", dict_service.db_connector.database)
+        logger.debug("Environment TEST_DB_NAME: %s", os.environ.get('TEST_DB_NAME'))
         if request.method == "POST":
             # Handle both JSON and form data
             data = None
@@ -552,12 +555,12 @@ def edit_entry(entry_id):
                 entry_id, project_id=project_id
             )  # Use non-validating method for editing
         except NotFoundError:
-            print(f"Entry {entry_id} not found in database {dict_service.db_connector.database}")
+            logger.debug("Entry %s not found in database %s", entry_id, dict_service.db_connector.database)
             try:
                 all_entries, count = dict_service.list_entries(project_id=project_id, limit=100)
-                print(f"Available entries ({count}): {[e.id for e in all_entries]}")
+                logger.debug("Available entries (%d): %s", count, [e.id for e in all_entries])
             except Exception as e:
-                print(f"Error listing entries: {e}")
+                logger.debug("Error listing entries: %s", e)
             # Entry doesn't exist yet - create a new empty entry with the given ID
             entry = Entry(id_=entry_id)
 
@@ -581,7 +584,12 @@ def edit_entry(entry_id):
         forward_component_relations_data = []
         subentries_data = []
         if entry:
+            logger.debug("========== [DEBUG VIEW EDIT] Entry %s ==========", entry.id)
+            logger.debug("[DEBUG VIEW] Number of entry relations: %d", len(entry.relations))
+            for rel in entry.relations:
+                logger.debug("  Relation: type=%s, ref=%s, traits=%s", rel.type, rel.ref, rel.traits)
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
+            logger.debug("[DEBUG VIEW] variant_relations_data returned: %d items", len(variant_relations_data))
             # Extract enriched component_relations for template (with display text for main entries)
             component_relations_data = entry.get_component_relations(dict_service)
             # Extract forward component relations (where this entry HAS components)
@@ -677,8 +685,11 @@ def edit_entry(entry_id):
                         css_html += '\n'.join(subentry_html_parts)
                         
         except Exception as e:
-            logger.warning(f"Error rendering entry with CSS: {e}")
-            
+            logger.warning("Error rendering entry with CSS: %s", e)
+
+        logger.debug("[DEBUG VIEW] RENDERING with variant_relations=%d items", len(variant_relations_data))
+        logger.debug("[DEBUG VIEW] variant_relations_data: %s", variant_relations_data)
+
         return render_template(
             "entry_form.html",
             entry=entry,
@@ -975,8 +986,12 @@ def import_lift():
             # Get dictionary service
             dict_service = current_app.injector.get(DictionaryService)
 
+            # Determine import mode based on checkbox
+            overwrite_existing = request.form.get('overwrite_existing') == 'on'
+            mode = 'replace' if overwrite_existing else 'merge'
+
             # Import the LIFT file with optional ranges file
-            entry_count = dict_service.import_lift(lift_filepath, ranges_path=ranges_temp_path)
+            entry_count = dict_service.import_lift(lift_filepath, mode=mode, ranges_path=ranges_temp_path)
 
             flash(
                 f"Successfully imported {entry_count} entries from LIFT file.",

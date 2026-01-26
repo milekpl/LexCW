@@ -308,73 +308,81 @@ class Sense(BaseModel):
     def enrich_relations_with_display_text(self, dict_service=None) -> list[dict]:
         """
         Enrich sense relations with display text from target senses.
-        
+
         Args:
             dict_service: Dictionary service to look up target entries/senses
-            
+
         Returns:
             List of enriched relation dictionaries with ref_display_text and ref_gloss
         """
         if not dict_service or not self.relations:
             return self.relations
-            
+
         enriched_relations = []
-        
+
         for relation in self.relations:
             enriched = relation.copy()
-            
+
             try:
-                # The ref format is typically: entry_id_sense_id or just sense_id
                 ref = relation.get('ref', '')
                 if not ref:
                     enriched_relations.append(enriched)
                     continue
-                
-                # Try to parse the sense ID to get entry and sense IDs
-                # Format could be: "entry_id_sense_guid" or just "sense_guid"
-                # We need to search for the sense across all entries
-                
-                # For now, try to extract entry_id from the ref
-                # Common pattern: "word_sense_guid" or just "sense_guid"
-                parts = ref.rsplit('_', 1)  # Split from right to get last part as sense ID
-                
-                # Search all entries to find the one with this sense
-                all_entries, _ = dict_service.list_entries(limit=None)
-                
-                target_entry = None
-                target_sense = None
-                
-                for entry in all_entries:
-                    for sense in entry.senses:
-                        if sense.id == ref or (hasattr(sense, 'id_') and sense.id_ == ref):
-                            target_entry = entry
-                            target_sense = sense
-                            break
-                    if target_sense:
-                        break
-                
-                if target_entry and target_sense:
-                    # Get headword from entry
-                    enriched['ref_display_text'] = target_entry.get_lexical_unit()
-                    # Store the entry ID for URL generation
-                    enriched['ref_entry_id'] = target_entry.id
 
-                    # Get gloss or definition from sense
-                    if target_sense.glosses:
-                        # Get first available gloss
-                        first_gloss = next(iter(target_sense.glosses.values()), '')
-                        enriched['ref_gloss'] = first_gloss
-                    elif target_sense.definitions:
-                        # Fallback to definition
-                        first_def = next(iter(target_sense.definitions.values()), '')
-                        enriched['ref_gloss'] = first_def
-                        
+                # Use targeted XQuery to find entry containing this sense
+                # The ref can be either "entry_id_sense_id" or just "sense_id"
+                # Try to find entry by querying for sense with this ID
+                db = dict_service.db_connector
+                if db:
+                    # XQuery to find entry containing a sense with the given ID
+                    query = f"""
+                        for $entry in collection('dictionary')//entry
+                        where $entry//sense[@id='{ref}']
+                        return $entry
+                    """
+                    result = db.execute_query(query)
+
+                    if result:
+                        import re
+                        from app.parsers.lift_parser import LIFTParser
+
+                        parser = LIFTParser()
+                        entry_matches = re.findall(r'<entry[^>]*>.*?</entry>', result, re.DOTALL)
+
+                        for entry_xml in entry_matches:
+                            try:
+                                target_entry = parser.parse_entry(entry_xml)
+
+                                # Find the sense with matching ID
+                                for sense in target_entry.senses:
+                                    if sense.id == ref or (hasattr(sense, 'id_') and sense.id_ == ref):
+                                        target_sense = sense
+                                        break
+                                else:
+                                    continue
+
+                                # Get headword from entry
+                                enriched['ref_display_text'] = target_entry.get_lexical_unit()
+                                enriched['ref_entry_id'] = target_entry.id
+
+                                # Get gloss or definition from sense
+                                if target_sense.glosses:
+                                    first_gloss = next(iter(target_sense.glosses.values()), '')
+                                    enriched['ref_gloss'] = first_gloss
+                                elif target_sense.definitions:
+                                    first_def = next(iter(target_sense.definitions.values()), '')
+                                    enriched['ref_gloss'] = first_def
+
+                                break  # Found the entry, no need to continue
+                            except Exception:
+                                continue
+
             except Exception:
                 # If resolution fails, just use the relation as-is
                 pass
-                
+
             enriched_relations.append(enriched)
-            
+
         return enriched_relations
     
     def add_definition(self, language: str, text: str) -> None:

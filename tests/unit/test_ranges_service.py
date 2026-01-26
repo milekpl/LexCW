@@ -23,7 +23,14 @@ class TestRangesService:
     def service(self, mock_connector):
         """Create RangesService with mock connector."""
         return RangesService(mock_connector)
-    
+
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        """Clear the class-level cache before each test."""
+        RangesService._ranges_cache.clear()
+        yield
+        RangesService._ranges_cache.clear()
+
     def test_get_all_ranges_success(self, service, mock_connector):
         """Test retrieving all ranges successfully."""
         # Mock BaseX response

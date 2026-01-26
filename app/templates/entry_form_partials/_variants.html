@@ -9,7 +9,8 @@
                    data-bs-html="true"
                    title="<strong>About Variants:</strong><br>Variants represent different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', 'Protestant ethic' vs 'Protestant work ethic', or inflected forms like plurals and past tense forms."></i>
             </h5>
-            <button type="button" class="btn btn-sm btn-light" id="add-variant-btn">
+            <button type="button" class="btn btn-sm btn-light" id="add-variant-btn"
+                    data-bs-toggle="modal" data-bs-target="#add-variant-modal">
                 <i class="fas fa-plus"></i> Add Variant
             </button>
         </div>
@@ -185,3 +186,6 @@
         </div>
     </div>
 </div>
+
+<!-- Include the variant modal template -->
+{% include 'entry_form_partials/_variant_modal.html' %}

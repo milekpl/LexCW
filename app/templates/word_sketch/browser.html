@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Word Sketch Browser - Dictionary Workbench{% endblock %}
+
+{% block content %}
+<div class="container-fluid word-sketch-browser">
+    {# Header #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h4 class="mb-1">
+                        <i class="bi bi-search"></i> Word Sketch Browser
+                    </h4>
+                    <p class="text-muted small mb-0">
+                        Explore corpus collocations and grammatical relations
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <span id="service-status" class="badge bg-secondary">
+                        <i class="bi bi-circle"></i> Service Unknown
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        {# Search Panel #}
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-search"></i> Search</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="lemma-input" class="form-label">Lemma (headword)</label>
+                        <div class="input-group">
+                            <input type="text"
+                                   id="lemma-input"
+                                   class="form-control"
+                                   placeholder="e.g., house, time, problem"
+                                   autocomplete="off">
+                            <button class="btn btn-primary" type="button" id="btn-search">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Enter a word lemma to explore its collocations</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="pos-select" class="form-label">Part of Speech</label>
+                        <select id="pos-select" class="form-select">
+                            <option value="">All POS</option>
+                            <option value="noun">Noun</option>
+                            <option value="verb">Verb</option>
+                            <option value="adj">Adjective</option>
+                            <option value="adv">Adverb</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="min-logdice" class="form-label">
+                            Minimum logDice Score
+                            <span class="badge bg-secondary" id="logdice-value">6.0</span>
+                        </label>
+                        <input type="range"
+                               id="min-logdice"
+                               class="form-range"
+                               min="0"
+                               max="14"
+                               step="0.5"
+                               value="6.0">
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span>0 (weak)</span>
+                            <span>14 (strong)</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="limit-select" class="form-label">Results per relation</label>
+                        <select id="limit-select" class="form-select">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary" id="btn-browse">
+                            <i class="bi bi-graph-up"></i> Get Word Sketch
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {# Quick Links #}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Examples</h6>
+                </div>
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap gap-1">
+                        <button class="btn btn-sm btn-outline-secondary quick-lemma" data-lemma="house">house</button>
+                        <button class="btn btn-sm btn-outline-secondary quick-lemma" data-lemma="time">time</button>
+                        <button class="btn btn-sm btn-outline-secondary quick-lemma" data-lemma="problem">problem</button>
+                        <button class="btn btn-sm btn-outline-secondary quick-lemma" data-lemma="make">make</button>
+                        <button class="btn btn-sm btn-outline-secondary quick-lemma" data-lemma="take">take</button>
+                        <button class="btn btn-sm btn-outline-secondary quick-lemma" data-lemma="get">get</button>
+                    </div>
+                </div>
+            </div>
+
+            {# Custom Query #}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-code-slash"></i> Custom CQL Query</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <input type="text"
+                               id="custom-lemma"
+                               class="form-control form-control-sm"
+                               placeholder="Lemma">
+                    </div>
+                    <div class="mb-2">
+                        <input type="text"
+                               id="custom-pattern"
+                               class="form-control form-control-sm"
+                               placeholder="CQL pattern, e.g. [tag=jj.*]~{0,3}">
+                    </div>
+                    <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-custom-query">
+                        <i class="bi bi-play-circle"></i> Execute Query
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# Results Panel #}
+        <div class="col-lg-8">
+            {# Loading State #}
+            <div id="loading-state" class="card text-center py-5" style="display: none;">
+                <div class="card-body">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Fetching word sketch...</p>
+                </div>
+            </div>
+
+            {# Empty/Initial State #}
+            <div id="empty-state" class="card text-center py-5">
+                <div class="card-body">
+                    <i class="bi bi-search fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Enter a lemma to explore its collocations</p>
+                    <p class="small text-muted">
+                        Word sketches show words that typically co-occur with your search term
+                        in specific grammatical relations.
+                    </p>
+                </div>
+            </div>
+
+            {# Service Unavailable #}
+            <div id="unavailable-state" class="alert alert-warning" style="display: none;">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Word sketch service unavailable.</strong>
+                <p class="mb-0 small">Make sure the word sketch service is running on port 8080.</p>
+            </div>
+
+            {# Results #}
+            <div id="results-container" style="display: none;">
+                {# Summary Header #}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h3 class="mb-1" id="result-lemma">
+                                    <span class="text-primary"></span>
+                                    <small class="text-muted" id="result-pos"></small>
+                                </h3>
+                                <p class="text-muted small mb-0" id="result-stats"></p>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-to-workset">
+                                    <i class="bi bi-plus-circle"></i> Add to Workset
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-copy-results">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# Relations Tabs #}
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="relations-tabs" role="tablist">
+                            {# Tabs will be inserted here #}
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="relations-content">
+                            {# Tab panes will be inserted here #}
+                        </div>
+                    </div>
+                </div>
+
+                {# Examples Modal Trigger #}
+                <div class="mt-3 text-end">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-view-all-examples" style="display: none;">
+                        <i class="bi bi-quote"></i> View All Examples
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Examples Modal #}
+<div class="modal fade" id="examples-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Example Sentences for <span id="modal-collocate"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="examples-modal-body">
+                <div class="text-center py-3">
+                    <div class="spinner-border"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/word-sketch-browser.js') }}"></script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.word-sketch-browser .collocation-card {
+    transition: all 0.2s ease;
+}
+.word-sketch-browser .collocation-card:hover {
+    background-color: #f8f9fa;
+    transform: translateX(2px);
+}
+.word-sketch-browser .logdice-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+.word-sketch-browser .logdice-bar .bar {
+    height: 100%;
+    background: linear-gradient(90deg, #0d6efd, #0a58ca);
+    transition: width 0.3s ease;
+}
+.word-sketch-browser .collocation-item {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.2s ease;
+}
+.word-sketch-browser .collocation-item:last-child {
+    border-bottom: none;
+}
+.word-sketch-browser .collocation-item:hover {
+    background-color: #f8f9fa;
+}
+.word-sketch-browser .example-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.9rem;
+}
+.word-sketch-browser .example-item:last-child {
+    border-bottom: none;
+}
+.word-sketch-browser .nav-tabs .nav-link {
+    border: none;
+    color: #6c757d;
+    padding: 0.5rem 1rem;
+}
+.word-sketch-browser .nav-tabs .nav-link.active {
+    color: #0d6efd;
+    background-color: transparent;
+    border-bottom: 2px solid #0d6efd;
+}
+.word-sketch-browser .nav-tabs .nav-link:hover:not(.active) {
+    border-color: transparent;
+    color: #0d6efd;
+}
+</style>
+{% endblock %}

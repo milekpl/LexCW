@@ -1,0 +1,266 @@
+{#
+    Word Sketch Enrichment Panel for Entry View/Edit
+
+    Include this in entry forms to show enrichment suggestions.
+    Required context variables:
+    - entry_id: ID of the entry
+    - lemma: Headword lemma
+    - pos: Part of speech (optional)
+#}
+
+<div class="card word-sketch-enrichment-card" id="word-sketch-enrichment-panel" data-entry-id="{{ entry_id }}" data-lemma="{{ lemma }}" {% if pos %}data-pos="{{ pos }}"{% endif %}>
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-magic"></i> Corpus Enrichment
+        </h5>
+        <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-light" id="btn-refresh-enrichment" title="Refresh suggestions">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" class="btn btn-light" data-bs-toggle="collapse" data-bs-target="#enrichment-content" title="Toggle">
+                <i class="bi bi-chevron-up"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="enrichment-content">
+        <div class="card-body">
+            {# Loading state #}
+            <div id="enrichment-loading" class="text-center py-3" style="display: none;">
+                <div class="spinner-border spinner-border-sm text-success" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <small class="text-muted ms-2">Fetching enrichment suggestions...</small>
+            </div>
+
+            {# Empty/initial state #}
+            <div id="enrichment-empty" class="text-center py-3">
+                <button type="button" class="btn btn-success btn-sm" id="btn-load-enrichment">
+                    <i class="bi bi-cloud-download"></i> Load Suggestions
+                </button>
+            </div>
+
+            {# Error state #}
+            <div id="enrichment-error" class="alert alert-warning py-2" style="display: none;">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span id="enrichment-error-message"></span>
+            </div>
+
+            {# Content #}
+            <div id="enrichment-content-body" style="display: none;">
+                {# Collocations section #}
+                <div class="mb-3">
+                    <h6 class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-link-45deg"></i> Collocations</span>
+                        <span class="badge bg-secondary" id="collocations-count">0</span>
+                    </h6>
+                    <div class="collocations-list list-group list-group-flush" id="collocations-list">
+                        {# Collocations will be inserted here #}
+                    </div>
+                </div>
+
+                {# Examples section #}
+                <div class="mb-3">
+                    <h6 class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-quote"></i> Example Sentences</span>
+                        <span class="badge bg-secondary" id="examples-count">0</span>
+                    </h6>
+                    <div class="examples-list" id="examples-list">
+                        {# Examples will be inserted here #}
+                    </div>
+                </div>
+
+                {# Subentry drafts section #}
+                <div class="subentries-section">
+                    <h6 class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-diagram-3"></i> Suggested Subentries</span>
+                        <span class="badge bg-primary" id="subentries-count">0</span>
+                    </h6>
+                    <div class="subentries-list" id="subentries-list">
+                        {# Subentry drafts will be inserted here #}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-footer text-muted small">
+        <i class="bi bi-info-circle"></i>
+        Suggestions are generated from corpus collocation analysis.
+        Review and edit before applying to the entry.
+    </div>
+</div>
+
+<style>
+.word-sketch-enrichment-card .collocations-list .list-group-item {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+.word-sketch-enrichment-card .collocations-list .confidence-bar {
+    width: 50px;
+    height: 4px;
+}
+.word-sketch-enrichment-card .example-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9rem;
+}
+.word-sketch-enrichment-card .subentry-draft {
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const panel = document.getElementById('word-sketch-enrichment-panel');
+    if (!panel) return;
+
+    const lemma = panel.dataset.lemma;
+    const entryId = panel.dataset.entryId;
+    const pos = panel.dataset.pos || null;
+
+    const ws = new WordSketchIntegration({
+        worksetId: null,
+        currentLemma: lemma,
+        currentPos: pos
+    });
+
+    // Load enrichment on button click
+    document.getElementById('btn-load-enrichment')?.addEventListener('click', async function() {
+        await loadEnrichments();
+    });
+
+    document.getElementById('btn-refresh-enrichment')?.addEventListener('click', async function() {
+        ws.clearCacheForLemma(lemma);
+        await loadEnrichments();
+    });
+
+    async function loadEnrichments() {
+        // Show loading
+        document.getElementById('enrichment-empty').style.display = 'none';
+        document.getElementById('enrichment-loading').style.display = 'block';
+        document.getElementById('enrichment-error').style.display = 'none';
+
+        try {
+            // Load collocations and subentry drafts in parallel
+            const [collocationData, subentryData, exampleData] = await Promise.all([
+                ws.getCollocations(lemma, { pos, minLogdice: 6.0 }),
+                ws.getSubentryDrafts(lemma, { pos, minLogdice: 7.0, max: 5 }),
+                ws.getExamples(lemma, null, 5)
+            ]);
+
+            renderCollocations(collocationData);
+            renderSubentries(subentryData);
+            renderExamples(exampleData);
+
+            // Show content
+            document.getElementById('enrichment-loading').style.display = 'none';
+            document.getElementById('enrichment-content-body').style.display = 'block';
+
+        } catch (error) {
+            console.error('Failed to load enrichments:', error);
+            document.getElementById('enrichment-loading').style.display = 'none';
+            document.getElementById('enrichment-error').style.display = 'block';
+            document.getElementById('enrichment-error-message').textContent = error.message;
+        }
+    }
+
+    function renderCollocations(data) {
+        const list = document.getElementById('collocations-list');
+        const count = document.getElementById('collocations-count');
+
+        count.textContent = data.total || 0;
+
+        if (!data.collocations || data.collocations.length === 0) {
+            list.innerHTML = '<div class="list-group-item text-muted small">No collocations found</div>';
+            return;
+        }
+
+        list.innerHTML = data.collocations.map(c => `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${escapeHtml(c.value)}</strong>
+                    <small class="text-muted ms-1">${escapeHtml(c.relation_name || c.relation)}</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="progress confidence-bar" style="width: 50px;">
+                        <div class="progress-bar bg-success" style="width: ${c.confidence * 100}%"></div>
+                    </div>
+                    <small class="text-muted">${(c.confidence * 100).toFixed(0)}%</small>
+                    <button class="btn btn-sm btn-outline-success add-collate-btn"
+                            data-lemma="${escapeHtml(lemma)}"
+                            data-collocate="${escapeHtml(c.value)}"
+                            data-relation="${escapeHtml(c.relation)}"
+                            title="Add as collocation">
+                        <i class="bi bi-plus-circle"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderSubentries(data) {
+        const container = document.getElementById('subentries-list');
+        const count = document.getElementById('subentries-count');
+
+        count.textContent = data.total || 0;
+
+        if (!data.drafts || data.drafts.length === 0) {
+            container.innerHTML = '<div class="text-muted small">No subentry suggestions</div>';
+            return;
+        }
+
+        container.innerHTML = data.drafts.map(d => `
+            <div class="subentry-draft">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>${escapeHtml(d.suggested_headword)}</strong>
+                        <small class="text-muted ms-1">(${escapeHtml(d.relation_name || d.relation_type)})</small>
+                    </div>
+                    <span class="badge bg-primary">${(d.confidence * 100).toFixed(0)}%</span>
+                </div>
+                <p class="small text-muted mb-2 mt-1">${escapeHtml(d.definition_template)}</p>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary create-subentry-btn"
+                            data-draft-headword="${escapeHtml(d.suggested_headword)}"
+                            data-draft-relation="${escapeHtml(d.relation_type)}"
+                            data-draft-relation-name="${escapeHtml(d.relation_name || '')}"
+                            data-draft-definition="${escapeHtml(d.definition_template)}">
+                        <i class="bi bi-plus-circle"></i> Create
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderExamples(data) {
+        const container = document.getElementById('examples-list');
+        const count = document.getElementById('examples-count');
+
+        count.textContent = data.total || 0;
+
+        if (!data.examples || data.examples.length === 0) {
+            container.innerHTML = '<div class="text-muted small">No examples found</div>';
+            return;
+        }
+
+        container.innerHTML = data.examples.map(e => `
+            <div class="example-item">
+                <small>"${escapeHtml(e.source)}"</small>
+                <button class="btn btn-sm btn-link p-0 ms-2 use-example-btn"
+                        data-example="${escapeHtml(e.source)}"
+                        title="Use this example">
+                    Use
+                </button>
+            </div>
+        `).join('');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+});
+</script>

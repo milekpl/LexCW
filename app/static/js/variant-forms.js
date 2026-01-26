@@ -62,7 +62,8 @@ class VariantFormsManager {
 
     async init() {
         this.setupEventListeners();
-        
+        this.initVariantModal();
+
         // Delay rendering to ensure data is available
         setTimeout(() => {
             this.renderExistingVariants();
@@ -262,15 +263,62 @@ class VariantFormsManager {
     }
     
     createVariantRelationHtml(variantRelation, index) {
+        const isIncoming = variantRelation.direction === 'incoming';
+        const headerBgClass = isIncoming ? 'bg-info' : 'bg-success';
+        const headerIcon = isIncoming ? 'fa-arrow-left' : 'fa-arrow-right';
+        const headerText = isIncoming
+            ? `Has Variant: ${variantRelation.variant_type || 'Unknown Type'}`
+            : `Is a Variant: ${variantRelation.variant_type || 'Unknown Type'}`;
+
+        // For incoming variants, show read-only display (can't edit reverse relations)
+        if (isIncoming) {
+            return `
+                <div class="variant-item card mb-3" data-variant-index="${index}" data-direction="incoming">
+                    <div class="card-header ${headerBgClass} text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas ${headerIcon} me-2"></i>
+                                ${headerText}
+                            </h6>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Entry that is a variant of this one</label>
+                                <div class="alert alert-light">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>
+                                        <a href="/entries/${variantRelation.ref}/edit"
+                                           class="text-decoration-none text-primary fw-bold"
+                                           title="Edit this entry">
+                                            ${variantRelation.ref_display_text || variantRelation.ref_lexical_unit || variantRelation.ref}
+                                        </a>
+                                    </strong>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Variant Type</label>
+                                <div class="form-control-plaintext">
+                                    <span class="badge bg-info fs-6">${variantRelation.variant_type || 'Unknown'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // For outgoing variants, show editable form
         return `
-            <div class="variant-item card mb-3" data-variant-index="${index}">
-                <div class="card-header bg-success text-white">
+            <div class="variant-item card mb-3" data-variant-index="${index}" data-direction="outgoing">
+                <div class="card-header ${headerBgClass} text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">
-                            <i class="fas fa-code-branch me-2"></i>
-                            Variant Relation ${index + 1}: ${variantRelation.variant_type || 'Unknown Type'}
+                            <i class="fas ${headerIcon} me-2"></i>
+                            ${headerText}
                         </h6>
-                        <button type="button" class="btn btn-sm btn-light remove-variant-btn" 
+                        <button type="button" class="btn btn-sm btn-light remove-variant-btn"
                                 data-index="${index}" title="Remove variant">
                             <i class="fas fa-trash text-danger"></i>
                         </button>
@@ -285,7 +333,7 @@ class VariantFormsManager {
                             <div class="alert alert-light mb-2">
                                 <i class="fas fa-external-link-alt me-2"></i>
                                 <strong>This entry is a variant of: </strong>
-                                <a href="/entries/${variantRelation.ref}/edit" 
+                                <a href="/entries/${variantRelation.ref}/edit"
                                    class="text-decoration-none text-primary fw-bold"
                                    title="Edit target entry">
                                     ${variantRelation.ref_display_text || variantRelation.ref_lexical_unit || variantRelation.ref}
@@ -300,24 +348,24 @@ class VariantFormsManager {
                                 <br><small>This may indicate a missing entry or an incorrect ID.</small>
                             </div>
                             ` : ''}
-                            
+
                             <!-- Hidden input fields for form submission -->
-                            <input type="hidden" 
+                            <input type="hidden"
                                    name="variant_relations[${index}][ref]"
                                    value="${variantRelation.ref || ''}">
-                            <input type="hidden" 
+                            <input type="hidden"
                                    name="variant_relations[${index}][type]"
                                    value="${variantRelation.type || '_component-lexeme'}">
-                            <input type="hidden" 
+                            <input type="hidden"
                                    name="variant_relations[${index}][order]"
                                    value="${index}">
-                            
+
                             <!-- Search interface for adding/changing variant targets -->
                             <div class="input-group">
-                                <input type="text" class="form-control variant-search-input" 
+                                <input type="text" class="form-control variant-search-input"
                                        placeholder="Search for entry to create variant relationship with..."
                                        data-variant-index="${index}">
-                                <button type="button" class="btn btn-outline-secondary variant-search-btn" 
+                                <button type="button" class="btn btn-outline-secondary variant-search-btn"
                                         data-variant-index="${index}">
                                     <i class="fas fa-search"></i> Search
                                 </button>
@@ -328,8 +376,8 @@ class VariantFormsManager {
                         <div class="col-md-4">
                             <label class="form-label fw-bold">
                                 Variant Type
-                                <i class="fas fa-question-circle ms-1 form-tooltip" 
-                                   data-bs-toggle="tooltip" 
+                                <i class="fas fa-question-circle ms-1 form-tooltip"
+                                   data-bs-toggle="tooltip"
                                    data-bs-placement="top"
                                    data-bs-html="true"
                                    title="About Variant Types: Different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', or inflected forms like plurals and past tense forms."></i>
@@ -344,8 +392,8 @@ class VariantFormsManager {
                             <div class="form-text">Type of variant relationship</div>
                         </div>
                     </div>
-                    
-                    <div class="row mt-3">                        
+
+                    <div class="row mt-3">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Status</label>
                             <div class="mt-2">
@@ -356,7 +404,7 @@ class VariantFormsManager {
                             </div>
                         </div>
                     </div>
-                    
+
                 </div>
             </div>
         `;
@@ -682,6 +730,388 @@ class VariantFormsManager {
                 new bootstrap.Tooltip(tooltipTriggerEl);
             });
         }
+    }
+
+    /**
+     * Initialize the variant modal event listeners
+     */
+    initVariantModal() {
+        const modal = document.getElementById('add-variant-modal');
+        if (!modal) {
+            console.warn('[VariantFormsManager] Add variant modal not found');
+            return;
+        }
+
+        // Direction change handler - update description
+        const directionRadios = modal.querySelectorAll('input[name="variant-direction"]');
+        directionRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.updateDirectionDescription(e.target.value);
+            });
+        });
+
+        // Search button click handler
+        const searchBtn = document.getElementById('modal-variant-search-btn');
+        if (searchBtn) {
+            searchBtn.addEventListener('click', () => {
+                this.handleModalSearch();
+            });
+        }
+
+        // Enter key on search input
+        const searchInput = document.getElementById('modal-variant-search');
+        if (searchInput) {
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.handleModalSearch();
+                }
+            });
+        }
+
+        // Save button click handler
+        const saveBtn = document.getElementById('modal-variant-save-btn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                this.saveVariantFromModal();
+            });
+        }
+
+        // Clear modal state when hidden
+        modal.addEventListener('hidden.bs.modal', () => {
+            this.resetVariantModal();
+        });
+
+        // Populate variant type dropdown when modal is shown
+        modal.addEventListener('shown.bs.modal', () => {
+            this.populateModalVariantTypeSelect();
+        });
+
+        console.log('[VariantFormsManager] Variant modal initialized');
+    }
+
+    /**
+     * Update the direction description based on selected direction
+     * @param {string} direction - 'outgoing' or 'incoming'
+     */
+    updateDirectionDescription(direction) {
+        const descriptionEl = document.getElementById('variant-direction-description');
+        if (!descriptionEl) return;
+
+        if (direction === 'outgoing') {
+            descriptionEl.innerHTML = '<strong>"Has Variant":</strong> This entry has another entry as its variant (e.g., "protestor" has variant "protester").';
+        } else {
+            descriptionEl.innerHTML = '<strong>"Is a Variant of":</strong> Another entry has this entry as its variant (e.g., "protester" is a variant of "protestor").';
+        }
+    }
+
+    /**
+     * Handle search in the modal
+     */
+    async handleModalSearch() {
+        const searchInput = document.getElementById('modal-variant-search');
+        const resultsContainer = document.getElementById('modal-variant-search-results');
+        const searchTerm = searchInput?.value.trim() || '';
+
+        if (searchTerm.length < 2) {
+            this.showModalError('Please enter at least 2 characters to search');
+            return;
+        }
+
+        resultsContainer.style.display = 'block';
+        resultsContainer.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">Searching entries...</p>
+            </div>
+        `;
+
+        try {
+            const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=50`);
+            if (response.ok) {
+                const result = await response.json();
+                const entries = result.entries || [];
+                this.displayModalSearchResults(entries, searchTerm);
+            } else {
+                throw new Error('Search request failed');
+            }
+        } catch (error) {
+            console.warn('[VariantFormsManager] Modal search failed:', error);
+            resultsContainer.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Search failed. Please try again.
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Display search results in the modal
+     * @param {Array} entries - Array of entry objects
+     * @param {string} searchTerm - The search term used
+     */
+    displayModalSearchResults(entries, searchTerm) {
+        const resultsContainer = document.getElementById('modal-variant-search-results');
+
+        if (entries.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="text-muted p-3 border rounded bg-light">
+                    <i class="fas fa-search me-2"></i>
+                    No entries found for "${this._escapeHtml(searchTerm)}"
+                </div>
+            `;
+            return;
+        }
+
+        // Filter out current entry
+        const currentEntryId = this._getCurrentEntryId();
+        const filteredEntries = entries.filter(e => e.id !== currentEntryId);
+
+        if (filteredEntries.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="text-muted p-3 border rounded bg-light">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No other entries found matching "${this._escapeHtml(searchTerm)}"
+                </div>
+            `;
+            return;
+        }
+
+        const resultsHtml = filteredEntries.map(entry => {
+            const displayText = this.getEntryDisplayText(entry);
+            const isExactMatch = displayText.toLowerCase() === searchTerm.toLowerCase();
+            const matchBadge = isExactMatch ? '<span class="badge bg-success ms-2">Exact</span>' : '';
+
+            return `
+                <div class="search-result-item p-2 border-bottom cursor-pointer hover-bg-light"
+                     data-entry-id="${entry.id}"
+                     data-entry-text="${this._escapeHtml(displayText)}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="fw-bold">${this._escapeHtml(displayText)}</div>
+                            ${entry.definition ? `<div class="text-muted small">${this._escapeHtml(entry.definition)}</div>` : ''}
+                        </div>
+                        <div>${matchBadge}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        resultsContainer.innerHTML = `
+            <div class="bg-white shadow-sm border rounded">
+                ${resultsHtml}
+            </div>
+        `;
+
+        // Add click handlers
+        resultsContainer.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                this.selectModalEntry(item.dataset.entryId, item.dataset.entryText);
+            });
+        });
+    }
+
+    /**
+     * Handle entry selection from modal search results
+     * @param {string} entryId - The selected entry ID
+     * @param {string} entryText - The display text for the entry
+     */
+    selectModalEntry(entryId, entryText) {
+        // Update hidden input
+        const hiddenInput = document.getElementById('modal-variant-entry-id');
+        if (hiddenInput) {
+            hiddenInput.value = entryId;
+        }
+
+        // Update selected entry display
+        const selectedContainer = document.getElementById('modal-selected-entry');
+        const selectedText = document.getElementById('modal-selected-entry-text');
+        if (selectedContainer && selectedText) {
+            selectedText.textContent = entryText;
+            selectedContainer.style.display = 'block';
+        }
+
+        // Hide search results
+        const resultsContainer = document.getElementById('modal-variant-search-results');
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        // Clear any error message
+        this.hideModalError();
+
+        console.log(`[VariantFormsManager] Selected entry: ${entryText} (${entryId})`);
+    }
+
+    /**
+     * Save the variant relationship from the modal
+     */
+    async saveVariantFromModal() {
+        const direction = document.querySelector('input[name="variant-direction"]:checked')?.value || 'outgoing';
+        const entryId = document.getElementById('modal-variant-entry-id')?.value;
+        const variantType = document.getElementById('modal-variant-type')?.value;
+        const currentEntryId = this._getCurrentEntryId();
+
+        // Validation
+        if (!entryId) {
+            this.showModalError('Please select a target entry');
+            return;
+        }
+
+        if (!variantType) {
+            this.showModalError('Please select a variant type');
+            return;
+        }
+
+        if (!currentEntryId) {
+            this.showModalError('Cannot determine current entry ID');
+            return;
+        }
+
+        // Disable save button during request
+        const saveBtn = document.getElementById('modal-variant-save-btn');
+        const originalBtnText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+        try {
+            const response = await fetch(`/api/entries/${currentEntryId}/variants`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ref: entryId,
+                    variant_type: variantType,
+                    direction: direction,
+                    type: '_component-lexeme'
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `HTTP ${response.status}: Failed to save variant`);
+            }
+
+            const result = await response.json();
+            console.log('[VariantFormsManager] Variant saved successfully:', result);
+
+            // Close modal
+            const modal = document.getElementById('add-variant-modal');
+            if (modal) {
+                const bsModal = bootstrap.Modal.getInstance(modal);
+                if (bsModal) {
+                    bsModal.hide();
+                }
+            }
+
+            // Trigger refresh of variants display
+            if (window.refreshEntryData) {
+                window.refreshEntryData();
+            } else {
+                // Fallback: reload the page or trigger a custom event
+                window.location.reload();
+            }
+
+        } catch (error) {
+            console.error('[VariantFormsManager] Failed to save variant:', error);
+            this.showModalError(error.message || 'Failed to save variant relationship');
+        } finally {
+            // Restore save button
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnText;
+        }
+    }
+
+    /**
+     * Populate the variant type select in the modal
+     */
+    populateModalVariantTypeSelect() {
+        const select = document.getElementById('modal-variant-type');
+        if (!select) return;
+
+        // Check if already populated
+        if (select.options.length > 1) {
+            return;
+        }
+
+        // Use rangesLoader if available
+        if (window.rangesLoader) {
+            window.rangesLoader.populateSelect(select, 'variant-type', {
+                selectedValue: '',
+                emptyOption: 'Select variant type'
+            }).catch(err => {
+                console.warn('[VariantFormsManager] Failed to populate variant type select:', err);
+            });
+        }
+    }
+
+    /**
+     * Show error message in modal
+     * @param {string} message - Error message to display
+     */
+    showModalError(message) {
+        const errorEl = document.getElementById('modal-variant-error');
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+    }
+
+    /**
+     * Hide error message in modal
+     */
+    hideModalError() {
+        const errorEl = document.getElementById('modal-variant-error');
+        if (errorEl) {
+            errorEl.style.display = 'none';
+        }
+    }
+
+    /**
+     * Reset the variant modal to initial state
+     */
+    resetVariantModal() {
+        // Reset direction to default (outgoing)
+        const outgoingRadio = document.getElementById('direction-has-variant');
+        if (outgoingRadio) {
+            outgoingRadio.checked = true;
+            this.updateDirectionDescription('outgoing');
+        }
+
+        // Clear search input
+        const searchInput = document.getElementById('modal-variant-search');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+
+        // Clear selected entry
+        const hiddenInput = document.getElementById('modal-variant-entry-id');
+        if (hiddenInput) {
+            hiddenInput.value = '';
+        }
+
+        const selectedContainer = document.getElementById('modal-selected-entry');
+        if (selectedContainer) {
+            selectedContainer.style.display = 'none';
+        }
+
+        // Clear variant type
+        const variantTypeSelect = document.getElementById('modal-variant-type');
+        if (variantTypeSelect) {
+            variantTypeSelect.value = '';
+        }
+
+        // Hide search results
+        const resultsContainer = document.getElementById('modal-variant-search-results');
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        // Hide error
+        this.hideModalError();
     }
 }
 

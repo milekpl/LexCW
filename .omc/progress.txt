@@ -1,0 +1,32 @@
+# Ralph Progress Log
+Started: 2026-01-26T18:00:00Z
+
+## Codebase Patterns
+
+### Variant Relations Architecture
+- Entry relations stored as LIFT XML: `<relation type="_component-lexeme" ref="target-id"><trait name="variant-type" value="..."/></relation>`
+- `direction='incoming'` = reverse lookup where OTHER entries point TO this entry
+- `direction='outgoing'` = this entry's own variant relations pointing TO other entries
+- JavaScript `VariantFormsManager` handles client-side variant form rendering
+- Server template renders initial state, JS clears and re-renders
+
+### Related Files
+- `app/models/entry.py` - Entry model with `get_subentries()`, `get_reverse_variant_relations()`
+- `app/templates/entry_form_partials/_variants.html` - Server-side variant template
+- `app/static/js/variant-forms.js` - Client-side variant management
+- `app/api/variant_api.py` - API endpoints for variant operations
+
+### Key Bug Fixes (to test)
+1. `get_subentries()` was checking `self.relations` for variant-type, should check `subentry.relations`
+2. Template line 28: "Is a Variant" should be "Has Variant" for incoming
+3. JavaScript `createVariantRelationHtml()` didn't check `direction` property
+
+## Task Breakdown
+- US-001: Design bidirectional variant UI
+- US-002: Implement backend 'Has Variant' API
+- US-003: Implement backend 'Is a Variant of' API
+- US-004: Update JavaScript variant manager
+- US-005: Write unit tests for variant relations
+- US-006: Write integration tests for variant API
+- US-007: Write E2E tests for variant UI
+- US-008: Add regression tests for bug fixes
