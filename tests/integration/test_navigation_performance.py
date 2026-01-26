@@ -22,7 +22,8 @@ class TestMainNavigation:
     def test_corpus_management_page_loads(self, client):
         """Test that corpus management page loads properly."""
         # Using the standard client which should have corpus routes registered
-        with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator_class:
+        # Patch CorpusMigrator; create=True allows test to run even when CorpusMigrator was removed
+        with patch('app.routes.corpus_routes.CorpusMigrator', create=True) as mock_migrator_class:
             # Mock the migrator instance
             mock_migrator = Mock()
             mock_migrator_class.return_value = mock_migrator

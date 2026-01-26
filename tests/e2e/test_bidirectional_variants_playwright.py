@@ -36,7 +36,12 @@ def two_test_entries(app_url: str, configured_flask_app):
     entry2 = {
         "id": "e2e_variant_test",
         "lexical_unit": {"en": "complected"},
-        "senses": [{"id": "sense1", "definition": {"en": "having a specified complexion"}}]
+        "senses": [{"id": "sense1", "definition": {"en": "having a specified complexion"}}],
+        "variant_relations": [{
+            "type": "_component-lexeme",
+            "ref": "e2e_variant_main",
+            "variant_type": "test"
+        }]
     }
     r2 = requests.post(f"{base_url}/api/entries/", json=entry2, headers={"Content-Type": "application/json"})
     if r2.status_code not in (200, 201):
