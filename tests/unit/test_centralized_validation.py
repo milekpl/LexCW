@@ -212,44 +212,38 @@ class TestSchematronValidator:
 
     def test_schematron_validator_initialization(self):
         """Test that Schematron validator initializes properly."""
-        # Skip if PySchematron not available
-        try:
-            validator = SchematronValidator()
-            assert validator is not None
-        except ImportError:
-            pytest.skip("PySchematron not available")
+        # Skip if Schematron support is not available or initialized
+        validator = SchematronValidator()
+        if validator._validator is None:
+            pytest.skip("Schematron validator not configured (lxml.isoschematron unavailable or schema missing)")
+        assert validator is not None
 
     def test_xml_validation_basic(self):
         """Test basic XML validation with Schematron."""
-        try:
-            validator = SchematronValidator()
-            
-            # Valid LIFT XML fragment
-            valid_xml = '''<?xml version="1.0" encoding="UTF-8"?>
-            <lift xmlns="http://code.google.com/p/lift-standard">
-                <entry id="test_entry">
-                    <lexical-unit>
-                        <form lang="pl">
-                            <text>test</text>
-                        </form>
-                    </lexical-unit>
-                    <sense id="sense1">
-                        <gloss lang="en">
-                            <text>test gloss</text>
-                        </gloss>
-                    </sense>
-                </entry>
-            </lift>'''
-            
-            result = validator.validate_xml(valid_xml)
-            # Should be valid or have specific validation issues
-            assert isinstance(result, ValidationResult)
-            
-        except ImportError:
-            pytest.skip("PySchematron not available")
-        except Exception as e:
-            # Expected for incomplete schema setup
-            assert "schema" in str(e).lower() or "schematron" in str(e).lower()
+        validator = SchematronValidator()
+        if validator._validator is None:
+            pytest.skip("Schematron validator not configured (lxml.isoschematron unavailable or schema missing)")
+
+        # Valid LIFT XML fragment
+        valid_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+        <lift xmlns="http://code.google.com/p/lift-standard">
+            <entry id="test_entry">
+                <lexical-unit>
+                    <form lang="pl">
+                        <text>test</text>
+                    </form>
+                </lexical-unit>
+                <sense id="sense1">
+                    <gloss lang="en">
+                        <text>test gloss</text>
+                    </gloss>
+                </sense>
+            </entry>
+        </lift>'''
+
+        result = validator.validate_xml(valid_xml)
+        # Should be valid or have specific validation issues
+        assert isinstance(result, ValidationResult)
 
 
 class TestValidationRulesSchemaValidator:
