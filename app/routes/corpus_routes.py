@@ -12,23 +12,12 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from flasgger import swag_from
 
-from ..database.corpus_migrator import CorpusMigrator, MigrationStats
-from ..database.postgresql_connector import PostgreSQLConfig
 
 
 # Create blueprint
 corpus_bp = Blueprint('corpus', __name__, url_prefix='/api/corpus')
 
 
-def _get_postgres_config() -> PostgreSQLConfig:
-    """Get PostgreSQL configuration from environment."""
-    return PostgreSQLConfig(
-        host=os.getenv('POSTGRES_HOST', 'localhost'),
-        port=int(os.getenv('POSTGRES_PORT', 5432)),
-        database=os.getenv('POSTGRES_DB', 'dictionary_analytics'),  # Use analytics database for corpus data
-        username=os.getenv('POSTGRES_USER', 'dict_user'),
-        password=os.getenv('POSTGRES_PASSWORD', 'dict_pass')
-    )
 
 
 def _allowed_file(filename: str) -> bool:
@@ -51,76 +40,12 @@ def _format_migration_stats(stats: MigrationStats) -> Dict[str, Any]:
 
 @corpus_bp.route('/upload', methods=['POST'])
 def upload_corpus():
-    """Upload and migrate corpus file (TMX, CSV, or SQLite)."""
-    try:
-        # Check if file is present
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
+    """Upload and migrate corpus file (TMX, CSV, or SQLite).
 
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-
-        if not _allowed_file(file.filename):
-            return jsonify({'error': 'File type not supported. Use TMX, CSV, or SQLite DB files.'}), 400
-
-        # Get options
-        source_lang = request.form.get('source_lang', 'en')
-        target_lang = request.form.get('target_lang', 'pl')
-        table_name = request.form.get('table_name')
-        drop_existing = request.form.get('drop_existing', 'false').lower() == 'true'
-
-        # Secure filename and save temporarily
-        filename = secure_filename(file.filename or 'corpus')
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f'_{filename}') as temp_file:
-            file.save(temp_file.name)
-            temp_path = Path(temp_file.name)
-
-        try:
-            # Initialize migrator
-            postgres_config = _get_postgres_config()
-            migrator = CorpusMigrator(postgres_config)
-
-            # Drop existing database if requested
-            if drop_existing:
-                migrator.drop_database()
-
-            # Detect format and migrate
-            file_ext = temp_path.suffix.lower()
-            if filename.endswith('.db'):
-                file_ext = '.db'
-
-            if file_ext == '.db':
-                # For SQLite, table_name is required
-                if not table_name:
-                    return jsonify({'error': 'table_name parameter is required for SQLite imports'}), 400
-                stats = migrator.migrate_sqlite_corpus(temp_path, table_name=table_name, cleanup_temp=True)
-            elif file_ext == '.tmx':
-                stats = migrator.migrate_tmx_corpus(temp_path, source_lang, target_lang, cleanup_temp=True)
-            elif file_ext == '.csv':
-                migrator.create_database_if_not_exists()
-                migrator.create_schema()
-                migrator.import_csv_to_postgres(temp_path)
-                migrator.create_indexes()
-                stats = migrator.stats
-            else:
-                return jsonify({'error': 'Unsupported file format'}), 400
-
-            return jsonify({
-                'success': True,
-                'message': 'Corpus migrated successfully',
-                'stats': _format_migration_stats(stats)
-            })
-
-        finally:
-            # Clean up temporary file
-            if temp_path.exists():
-                temp_path.unlink()
-
-    except Exception as e:
-        current_app.logger.error(f"Corpus migration failed: {e}")
-        return jsonify({'error': f'Migration failed: {str(e)}'}), 500
+    DEPRECATED: Corpus upload and PostgreSQL-based migration endpoints have been removed.
+    Use the Lucene corpus service and offline utilities for importing and converting corpora.
+    """
+    return jsonify({'success': False, 'error': 'Corpus upload and migration endpoints are deprecated. Use Lucene services or offline tools.'}), 410
 
 
 @corpus_bp.route('/stats', methods=['GET'])
@@ -343,33 +268,9 @@ def convert_tmx_to_csv():
             file.save(tmx_file.name)
             tmx_path = Path(tmx_file.name)
         
-        try:
-            # Convert to CSV
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.csv', mode='w+') as csv_file:
-                csv_path = Path(csv_file.name)
-            
-            postgres_config = _get_postgres_config()
-            migrator = CorpusMigrator(postgres_config)
-            records_converted = migrator.convert_tmx_to_csv(tmx_path, csv_path, source_lang, target_lang)
-            
-            # Read CSV content
-            with open(csv_path, 'r', encoding='utf-8') as f:
-                csv_content = f.read()
-            
-            return jsonify({
-                'success': True,
-                'message': f'Converted {records_converted} records',
-                'records_converted': records_converted,
-                'csv_content': csv_content,
-                'filename': tmx_filename.replace('.tmx', '.csv')
-            })
+        # DEPRECATED: TMX-to-CSV conversion endpoint removed. Use local tools for TMX conversion.
+        return jsonify({'success': False, 'error': 'TMX to CSV conversion via web endpoint is deprecated. Use local/offline conversion utilities.'}), 410
         
-        finally:
-            # Clean up temporary files
-            if tmx_path.exists():
-                tmx_path.unlink()
-            if csv_path.exists():
-                csv_path.unlink()
     
     except Exception as e:
         current_app.logger.error(f"TMX to CSV conversion failed: {e}")
