@@ -252,7 +252,11 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
         service = current_app.injector.get(RangesService)
         guid = service.create_range(data)
 
-        # Invalidate ranges cache so editor and other consumers see the new range immediately
+        # Force RangesService to repopulate its cache so subsequent GET requests
+        # see the new range immediately (bypass potentially stale cache)
+        service.get_all_ranges(force_reload=True)
+
+        # Also invalidate DictionaryService cache for other consumers
         try:
             dict_service = current_app.injector.get(DictionaryService)
             dict_service.get_ranges(force_reload=True)
@@ -340,6 +344,9 @@ def update_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         service = current_app.injector.get(RangesService)
         service.update_range(range_id, data)
 
+        # Force RangesService to repopulate its cache
+        service.get_all_ranges(force_reload=True)
+
         # Refresh dictionary ranges cache
         try:
             dict_service = current_app.injector.get(DictionaryService)
@@ -414,6 +421,9 @@ def delete_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         
         service = current_app.injector.get(RangesService)
         service.delete_range(range_id, migration=migration)
+
+        # Force RangesService to repopulate its cache
+        service.get_all_ranges(force_reload=True)
 
         # Refresh cache so editor and consumers see removal
         try:
@@ -554,6 +564,9 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
         
         service = current_app.injector.get(RangesService)
         guid = service.create_range_element(range_id, element_data)
+
+        # Force RangesService to repopulate its cache
+        service.get_all_ranges(force_reload=True)
 
         # Refresh dictionary ranges cache so the editor sees the new element without manual reload
         try:
@@ -714,6 +727,9 @@ def update_range_element(range_id: str, element_id: str) -> Union[Response, Tupl
         service = current_app.injector.get(RangesService)
         service.update_range_element(range_id, element_id, data)
 
+        # Force RangesService to repopulate its cache
+        service.get_all_ranges(force_reload=True)
+
         # Refresh cache to ensure editor sees updated data
         try:
             dict_service = current_app.injector.get(DictionaryService)
@@ -789,6 +805,9 @@ def delete_range_element(range_id: str, element_id: str) -> Union[Response, Tupl
         
         service = current_app.injector.get(RangesService)
         service.delete_range_element(range_id, element_id, migration=migration)
+
+        # Force RangesService to repopulate its cache
+        service.get_all_ranges(force_reload=True)
 
         # Refresh cache so editor and other consumers reflect deletion
         try:

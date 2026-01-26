@@ -35,9 +35,12 @@ class RangesEditor {
     async loadRanges() {
         try {
             const result = await apiGet('/api/ranges-editor/');
+            console.log('[RangesEditor] loadRanges result:', result);
             this.ranges = result;
+            console.log('[RangesEditor] this.ranges set to:', this.ranges);
             // Load custom ranges and mark them
             await this.loadCustomRanges();
+            console.log('[RangesEditor] loadRanges complete, ranges count:', Object.keys(this.ranges).length);
         } catch (error) {
             console.error('Failed to load ranges:', error);
             this.showError('Failed to load ranges');
@@ -216,12 +219,15 @@ class RangesEditor {
     }
     
     renderTable() {
+        console.log('[RangesEditor] renderTable called, this.ranges:', this.ranges);
         const tbody = document.querySelector('#rangesTable tbody');
         tbody.innerHTML = '';
+        let rowCount = 0;
 
         for (const [rangeId, range] of Object.entries(this.ranges)) {
             const row = document.createElement('tr');
             row.setAttribute('data-range-id', rangeId);
+            rowCount++;
             row.innerHTML = `
                 <td>
                     <strong>${this.escapeHtml(this.getLabel(range))}</strong>
@@ -241,8 +247,9 @@ class RangesEditor {
             `;
             tbody.appendChild(row);
         }
+        console.log('[RangesEditor] renderTable complete, created', rowCount, 'rows');
     }
-    
+
     filterRanges(searchText) {
         const rows = document.querySelectorAll('#rangesTable tbody tr');
         const search = searchText.toLowerCase();
@@ -345,13 +352,13 @@ class RangesEditor {
         const rangeId = document.getElementById('rangeId').value.trim();
         const labels = this.collectMultilingualData('labelsContainer');
         const descriptions = this.collectMultilingualData('descriptionsContainer');
-        
+
         // Validate
         if (!rangeId || Object.keys(labels).length === 0) {
             this.showError('Range ID and at least one label are required');
             return;
         }
-        
+
         // Call API
         try {
             const csrfToken = getCsrfToken();
@@ -367,14 +374,18 @@ class RangesEditor {
                     descriptions: descriptions
                 })
             });
-            
+
             const result = await response.json();
-            
+            console.log('[RangesEditor] createRange result:', result);
+
             if (result.success) {
                 this.showSuccess('Range created successfully');
+                console.log('[RangesEditor] Hiding modal and reloading ranges...');
                 bootstrap.Modal.getInstance(document.getElementById('createRangeModal')).hide();
                 await this.loadRanges();
+                console.log('[RangesEditor] Reload complete, calling renderTable...');
                 this.renderTable();
+                console.log('[RangesEditor] renderTable complete');
             } else {
                 if (result.error.includes('already exists')) {
                     document.getElementById('rangeId').classList.add('is-invalid');

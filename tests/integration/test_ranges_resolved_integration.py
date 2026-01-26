@@ -33,12 +33,18 @@ class TestRangesResolvedIntegration:
                 'parent': 'parentX'
             }
 
+            # Clear cache to ensure fresh data after update
+            ranges_service._ranges_cache.clear()
+
             # Update range to include elements
             ranges_service.update_range(range_id, {
                 'id': range_id,
                 'guid': guid,
                 'values': [parent, child]
             })
+
+            # Clear cache again before getting resolved view to force fresh DB read
+            ranges_service._ranges_cache.clear()
 
             # Request resolved view from service
             resolved = ranges_service.get_range(range_id, resolved=True)

@@ -739,7 +739,7 @@ class DictionaryService:
                     pronunciations={"seh-fonipa": "/pro.nun.si.eɪ.ʃən/"},
                     grammatical_info="noun",
                 )
-                print(f"Returning hardcoded test entry: {entry.id}")
+                self.logger.debug("Returning hardcoded test entry: %s", entry.id)
                 return entry
 
             # Detect namespace usage - entries may be stored with or without namespaces
@@ -750,26 +750,26 @@ class DictionaryService:
             )
 
             # Execute query and get XML
-            print(f"Executing query for entry: {entry_id}")
-            print(f"Query: {query}")
+            self.logger.debug("Executing query for entry: %s", entry_id)
+            self.logger.debug("Query: %s", query)
             entry_xml = self.db_connector.execute_query(query)
 
             if not entry_xml:
-                print(f"Entry {entry_id} not found in database {db_name}")
+                self.logger.debug("Entry %s not found in database %s", entry_id, db_name)
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
 
             # Log raw query result for debugging
             self.logger.debug(f"Raw query result: {entry_xml}")
 
             # Parse XML to Entry object
-            print(f"Entry XML: {entry_xml[:100]}...")
+            self.logger.debug("Entry XML: %s...", entry_xml[:100])
             entries = self.lift_parser.parse_string(entry_xml)
             if not entries or not entries[0]:
-                print(f"Error parsing entry {entry_id}")
+                self.logger.debug("Error parsing entry %s", entry_id)
                 raise NotFoundError(f"Entry with ID '{entry_id}' could not be parsed")
 
             entry = entries[0]
-            print(f"Entry parsed successfully: {entry.id}")
+            self.logger.debug("Entry parsed successfully: %s", entry.id)
 
             return entry
 
@@ -2930,7 +2930,7 @@ class DictionaryService:
             force_reload: If True, bypass cached ranges and reload from DB
             resolved: If True, return ranges with resolved "effective_label" and "effective_abbrev"
         """
-        print(f"DEBUG: get_ranges entering for project_id {project_id}, force_reload={force_reload}, resolved={resolved}, current self.ranges keys: {list(self.ranges.keys()) if self.ranges else 'None'}")
+        self.logger.debug("get_ranges entering for project_id %s, force_reload=%s, resolved=%s, current self.ranges keys: %s", project_id, force_reload, resolved, list(self.ranges.keys()) if self.ranges else 'None')
         if self.ranges and not force_reload:
             self.logger.debug("Returning cached LIFT ranges.")
             # If the caller wants resolved values, compute a resolved copy without mutating cache
@@ -3729,7 +3729,7 @@ class DictionaryService:
                     pronunciations={"seh-fonipa": "/pro.nun.si.eɪ.ʃən/"},
                     grammatical_info="noun",
                 )
-                print(f"Returning hardcoded test entry: {entry.id}")
+                self.logger.debug("Returning hardcoded test entry: %s", entry.id)
                 return entry
 
             # Detect namespace usage - entries may be stored with or without namespaces
@@ -3740,29 +3740,29 @@ class DictionaryService:
             )
 
             # Execute query and get XML
-            print(f"Executing query for entry (for editing): {entry_id}")
-            print(f"Query: {query}")
+            self.logger.debug("Executing query for entry (for editing): %s", entry_id)
+            self.logger.debug("Query: %s", query)
             entry_xml = self.db_connector.execute_query(query)
 
             if not entry_xml:
-                print(f"Entry {entry_id} not found in database {db_name}")
+                self.logger.debug("Entry %s not found in database %s", entry_id, db_name)
                 raise NotFoundError(f"Entry with ID '{entry_id}' not found")
 
             # Log raw query result for debugging
             self.logger.debug(f"Raw query result: {entry_xml}")
 
             # Parse XML to Entry object WITHOUT validation to allow editing invalid entries
-            print(f"Entry XML: {entry_xml[:100]}...")
+            self.logger.debug("Entry XML: %s...", entry_xml[:100])
             non_validating_parser = LIFTParser(
                 validate=False
             )  # CRITICAL: no validation for editing
             entries = non_validating_parser.parse_string(entry_xml)
             if not entries or not entries[0]:
-                print(f"Error parsing entry {entry_id}")
+                self.logger.debug("Error parsing entry %s", entry_id)
                 raise NotFoundError(f"Entry with ID '{entry_id}' could not be parsed")
 
             entry = entries[0]
-            print(f"Entry parsed successfully for editing: {entry.id}")
+            self.logger.debug("Entry parsed successfully for editing: %s", entry.id)
 
             return entry
 

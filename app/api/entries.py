@@ -700,10 +700,37 @@ def create_variant_relation(entry_id: str) -> Any:
         source_xml_data = xml_service.get_entry(entry_id)
         source_xml = source_xml_data['xml']
 
+        # Check for circular reference
+        from app.parsers.lift_parser import LIFTParser
+        lift_parser = LIFTParser(validate=False)
+
+        # Check if source already has a relation to target (duplicate)
+        source_entries = lift_parser.parse_string(f"<lift>{source_xml}</lift>")
+        if source_entries:
+            source_entry = source_entries[0]
+            existing_variants = source_entry.get_variant_relations()
+            for var in existing_variants:
+                if var.get('ref') == target_entry_id:
+                    return jsonify({'error': f"Duplicate: entry '{entry_id}' already has a variant relation to '{target_entry_id}'"}), 400
+
+        # Also check if target already has a relation to source (circular reference)
+        target_xml_data = xml_service.get_entry(target_entry_id)
+        target_xml = target_xml_data['xml']
+        target_entries = lift_parser.parse_string(f"<lift>{target_xml}</lift>")
+        if target_entries:
+            target_entry_obj = target_entries[0]
+            target_variants = target_entry_obj.get_variant_relations()
+            for var in target_variants:
+                if var.get('ref') == entry_id:
+                    return jsonify({'error': f"Circular reference: entry '{target_entry_id}' already has a variant relation to '{entry_id}'"}), 400
+
         # Determine which entry(s) to modify based on direction
+        # Get extra traits from request if provided
+        extra_traits = data.get('traits', None)
+
         if direction == 'outgoing':
             # Create relation on source entry pointing to target
-            modified_xml = _add_variant_relation_to_xml(source_xml, target_entry_id, variant_type)
+            modified_xml = _add_variant_relation_to_xml(source_xml, target_entry_id, variant_type, extra_traits)
             xml_service.update_entry(entry_id, modified_xml)
             return jsonify({
                 'success': True,
@@ -719,7 +746,7 @@ def create_variant_relation(entry_id: str) -> Any:
             # Create relation on target entry pointing to source
             target_xml_data = xml_service.get_entry(target_entry_id)
             target_xml = target_xml_data['xml']
-            modified_target_xml = _add_variant_relation_to_xml(target_xml, entry_id, variant_type)
+            modified_target_xml = _add_variant_relation_to_xml(target_xml, entry_id, variant_type, extra_traits)
             xml_service.update_entry(target_entry_id, modified_target_xml)
             return jsonify({
                 'success': True,
@@ -734,12 +761,15 @@ def create_variant_relation(entry_id: str) -> Any:
 
     except XMLEntryNotFoundError as e:
         return jsonify({'error': str(e)}), 404
+    except ValueError as e:
+        # Return 400 for business logic errors (like duplicate relations)
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error("Error creating variant relation: %s", str(e))
         return jsonify({'error': str(e)}), 500
 
 
-def _add_variant_relation_to_xml(xml_string: str, target_id: str, variant_type: str) -> str:
+def _add_variant_relation_to_xml(xml_string: str, target_id: str, variant_type: str, extra_traits: dict = None) -> str:
     """
     Add a variant relation element to LIFT XML.
 
@@ -747,6 +777,7 @@ def _add_variant_relation_to_xml(xml_string: str, target_id: str, variant_type: 
         xml_string: LIFT XML string for the entry
         target_id: ID of the target entry to reference
         variant_type: Type of variant relation
+        extra_traits: Optional dictionary of additional traits to add to the relation
 
     Returns:
         Modified XML string with the new relation added
@@ -771,6 +802,14 @@ def _add_variant_relation_to_xml(xml_string: str, target_id: str, variant_type: 
         entry_elem = root.find('.//entry')
         ns = {}
 
+    # If root itself is the entry element (happens when get_entry returns just the entry),
+    # use root directly
+    if entry_elem is None:
+        root_tag = root.tag
+        if root_tag == 'entry' or root_tag == '{http://fieldworks.sil.org/schemas/lift/0.13}entry':
+            entry_elem = root
+            ns = {}
+
     if entry_elem is None:
         raise ValueError("No entry element found in XML")
 
@@ -792,6 +831,14 @@ def _add_variant_relation_to_xml(xml_string: str, target_id: str, variant_type: 
         'name': 'variant-type',
         'value': variant_type
     })
+
+    # Add extra traits if provided
+    if extra_traits:
+        for name, value in extra_traits.items():
+            ET.SubElement(relation_elem, f"{relation_ns}trait", {
+                'name': name,
+                'value': str(value)
+            })
 
     # Convert back to string
     return ET.tostring(root, encoding='unicode')
@@ -835,9 +882,14 @@ def get_variant_relations(entry_id: str) -> Any:
 
         entry = entries[0]
 
+        # Get DictionaryService for reverse lookup
+        from app.services.dictionary_service import DictionaryService
+        from flask import current_app
+        dict_service = current_app.injector.get(DictionaryService)
+
         # Get both outgoing and incoming relations
         outgoing = entry.get_variant_relations()
-        incoming = entry.get_reverse_variant_relations()
+        incoming = entry.get_reverse_variant_relations(dict_service)
 
         # Add direction markers
         for v in outgoing:
@@ -895,15 +947,15 @@ def delete_variant_relation(entry_id: str, target_entry_id: str) -> Any:
         source_xml = entry_data['xml']
 
         # Try to remove the relation from source entry
-        modified_xml = _remove_variant_relation_from_xml(source_xml, target_entry_id)
+        modified_xml, source_modified = _remove_variant_relation_from_xml(source_xml, target_entry_id)
 
-        if modified_xml == source_xml:
+        if not source_modified:
             # No relation found on source, check if target has relation to source
             if xml_service.entry_exists(target_entry_id):
                 target_data = xml_service.get_entry(target_entry_id)
                 target_xml = target_data['xml']
-                modified_target_xml = _remove_variant_relation_from_xml(target_xml, entry_id)
-                if modified_target_xml != target_xml:
+                modified_target_xml, target_modified = _remove_variant_relation_from_xml(target_xml, entry_id)
+                if target_modified:
                     xml_service.update_entry(target_entry_id, modified_target_xml)
                     return jsonify({
                         'success': True,
@@ -922,7 +974,7 @@ def delete_variant_relation(entry_id: str, target_entry_id: str) -> Any:
         return jsonify({'error': str(e)}), 500
 
 
-def _remove_variant_relation_from_xml(xml_string: str, target_id: str) -> str:
+def _remove_variant_relation_from_xml(xml_string: str, target_id: str) -> tuple:
     """
     Remove a variant relation element from LIFT XML.
 
@@ -931,7 +983,7 @@ def _remove_variant_relation_from_xml(xml_string: str, target_id: str) -> str:
         target_id: ID of the target entry to remove relation for
 
     Returns:
-        Modified XML string with the relation removed (or original if not found)
+        Tuple of (modified_xml_string, was_modified)
     """
     import xml.etree.ElementTree as ET
     from app.utils.namespace_manager import LIFTNamespaceManager
@@ -953,6 +1005,14 @@ def _remove_variant_relation_from_xml(xml_string: str, target_id: str) -> str:
     if entry_elem is None:
         entry_elem = root.find('.//entry')
         ns = {}
+
+    # If root itself is the entry element (happens when get_entry returns just the entry),
+    # use root directly
+    if entry_elem is None:
+        root_tag = root.tag
+        if root_tag == 'entry' or root_tag == f'{{{ns_uri}}}entry':
+            entry_elem = root
+            ns = {}
 
     if entry_elem is None:
         raise ValueError("No entry element found in XML")
@@ -976,8 +1036,9 @@ def _remove_variant_relation_from_xml(xml_string: str, target_id: str) -> str:
                     break
 
     # Remove found relations
+    was_modified = len(relations_to_remove) > 0
     for rel in relations_to_remove:
         entry_elem.remove(rel)
 
     # Convert back to string
-    return ET.tostring(root, encoding='unicode')
+    return ET.tostring(root, encoding='unicode'), was_modified

@@ -493,6 +493,30 @@ class Entry(BaseModel):
             return next(iter(self.lexical_unit.values()))
         return ""
 
+    def get_language_list(self) -> List[str]:
+        """
+        Get list of language codes for lexical unit.
+
+        Returns:
+            List of language codes (e.g., ['en', 'pl']).
+        """
+        return list(self.lexical_unit.keys())
+
+    def get_lexical_unit(self, lang: Optional[str] = None) -> str:
+        """
+        Get lexical unit for specific language or default.
+
+        Args:
+            lang: Language code to retrieve (e.g., 'en'). If None, returns default.
+
+        Returns:
+            Lexical unit text for the specified language, or empty string if not found.
+        """
+        if lang:
+            return self.lexical_unit.get(lang, "")
+        # If no lang specified, return headword (default language)
+        return self.headword
+
     def variant_relations(self) -> List[Dict[str, Any]]:
         """
         Get variant relations for template access.
@@ -538,6 +562,19 @@ class Entry(BaseModel):
             form: Pronunciation form.
         """
         self.pronunciations[writing_system] = form
+
+    def add_relation(self, type: str, ref: str, traits: Optional[Dict[str, str]] = None, order: Optional[int] = None) -> None:
+        """
+        Add a relation to the entry.
+
+        Args:
+            type: Relation type (e.g., 'synonym', 'antonym', 'hypernym').
+            ref: Reference ID to the related entry.
+            traits: Optional dictionary of traits for the relation.
+            order: Optional order for display.
+        """
+        relation = Relation(type=type, ref=ref, traits=traits or {}, order=order)
+        self.relations.append(relation)
 
     def get_sense_by_id(self, sense_id: str) -> Optional[Any]:
         """
@@ -976,6 +1013,7 @@ class Entry(BaseModel):
                         'ref': str(relation.ref),  # Ensure string
                         'variant_type': str(relation.traits['variant-type']),  # Ensure string
                         'type': str(relation.type),  # Ensure string
+                        'traits': relation.traits if relation.traits else {},
                     }
                     
                     # Include order if available and valid
@@ -1064,9 +1102,12 @@ class Entry(BaseModel):
 
             # Query for entries with variant-type trait pointing to this entry
             # IMPORTANT: Must match the SAME relation element, not just any relation in the entry
+            # Use the current database from dict_service
+            # Use local-name() to avoid namespace issues with LIFT XML
+            db_name = dict_service.db_connector.database if hasattr(dict_service.db_connector, 'database') else 'dictionary'
             query = f"""
-                for $entry in collection('dictionary')//entry
-                where $entry/relation[@ref='{self.id}']/trait[@name='variant-type' and @value!='']
+                for $entry in collection('{db_name}')//*[local-name()='entry']
+                where $entry/*[local-name()='relation'][@ref='{self.id}']/*[local-name()='trait'][@name='variant-type' and @value!='']
                 return $entry
             """
 
@@ -1085,7 +1126,8 @@ class Entry(BaseModel):
                 parser = LIFTParser()
 
                 # Find individual entry elements in the result
-                entry_matches = re.findall(r'<entry[^>]*>.*?</entry>', result, re.DOTALL)
+                # Handle both namespace-prefixed (lift:entry) and non-prefixed (entry) elements
+                entry_matches = re.findall(r'(?:<|\<)(?:lift:)?entry[^>]*>.*?</(?:lift:)?entry>', result, re.DOTALL)
                 logger.debug("[get_reverse_variant_relations] Found %d entry matches via regex", len(entry_matches))
 
                 for entry_xml in entry_matches:

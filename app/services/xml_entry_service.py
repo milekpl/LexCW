@@ -485,7 +485,7 @@ class XMLEntryService:
             InvalidXMLError: If XML is invalid
             DatabaseConnectionError: If database operation fails
         """
-        print(f"[DEBUG] update_entry called for {entry_id}")
+        logger.debug("update_entry called for %s", entry_id)
         
         try:
             # Validate XML

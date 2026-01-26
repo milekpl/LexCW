@@ -321,7 +321,7 @@ class BackupScheduler:
                 
             # 2. Check if scheduling is enabled
             schedule_interval = backup_settings.get('schedule', 'daily')
-            if not schedule_interval or schedule_interval == 'none':
+            if not schedule_interval or schedule_interval in ('none', 'disabled'):
                 self.logger.info(f"Backup schedule disabled for {db_name}")
                 return False
                 

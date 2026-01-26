@@ -227,12 +227,13 @@ class RangesService:
     
     # --- Range CRUD ---
     
-    def get_all_ranges(self, project_id: int = 1) -> Dict[str, Any]:
+    def get_all_ranges(self, project_id: int = 1, force_reload: bool = False) -> Dict[str, Any]:
         """
         Retrieve all ranges from database and custom ranges.
 
         Args:
             project_id: Project ID for custom ranges
+            force_reload: If True, bypass cache and fetch fresh data from database
 
         Returns:
             Dict mapping range_id to range data dict with keys:
@@ -247,12 +248,13 @@ class RangesService:
         except Exception:
             pass
 
-        # Check cache first - return cached result if valid
-        cached_ranges, cached_time = self._get_cached_ranges(project_id)
-        if cached_ranges is not None:
-            self.logger.debug(f"Using cached ranges (age: {cached_time:.1f}s)")
-            # Return a copy to prevent external modification of cached data
-            return dict(cached_ranges)
+        # Check cache first - return cached result if valid (unless force_reload)
+        if not force_reload:
+            cached_ranges, cached_time = self._get_cached_ranges(project_id)
+            if cached_ranges is not None:
+                self.logger.debug(f"Using cached ranges (age: {cached_time:.1f}s)")
+                # Return a copy to prevent external modification of cached data
+                return dict(cached_ranges)
 
         # Cache miss - fetch from database
         self._ensure_connection()

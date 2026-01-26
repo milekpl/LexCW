@@ -40,6 +40,9 @@ class TestRangesEditorAPI:
     def test_get_range_returns_id_and_label(self, client: FlaskClient) -> None:
         """GET /api/ranges-editor/<id> should return id and label fields."""
         service = client.application.injector.get(RangesService)
+        # Clear the class-level cache before mocking, as autouse fixtures
+        # may have populated it with real data before this test runs
+        service._ranges_cache.clear()
         service.ranges_parser.parse_string = lambda xml: {
             'test-label-range': {
                 'id': 'test-label-range',
