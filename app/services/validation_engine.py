@@ -1752,77 +1752,228 @@ class SchematronValidator:
         self._setup_validator()
     
     def _setup_validator(self) -> None:
-        """Set up lxml Schematron validator."""
+        """Set up Schematron validator.
+
+        Prefer lxml ISO Schematron (XSLT1) when schema queryBinding allows it.
+        If schema requires XSLT2, attempt to compile and use Saxon-HE if configured.
+        """
+        schema_path = Path(self.schema_file)
+        if not schema_path.is_absolute():
+            schema_path = Path(__file__).parent.parent.parent / self.schema_file
+
+        if not schema_path.exists():
+            # Schema missing - leave validator None
+            self._validator = None
+            self._xslt2_reason = f"Schematron schema file not found: {schema_path}"
+            return
+
+        # Detect whether schema requires xslt2
         try:
-            from lxml import isoschematron, etree
-            
-            schema_path = Path(self.schema_file)
-            if not schema_path.is_absolute():
-                # Look for schema file relative to this module
-                schema_path = Path(__file__).parent.parent.parent / self.schema_file
-            
-            if not schema_path.exists():
-                raise FileNotFoundError(f"Schematron schema file not found: {schema_path}")
-            
-            # Load and compile Schematron schema
-            with open(schema_path, 'rb') as f:
-                schema_doc = etree.parse(f)
-            self._validator = isoschematron.Schematron(schema_doc)
-            
-        except ImportError:
-            # lxml is already in requirements, so this shouldn't happen
-            pass
+            from lxml import etree
+            schema_doc = etree.parse(str(schema_path))
+            root = schema_doc.getroot()
+            query_binding = root.get('queryBinding') or root.get('{http://purl.oclc.org/dsdl/schematron}queryBinding')
+            if query_binding and query_binding.strip().lower().startswith('xslt2'):
+                # XSLT2 required - try to set up Saxon-based validator
+                saxon_jar = os.getenv('SAXON_JAR')
+                xsl_path = os.getenv('SCHEMATRON_XSL', 'tools/schematron/iso_svrl_for_xslt2.xsl')
+                if not saxon_jar or not Path(saxon_jar).exists():
+                    self._validator = None
+                    self._xslt2_reason = 'xslt2_required_no_saxon'
+                    return
+
+                # Ensure the iso_svrl_for_xslt2.xsl exists or download it
+                try:
+                    self._ensure_iso_svrl_xslt2(xsl_path)
+                except Exception:
+                    self._validator = None
+                    self._xslt2_reason = 'xslt2_required_missing_iso_xsl'
+                    return
+
+                # Compile schema into an XSLT validator using Saxon
+                try:
+                    compiled_dir = Path('compiled/schematron')
+                    compiled_dir.mkdir(parents=True, exist_ok=True)
+                    compiled_xsl = compiled_dir / (schema_path.stem + '.xsl')
+
+                    # Recompile if missing or schema changed
+                    if not compiled_xsl.exists() or compiled_xsl.stat().st_mtime < schema_path.stat().st_mtime:
+                        cmd = [
+                            'java', '-jar', saxon_jar,
+                            f'-s:{schema_path}',
+                            f'-xsl:{xsl_path}',
+                            f'-o:{compiled_xsl}'
+                        ]
+                        import subprocess
+                        subprocess.run(cmd, check=True, timeout=60)
+
+                    # Mark validator as Saxon-based
+                    self._validator = ('saxon', str(compiled_xsl))
+                    self._saxon_jar = saxon_jar
+                    return
+
+                except Exception:
+                    self._validator = None
+                    self._xslt2_reason = 'xslt2_compile_failed'
+                    return
+
+            # Fallback: try lxml isoschematron if available
+            try:
+                from lxml import isoschematron
+                self._validator = isoschematron.Schematron(schema_doc)
+                return
+            except Exception:
+                self._validator = None
+                self._xslt2_reason = 'lxml_schematron_unavailable'
+                return
+
         except Exception:
-            # If setup fails, validator will be None and validate_xml will handle it
-            pass
+            # Any parsing/setup error -> leave validator None
+            self._validator = None
+            self._xslt2_reason = 'schematron_setup_error'
+            return
+
+    def _ensure_iso_svrl_xslt2(self, xsl_path: str) -> None:
+        """Ensure the ISO SVRL XSLT2 stylesheet exists locally.
+
+        If it's not present, attempt to download it from the canonical Schematron repository.
+        """
+        from urllib.request import urlretrieve
+
+        xsl_file = Path(xsl_path)
+        if xsl_file.exists():
+            return
+
+        # Ensure parent dir exists
+        xsl_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Canonical remote URL (raw content of iso_svrl_for_xslt2.xsl)
+        url = os.getenv('SCHEMATRON_ISO_XSL_URL', 'https://raw.githubusercontent.com/Schematron/schematron/master/trunk/iso-schematron-xslt2/iso_svrl_for_xslt2.xsl')
+        urlretrieve(url, str(xsl_file))
+        if not xsl_file.exists():
+            raise RuntimeError('Failed to download iso_svrl_for_xslt2.xsl')
     
     def validate_xml(self, xml_content: str) -> ValidationResult:
         """
         Validate XML content against Schematron rules.
-        
+
         Args:
             xml_content: XML string to validate
-            
+
         Returns:
             ValidationResult with any Schematron violations
         """
         try:
             from lxml import etree
-            
+
             if self._validator is None:
-                # Try to set up validator again
                 self._setup_validator()
                 if self._validator is None:
-                    raise RuntimeError("Schematron validator not initialized")
-            
-            # Parse XML content
-            xml_doc = etree.fromstring(xml_content.encode('utf-8'))
-            
-            # Validate
-            is_valid = self._validator.validate(xml_doc)
-            
+                    # Provide a clear reason why Schematron validator isn't initialized
+                    reason = getattr(self, '_xslt2_reason', 'not_configured')
+                    return ValidationResult(False, [
+                        ValidationError(
+                            rule_id="SCHEMATRON_ERROR",
+                            rule_name="schematron_setup",
+                            message=f"Schematron validator not initialized: {reason}",
+                            path="",
+                            priority=ValidationPriority.CRITICAL,
+                            category=ValidationCategory.ENTRY_LEVEL
+                        )
+                    ], [], [])
+
             errors: List[ValidationError] = []
             warnings: List[ValidationError] = []
             info: List[ValidationError] = []
-            
-            # Process validation errors
+
+            # Saxon-based validator (XSLT2)
+            if isinstance(self._validator, tuple) and self._validator[0] == 'saxon':
+                compiled_xsl = self._validator[1]
+                saxon_jar = getattr(self, '_saxon_jar', None)
+                if not saxon_jar or not Path(saxon_jar).exists():
+                    return ValidationResult(False, [
+                        ValidationError(
+                            rule_id="SCHEMATRON_ERROR",
+                            rule_name="saxon_not_available",
+                            message="Saxon JAR not available for XSLT2 Schematron validation",
+                            path="",
+                            priority=ValidationPriority.CRITICAL,
+                            category=ValidationCategory.ENTRY_LEVEL
+                        )
+                    ], [], [])
+
+                import subprocess
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(mode='w+', suffix='.xml', delete=False) as xml_file:
+                    xml_file.write(xml_content)
+                    xml_path = xml_file.name
+
+                with tempfile.NamedTemporaryFile(mode='w+', suffix='.svrl.xml', delete=False) as svrl_file:
+                    svrl_path = svrl_file.name
+
+                try:
+                    cmd = ['java', '-jar', saxon_jar, f'-s:{xml_path}', f'-xsl:{compiled_xsl}', f'-o:{svrl_path}']
+                    subprocess.run(cmd, check=True, timeout=30)
+
+                    svrl_doc = etree.parse(svrl_path)
+                    ns = {'svrl': 'http://purl.oclc.org/dsdl/svrl'}
+                    for failed in svrl_doc.findall('.//svrl:failed-assert', namespaces=ns):
+                        text_el = failed.find('svrl:text', namespaces=ns)
+                        msg = text_el.text if text_el is not None else ''.join(failed.itertext())
+                        location = failed.get('location') or ''
+                        errors.append(ValidationError(
+                            rule_id=self._extract_rule_id(msg),
+                            rule_name='schematron_validation',
+                            message=msg.strip(),
+                            path=location,
+                            priority=ValidationPriority.CRITICAL,
+                            category=ValidationCategory.ENTRY_LEVEL
+                        ))
+
+                    is_valid = len(errors) == 0
+                    return ValidationResult(is_valid, errors, warnings, info)
+
+                except subprocess.CalledProcessError as e:
+                    return ValidationResult(False, [
+                        ValidationError(
+                            rule_id="SCHEMATRON_ERROR",
+                            rule_name="saxon_error",
+                            message=f"Saxon execution failed: {str(e)}",
+                            path="",
+                            priority=ValidationPriority.CRITICAL,
+                            category=ValidationCategory.ENTRY_LEVEL
+                        )
+                    ], [], [])
+
+                finally:
+                    try:
+                        Path(xml_path).unlink()
+                    except Exception:
+                        pass
+                    try:
+                        Path(svrl_path).unlink()
+                    except Exception:
+                        pass
+
+            # lxml-based validator
+            xml_doc = etree.fromstring(xml_content.encode('utf-8'))
+            is_valid = self._validator.validate(xml_doc)
             if not is_valid:
                 error_log = self._validator.error_log
                 for error in error_log:
-                    error_obj = ValidationError(
+                    errors.append(ValidationError(
                         rule_id=self._extract_rule_id(str(error.message)),
-                        rule_name="schematron_validation",
+                        rule_name='schematron_validation',
                         message=str(error.message),
-                        path=f"line {error.line}" if error.line else "",
+                        path=f'line {error.line}' if error.line else '',
                         priority=ValidationPriority.CRITICAL,
                         category=ValidationCategory.ENTRY_LEVEL
-                    )
-                    errors.append(error_obj)
-            
+                    ))
+
             return ValidationResult(is_valid, errors, warnings, info)
-            
+
         except Exception as e:
-            # Return validation error for setup/parsing issues
             return ValidationResult(False, [
                 ValidationError(
                     rule_id="SCHEMATRON_ERROR",
