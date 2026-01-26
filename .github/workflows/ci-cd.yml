@@ -1,11 +1,10 @@
 # GitHub Actions CI/CD Pipeline for Lexicographic Curation Workbench
 name: CI/CD Pipeline
 
+# NOTE: Automatic triggers disabled to avoid expensive runs until CI is reconfigured.
+# Use manual dispatch (workflow_dispatch) to run the pipeline during maintenance.
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   test-basex-manual:

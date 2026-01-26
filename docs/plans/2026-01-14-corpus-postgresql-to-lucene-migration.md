@@ -1,5 +1,7 @@
 # Corpus PostgreSQL to Lucene Migration Plan
 
+> **DEPRECATED:** The PostgreSQL-based `CorpusMigrator` has been removed from the codebase (see changelog). Corpus data and corpus-related endpoints now use Lucene services; this document is retained for historical context and planning reference.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Migrate all corpus-related PostgreSQL queries to use Lucene, removing dependency on `parallel_corpus` table. Keep PostgreSQL only for worksets and project settings.

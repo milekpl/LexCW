@@ -1,5 +1,7 @@
 # Word Sketch Lucene Migration Plan
 
+> **NOTE:** PostgreSQL-based corpus migration utilities (e.g. `CorpusMigrator`) have been removed. Use the Lucene corpus service for concordance, counts, and word-sketch functionality.
+
 ## Overview
 
 Port the word-sketch system from the standalone Python implementation (`/mnt/d/git/word-sketch`) to Lucene for faster pattern matching on the 74M sentence corpus.
