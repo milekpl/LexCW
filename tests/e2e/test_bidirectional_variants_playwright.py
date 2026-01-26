@@ -297,9 +297,20 @@ class TestVariantSubentryFiltering:
 class TestVariantRelationDisplay:
     """Test display of variant relations in various scenarios."""
 
-    def test_no_variants_shows_empty_state(self, page: Page, app_url, two_test_entries):
+    def test_no_variants_shows_empty_state(self, page: Page, app_url):
         """Entry with no variants should show empty state."""
-        main_id, variant_id = two_test_entries
+        # Create a fresh entry that has no variants
+        import requests
+        base_url = app_url
+        main_entry = {
+            "id": "e2e_no_variant_main",
+            "lexical_unit": {"en": "standalone"},
+            "senses": [{"id": "s1", "definition": {"en": "isolated"}}]
+        }
+        r = requests.post(f"{base_url}/api/entries/", json=main_entry, headers={"Content-Type": "application/json"})
+        if r.status_code not in (200, 201):
+            pytest.fail(f"Failed to create entry for no-variant test: {r.status_code} {r.text}")
+        main_id = main_entry["id"]
 
         # Navigate to edit page - no variants yet
         page.goto(f'{app_url}/entries/{main_id}/edit')

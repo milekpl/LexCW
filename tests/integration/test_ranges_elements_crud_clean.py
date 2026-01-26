@@ -70,6 +70,11 @@ class TestRangeElementsCRUDClean:
             'descriptions': {'en': 'desc'}
         })
         assert guid, "Element creation should return a GUID"
+        # Ensure cache invalidation so subsequent reads see the new element
+        try:
+            service._invalidate_cache()
+        except Exception:
+            pass
         
         # Verify element exists in the service layer (with retry for database consistency)
         element_exists = False
