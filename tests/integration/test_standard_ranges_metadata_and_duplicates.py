@@ -23,16 +23,17 @@ def test_standard_ranges_config_does_not_duplicate_and_label_fallback(client, ap
         }
     }
 
-    # Save original method and cache
-    original_get_all_ranges = service.get_all_ranges
+    # Save original parser and db_execute so we can simulate parsed LIFT without touching files
+    original_parse = service.ranges_parser.parse_string
+    original_execute = service.db_connector.execute_query
     original_cache = service._ranges_cache.copy() if hasattr(service, '_ranges_cache') else {}
 
     try:
-        # Mock the method and populate cache
-        service.get_all_ranges = lambda *args, **kwargs: test_range_data
-        service._ranges_cache = {'variant-type': test_range_data['variant-type']}
-
-        ranges = service.get_all_ranges()
+        # Simulate the DB returning a lift-ranges document and parser returning our test data
+        service.db_connector.execute_query = lambda q: '<lift-ranges />'
+        service.ranges_parser.parse_string = lambda s: test_range_data
+        # Force reload to exercise metadata merging
+        ranges = service.get_all_ranges(force_reload=True)
 
         # There should be exactly one key for variant-type (no duplicate singular/plural)
         assert 'variant-type' in ranges
@@ -44,8 +45,9 @@ def test_standard_ranges_config_does_not_duplicate_and_label_fallback(client, ap
         # Provided_by_config should not be True for the same range when LIFT provides it
         assert not ranges['variant-type'].get('provided_by_config', False)
     finally:
-        # Restore original method and cache
-        service.get_all_ranges = original_get_all_ranges
+        # Restore original parser, db_execute and cache
+        service.ranges_parser.parse_string = original_parse
+        service.db_connector.execute_query = original_execute
         if hasattr(service, '_ranges_cache'):
             service._ranges_cache = original_cache
 
@@ -64,20 +66,21 @@ def test_config_not_applied_when_lift_has_same_range(client, app):
         }
     }
 
-    # Save original method and cache
-    original_get_all_ranges = service.get_all_ranges
+    # Save original parser and db_execute so we can simulate parsed LIFT without touching files
+    original_parse = service.ranges_parser.parse_string
+    original_execute = service.db_connector.execute_query
     original_cache = service._ranges_cache.copy() if hasattr(service, '_ranges_cache') else {}
 
     try:
-        # Mock the method and populate cache
-        service.get_all_ranges = lambda *args, **kwargs: test_range_data
-        service._ranges_cache = {'complex-form-type': test_range_data['complex-form-type']}
-
-        ranges = service.get_all_ranges()
+        # Simulate DB + parser returning our test data and force reload
+        service.db_connector.execute_query = lambda q: '<lift-ranges />'
+        service.ranges_parser.parse_string = lambda s: test_range_data
+        ranges = service.get_all_ranges(force_reload=True)
         assert 'complex-form-type' in ranges
         assert ranges['complex-form-type'].get('provided_by_config', False) is False
     finally:
         # Restore original method and cache
-        service.get_all_ranges = original_get_all_ranges
+        service.ranges_parser.parse_string = original_parse
+        service.db_connector.execute_query = original_execute
         if hasattr(service, '_ranges_cache'):
             service._ranges_cache = original_cache

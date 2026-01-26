@@ -20,12 +20,7 @@ class TestRangeElementsCRUDClean:
 
     @pytest.fixture
     def test_range_id(self, client: Flask) -> str:
-        response = client.get('/api/ranges-editor/')
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            ranges = data.get('data', {})
-            if ranges:
-                return list(ranges.keys())[0]
+        # Use a deterministic standard range to avoid flakiness
         return 'grammatical-info'
 
     def test_create_and_get(self, client: FlaskClient, test_range_id: str) -> None:
