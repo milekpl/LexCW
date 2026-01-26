@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 from playwright.sync_api import Page, expect
+import re
 
 
 @pytest.fixture(scope="function")
@@ -141,7 +142,7 @@ class TestBidirectionalVariantUI:
         # Check for Add Variant button
         add_btn = page.locator("#add-variant-btn")
         expect(add_btn).to_be_visible()
-        expect(add_btn).to_have_text(/Add Variant/i)
+        expect(add_btn).to_have_text(re.compile("Add Variant", re.I))
 
     def test_variants_not_in_subentries_section(self, page: Page, app_url, entry_with_incoming_variant):
         """Regression test: Entries with variant-type relations should NOT appear in subentries."""
