@@ -87,3 +87,5 @@ tests/e2e/test_data/large_files/WritingSystems
 tests/e2e/test_data/large_files/WritingSystems/en.ldml
 tests/e2e/test_data/large_files/WritingSystems/pl.ldml
 tests/e2e/test_data/large_files/WritingSystems/seh-fonipa.ldml
+# Ignore large test corpus files
+tests/e2e/test_data/large_files/*.lift
