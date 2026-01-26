@@ -173,7 +173,7 @@ def get_specific_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
     try:
         # Get dictionary service using dependency injection
         dict_service = current_app.injector.get(DictionaryService)
-        print(f"\nDEBUG: get_range hit for {range_id}")
+        current_app.logger.debug("get_range hit for %s", range_id)
         # Accept `resolved` query param for resolved view
         resolved_param = (request.args.get('resolved') or '').lower()
         resolved = resolved_param in ('1', 'true', 'yes')

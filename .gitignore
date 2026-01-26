@@ -81,3 +81,9 @@ cookies.txt
 main/FlexTools/g2p_output/byt5_checkpoints
 main/FlexTools/g2p_output/byt5_checkpoints/final_model
 main/FlexTools/g2p_output/byt5_checkpoints/final_model/special_tokens_map.jsontests/e2e/test_data/large_files/
+tests/e2e/test_data/large_files/full.lift
+tests/e2e/test_data/large_files/full.lift-ranges
+tests/e2e/test_data/large_files/WritingSystems
+tests/e2e/test_data/large_files/WritingSystems/en.ldml
+tests/e2e/test_data/large_files/WritingSystems/pl.ldml
+tests/e2e/test_data/large_files/WritingSystems/seh-fonipa.ldml

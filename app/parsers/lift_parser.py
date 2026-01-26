@@ -1045,26 +1045,26 @@ class LIFTRangesParser:
         return self._parse_ranges(ET.parse(file_path).getroot())
 
     def parse_string(self, xml_string: str) -> Dict[str, Dict[str, Any]]:
-        print(f"DEBUG: LIFTRangesParser.parse_string called with XML length {len(xml_string)}")
+        self.logger.debug("LIFTRangesParser.parse_string called with XML length %s", len(xml_string))
         # Handle multiple roots if concatenated
         if not xml_string.strip().startswith('<lift-ranges') and not xml_string.strip().startswith('<?xml'):
              xml_string = f"<root>{xml_string}</root>"
-             print("DEBUG: Wrapped in <root> (no lift-ranges header)")
+             self.logger.debug("Wrapped in <root> (no lift-ranges header)")
         elif xml_string.strip().count('<lift-ranges') > 1:
              xml_string = f"<root>{xml_string}</root>"
-             print("DEBUG: Wrapped in <root> (multiple lift-ranges)")
+             self.logger.debug("Wrapped in <root> (multiple lift-ranges)")
              
         try:
             res = self._parse_ranges(ET.fromstring(xml_string))
-            print(f"DEBUG: _parse_ranges returned {len(res)} results")
+            self.logger.debug("_parse_ranges returned %d results", len(res))
             if 'variant-type' in res:
                 v_values = res['variant-type'].get('values', [])
-                print(f"DEBUG: variant-type values count: {len(v_values)}")
+                self.logger.debug("variant-type values count: %d", len(v_values))
                 if len(v_values) == 0:
-                     print(f"DEBUG: variant-type is EMPTY in parsed_ranges")
+                     self.logger.debug("variant-type is EMPTY in parsed_ranges")
             return res
         except ET.ParseError as e:
-            print(f"DEBUG: ParseError in parse_string: {e}")
+            self.logger.debug("ParseError in parse_string: %s", e)
             try:
                 wrapped = f"<root>{xml_string}</root>"
                 return self._parse_ranges(ET.fromstring(wrapped))
@@ -1137,10 +1137,10 @@ class LIFTRangesParser:
     def _parse_range_hierarchy(self, parent: ET.Element, range_id: str) -> List[Dict[str, Any]]:
         """Parse range hierarchy (parent-based or nested)."""
         all_elements = self._find_elements(parent, './/lift:range-element')
-        print(f"DEBUG: _parse_range_hierarchy for {range_id}, total elements found: {len(all_elements)}")
+        self.logger.debug("_parse_range_hierarchy for %s, total elements found: %d", range_id, len(all_elements))
         
         if any(e.get('parent') for e in all_elements):
-            print(f"DEBUG: Using parent-based hierarchy for {range_id}")
+            self.logger.debug("Using parent-based hierarchy for %s", range_id)
             return self._parse_parent_based(parent, range_id)
         
         # Check for nested hierarchy (range-element inside range-element)
@@ -1148,10 +1148,10 @@ class LIFTRangesParser:
         has_nested = any(self._find_elements(elem, './lift:range-element') for elem in direct_elements)
         
         if has_nested:
-            print(f"DEBUG: Using nested hierarchy for {range_id}")
+            self.logger.debug("Using nested hierarchy for %s", range_id)
             return self._parse_nested_hierarchy(parent, range_id)
         else:
-            print(f"DEBUG: Using direct hierarchy for {range_id}, direct count: {len(direct_elements)}")
+            self.logger.debug("Using direct hierarchy for %s, direct count: %d", range_id, len(direct_elements))
             return [self._parse_range_element(e, range_id) for e in direct_elements]
 
     def _parse_nested_hierarchy(self, parent: ET.Element, range_id: str) -> List[Dict[str, Any]]:

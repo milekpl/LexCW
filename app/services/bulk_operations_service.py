@@ -52,12 +52,12 @@ class BulkOperationsService:
         results = []
 
         for entry_id in entry_ids:
-            print(f"=== DEBUG: Processing entry_id={entry_id} ===")
+            logger.debug("Processing entry_id=%s", entry_id)
             try:
                 entry = self.dictionary.get_entry(entry_id)
-                print(f"=== DEBUG: get_entry returned type={type(entry).__name__} for {entry_id} ===")
+                logger.debug("get_entry returned type=%s for %s", type(entry).__name__, entry_id)
             except NotFoundError:
-                print(f"=== DEBUG: NotFoundError for {entry_id} ===")
+                logger.debug("NotFoundError for %s", entry_id)
                 results.append({
                     'id': entry_id,
                     'status': 'error',
@@ -75,7 +75,7 @@ class BulkOperationsService:
                 })
                 continue
 
-            print(f"=== DEBUG: entry={entry}, id(entry)={id(entry) if entry else None} ===")
+            logger.debug("entry=%s, id(entry)=%s", entry, id(entry) if entry else None)
             try:
                 if entry:
                     old_value = entry.traits.get(from_trait)
