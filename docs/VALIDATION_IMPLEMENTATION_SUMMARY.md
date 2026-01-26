@@ -19,7 +19,7 @@ Successfully implemented a centralized validation system that replaces scattered
    - ✅ Comprehensive validation result reporting
 
 2. **SchematronValidator** (`app/services/validation_engine.py`)
-   - ✅ PySchematron integration for XML validation
+   - ✅ Schematron validation via `lxml` (ISO Schematron) for XML validation
    - ✅ LIFT XML schema validation
    - ✅ Error mapping to ValidationResult format
 

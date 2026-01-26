@@ -13,7 +13,7 @@ The centralized validation system has been successfully implemented, replacing s
 
 #### 1. Core Validation Engine (`app/services/validation_engine.py`)
 - ✅ **ValidationEngine**: Centralized JSON validation with rule loading
-- ✅ **SchematronValidator**: XML validation using PySchematron
+- ✅ **SchematronValidator**: XML validation using `lxml` ISO Schematron support
 - ✅ **Custom validation functions**: For complex rules (language codes, note types, etc.)
 - ✅ **Rule categorization**: Critical, Warning, Informational priorities
 - ✅ **JSONPath support**: For declarative field path validation

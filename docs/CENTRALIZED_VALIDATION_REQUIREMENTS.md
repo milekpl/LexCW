@@ -7,7 +7,7 @@ This document consolidates all validation requirements for the Lexicographic Cur
 ## Validation Architecture
 
 ### Central Validation System
-- **XML Validation**: PySchematron with LIFT-specific Schematron rules
+- **XML Validation**: Schematron (ISO Schematron) using `lxml` with LIFT-specific Schematron rules
 - **JSON Validation**: Jsontron-inspired custom validation engine
 - **Single Source of Truth**: All validation rules defined in central configuration files
 - **Dynamic Rule Loading**: Rules loaded from configuration, not hardcoded in models

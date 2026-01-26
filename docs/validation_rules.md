@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines comprehensive validation rules for the Lexicographic Curation Workbench (LCW) based on the existing codebase analysis and the refactoring specification. These rules will be implemented using PySchematron for server-side validation and a custom client-side validation system.
+This document outlines comprehensive validation rules for the Lexicographic Curation Workbench (LCW) based on the existing codebase analysis and the refactoring specification. These rules will be implemented using Schematron (ISO Schematron) via `lxml` for server-side XML validation and a custom client-side validation system.
 
 ## Core Validation Rules
 
