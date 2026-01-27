@@ -73,6 +73,18 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### 3.1 Node (for e2e tests)
+If you intend to run the Playwright end-to-end tests, install Node dependencies and download the Playwright browsers. Note that the `node_modules/` directory is ignored by Git (run `npm ci` after cloning to populate it).
+
+```bash
+# Install Node dependencies (deterministic install)
+npm ci
+
+# Install Playwright browsers (Chromium, Firefox, WebKit)
+# Use --with-deps on Linux to ensure system packages are installed
+npx playwright install --with-deps chromium firefox webkit
+```
+
 ### 4. Configure environment variables
 Copy the example environment file and update the settings:
 ```bash
