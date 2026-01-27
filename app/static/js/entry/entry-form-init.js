@@ -117,55 +117,66 @@
      */
     function initDeleteButton(entriesUrl) {
         const deleteBtn = document.getElementById('delete-entry-btn');
-        const deleteWarning = document.getElementById('delete-warning');
+        const confirmBtn = document.getElementById('confirm-delete-btn');
+        const cancelBtn = document.getElementById('cancel-delete-btn');
 
         if (!deleteBtn) return;
 
+        // First click: show confirmation buttons
         deleteBtn.addEventListener('click', function() {
-            if (!deleteWarning.classList.contains('visible')) {
-                // First click: show warning
-                deleteWarning.classList.add('visible');
-                deleteBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> CONFIRM DELETE';
-                deleteBtn.classList.remove('btn-outline-danger');
-                deleteBtn.classList.add('btn-danger');
-            } else {
-                // Second click: proceed with deletion
-                if (confirm('Are you sure you want to permanently delete this entry? This action cannot be undone.')) {
-                    const entryId = DictionaryApp?.config?.entryId;
-                    const csrfToken = DictionaryApp?.config?.csrfToken;
-
-                    if (entryId) {
-                        const headers = { 'Content-Type': 'application/json' };
-                        if (csrfToken) {
-                            headers['X-CSRF-TOKEN'] = csrfToken;
-                        }
-
-                        fetch(`/api/entries/${entryId}`, {
-                            method: 'DELETE',
-                            headers: headers
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                window.location.href = entriesUrl;
-                            } else {
-                                alert('Error deleting entry: ' + (data.error || 'Unknown error'));
-                            }
-                        })
-                        .catch(error => {
-                            Logger.error('Error deleting entry:', error);
-                            alert('Error deleting entry. Please try again.');
-                        });
-                    }
-                } else {
-                    // Cancel: reset button state
-                    deleteWarning.classList.remove('visible');
-                    deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> DELETE ENTRY';
-                    deleteBtn.classList.remove('btn-danger');
-                    deleteBtn.classList.add('btn-outline-danger');
-                }
-            }
+            deleteBtn.style.display = 'none';
+            if (confirmBtn) confirmBtn.style.display = 'inline-block';
+            if (cancelBtn) cancelBtn.style.display = 'inline-block';
         });
+
+        // Cancel button: hide confirmation buttons
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                deleteBtn.style.display = 'inline-block';
+                confirmBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
+            });
+        }
+
+        // Confirm button: proceed with deletion
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', function() {
+                const entryId = DictionaryApp?.config?.entryId;
+                const csrfToken = DictionaryApp?.config?.csrfToken;
+
+                if (entryId) {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (csrfToken) {
+                        headers['X-CSRF-TOKEN'] = csrfToken;
+                    }
+
+                    fetch(`/api/entries/${entryId}`, {
+                        method: 'DELETE',
+                        headers: headers
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = entriesUrl;
+                        } else {
+                            alert('Error deleting entry: ' + (data.error || 'Unknown error'));
+                            // Reset buttons on error
+                            deleteBtn.style.display = 'inline-block';
+                            confirmBtn.style.display = 'none';
+                            cancelBtn.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        Logger.error('Error deleting entry:', error);
+                        alert('Error deleting entry. Please try again.');
+                        // Reset buttons on error
+                        deleteBtn.style.display = 'inline-block';
+                        confirmBtn.style.display = 'none';
+                        cancelBtn.style.display = 'none';
+                    });
+                }
+            });
+        }
     }
 
     // Export for module systems
