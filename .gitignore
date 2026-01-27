@@ -65,7 +65,7 @@ sample_3
 '/home/milek/backup_dir/**
 app/app/static/backup/**
 app/static/backup/**
-node_modules
+node_modules/**
 .basex.pid
 .basexlogs/
 .worktrees/
@@ -92,3 +92,5 @@ tests/e2e/test_data/large_files/*.lift
 
 # Schematron compiled XSLT
 compiled/schematron/
+node_modules/@asamuzakjp/css-color/LICENSE
+node_modules/@sinclair/typebox/license
