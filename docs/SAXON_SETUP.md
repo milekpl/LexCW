@@ -14,19 +14,28 @@ Quick setup (local):
 
    This places `saxon-he.jar` in `tools/saxon/` by default. You can override the version with `SAXON_VERSION`.
 
-2. Set `SAXON_JAR` environment variable, e.g.: 
+2. Set `SAXON_JAR` (and `XMLRESOLVER_JAR`) environment variables, e.g.: 
 
    ```bash
    export SAXON_JAR=$(pwd)/tools/saxon/saxon-he.jar
+   export XMLRESOLVER_JAR=$(pwd)/tools/saxon/xmlresolver-6.0.21.jar
    ```
 
-3. Run tests that require Saxon (integration tests):
+3. Ensure the ISO SVRL XSLT2 stylesheet is available and valid.
+   - By default the validator will try to download `tools/schematron/iso_svrl_for_xslt2.xsl` from the canonical Schematron repo. If that download fails (404 or network blocked) you can provide a local copy or set:
+
+   ```bash
+   export SCHEMATRON_ISO_XSL_URL="https://your-mirror/iso_svrl_for_xslt2.xsl"
+   ```
+
+4. Run tests that require Saxon (integration tests):
 
    ```bash
    export SAXON_JAR=${SAXON_JAR}
+   export XMLRESOLVER_JAR=${XMLRESOLVER_JAR}
    pytest tests/integration/test_schematron_saxon_integration.py -q
    ```
 
 Notes:
-- The Schematron validator will auto-download `iso_svrl_for_xslt2.xsl` if missing (from the canonical Schematron repo), unless `SCHEMATRON_ISO_XSL_URL` is set to an alternate URL.
-- In CI, add a job to download Saxon and set `SAXON_JAR` to run these integration tests.
+- The integration tests will be skipped if `SAXON_JAR` is not configured or if the ISO SVRL XSLT2 stylesheet is not available/invalid; see the test output for skip reasons.
+- In CI, add a job to download Saxon and `xmlresolver` and set `SAXON_JAR` and `XMLRESOLVER_JAR` to run these integration tests.

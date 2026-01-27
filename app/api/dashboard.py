@@ -15,6 +15,10 @@ from app.services.cache_service import CacheService
 dashboard_bp = Blueprint('dashboard_api', __name__, url_prefix='/dashboard')
 logger = logging.getLogger(__name__)
 
+# Unified cache key for dashboard stats
+DASHBOARD_CACHE_KEY = 'dashboard_stats_v2'
+OLD_CACHE_KEYS = ['dashboard_stats', 'dashboard_stats_api']
+
 
 @dashboard_bp.route('/stats', methods=['GET'])
 def get_dashboard_stats():
@@ -78,11 +82,20 @@ def get_dashboard_stats():
               description: Error message
     """
     try:
-        # Try to get cached data first
+        # Try to get cached data first (new key, then old keys for migration)
         cache = CacheService()
-        cache_key = 'dashboard_stats_api'
+        cache_key = DASHBOARD_CACHE_KEY
         if cache.is_available():
             cached_data = cache.get(cache_key)
+            # Try old keys for cache migration
+            if not cached_data:
+                for old_key in OLD_CACHE_KEYS:
+                    cached_data = cache.get(old_key)
+                    if cached_data:
+                        # Migrate to new key
+                        cache.set(cache_key, cached_data, ttl=300)
+                        logger.info("Migrated dashboard cache from '%s' to '%s'", old_key, cache_key)
+                        break
             if cached_data:
                 logger.info("Returning cached dashboard stats from API")
                 return jsonify({
@@ -172,8 +185,10 @@ def clear_dashboard_cache():
     try:
         cache = CacheService()
         if cache.is_available():
-            cache.delete('dashboard_stats')
-            cache.delete('dashboard_stats_api')
+            # Delete new key and all old keys for complete cache invalidation
+            cache.delete(DASHBOARD_CACHE_KEY)
+            for old_key in OLD_CACHE_KEYS:
+                cache.delete(old_key)
             logger.info("Dashboard stats cache cleared")
             return jsonify({
                 'success': True,

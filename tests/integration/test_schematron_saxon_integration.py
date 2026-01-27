@@ -23,6 +23,21 @@ def test_schematron_xslt2_with_saxon(tmp_path: Path):
   <pattern id="p"><rule context="/"><assert test="matches(., 'foo')">R1.1 Violation</assert></rule></pattern>
 </schema>''')
 
+    # Ensure the ISO SVRL XSLT2 stylesheet is available; skip if it's not downloadable or invalid
+    validator = SchematronValidator()
+    xsl_path = os.getenv('SCHEMATRON_XSL', 'tools/schematron/iso_svrl_for_xslt2.xsl')
+    try:
+        validator._ensure_iso_svrl_xslt2(xsl_path)
+    except Exception as e:
+        pytest.skip(f'iso_svrl_for_xslt2.xsl not available: {e}')
+
+    # Quick sanity check: ensure XSL parses as XML
+    from lxml import etree
+    try:
+        etree.parse(xsl_path)
+    except Exception as e:
+        pytest.skip(f'iso_svrl_for_xslt2.xsl is invalid: {e}')
+
     validator = SchematronValidator(schema_file=str(schema_file))
 
     # Validator should be configured as saxon-based

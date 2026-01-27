@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 main_bp = Blueprint("main", __name__)
 workbench_bp = Blueprint("workbench", __name__, url_prefix="/workbench")
 
+# Unified cache key for dashboard stats (must match dashboard.py)
+DASHBOARD_CACHE_KEY = 'dashboard_stats_v2'
+OLD_CACHE_KEYS = ['dashboard_stats', 'dashboard_stats_api']
+
 
 @main_bp.app_template_global()
 def safe_url_for(endpoint: str, **values: object) -> str:
@@ -150,11 +154,20 @@ def index():
         },
     ]
 
-    # Try to get cached dashboard data first
+    # Try to get cached dashboard data first (new key, then old keys for migration)
     cache = CacheService()
-    cache_key = "dashboard_stats"
+    cache_key = DASHBOARD_CACHE_KEY
     if cache.is_available():
         cached_data = cache.get(cache_key)
+        # Try old keys for cache migration
+        if not cached_data:
+            for old_key in OLD_CACHE_KEYS:
+                cached_data = cache.get(old_key)
+                if cached_data:
+                    # Migrate to new key
+                    cache.set(cache_key, cached_data, ttl=300)
+                    logger.info("Migrated dashboard cache from '%s' to '%s'", old_key, cache_key)
+                    break
         if cached_data:
             try:
                 cached_stats = json.loads(cached_data)

@@ -25,6 +25,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.omc/**
 
 # Flask
 instance/
@@ -94,3 +95,4 @@ tests/e2e/test_data/large_files/*.lift
 compiled/schematron/
 node_modules/@asamuzakjp/css-color/LICENSE
 node_modules/@sinclair/typebox/license
+.omc/ultrawork-state.json

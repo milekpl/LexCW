@@ -1,435 +1,61 @@
-"""
-High-performance corpus migrator with CSV export, PostgreSQL COPY, and TMX support.
-Designed for massive parallel corpora (74M+ records) with optimal performance.
+"""Deprecated shim: CorpusMigrator removed.
+
+This module used to contain PostgreSQL-based corpus migration utilities.
+It has been replaced by Lucene-based corpus services. The dataclass
+`MigrationStats` is retained for compatibility, but instantiating
+`CorpusMigrator` will raise an `ImportError` explaining the removal.
 """
 from __future__ import annotations
 
-import argparse
-import csv
-import logging
-import sqlite3
-import tempfile
-import time
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Generator, Optional, Tuple, Dict, Any
-import xml.etree.ElementTree as ET
-
-import psycopg2
-import psycopg2.extras
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-
-from .postgresql_connector import PostgreSQLConfig
+from typing import Optional
 
 
 @dataclass
 class MigrationStats:
-    """Statistics for migration operations."""
+    """Compatibility dataclass for migration statistics (deprecated)."""
     records_processed: int = 0
     records_exported: int = 0
     records_imported: int = 0
     errors_count: int = 0
     start_time: Optional[float] = None
     end_time: Optional[float] = None
-    
+
     @property
     def duration(self) -> Optional[float]:
-        """Get migration duration in seconds."""
         if self.start_time and self.end_time:
             return self.end_time - self.start_time
         return None
-    
-    @property
-    def records_per_second(self) -> Optional[float]:
-        """Get processing rate in records per second."""
-        if self.duration and self.duration > 0:
-            return self.records_processed / self.duration
-        return None
-
-
-class TextCleaner:
-    """Generator-based text cleaning for memory efficiency."""
-    
-    @staticmethod
-    def clean_text(text: str) -> str:
-        """Clean and normalize text for database storage."""
-        if not text:
-            return ""
-        
-        # Remove null bytes and other problematic characters
-        text = text.replace('\x00', '')
-        
-        # Normalize whitespace
-        text = ' '.join(text.split())
-        
-        # Ensure proper encoding
-        if isinstance(text, bytes):
-            text = text.decode('utf-8', errors='replace')
-        
-        return text.strip()
-    
-    @classmethod
-    def clean_record_generator(cls, records: Generator[Tuple[str, str], None, None]) -> Generator[Tuple[str, str], None, None]:
-        """Generator that cleans records on-the-fly."""
-        for source, target in records:
-            yield cls.clean_text(source), cls.clean_text(target)
-
-
-class TMXParser:
-    """TMX file parser for translation memory exchange format."""
-    
-    @staticmethod
-    def _extract_text_from_tuv(tuv: ET.Element, target_lang: str) -> Optional[str]:
-        """Extract text from TMX tuv element."""
-        lang = tuv.get('{http://www.w3.org/XML/1998/namespace}lang')
-        if not lang:
-            lang = tuv.get('lang')
-        
-        if lang == target_lang:
-            seg = tuv.find('seg')
-            if seg is not None and seg.text:
-                return TextCleaner.clean_text(seg.text)
-        return None
-    
-    @staticmethod
-    def parse_tmx_to_csv(tmx_path: Path, csv_path: Path, source_lang: str = 'en', target_lang: str = 'pl') -> int:
-        """Parse TMX file and write to CSV format."""
-        records_count = 0
-        
-        with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
-            writer.writerow(['source_text', 'target_text'])  # Header
-            
-            # Parse TMX XML
-            tree = ET.parse(tmx_path)
-            root = tree.getroot()
-            
-            for tu in root.findall('.//tu'):
-                source_text = ""
-                target_text = ""
-                
-                for tuv in tu.findall('tuv'):
-                    source_result = TMXParser._extract_text_from_tuv(tuv, source_lang)
-                    target_result = TMXParser._extract_text_from_tuv(tuv, target_lang)
-                    
-                    if source_result:
-                        source_text = source_result
-                    if target_result:
-                        target_text = target_result
-                
-                if source_text and target_text:
-                    writer.writerow([source_text, target_text])
-                    records_count += 1
-        
-        return records_count
 
 
 class CorpusMigrator:
-    """High-performance corpus migrator with CSV export and PostgreSQL COPY."""
-    
-    def __init__(self, postgres_config: PostgreSQLConfig, schema: str = 'corpus'):
-        """Initialize migrator with PostgreSQL configuration.
-        
-        Args:
-            postgres_config: PostgreSQL connection configuration
-            schema: Schema name for parallel_corpus table (default: 'corpus')
-        """
-        self.postgres_config = postgres_config
-        self.schema = schema
-        self.logger = logging.getLogger(__name__)
-        self.stats = MigrationStats()
-    
-    def _get_postgres_connection(self, autocommit: bool = False) -> psycopg2.extensions.connection:
-        """Get PostgreSQL connection with proper encoding."""
-        conn = psycopg2.connect(
-            host=self.postgres_config.host,
-            port=self.postgres_config.port,
-            database=self.postgres_config.database,
-            user=self.postgres_config.username,
-            password=self.postgres_config.password,
-            client_encoding='UTF8'
+    """Deprecated: CorpusMigrator removed. Instantiation raises ImportError."""
+
+    def __init__(self, *args, **kwargs):
+        raise ImportError(
+            "CorpusMigrator has been removed. Use the Lucene corpus service and ingestion tools."
         )
-        
-        if autocommit:
-            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        
-        return conn
+
+
+# Legacy implementation removed. See docs for migration details.
+# This file is intentionally kept as a deprecated shim; the formerly
+# large PostgreSQL-backed implementation has been removed to avoid
+# accidental usage. If tests or other code still reference parts of
+# the old implementation, please update them to use the Lucene corpus
+# services instead.
+
+# NOTE: If you absolutely need the old functionality, consult the
+# project's archive history or the migration plan in docs/plans/2026-01-14-corpus-postgresql-to-lucene-migration.md
+
+
     
-    def create_database_if_not_exists(self) -> None:
-        """Create target database if it doesn't exist."""
-        # First try to connect to the target database directly
-        try:
-            test_conn = self._get_postgres_connection()
-            test_conn.close()
-            self.logger.info(f"Database {self.postgres_config.database} already exists and is accessible")
-            return
-        except psycopg2.OperationalError:
-            # Database doesn't exist or is not accessible, try to create it
-            pass
-        
-        # Try to connect to default database to create target database
-        try:
-            temp_config = PostgreSQLConfig(
-                host=self.postgres_config.host,
-                port=self.postgres_config.port,
-                database='postgres',
-                username=self.postgres_config.username,
-                password=self.postgres_config.password
-            )
-            
-            conn = psycopg2.connect(
-                host=temp_config.host,
-                port=temp_config.port,
-                database=temp_config.database,
-                user=temp_config.username,
-                password=temp_config.password,
-                client_encoding='UTF8'
-            )
-            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-            
-            try:
-                with conn.cursor() as cur:
-                    # Check if database exists
-                    cur.execute(
-                        "SELECT 1 FROM pg_database WHERE datname = %s",
-                        (self.postgres_config.database,)
-                    )
-                    
-                    if not cur.fetchone():
-                        cur.execute(f'CREATE DATABASE "{self.postgres_config.database}" ENCODING \'UTF8\'')
-                        self.logger.info(f"Created database: {self.postgres_config.database}")
-            finally:
-                conn.close()
-        except psycopg2.Error as e:
-            # If we can't connect to postgres database or create the target database,
-            # assume the target database already exists (common in testing scenarios)
-            self.logger.warning(f"Could not create database {self.postgres_config.database}: {e}")
-            self.logger.info("Assuming target database already exists")
-    
-    def drop_database(self) -> None:
-        """Drop the target database (for cleanup)."""
-        try:
-            temp_config = PostgreSQLConfig(
-                host=self.postgres_config.host,
-                port=self.postgres_config.port,
-                database='postgres',
-                username=self.postgres_config.username,
-                password=self.postgres_config.password
-            )
-            
-            conn = psycopg2.connect(
-                host=temp_config.host,
-                port=temp_config.port,
-                database=temp_config.database,
-                user=temp_config.username,
-                password=temp_config.password,
-                client_encoding='UTF8'
-            )
-            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-            
-            try:
-                with conn.cursor() as cur:
-                    # Terminate connections to target database
-                    cur.execute("""
-                        SELECT pg_terminate_backend(pg_stat_activity.pid)
-                        FROM pg_stat_activity
-                        WHERE pg_stat_activity.datname = %s
-                        AND pid <> pg_backend_pid()
-                    """, (self.postgres_config.database,))
-                    
-                    # Drop database
-                    cur.execute(f'DROP DATABASE IF EXISTS "{self.postgres_config.database}"')
-                    self.logger.info(f"Dropped database: {self.postgres_config.database}")
-            finally:
-                conn.close()
-        except psycopg2.Error as e:
-            self.logger.warning(f"Could not drop database {self.postgres_config.database}: {e}")
-    
-    def create_schema(self) -> None:
-        """Create corpus schema without indexes (for fast loading)."""
-        conn = self._get_postgres_connection()
-        
-        try:
-            with conn.cursor() as cur:
-                # Create corpus schema if it doesn't exist
-                cur.execute("CREATE SCHEMA IF NOT EXISTS corpus")
-                
-                # Set search path to use corpus schema
-                cur.execute("SET search_path TO corpus, public")
-                
-                # Check if table already exists
-                cur.execute("""
-                    SELECT COUNT(*) 
-                    FROM information_schema.tables 
-                    WHERE table_name = 'parallel_corpus'
-                    AND table_schema = %s
-                """, (self.schema,))
-                table_exists = cur.fetchone()[0] > 0
-                
-                if not table_exists:
-                    # Drop table if exists and create new one
-                    cur.execute(f"DROP TABLE IF EXISTS {self.schema}.parallel_corpus")
-                    
-                    # Create table without indexes
-                    cur.execute(f"""
-                        CREATE TABLE {self.schema}.parallel_corpus (
-                            id SERIAL PRIMARY KEY,
-                            source_text TEXT NOT NULL,
-                            target_text TEXT NOT NULL,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        )
-                    """)
-                    
-                    conn.commit()
-                    self.logger.info("Created corpus schema (without indexes)")
-                else:
-                    self.logger.info("Corpus table already exists, skipping creation")
-        finally:
-            conn.close()
-    
-    def create_indexes(self) -> None:
-        """Create indexes after data loading for optimal performance."""
-        conn = self._get_postgres_connection(autocommit=True)  # Use autocommit for CONCURRENTLY
-        
-        try:
-            with conn.cursor() as cur:
-                # Set search path to use specified schema
-                cur.execute(f"SET search_path TO {self.schema}, public")
-                
-                self.logger.info("Creating indexes...")
-                
-                # Create B-tree indexes for exact searches
-                cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_text ON {self.schema}.parallel_corpus USING btree (source_text)")
-                cur.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_text ON {self.schema}.parallel_corpus USING btree (target_text)")
-                
-                # Create full-text search indexes
-                try:
-                    # Try Polish configuration first
-                    cur.execute(f"""
-                        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_source_fts 
-                        ON {self.schema}.parallel_corpus USING gin (to_tsvector('english', source_text))
-                    """)
-                    cur.execute(f"""
-                        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_fts 
-                        ON {self.schema}.parallel_corpus USING gin (to_tsvector('polish', target_text))
-                    """)
-                except psycopg2.Error:
-                    # Fallback to simple configuration
-                    self.logger.warning("Polish text search config not available, using simple")
-                    cur.execute(f"""
-                        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_target_fts 
-                        ON {self.schema}.parallel_corpus USING gin (to_tsvector('simple', target_text))
-                    """)
-                
-                self.logger.info("Indexes created successfully")
-        finally:
-            conn.close()
-    
-    def export_sqlite_to_csv(self, sqlite_path: Path, csv_path: Path) -> int:
-        """Export SQLite corpus to CSV with text cleaning."""
-        self.logger.info(f"Exporting SQLite {sqlite_path} to CSV {csv_path}")
-        
-        conn = sqlite3.connect(str(sqlite_path))
-        conn.row_factory = sqlite3.Row
-        
-        try:
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
-                writer.writerow(['source_text', 'target_text'])  # Header
-                
-                # Use the correct table and column names for para_crawl format
-                cursor = conn.execute("SELECT c0en, c1pl FROM tmdata_content")
-                
-                # Use generator for memory efficiency
-                def record_generator():
-                    while True:
-                        batch = cursor.fetchmany(10000)  # Process in batches
-                        if not batch:
-                            break
-                        for row in batch:
-                            yield row['c0en'], row['c1pl']
-                
-                # Clean and write records
-                for source, target in TextCleaner.clean_record_generator(record_generator()):
-                    if source and target:  # Skip empty records
-                        writer.writerow([source, target])
-                        self.stats.records_exported += 1
-                        
-                        if self.stats.records_exported % 100000 == 0:
-                            self.logger.info(f"Exported {self.stats.records_exported} records")
-        
-        finally:
-            conn.close()
-        
-        self.logger.info(f"Export complete: {self.stats.records_exported} records")
-        return self.stats.records_exported
-    
-    def import_csv_to_postgres(self, csv_path: Path) -> int:
-        """Import CSV to PostgreSQL using COPY for maximum performance."""
-        self.logger.info(f"Importing CSV {csv_path} to PostgreSQL")
-        
-        conn = self._get_postgres_connection()
-        
-        try:
-            with conn.cursor() as cur:
-                # Set search path to use specified schema
-                cur.execute(f"SET search_path TO {self.schema}, public")
-                
-                # Use COPY for fast bulk import
-                with open(csv_path, 'r', encoding='utf-8') as csvfile:
-                    # Skip header
-                    next(csvfile)
-                    
-                    cur.copy_expert(f"""
-                        COPY {self.schema}.parallel_corpus (source_text, target_text) 
-                        FROM STDIN WITH CSV QUOTE '"'
-                    """, csvfile)
-                
-                # Get count of imported records
-                cur.execute(f"SELECT COUNT(*) FROM {self.schema}.parallel_corpus")
-                count_result = cur.fetchone()
-                if count_result:
-                    self.stats.records_imported = count_result[0]
-                
-                conn.commit()
-                self.logger.info(f"Import complete: {self.stats.records_imported} records")
-        
-        finally:
-            conn.close()
-        
-        return self.stats.records_imported
-    
-    def deduplicate_corpus(self) -> int:
-        """Remove duplicate entries from the corpus."""
-        self.logger.info("Deduplicating corpus...")
-        
-        conn = self._get_postgres_connection()
-        
-        try:
-            with conn.cursor() as cur:
-                # Set search path to use specified schema
-                cur.execute(f"SET search_path TO {self.schema}, public")
-                
-                # Delete duplicates keeping the first occurrence
-                cur.execute(f"""
-                    DELETE FROM {self.schema}.parallel_corpus 
-                    WHERE id NOT IN (
-                        SELECT MIN(id) 
-                        FROM {self.schema}.parallel_corpus 
-                        GROUP BY source_text, target_text
-                    )
-                """)
-                
-                duplicates_removed = cur.rowcount
-                conn.commit()
-                
-                self.logger.info(f"Removed {duplicates_removed} duplicate records")
-                return duplicates_removed
-        
-        finally:
-            conn.close()
-    
-    def migrate_sqlite_corpus(self, sqlite_path: Path, cleanup_temp: bool = True) -> MigrationStats:
+# Legacy import functions removed. See docs/plans/2026-01-14-corpus-postgresql-to-lucene-migration.md for history and rationale.
+# The rest of the original PostgreSQL-backed implementation was intentionally removed to avoid accidental usage.
+
+# End of deprecated shim
+
+
+(self, sqlite_path: Path, cleanup_temp: bool = True) -> MigrationStats:
         """Complete migration workflow: SQLite -> CSV -> PostgreSQL with indexes."""
         self.stats.start_time = time.time()
         

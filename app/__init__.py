@@ -458,6 +458,11 @@ def create_app(config_name=None):
             from app.database.basex_connector import BaseXConnector
             from flask import has_request_context, g, request
 
+            # Skip logging for static files and exempt paths
+            EXEMPT_PATHS = app.config.get('LOG_EXEMPT_PATHS', frozenset())
+            if any(request.path.startswith(p) for p in EXEMPT_PATHS):
+                return
+
             try:
                 connector = app.injector.get(BaseXConnector)
             except Exception:

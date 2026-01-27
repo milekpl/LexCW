@@ -462,7 +462,16 @@ def schedule_backup() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
                 'success': False,
                 'error': 'No request body provided'
             }), 400
-        
+
+        # Validate interval parameter
+        VALID_INTERVALS = {'hourly', 'daily', 'weekly'}
+        interval = data.get('interval', 'daily')
+        if not isinstance(interval, str) or interval not in VALID_INTERVALS:
+            return jsonify({
+                'success': False,
+                'error': f"Invalid interval '{interval}'. Must be one of: hourly, daily, weekly"
+            }), 400
+
         # Create a ScheduledBackup model instance
         scheduled_backup = ScheduledBackup(
             db_name=data.get('db_name'),

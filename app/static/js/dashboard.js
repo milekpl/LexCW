@@ -25,13 +25,59 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+let dashboardFetchController = null;
+
 /**
- * Refresh dashboard data by reloading the page
- * Since there's no separate API endpoint, we refresh to get updated data
+ * Fetch dashboard data via AJAX and update the UI
  */
-function fetchDashboardData() {
-    // Refresh the page to get updated dashboard data
-    window.location.reload();
+async function fetchDashboardData() {
+    // Abort any previous pending request
+    if (dashboardFetchController) {
+        dashboardFetchController.abort();
+    }
+    dashboardFetchController = new AbortController();
+
+    try {
+        const response = await fetch('/api/dashboard/stats', {
+            signal: dashboardFetchController.signal
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (result.success && result.data) {
+            updateDashboardData(result.data);
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Dashboard fetch failed:', error);
+            showErrorIndicators();
+        }
+    }
+}
+
+/**
+ * Update dashboard data in the DOM
+ */
+function updateDashboardData(data) {
+    // Update entry, sense, example counts in the DOM
+    const entriesEl = document.getElementById('total-entries');
+    const sensesEl = document.getElementById('total-senses');
+    const examplesEl = document.getElementById('total-examples');
+
+    if (entriesEl && data.stats !== undefined) entriesEl.textContent = data.stats.entries;
+    if (sensesEl && data.stats !== undefined) sensesEl.textContent = data.stats.senses;
+    if (examplesEl && data.stats !== undefined) examplesEl.textContent = data.stats.examples;
+
+    // Also update system status and recent activity if present
+    if (data.system_status) {
+        updateSystemStatus(data.system_status);
+    }
+    if (data.recent_activity) {
+        updateRecentActivity(data.recent_activity);
+    }
 }
 
 /**

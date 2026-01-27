@@ -5,10 +5,10 @@ API endpoints for corpus management operations.
 import json
 import logging
 import os
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flasgger import swag_from
 from app.database.postgresql_connector import PostgreSQLConfig
-from app.database.corpus_migrator import CorpusMigrator
+# PostgreSQL-based CorpusMigrator removed; prefer Lucene corpus client on the app
 from app.services.cache_service import CacheService
 from datetime import datetime
 
@@ -74,41 +74,42 @@ def get_corpus_stats():
             password=os.getenv('POSTGRES_PASSWORD', 'dict_pass')
         )
         
-        migrator = CorpusMigrator(config)
-        stats = migrator.get_corpus_stats()
-        
-        # Format stats for JSON response
-        response_stats = {
-            'total_records': stats.get('total_records', 0),
-            'avg_source_length': float(stats.get('avg_source_length', 0)) if stats.get('avg_source_length') else 0,
-            'avg_target_length': float(stats.get('avg_target_length', 0)) if stats.get('avg_target_length') else 0,
-        }
-        
-        # Update cache with fresh data
-        cache = CacheService()
-        if cache.is_available():
-            # Format last_updated for cache
-            last_record = stats.get('last_record')
-            if isinstance(last_record, datetime):
-                last_updated = last_record.strftime('%Y-%m-%d %H:%M:%S')
-            elif last_record:
-                last_updated = str(last_record)
-            else:
-                last_updated = 'N/A'
-                
-            cache_data = {
-                'total_records': response_stats['total_records'],
-                'avg_source_length': f"{response_stats['avg_source_length']:.2f}",
-                'avg_target_length': f"{response_stats['avg_target_length']:.2f}",
-                'last_updated': last_updated
+        # Prefer Lucene corpus service when available
+        lucene_client = getattr(current_app, 'lucene_corpus_client', None)
+        if lucene_client:
+            lucene_stats = lucene_client.stats()
+            response_stats = {
+                'total_records': int(lucene_stats.get('total_documents', 0)),
+                'avg_source_length': float(lucene_stats.get('avg_source_length', 0.0) or 0.0),
+                'avg_target_length': float(lucene_stats.get('avg_target_length', 0.0) or 0.0),
             }
-            cache.set('corpus_stats', json.dumps(cache_data), ttl=1800)
-            logger.info("Updated cache with fresh corpus stats")
-        
-        return jsonify({
-            'success': True,
-            'stats': response_stats
-        })
+
+            # Update cache with fresh data
+            cache = CacheService()
+            if cache.is_available():
+                last_record = lucene_stats.get('last_record')
+                if isinstance(last_record, datetime):
+                    last_updated = last_record.strftime('%Y-%m-%d %H:%M:%S')
+                elif last_record:
+                    last_updated = str(last_record)
+                else:
+                    last_updated = 'N/A'
+
+                cache_data = {
+                    'total_records': response_stats['total_records'],
+                    'avg_source_length': f"{response_stats['avg_source_length']:.2f}",
+                    'avg_target_length': f"{response_stats['avg_target_length']:.2f}",
+                    'last_updated': last_updated
+                }
+                cache.set('corpus_stats', json.dumps(cache_data), ttl=1800)
+                logger.info("Updated cache with fresh corpus stats (lucene)")
+
+            return jsonify({
+                'success': True,
+                'stats': response_stats
+            })
+        else:
+            return jsonify({'error': 'Lucene corpus service not available. PostgreSQL-based corpus support removed.'}), 410
         
     except Exception as e:
         logger.error(f"Error fetching corpus stats: {e}")

@@ -164,11 +164,23 @@ class RangesService:
         self._ranges_cache[cache_key] = (ranges, time.time())
 
     def _invalidate_cache(self, project_id: Optional[int] = None) -> None:
-        """Invalidate the ranges cache for this database."""
+        """Invalidate the ranges cache for this database.
+
+        If project_id is None, invalidate cached ranges for all project IDs
+        for the current database. This ensures callers that don't provide the
+        project_id (common in the service methods) properly clear the cache.
+        """
         db_name = self.db_connector.database or 'dictionary'
-        cache_key = (db_name, project_id or 0)
-        self._ranges_cache.pop(cache_key, None)
-        self.logger.debug(f"Invalidated ranges cache for {db_name}")
+        if project_id is None:
+            # Remove all cache entries for this db_name
+            keys_to_remove = [k for k in list(self._ranges_cache.keys()) if k[0] == db_name]
+            for k in keys_to_remove:
+                self._ranges_cache.pop(k, None)
+            self.logger.debug(f"Invalidated ranges cache for {db_name} (all project_ids)")
+        else:
+            cache_key = (db_name, project_id or 0)
+            self._ranges_cache.pop(cache_key, None)
+            self.logger.debug(f"Invalidated ranges cache for {db_name}, project {project_id}")
 
     def save_custom_ranges(self, custom_ranges: Dict[str, List[Dict[str, Any]]]) -> None:
         """
@@ -252,7 +264,31 @@ class RangesService:
         if not force_reload:
             cached_ranges, cached_time = self._get_cached_ranges(project_id)
             if cached_ranges is not None:
-                self.logger.debug(f"Using cached ranges (age: {cached_time:.1f}s)")
+                import time as _time
+                age = _time.time() - cached_time
+                self.logger.debug(f"Using cached ranges (age: {age:.1f}s)")
+                # Merge any custom ranges from DB so direct inserts are visible
+                try:
+                    custom_ranges = self._load_custom_ranges(project_id)
+                    if custom_ranges:
+                        import copy
+                        merged = copy.deepcopy(cached_ranges)
+                        for range_name, elements in custom_ranges.items():
+                            if range_name not in merged:
+                                merged[range_name] = {
+                                    'id': range_name,
+                                    'guid': f'custom-{range_name}',
+                                    'description': {},
+                                    'values': []
+                                }
+                            merged[range_name]['values'].extend(elements)
+                            # Ensure non-official flag when appropriate
+                            if not merged[range_name].get('official'):
+                                merged[range_name]['official'] = False
+                        return merged
+                except Exception:
+                    self.logger.exception("Error merging custom ranges into cached ranges")
+
                 # Return a copy to prevent external modification of cached data
                 return dict(cached_ranges)
 
@@ -276,8 +312,11 @@ class RangesService:
         else:
             self.logger.warning("No ranges found in database")
 
-        # Cache the parsed ranges (without metadata processing)
-        self._set_cached_ranges(ranges, project_id)
+        # NOTE: previously we cached parsed ranges here (before merging
+        # custom or config-provided ranges). That caused custom ranges
+        # added directly in SQL to be invisible until the cache expired.
+        # We now set the cache after full processing below so the cached
+        # result reflects the merged state (including custom values).
 
         # Annotate parsed ranges with helpful UI metadata: human-friendly
         # label (preferred language 'en') and whether the range is a standard
@@ -383,6 +422,10 @@ class RangesService:
                     'config_type': CONFIG_RANGE_TYPES.get(std_id)
                 }
 
+        # Cache the fully processed ranges (including merged custom and
+        # config-provided ranges) so subsequent calls reflect DB inserts
+        # and other runtime changes immediately.
+        self._set_cached_ranges(ranges, project_id)
 
         return ranges
 

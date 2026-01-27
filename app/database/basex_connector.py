@@ -278,8 +278,9 @@ class BaseXConnector:
             except Exception:
                 pass
 
-            # Log the full query string for debugging
-            self.logger.info("Executing BaseX query on DB '%s'%s:\n%s", self._current_db, request_info, query)
+            # Log query summary with truncated content instead of full query
+            query_preview = query[:200] + '...' if len(query) > 200 else query
+            self.logger.debug("BaseX query on DB '%s'%s: %s", self._current_db, request_info, query_preview)
 
             # Strip 'xquery ' prefix if present (it's often added by callers but Session.query doesn't want it)
             clean_query = query

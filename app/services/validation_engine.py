@@ -1797,13 +1797,28 @@ class SchematronValidator:
                     compiled_xsl = compiled_dir / (schema_path.stem + '.xsl')
 
                     # Recompile if missing or schema changed
+                    xmlresolver_jar = os.getenv('XMLRESOLVER_JAR')
+                    # Recompile if missing or schema changed
                     if not compiled_xsl.exists() or compiled_xsl.stat().st_mtime < schema_path.stat().st_mtime:
-                        cmd = [
-                            'java', '-jar', saxon_jar,
-                            f'-s:{schema_path}',
-                            f'-xsl:{xsl_path}',
-                            f'-o:{compiled_xsl}'
-                        ]
+                        # If XMLResolver jar provided, use classpath invocation to include it
+                        if xmlresolver_jar and Path(xmlresolver_jar).exists():
+                            cmd = [
+                                'java', '-cp', f'{saxon_jar}:{xmlresolver_jar}',
+                                'net.sf.saxon.Transform',
+                                f'-s:{schema_path}',
+                                f'-xsl:{xsl_path}',
+                                f'-o:{compiled_xsl}'
+                            ]
+                            self._xmlresolver_jar = xmlresolver_jar
+                        else:
+                            # Fallback to jar invocation (may fail if runtime deps missing)
+                            cmd = [
+                                'java', '-jar', saxon_jar,
+                                f'-s:{schema_path}',
+                                f'-xsl:{xsl_path}',
+                                f'-o:{compiled_xsl}'
+                            ]
+
                         import subprocess
                         subprocess.run(cmd, check=True, timeout=60)
 
@@ -1913,7 +1928,12 @@ class SchematronValidator:
                     svrl_path = svrl_file.name
 
                 try:
-                    cmd = ['java', '-jar', saxon_jar, f'-s:{xml_path}', f'-xsl:{compiled_xsl}', f'-o:{svrl_path}']
+                    # Prefer classpath invocation if xmlresolver is available
+                    xmlresolver_jar = getattr(self, '_xmlresolver_jar', os.getenv('XMLRESOLVER_JAR'))
+                    if xmlresolver_jar and Path(xmlresolver_jar).exists():
+                        cmd = ['java', '-cp', f'{saxon_jar}:{xmlresolver_jar}', 'net.sf.saxon.Transform', f'-s:{xml_path}', f'-xsl:{compiled_xsl}', f'-o:{svrl_path}']
+                    else:
+                        cmd = ['java', '-jar', saxon_jar, f'-s:{xml_path}', f'-xsl:{compiled_xsl}', f'-o:{svrl_path}']
                     subprocess.run(cmd, check=True, timeout=30)
 
                     svrl_doc = etree.parse(svrl_path)

@@ -55,10 +55,14 @@ class Config:
 
 class DevelopmentConfig(Config):
     """Development configuration."""
-    
+
     DEBUG = True
     TESTING = False
-    
+
+    # Logging configuration to reduce noise
+    LOG_EXEMPT_PATHS = frozenset({'/static/', '/favicon.ico', '/health', '/apidocs/', '/apispec.json'})
+    LOG_BASEX_QUERIES = False  # Set to True for debugging
+
     # SQLAlchemy configuration
     SQLALCHEMY_DATABASE_URI = (
         f"postgresql://{os.environ.get('POSTGRES_USER') or 'dict_user'}:"

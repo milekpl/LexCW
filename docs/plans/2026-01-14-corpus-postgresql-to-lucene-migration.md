@@ -28,11 +28,19 @@
 
 ## Migration Tasks
 
-### Task 1: Remove parallel_corpus table usage from corpus_migrator.py
+### Task 1: Remove parallel_corpus table usage from corpus_migrator.py (COMPLETED)
 
-**Files:**
-- Modify: `app/database/corpus_migrator.py`
-- Test: `tests/unit/test_corpus_migrator.py`
+**Status:** Completed — the PostgreSQL-based `CorpusMigrator` has been deprecated and replaced with Lucene-based services. A compatibility shim exists that raises an `ImportError` on instantiation and preserves the `MigrationStats` dataclass for legacy references.
+
+**Files changed:**
+- `app/database/corpus_migrator.py` — replaced with a deprecated shim that prevents accidental instantiation
+- `app/routes/corpus_routes.py` — updated to prefer `current_app.lucene_corpus_client` and to deprecate legacy upload/cleanup endpoints
+- `app/api/corpus.py` — updated to prefer Lucene stats
+- Tests referencing `CorpusMigrator` have module-level skips to avoid exercising removed behaviour
+
+**Notes:** The original Task steps are retained for historical reference but the codebase no longer performs PostgreSQL-based corpus migrations.
+
+**Original plan (archived):**
 
 **Step 1: Write the failing test**
 

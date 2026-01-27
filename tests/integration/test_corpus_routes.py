@@ -7,12 +7,13 @@ import io
 from unittest.mock import Mock, patch
 
 import pytest
-# Obsolete: CorpusMigrator removed from the codebase; skip these legacy integration tests.
-pytest.skip("Obsolete: CorpusMigrator removed; skipping obsolete integration tests", allow_module_level=True)
 from flask import Flask
 
 from app.routes.corpus_routes import corpus_bp
-from app.database.corpus_migrator import MigrationStats
+
+
+# Tests updated: Corpus upload and TMX->CSV endpoints are deprecated and return 410. Stats and cleanup
+# endpoints use the Lucene corpus client (set on the app in fixtures).
 
 
 @pytest.fixture
@@ -53,8 +54,8 @@ class TestCorpusUpload:
     """Test corpus upload functionality."""
     
     @pytest.mark.integration
-    def test_upload_tmx_file_success(self, client):
-        """Test successful TMX file upload and migration."""
+    def test_upload_tmx_file_deprecated(self, client):
+        """Test TMX upload endpoint is deprecated and returns 410."""
         # Create mock TMX content
         tmx_content = """<?xml version="1.0" encoding="UTF-8"?>
         <tmx version="1.4">
@@ -65,69 +66,49 @@ class TestCorpusUpload:
                 </tu>
             </body>
         </tmx>"""
-        
-        with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator:
-            mock_instance = Mock()
-            mock_migrator.return_value = mock_instance
-            mock_instance.migrate_tmx_corpus.return_value = MigrationStats(
-                records_processed=1,
-                records_imported=1
-            )
-            
-            response = client.post('/api/corpus/upload', data={
-                'file': (io.BytesIO(tmx_content.encode()), 'test.tmx'),
-                'source_lang': 'en',
-                'target_lang': 'pl'
-            })
-            
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data['success'] is True
-            assert 'stats' in data
-    
-    @pytest.mark.integration
-    def test_upload_csv_file_success(self, client):
-        """Test successful CSV file upload and migration."""
-        csv_content = "source_text,target_text\nHello,Cześć\nWorld,Świat"
-        
-        with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator:
-            mock_instance = Mock()
-            mock_migrator.return_value = mock_instance
-            mock_instance.create_database_if_not_exists.return_value = None
-            mock_instance.create_schema.return_value = None
-            mock_instance.import_csv_to_postgres.return_value = 2
-            mock_instance.create_indexes.return_value = None
-            mock_instance.stats = MigrationStats(records_imported=2)
-            
-            response = client.post('/api/corpus/upload', data={
-                'file': (io.BytesIO(csv_content.encode()), 'test.csv')
-            })
-            
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data['success'] is True
-    
-    @pytest.mark.integration
-    def test_upload_no_file_error(self, client):
-        """Test error when no file is provided."""
-        response = client.post('/api/corpus/upload', data={})
-        
-        assert response.status_code == 400
+
+        response = client.post('/api/corpus/upload', data={
+            'file': (io.BytesIO(tmx_content.encode()), 'test.tmx'),
+            'source_lang': 'en',
+            'target_lang': 'pl'
+        })
+
+        assert response.status_code == 410
         data = response.get_json()
-        assert 'error' in data
-        assert 'No file provided' in data['error']
+        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
     
     @pytest.mark.integration
-    def test_upload_invalid_file_type(self, client):
-        """Test error with invalid file type."""
+    def test_upload_csv_file_deprecated(self, client):
+        """CSV upload endpoint is deprecated and returns 410."""
+        csv_content = "source_text,target_text\nHello,Cześć\nWorld,Świat"
+
+        response = client.post('/api/corpus/upload', data={
+            'file': (io.BytesIO(csv_content.encode()), 'test.csv')
+        })
+
+        assert response.status_code == 410
+        data = response.get_json()
+        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
+    
+    @pytest.mark.integration
+    def test_upload_no_file_deprecated(self, client):
+        """No-file upload should return deprecation response (410)."""
+        response = client.post('/api/corpus/upload', data={})
+
+        assert response.status_code == 410
+        data = response.get_json()
+        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
+    
+    @pytest.mark.integration
+    def test_upload_invalid_file_type_deprecated(self, client):
+        """Invalid-file-type upload should return deprecation response (410)."""
         response = client.post('/api/corpus/upload', data={
             'file': (io.BytesIO(b'invalid content'), 'test.txt')
         })
-        
-        assert response.status_code == 400
+
+        assert response.status_code == 410
         data = response.get_json()
-        assert 'error' in data
-        assert 'not supported' in data['error']
+        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
 
 
 
@@ -138,18 +119,14 @@ class TestCorpusStats:
     @pytest.mark.integration
     def test_get_corpus_stats_success(self, client):
         """Test successful retrieval of corpus statistics from Lucene."""
-        with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator:
-            mock_instance = Mock()
-            mock_migrator.return_value = mock_instance
+        # The app fixture sets a mock Lucene client on test_app.lucene_corpus_client
+        response = client.get('/api/corpus/stats')
 
-            response = client.get('/api/corpus/stats')
-
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data['success'] is True
-            # Lucene route returns flat structure with total_records
-            assert data['total_records'] == 1000
-            assert data['source'] == 'lucene'
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['total_records'] == 1000
+        assert data['source'] == 'lucene'
 
 
 
@@ -186,8 +163,8 @@ class TestTmxToCsvConversion:
     """Test TMX to CSV conversion functionality."""
     
     @pytest.mark.integration
-    def test_convert_tmx_to_csv_success(self, client):
-        """Test successful TMX to CSV conversion."""
+    def test_convert_tmx_to_csv_deprecated(self, client):
+        """TMX-to-CSV endpoint is deprecated and returns 410."""
         tmx_content = """<?xml version="1.0" encoding="UTF-8"?>
         <tmx version="1.4">
             <body>
@@ -197,23 +174,16 @@ class TestTmxToCsvConversion:
                 </tu>
             </body>
         </tmx>"""
-        
-        with patch('app.routes.corpus_routes.CorpusMigrator') as mock_migrator:
-            mock_instance = Mock()
-            mock_migrator.return_value = mock_instance
-            mock_instance.convert_tmx_to_csv.return_value = 1
-            
-            response = client.post('/api/corpus/convert/tmx-to-csv', data={
-                'file': (io.BytesIO(tmx_content.encode()), 'test.tmx'),
-                'source_lang': 'en',
-                'target_lang': 'pl'
-            })
-            
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data['success'] is True
-            assert data['records_converted'] == 1
-            assert 'csv_content' in data
+
+        response = client.post('/api/corpus/convert/tmx-to-csv', data={
+            'file': (io.BytesIO(tmx_content.encode()), 'test.tmx'),
+            'source_lang': 'en',
+            'target_lang': 'pl'
+        })
+
+        assert response.status_code == 410
+        data = response.get_json()
+        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
     
     @pytest.mark.integration
     def test_convert_tmx_no_file_error(self, client):
