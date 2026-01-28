@@ -850,9 +850,12 @@ class LIFTXMLSerializer {
             variant.setAttribute('ref', variantData.ref);
         }
 
+        // Support both 'form' (singular from Python templates) and 'forms' (plural)
+        const forms = variantData.form || variantData.forms || {};
+
         // Add variant forms
-        if (variantData.forms && Object.keys(variantData.forms).length > 0) {
-            Object.entries(variantData.forms).forEach(([lang, text]) => {
+        if (forms && Object.keys(forms).length > 0) {
+            Object.entries(forms).forEach(([lang, text]) => {
                 if (text) {
                     const form = this.createForm(doc, lang, text);
                     variant.appendChild(form);
@@ -866,6 +869,13 @@ class LIFTXMLSerializer {
                 const trait = this.createTrait(doc, name, value);
                 variant.appendChild(trait);
             });
+        }
+
+        // Add grammatical info if present
+        if (variantData.grammatical_info) {
+            const gramInfo = doc.createElementNS(this.LIFT_NS, 'grammatical-info');
+            gramInfo.setAttribute('value', variantData.grammatical_info);
+            variant.appendChild(gramInfo);
         }
 
         return variant;

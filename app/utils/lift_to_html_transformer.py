@@ -159,7 +159,11 @@ class HTMLBuilder:
         # Determine structural vs content
         structural_only_elements = {'sense', 'subsense', 'entry', 'lift'}
         is_structural = local_tag in structural_only_elements
-        
+
+        # Elements whose children are already processed during text extraction
+        # (variant extracts its form/text children in _extract_text_from_forms)
+        children_already_processed = {'variant'}
+
         # Extract text content if appropriate
         text_content = ""
         if not is_structural:
@@ -186,14 +190,17 @@ class HTMLBuilder:
                     aspect=config.abbr_format if config else None,
                     language=effective_language,
                 )
-        
         # Process children (respecting profile order)
-        child_html = self._process_children(
-            element,
-            processed,
-            parent_tag=local_tag,
-            inherited_language=config.language if config else inherited_language,
-        )
+        # Skip child processing for elements that already extracted text from their children
+        if local_tag in children_already_processed:
+            child_html = ""
+        else:
+            child_html = self._process_children(
+                element,
+                processed,
+                parent_tag=local_tag,
+                inherited_language=config.language if config else inherited_language,
+            )
         
         # Combine text and children
         combined_content = text_content
@@ -821,7 +828,7 @@ class LIFTToHTMLTransformer:
                         sense_id = sense_data.get('id')
                         if sense_id:
                             sense_elem.set('id', sense_id)
-                        
+
                         grammatical_info = sense_data.get('grammatical_info')
                         if grammatical_info:
                             if isinstance(grammatical_info, dict):
@@ -829,7 +836,7 @@ class LIFTToHTMLTransformer:
                                     grammatical_info = list(grammatical_info.values())[0]
                             gram_elem = ET.SubElement(sense_elem, 'grammatical-info')
                             gram_elem.set('value', str(grammatical_info))
-                        
+
                         definition = sense_data.get('definition', {})
                         if definition:
                             for lang, def_data in definition.items():
@@ -839,7 +846,7 @@ class LIFTToHTMLTransformer:
                                     form_elem.set('lang', lang)
                                     text_elem = ET.SubElement(form_elem, 'text')
                                     text_elem.text = def_data.get('text')
-                        
+
                         gloss = sense_data.get('gloss', {})
                         if gloss:
                             for lang, gloss_data in gloss.items():
@@ -848,7 +855,59 @@ class LIFTToHTMLTransformer:
                                     gloss_elem.set('lang', lang)
                                     text_elem = ET.SubElement(gloss_elem, 'text')
                                     text_elem.text = gloss_data.get('text')
-            
+
+            # Handle variants with full support for form, grammatical_info, and traits
+            variants = form_data.get('variants', [])
+            if variants and isinstance(variants, list):
+                for variant_data in variants:
+                    if variant_data and isinstance(variant_data, dict):
+                        variant_elem = ET.SubElement(entry, 'variant')
+
+                        # Add ref attribute if present
+                        if variant_data.get('ref'):
+                            variant_elem.set('ref', variant_data['ref'])
+
+                        # Forms (multilingual text) - support both 'form' and 'forms' keys
+                        form_data_inner = variant_data.get('form') or variant_data.get('forms', {})
+                        if form_data_inner and isinstance(form_data_inner, dict):
+                            for lang, text in form_data_inner.items():
+                                if text:
+                                    if isinstance(text, dict):
+                                        text_content = text.get('text', '')
+                                    else:
+                                        text_content = str(text)
+                                    if text_content:
+                                        form_elem = ET.SubElement(variant_elem, 'form')
+                                        form_elem.set('lang', lang)
+                                        text_elem = ET.SubElement(form_elem, 'text')
+                                        text_elem.text = text_content
+
+                        # Grammatical info
+                        grammatical_info = variant_data.get('grammatical_info')
+                        if grammatical_info:
+                            if isinstance(grammatical_info, dict) and len(grammatical_info) == 1:
+                                grammatical_info = list(grammatical_info.values())[0]
+                            gram_elem = ET.SubElement(variant_elem, 'grammatical-info')
+                            gram_elem.set('value', str(grammatical_info))
+
+                        # Grammatical traits
+                        grammatical_traits = variant_data.get('grammatical_traits', {})
+                        if grammatical_traits and isinstance(grammatical_traits, dict):
+                            for trait_name, trait_value in grammatical_traits.items():
+                                if trait_value:
+                                    trait_elem = ET.SubElement(variant_elem, 'trait')
+                                    trait_elem.set('name', trait_name)
+                                    trait_elem.set('value', str(trait_value))
+
+                        # Other traits (variant-type, morph-type, etc.)
+                        traits_data = variant_data.get('traits', {})
+                        if traits_data and isinstance(traits_data, dict):
+                            for trait_name, trait_value in traits_data.items():
+                                if trait_value:
+                                    trait_elem = ET.SubElement(variant_elem, 'trait')
+                                    trait_elem.set('name', trait_name)
+                                    trait_elem.set('value', str(trait_value))
+
             # Convert to XML string
             xml_string = ET.tostring(entry, encoding='unicode')
             

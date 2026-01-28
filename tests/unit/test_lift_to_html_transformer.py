@@ -389,3 +389,65 @@ class TestLIFTToHTMLTransformer:
         assert '/static/images/test.jpg' in result
         assert 'https://example.com/remote.jpg' in result
         assert 'Test image' in result
+
+    def test_variant_no_text_duplication(self):
+        """Test that variant text does not appear twice in output."""
+        lift_xml = """
+        <entry id="test">
+            <lexical-unit>
+                <form lang="en"><text>stunt man</text></form>
+            </lexical-unit>
+            <variant type="inflected" data-variant-label="plural">
+                <form lang="en"><text>stunt men</text></form>
+            </variant>
+        </entry>
+        """
+
+        configs = [
+            ElementConfig("lexical-unit", 10, "headword", visibility="if-content", display_mode="inline"),
+            ElementConfig("variant", 20, "variant", visibility="if-content", display_mode="inline"),
+        ]
+
+        transformer = LIFTToHTMLTransformer()
+        result = transformer.transform(lift_xml, configs)
+
+        # "stunt men" should appear exactly once, not twice
+        stunt_men_count = result.count('stunt men')
+        assert stunt_men_count == 1, f"Expected 'stunt men' to appear 1 time, found {stunt_men_count}. Result: {result}"
+
+        # The variant should have its label and form text
+        assert 'plural' in result
+        assert 'stunt men' in result
+
+    def test_generate_lift_xml_from_form_data_with_variants(self):
+        """Test that variants are correctly serialized to LIFT XML."""
+        transformer = LIFTToHTMLTransformer()
+
+        form_data = {
+            'id': 'test_entry',
+            'lexical_unit': {'en': 'test'},
+            'variants': [
+                {
+                    'form': {'en': 'variant1', 'de': 'variante1'},
+                    'traits': {'variant-type': 'spelling', 'morph-type': 'phrase'}
+                },
+                {
+                    'form': {'en': 'variant2'},
+                    'grammatical_info': 'Noun'
+                }
+            ]
+        }
+
+        result = transformer.generate_lift_xml_from_form_data(form_data)
+
+        # Verify variants are present
+        assert '<variant' in result
+        assert 'variant1' in result
+        assert 'variante1' in result
+        assert 'variant2' in result
+        assert 'variant-type' in result
+        assert 'spelling' in result
+        assert 'morph-type' in result
+        assert 'phrase' in result
+        assert '<grammatical-info' in result
+        assert 'Noun' in result
