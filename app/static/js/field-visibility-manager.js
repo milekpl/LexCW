@@ -3,21 +3,26 @@
  *
  * Supports both section-level and per-field visibility control.
  * Uses event-driven architecture for component communication.
- * Settings are persisted to localStorage and broadcast via CustomEvents.
+ * Settings are persisted via API to user preferences in database.
  */
 class FieldVisibilityManager {
     /**
      * Create a new FieldVisibilityManager instance
      * @param {Object} options - Configuration options
-     * @param {string} options.storageKey - localStorage key (default: 'fieldVisibilitySettings')
+     * @param {string} options.apiBaseUrl - Base URL for API calls (required)
+     * @param {number} options.userId - User ID for API authentication (required)
+     * @param {number} options.projectId - Project ID for project defaults (optional)
      * @param {Object} options.defaultSectionSettings - Default section visibility
      * @param {Object} options.defaultFieldSettings - Default field visibility per section
      * @param {Function} options.onChange - Callback when visibility changes
      * @param {boolean} options.autoApply - Apply settings on init (default: true)
+     * @param {Function} options.onLoad - Callback when settings are loaded from API
      */
     constructor(options = {}) {
         this.options = {
-            storageKey: 'fieldVisibilitySettings',
+            apiBaseUrl: '',
+            userId: null,
+            projectId: null,
             // Section-level defaults
             defaultSectionSettings: {
                 'basic-info': true,
@@ -84,19 +89,17 @@ class FieldVisibilityManager {
                 'senses': '.senses-section'
             },
             onChange: null,
+            onLoad: null,
             autoApply: true,
             ...options
         };
 
-        this.sectionSettings = this._loadSectionSettings();
-        this.fieldSettings = this._loadFieldSettings();
+        this.sectionSettings = { ...this.options.defaultSectionSettings };
+        this.fieldSettings = JSON.parse(JSON.stringify(this.options.defaultFieldSettings));
         this._boundMethods = new WeakMap();
+        this._loaded = false;
 
         this._setupEventListeners();
-
-        if (this.options.autoApply) {
-            this._applySettings();
-        }
     }
 
     /**
@@ -111,54 +114,120 @@ class FieldVisibilityManager {
     }
 
     /**
-     * Load section settings from localStorage
-     * @private
+     * Load settings from API
+     * @returns {Promise<Object>} Settings object with sections and fields
      */
-    _loadSectionSettings() {
-        try {
-            const stored = localStorage.getItem(`${this.options.storageKey}_sections`);
-            if (stored) {
-                return { ...this.options.defaultSectionSettings, ...JSON.parse(stored) };
-            }
-        } catch (e) {
-            console.warn('[FieldVisibilityManager] Failed to load section settings:', e);
+    async loadFromAPI() {
+        if (!this.options.apiBaseUrl || !this.options.userId) {
+            console.warn('[FieldVisibilityManager] API base URL and user ID are required');
+            return this._getDefaults();
         }
-        return { ...this.options.defaultSectionSettings };
+
+        try {
+            const url = new URL(`/api/users/${this.options.userId}/preferences/field-visibility`, window.location.origin);
+            url.searchParams.set('project_id', this.options.projectId || '');
+
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                throw new Error(`API returned ${response.status}`);
+            }
+
+            const data = await response.json();
+            const visibility = data.fieldVisibility || {};
+
+            // Apply settings from API
+            if (visibility.sections) {
+                this.sectionSettings = { ...this.options.defaultSectionSettings, ...visibility.sections };
+            }
+            if (visibility.fields) {
+                this.fieldSettings = this._mergeFieldSettings(visibility.fields);
+            }
+
+            this._loaded = true;
+
+            // Call onLoad callback if provided
+            if (this.options.onLoad) {
+                this.options.onLoad(this.getSettings());
+            }
+
+            if (this.options.autoApply) {
+                this._applySettings();
+            }
+
+            return this.getSettings();
+        } catch (e) {
+            console.warn('[FieldVisibilityManager] Failed to load settings from API:', e);
+            this._loaded = false;
+            return this._getDefaults();
+        }
     }
 
     /**
-     * Load field settings from localStorage
-     * @private
+     * Save settings to API
+     * @returns {Promise<boolean>} Success status
      */
-    _loadFieldSettings() {
-        try {
-            const stored = localStorage.getItem(`${this.options.storageKey}_fields`);
-            if (stored) {
-                // Merge with defaults for new fields
-                const parsed = JSON.parse(stored);
-                const merged = { ...this.options.defaultFieldSettings };
-                Object.keys(parsed).forEach(sectionId => {
-                    merged[sectionId] = { ...merged[sectionId], ...parsed[sectionId] };
-                });
-                return merged;
-            }
-        } catch (e) {
-            console.warn('[FieldVisibilityManager] Failed to load field settings:', e);
+    async saveToAPI() {
+        if (!this.options.apiBaseUrl || !this.options.userId) {
+            console.warn('[FieldVisibilityManager] API base URL and user ID are required');
+            return false;
         }
-        return JSON.parse(JSON.stringify(this.options.defaultFieldSettings));
+
+        try {
+            const url = new URL(`/api/users/${this.options.userId}/preferences/field-visibility`, window.location.origin);
+
+            const response = await fetch(url.toString(), {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    project_id: this.options.projectId,
+                    sections: this.sectionSettings,
+                    fields: this.fieldSettings
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API returned ${response.status}`);
+            }
+
+            return true;
+        } catch (e) {
+            console.warn('[FieldVisibilityManager] Failed to save settings to API:', e);
+            return false;
+        }
     }
 
     /**
-     * Save all settings to localStorage
+     * Get default settings (hardcoded or from project)
+     * @returns {Object} Default settings
      * @private
      */
-    _saveSettings() {
-        try {
-            localStorage.setItem(`${this.options.storageKey}_sections`, JSON.stringify(this.sectionSettings));
-            localStorage.setItem(`${this.options.storageKey}_fields`, JSON.stringify(this.fieldSettings));
-        } catch (e) {
-            console.warn('[FieldVisibilityManager] Failed to save settings:', e);
-        }
+    _getDefaults() {
+        return {
+            sections: { ...this.options.defaultSectionSettings },
+            fields: JSON.parse(JSON.stringify(this.options.defaultFieldSettings))
+        };
+    }
+
+    /**
+     * Merge field settings with defaults for new fields
+     * @private
+     */
+    _mergeFieldSettings(storedFields) {
+        const merged = { ...this.options.defaultFieldSettings };
+        Object.keys(storedFields).forEach(sectionId => {
+            merged[sectionId] = { ...merged[sectionId], ...storedFields[sectionId] };
+        });
+        return merged;
     }
 
     /**
@@ -211,7 +280,7 @@ class FieldVisibilityManager {
      * Handle checkbox toggle change
      * @private
      */
-    _handleToggleChange(event) {
+    async _handleToggleChange(event) {
         event.stopPropagation();
         event.preventDefault();
 
@@ -222,10 +291,10 @@ class FieldVisibilityManager {
 
         if (fieldId) {
             // Field-level toggle
-            this.setFieldVisibility(sectionId, fieldId, isVisible);
+            await this.setFieldVisibility(sectionId, fieldId, isVisible);
         } else if (sectionId) {
             // Section-level toggle
-            this.setSectionVisibility(sectionId, isVisible);
+            await this.setSectionVisibility(sectionId, isVisible);
         }
     }
 
@@ -233,7 +302,7 @@ class FieldVisibilityManager {
      * Handle button clicks
      * @private
      */
-    _handleButtonClick(event) {
+    async _handleButtonClick(event) {
         const isVisibilityBtn =
             event.target.classList.contains('reset-field-visibility-btn') ||
             event.target.classList.contains('hide-empty-sections-btn') ||
@@ -249,13 +318,13 @@ class FieldVisibilityManager {
 
         if (event.target.classList.contains('reset-field-visibility-btn') ||
             event.target.closest('.reset-field-visibility-btn')) {
-            this._resetToDefaults();
+            await this.resetToDefaults();
         } else if (event.target.classList.contains('hide-empty-sections-btn') ||
                    event.target.closest('.hide-empty-sections-btn')) {
-            this._hideEmptySections();
+            await this._hideEmptySections();
         } else if (event.target.classList.contains('show-all-sections-btn') ||
                    event.target.closest('.show-all-sections-btn')) {
-            this._showAllSections();
+            await this.showAllSections();
         }
     }
 
@@ -263,15 +332,15 @@ class FieldVisibilityManager {
      * Set visibility for a specific section
      * @param {string} sectionId - Section identifier
      * @param {boolean} visible - Whether the section should be visible
+     * @param {boolean} save - Whether to save to API (default: true)
      */
-    setSectionVisibility(sectionId, visible) {
+    async setSectionVisibility(sectionId, visible, save = true) {
         if (!(sectionId in this.options.defaultSectionSettings)) {
             console.warn(`[FieldVisibilityManager] Unknown section: ${sectionId}`);
             return;
         }
 
         this.sectionSettings[sectionId] = visible;
-        this._saveSettings();
 
         // Update all section-level checkboxes
         const checkboxes = document.querySelectorAll(`[data-section-id="${sectionId}"]:not([data-field-id])`);
@@ -287,8 +356,12 @@ class FieldVisibilityManager {
             Object.keys(this.fieldSettings[sectionId]).forEach(fieldId => {
                 this.fieldSettings[sectionId][fieldId] = visible;
             });
-            this._saveSettings();
             this._updateFieldCheckboxes(sectionId);
+        }
+
+        // Save to API if requested
+        if (save) {
+            await this.saveToAPI();
         }
 
         this._emitChangeEvent(sectionId, visible, null);
@@ -299,8 +372,9 @@ class FieldVisibilityManager {
      * @param {string} sectionId - Section identifier
      * @param {string} fieldId - Field identifier
      * @param {boolean} visible - Whether the field should be visible
+     * @param {boolean} save - Whether to save to API (default: true)
      */
-    setFieldVisibility(sectionId, fieldId, visible) {
+    async setFieldVisibility(sectionId, fieldId, visible, save = true) {
         if (!this.fieldSettings[sectionId]) {
             this.fieldSettings[sectionId] = {};
         }
@@ -310,10 +384,10 @@ class FieldVisibilityManager {
             this.sectionSettings[sectionId] = true;
             const sectionCheckboxes = document.querySelectorAll(`[data-section-id="${sectionId}"]:not([data-field-id])`);
             sectionCheckboxes.forEach(checkbox => checkbox.checked = true);
+            this._applySectionVisibility(sectionId, true);
         }
 
         this.fieldSettings[sectionId][fieldId] = visible;
-        this._saveSettings();
 
         // Update field checkboxes
         const checkboxes = document.querySelectorAll(`[data-section-id="${sectionId}"][data-field-id="${fieldId}"]`);
@@ -326,6 +400,11 @@ class FieldVisibilityManager {
 
         // Update section checkbox state based on field states
         this._updateSectionCheckboxFromFields(sectionId);
+
+        // Save to API if requested
+        if (save) {
+            await this.saveToAPI();
+        }
 
         // Emit change event
         this._emitChangeEvent(sectionId, visible, fieldId);
@@ -428,27 +507,68 @@ class FieldVisibilityManager {
     }
 
     /**
-     * Reset all settings to defaults
+     * Sync all modal checkboxes to match current settings
+     * Call this when the modal opens to ensure checkboxes reflect saved settings
      */
-    resetToDefaults() {
-        this.sectionSettings = { ...this.options.defaultSectionSettings };
-        this.fieldSettings = JSON.parse(JSON.stringify(this.options.defaultFieldSettings));
-        this._saveSettings();
+    syncModalCheckboxes() {
+        this._syncCheckboxesToSettings();
+    }
 
-        // Reset all checkboxes
+    /**
+     * Sync all checkboxes in modal to current settings
+     * @private
+     */
+    _syncCheckboxesToSettings() {
         document.querySelectorAll('.field-visibility-toggle').forEach(checkbox => {
             const sectionId = checkbox.dataset.sectionId;
             const fieldId = checkbox.dataset.fieldId;
-            const defaultVisible = checkbox.dataset.defaultVisible !== 'false';
 
             if (fieldId) {
-                checkbox.checked = this.fieldSettings[sectionId]?.[fieldId] ?? defaultVisible;
+                // Field checkbox
+                checkbox.checked = this.fieldSettings[sectionId]?.[fieldId] === true;
             } else if (sectionId) {
-                checkbox.checked = this.sectionSettings[sectionId];
+                // Section checkbox
+                checkbox.checked = this.sectionSettings[sectionId] === true;
             }
         });
+    }
 
+    /**
+     * Reset all settings to defaults (project defaults or hardcoded defaults)
+     * @param {boolean} save - Whether to save to API (default: true)
+     */
+    async resetToDefaults(save = true) {
+        // Reset to hardcoded defaults (will be overridden by project defaults on next load)
+        this.sectionSettings = { ...this.options.defaultSectionSettings };
+        this.fieldSettings = JSON.parse(JSON.stringify(this.options.defaultFieldSettings));
+
+        // Sync checkboxes to defaults
+        this._syncCheckboxesToSettings();
+
+        // Apply to form
         this._applySettings();
+
+        // Call API to clear user preferences (will fall back to project defaults)
+        if (save && this.options.apiBaseUrl && this.options.userId) {
+            try {
+                const url = new URL(`/api/users/${this.options.userId}/preferences/field-visibility/reset`, window.location.origin);
+                if (this.options.projectId) {
+                    url.searchParams.set('project_id', this.options.projectId);
+                }
+
+                await fetch(url.toString(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin'
+                });
+
+                // Reload from API to get actual defaults
+                await this.loadFromAPI();
+            } catch (e) {
+                console.warn('[FieldVisibilityManager] Failed to reset settings via API:', e);
+            }
+        }
+
         this._emitChangeEvent('reset', true, null);
     }
 
@@ -456,18 +576,17 @@ class FieldVisibilityManager {
      * Hide sections and individual fields that have no content
      * @private
      */
-    _hideEmptySections() {
+    async _hideEmptySections() {
         // First, hide individual fields that are empty
         const fieldElements = document.querySelectorAll('[data-section-id][data-field-id]');
 
-        fieldElements.forEach(fieldElement => {
+        for (const fieldElement of fieldElements) {
             const sectionId = fieldElement.dataset.sectionId;
             const fieldId = fieldElement.dataset.fieldId;
 
             // Only hide if field is supposed to be visible in settings
-            const settingsKey = `${sectionId}-${fieldId}`;
             if (this.fieldSettings[sectionId]?.[fieldId] === false) {
-                return; // Already hidden by user preference
+                continue; // Already hidden by user preference
             }
 
             // Check if field is empty
@@ -484,15 +603,15 @@ class FieldVisibilityManager {
             if (isEmpty) {
                 // Hide the field element directly
                 fieldElement.style.display = 'none';
-                // Also update field settings to reflect hidden state
-                this.setFieldVisibility(sectionId, fieldId, false);
+                // Also update field settings to reflect hidden state (don't save individually)
+                await this.setFieldVisibility(sectionId, fieldId, false, false);
             }
-        });
+        }
 
         // Then, hide sections that are completely empty (no visible content)
         const sections = document.querySelectorAll('[class*="-section"]');
 
-        sections.forEach(section => {
+        for (const section of sections) {
             const inputs = section.querySelectorAll('input, textarea, select');
             const isEmpty = inputs.length === 0 ||
                            Array.from(inputs).every(input => {
@@ -506,10 +625,13 @@ class FieldVisibilityManager {
             if (isEmpty) {
                 const sectionId = this._findSectionIdForElement(section);
                 if (sectionId && this.sectionSettings[sectionId]) {
-                    this.setSectionVisibility(sectionId, false);
+                    await this.setSectionVisibility(sectionId, false, false);
                 }
             }
-        });
+        }
+
+        // Save accumulated changes
+        await this.saveToAPI();
     }
 
     /**
@@ -539,16 +661,32 @@ class FieldVisibilityManager {
 
     /**
      * Show all sections and fields
+     * @param {boolean} save - Whether to save to API (default: true)
      */
-    showAllSections() {
+    async showAllSections(save = true) {
+        // Show all sections
         Object.keys(this.sectionSettings).forEach(sectionId => {
-            this.setSectionVisibility(sectionId, true);
+            this.sectionSettings[sectionId] = true;
         });
+
+        // Show all fields
         Object.keys(this.fieldSettings).forEach(sectionId => {
             Object.keys(this.fieldSettings[sectionId]).forEach(fieldId => {
-                this.setFieldVisibility(sectionId, fieldId, true);
+                this.fieldSettings[sectionId][fieldId] = true;
             });
         });
+
+        // Update all checkboxes
+        this._syncCheckboxesToSettings();
+
+        // Apply to form
+        this._applySettings();
+
+        // Save to API if requested
+        if (save) {
+            await this.saveToAPI();
+        }
+
         this._emitChangeEvent('showAll', true, null);
     }
 

@@ -36,6 +36,9 @@ class ProjectSettings(db.Model):
     settings_json = Column(
         JSON, nullable=False, default=dict
     )  # Add missing column to match database schema
+    field_visibility_defaults = Column(
+        JSON, nullable=True, default=dict
+    )  # Project-level defaults for field visibility (sections and fields)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,
@@ -62,6 +65,7 @@ class ProjectSettings(db.Model):
             "source_language": self.source_language,
             "target_languages": self.target_languages,
             "backup_settings": self.backup_settings or {},
+            "field_visibility_defaults": self.field_visibility_defaults or {},
         }
 
 

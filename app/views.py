@@ -17,6 +17,7 @@ from flask import (
     session,
     send_from_directory,
     Response,
+    g,
 )
 
 from app.services.dictionary_service import DictionaryService
@@ -885,15 +886,17 @@ def add_entry():
             logger.warning("Non-serializable ranges object returned by DictionaryService.get_lift_ranges; using empty dict for template")
             ranges_for_template = {}
 
-        return render_template("entry_form.html", 
-                              entry=entry, 
-                              ranges=ranges_for_template, 
+        return render_template("entry_form.html",
+                              entry=entry,
+                              ranges=ranges_for_template,
                               variant_relations=[],
                               component_relations=[],
                               project_languages=languages,
                               available_languages=available_languages,
                               note_types=note_types,
-                              configured_languages_codes=configured_languages_codes)
+                              configured_languages_codes=configured_languages_codes,
+                              project_id=project_id,
+                              current_user_id=g.current_user.id if hasattr(g, 'current_user') and g.current_user else None)
 
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400

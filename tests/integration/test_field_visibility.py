@@ -136,14 +136,25 @@ class TestFieldVisibilityJavaScript:
         assert 'fieldVisibilityChanged' in js_code
         assert 'dispatchEvent' in js_code
 
-    def test_js_handles_localstorage(self, client):
-        """Test that the JS class handles localStorage."""
+    def test_js_handles_api_storage(self, client):
+        """Test that the JS class uses API for storage (not localStorage)."""
         response = client.get('/static/js/field-visibility-manager.js')
         js_code = response.data.decode('utf-8')
 
-        assert 'localStorage' in js_code
-        assert 'getItem' in js_code
-        assert 'setItem' in js_code
+        # Verify the class uses API-based storage
+        assert 'loadFromAPI' in js_code, "loadFromAPI method not found"
+        assert 'saveToAPI' in js_code, "saveToAPI method not found"
+        assert '/api/users/' in js_code, "API endpoint not found"
+        assert 'fetch' in js_code, "fetch API not used"
+
+    def test_js_does_not_use_localstorage(self, client):
+        """Test that the JS class no longer uses localStorage."""
+        response = client.get('/static/js/field-visibility-manager.js')
+        js_code = response.data.decode('utf-8')
+
+        # localStorage should not be used for persistence
+        assert 'localStorage.getItem' not in js_code, "localStorage.getItem should not be used"
+        assert 'localStorage.setItem' not in js_code, "localStorage.setItem should not be used"
 
 
 class TestDirectVariantsJavaScript:

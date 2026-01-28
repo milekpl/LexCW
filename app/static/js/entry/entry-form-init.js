@@ -102,9 +102,29 @@
 
         // Initialize Field Visibility Manager
         if (typeof FieldVisibilityManager !== 'undefined') {
+            const config = DictionaryApp?.config || {};
             window.fieldVisibilityManager = new FieldVisibilityManager({
-                storageKey: 'entryFormFieldVisibility'
+                apiBaseUrl: config.apiBaseUrl || '',
+                userId: config.currentUserId || null,
+                projectId: config.projectId || null,
+                autoApply: true,
+                onLoad: function(settings) {
+                    Logger.info('Field visibility settings loaded', settings);
+                }
             });
+
+            // Load settings from API
+            window.fieldVisibilityManager.loadFromAPI();
+
+            // Sync checkboxes when modal opens
+            const fieldVisibilityModal = document.getElementById('fieldVisibilityModal');
+            if (fieldVisibilityModal) {
+                fieldVisibilityModal.addEventListener('shown.bs.modal', function() {
+                    if (window.fieldVisibilityManager) {
+                        window.fieldVisibilityManager.syncModalCheckboxes();
+                    }
+                });
+            }
         }
 
         // Initialize DELETE button with two-step confirmation

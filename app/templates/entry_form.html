@@ -1084,7 +1084,9 @@
         }
         window.DictionaryApp.config = {
             entryId: '{{ entry.id | default("") }}',
-            csrfToken: csrfToken
+            csrfToken: csrfToken{% if project_id %},
+            projectId: {{ project_id }}{% endif %}{% if current_user_id %},
+            currentUserId: {{ current_user_id }}{% endif %}
         };
     } catch (e) {
         Logger.error('Failed to initialize DictionaryApp namespace:', e);

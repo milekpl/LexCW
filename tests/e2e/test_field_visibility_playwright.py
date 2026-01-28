@@ -220,37 +220,7 @@ class TestFieldVisibilityModalE2E:
         # Check events were fired (at least 2 - toggle off and on)
         assert len(event_fired) >= 2, f"Expected at least 2 events, got {len(event_fired)}"
 
-    def test_settings_persisted_to_localstorage(self, page, app_url):
-        """Test that settings are persisted to localStorage."""
-        page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
 
-        # Toggle a section off
-        page.evaluate('window.fieldVisibilityManager.toggle("variants")')
-
-        # Reload page
-        page.reload()
-        page.wait_for_load_state('networkidle')
-
-        # Check that the setting persisted (variants should be hidden)
-        is_visible = page.evaluate(
-            'window.fieldVisibilityManager.isVisible("variants")'
-        )
-        assert is_visible == False, "Variants should remain hidden after page reload"
-
-    def test_settings_persisted_to_localstorage_show_all(self, page, app_url):
-        """Test that show all persists to localStorage."""
-        page.goto(f'{app_url}/entries/add')
-        page.wait_for_load_state('networkidle')
-
-        # Click show all button
-        page.evaluate('window.fieldVisibilityManager.showAllSections()')
-
-        # Reload page
-        page.reload()
-        page.wait_for_load_state('networkidle')
-
-        # Check that all settings are true
-        settings = page.evaluate('window.fieldVisibilityManager.getSettings()')
-        all_true = all(settings.values())
-        assert all_true, "All sections should be visible after showAll and reload"
+# Note: LocalStorage persistence tests have been removed.
+# Field visibility settings are now stored per-user in the database via API.
+# Tests for API-based persistence would require authentication setup.

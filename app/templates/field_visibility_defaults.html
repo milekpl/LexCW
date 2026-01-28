@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Field Visibility Defaults - {{ project_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-eye"></i> Field Visibility Defaults
+        {% if project_name %}<small class="text-muted">for {{ project_name }}</small>{% endif %}
+    </h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Configure Default Field Visibility
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                These settings define the <strong>default visibility</strong> for new users in this project.
+                Individual users can override these defaults in their personal settings.
+            </p>
+
+            <form method="POST" id="field-visibility-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- Sections -->
+                <h5 class="mb-3">Sections</h5>
+                <div class="row mb-4">
+                    {% for section_id, section_label in sections.items() %}
+                    <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input section-toggle"
+                                   type="checkbox"
+                                   name="section_{{ section_id }}"
+                                   id="section_{{ section_id }}"
+                                   {% if defaults.sections.get(section_id, true) %}checked{% endif %}>
+                            <label class="form-check-label" for="section_{{ section_id }}">
+                                {{ section_label }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <hr>
+
+                <!-- Fields by Section -->
+                <h5 class="mb-3">Fields by Section</h5>
+                {% for section_id, section_fields in fields.items() %}
+                <div class="card mb-3">
+                    <div class="card-header py-2">
+                        <strong>{{ sections.get(section_id, section_id) }}</strong>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="row">
+                            {% for field_id, field_label in section_fields.items() %}
+                            <div class="col-md-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="field_{{ section_id }}_{{ field_id }}"
+                                           id="field_{{ section_id }}_{{ field_id }}"
+                                           {% if defaults.fields.get(section_id, {}).get(field_id, true) %}checked{% endif %}>
+                                    <label class="form-check-label" for="field_{{ section_id }}_{{ field_id }}">
+                                        {{ field_label }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Defaults
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary ms-2" id="reset-to-hardcoded">
+                        <i class="fas fa-undo"></i> Reset to Hardcoded Defaults
+                    </button>
+                    <a href="{{ url_for('settings.manage_settings') }}" class="btn btn-outline-secondary ms-2">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">About Field Visibility Defaults</div>
+        <div class="card-body">
+            <ul class="mb-0">
+                <li><strong>Project Defaults:</strong> Set by admins, these apply to all new users in the project.</li>
+                <li><strong>User Overrides:</strong> Users can customize visibility in the Entry Form's Field Settings modal.</li>
+                <li><strong>Reset:</strong> Clearing project defaults falls back to hardcoded application defaults.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle reset to hardcoded defaults
+    document.getElementById('reset-to-hardcoded').addEventListener('click', function() {
+        if (confirm('This will reset all defaults to the hardcoded application defaults. Continue?')) {
+            fetch('{{ url_for("user_preferences.clear_project_defaults", project_id=project_id) }}', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="csrf_token"]')?.value || ''
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    showAppToast('Defaults reset to hardcoded values', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAppToast('Error: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                showAppToast('Error: ' + error.message, 'error');
+            });
+        }
+    });
+});
+</script>
+<div id="app-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+<script>
+function showAppToast(message, type, timeout) {
+    type = type || 'success';
+    timeout = timeout || 4000;
+    const container = document.getElementById('app-toast-container');
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-bg-' + (type === 'error' ? 'danger' : 'success') + ' border-0';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    const messageNode = document.createElement('div');
+    messageNode.className = 'toast-body';
+    messageNode.textContent = message;
+    const closeButton = document.createElement('button');
+    closeButton.className = 'btn-close btn-close-white me-2 m-auto';
+    closeButton.setAttribute('data-bs-dismiss', 'toast');
+    closeButton.setAttribute('aria-label', 'Close');
+    const flexDiv = document.createElement('div');
+    flexDiv.className = 'd-flex';
+    flexDiv.appendChild(messageNode);
+    flexDiv.appendChild(closeButton);
+    toastEl.appendChild(flexDiv);
+    container.appendChild(toastEl);
+    const bsToast = new bootstrap.Toast(toastEl, { delay: timeout });
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', function () { toastEl.remove(); });
+    return bsToast;
+}
+</script>
+{% endblock %}

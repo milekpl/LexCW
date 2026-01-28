@@ -242,6 +242,11 @@ def create_app(config_name=None):
 
     app.register_blueprint(settings_bp)
 
+    # Register field visibility defaults routes
+    from app.routes.field_visibility_routes import field_visibility_bp
+
+    app.register_blueprint(field_visibility_bp)
+
     # Register merge/split operations API
     from app.api.merge_split import merge_split_bp
 
@@ -265,6 +270,11 @@ def create_app(config_name=None):
     from app.api.users_api import users_api_bp
 
     app.register_blueprint(users_api_bp)
+
+    from app.api.user_preferences_api import user_preferences_bp, project_defaults_bp
+
+    app.register_blueprint(user_preferences_bp)
+    app.register_blueprint(project_defaults_bp)
 
     from app.api.messages_api import messages_api_bp
 
