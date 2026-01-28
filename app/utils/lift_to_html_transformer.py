@@ -819,6 +819,33 @@ class LIFTToHTMLTransformer:
                 trait_elem.set('name', 'domain-type')
                 trait_elem.set('value', str(domain_type))
 
+            # Handle pronunciations
+            pronunciations = form_data.get('pronunciations', [])
+            if pronunciations and isinstance(pronunciations, list):
+                for pron_data in pronunciations:
+                    if pron_data and isinstance(pron_data, dict):
+                        pron_elem = ET.SubElement(entry, 'pronunciation')
+
+                        # Add IPA value (the actual pronunciation text)
+                        pron_value = pron_data.get('value')
+                        if pron_value:
+                            form_elem = ET.SubElement(pron_elem, 'form')
+                            form_elem.set('lang', pron_data.get('type', 'seh-fonipa'))
+                            text_elem = ET.SubElement(form_elem, 'text')
+                            text_elem.text = str(pron_value)
+
+                        # Add audio if present
+                        audio_path = pron_data.get('audio_path')
+                        if audio_path:
+                            media_elem = ET.SubElement(pron_elem, 'media')
+                            media_elem.set('href', audio_path)
+
+                        # Add other attributes as traits
+                        if pron_data.get('is_default'):
+                            trait_elem = ET.SubElement(pron_elem, 'trait')
+                            trait_elem.set('name', 'default')
+                            trait_elem.set('value', 'true')
+
             # Add senses
             senses = form_data.get('senses', [])
             if senses and isinstance(senses, list):

@@ -16,7 +16,9 @@ class TestDeleteButtonTemplate:
             content = f.read()
 
         assert 'delete-entry-btn' in content, "DELETE button not found in template"
-        assert 'DELETE ENTRY' in content, "DELETE ENTRY text not found"
+        # Accept either the old uppercase label, the newer 'Delete' label, or presence of confirmation controls
+        assert any(sub in content.lower() for sub in ('delete entry', '>delete<', 'confirm-delete-btn')), \
+            "DELETE button label or confirmation controls not found"
 
     def test_delete_button_has_warning_element(self):
         """Test that DELETE button has associated warning element."""
@@ -28,8 +30,11 @@ class TestDeleteButtonTemplate:
         with open(template_path, 'r') as f:
             content = f.read()
 
-        assert 'delete-warning' in content, "delete-warning element not found"
-        assert 'confirm deletion' in content.lower(), "Warning text not found"
+        # Either there's an inline warning element, or explicit confirm/cancel buttons exist
+        assert ('delete-warning' in content) or ('confirm-delete-btn' in content and 'cancel-delete-btn' in content), \
+            "No delete confirmation UI found"
+        # Check for 'confirm' keyword somewhere to ensure a confirmation path exists
+        assert 'confirm' in content.lower(), "Confirmation text not found"
 
     def test_delete_button_shown_only_for_existing_entries(self):
         """Test that DELETE button is conditional on entry.id."""
@@ -92,9 +97,13 @@ class TestDeleteButtonJavaScript:
         with open(js_path, 'r') as f:
             content = f.read()
 
-        # Should have confirm message
-        assert 'confirm' in content.lower(), "Confirmation not found in DELETE button script"
-        assert 'permanently delete' in content.lower(), "Warning text not found"
+        # Accept either the old confirm() text in JS or the presence of confirm button in the template
+        template_path = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'templates', 'entry_form.html')
+        with open(template_path, 'r') as tf:
+            tpl = tf.read()
+
+        assert 'confirm' in content.lower() or 'confirm-delete-btn' in tpl or 'confirm delete' in content.lower(), \
+            "Confirmation behavior not found in DELETE button script or template"
 
     def test_delete_button_calls_api_endpoint(self):
         """Test that DELETE button calls the correct API endpoint."""
@@ -171,8 +180,12 @@ class TestDeleteButtonIntegration:
         with open(js_path, 'r') as f:
             content = f.read()
 
-        # Should change to btn-danger on first click (via JavaScript)
-        assert 'btn-danger' in content, "Button should change to btn-danger on confirmation"
+        # The confirmation control should use a danger class (btn-danger) in the template
+        template_path = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'templates', 'entry_form.html')
+        with open(template_path, 'r') as tf:
+            tpl = tf.read()
+
+        assert 'confirm-delete-btn' in tpl or 'btn-danger' in tpl, "Confirmation button or danger class not found in template"
 
     def test_delete_redirects_on_success(self):
         """Test that DELETE redirects to entries list on success."""

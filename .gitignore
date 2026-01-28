@@ -96,3 +96,5 @@ compiled/schematron/
 node_modules/@asamuzakjp/css-color/LICENSE
 node_modules/@sinclair/typebox/license
 .omc/ultrawork-state.json
+debug_variant_container.png
+e2e_test_logs/validation_add_page.png
