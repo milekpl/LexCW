@@ -69,7 +69,7 @@ class SettingsForm(FlaskForm):
     auto_backup_schedule = SelectField(
         'Auto Backup Schedule',
         choices=[
-            ('disabled', 'Disabled'),
+            ('none', 'Disabled'),
             ('hourly', 'Hourly'),
             ('daily', 'Daily'),
             ('weekly', 'Weekly')

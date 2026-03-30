@@ -587,8 +587,9 @@ def process_senses_form_data(form_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                                 senses_data[sense_index][field_name] = parts
                             else:
                                 senses_data[sense_index][field_name] = []
-                        elif field_name == 'semantic_domain_':
-                            # semantic_domain_ supports multiple values and maps to semantic_domains
+                        elif field_name == 'semantic_domain':
+                            # semantic_domain supports multiple values and maps to semantic_domains
+                            # (Standardized form name: 'semantic_domain' without trailing underscore)
                             if isinstance(value, list):
                                 # Handle list of semantic domains from form
                                 senses_data[sense_index]['semantic_domains'] = [v.strip() for v in value if isinstance(v, str) and v.strip()]

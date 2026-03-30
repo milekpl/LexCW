@@ -1429,38 +1429,136 @@ class RelationGroups:
     """
     Container for grouped relations that supports both dict access and attribute access.
     Used by templates to display relations organized by type.
+
+    Relations are grouped dynamically by their type from the lexical-relation range.
+    Each relation stores both the ref (ID) and will be enriched with display text.
     """
 
-    def __init__(self, relations: List[Relation]):
-        self.synonyms: List[str] = []
-        self.antonyms: List[str] = []
-        self.related: List[str] = []
+    def __init__(self, relations: List[Relation], ranges: Dict = None):
+        """
+        Initialize RelationGroups from a list of relations.
+
+        Args:
+            relations: List of Relation objects
+            ranges: Optional LIFT ranges dict containing 'lexical-relation' definitions
+        """
+        # Get valid lexical relation type IDs from ranges
+        lexical_relation_types = set()
+        if ranges and 'lexical-relation' in ranges:
+            for elem in ranges['lexical-relation'].get('values', []):
+                if elem.get('id'):
+                    lexical_relation_types.add(elem['id'])
+
+        # Dynamic grouping: type -> list of {'ref': str, 'type': str}
+        self._relations_by_type: Dict[str, List[Dict[str, str]]] = {}
+        # Fallback for unknown types
+        self._other_relations: List[Dict[str, str]] = []
 
         for rel in relations:
             # Check variant-type trait FIRST - if present, it's a variant relation, not semantic
             if rel.traits and 'variant-type' in rel.traits:
                 continue
 
-            # Skip internal component relations (not variants)
+            # Skip internal component relations (not semantic relations)
             if rel.type == '_component-lexeme':
                 continue
 
-            if rel.type == 'synonym':
-                self.synonyms.append(rel.ref)
-            elif rel.type == 'antonym':
-                self.antonyms.append(rel.ref)
+            rel_data = {'ref': str(rel.ref), 'type': str(rel.type)}
+
+            if rel.type in lexical_relation_types:
+                if rel.type not in self._relations_by_type:
+                    self._relations_by_type[rel.type] = []
+                self._relations_by_type[rel.type].append(rel_data)
             else:
-                # All other relation types go to "related"
-                self.related.append(rel.ref)
+                # Unknown type - add to other relations
+                self._other_relations.append(rel_data)
+
+        # Build attribute accessors for common types (for backward compatibility)
+        self.synonyms = self._relations_by_type.get('synonym', [])
+        self.antonyms = self._relations_by_type.get('antonym', [])
+        # All unknown types go to 'related' for backward compatibility
+        self.related = self._other_relations
+
+    def enrich_with_display_text(self, dict_service) -> None:
+        """
+        Enrich all relations with display text from target entries.
+
+        Args:
+            dict_service: DictionaryService instance for looking up entries
+        """
+        if not dict_service:
+            return
+
+        # Enrich relations by type
+        for rel_list in self._relations_by_type.values():
+            for rel in rel_list:
+                self._enrich_relation(rel, dict_service)
+
+        # Enrich other relations
+        for rel in self._other_relations:
+            self._enrich_relation(rel, dict_service)
+
+        # Update backward compatibility attributes
+        self.synonyms = self._relations_by_type.get('synonym', [])
+        self.antonyms = self._relations_by_type.get('antonym', [])
+        self.related = self._other_relations
+
+    def _enrich_relation(self, rel: Dict[str, str], dict_service) -> None:
+        """Enrich a single relation with display text from target entry."""
+        ref = rel.get('ref')
+        if not ref:
+            return
+
+        try:
+            target_entry = dict_service.get_entry(ref)
+            if target_entry:
+                # Get lexical unit for display
+                lexical_unit = ''
+                if hasattr(target_entry, 'lexical_unit'):
+                    if isinstance(target_entry.lexical_unit, dict):
+                        for lang in ['en', 'pl', 'cs', 'sk']:
+                            if lang in target_entry.lexical_unit:
+                                lexical_unit = target_entry.lexical_unit[lang]
+                                break
+                        if not lexical_unit:
+                            first_key = list(target_entry.lexical_unit.keys())[0]
+                            lexical_unit = target_entry.lexical_unit[first_key]
+                    else:
+                        lexical_unit = str(target_entry.lexical_unit)
+
+                # Create display text with homograph number if present
+                display_text = lexical_unit if lexical_unit else ref
+                if hasattr(target_entry, 'homograph_number') and target_entry.homograph_number:
+                    display_text += f'<sub style="font-size: 0.8em; color: #6c757d;">{target_entry.homograph_number}</sub>'
+
+                rel['ref_display_text'] = display_text
+                rel['ref_entry_id'] = target_entry.id
+        except Exception:
+            # If resolution fails, use ref as display text
+            rel['ref_display_text'] = ref
+
+    @property
+    def all_relations(self) -> List[Dict[str, str]]:
+        """Get all relations as a flat list."""
+        result = []
+        for rel_list in self._relations_by_type.values():
+            result.extend(rel_list)
+        result.extend(self._other_relations)
+        return result
 
     def __bool__(self) -> bool:
         """Return True if any relations exist."""
-        return bool(self.synonyms or self.antonyms or self.related)
+        return bool(self._relations_by_type or self._other_relations)
 
-    def __getitem__(self, key: str) -> List[str]:
+    def __getitem__(self, key: str) -> List[Dict[str, str]]:
         """Allow dict-style access for Jinja2 compatibility."""
-        return getattr(self, key, [])
+        if key in self._relations_by_type:
+            return self._relations_by_type[key]
+        if key == 'other' or key == 'related':
+            return self._other_relations
+        return []
 
-    def get(self, key: str, default: List[str] = None) -> List[str]:
+    def get(self, key: str, default: List[Dict[str, str]] = None) -> List[Dict[str, str]]:
         """Allow dict-style .get() access."""
-        return getattr(self, key, default or [])
+        result = self.__getitem__(key)
+        return result if result else (default or [])

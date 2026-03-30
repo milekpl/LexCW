@@ -163,6 +163,27 @@ function testSerializeFormToJSON() {
         };
         return formData;
     }
+
+    function createMockFormDataWithElements(entries, elementSpecsByName) {
+        return {
+            entries: entries,
+            forEach: function(callback) {
+                this.entries.forEach(([key, value]) => callback(value, key));
+            },
+            querySelectorAll: function(selector) {
+                const match = /^\[name="(.+)"\]$/.exec(selector);
+                if (!match) return [];
+
+                // Undo minimal escaping used by the serializer.
+                const name = match[1].replace(/\\(.)/g, '$1');
+                return (elementSpecsByName[name] || []).map(spec => ({
+                    tagName: spec.tagName,
+                    type: spec.type,
+                    multiple: !!spec.multiple
+                }));
+            }
+        };
+    }
     
     // Test simple form data
     let formData = createMockFormData([
@@ -197,6 +218,41 @@ function testSerializeFormToJSON() {
     }, 'Complex form data serialization');
     
     // Test empty values option
+
+    // Worker-like behavior: duplicate non-multi fields must not become arrays
+    formData = createMockFormData([
+        ['senses[1].id', ''],
+        ['senses[1].id', 'sense-2'],
+        ['senses[1].definition.en.text', 'Old'],
+        ['senses[1].definition.en.text', 'New']
+    ]);
+    result = serializeFormToJSON(formData);
+    assertEqual(result, {
+        senses: [
+            ,
+            { id: 'sense-2', definition: { en: { text: 'New' } } }
+        ]
+    }, 'Duplicate scalar fields are coerced (worker-like input)');
+
+    // Worker-like behavior: known multi-select fields preserve arrays
+    formData = createMockFormData([
+        ['senses[0].semantic_domain', '1.1'],
+        ['senses[0].semantic_domain', '1.2'],
+        ['senses[0].usage_type', 'formal'],
+        ['senses[0].usage_type', 'archaic'],
+        ['senses[0].domain_type', 'biology'],
+        ['senses[0].domain_type', 'chemistry']
+    ]);
+    result = serializeFormToJSON(formData);
+    assertEqual(result, {
+        senses: [
+            {
+                semantic_domain: ['1.1', '1.2'],
+                usage_type: ['formal', 'archaic'],
+                domain_type: ['biology', 'chemistry']
+            }
+        ]
+    }, 'Known multi-select fields preserve arrays (worker-like input)');
     formData = createMockFormData([
         ['name', 'John'],
         ['description', ''],
@@ -226,6 +282,37 @@ function testSerializeFormToJSON() {
         name: 'JOHN DOE',
         age: 25
     }, 'Transform function option');
+
+    // Test duplicate field names (non-multiple controls) are coerced to scalar
+    formData = createMockFormDataWithElements(
+        [
+            ['senses[1].id', ''],
+            ['senses[1].id', 'sense-2']
+        ],
+        {
+            'senses[1].id': [
+                { tagName: 'input', type: 'hidden' },
+                { tagName: 'input', type: 'hidden' }
+            ]
+        }
+    );
+    result = serializeFormToJSON(formData);
+    assertEqual(result, { senses: [null, { id: 'sense-2' }] }, 'Duplicate hidden inputs coerce to scalar');
+
+    // Test legitimate multi-select preserves array
+    formData = createMockFormDataWithElements(
+        [
+            ['senses[0].semantic_domain', '1.2'],
+            ['senses[0].semantic_domain', '1.3']
+        ],
+        {
+            'senses[0].semantic_domain': [
+                { tagName: 'select', multiple: true }
+            ]
+        }
+    );
+    result = serializeFormToJSON(formData);
+    assertEqual(result, { senses: [{ semantic_domain: ['1.2', '1.3'] }] }, 'Multi-select keeps array');
     
     console.log('✓ serializeFormToJSON tests passed');
 }

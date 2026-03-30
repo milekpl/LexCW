@@ -18,24 +18,29 @@ class MultilingualSenseFieldsManager {
      * Initialize event listeners for multilingual field controls
      */
     initEventListeners() {
+        console.log('[MultilingualFields] initEventListeners called');
         // Use event delegation for dynamically added elements
         document.addEventListener('click', (event) => {
+            console.log('[MultilingualFields] Click event on:', event.target, event.target?.className);
             // Add definition language button
             if (event.target.closest('.add-definition-language-btn')) {
+                console.log('[MultilingualFields] Add definition button clicked');
                 const button = event.target.closest('.add-definition-language-btn');
                 const senseIndex = button.dataset.senseIndex;
                 const container = button.closest('.mb-3').querySelector('.multilingual-forms');
                 this.addLanguageField(container, senseIndex, 'definition');
             }
-            
+
             // Add gloss language button
             if (event.target.closest('.add-gloss-language-btn')) {
+                console.log('[MultilingualFields] Add gloss button clicked');
                 const button = event.target.closest('.add-gloss-language-btn');
                 const senseIndex = button.dataset.senseIndex;
                 const container = button.closest('.mb-3').querySelector('.multilingual-forms');
+                console.log('[MultilingualFields] Container:', container);
                 this.addLanguageField(container, senseIndex, 'gloss');
             }
-            
+
             // Add note language button
             if (event.target.closest('.add-note-language-btn')) {
                 const button = event.target.closest('.add-note-language-btn');
@@ -43,17 +48,17 @@ class MultilingualSenseFieldsManager {
                 const container = button.closest('.mb-3').querySelector('.multilingual-forms');
                 this.addNoteLanguageField(container, noteType);
             }
-            
-            // Remove definition language button
-            if (event.target.closest('.remove-definition-language-btn')) {
-                const button = event.target.closest('.remove-definition-language-btn');
+
+            // Remove definition language button - support both specific and generic class names
+            if (event.target.closest('.remove-definition-language-btn') || event.target.closest('.remove-language-btn')) {
+                const button = event.target.closest('.remove-definition-language-btn') || event.target.closest('.remove-language-btn');
                 const languageForm = button.closest('.language-form');
                 this.removeLanguageField(languageForm);
             }
-            
-            // Remove gloss language button
-            if (event.target.closest('.remove-gloss-language-btn')) {
-                const button = event.target.closest('.remove-gloss-language-btn');
+
+            // Remove gloss language button - support both specific and generic class names
+            if (event.target.closest('.remove-gloss-language-btn') || event.target.closest('.remove-language-btn')) {
+                const button = event.target.closest('.remove-gloss-language-btn') || event.target.closest('.remove-language-btn');
                 const languageForm = button.closest('.language-form');
                 this.removeLanguageField(languageForm);
             }
@@ -74,93 +79,116 @@ class MultilingualSenseFieldsManager {
      * @param {string} fieldType - The type of field ('definition' or 'gloss')
      */
     addLanguageField(container, senseIndex, fieldType) {
-        // Get all existing language codes in this container
-        const existingLanguages = Array.from(container.querySelectorAll('.language-form'))
-            .map(form => form.dataset.language);
-        
-        // Get all available language options
-        const languageOptions = Array.from(container.querySelector('select.language-select').options)
-            .map(option => ({
-                code: option.value,
-                label: option.textContent
-            }))
-            .filter(lang => !existingLanguages.includes(lang.code));
-        
-        // If no more languages available, show a message
-        if (languageOptions.length === 0) {
-            alert('All available languages have already been added.');
-            return;
-        }
-        
-        // Select the first available language
-        const newLang = languageOptions[0];
-        
-        // Create the new language form
-        const newForm = document.createElement('div');
-        newForm.className = 'mb-3 language-form';
-        newForm.dataset.language = newLang.code;
-        
-        // Different HTML structure based on field type
-        if (fieldType === 'definition') {
-            newForm.innerHTML = `
-                <div class="row">
-                    <div class="col-md-3">
-                        <label class="form-label">Language</label>
-                        <select class="form-select language-select" 
-                                name="senses[${senseIndex}].definition.${newLang.code}.lang">
-                            ${this.generateLanguageOptions(languageOptions, newLang.code)}
-                        </select>
+        console.log('[MultilingualFields] addLanguageField called:', { fieldType, senseIndex });
+
+        try {
+            // Get all existing language codes in this container
+            const existingLanguages = Array.from(container.querySelectorAll('.language-form'))
+                .map(form => form.dataset.language);
+            console.log('[MultilingualFields] Existing languages:', existingLanguages);
+
+            // Get all available language options
+            const languageSelect = container.querySelector('select.language-select');
+            console.log('[MultilingualFields] Language select found:', !!languageSelect);
+
+            if (!languageSelect) {
+                console.error('[MultilingualFields] Language select not found in container');
+                return;
+            }
+
+            const languageOptions = Array.from(languageSelect?.options || [])
+                .map(option => ({
+                    code: option.value,
+                    label: option.textContent
+                }))
+                .filter(lang => !existingLanguages.includes(lang.code) && lang.code);
+            console.log('[MultilingualFields] Available language options:', languageOptions);
+
+            // If no more languages available, show a message
+            if (languageOptions.length === 0) {
+                console.log('[MultilingualFields] No languages available');
+                alert('All available languages have already been added.');
+                return;
+            }
+
+            // Select the first available language
+            const newLang = languageOptions[0];
+            console.log('[MultilingualFields] Adding language:', newLang);
+
+            // Create the new language form
+            const newForm = document.createElement('div');
+            newForm.className = 'mb-3 language-form';
+            newForm.dataset.language = newLang.code;
+
+            // Build the options HTML safely
+            const optionsHtml = this.generateLanguageOptions(languageOptions, newLang.code);
+
+            // Different HTML structure based on field type
+            if (fieldType === 'definition') {
+                newForm.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Language</label>
+                            <select class="form-select language-select"
+                                    name="senses[${senseIndex}].definition.${newLang.code}.lang">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Definition Text</label>
+                            <textarea class="form-control definition-text"
+                                      name="senses[${senseIndex}].definition.${newLang.code}.text"
+                                      rows="2"
+                                      placeholder="Enter definition in ${newLang.code}"></textarea>
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-definition-language-btn remove-language-btn"
+                                    title="Remove language">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="col-md-8">
-                        <label class="form-label">Definition Text</label>
-                        <textarea class="form-control definition-text" 
-                                  name="senses[${senseIndex}].definition.${newLang.code}.text"
-                                  rows="2" 
-                                  placeholder="Enter definition in ${newLang.code}"></textarea>
+                `;
+            } else if (fieldType === 'gloss') {
+                newForm.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Language</label>
+                            <select class="form-select language-select"
+                                    name="senses[${senseIndex}].gloss.${newLang.code}.lang">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Gloss Text</label>
+                            <input type="text" class="form-control gloss-text"
+                                   name="senses[${senseIndex}].gloss.${newLang.code}.text"
+                                   value=""
+                                   placeholder="Enter gloss in ${newLang.code}">
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-gloss-language-btn remove-language-btn"
+                                    title="Remove language">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-definition-language-btn" 
-                                title="Remove language">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        } else if (fieldType === 'gloss') {
-            newForm.innerHTML = `
-                <div class="row">
-                    <div class="col-md-3">
-                        <label class="form-label">Language</label>
-                        <select class="form-select language-select" 
-                                name="senses[${senseIndex}].gloss.${newLang.code}.lang">
-                            ${this.generateLanguageOptions(languageOptions, newLang.code)}
-                        </select>
-                    </div>
-                    <div class="col-md-8">
-                        <label class="form-label">Gloss Text</label>
-                        <input type="text" class="form-control gloss-text" 
-                               name="senses[${senseIndex}].gloss.${newLang.code}.text"
-                               value=""
-                               placeholder="Enter gloss in ${newLang.code}">
-                    </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-gloss-language-btn" 
-                                title="Remove language">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Add the new form to the container
-        container.appendChild(newForm);
-        
-        // Initialize any Select2 elements if needed
-        if (window.$ && $.fn.select2) {
-            $(newForm).find('select').select2({
-                theme: 'bootstrap-5'
-            });
+                `;
+            }
+
+            // Add the new form to the container
+            container.appendChild(newForm);
+            console.log('[MultilingualFields] New language form added successfully');
+
+            // Initialize any Select2 elements if needed
+            if (window.$ && $.fn.select2) {
+                $(newForm).find('select').select2({
+                    theme: 'bootstrap-5'
+                });
+            }
+        } catch (error) {
+            console.error('[MultilingualFields] Error adding language field:', error);
+            alert('Error adding language field. See console for details.');
         }
     }
     

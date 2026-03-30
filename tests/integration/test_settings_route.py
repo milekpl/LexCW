@@ -163,6 +163,36 @@ class TestSettingsRoute(unittest.TestCase):
         self.assertEqual(backup_settings.get('include_media'), True)
 
     @pytest.mark.integration
+    def test_update_backup_schedule_none_persists(self):
+        """When the 'Disabled' option is selected (value 'none'), it should persist as 'none'."""
+        backup_data = {
+            'project_name': 'No Backup Project',
+            'source_language_code': 'en',
+            'source_language_name': 'English',
+            'available_target_languages': '[]',
+            'backup_directory': '/tmp/no_backups',
+            'auto_backup_schedule': 'none',
+            'backup_retention': '3',
+            'backup_compression': 'y',
+            # When a checkbox is unchecked in HTML it is not sent in the form payload
+            # Simulate that by omitting 'backup_include_media' from the POST
+            'csrf_token': 'testing_csrf_token'
+        }
+
+        resp = self.client.post('/settings/', data=backup_data, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'Settings updated successfully!', resp.data)
+
+        cfg = self.app.config_manager
+        backup_settings = cfg.get_backup_settings()
+        self.assertEqual(backup_settings.get('directory'), '/tmp/no_backups')
+        # Critical check: schedule persists as 'none' (not 'disabled')
+        self.assertEqual(backup_settings.get('schedule'), 'none')
+        self.assertEqual(backup_settings.get('retention'), 3)
+        self.assertEqual(backup_settings.get('compression'), True)
+        self.assertEqual(backup_settings.get('include_media'), False)
+
+    @pytest.mark.integration
     def test_settings_are_applied_immediately(self):
         """Test that updated settings are immediately available in the application."""
         new_settings_data = {

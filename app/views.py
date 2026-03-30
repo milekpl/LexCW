@@ -22,7 +22,7 @@ from flask import (
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
-from app.models.entry import Entry
+from app.models.entry import Entry, RelationGroups
 from app.utils.exceptions import NotFoundError, ValidationError
 from app.utils.multilingual_form_processor import merge_form_data_with_entry_data
 from app.utils.language_utils import get_project_languages, get_language_choices_for_forms
@@ -171,7 +171,13 @@ def index():
                     break
         if cached_data:
             try:
-                cached_stats = json.loads(cached_data)
+                # Cached data may already be deserialized by CacheService.get() (dict),
+                # or it may be a JSON string. Handle both cases gracefully.
+                if isinstance(cached_data, (str, bytes)):
+                    cached_stats = json.loads(cached_data)
+                else:
+                    cached_stats = cached_data
+
                 stats = cached_stats.get("stats", stats)
                 system_status = cached_stats.get("system_status", system_status)
                 recent_activity = cached_stats.get("recent_activity", recent_activity)
@@ -182,7 +188,7 @@ def index():
                     system_status=system_status,
                     recent_activity=recent_activity,
                 )
-            except (json.JSONDecodeError, KeyError) as e:
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
                 logger.warning(f"Invalid cached dashboard data: {e}")
 
     # Get actual stats from the database if possible
@@ -221,7 +227,8 @@ def index():
                 "system_status": system_status,
                 "recent_activity": recent_activity,
             }
-            cache.set(cache_key, json.dumps(cache_data, default=str), ttl=600)
+            # Store the Python object directly; CacheService handles JSON serialization.
+            cache.set(cache_key, cache_data, ttl=600)
             logger.info("Cached dashboard stats for 10 minutes")
 
     except Exception as e:
@@ -264,7 +271,15 @@ def view_entry(entry_id):
         
         # Get subentries (reverse component relations)
         subentries = entry.get_subentries(dict_service)
-        
+
+        # Get LIFT ranges for relation type grouping
+        project_id = session.get('project_id', 1)
+        ranges = dict_service.get_lift_ranges(project_id=project_id)
+
+        # Enrich entry-level relations (grouped_relations) with display text
+        enriched_grouped_relations = RelationGroups(entry.relations, ranges)
+        enriched_grouped_relations.enrich_with_display_text(dict_service)
+
         # Get CSS-rendered HTML for the entry using default profile
         from app.services.css_mapping_service import CSSMappingService
         from app.services.display_profile_service import DisplayProfileService
@@ -332,8 +347,9 @@ def view_entry(entry_id):
         except Exception as e:
             logger.warning("Error rendering entry with CSS: %s", e)
 
-        return render_template("entry_view.html", entry=entry, css_html=css_html, 
-                             component_relations=component_relations, subentries=subentries)
+        return render_template("entry_view.html", entry=entry, css_html=css_html,
+                             component_relations=component_relations, subentries=subentries,
+                             enriched_grouped_relations=enriched_grouped_relations)
 
     except NotFoundError:
         flash(f"Entry with ID {entry_id} not found.", "danger")
@@ -480,7 +496,8 @@ def edit_entry(entry_id):
                     has_definition = False
                     has_gloss = False
                     defs = s.get('definition') or {}
-                    glosses = s.get('gloss') or {}
+                    # Handle both 'gloss' (singular) and 'glosses' (plural) from form data
+                    glosses = s.get('glosses') or s.get('gloss') or {}
 
                     for val in defs.values() if isinstance(defs, dict) else []:
                         if isinstance(val, dict) and val.get('text', '').strip():
@@ -610,7 +627,11 @@ def edit_entry(entry_id):
             forward_component_relations_data = entry.get_forward_component_relations(dict_service)
             # Extract subentries (reverse component relations)
             subentries_data = entry.get_subentries(dict_service)
-            
+
+            # Create enriched grouped_relations for template (can't set on entry because it's a property)
+            enriched_grouped_relations = RelationGroups(entry.relations, ranges)
+            enriched_grouped_relations.enrich_with_display_text(dict_service)
+
             # Enrich sense relations with display text
             for sense in entry.senses:
                 if hasattr(sense, 'relations') and sense.relations:
@@ -712,6 +733,7 @@ def edit_entry(entry_id):
             component_relations=component_relations_data,
             forward_component_relations=forward_component_relations_data,
             subentries=subentries_data,
+            enriched_grouped_relations=enriched_grouped_relations,
             validation_result=validation_result,
             project_languages=languages,
             available_languages=available_languages,

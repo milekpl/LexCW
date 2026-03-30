@@ -42,7 +42,7 @@ class TestSenseLevelFieldsNoDataLoss:
             'id': 'test_entry',
             'lexical_unit': {'en': 'test'},
             'senses[0].id': 'sense1',
-            'senses[0].semantic_domain_': ['1.1 Universe, creation', '1.2 World'],  # List from multiple select
+            'senses[0].semantic_domain': ['1.1 Universe, creation', '1.2 World'],  # List from multiple select (standardized field)
             'senses[0].definition.en.text': 'A test definition'
         }
         

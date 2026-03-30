@@ -215,10 +215,11 @@ class TestJavaScriptFileUploadHandlers:
         
         js_content = response.data.decode('utf-8')
         
-        # Verify upload button handler exists
-        assert "e.target.closest('.upload-audio-btn')" in js_content
-        assert "fileInput.type = 'file'" in js_content
-        assert "fileInput.accept = 'audio/*'" in js_content
+        # Verify upload button handler exists (accept both single and double-quote styles)
+        import re
+        assert re.search(r"e\.target\.closest\(\s*['\"]\.upload-audio-btn['\"]\s*\)", js_content)
+        assert re.search(r"fileInput\.type\s*=\s*['\"]file['\"]", js_content)
+        assert re.search(r"fileInput\.accept\s*=\s*['\"]audio/\*['\"]", js_content)
     
     def test_entry_form_js_has_generate_handler(self, client: FlaskClient):
         """Test that entry-form.js contains audio generate handler."""
@@ -227,8 +228,9 @@ class TestJavaScriptFileUploadHandlers:
         
         js_content = response.data.decode('utf-8')
         
-        # Verify generate button handler exists
-        assert "e.target.closest('.generate-audio-btn')" in js_content
+        # Verify generate button handler exists (accept either quoting style)
+        import re
+        assert re.search(r"e\.target\.closest\(\s*['\"]\.generate-audio-btn['\"]\s*\)", js_content)
         assert 'generateAudio' in js_content
     
     def test_multilingual_sense_fields_js_has_illustration_picker(self, client: FlaskClient):
@@ -261,8 +263,9 @@ class TestJavaScriptFileUploadHandlers:
         assert response.status_code == 200
         js_content = response.data.decode('utf-8')
 
-        assert "e.target.closest('.add-illustration-btn')" in js_content
-        assert "e.target.closest('.upload-illustration-btn')" in js_content
+        import re
+        assert re.search(r"e\.target\.closest\(\s*['\"]\.add-illustration-btn['\"]\s*\)", js_content)
+        assert re.search(r"e\.target\.closest\(\s*['\"]\.upload-illustration-btn['\"]\s*\)", js_content)
 
     def test_css_view_displays_illustration(self, client: FlaskClient):
         """Test that CSS display includes rendered illustration images."""

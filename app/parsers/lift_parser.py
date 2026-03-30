@@ -485,91 +485,91 @@ class LIFTParser:
                             for lang, text in illustration['label'].items():
                                 form = ET.SubElement(label_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
                                 ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-        
-        # Variants
-        for variant in entry.variants:
-            variant_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}variant")
-
-            # Add variant form
-            if variant.form:
-                for lang, text in variant.form.items():
-                    form = ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                    text_val = text['text'] if isinstance(text, dict) else text
-                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
-
-            # Add direct traits if present
-            if hasattr(variant, 'traits') and variant.traits:
-                for trait_name, trait_value in variant.traits.items():
-                    ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                        'name': trait_name,
-                        'value': trait_value
-                    })
-
-            # Add grammatical-info with traits if present
-            if hasattr(variant, 'grammatical_info') and variant.grammatical_info:
-                gram_info = ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}grammatical-info", {'value': variant.grammatical_info})
-                if hasattr(variant, 'grammatical_traits') and variant.grammatical_traits:
-                    for trait_name, trait_value in variant.grammatical_traits.items():
-                        ET.SubElement(gram_info, f"{{{self.NSMAP['lift']}}}trait", {
+            
+            # Variants
+            for variant in entry.variants:
+                variant_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}variant")
+            
+                # Add variant form
+                if variant.form:
+                    for lang, text in variant.form.items():
+                        form = ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                        text_val = text['text'] if isinstance(text, dict) else text
+                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text_val)
+            
+                # Add direct traits if present
+                if hasattr(variant, 'traits') and variant.traits:
+                    for trait_name, trait_value in variant.traits.items():
+                        ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}trait", {
                             'name': trait_name,
                             'value': trait_value
                         })
-
-        # Relations
-        for relation in entry.relations:
-            rel_attrib = {'type': relation.type, 'ref': relation.ref}
-            if hasattr(relation, 'order') and relation.order is not None:
-                rel_attrib['order'] = str(relation.order)
             
-            relation_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}relation", rel_attrib)
+                # Add grammatical-info with traits if present
+                if hasattr(variant, 'grammatical_info') and variant.grammatical_info:
+                    gram_info = ET.SubElement(variant_elem, f"{{{self.NSMAP['lift']}}}grammatical-info", {'value': variant.grammatical_info})
+                    if hasattr(variant, 'grammatical_traits') and variant.grammatical_traits:
+                        for trait_name, trait_value in variant.grammatical_traits.items():
+                            ET.SubElement(gram_info, f"{{{self.NSMAP['lift']}}}trait", {
+                                'name': trait_name,
+                                'value': trait_value
+                            })
             
-            # Add traits if present
-            if hasattr(relation, 'traits') and relation.traits:
-                for trait_name, trait_value in relation.traits.items():
-                    ET.SubElement(relation_elem, f"{{{self.NSMAP['lift']}}}trait", {
-                        'name': trait_name, 
-                        'value': trait_value
-                    })
-
-        # Etymologies
-        if hasattr(entry, 'etymologies') and entry.etymologies:
-            for etym in entry.etymologies:
-                etym_attrib = {}
-                if etym.type:
-                    etym_attrib['type'] = etym.type
-                if etym.source:
-                    etym_attrib['source'] = etym.source
-                
-                etym_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}etymology", etym_attrib)
-                
-                # Add form if present
-                if etym.form:
-                    for lang, text in etym.form.items():
-                        form = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                # Add gloss if present
-                if etym.gloss:
-                    for lang, text in etym.gloss.items():
-                        gloss = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}gloss", {'lang': lang})
-                        ET.SubElement(gloss, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                # Add comment if present
-                if etym.comment:
-                    comment_field = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'comment'})
-                    for lang, text in etym.comment.items():
-                        form = ET.SubElement(comment_field, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                        ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-                
-                # Add custom fields if present
-                if etym.custom_fields:
-                    for field_type, field_content in etym.custom_fields.items():
-                        if field_type != 'comment':  # Skip comment as it's handled separately
-                            field_elem = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}field", {'type': field_type})
-                            for lang, text in field_content.items():
-                                form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
-                                ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
-
+            # Relations
+            for relation in entry.relations:
+                rel_attrib = {'type': relation.type, 'ref': relation.ref}
+                if hasattr(relation, 'order') and relation.order is not None:
+                    rel_attrib['order'] = str(relation.order)
+            
+                relation_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}relation", rel_attrib)
+            
+                # Add traits if present
+                if hasattr(relation, 'traits') and relation.traits:
+                    for trait_name, trait_value in relation.traits.items():
+                        ET.SubElement(relation_elem, f"{{{self.NSMAP['lift']}}}trait", {
+                            'name': trait_name, 
+                            'value': trait_value
+                        })
+            
+            # Etymologies
+            if hasattr(entry, 'etymologies') and entry.etymologies:
+                for etym in entry.etymologies:
+                    etym_attrib = {}
+                    if etym.type:
+                        etym_attrib['type'] = etym.type
+                    if etym.source:
+                        etym_attrib['source'] = etym.source
+            
+                    etym_elem = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}etymology", etym_attrib)
+            
+                    # Add form if present
+                    if etym.form:
+                        for lang, text in etym.form.items():
+                            form = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+            
+                    # Add gloss if present
+                    if etym.gloss:
+                        for lang, text in etym.gloss.items():
+                            gloss = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}gloss", {'lang': lang})
+                            ET.SubElement(gloss, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+            
+                    # Add comment if present
+                    if etym.comment:
+                        comment_field = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}field", {'type': 'comment'})
+                        for lang, text in etym.comment.items():
+                            form = ET.SubElement(comment_field, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                            ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+            
+                    # Add custom fields if present
+                    if etym.custom_fields:
+                        for field_type, field_content in etym.custom_fields.items():
+                            if field_type != 'comment':  # Skip comment as it's handled separately
+                                field_elem = ET.SubElement(etym_elem, f"{{{self.NSMAP['lift']}}}field", {'type': field_type})
+                                for lang, text in field_content.items():
+                                    form = ET.SubElement(field_elem, f"{{{self.NSMAP['lift']}}}form", {'lang': lang})
+                                    ET.SubElement(form, f"{{{self.NSMAP['lift']}}}text").text = str(text)
+            
         # Convert to string and pretty print
         xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True).decode('utf-8')
         try:

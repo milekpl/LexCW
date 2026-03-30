@@ -431,8 +431,12 @@ class TestVariantDirectionDetection:
 class TestRelationGroupsVariantFiltering:
     """Tests for RelationGroups filtering out variant relations."""
 
-    def test_relation_groups_excludes_variant_relations(self):
-        """RelationGroups should not include relations with variant-type trait."""
+    def test_relation_groups_excludes_variant_relations(self, lexical_relation_ranges):
+        """RelationGroups should not include relations with variant-type trait.
+
+        This test uses the `lexical_relation_ranges` fixture to simulate a configured
+        project where `lexical-relation` contains `synonym`, `antonym`, and `see`.
+        """
         relations = [
             Relation(type="synonym", ref="syn1", traits={}),
             Relation(type="antonym", ref="ant1", traits={}),
@@ -441,28 +445,61 @@ class TestRelationGroupsVariantFiltering:
         ]
 
         from app.models.entry import RelationGroups
-        groups = RelationGroups(relations)
+        groups = RelationGroups(relations, lexical_relation_ranges)
 
         assert hasattr(groups, 'synonyms')
         assert hasattr(groups, 'antonyms')
-        # Check internal state
+        # Check internal state when ranges are present
         assert len(groups.synonyms) == 2
         assert len(groups.antonyms) == 1
 
-    def test_relation_groups_excludes_component_relations(self):
-        """RelationGroups should not include _component-lexeme relations."""
+        # Verify the variant relation was excluded entirely
+        all_refs = [r['ref'] for r in groups.all_relations]
+        assert 'var1' not in all_refs
+
+    def test_relation_groups_behavior_without_ranges(self):
+        """When no ranges are configured, relation types are not grouped; _component-lexeme and variants are excluded."""
+        relations = [
+            Relation(type="synonym", ref="syn1", traits={}),
+            Relation(type="_component-lexeme", ref="comp1", traits={}),  # Should be excluded entirely
+            Relation(type="see", ref="var1", traits={"variant-type": "inflected"}),  # Should be excluded entirely
+            Relation(type="other", ref="other1", traits={}),
+        ]
+
+        from app.models.entry import RelationGroups
+        groups = RelationGroups(relations)  # no ranges
+
+        # With no ranges, the specific type groups are empty
+        assert len(groups.synonyms) == 0
+        assert len(groups.antonyms) == 0
+
+        # The synonym-type and other-type entries should appear under 'related'
+        related_refs = [r['ref'] for r in groups.related]
+        assert 'syn1' in related_refs
+        assert 'other1' in related_refs
+
+        # Ensure _component-lexeme and variant relations are excluded
+        assert 'comp1' not in related_refs
+        assert 'var1' not in related_refs
+
+    def test_relation_groups_excludes_component_relations(self, lexical_relation_ranges):
+        """RelationGroups should not include _component-lexeme relations.
+
+        Uses `lexical_relation_ranges` to simulate a configured project where
+        `synonym` is defined and should be grouped under `.synonyms`.
+        """
         relations = [
             Relation(type="synonym", ref="syn1", traits={}),
             Relation(type="_component-lexeme", ref="comp1", traits={}),  # Should be excluded
         ]
 
         from app.models.entry import RelationGroups
-        groups = RelationGroups(relations)
+        groups = RelationGroups(relations, lexical_relation_ranges)
 
         assert len(groups.synonyms) == 1
-        assert "_component-lexeme" not in groups.synonyms
-        assert "_component-lexeme" not in groups.antonyms
-        assert "_component-lexeme" not in groups.related
+        assert "_component-lexeme" not in [r.get('type') for r in groups.synonyms]
+        assert "_component-lexeme" not in [r.get('type') for r in groups.antonyms]
+        assert "_component-lexeme" not in [r.get('type') for r in groups.related]
 
     def test_relation_groups_has_bool_method(self):
         """RelationGroups should have a bool method that returns True when relations exist."""

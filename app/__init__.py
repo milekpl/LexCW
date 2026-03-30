@@ -708,10 +708,11 @@ def create_app(config_name=None):
                             active=True,
                         )
 
-                        backup_scheduler.schedule_backup(scheduled_backup)
-                        app.logger.info(
-                            f"Scheduled {schedule_interval} backup at {time_str}"
-                        )
+                        result = backup_scheduler.schedule_backup(scheduled_backup)
+                        if result:
+                            app.logger.info(f"Scheduled {schedule_interval} backup at {time_str}")
+                        else:
+                            app.logger.info(f"Did not schedule backup for {db_name} (schedule={schedule_interval})")
                     else:
                         app.logger.info("Backup schedule is set to 'none' in settings")
                 else:

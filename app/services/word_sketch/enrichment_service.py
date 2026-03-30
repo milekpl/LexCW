@@ -127,7 +127,7 @@ class EnrichmentService:
         """
         from app.services.word_sketch import WordSketchClient
 
-        self.ws_client = word_sketch_client or WordSketchClient()
+        self.ws_client = word_sketch_client or WordSketchClient.from_config()
         self.logger = logging.getLogger(__name__)
 
         # LuceneCorpusClient is optional - it may not be available in all environments

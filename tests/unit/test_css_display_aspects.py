@@ -324,7 +324,7 @@ class TestProfileElementIntegration:
             assert retrieved_elem.get_display_aspect() == 'abbr'
             assert retrieved_elem.get_display_language() == 'en'
 
-    def test_relation_label_aspect_renders_full_label(self, db_app: Flask) -> None:
+    def test_relation_label_aspect_renders_full_label(self, db_app: Flask, lexical_relation_ranges) -> None:
         """When a relation element is configured with display_aspect 'label',
         rendering should use the full label from ranges rather than the abbreviation.
         """
@@ -355,15 +355,8 @@ class TestProfileElementIntegration:
             service = CSSMappingService()
 
             # Mock the dictionary service to provide ranges with lexical-relation mappings
-            ranges = {
-                'lexical-relation': {
-                    'values': [
-                        {'id': 'antonym', 'label': {'en': 'Antonym'}}
-                    ]
-                }
-            }
             mock_dict_service = MagicMock()
-            mock_dict_service.get_ranges.return_value = ranges
+            mock_dict_service.get_ranges.return_value = lexical_relation_ranges
 
             with patch('flask.current_app') as mock_current_app:
                 mock_injector = MagicMock()
@@ -371,6 +364,9 @@ class TestProfileElementIntegration:
                 mock_current_app.injector = mock_injector
 
                 html = service.render_entry(lift_xml, profile)
+
+                assert 'Antonym' in html
+                assert 'ant ' not in html or ' ant<' not in html
 
                 # Expect the full label 'Antonym' rather than abbreviation 'ant'
                 assert 'Antonym' in html

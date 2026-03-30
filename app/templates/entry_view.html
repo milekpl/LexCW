@@ -296,35 +296,49 @@
                 <h5><i class="fas fa-link"></i> Related Entries</h5>
             </div>
             <div class="card-body">
-                {% if entry.grouped_relations and (entry.grouped_relations.synonyms or entry.grouped_relations.antonyms or entry.grouped_relations.related) %}
-                    {% if entry.grouped_relations.synonyms %}
+                {# Use enriched_grouped_relations if available, otherwise fall back to entry.grouped_relations #}
+                {% set relations = enriched_grouped_relations if enriched_grouped_relations is defined else entry.grouped_relations %}
+                {% if relations and (relations.synonyms or relations.antonyms or relations.related) %}
+                    {% if relations.synonyms %}
                         <div class="mb-3">
                             <h6>Synonyms</h6>
                             <div>
-                                {% for synonym in entry.grouped_relations.synonyms %}
-                                    <a href="{{ url_for('main.search', q=synonym) }}" class="badge bg-primary text-decoration-none me-1 mb-1">{{ synonym }}</a>
+                                {% for synonym in relations.synonyms %}
+                                    {% if synonym is string %}
+                                        <a href="{{ url_for('main.search', q=synonym) }}" class="badge bg-primary text-decoration-none me-1 mb-1">{{ synonym }}</a>
+                                    {% else %}
+                                        <a href="{{ url_for('main.search', q=synonym.ref) }}" class="badge bg-primary text-decoration-none me-1 mb-1">{{ synonym.ref_display_text if synonym.ref_display_text else synonym.ref }}</a>
+                                    {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
                     {% endif %}
 
-                    {% if entry.grouped_relations.antonyms %}
+                    {% if relations.antonyms %}
                         <div class="mb-3">
                             <h6>Antonyms</h6>
                             <div>
-                                {% for antonym in entry.grouped_relations.antonyms %}
-                                    <a href="{{ url_for('main.search', q=antonym) }}" class="badge bg-danger text-decoration-none me-1 mb-1">{{ antonym }}</a>
+                                {% for antonym in relations.antonyms %}
+                                    {% if antonym is string %}
+                                        <a href="{{ url_for('main.search', q=antonym) }}" class="badge bg-danger text-decoration-none me-1 mb-1">{{ antonym }}</a>
+                                    {% else %}
+                                        <a href="{{ url_for('main.search', q=antonym.ref) }}" class="badge bg-danger text-decoration-none me-1 mb-1">{{ antonym.ref_display_text if antonym.ref_display_text else antonym.ref }}</a>
+                                    {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
                     {% endif %}
 
-                    {% if entry.grouped_relations.related %}
+                    {% if relations.related %}
                         <div class="mb-3">
                             <h6>Related Words</h6>
                             <div>
-                                {% for related in entry.grouped_relations.related %}
-                                    <a href="{{ url_for('main.search', q=related) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">{{ related }}</a>
+                                {% for related in relations.related %}
+                                    {% if related is string %}
+                                        <a href="{{ url_for('main.search', q=related) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">{{ related }}</a>
+                                    {% else %}
+                                        <a href="{{ url_for('main.search', q=related.ref) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">{{ related.ref_display_text if related.ref_display_text else related.ref }}</a>
+                                    {% endif %}
                                 {% endfor %}
                             </div>
                         </div>

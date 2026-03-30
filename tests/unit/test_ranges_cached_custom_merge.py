@@ -5,14 +5,20 @@ import pytest
 
 
 @pytest.mark.unit
-def test_cached_ranges_merge_with_db_custom(client, app):
+def test_cached_ranges_merge_with_db_custom(client, app, custom_ranges_db):
     """If a cached ranges dict exists, get_all_ranges should merge in
     any custom ranges present in the SQL DB so direct inserts are visible.
+
+    This test requires the `custom_ranges` SQL tables to exist; use the
+    `custom_ranges_db` fixture to ensure the tables are present for the
+    duration of the test.
     """
     from app.services.ranges_service import RangesService
     from app.models.custom_ranges import CustomRange, CustomRangeValue, db as custom_db
+    from unittest.mock import Mock as UM
 
-    service: RangesService = app.injector.get(RangesService)
+    # Create a real RangesService instance backed by a mock DB connector
+    service: RangesService = RangesService(UM())
 
     # Ensure clean state
     try:

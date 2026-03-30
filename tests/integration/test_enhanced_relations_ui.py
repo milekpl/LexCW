@@ -57,7 +57,11 @@ def test_relation_ui_page_loads_with_enhanced_search(client: FlaskClient):
     create_resp = client.post("/api/entries", json=test_entry)
     assert create_resp.status_code in (200, 201)
     created_entry = create_resp.get_json()
-    entry_id = created_entry["id"] if isinstance(created_entry, dict) and "id" in created_entry else unique_id
+    # API may return 'id' (current) or legacy 'entry_id'
+    entry_id = created_entry.get("id") if isinstance(created_entry, dict) else None
+    if not entry_id:
+        entry_id = created_entry.get("entry_id") if isinstance(created_entry, dict) else unique_id
+    entry_id = entry_id or unique_id
 
     # Access entry edit page via HTTP
     response = client.get(f"/entries/{entry_id}/edit")
@@ -99,7 +103,9 @@ def test_entry_creation_with_sense_level_relations(client: FlaskClient):
     create_resp = client.post("/api/entries", json=entry_data)
     assert create_resp.status_code in (200, 201)
     created_entry = create_resp.get_json()
-    assert created_entry["entry_id"] == unique_id
+    # Support both 'id' (current) and 'entry_id' (legacy)
+    assert (created_entry.get("id") == unique_id) or (created_entry.get("entry_id") == unique_id)
+    entry_id = created_entry.get("id") or created_entry.get("entry_id") or unique_id
 
     # Verify the relation was created correctly by fetching the entry via API
     get_resp = client.get(f"/api/entries/{unique_id}")

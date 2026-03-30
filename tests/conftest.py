@@ -4,6 +4,7 @@ import tempfile
 import os
 import sys
 from typing import Generator
+from flask import Flask
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -700,6 +701,76 @@ def sample_entries() -> list[Entry]:
 
 
 @pytest.fixture
+def lexical_relation_ranges() -> dict:
+    """Common lexical-relation ranges used by tests across layers.
+
+    Provides a minimal `ranges` dict containing common relation types
+    such as `synonym`, `antonym`, and `see`. Use this fixture to simulate
+    a project with configured lexical relations. When you want to assert
+    behavior for a project *without* configured ranges, do not use this fixture.
+    """
+    return {
+        'lexical-relation': {
+            'values': [
+                {'id': 'synonym', 'label': {'en': 'Synonym'}},
+                {'id': 'antonym', 'label': {'en': 'Antonym'}},
+                {'id': 'see', 'label': {'en': 'See'}}
+            ]
+        }
+    }
+
+
+@pytest.fixture
+def variant_type_ranges() -> dict:
+    """Common `variant-type` range used by tests.
+
+    Provides common variant-type values such as `inflected`, `spelling`,
+    and `dialectal`. Use this fixture when tests need to assert parsing or
+    filtering based on variant-type trait values.
+    """
+    return {
+        'variant-type': {
+            'values': [
+                {'id': 'inflected'},
+                {'id': 'spelling'},
+                {'id': 'dialectal'},
+            ]
+        }
+    }
+
+
+@pytest.fixture
+def complex_form_type_ranges() -> dict:
+    """Common `complex-form-type` range used by tests.
+
+    Provides values used for component relations such as `Compound` and
+    `Phrase`. Use this fixture when testing subentry/component relation behavior.
+    """
+    return {
+        'complex-form-type': {
+            'values': [
+                {'id': 'Compound'},
+                {'id': 'Phrase'},
+            ]
+        }
+    }
+
+
+@pytest.fixture
+def common_ranges(lexical_relation_ranges, variant_type_ranges, complex_form_type_ranges) -> dict:
+    """Combined common ranges fixture for convenience.
+
+    Merges `lexical-relation`, `variant-type`, and `complex-form-type` into
+    a single `ranges` dict that represents a minimally configured project.
+    """
+    merged = {}
+    merged.update(lexical_relation_ranges)
+    merged.update(variant_type_ranges)
+    merged.update(complex_form_type_ranges)
+    return merged
+
+
+@pytest.fixture
 def temp_lift_file() -> Generator[str, None, None]:
     """Create a temporary LIFT file for testing."""
     content = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -741,6 +812,41 @@ def populated_dict_service(dict_service_with_db: DictionaryService, sample_entry
         logger.warning(f"Could not create sample entry: {e}")
     
     return dict_service_with_db
+
+
+@pytest.fixture
+def custom_ranges_db(db_app: Flask) -> None:
+    """Ensure `custom_ranges` tables exist for unit tests that need them.
+
+    This fixture uses `db_app` to create an application context and then
+    invokes SQLAlchemy `create_all()` for the `workset_models` binding so that
+    `custom_ranges` tables are present. It also cleans test rows afterwards.
+    """
+    from app.models.custom_ranges import db as custom_db, CustomRange, CustomRangeValue
+
+    with db_app.app_context():
+        try:
+            custom_db.create_all()
+        except Exception as e:
+            logger.warning(f"Failed to create custom_ranges tables: {e}")
+
+        yield
+
+        # Cleanup rows created during tests
+        try:
+            custom_db.session.query(CustomRangeValue).delete()
+            custom_db.session.query(CustomRange).delete()
+            custom_db.session.commit()
+        except Exception:
+            custom_db.session.rollback()
+
+    # Cleanup rows created during tests
+    try:
+        custom_db.session.query(CustomRangeValue).delete()
+        custom_db.session.query(CustomRange).delete()
+        custom_db.session.commit()
+    except Exception:
+        custom_db.session.rollback()
 
 
 # Unit test configuration

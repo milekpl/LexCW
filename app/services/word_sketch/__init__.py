@@ -48,8 +48,26 @@ class WordSketchClient:
     - POST /api/sketch/query - Custom CQL pattern query
     """
 
+    # Default base URL - can be overridden via config
     DEFAULT_BASE_URL = "http://localhost:8080"
-    CACHE_TTL = 3600  # 1 hour
+
+    # Cache TTL: 1 hour
+    CACHE_TTL = 3600
+
+    @staticmethod
+    def from_config() -> "WordSketchClient":
+        """Create client using LUCENE_WORD_SKETCH_URL from environment/config.
+
+        Returns:
+            WordSketchClient configured with the appropriate base URL
+        """
+        import os
+        # Try environment variable first, then config file
+        base_url = os.environ.get(
+            'LUCENE_WORD_SKETCH_URL',
+            WordSketchClient.DEFAULT_BASE_URL
+        )
+        return WordSketchClient(base_url=base_url)
 
     def __init__(
         self,

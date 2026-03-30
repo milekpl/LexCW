@@ -321,8 +321,17 @@ class BackupScheduler:
                 
             # 2. Check if scheduling is enabled
             schedule_interval = backup_settings.get('schedule', 'daily')
-            if not schedule_interval or schedule_interval in ('none', 'disabled'):
+            if not schedule_interval or schedule_interval == 'none':
                 self.logger.info(f"Backup schedule disabled for {db_name}")
+                return False
+
+            # Validate schedule value - treat unknown/legacy values as disabled to avoid raising
+            # errors when attempting to create cron schedules (e.g., legacy 'disabled')
+            supported_intervals = ('hourly', 'daily', 'weekly')
+            if schedule_interval not in supported_intervals:
+                self.logger.warning(
+                    f"Unsupported backup schedule value: {schedule_interval} for {db_name}; treating as disabled"
+                )
                 return False
                 
             # 3. Create new schedule

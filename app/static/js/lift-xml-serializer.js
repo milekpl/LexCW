@@ -14,6 +14,30 @@ class LIFTXMLSerializer {
     }
 
     /**
+     * Coerce values that should be scalar strings.
+     * Duplicate field names during form serialization can result in arrays; LIFT XML
+     * must not receive arrays for attribute or text values.
+     *
+     * Strategy: if array, pick the last non-empty string; else stringify.
+     * @param {*} value
+     * @returns {string}
+     */
+    coerceScalar(value) {
+        if (value === null || value === undefined) return '';
+        if (Array.isArray(value)) {
+            const nonEmpty = value
+                .map(v => (v === null || v === undefined) ? '' : String(v))
+                .map(v => v)
+                .filter(v => v !== '');
+            if (nonEmpty.length > 0) {
+                return nonEmpty[nonEmpty.length - 1];
+            }
+            return value.length > 0 ? String(value[value.length - 1] ?? '') : '';
+        }
+        return String(value);
+    }
+
+    /**
      * Normalize relation collections that may arrive as keyed objects.
      */
     normalizeRelationArray(relations) {
@@ -220,8 +244,9 @@ class LIFTXMLSerializer {
      */
     serializeSense(doc, senseData, order = 0) {
         const sense = doc.createElementNS(this.LIFT_NS, 'sense');
-        
-        sense.setAttribute('id', senseData.id || this.generateId());
+
+        const coercedSenseId = this.coerceScalar(senseData.id);
+        sense.setAttribute('id', coercedSenseId || this.generateId());
         
         if (order !== undefined) {
             sense.setAttribute('order', order.toString());
@@ -234,11 +259,20 @@ class LIFTXMLSerializer {
             sense.appendChild(gramInfo);
         }
 
-        // Add glosses
-        if (senseData.glosses && Object.keys(senseData.glosses).length > 0) {
-            Object.entries(senseData.glosses).forEach(([lang, glossData]) => {
-                if (glossData && (glossData.text || glossData.value)) {
-                    const gloss = this.createGloss(doc, lang, glossData.text || glossData.value);
+        // Add glosses - handle both 'glosses' (plural) and 'gloss' (singular)
+        // Also handle flat string format {'en': 'text'} and object format {'en': {text: '...'}}
+        const glossData = senseData.glosses || senseData.gloss || {};
+        if (glossData && Object.keys(glossData).length > 0) {
+            Object.entries(glossData).forEach(([lang, glossEntry]) => {
+                // Handle both object format {text: '...'} and flat string format '...'
+                let glossText = null;
+                if (glossEntry && typeof glossEntry === 'object') {
+                    glossText = glossEntry.text || glossEntry.value;
+                } else if (typeof glossEntry === 'string') {
+                    glossText = glossEntry;
+                }
+                if (glossText) {
+                    const gloss = this.createGloss(doc, lang, glossText);
                     sense.appendChild(gloss);
                 }
             });
@@ -348,7 +382,7 @@ class LIFTXMLSerializer {
         const subsense = doc.createElementNS(this.LIFT_NS, 'subsense');
         
         subsense.setAttribute('id', subsenseData.id || this.generateId());
-        
+
         if (order !== undefined) {
             subsense.setAttribute('order', order.toString());
         }
@@ -360,11 +394,18 @@ class LIFTXMLSerializer {
             subsense.appendChild(gramInfo);
         }
 
-        // Add glosses
+        // Add glosses - handle both flat string format {'en': 'text'} and object format {'en': {text: '...'}}
         if (subsenseData.glosses && Object.keys(subsenseData.glosses).length > 0) {
-            Object.entries(subsenseData.glosses).forEach(([lang, glossData]) => {
-                if (glossData && (glossData.text || glossData.value)) {
-                    const gloss = this.createGloss(doc, lang, glossData.text || glossData.value);
+            Object.entries(subsenseData.glosses).forEach(([lang, glossEntry]) => {
+                // Handle both object format {text: '...'} and flat string format '...'
+                let glossText = null;
+                if (glossEntry && typeof glossEntry === 'object') {
+                    glossText = glossEntry.text || glossEntry.value;
+                } else if (typeof glossEntry === 'string') {
+                    glossText = glossEntry;
+                }
+                if (glossText) {
+                    const gloss = this.createGloss(doc, lang, glossText);
                     subsense.appendChild(gloss);
                 }
             });
@@ -684,10 +725,10 @@ class LIFTXMLSerializer {
      */
     createForm(doc, lang, text) {
         const form = doc.createElementNS(this.LIFT_NS, 'form');
-        form.setAttribute('lang', lang);
+        form.setAttribute('lang', this.coerceScalar(lang));
 
         const textElem = doc.createElementNS(this.LIFT_NS, 'text');
-        textElem.textContent = text;
+        textElem.textContent = this.coerceScalar(text);
         form.appendChild(textElem);
 
         return form;
@@ -707,7 +748,7 @@ class LIFTXMLSerializer {
                          Object.values(value)[0] || '';
         }
         
-        gramInfo.setAttribute('value', String(stringValue));
+        gramInfo.setAttribute('value', this.coerceScalar(stringValue));
         return gramInfo;
     }
 
@@ -716,8 +757,8 @@ class LIFTXMLSerializer {
      */
     createTrait(doc, name, value) {
         const trait = doc.createElementNS(this.LIFT_NS, 'trait');
-        trait.setAttribute('name', name);
-        trait.setAttribute('value', value);
+        trait.setAttribute('name', this.coerceScalar(name));
+        trait.setAttribute('value', this.coerceScalar(value));
         return trait;
     }
 

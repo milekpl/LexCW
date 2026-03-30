@@ -15,9 +15,13 @@ from typing import Generator
 @pytest.fixture(scope="function")
 def test_entry(client: FlaskClient) -> Generator[int, None, None]:
     """Fixture to create a test entry and clean it up afterwards."""
+    import uuid
+
     api_url = "/api/entries/"
+    # Use a unique id per fixture invocation to avoid collisions between tests
+    unique_id = f"test-entry-for-loading-{uuid.uuid4().hex[:8]}"
     test_entry_data: dict[str, str | dict[str, str] | list[dict[str, str | dict[str, str]]]] = {
-        "id": "test-entry-for-loading-123",
+        "id": unique_id,
         "lexical_unit": {"en": "test-entry-for-loading"},
         "grammatical_info": "Noun",
         "senses": [
@@ -31,14 +35,18 @@ def test_entry(client: FlaskClient) -> Generator[int, None, None]:
     assert response.status_code in [200, 201]
     response_json = response.json
     assert response_json is not None
-    entry_id = response_json.get('entry_id')
+    # API returns 'id' not 'entry_id'
+    entry_id = response_json.get('id')
     assert entry_id is not None
 
     yield entry_id
 
-    # Teardown: delete the test entry
+    # Teardown: delete the test entry and ensure the deletion succeeded
     delete_url = f"/api/entries/{entry_id}"
-    client.delete(delete_url)
+    del_resp = client.delete(delete_url)
+    if del_resp.status_code not in (200, 404):
+        # Log for visibility if teardown failed
+        print(f"Warning: failed to delete test entry {entry_id}, status: {del_resp.status_code}, body: {del_resp.get_data(as_text=True)[:200]}")
 
 
 @pytest.mark.integration

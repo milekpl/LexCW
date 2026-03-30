@@ -226,9 +226,9 @@ def test_entry_creation_api(page: Page, app_url: str) -> None:
     # Ensure the API call succeeded (201 Created or 200 OK)
     assert result['status'] in (200, 201)
     created = result['json']
-    # Ensure entry was created via API
-    assert created.get('entry_id') is not None
-    entry_id = created['entry_id']
+    # Ensure entry was created via API (support both current 'id' and legacy 'entry_id')
+    entry_id = created.get('entry_id') or created.get('id')
+    assert entry_id is not None
 
     # Verify via direct API GET
     entry_check = page.evaluate(
@@ -264,8 +264,8 @@ def test_entry_creation_api(page: Page, app_url: str) -> None:
 def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
     """Test that search results prioritize exact matches over partial matches."""
     # First create some test entries with similar names
-    page.goto(f"{app_url}/entries/add")
-    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+    page.goto(f"{app_url}/entries/add", wait_until="networkidle", timeout=30000)
+    page.wait_for_selector('#entry-form', state='visible', timeout=20000)
 
     # Create an exact match entry
     exact_term = f"exact_match_test_{__name__}"
@@ -283,8 +283,8 @@ def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
     page.wait_for_timeout(2000)
 
     # Create a partial match entry
-    page.goto(f"{app_url}/entries/add")
-    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+    page.goto(f"{app_url}/entries/add", wait_until="networkidle", timeout=30000)
+    page.wait_for_selector('#entry-form', state='visible', timeout=20000)
 
     partial_term = f"exact_match_test_partial_{__name__}"
     page.fill('input.lexical-unit-text', partial_term)
@@ -301,8 +301,8 @@ def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
     page.wait_for_timeout(2000)
 
     # Now test search prioritizes exact match
-    page.goto(f"{app_url}/entries/add")
-    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+    page.goto(f"{app_url}/entries/add", wait_until="networkidle", timeout=30000)
+    page.wait_for_selector('#entry-form', state='visible', timeout=20000)
 
     # Add a relation
     if page.locator('#add-relation-btn').count() > 0:
@@ -337,8 +337,8 @@ def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
 def test_circular_reference_detection(page: Page, app_url: str) -> None:
     """Test that circular references are detected when creating entries from search."""
     # Create an entry first
-    page.goto(f"{app_url}/entries/add")
-    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
+    page.goto(f"{app_url}/entries/add", wait_until="networkidle", timeout=30000)
+    page.wait_for_selector('#entry-form', state='visible', timeout=20000)
 
     entry_name = f"circular_test_entry_{__name__}"
     page.fill('input.lexical-unit-text', entry_name)

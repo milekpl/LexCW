@@ -51,10 +51,13 @@ def _check_limiter():
 
 
 def get_ws_client() -> WordSketchClient:
-    """Get or create word sketch client from app context."""
+    """Get or create word sketch client from app context.
+
+    Uses LUCENE_WORD_SKETCH_URL environment variable (defaults to localhost:8080).
+    """
     if hasattr(current_app, 'word_sketch_client'):
         return current_app.word_sketch_client
-    return WordSketchClient()
+    return WordSketchClient.from_config()
 
 
 def get_enrichment_service():

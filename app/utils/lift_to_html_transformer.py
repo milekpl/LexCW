@@ -6,9 +6,11 @@ from dataclasses import dataclass, field
 import re
 import logging
 
+
 @dataclass
 class ElementConfig:
     """Configuration for how a LIFT element should be rendered."""
+
     lift_element: str
     display_order: int
     css_class: str
@@ -19,17 +21,22 @@ class ElementConfig:
     filter: Optional[str] = None
     separator: str = ", "  # Separator for multiple occurrences of same element
     children: List[ElementConfig] = None
-    abbr_format: Optional[str] = None # "label", "abbr", "full" for traits/fields
+    abbr_format: Optional[str] = None  # "label", "abbr", "full" for traits/fields
     language: Optional[str] = None  # Optional language filter for forms (e.g., 'en')
 
     def __post_init__(self):
         if self.children is None:
             self.children = []
 
+
 class HTMLBuilder:
     """Builds HTML from LIFT XML elements according to display profile."""
 
-    def __init__(self, profile_elements: List[ElementConfig], entry_level_pos: Optional[str] = None):
+    def __init__(
+        self,
+        profile_elements: List[ElementConfig],
+        entry_level_pos: Optional[str] = None,
+    ):
         self.profile_elements = sorted(profile_elements, key=lambda x: x.display_order)
         # Support multiple configs per tag for filtered elements (traits, fields, relations)
         self.element_config_map: Dict[str, List[ElementConfig]] = {}
@@ -37,7 +44,7 @@ class HTMLBuilder:
             if config.lift_element not in self.element_config_map:
                 self.element_config_map[config.lift_element] = []
             self.element_config_map[config.lift_element].append(config)
-            
+
         self.html_parts = []
         self.current_indent = 0
         self.entry_level_pos = entry_level_pos
@@ -60,13 +67,18 @@ class HTMLBuilder:
         # Process top-level entry structure hierarchically
         html_parts.append(self._process_hierarchical(root, processed))
 
-        result = ' '.join(html_parts).strip()
+        result = " ".join(html_parts).strip()
         if not result:
             return "<div class='entry-empty'>No content to display</div>"
-        
+
         return result
 
-    def _process_hierarchical(self, element: ET.Element, processed: set, inherited_language: Optional[str] = None) -> str:
+    def _process_hierarchical(
+        self,
+        element: ET.Element,
+        processed: set,
+        inherited_language: Optional[str] = None,
+    ) -> str:
         """Process an element and its children hierarchically.
 
         Args:
@@ -75,6 +87,7 @@ class HTMLBuilder:
             inherited_language: Optional language passed from parent config to filter descendant forms
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         elem_id = id(element)
@@ -84,7 +97,9 @@ class HTMLBuilder:
         local_tag = self._get_local_tag(element.tag)
         configs = self.element_config_map.get(local_tag, [])
 
-        logger.debug(f"_process_hierarchical: tag={local_tag}, configs_count={len(configs)}")
+        logger.debug(
+            f"_process_hierarchical: tag={local_tag}, configs_count={len(configs)}"
+        )
 
         # Find the best matching config for this specific element instance
         config = None
@@ -101,34 +116,45 @@ class HTMLBuilder:
                     break
 
         # Debug log for trait elements
-        if local_tag == 'trait':
-            trait_name = element.attrib.get('name', '')
-            trait_value = element.attrib.get('value', '')
-            logger.debug(f"Trait element: name={trait_name}, value={trait_value}, configs_count={len(configs)}")
+        if local_tag == "trait":
+            trait_name = element.attrib.get("name", "")
+            trait_value = element.attrib.get("value", "")
+            logger.debug(
+                f"Trait element: name={trait_name}, value={trait_value}, configs_count={len(configs)}"
+            )
             for i, c in enumerate(configs):
                 filter_match = c.filter and self._check_filter(element, c.filter)
-                logger.debug(f"  Config {i}: filter={c.filter}, visibility={c.visibility}, matches={filter_match}")
+                logger.debug(
+                    f"  Config {i}: filter={c.filter}, visibility={c.visibility}, matches={filter_match}"
+                )
             logger.debug(f"  Selected config: {config}")
 
         # If configs exist for this tag but none match, we have two cases:
         # 1. For traits: render with default config (since not all traits have filters)
         # 2. For other elements: hide if all configs have filters (intentionally excluded)
         if configs and not config:
-            if local_tag == 'trait':
+            if local_tag == "trait":
                 # For traits without matching filter config, use a default generic trait config
                 # This ensures morph-type and other unfiltered traits still render properly
                 from app.utils.lift_to_html_transformer import ElementConfig
+
                 config = ElementConfig(
-                    lift_element='trait',
+                    lift_element="trait",
                     display_order=999,
-                    css_class='trait',
-                    prefix='',
-                    suffix='',
-                    visibility='if-content',
-                    display_mode='inline'
+                    css_class="trait",
+                    prefix="",
+                    suffix="",
+                    visibility="if-content",
+                    display_mode="inline",
                 )
-                logger.debug(f"Created default config for unmatched trait: {trait_name}")
-            elif local_tag == 'relation' and all(c.filter for c in configs) and len(configs) > 1:
+                logger.debug(
+                    f"Created default config for unmatched trait: {trait_name}"
+                )
+            elif (
+                local_tag == "relation"
+                and all(c.filter for c in configs)
+                and len(configs) > 1
+            ):
                 # Relations: if all configs have filters and none matched, hide it
                 return ""
             else:
@@ -140,15 +166,17 @@ class HTMLBuilder:
 
         # Special handling for _component-lexeme relations
         # This SIL Fieldworks relation type is used for subentries and should never render
-        if local_tag == 'relation':
-            rel_type = element.attrib.get('type', '')
-            if rel_type == '_component-lexeme':
+        if local_tag == "relation":
+            rel_type = element.attrib.get("type", "")
+            if rel_type == "_component-lexeme":
                 logger.debug(f"Hiding _component-lexeme relation (never rendered)")
                 return ""
 
         # Handle visibility
         if config:
-            logger.debug(f"Checking visibility for {local_tag}: visibility={config.visibility}")
+            logger.debug(
+                f"Checking visibility for {local_tag}: visibility={config.visibility}"
+            )
             if config.visibility == "never":
                 logger.debug(f"Hiding {local_tag} due to visibility=never")
                 return ""
@@ -157,20 +185,20 @@ class HTMLBuilder:
                 return ""
 
         # Determine structural vs content
-        structural_only_elements = {'sense', 'subsense', 'entry', 'lift'}
+        structural_only_elements = {"sense", "subsense", "entry", "lift"}
         is_structural = local_tag in structural_only_elements
 
         # Elements whose children are already processed during text extraction
         # (variant extracts its form/text children in _extract_text_from_forms)
-        children_already_processed = {'variant'}
+        children_already_processed = {"variant"}
 
         # Extract text content if appropriate
         text_content = ""
         if not is_structural:
-            if local_tag == 'grammatical-info' and self.entry_level_pos:
+            if local_tag == "grammatical-info" and self.entry_level_pos:
                 # If the sense-level PoS matches the entry-level PoS, do not render it
                 # in the sense; the entry-level PoS is displayed separately (once).
-                gram_value = element.attrib.get('value', '').strip()
+                gram_value = element.attrib.get("value", "").strip()
                 if gram_value == self.entry_level_pos:
                     return ""
                 # Otherwise render as usual
@@ -201,36 +229,42 @@ class HTMLBuilder:
                 parent_tag=local_tag,
                 inherited_language=config.language if config else inherited_language,
             )
-        
+
         # Combine text and children
         combined_content = text_content
         if child_html:
             if text_content:
-                combined_content += ' ' + child_html
+                combined_content += " " + child_html
             else:
                 combined_content = child_html
-        
+
         if config:
             # Check if-content visibility
             if config.visibility == "if-content" and not combined_content.strip():
                 return ""
-            
+
             # Wrap in configured tag/class
-            tag = 'div' if config.display_mode == 'block' else 'span'
+            tag = "div" if config.display_mode == "block" else "span"
             html = f'<{tag} class="{config.css_class}">'
             if config.prefix:
                 html += f'<span class="prefix">{config.prefix}</span>'
             html += combined_content
             if config.suffix:
                 html += f'<span class="suffix">{config.suffix}</span>'
-            html += f'</{tag}>'
+            html += f"</{tag}>"
             return html
-            
+
         else:
             # No config (e.g. entry, form), just return content
             return combined_content
 
-    def _process_children(self, element: ET.Element, processed: set, parent_tag: str, inherited_language: Optional[str] = None) -> str:
+    def _process_children(
+        self,
+        element: ET.Element,
+        processed: set,
+        parent_tag: str,
+        inherited_language: Optional[str] = None,
+    ) -> str:
         """Process children of an element, respecting profile order then XML order.
 
         Args:
@@ -260,22 +294,26 @@ class HTMLBuilder:
                 matching_children = children_by_tag[tag]
 
                 # Check for grouping
-                should_group = tag in ('trait', 'field', 'relation')
+                should_group = tag in ("trait", "field", "relation")
 
                 if should_group:
                     # Collect all candidates for this config
                     group_candidates = []
                     for child in matching_children:
                         if id(child) in processed:
-                            self.logger.debug(f"Skipping child id={id(child)} because already processed")
+                            self.logger.debug(
+                                f"Skipping child id={id(child)} because already processed"
+                            )
                             continue
 
                         # Special handling for relations: filter out _component-lexeme
                         # This SIL Fieldworks relation type is used for subentries and should never render
-                        if tag == 'relation':
-                            rel_type = child.attrib.get('type', '')
-                            if rel_type == '_component-lexeme':
-                                self.logger.debug(f"Skipping _component-lexeme relation (never rendered)")
+                        if tag == "relation":
+                            rel_type = child.attrib.get("type", "")
+                            if rel_type == "_component-lexeme":
+                                self.logger.debug(
+                                    f"Skipping _component-lexeme relation (never rendered)"
+                                )
                                 # Mark as processed so it won't be rendered elsewhere
                                 processed.add(id(child))
                                 continue
@@ -283,14 +321,19 @@ class HTMLBuilder:
                         # Check filter for this specific config
                         if config.filter:
                             match = self._check_filter(child, config.filter)
-                            self.logger.debug(f"Filter check for child id={id(child)} type={self._get_local_tag(child.tag)} result={match} filter='{config.filter}' child_type_attr='{child.attrib.get('type')}' data-original='{child.attrib.get('data-original-type')}')")
+                            self.logger.debug(
+                                f"Filter check for child id={id(child)} type={self._get_local_tag(child.tag)} result={match} filter='{config.filter}' child_type_attr='{child.attrib.get('type')}' data-original='{child.attrib.get('data-original-type')}')"
+                            )
                             if not match:
                                 continue
                         group_candidates.append(child)
-                    
+
                     # Debug: log what candidates we found for this grouped config
                     import logging
-                    logging.getLogger(__name__).debug(f"Group '{tag}' with config filter='{config.filter}': found {len(group_candidates)} candidates")
+
+                    logging.getLogger(__name__).debug(
+                        f"Group '{tag}' with config filter='{config.filter}': found {len(group_candidates)} candidates"
+                    )
 
                     if group_candidates:
                         # Extract text/html for grouped elements
@@ -301,7 +344,9 @@ class HTMLBuilder:
                             text = self._extract_text_from_forms(
                                 child,
                                 recursive=True,
-                                aspect=config.abbr_format if hasattr(config, 'abbr_format') else None,
+                                aspect=config.abbr_format
+                                if hasattr(config, "abbr_format")
+                                else None,
                                 language=config.language if config else None,
                             )
                             if text:
@@ -313,28 +358,32 @@ class HTMLBuilder:
 
                         # Check visibility - if never, skip this entire config
                         if config.visibility == "never":
-                            self.logger.debug(f"Skipping config for {tag} due to visibility=never")
+                            self.logger.debug(
+                                f"Skipping config for {tag} due to visibility=never"
+                            )
                             # Don't mark children as processed - let other configs handle them
                             continue
 
                         if group_texts:
                             joined_text = config.separator.join(group_texts)
-                            tag_name = 'div' if config.display_mode == 'block' else 'span'
-                            
+                            tag_name = (
+                                "div" if config.display_mode == "block" else "span"
+                            )
+
                             # Trait data attribute logic
                             attr_html = ""
-                            if tag == 'trait' and group_candidates:
-                                first_name = group_candidates[0].attrib.get('name', '')
+                            if tag == "trait" and group_candidates:
+                                first_name = group_candidates[0].attrib.get("name", "")
                                 if first_name:
                                     attr_html = f' data-trait-name="{first_name}"'
-                            
+
                             html = f'<{tag_name} class="{config.css_class}"{attr_html}>'
                             if config.prefix:
                                 html += f'<span class="prefix">{config.prefix}</span>'
                             html += joined_text
                             if config.suffix:
                                 html += f'<span class="suffix">{config.suffix}</span>'
-                            html += f'</{tag_name}>'
+                            html += f"</{tag_name}>"
                             child_parts.append(html)
 
                             # If this is a filtered config that includes explicit inclusions
@@ -344,8 +393,14 @@ class HTMLBuilder:
                             # config for the tag.
                             try:
                                 if config.filter:
-                                    parts = [p.strip() for p in config.filter.split(',') if p.strip()]
-                                    inclusions = [p for p in parts if not p.startswith('!')]
+                                    parts = [
+                                        p.strip()
+                                        for p in config.filter.split(",")
+                                        if p.strip()
+                                    ]
+                                    inclusions = [
+                                        p for p in parts if not p.startswith("!")
+                                    ]
                                     # If inclusions were specified and this is the only
                                     # configured element for this tag, treat unmatched
                                     # children as intentionally excluded and mark them
@@ -354,18 +409,29 @@ class HTMLBuilder:
                                     # when this is the only config for the tag AND the config did
                                     # not explicitly set a display aspect (i.e., it is acting as
                                     # a pure filter rather than a display transformation).
-                                    if inclusions and len(self.element_config_map.get(tag, [])) == 1:
+                                    if (
+                                        inclusions
+                                        and len(self.element_config_map.get(tag, []))
+                                        == 1
+                                    ):
                                         # Treat as whitelist (hide unmatched) when either:
                                         # - multiple inclusions were explicitly provided (e.g., 'synonym,antonym'), or
                                         # - this config is a pure filter (no explicit display aspect set).
-                                        if len(inclusions) >= 2 or not getattr(config, 'abbr_format', None):
+                                        if len(inclusions) >= 2 or not getattr(
+                                            config, "abbr_format", None
+                                        ):
                                             for child_elem in matching_children:
-                                                if not self._check_filter(child_elem, config.filter):
+                                                if not self._check_filter(
+                                                    child_elem, config.filter
+                                                ):
                                                     processed.add(id(child_elem))
                                             # Additionally, mark any other XML children of the same tag as processed
                                             # to avoid later rendering.
                                             for child_elem in children_list:
-                                                if self._get_local_tag(child_elem.tag) == tag:
+                                                if (
+                                                    self._get_local_tag(child_elem.tag)
+                                                    == tag
+                                                ):
                                                     if id(child_elem) not in processed:
                                                         processed.add(id(child_elem))
                                         else:
@@ -380,26 +446,37 @@ class HTMLBuilder:
                                         pass
                             except Exception:
                                 pass
-                            
+
                 else:
                     # Not grouped - process individually
                     # Inject entry-level PoS before processing senses when applicable
-                    if tag == 'sense' and parent_tag == 'entry' and self.entry_level_pos and not self.pos_displayed:
+                    if (
+                        tag == "sense"
+                        and parent_tag == "entry"
+                        and self.entry_level_pos
+                        and not self.pos_displayed
+                    ):
                         self.pos_displayed = True
-                        child_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
+                        child_parts.append(
+                            f'<span class="entry-pos">{self.entry_level_pos}</span>'
+                        )
 
                     for child in matching_children:
                         if id(child) in processed:
                             continue
-                        
+
                         # filter check
-                        if config.filter and not self._check_filter(child, config.filter):
+                        if config.filter and not self._check_filter(
+                            child, config.filter
+                        ):
                             continue
-                            
+
                         # Process recursively
                         # Important: Do NOT mark as processed here; _process_hierarchical does it.
                         # Pass down language from this config so descendant forms obey language filtering
-                        child_html = self._process_hierarchical(child, processed, inherited_language=config.language)
+                        child_html = self._process_hierarchical(
+                            child, processed, inherited_language=config.language
+                        )
                         if child_html:
                             child_parts.append(child_html)
 
@@ -408,44 +485,56 @@ class HTMLBuilder:
         for child in children_list:
             if id(child) in processed:
                 continue
-            
+
             # Special check for Entry PoS if we hit a sense and haven't shown it
             tag = self._get_local_tag(child.tag)
-            if parent_tag == 'entry' and tag == 'sense' and self.entry_level_pos and not self.pos_displayed:
+            if (
+                parent_tag == "entry"
+                and tag == "sense"
+                and self.entry_level_pos
+                and not self.pos_displayed
+            ):
                 self.pos_displayed = True
-                child_parts.append(f'<span class="entry-pos">{self.entry_level_pos}</span>')
-            
+                child_parts.append(
+                    f'<span class="entry-pos">{self.entry_level_pos}</span>'
+                )
+
             # Debug: log the child we are about to process and whether it is processed already
             import logging
-            logging.getLogger(__name__).debug(f"Processing remaining child '{tag}' processed={id(child) in processed}")
+
+            logging.getLogger(__name__).debug(
+                f"Processing remaining child '{tag}' processed={id(child) in processed}"
+            )
 
             # Filter handling for grouped tags (relation, trait, field):
             # - If profile provides inclusions (filter values without '!'), treat them
             #   as a whitelist and skip any children not matching an inclusion.
             # - Always honor explicit exclusions (filter values starting with '!').
-            if tag in ('relation', 'trait', 'field'):
+            if tag in ("relation", "trait", "field"):
                 cfgs = self.element_config_map.get(tag, [])
                 inclusions = set()
                 exclusions = set()
                 for c in cfgs:
                     if c.filter:
-                        parts = [s.strip() for s in c.filter.split(',') if s.strip()]
+                        parts = [s.strip() for s in c.filter.split(",") if s.strip()]
                         for f in parts:
-                            if f.startswith('!'):
+                            if f.startswith("!"):
                                 exclusions.add(f[1:].lower())
                             else:
                                 inclusions.add(f.lower())
 
-                if tag == 'relation':
-                    val = child.attrib.get('type', '').lower()
-                elif tag == 'trait':
-                    val = child.attrib.get('name', '').lower()
+                if tag == "relation":
+                    val = child.attrib.get("type", "").lower()
+                elif tag == "trait":
+                    val = child.attrib.get("name", "").lower()
                 else:  # field
-                    val = child.attrib.get('type', '').lower()
+                    val = child.attrib.get("type", "").lower()
 
                 # Skip if explicit exclusion
                 if exclusions and val in exclusions:
-                    logging.getLogger(__name__).debug(f"Skipping excluded {tag} '{val}'")
+                    logging.getLogger(__name__).debug(
+                        f"Skipping excluded {tag} '{val}'"
+                    )
                     continue
 
                 # If inclusions present, we DO NOT want to silently drop
@@ -459,21 +548,33 @@ class HTMLBuilder:
                 pass
 
             # Language filtering for descendant forms inherited from parent config
-            if inherited_language and inherited_language != '*':
-                if tag == 'form':
-                    form_lang = child.attrib.get('lang') or child.attrib.get('{http://www.w3.org/XML/1998/namespace}lang', '')
+            if inherited_language and inherited_language != "*":
+                if tag == "form":
+                    form_lang = child.attrib.get("lang") or child.attrib.get(
+                        "{http://www.w3.org/XML/1998/namespace}lang", ""
+                    )
                     if not form_lang or not form_lang.startswith(inherited_language):
-                        logging.getLogger(__name__).debug(f"Skipping form due to language filter: form_lang='{form_lang}', required='{inherited_language}'")
+                        logging.getLogger(__name__).debug(
+                            f"Skipping form due to language filter: form_lang='{form_lang}', required='{inherited_language}'"
+                        )
                         continue
 
-            res = self._process_hierarchical(child, processed, inherited_language=inherited_language)
+            res = self._process_hierarchical(
+                child, processed, inherited_language=inherited_language
+            )
             logging.getLogger(__name__).debug(f"Result for child '{tag}': {res!r}")
             if res:
                 child_parts.append(res)
-                
-        return ' '.join(child_parts)
-    
-    def _extract_text_from_forms(self, element: ET.Element, recursive: bool = True, aspect: Optional[str] = None, language: Optional[str] = None) -> str:
+
+        return " ".join(child_parts)
+
+    def _extract_text_from_forms(
+        self,
+        element: ET.Element,
+        recursive: bool = True,
+        aspect: Optional[str] = None,
+        language: Optional[str] = None,
+    ) -> str:
         """Extract text from LIFT form/text structure or element attributes.
 
         Args:
@@ -483,31 +584,38 @@ class HTMLBuilder:
             language: Optional language filter (e.g., 'en') - when set, only include forms whose lang startswith this value
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         text_parts = []
 
         # Debug logging for language filter
         local_tag = self._get_local_tag(element.tag)
-        logger.debug(f"_extract_text_from_forms: tag={local_tag}, language={language!r}")
+        logger.debug(
+            f"_extract_text_from_forms: tag={local_tag}, language={language!r}"
+        )
 
         # Use local tag awareness for children
         if recursive:
             for child in element:
                 child_local = self._get_local_tag(child.tag)
-                if child_local == 'form':
+                if child_local == "form":
                     # If a language filter is requested, respect it (match startswith to include "en-fonipa")
-                    form_lang = child.attrib.get('lang') or child.attrib.get('{http://www.w3.org/XML/1998/namespace}lang', '')
+                    form_lang = child.attrib.get("lang") or child.attrib.get(
+                        "{http://www.w3.org/XML/1998/namespace}lang", ""
+                    )
                     # Treat '*' as a wildcard meaning "all languages" (no filtering)
-                    should_filter = language and language != '*'
+                    should_filter = language and language != "*"
                     if should_filter:
                         if not form_lang or not form_lang.startswith(language):
-                            logger.debug(f"Skipping form with lang={form_lang!r} (filter={language!r})")
+                            logger.debug(
+                                f"Skipping form with lang={form_lang!r} (filter={language!r})"
+                            )
                             continue
                     # Found a form
                     text_found = False
                     for subchild in child:
-                        if self._get_local_tag(subchild.tag) == 'text':
+                        if self._get_local_tag(subchild.tag) == "text":
                             if subchild.text:
                                 text_parts.append(subchild.text.strip())
                                 text_found = True
@@ -515,27 +623,33 @@ class HTMLBuilder:
                     if not text_found and child.text:
                         if child.text.strip():
                             text_parts.append(child.text.strip())
-        
+
         if text_parts:
-            return ' '.join(text_parts)
-        
+            return " ".join(text_parts)
+
         local_tag = self._get_local_tag(element.tag)
-        
+
         # Handle trait elements specially - show only the resolved value
-        if local_tag == 'trait':
-            value = element.attrib.get('value', '')
+        if local_tag == "trait":
+            value = element.attrib.get("value", "")
             if value:
                 return value
 
         # Handle variant elements specially - show the variant type label (if available) followed by form text
-        if local_tag == 'variant':
-            vlabel = element.attrib.get('data-variant-label') or element.attrib.get('type', '')
+        if local_tag == "variant":
+            vlabel = element.attrib.get("data-variant-label") or element.attrib.get(
+                "type", ""
+            )
             # Try to extract form text
-            text = ''
+            text = ""
             for child in element:
-                if self._get_local_tag(child.tag) == 'form':
+                if self._get_local_tag(child.tag) == "form":
                     for subchild in child:
-                        if self._get_local_tag(subchild.tag) == 'text' and subchild.text and subchild.text.strip():
+                        if (
+                            self._get_local_tag(subchild.tag) == "text"
+                            and subchild.text
+                            and subchild.text.strip()
+                        ):
                             text = subchild.text.strip()
                             break
                     if text:
@@ -548,11 +662,11 @@ class HTMLBuilder:
                 return text
 
         # Handle relation elements specially - show type and headword (or ref if headword not available)
-        if local_tag == 'relation':
-            rel_type = element.attrib.get('type', '')
+        if local_tag == "relation":
+            rel_type = element.attrib.get("type", "")
             # Prefer data-headword if available (resolved by CSS service)
-            headword = element.attrib.get('data-headword', '')
-            ref = element.attrib.get('ref', '')
+            headword = element.attrib.get("data-headword", "")
+            ref = element.attrib.get("ref", "")
 
             if rel_type and headword:
                 # Return type and headword - prefix/suffix will be added by config
@@ -569,126 +683,138 @@ class HTMLBuilder:
                 return rel_type
 
         # Handle illustration elements - render image tag with optional caption
-        if local_tag == 'illustration':
-            href = element.attrib.get('href', '').strip()
+        if local_tag == "illustration":
+            href = element.attrib.get("href", "").strip()
             if not href:
-                return ''
+                return ""
 
             # Prefer absolute URLs; otherwise assume static file under /static/
-            if '://' in href:
+            if "://" in href:
                 src = href
             else:
-                src = '/' + '/'.join(['static', href.lstrip('/')])
+                src = "/" + "/".join(["static", href.lstrip("/")])
 
             # Try to extract a label/caption (prefer first available)
-            caption = ''
+            caption = ""
             for child in element:
-                if self._get_local_tag(child.tag) == 'label':
+                if self._get_local_tag(child.tag) == "label":
                     for form in child:
-                        if self._get_local_tag(form.tag) == 'form':
+                        if self._get_local_tag(form.tag) == "form":
                             for text_elem in form:
-                                if self._get_local_tag(text_elem.tag) == 'text':
+                                if self._get_local_tag(text_elem.tag) == "text":
                                     if text_elem.text and text_elem.text.strip():
                                         caption = text_elem.text.strip()
                                         break
-                            if caption: break
-                    if caption: break
+                            if caption:
+                                break
+                    if caption:
+                        break
 
             # Build image HTML; include caption if available
             img_html = f'<img src="{src}" class="lift-illustration img-thumbnail" style="max-width:300px;max-height:200px;" alt="{caption or "Illustration"}"/>'
             if caption:
                 return f'<figure class="illustration-figure">{img_html}<figcaption class="illustration-caption">{caption}</figcaption></figure>'
             return img_html
-        
+
         # Handle field elements - show type in brackets if no content
-        if local_tag == 'field' and 'type' in element.attrib:
+        if local_tag == "field" and "type" in element.attrib:
             # Field content was already checked in form/text above
             # Only show type if no content found
             return f"[{element.attrib['type']}]"
-        
+
         # For elements without form/text, check if content is in attributes
         # Only check 'value' attribute (for grammatical-info, etc.)
-        if 'value' in element.attrib:
-            return element.attrib['value']
-        
+        if "value" in element.attrib:
+            return element.attrib["value"]
+
         # Fallback: direct text content
         if element.text and element.text.strip():
             return element.text.strip()
-        
+
         return ""
 
     def _check_filter(self, element: ET.Element, filter_str: str) -> bool:
         """Check if element matches the filter configuration."""
         if not filter_str:
             return True
-            
+
         local_tag = self._get_local_tag(element.tag)
-        if local_tag == 'relation':
+        if local_tag == "relation":
             # Prefer original type (if preserved) for filter comparisons
-            rel_type = element.attrib.get('data-original-type') or element.attrib.get('type', '')
+            rel_type = element.attrib.get("data-original-type") or element.attrib.get(
+                "type", ""
+            )
             # Debug: log relation type and filter for diagnostics
-            logging.getLogger(__name__).debug(f"_check_filter relation: type='{rel_type}', filter='{filter_str}'")
+            logging.getLogger(__name__).debug(
+                f"_check_filter relation: type='{rel_type}', filter='{filter_str}'"
+            )
             # Compare case-insensitively to avoid mismatches between label/abbr casing
-            rel_type_lower = rel_type.lower() if rel_type else ''
-            filters = [f.strip() for f in filter_str.split(',')]
+            rel_type_lower = rel_type.lower() if rel_type else ""
+            filters = [f.strip() for f in filter_str.split(",")]
             filters_lower = [f.lower() for f in filters if f]
-            
+
             # Check for exclusions (starting with !)
-            exclusions = [f[1:] for f in filters_lower if f.startswith('!')]
+            exclusions = [f[1:] for f in filters_lower if f.startswith("!")]
             if exclusions and rel_type_lower in exclusions:
                 return False
-                
+
             # Check for inclusions (not starting with !)
-            inclusions = [f for f in filters_lower if not f.startswith('!')]
+            inclusions = [f for f in filters_lower if not f.startswith("!")]
             if inclusions and rel_type_lower not in inclusions:
                 return False
-                
+
             return True
-            
-        elif local_tag == 'trait':
-            trait_name = element.attrib.get('name', '').lower()
-            filters = [f.strip() for f in filter_str.split(',') if f.strip()]
+
+        elif local_tag == "trait":
+            trait_name = element.attrib.get("name", "").lower()
+            filters = [f.strip() for f in filter_str.split(",") if f.strip()]
             filters_lower = [f.lower() for f in filters]
 
             # Exclusions (start with '!')
-            exclusions = [f[1:] for f in filters_lower if f.startswith('!')]
+            exclusions = [f[1:] for f in filters_lower if f.startswith("!")]
             if exclusions and trait_name in exclusions:
                 return False
 
             # Inclusions (no '!')
-            inclusions = [f for f in filters_lower if not f.startswith('!')]
+            inclusions = [f for f in filters_lower if not f.startswith("!")]
             if inclusions and trait_name not in inclusions:
                 return False
 
             return True
-            
-        elif local_tag == 'field':
-            field_type = element.attrib.get('type', '').lower()
-            filters = [f.strip() for f in filter_str.split(',') if f.strip()]
+
+        elif local_tag == "field":
+            field_type = element.attrib.get("type", "").lower()
+            filters = [f.strip() for f in filter_str.split(",") if f.strip()]
             filters_lower = [f.lower() for f in filters]
 
-            exclusions = [f[1:] for f in filters_lower if f.startswith('!')]
+            exclusions = [f[1:] for f in filters_lower if f.startswith("!")]
             if exclusions and field_type in exclusions:
                 return False
 
-            inclusions = [f for f in filters_lower if not f.startswith('!')]
+            inclusions = [f for f in filters_lower if not f.startswith("!")]
             if inclusions and field_type not in inclusions:
                 return False
 
             return True
-            
+
         return True
+
 
 class LIFTToHTMLTransformer:
     """Transforms LIFT XML to HTML using display profile configurations."""
 
     def __init__(self):
         self.namespace_map = {
-            'lift': 'urn:sil:lift:0.13',
-            'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
+            "lift": "urn:sil:lift:0.13",
+            "xsi": "http://www.w3.org/2001/XMLSchema-instance",
         }
 
-    def transform(self, lift_xml: str, element_configs: List[ElementConfig], entry_level_pos: Optional[str] = None) -> str:
+    def transform(
+        self,
+        lift_xml: str,
+        element_configs: List[ElementConfig],
+        entry_level_pos: Optional[str] = None,
+    ) -> str:
         """Transform LIFT XML to HTML using the provided element configurations.
 
         If the XML is malformed, attempt a best-effort partial rendering by
@@ -706,11 +832,14 @@ class LIFTToHTMLTransformer:
 
         except ValueError as ve:
             # Malformed XML - try a tolerant fallback: extract <text> nodes directly
-            logging.getLogger(__name__).warning(f"Malformed LIFT XML, falling back to tolerant parsing: {ve}")
+            logging.getLogger(__name__).warning(
+                f"Malformed LIFT XML, falling back to tolerant parsing: {ve}"
+            )
             texts = []
             try:
                 import re
-                matches = re.findall(r'<text>(.*?)</text>', lift_xml, flags=re.DOTALL)
+
+                matches = re.findall(r"<text>(.*?)</text>", lift_xml, flags=re.DOTALL)
                 for m in matches:
                     txt = m.strip()
                     if txt:
@@ -719,13 +848,15 @@ class LIFTToHTMLTransformer:
                 texts = []
 
             if texts:
-                return ' '.join([f'<span>{t}</span>' for t in texts])
+                return " ".join([f"<span>{t}</span>" for t in texts])
 
             # Last resort: do not return an entry-error to satisfy test contract; return empty container
             return "<div class='entry-empty'>No content to display</div>"
 
         except Exception as e:
-            logging.getLogger(__name__).error(f"Transformation failed: {e}", exc_info=True)
+            logging.getLogger(__name__).error(
+                f"Transformation failed: {e}", exc_info=True
+            )
             return f"<div class='entry-error'>Error rendering entry: {str(e)}</div>"
 
     def _parse_lift_xml(self, lift_xml: str) -> ET.Element:
@@ -745,7 +876,10 @@ class LIFTToHTMLTransformer:
     def _remove_namespaces(self, xml_string: str) -> str:
         """Remove namespace declarations from XML to simplify parsing."""
         from app.utils.namespace_manager import LIFTNamespaceManager
-        return LIFTNamespaceManager.normalize_lift_xml(xml_string, target_namespace=None)
+
+        return LIFTNamespaceManager.normalize_lift_xml(
+            xml_string, target_namespace=None
+        )
 
     def generate_lift_xml_from_form_data(self, form_data: Dict[str, Any]) -> str:
         """Generate LIFT XML from form data structure."""
@@ -753,199 +887,229 @@ class LIFTToHTMLTransformer:
             from xml.etree import ElementTree as ET
             import uuid
             from datetime import datetime
-            
+
             # Create entry element
-            entry_id = form_data.get('id', str(uuid.uuid4()))
-            entry = ET.Element('entry')
-            entry.set('id', entry_id)
-            entry.set('dateCreated', datetime.now().isoformat())
-            entry.set('dateModified', datetime.now().isoformat())
-            
+            entry_id = form_data.get("id", str(uuid.uuid4()))
+            entry = ET.Element("entry")
+            entry.set("id", entry_id)
+            entry.set("dateCreated", datetime.now().isoformat())
+            entry.set("dateModified", datetime.now().isoformat())
+
             # Add lexical unit - this is critical for the headword
-            lexical_unit = form_data.get('lexical_unit', {})
-            lexical_unit_lang = form_data.get('lexical_unit_lang', {})
-            
+            lexical_unit = form_data.get("lexical_unit", {})
+            lexical_unit_lang = form_data.get("lexical_unit_lang", {})
+
             # Handle both old and new formats
             if lexical_unit:
-                lexical_unit_elem = ET.SubElement(entry, 'lexical-unit')
+                lexical_unit_elem = ET.SubElement(entry, "lexical-unit")
                 for lang, text in lexical_unit.items():
-                    form_elem = ET.SubElement(lexical_unit_elem, 'form')
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, 'text')
+                    form_elem = ET.SubElement(lexical_unit_elem, "form")
+                    form_elem.set("lang", lang)
+                    text_elem = ET.SubElement(form_elem, "text")
                     text_elem.text = str(text)
             elif lexical_unit_lang:
-                lexical_unit_elem = ET.SubElement(entry, 'lexical-unit')
+                lexical_unit_elem = ET.SubElement(entry, "lexical-unit")
                 for lang, text in lexical_unit_lang.items():
-                    form_elem = ET.SubElement(lexical_unit_elem, 'form')
-                    form_elem.set('lang', lang)
-                    text_elem = ET.SubElement(form_elem, 'text')
+                    form_elem = ET.SubElement(lexical_unit_elem, "form")
+                    form_elem.set("lang", lang)
+                    text_elem = ET.SubElement(form_elem, "text")
                     text_elem.text = str(text)
             else:
-                lexical_unit_elem = ET.SubElement(entry, 'lexical-unit')
-                form_elem = ET.SubElement(lexical_unit_elem, 'form')
-                form_elem.set('lang', 'en')
-                text_elem = ET.SubElement(form_elem, 'text')
-                text_elem.text = 'unknown'
-            
+                lexical_unit_elem = ET.SubElement(entry, "lexical-unit")
+                form_elem = ET.SubElement(lexical_unit_elem, "form")
+                form_elem.set("lang", "en")
+                text_elem = ET.SubElement(form_elem, "text")
+                text_elem.text = "unknown"
+
             # Add entry-level grammatical info
-            grammatical_info = form_data.get('grammatical_info')
+            grammatical_info = form_data.get("grammatical_info")
             if grammatical_info:
                 if isinstance(grammatical_info, dict):
                     if len(grammatical_info) == 1:
                         grammatical_info = list(grammatical_info.values())[0]
-                gram_elem = ET.SubElement(entry, 'grammatical-info')
-                gram_elem.set('value', str(grammatical_info))
-            
+                gram_elem = ET.SubElement(entry, "grammatical-info")
+                gram_elem.set("value", str(grammatical_info))
+
             # Add entry-level traits
-            traits = form_data.get('traits', {})
+            traits = form_data.get("traits", {})
             if traits:
                 for trait_name, trait_value in traits.items():
                     if trait_value:
-                        trait_elem = ET.SubElement(entry, 'trait')
-                        trait_elem.set('name', trait_name)
-                        trait_elem.set('value', trait_value)
+                        trait_elem = ET.SubElement(entry, "trait")
+                        trait_elem.set("name", trait_name)
+                        trait_elem.set("value", trait_value)
 
             # Handle morph_type from form (converts snake_case to LIFT trait name)
-            morph_type = form_data.get('morph_type')
+            morph_type = form_data.get("morph_type")
             if morph_type:
-                trait_elem = ET.SubElement(entry, 'trait')
-                trait_elem.set('name', 'morph-type')
-                trait_elem.set('value', str(morph_type))
+                trait_elem = ET.SubElement(entry, "trait")
+                trait_elem.set("name", "morph-type")
+                trait_elem.set("value", str(morph_type))
 
             # Handle domain_type from form
-            domain_type = form_data.get('domain_type')
+            domain_type = form_data.get("domain_type")
             if domain_type:
-                trait_elem = ET.SubElement(entry, 'trait')
-                trait_elem.set('name', 'domain-type')
-                trait_elem.set('value', str(domain_type))
+                trait_elem = ET.SubElement(entry, "trait")
+                trait_elem.set("name", "domain-type")
+                trait_elem.set("value", str(domain_type))
 
             # Handle pronunciations
-            pronunciations = form_data.get('pronunciations', [])
+            pronunciations = form_data.get("pronunciations", [])
             if pronunciations and isinstance(pronunciations, list):
                 for pron_data in pronunciations:
                     if pron_data and isinstance(pron_data, dict):
-                        pron_elem = ET.SubElement(entry, 'pronunciation')
+                        pron_elem = ET.SubElement(entry, "pronunciation")
 
                         # Add IPA value (the actual pronunciation text)
-                        pron_value = pron_data.get('value')
+                        pron_value = pron_data.get("value")
                         if pron_value:
-                            form_elem = ET.SubElement(pron_elem, 'form')
-                            form_elem.set('lang', pron_data.get('type', 'seh-fonipa'))
-                            text_elem = ET.SubElement(form_elem, 'text')
+                            form_elem = ET.SubElement(pron_elem, "form")
+                            form_elem.set("lang", pron_data.get("type", "seh-fonipa"))
+                            text_elem = ET.SubElement(form_elem, "text")
                             text_elem.text = str(pron_value)
 
                         # Add audio if present
-                        audio_path = pron_data.get('audio_path')
+                        audio_path = pron_data.get("audio_path")
                         if audio_path:
-                            media_elem = ET.SubElement(pron_elem, 'media')
-                            media_elem.set('href', audio_path)
+                            media_elem = ET.SubElement(pron_elem, "media")
+                            media_elem.set("href", audio_path)
 
                         # Add other attributes as traits
-                        if pron_data.get('is_default'):
-                            trait_elem = ET.SubElement(pron_elem, 'trait')
-                            trait_elem.set('name', 'default')
-                            trait_elem.set('value', 'true')
+                        if pron_data.get("is_default"):
+                            trait_elem = ET.SubElement(pron_elem, "trait")
+                            trait_elem.set("name", "default")
+                            trait_elem.set("value", "true")
 
             # Add senses
-            senses = form_data.get('senses', [])
+            senses = form_data.get("senses", [])
             if senses and isinstance(senses, list):
                 for sense_data in senses:
                     if sense_data and isinstance(sense_data, dict):
-                        sense_elem = ET.SubElement(entry, 'sense')
-                        sense_id = sense_data.get('id')
+                        sense_elem = ET.SubElement(entry, "sense")
+                        sense_id = sense_data.get("id")
                         if sense_id:
-                            sense_elem.set('id', sense_id)
+                            # Handle both single values and arrays (take first non-empty value)
+                            if isinstance(sense_id, list):
+                                sense_id = next(
+                                    (v for v in sense_id if v),
+                                    sense_id[-1] if sense_id else "",
+                                )
+                            if sense_id:
+                                sense_elem.set("id", sense_id)
 
-                        grammatical_info = sense_data.get('grammatical_info')
+                        grammatical_info = sense_data.get("grammatical_info")
                         if grammatical_info:
                             if isinstance(grammatical_info, dict):
                                 if len(grammatical_info) == 1:
-                                    grammatical_info = list(grammatical_info.values())[0]
-                            gram_elem = ET.SubElement(sense_elem, 'grammatical-info')
-                            gram_elem.set('value', str(grammatical_info))
+                                    grammatical_info = list(grammatical_info.values())[
+                                        0
+                                    ]
+                            gram_elem = ET.SubElement(sense_elem, "grammatical-info")
+                            gram_elem.set("value", str(grammatical_info))
 
-                        definition = sense_data.get('definition', {})
+                        definition = sense_data.get("definition", {})
                         if definition:
                             for lang, def_data in definition.items():
-                                if isinstance(def_data, dict) and def_data.get('text'):
-                                    def_elem = ET.SubElement(sense_elem, 'definition')
-                                    form_elem = ET.SubElement(def_elem, 'form')
-                                    form_elem.set('lang', lang)
-                                    text_elem = ET.SubElement(form_elem, 'text')
-                                    text_elem.text = def_data.get('text')
+                                if isinstance(def_data, dict) and def_data.get("text"):
+                                    def_elem = ET.SubElement(sense_elem, "definition")
+                                    form_elem = ET.SubElement(def_elem, "form")
+                                    form_elem.set("lang", lang)
+                                    text_elem = ET.SubElement(form_elem, "text")
+                                    # Handle both single values and arrays (flatten arrays to first non-empty value)
+                                    text_value = def_data.get("text")
+                                    if isinstance(text_value, list):
+                                        text_value = next(
+                                            (v for v in text_value if v),
+                                            text_value[-1] if text_value else "",
+                                        )
+                                    text_elem.text = text_value
 
-                        gloss = sense_data.get('gloss', {})
+                        gloss = sense_data.get("gloss", {})
                         if gloss:
                             for lang, gloss_data in gloss.items():
-                                if isinstance(gloss_data, dict) and gloss_data.get('text'):
-                                    gloss_elem = ET.SubElement(sense_elem, 'gloss')
-                                    gloss_elem.set('lang', lang)
-                                    text_elem = ET.SubElement(gloss_elem, 'text')
-                                    text_elem.text = gloss_data.get('text')
+                                if isinstance(gloss_data, dict) and gloss_data.get(
+                                    "text"
+                                ):
+                                    gloss_elem = ET.SubElement(sense_elem, "gloss")
+                                    gloss_elem.set("lang", lang)
+                                    text_elem = ET.SubElement(gloss_elem, "text")
+                                    # Handle both single values and arrays
+                                    text_value = gloss_data.get("text")
+                                    if isinstance(text_value, list):
+                                        text_value = next(
+                                            (v for v in text_value if v),
+                                            text_value[-1] if text_value else "",
+                                        )
+                                    text_elem.text = text_value
 
             # Handle variants with full support for form, grammatical_info, and traits
-            variants = form_data.get('variants', [])
+            variants = form_data.get("variants", [])
             if variants and isinstance(variants, list):
                 for variant_data in variants:
                     if variant_data and isinstance(variant_data, dict):
-                        variant_elem = ET.SubElement(entry, 'variant')
+                        variant_elem = ET.SubElement(entry, "variant")
 
                         # Add ref attribute if present
-                        if variant_data.get('ref'):
-                            variant_elem.set('ref', variant_data['ref'])
+                        if variant_data.get("ref"):
+                            variant_elem.set("ref", variant_data["ref"])
 
                         # Forms (multilingual text) - support both 'form' and 'forms' keys
-                        form_data_inner = variant_data.get('form') or variant_data.get('forms', {})
+                        form_data_inner = variant_data.get("form") or variant_data.get(
+                            "forms", {}
+                        )
                         if form_data_inner and isinstance(form_data_inner, dict):
                             for lang, text in form_data_inner.items():
                                 if text:
                                     if isinstance(text, dict):
-                                        text_content = text.get('text', '')
+                                        text_content = text.get("text", "")
                                     else:
                                         text_content = str(text)
                                     if text_content:
-                                        form_elem = ET.SubElement(variant_elem, 'form')
-                                        form_elem.set('lang', lang)
-                                        text_elem = ET.SubElement(form_elem, 'text')
+                                        form_elem = ET.SubElement(variant_elem, "form")
+                                        form_elem.set("lang", lang)
+                                        text_elem = ET.SubElement(form_elem, "text")
                                         text_elem.text = text_content
 
                         # Grammatical info
-                        grammatical_info = variant_data.get('grammatical_info')
+                        grammatical_info = variant_data.get("grammatical_info")
                         if grammatical_info:
-                            if isinstance(grammatical_info, dict) and len(grammatical_info) == 1:
+                            if (
+                                isinstance(grammatical_info, dict)
+                                and len(grammatical_info) == 1
+                            ):
                                 grammatical_info = list(grammatical_info.values())[0]
-                            gram_elem = ET.SubElement(variant_elem, 'grammatical-info')
-                            gram_elem.set('value', str(grammatical_info))
+                            gram_elem = ET.SubElement(variant_elem, "grammatical-info")
+                            gram_elem.set("value", str(grammatical_info))
 
                         # Grammatical traits
-                        grammatical_traits = variant_data.get('grammatical_traits', {})
+                        grammatical_traits = variant_data.get("grammatical_traits", {})
                         if grammatical_traits and isinstance(grammatical_traits, dict):
                             for trait_name, trait_value in grammatical_traits.items():
                                 if trait_value:
-                                    trait_elem = ET.SubElement(variant_elem, 'trait')
-                                    trait_elem.set('name', trait_name)
-                                    trait_elem.set('value', str(trait_value))
+                                    trait_elem = ET.SubElement(variant_elem, "trait")
+                                    trait_elem.set("name", trait_name)
+                                    trait_elem.set("value", str(trait_value))
 
                         # Other traits (variant-type, morph-type, etc.)
-                        traits_data = variant_data.get('traits', {})
+                        traits_data = variant_data.get("traits", {})
                         if traits_data and isinstance(traits_data, dict):
                             for trait_name, trait_value in traits_data.items():
                                 if trait_value:
-                                    trait_elem = ET.SubElement(variant_elem, 'trait')
-                                    trait_elem.set('name', trait_name)
-                                    trait_elem.set('value', str(trait_value))
+                                    trait_elem = ET.SubElement(variant_elem, "trait")
+                                    trait_elem.set("name", trait_name)
+                                    trait_elem.set("value", str(trait_value))
 
             # Convert to XML string
-            xml_string = ET.tostring(entry, encoding='unicode')
-            
+            xml_string = ET.tostring(entry, encoding="unicode")
+
             # Add LIFT namespace
             xml_string = f"""<?xml version="1.0" encoding="UTF-8"?>
 <lift xmlns="http://fieldworks.sil.org/schemas/lift/0.13" version="0.13">
 {xml_string}
 </lift>"""
-            
+
             return xml_string
-            
+
         except Exception as e:
             return f"""<?xml version="1.0" encoding="UTF-8"?>
 <lift xmlns="http://fieldworks.sil.org/schemas/lift/0.13" version="0.13">

@@ -93,7 +93,7 @@ class CoverageService:
         # Import here to avoid circular imports
         from app.services.word_sketch import WordSketchClient
 
-        self.ws_client = word_sketch_client or WordSketchClient()
+        self.ws_client = word_sketch_client or WordSketchClient.from_config()
         self.workset_service = workset_service
         self.logger = logging.getLogger(__name__)
 

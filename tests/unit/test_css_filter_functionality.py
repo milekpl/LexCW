@@ -291,23 +291,14 @@ class TestCSSRangeLookupBuilding:
                 assert result['grammatical-info'].get('Noun') == 'n'
                 assert result['grammatical-info'].get('Verb') == 'v'
 
-    def test_build_range_label_lookup(self, db_app: Flask) -> None:
+    def test_build_range_label_lookup(self, db_app: Flask, lexical_relation_ranges) -> None:
         """Should build label lookup map."""
         with db_app.app_context():
             service = CSSMappingService()
 
-            ranges = {
-                'lexical-relation': {
-                    'values': [
-                        {'id': 'synonym', 'label': {'en': 'Synonym'}},
-                        {'id': 'antonym', 'label': {'en': 'Antonym'}}
-                    ]
-                }
-            }
-
             from unittest.mock import patch, MagicMock
             mock_dict_service = MagicMock()
-            mock_dict_service.get_ranges.return_value = ranges
+            mock_dict_service.get_ranges.return_value = lexical_relation_ranges
 
             with patch('flask.current_app') as mock_current_app:
                 mock_injector = MagicMock()

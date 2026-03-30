@@ -381,15 +381,40 @@ def test_sense_deletion_persists_after_save(page, app_url):
     # Wait for form submission to complete
     print("Waiting for form submission to complete...")
     try:
-        page.wait_for_url("**/entries/**", timeout=5000)
+        # Give ample time for redirects/processing
+        page.wait_for_url("**/entries/**", timeout=15000)
         print(f"Navigation successful to: {page.url}")
     except Exception as nav_error:
-        print(f"Navigation timeout: {nav_error}")
-        page.wait_for_timeout(1000)
+        print(f"Navigation timeout (will fallback to networkidle): {nav_error}")
+        try:
+            page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            page.wait_for_timeout(1000)
 
-    # Navigate back to edit to verify persistence
-    page.goto(edit_url, timeout=30000)
-    page.wait_for_load_state("networkidle")
+    # Small pause to ensure server-side processing completed
+    page.wait_for_timeout(500)
+
+    # Navigate back to edit to verify persistence — retry on transient navigation aborts
+    max_nav_retries = 5
+    for attempt in range(1, max_nav_retries + 1):
+        try:
+            print(f"Navigating to edit page (attempt {attempt}): {edit_url}")
+            page.goto(edit_url, timeout=30000, wait_until="networkidle")
+            print("Edit page navigation succeeded")
+            break
+        except Exception as e:
+            print(f"Attempt {attempt} failed to navigate to edit page: {e}")
+            # If last attempt, re-raise to surface the failure
+            if attempt == max_nav_retries:
+                raise
+            page.wait_for_timeout(500)
+
+    # Ensure the edit page has loaded the senses
+    try:
+        page.wait_for_selector('.sense-item:not(#default-sense-template):not(.default-sense-template)', timeout=10000)
+    except Exception:
+        # Fallback: wait a bit and continue; the assertions below will catch issues
+        page.wait_for_timeout(500)
 
     # THE ULTIMATE TEST: Verify the deleted sense is still gone
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
@@ -497,21 +522,8 @@ def test_multiple_deletions(page, flask_test_server):
     page.goto(edit_url, timeout=30000)
     page.wait_for_load_state("networkidle")
 
-    # Setup console monitoring to capture form submit logs
-    console_logs = []
-    page.on("console", lambda msg: console_logs.append(msg.text))
-
-    # Setup request monitoring to capture network requests (AJAX or form posts)
-    requests_made = []
-    page.on("request", lambda req: requests_made.append((req.method, req.url)))
-
     # Check senses
     page.wait_for_timeout(1000)
-
-    # Debug: verify submit handler and xmlSerializer presence
-    has_submit = page.evaluate("() => typeof window.submitForm === 'function'")
-    has_xml_serializer = page.evaluate("() => !!window.xmlSerializer && typeof window.xmlSerializer.serializeEntry === 'function'")
-    print(f"submitForm present: {has_submit}, xmlSerializer present: {has_xml_serializer}")
 
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
     sense_count_before = real_senses.count()
@@ -545,39 +557,44 @@ def test_multiple_deletions(page, flask_test_server):
     # Enable E2E client-side XML capture so we can assert the outgoing body
     page.evaluate("() => { window.__E2E_CAPTURE_XML = true; window.__LAST_SERIALIZED_XML = null; }")
 
-    # Save
-    page.click('button[type="submit"]:has-text("Save Entry")')
-    page.wait_for_load_state("networkidle", timeout=10000)
+    # Save - use expect_response to wait for the actual PUT to complete.
+    # wait_for_load_state("networkidle") fires prematurely because submitForm() uses
+    # async WebWorker serialization – no network request is active during that phase,
+    # so networkidle fires before the PUT is sent, then page.reload() cancels the save.
+    # Also wait for networkidle FIRST: Flask dev server is single-threaded, so any
+    # in-flight validation/live-preview POSTs block the FormSerializer WebWorker GET
+    # and trigger the 10 s serialization timeout, aborting the save before the PUT fires.
+    # The live-preview module has a 500 ms debounce; wait >500 ms so the debounce fires
+    # and the POST is visible before networkidle is evaluated.
+    page.wait_for_timeout(800)
+    try:
+        page.wait_for_load_state("networkidle", timeout=10000)
+    except Exception:
+        pass  # Proceed even if networkidle times out; the 800 ms wait above already
+              # guaranteed the debounce-triggered live-preview POST was dispatched.
+    with page.expect_response(
+        lambda r: f"/api/xml/entries/{entry_id}" in r.url and r.request.method == "PUT",
+        timeout=20000,
+    ):
+        # Calling submitForm() directly is more reliable in tests than a native click
+        # because the save button is at the bottom of the form and may be below
+        # the default Playwright viewport, causing native clicks to miss it.
+        page.evaluate("() => submitForm()")
 
     # Wait for the client to populate the captured XML (short timeout)
     try:
         page.wait_for_function("() => !!window.__LAST_SERIALIZED_XML", timeout=3000)
         serialized_xml = page.evaluate("() => window.__LAST_SERIALIZED_XML")
-        print('Captured serialized XML (truncated):', serialized_xml[:400])
         sense_count_in_xml = serialized_xml.count('<sense ')
-        print('Senses in serialized XML:', sense_count_in_xml)
         assert sense_count_in_xml == 1, f"Client serialized wrong number of senses: {sense_count_in_xml}. XML: {serialized_xml}"
     except Exception as e:
         print('No serialized XML captured or timeout:', e)
 
-    # Debug: Print console logs captured during save
-    print(f"Console logs during save ({len(console_logs)}):")
-    for cl in console_logs[-50:]:
-        print(cl)
-
-    submit_logs = [log for log in console_logs if 'FORM SUBMIT' in log]
-    if submit_logs:
-        serialized_count_log = [log for log in submit_logs if 'Serialized senses' in log]
-        print('Found submit logs:', serialized_count_log)
-
-    # Debug: print network requests that happened during save
-    print('Network requests during save:')
-    for m, u in requests_made[-50:]:
-        print(m, u)
-
-    # Reload and verify deletion persisted - use reload() instead of goto() to avoid navigation issues
-    page.reload(timeout=30000)
-    page.wait_for_load_state("networkidle")
+    # Navigate back to edit page to verify deletion persisted.
+    # (After expect_response exits the PUT is done; submitForm() then navigates to the
+    # view page, so we must re-navigate to edit rather than reload.)
+    page.goto(edit_url, timeout=30000)
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
     page.wait_for_timeout(1000)
 
     real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')

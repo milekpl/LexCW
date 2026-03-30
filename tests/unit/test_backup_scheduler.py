@@ -276,3 +276,25 @@ class TestBackupScheduler:
 
         # Verify dirty flag is reset after backup
         assert scheduler._dirty is False
+
+    def test_sync_backup_schedule_respects_disabled_values(self):
+        """sync_backup_schedule should not schedule when schedule is 'none'."""
+        scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
+
+        # Patch schedule_backup to ensure it is not called for 'none'
+        scheduler.schedule_backup = Mock()
+
+        backup_settings = {'schedule': 'none', 'time': '02:00'}
+        result = scheduler.sync_backup_schedule('dictionary', backup_settings)
+        assert result is False
+        scheduler.schedule_backup.assert_not_called()
+
+    def test_sync_backup_schedule_rejects_unsupported_values(self):
+        """Unsupported legacy/invalid schedule values (e.g., 'disabled') are treated as disabled."""
+        scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
+        scheduler.schedule_backup = Mock()
+
+        backup_settings = {'schedule': 'disabled', 'time': '02:00'}
+        result = scheduler.sync_backup_schedule('dictionary', backup_settings)
+        assert result is False
+        scheduler.schedule_backup.assert_not_called()
