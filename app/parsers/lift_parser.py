@@ -599,10 +599,12 @@ class LIFTParser:
             except ValueError:
                 self.logger.warning(f"Invalid order value: {elem.get('order')}")
                 
-        # Parse traits first to extract morph-type and domain-type
+        # Parse traits first to extract morph-type and domain-type.
+        # Pop them from the traits dict so they aren't stored twice
+        # (once as dedicated field, once inside traits).
         traits = self._parse_traits(elem) or {}
-        morph_type = traits.get('morph-type') if traits else None
-        domain_type = traits.get('domain-type') if traits else None
+        morph_type = traits.pop('morph-type', None) if traits else None
+        domain_type = traits.pop('domain-type', None) if traits else None
         
         # Parse common fields
         common = self._parse_common_fields(elem)
@@ -895,8 +897,8 @@ class LIFTParser:
             notes=common_fields['notes'],
             custom_fields=common_fields['custom_fields'],
             illustrations=self._parse_illustrations(elem),
-            traits={t.get('name'): t.get('value') for t in self._find_elements(elem, './lift:trait') 
-                   if t.get('name') not in {'usage-type', 'domain-type', 'semantic-domain-ddp4'}},
+            traits={t.get('name'): t.get('value') for t in self._find_elements(elem, './lift:trait')
+                    if t.get('name') not in ('domain-type', 'semantic-domain-ddp4', 'usage-type')},
             annotations=common_fields['annotations'],
             subsenses=[self._parse_sense(s) for s in self._find_elements(elem, './lift:subsense')],
             exemplar=exemplar_field,

@@ -193,6 +193,13 @@ def delete_entry(entry_id: str) -> Any:
         
         logger.info('[XML API] Entry deleted: %s', entry_id)
         
+        # Clear entries cache after successful deletion
+        from app.services.cache_service import CacheService
+        cache = CacheService()
+        if cache.is_available():
+            cache.clear_pattern('entries:*')
+            logger.info('[XML API] Cleared entries cache after deleting entry %s', entry_id)
+        
         # Return response
         return jsonify({
             'success': True,

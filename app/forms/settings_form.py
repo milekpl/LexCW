@@ -97,6 +97,25 @@ class SettingsForm(FlaskForm):
         description='Include uploaded media files in backups when enabled'
     )
 
+    # AI / LLM settings (BYOK)
+    openai_api_key = StringField(
+        'API Key',
+        validators=[Optional(), Length(max=255)],
+        description='Your API key for the LLM provider. Leave empty to use the OPENAI_API_KEY environment variable.'
+    )
+    ai_api_base = StringField(
+        'API Base URL',
+        validators=[Optional(), Length(max=500)],
+        default='https://api.openai.com/v1',
+        description='The chat completions endpoint base URL. Change this to use DeepSeek, GitHub Models, or a local LLM. Must end with /v1.'
+    )
+    ai_model = StringField(
+        'Model Name',
+        validators=[Optional(), Length(max=100)],
+        default='gpt-4o',
+        description='The model identifier (e.g. gpt-4o, deepseek-chat, gpt-4o-mini, o3-mini)'
+    )
+
     # Submit button
     submit = SubmitField('Update Settings')
 
@@ -161,6 +180,17 @@ class SettingsForm(FlaskForm):
                 self.backup_retention.data = backup_settings.get('retention', 10)
                 self.backup_compression.data = backup_settings.get('compression', True)
                 self.backup_include_media.data = backup_settings.get('include_media', False)
+
+            # Populate AI settings from ProjectSettings (not stored in config manager)
+            try:
+                from app.models.project_settings import ProjectSettings
+                ps = ProjectSettings.query.first()
+                if ps:
+                    self.openai_api_key.data = getattr(ps, 'openai_api_key', '') or ''
+                    self.ai_api_base.data = getattr(ps, 'ai_api_base', 'https://api.openai.com/v1') or 'https://api.openai.com/v1'
+                    self.ai_model.data = getattr(ps, 'ai_model', 'gpt-4o') or 'gpt-4o'
+            except Exception:
+                pass
         
         elif isinstance(config, dict):
             # Dictionary configuration
@@ -189,6 +219,11 @@ class SettingsForm(FlaskForm):
                 self.backup_retention.data = backup_settings.get('retention', 10)
                 self.backup_compression.data = backup_settings.get('compression', True)
                 self.backup_include_media.data = backup_settings.get('include_media', False)
+
+            # Populate AI settings
+            self.openai_api_key.data = config.get('openai_api_key', '') or ''
+            self.ai_api_base.data = config.get('ai_api_base', 'https://api.openai.com/v1') or 'https://api.openai.com/v1'
+            self.ai_model.data = config.get('ai_model', 'gpt-4o') or 'gpt-4o'
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -241,7 +276,10 @@ class SettingsForm(FlaskForm):
                 'retention': self.backup_retention.data or 10,
                 'compression': self.backup_compression.data if self.backup_compression.data is not None else True,
                 'include_media': bool(self.backup_include_media.data)
-            }
+            },
+            'openai_api_key': self.openai_api_key.data or '',
+            'ai_api_base': self.ai_api_base.data or 'https://api.openai.com/v1',
+            'ai_model': self.ai_model.data or 'gpt-4o',
         }
         
     def get_language_statistics(self) -> Dict[str, Any]:

@@ -45,6 +45,10 @@ class ProjectSettings(db.Model):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+    # AI / LLM settings (BYOK)
+    openai_api_key = Column(String(255), nullable=True)
+    ai_api_base = Column(String(500), nullable=True, default="https://api.openai.com/v1")
+    ai_model = Column(String(100), nullable=True, default="gpt-4o")
 
     # TODO: Implement User model and relationships
     owner_id: Optional[int] = Column(
@@ -87,6 +91,8 @@ class User(db.Model):
     avatar_url: Optional[str] = Column(String(500), nullable=True)
     bio: Optional[str] = Column(db.Text, nullable=True)
     preferences: dict = Column(JSON, nullable=True, default=dict)
+    reset_token: Optional[str] = Column(String(255), nullable=True)
+    reset_token_expires: Optional[datetime] = Column(DateTime, nullable=True)
 
     # Flask-Login integration
     @property

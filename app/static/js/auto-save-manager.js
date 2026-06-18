@@ -212,8 +212,26 @@ class AutoSaveManager {
         
         switch (action) {
             case 'merge':
-                // TODO: Implement intelligent merge
-                console.log('Merge functionality not yet implemented');
+                // Merge: keep the user's local edits on top of server data.
+                // Capture local form state, reload server data, then re-apply
+                // local edits so both server-side changes and local changes survive.
+                try {
+                    const localData = this.stateManager.serializeToJSON();
+                    this.stateManager.updateFromJSON(conflictData.serverData);
+                    // Shallow-merge local edits back on top (server data + local changes)
+                    this.stateManager.updateFromJSON(
+                        AutoSaveManager._shallowMerge(conflictData.serverData, localData)
+                    );
+                    this.lastSaveVersion = conflictData.serverVersion;
+                    this.showSaveIndicator('merged');
+                    // Trigger a fresh save so the merge result is persisted
+                    this.debouncedSave();
+                } catch (e) {
+                    console.error('Merge failed, falling back to reload:', e);
+                    this.stateManager.updateFromJSON(conflictData.serverData);
+                    this.lastSaveVersion = conflictData.serverVersion;
+                    this.showSaveIndicator('reloaded');
+                }
                 break;
                 
             case 'overwrite':
@@ -331,6 +349,31 @@ class AutoSaveManager {
         indicator.className = `autosave-indicator ${className}`;
     }
     
+    /**
+     * Shallow-merge two plain objects. Values from `source` override `base`.
+     * Nested objects are merged recursively; arrays are replaced.
+     */
+    static _shallowMerge(base, source) {
+        if (!base || typeof base !== 'object') return source;
+        if (!source || typeof source !== 'object') return base;
+        const result = { ...base };
+        for (const key of Object.keys(source)) {
+            if (
+                source[key] !== null &&
+                typeof source[key] === 'object' &&
+                !Array.isArray(source[key]) &&
+                base[key] !== null &&
+                typeof base[key] === 'object' &&
+                !Array.isArray(base[key])
+            ) {
+                result[key] = AutoSaveManager._shallowMerge(base[key], source[key]);
+            } else {
+                result[key] = source[key];
+            }
+        }
+        return result;
+    }
+
     /**
      * Debounce utility function
      */

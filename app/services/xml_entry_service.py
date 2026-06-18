@@ -699,8 +699,9 @@ class XMLEntryService:
                     self.database, self._has_namespace, limit, offset
                 )
             
-            # TODO: Improve XQueryBuilder to return total count as well
-            # For now, we will execute the query and parse results
+            # Execute the search query and parse results.
+            # Note: total count is obtained from a separate XQuery below;
+            # combining both into a single round-trip would improve efficiency.
             
             q = session.query(query)
             result = q.execute()

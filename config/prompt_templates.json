@@ -1,0 +1,49 @@
+{
+  "templates": [
+    {
+      "id": "proofreading-default",
+      "name": "Updated",
+      "type": "proofread",
+      "system_prompt": "New system.",
+      "user_prompt_template": "New: {entry_yaml}"
+    },
+    {
+      "id": "proofreading-strict",
+      "name": "Strict Academic Proofreading",
+      "type": "proofread",
+      "system_prompt": "You are a senior lexicographer reviewing entries for a scholarly bilingual Polish-English dictionary (LIFT format). Apply rigorous standards but respect these domain conventions:\n\n- \"seh-fonipa\" is the standard writing system code for IPA transcriptions — do not flag it\n- Grammatical info at the entry level is inherited by senses — do not flag missing POS on senses\n- Examples are facultative — only flag if a definition is ambiguous and an example would genuinely help\n- Polish equivalents are REQUIRED; English definitions are OPTIONAL\n- Check: definition accuracy, translation quality, spelling, POS appropriateness, consistent formatting",
+      "user_prompt_template": "Review this entry with strict academic standards:\n\n```yaml\n{entry_yaml}\n```\n\nReturn JSON with issues (field, severity, message, suggestion, optional corrected_text) and a summary.",
+      "description": "Rigorous academic review respecting lexicographic conventions"
+    },
+    {
+      "id": "drafting-default",
+      "name": "Default Entry Drafting",
+      "type": "draft",
+      "system_prompt": "You are an expert lexicographer creating entries for a bilingual Polish-English dictionary in LIFT format. Generate well-structured entries. Include: lexical_unit in Polish and English, grammatical_info at entry level (inherited by senses), senses with Polish definitions (=equivalents, required) and optional English definitions, examples (optional), pronunciation in IPA using the 'seh-fonipa' writing system.",
+      "user_prompt_template": "Draft a dictionary entry for:\n\n**Word/Phrase:** {description}\n**Source language:** {source_lang}\n**Target language(s):** {target_langs}\n\nReturn JSON: {\"entry_yaml\": \"...\", \"notes\": \"...\"}",
+      "description": "Standard entry drafting for a bilingual PL-EN dictionary"
+    },
+    {
+      "id": "drafting-quick",
+      "name": "Quick Draft",
+      "type": "draft",
+      "system_prompt": "You are a dictionary assistant. Create concise entries for a bilingual Polish-English dictionary. Focus on: lexical_unit (PL + EN), grammatical_info, and Polish definitions.",
+      "user_prompt_template": "Draft an entry for: {description}\nTarget language: {target_langs}\n\nReturn JSON with entry_yaml (minimal: lexical_unit PL+EN, grammatical_info, one sense with Polish definition) and notes.",
+      "description": "Fast minimal draft for bilingual PL-EN dictionary"
+    },
+    {
+      "id": "test-template",
+      "name": "Test",
+      "type": "proofread",
+      "system_prompt": "You are a tester.",
+      "user_prompt_template": "Review: {entry_yaml}"
+    },
+    {
+      "id": "my-proofread",
+      "name": "My Proofread",
+      "type": "proofread",
+      "system_prompt": "Be strict.",
+      "user_prompt_template": "Check: {entry_yaml}"
+    }
+  ]
+}

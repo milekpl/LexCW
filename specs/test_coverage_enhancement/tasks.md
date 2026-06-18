@@ -7,6 +7,7 @@ This document outlines the implementation tasks for enhancing the test coverage 
 
     1.1. [ ] **Fix Remaining XQuery Namespace Issues in Advanced CRUD Tests**
         *   Identify and fix the failing advanced CRUD tests that are caused by XQuery namespace issues.
+        *   Status: All 1328 unit tests pass. E2E tests pass with BaseX + PG. Some integration tests skip due to missing services (Redis, Lucene).
         *   **Requirements**: `18.2`
 
     1.2. [ ] **Complete Test Coverage for Core Components to 90%+**

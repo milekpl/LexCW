@@ -27,6 +27,9 @@ class Workset(db.Model):
     )
     description: Optional[str] = Column(db.Text, nullable=True)
 
+    # UI settings — per-workset column visibility, sort order, etc.
+    ui_settings: dict = Column(JSON, nullable=True, default=dict)
+
     entries: List[WorksetEntry] = relationship(
         "WorksetEntry", back_populates="workset", cascade="all, delete-orphan"
     )

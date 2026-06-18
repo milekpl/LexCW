@@ -14,8 +14,9 @@ This document outlines the implementation tasks for the Bulk Processing feature,
         *   Implement support for atomic transactions to ensure data consistency during bulk operations.
         *   **Requirements**: `3.2.1`, `5.4.2`, `18.2`
 
-    1.3. [ ] **Add Progress Tracking for Long Operations**
+    1.3. [x] **Add Progress Tracking for Long Operations**
         *   Implement progress tracking for long-running bulk operations to provide feedback to the user.
+        *   Implemented: `WorksetProgress` tracker in `app/services/workset_service.py:37` with status, total_items, completed_items. Exposed via `GET /api/worksets/progress`.
         *   **Requirements**: `3.2.1`, `8.1.1`, `18.2`
 
     1.4. [ ] **Create Rollback and Recovery Mechanisms**

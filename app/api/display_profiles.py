@@ -762,3 +762,70 @@ def validate_css():
             "errors": [{"message": f"Validation error: {str(e)}", "line": 0}],
             "warnings": []
         })
+
+
+@profiles_bp.route("/templates", methods=["GET"])
+def list_style_templates():
+    """
+    List available CSS style templates
+    ---
+    tags:
+      - Display Profiles
+    responses:
+      200:
+        description: List of style templates
+    """
+    try:
+        from app.services.css_mapping_service import CSSMappingService
+        templates = CSSMappingService.get_style_templates()
+        return jsonify({"templates": templates})
+    except Exception as e:
+        current_app.logger.error(f"Error listing style templates: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@profiles_bp.route("/<string:profile_id>/apply-template", methods=["POST"])
+def apply_style_template(profile_id: str):
+    """
+    Apply a style template to a display profile
+    ---
+    tags:
+      - Display Profiles
+    parameters:
+      - name: profile_id
+        in: path
+        type: string
+        required: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - template_id
+            properties:
+              template_id:
+                type: string
+    responses:
+      200:
+        description: Template applied successfully
+      404:
+        description: Profile or template not found
+    """
+    try:
+        data = request.get_json()
+        if not data or "template_id" not in data:
+            return jsonify({"error": "template_id is required"}), 400
+
+        template_id = data["template_id"]
+        service = get_display_profile_service()
+        profile = service.apply_template(profile_id, template_id)
+
+        if not profile:
+            return jsonify({"error": "Profile or template not found"}), 404
+
+        return jsonify(profile.to_dict())
+    except Exception as e:
+        current_app.logger.error(f"Error applying style template: {e}")
+        return jsonify({"error": "Internal server error"}), 500

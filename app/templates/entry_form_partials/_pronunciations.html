@@ -8,6 +8,13 @@
             {% if entry.pronunciations %}
                 {% for ws, pronunciation in entry.pronunciations.items() %}
                 <div class="pronunciation-item mb-3 border-bottom pb-3" data-index="{{ loop.index0 }}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">Pronunciation {{ loop.index }}</span>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-secondary move-up-btn" data-item-type="pronunciation" title="Move Up">↑</button>
+                            <button type="button" class="btn btn-sm btn-secondary move-down-btn" data-item-type="pronunciation" title="Move Down">↓</button>
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-12">
                             <label class="form-label">IPA</label>

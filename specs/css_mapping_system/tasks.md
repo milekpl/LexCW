@@ -2,23 +2,25 @@
 
 This document outlines the implementation tasks for the CSS Mapping System feature, based on the requirements in `specification.md`.
 
-1.  [ ] **CSS Mapping Configuration**
+1.  [x] **CSS Mapping Configuration**
     *   This epic covers the implementation of a system for configuring the mapping between LIFT elements and CSS styles.
 
     1.1. [ ] **Build Admin Interface for CSS Rule Management**
         *   Build an admin interface for managing the CSS mapping rules.
         *   **Requirements**: `7.5`, `18.2`
 
-    1.2. [ ] **Implement LIFT-to-CSS Mapping Engine**
+    1.2. [x] **Implement LIFT-to-CSS Mapping Engine**
         *   Implement a mapping engine that transforms LIFT XML into styled HTML based on the configured rules.
+        *   Implemented: `CSSMappingService.render_entry()` in `app/services/css_mapping_service.py`.
         *   **Requirements**: `7.5`, `18.2`
 
     1.3. [ ] **Create Customizable Style Templates**
         *   Create customizable style templates that can be used to quickly change the appearance of the dictionary.
         *   **Requirements**: `7.5`, `18.2`
 
-    1.4. [ ] **Add Preview Functionality for Styling Changes**
+    1.4. [x] **Add Preview Functionality for Styling Changes**
         *   Add a preview functionality that allows users to see how their styling changes will look before they are saved.
+        *   Implemented: POST `/api/profiles/preview` endpoint in `app/api/display_profiles.py:440`.
         *   **Requirements**: `7.5`, `18.2`
 
 2.  [ ] **Enhanced Entry Display**

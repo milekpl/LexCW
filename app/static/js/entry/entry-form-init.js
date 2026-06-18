@@ -44,7 +44,17 @@
         // Initialize etymology forms manager
         if (window.EtymologyFormsManager && document.getElementById('etymology-container')) {
             window.etymologyFormsManager = new EtymologyFormsManager('etymology-container', {
-                rangeId: 'etymology'
+                rangeId: 'etymology',
+                etymologies: options.etymologies || []
+            });
+        }
+
+        // Initialize AI service UI
+        if (window.AIServiceUI) {
+            window.aiServiceUI = new AIServiceUI({
+                onProofreadResult: (result) => {
+                    Logger.info('AI proofread completed', result);
+                }
             });
         }
 

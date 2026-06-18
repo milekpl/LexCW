@@ -1271,3 +1271,48 @@ def execute_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
     except Exception as e:
         logger.error(f"Error executing pipeline: {e}")
         return {'error': f'Failed to execute pipeline: {str(e)}'}, 500
+
+
+@worksets_bp.route("/<int:workset_id>/ui-settings", methods=["GET", "PATCH"])
+def workset_ui_settings(workset_id: int):
+    """Get or update UI settings for a workset (column visibility, sort order, etc.).
+
+    GET: returns the current ui_settings dict.
+    PATCH: merges the request body into ui_settings (shallow merge).
+
+    Body (PATCH): JSON object with keys to set, e.g. {"columns": [...], "sortBy": "lexical_unit"}
+    """
+    try:
+        ws = WorksetService()
+
+        if request.method == "GET":
+            workset = ws.get_workset(workset_id)
+            if not workset:
+                return jsonify({"error": "Workset not found"}), 404
+            return jsonify({"ui_settings": workset.ui_settings or {}})
+
+        # PATCH — merge provided keys into existing ui_settings
+        data = request.get_json(silent=True) or {}
+        current = ws.get_workset(workset_id)
+        if not current:
+            return jsonify({"error": "Workset not found"}), 404
+
+        existing = current.ui_settings or {}
+        merged = {**existing, **data}
+
+        conn = current_app.pg_pool.getconn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE worksets SET ui_settings = %s, updated_at = NOW() WHERE id = %s",
+                (json.dumps(merged), workset_id),
+            )
+            conn.commit()
+        finally:
+            current_app.pg_pool.putconn(conn)
+
+        return jsonify({"ui_settings": merged})
+
+    except Exception as e:
+        logger.error(f"Error handling UI settings for workset {workset_id}: {e}")
+        return jsonify({"error": str(e)}), 500

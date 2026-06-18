@@ -1508,17 +1508,18 @@ class ValidationEngine:
 
     def _validate_ipa_characters(self, rule_id: str, rule_config: Dict[str, Any],
                                   data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
-        """R4.1.2: Validate IPA characters in pronunciation values."""
+        """R4.1.2: Validate IPA characters in pronunciation values.
+
+        Priority:
+        1. If the project has an IPA Hunspell dictionary uploaded (seh-fonipa),
+           extract the allowed character set from the .dic file.
+        2. Otherwise use the pattern from validation_rules.json.
+        3. Fall back to the hardcoded default.
+        """
         import re
         errors: List[ValidationError] = []
 
-        # IPA characters plus basic Latin letters (for fallback transcription)
-        # Includes Latin Extended-A (0100-024F) which has IPA chars like ŋ
-        ipa_pattern = re.compile(
-            r'^[\u0100-\u024F\u0250-\u02AF\u02B0-\u02FF\u0300-\u036F\u1D00-\u1D7F\u1DC0-\u1DFF'
-            r'\u2090-\u209Fˌˈː.ˑʔʰ͡ⱱəɛɪɔʊæɐɑɒɓɕɗɖɟɡɠɣɦɧɨɭɲɳɴɵɸɹɻɾʀʁʂʃʈʊʋʌʍʎʏʐʑʒʔʕʘʙʛʜʝʞʟʠʡʢʣʥʦʧʨ'
-            r'a-zA-Z ]+$'
-        )
+        ipa_pattern = self._get_ipa_pattern(rule_config)
 
         pronunciations = data.get('pronunciations', {})
         if not isinstance(pronunciations, dict):
@@ -1545,6 +1546,65 @@ class ValidationEngine:
                 ))
 
         return errors
+
+    def _get_ipa_pattern(self, rule_config: Dict[str, Any]):
+        """Get the IPA character validation pattern.
+
+        Checks for a project-specific IPA Hunspell dictionary first,
+        then falls back to the pattern in validation_rules.json.
+        """
+        import re
+
+        # 1. Try project's IPA Hunspell dictionary (seh-fonipa)
+        try:
+            hunspell = self._get_hunspell_for_language('seh-fonipa')
+            if hunspell:
+                chars = self._extract_chars_from_hunspell(hunspell)
+                if chars:
+                    escaped = re.escape(''.join(sorted(chars)))
+                    return re.compile(f'^[{escaped}]+$')
+        except Exception:
+            pass
+
+        # 2. Use compiled pattern from validation_rules.json
+        validation_cfg = rule_config.get('validation', {}) or {}
+        if 'compiled_pattern' in validation_cfg:
+            return validation_cfg['compiled_pattern']
+        if validation_cfg.get('pattern'):
+            return re.compile(validation_cfg['pattern'])
+
+        # 3. Hardcoded fallback
+        return re.compile(
+            r"^[ɑæɒəɜɪiʊuʌeɛoɔabdfhjklmnprstwvzðθŋʃʒɡːˈˌᵻ (),.]+$"
+        )
+
+    @staticmethod
+    def _extract_chars_from_hunspell(hunspell) -> set:
+        """Extract unique characters from a Hunspell IPA dictionary.
+
+        Hunspell IPA dictionaries use single characters or sequences as
+        dictionary entries (e.g. 'iː', 'ɪ', 'k', 'tʃ'). We collect every
+        unique character across all entries.
+        """
+        chars = set()
+        # Hunspell's Python binding exposes the dictionary path;
+        # read the .dic file directly for character extraction
+        try:
+            dic_path = getattr(hunspell, '_dic_path', None) or getattr(hunspell, 'dic_path', None)
+            if dic_path and os.path.isfile(dic_path):
+                with open(dic_path, 'r', encoding='utf-8') as f:
+                    next(f)  # Skip word count line
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        # Line format: "word/affix_flags" or just "word"
+                        word = line.split('/')[0]
+                        for ch in word:
+                            chars.add(ch)
+            return chars
+        except Exception:
+            return set()
 
     def _validate_no_double_stress(self, rule_id: str, rule_config: Dict[str, Any],
                                     data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:

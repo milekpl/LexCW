@@ -261,56 +261,6 @@ class PostgreSQLConnector:
         )
         # No-op: tables are no longer created in PostgreSQL
     
-    def _create_word_sketches_table(self) -> str:
-        """DEPRECATED: Word sketch tables are no longer used."""
-        raise NotImplementedError(
-            "Word sketch tables are no longer created. "
-            "Use Lucene word-sketch service (port 8083) instead."
-        )
-
-    def _create_sketch_grammars_table(self) -> str:
-        """DEPRECATED: Sketch grammars are no longer stored in PostgreSQL."""
-        raise NotImplementedError(
-            "Sketch grammars are no longer stored in PostgreSQL. "
-            "Use Lucene word-sketch service (port 8083) instead."
-        )
-
-    def _create_subtlex_norms_table(self) -> str:
-        """DEPRECATED: SUBTLEX norms are no longer stored in PostgreSQL."""
-        raise NotImplementedError(
-            "SUBTLEX norms are no longer stored in PostgreSQL."
-        )
-
-    def _create_frequency_analysis_table(self) -> str:
-        """DEPRECATED: Frequency analysis is no longer stored in PostgreSQL."""
-        raise NotImplementedError(
-            "Frequency analysis is no longer stored in PostgreSQL. "
-            "Use Lucene corpus service (port 8082) instead."
-        )
-
-    def _create_corpus_sentences_table(self) -> str:
-        """DEPRECATED: Corpus sentences are no longer stored in PostgreSQL."""
-        raise NotImplementedError(
-            "Corpus sentences are no longer stored in PostgreSQL. "
-            "Use Lucene corpus service (port 8082) instead."
-        )
-
-    def _create_linguistic_cache_table(self) -> str:
-        """DEPRECATED: Linguistic cache is no longer stored in PostgreSQL."""
-        raise NotImplementedError(
-            "Linguistic cache is no longer stored in PostgreSQL."
-        )
-
-    def _create_processing_batches_table(self) -> str:
-        """DEPRECATED: Processing batches are no longer tracked in PostgreSQL."""
-        raise NotImplementedError(
-            "Processing batches are no longer tracked in PostgreSQL."
-        )
-
-    def _create_performance_indexes(self) -> None:
-        """DEPRECATED: Performance indexes are no longer needed."""
-        pass  # No-op
-    
     def close(self) -> None:
         """Close database connection."""
         if self._connection and not self._connection.closed:

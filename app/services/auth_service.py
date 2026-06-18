@@ -270,15 +270,16 @@ class AuthenticationService:
     @staticmethod
     def reset_password(email: str) -> tuple[bool, Optional[str]]:
         """
-        Initiate password reset process (generates token).
+        Initiate password reset process (generates and stores token).
 
-        Note: Email sending functionality would need to be implemented separately.
+        The reset token is valid for 1 hour. In production, wire an email
+        sender to deliver the token (e.g. Flask-Mail, SendGrid, SMTP).
 
         Args:
             email: User's email address
 
         Returns:
-            Tuple of (success, error_message or reset_token)
+            Tuple of (success, message)
         """
         user = User.query.filter_by(email=email).first()
 
@@ -286,11 +287,11 @@ class AuthenticationService:
             # Don't reveal whether email exists
             return True, "If the email exists, a reset link has been sent"
 
-        # Generate reset token (in production, store this with expiration)
+        # Generate and store reset token with 1-hour expiration
         reset_token = secrets.token_urlsafe(32)
-
-        # TODO: Store reset token in database with expiration
-        # TODO: Send email with reset link
+        user.reset_token = reset_token
+        user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
+        db.session.commit()
 
         # Log the password reset request
         log = ActivityLog(
@@ -298,12 +299,75 @@ class AuthenticationService:
             action="password_reset_request",
             entity_type="user",
             entity_id=str(user.id),
-            description=f"Password reset requested for {user.email}",
+            description=f"Password reset requested for {user.email} (token expires in 1h)",
         )
         db.session.add(log)
         db.session.commit()
 
-        return True, reset_token  # In production, return success message only
+        # TODO: Send email with reset link via configured email backend.
+        # Example integration point:
+        #   from flask import current_app, url_for
+        #   reset_url = url_for('auth.reset_password_form', token=reset_token, _external=True)
+        #   send_email(user.email, 'Password Reset', f'Reset link: {reset_url}')
+
+        return True, "If the email exists, a reset link has been sent"
+
+    @staticmethod
+    def complete_password_reset(token: str, new_password: str) -> tuple[bool, Optional[str]]:
+        """
+        Complete a password reset using a valid token.
+
+        Args:
+            token: Reset token from email
+            new_password: New password to set
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        user = User.query.filter_by(reset_token=token).first()
+
+        if not user:
+            return False, "Invalid or expired reset token"
+
+        if user.reset_token_expires is None:
+            return False, "Invalid or expired reset token"
+
+        # Ensure both datetimes are timezone-aware for comparison
+        now = datetime.now(timezone.utc)
+        expires = user.reset_token_expires
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+
+        if now > expires:
+            # Clear expired token
+            user.reset_token = None
+            user.reset_token_expires = None
+            db.session.commit()
+            return False, "Reset token has expired"
+
+        # Validate new password
+        is_valid, error = AuthenticationService.validate_password(new_password)
+        if not is_valid:
+            return False, error
+
+        # Update password and clear token
+        user.password_hash = AuthenticationService.hash_password(new_password)
+        user.reset_token = None
+        user.reset_token_expires = None
+        db.session.commit()
+
+        # Log the password reset completion
+        log = ActivityLog(
+            user_id=user.id,
+            action="password_reset_complete",
+            entity_type="user",
+            entity_id=str(user.id),
+            description=f"User {user.username} completed password reset",
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        return True, None
 
     @staticmethod
     def update_user_profile(

@@ -67,6 +67,7 @@ class Workset:
     id: Optional[int] = None
     total_entries: int = 0
     entries: Optional[List[Dict[str, Any]]] = field(default_factory=list)
+    ui_settings: Optional[Dict[str, Any]] = field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -82,6 +83,7 @@ class Workset:
             'name': self.name,
             'query': self.query.to_dict(),
             'total_entries': self.total_entries,
+            'ui_settings': self.ui_settings or {},
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'entries': self.entries

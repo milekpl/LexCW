@@ -61,6 +61,122 @@ Lexicographic Curation Workbench - A Flask-based dictionary management system fo
 - **Context Managers:** Database connections use `@contextmanager`
 - **Centralized Validation:** Single validation engine used across all entry operations
 
+### Additional Services (not listed above)
+- `app/services/auth_service.py` — User authentication, registration, password reset
+- `app/services/backup_scheduler.py` — Scheduled BaseX database backups
+- `app/services/basex_backup_manager.py` — Backup creation, restore, validation
+- `app/services/bulk_action_service.py` — Bulk edit action parsing/validation
+- `app/services/bulk_operations_service.py` — Bulk entry operations (trait conversion, POS updates)
+- `app/services/bulk_query_service.py` — XQuery-building for bulk queries
+- `app/services/cache_service.py` — Redis-backed caching with fallback
+- `app/services/css_mapping_service.py` — Display profile CSS mapping
+- `app/services/display_profile_service.py` — Display profile CRUD
+- `app/services/event_bus.py` — Internal pub/sub for service coordination
+- `app/services/field_language_detector.py` — Language detection for multilingual fields
+- `app/services/lift_element_registry.py` — LIFT element metadata and default profiles
+- `app/services/lucene_corpus_client.py` — HTTP client for Lucene corpus service (port 8082)
+- `app/services/message_service.py` — User messaging/notifications
+- `app/services/operation_history_service.py` — Audit trail for entry operations
+- `app/services/query_builder_service.py` / `query_builder.py` — Query abstraction (SQL, XQuery)
+- `app/services/user_preferences_service.py` — Per-user preferences
+- `app/services/user_service.py` — User CRUD
+- `app/services/validation_cache_service.py` — Caching for validation results
+- `app/services/validation_rules_service.py` — Project-specific validation rules
+- `app/services/word_sketch_service.py` + `word_sketch/` subpackage — Word sketch/collocation analysis
+- `app/services/workset_service.py` — Workset management (PostgreSQL-backed)
+- `app/services/xml_entry_service.py` — Direct XML CRUD on BaseX
+
+### Additional APIs (not listed above)
+- `app/api/auth_api.py` — Login, logout, registration endpoints
+- `app/api/backup_api.py` — Backup download, restore, validation endpoints
+- `app/api/bulk_operations.py` — Bulk trait conversion, POS updates
+- `app/api/corpus_search.py` / `corpus.py` — Corpus search and management
+- `app/api/dashboard.py` — Dashboard statistics endpoint
+- `app/api/dictionary_api.py` — Dictionary-level management
+- `app/api/display.py` — Display rendering endpoints
+- `app/api/entry_autosave_working.py` — Auto-save endpoint
+- `app/api/illustration.py` — Illustration/media upload
+- `app/api/lift_registry.py` — LIFT element registry API
+- `app/api/messages_api.py` — User messaging endpoints
+- `app/api/project_members_api.py` — Project membership management
+- `app/api/pronunciation.py` — Pronunciation management
+- `app/api/query_builder.py` — Query builder API
+- `app/api/ranges_editor.py` / `ranges.py` — Ranges CRUD and editor
+- `app/api/setup.py` — Initial setup wizard
+- `app/api/user_preferences_api.py` — User preferences
+- `app/api/users_api.py` — User management
+- `app/api/validation_endpoints.py` — Real-time validation API
+- `app/api/validation_rules_api.py` — Validation rules CRUD
+- `app/api/validation_service.py` — Validation service API (includes XML validation)
+- `app/api/validation.py` — Validation blueprint
+- `app/api/word_sketch_api.py` — Word sketch API
+- `app/api/worksets.py` — Workset management
+- `app/api/xml_entries.py` — XML-based entry CRUD
+
+### Web Routes (`app/routes/`)
+- `api_routes.py` — Additional API route registration
+- `auth_routes.py` — Login, register, password reset pages
+- `backup_routes.py` — Backup management UI routes
+- `corpus_routes.py` — Corpus management UI
+- `field_visibility_routes.py` — Field visibility settings
+- `settings_routes.py` / `settings_routes_clean.py` — Project settings pages
+- `word_sketch_routes.py` — Word sketch browser page
+
+### Validators (`app/validators/`)
+- `base.py` — Base validator class
+- `hunspell_validator.py` — Hunspell spell-check integration
+- `languagetool_validator.py` — LanguageTool grammar check
+- `layered_hunspell_validator.py` — Multi-dictionary Hunspell validation
+
+### Exporters (`app/exporters/`)
+- `base_exporter.py` — Abstract base exporter
+- `html_exporter.py` — HTML export
+- `kindle_exporter.py` — Kindle/MOBI export
+- `sqlite_exporter.py` — SQLite export (for Flutter mobile apps)
+
+### Forms (`app/forms/`)
+- `entry_form.py` — Main entry editing form
+- `settings_form.py` — Project settings form
+- `enhanced_language_field.py` — Language-aware form fields
+- `searchable_language_field.py` — Searchable language picker
+
+### XQuery Scripts (`app/xquery/`)
+- `entry_operations.xq` — Entry CRUD XQuery functions
+- `sense_operations.xq` — Sense-level XQuery functions
+- `validation_queries.xq` — Validation XQuery checks
+
+### Additional Models (`app/models/`)
+- `backup_models.py` — Backup, ScheduledBackup models
+- `user_models.py` — ActivityLog, UserRole, Permission models
+- `validation_models.py` / `validation_cache_models.py` — Validation rule and cache models
+- `word_sketch.py` — Word sketch data model
+- `workset_models.py` — Workset, WorksetEntry, Pipeline models
+- `search_query.py` — Search query model
+- `merge_split_operations.py` — Merge/split operation tracking
+- `custom_ranges.py` — Custom range definitions
+- `dictionary_models.py` — Dictionary-level models
+
+### Static Data (`app/data/`)
+- `languages.yaml` — Language metadata (codes, names, writing systems)
+- `lift_elements.json` — LIFT element definitions
+- `validation_templates/` — Pre-built validation rule templates (5 JSON files)
+
+### All pytest Markers
+`unit`, `integration`, `e2e`, `selenium`, `postgresql`, `word_sketch`, `parser_integration`, `search_integration`, `performance`, `coverage_focused`, `playwright`, `safe_db`, `unsafe_db`, `javascript`, `js_lint`, `asyncio`, `destructive`
+
+## Startup
+
+### Starting Services (WSL with Windows-hosted PostgreSQL)
+```bash
+# BaseX (REQUIRED — must use this script, not raw basexserver)
+bash start-basex.sh restart
+
+# PostgreSQL runs on Windows host, accessible via localhost from WSL
+# Ensure .env has: POSTGRES_HOST=localhost
+
+# Redis and Lucene corpus are optional — the app degrades gracefully without them
+```
+
 ## Common Development Commands
 
 ### Running the Application

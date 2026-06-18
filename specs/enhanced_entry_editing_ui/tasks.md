@@ -38,7 +38,7 @@ This document outlines the implementation tasks for enhancing the entry editing 
         *   This will make it easier for users to link entries.
         *   **Requirements**: `7.2.2`, `18.2`
 
-5.  [ ] **Implement Reordering of Senses and Other Lists**
+5.  [x] **Implement Reordering of Senses and Other Lists**
     *   This epic covers the implementation of reordering functionality for senses and other lists in the entry form.
 
     5.1. [x] **Implement Reordering of Senses**
@@ -46,22 +46,24 @@ This document outlines the implementation tasks for enhancing the entry editing 
         *   The new order should be saved when the entry is saved.
         *   **Requirements**: `TODO.md #1`
 
-    5.2. [ ] **Generalize Reordering Functionality**
+    5.2. [x] **Generalize Reordering Functionality**
         *   Refactor the reordering functionality to be general enough to be used for other lists, such as pronunciations, notes, and examples.
+        *   Implemented: `ReorderingManager` (JS) supports all item types; templates now have move-up/move-down buttons for senses, pronunciations, and notes.
         *   **Requirements**: `TODO.md #1`
 
-6.  [ ] **Fix Entry Form Bugs**
+6.  [x] **Fix Entry Form Bugs**
     *   This epic covers fixing various bugs in the entry form.
 
-    6.1. [ ] **Fix Saving Entry without a Sense**
+    6.1. [x] **Fix Saving Entry without a Sense**
         *   Fix the bug that prevents saving an entry that has a definition but no sense.
+        *   Implemented: Validation rule R1.1.3 exempts draft saves and variant entries.
         *   **Requirements**: `TODO.md #3`
 
     6.2. [x] **Fix Deleting Entry from UI**
         *   Fix the bug that prevents deleting an entry from the UI, especially for entries without a sense.
         *   **Requirements**: `TODO.md #4`
 
-7.  [ ] **UI Testing with Playwright**
+7.  [x] **UI Testing with Playwright**
     *   This epic covers the implementation of a comprehensive UI testing suite for the entry form using Playwright.
 
     7.1. [x] **Set up Playwright with Pytest**

@@ -1,13 +1,33 @@
 <?xml version='1.0' encoding='utf-8'?>
 <lift-ranges>
 <range id="etymology">
-<range-element id="borrowed">
-<label><form lang="en"><text>borrowed</text></form></label>
+<range-element id="inheritance">
+<label><form lang="en"><text>inheritance</text></form></label>
+<description><form lang="en"><text>The word is inherited from an ancestor language through regular sound change</text></form></description>
+</range-element>
+<range-element id="borrowing">
+<label><form lang="en"><text>borrowing</text></form></label>
 <description><form lang="en"><text>The word is borrowed from another language</text></form></description>
 </range-element>
-<range-element id="proto">
-<label><form lang="en"><text>proto</text></form></label>
-<description><form lang="en"><text>The proto form of the word in another language</text></form></description>
+<range-element id="compound">
+<label><form lang="en"><text>compound</text></form></label>
+<description><form lang="en"><text>The word is formed by combining two or more existing words</text></form></description>
+</range-element>
+<range-element id="derivation">
+<label><form lang="en"><text>derivation</text></form></label>
+<description><form lang="en"><text>The word is derived from another word via affixation</text></form></description>
+</range-element>
+<range-element id="calque">
+<label><form lang="en"><text>calque</text></form></label>
+<description><form lang="en"><text>The word is a loan translation from another language</text></form></description>
+</range-element>
+<range-element id="semantic">
+<label><form lang="en"><text>semantic</text></form></label>
+<description><form lang="en"><text>The word underwent semantic change or shift in meaning</text></form></description>
+</range-element>
+<range-element id="onomatopoeia">
+<label><form lang="en"><text>onomatopoeia</text></form></label>
+<description><form lang="en"><text>The word is imitative of a natural sound</text></form></description>
 </range-element>
 </range>
 <range id="grammatical-info">

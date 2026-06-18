@@ -1,0 +1,279 @@
+$ .venv/bin/python -m pytest tests/integration/test_parser_comprehensive.py tests/integration/test_dictionary_service.py tests/integration/test_merge_split_api.py tests/integration/test_backup_api.py tests/integration/test_ranges_api.py tests/integration/test_workset_api.py tests/integration/test_validation_rules.py tests/integration/test_css_filtering.py tests/integration/test_entry_form_loads.py tests/integration/test_display_profiles_api.py --tb=short -q 2>&1
+[exit 1]
+..............................................................F.FFFF.Fs. [ 54%]
+............................s...s...........................             [100%]
+=================================== FAILURES ===================================
+________________ TestWorksetAPI.test_create_workset_from_query _________________
+/mnt/d/Dokumenty/slownik-wielki/flask-app/tests/integration/test_workset_api.py:44: in test_create_workset_from_query
+    ???
+app/services/workset_service.py:38: in create_workset
+    conn = current_app.pg_pool.getconn()
+E   AttributeError: 'NoneType' object has no attribute 'getconn'
+------------------------------ Captured log setup ------------------------------
+DEBUG    app:__init__.py:395 Assigned request_id 544f849266a64567b077ef477badec0e for path /api/ranges/install_recommended
+INFO     app:__init__.py:486 BaseX status at request start [request_id=544f849266a64567b077ef477badec0e path=/api/ranges/install_recommended project_db=test_20260617_2321_session_83723d]: {'connected': False, 'current_db': None, 'configured_database': 'test_20260617_2321_session_83723d', 'aggressive_disconnect': False}
+DEBUG    app.services.dictionary_service:dictionary_service.py:2933 get_ranges entering for project_id None, force_reload=False, resolved=False, current self.ranges keys: None
+DEBUG    app.services.dictionary_service:dictionary_service.py:2962 DEBUG get_ranges: env TEST_DB_NAME=test_20260617_2321_session_83723d, connector.database=test_20260617_2321_session_83723d, connector._current_db=None
+DEBUG    app.services.dictionary_service:dictionary_service.py:2983 Querying for ranges in current database: //*[local-name()='lift-ranges']
+INFO     app.database.basex_connector:basex_connector.py:110 Opened BaseX database: test_20260617_2321_session_83723d
+DEBUG    app.database.basex_connector:basex_connector.py:123 Connected to BaseX server at localhost:1984 (database: test_20260617_2321_session_83723d)
+DEBUG    app.database.basex_connector:basex_connector.py:283 BaseX query on DB 'test_20260617_2321_session_83723d' [request_id=544f849266a64567b077ef477badec0e path=/api/ranges/install_recommended]: //*[local-name()='lift-ranges']
+DEBUG    app.database.basex_connector:basex_connector.py:294 Query executed successfully: //*[local-name()='lift-ranges']...
+DEBUG    app.services.dictionary_service:dictionary_service.py:2989 Found ranges document using collection() query
+DEBUG    app.parsers.lift_parser:lift_parser.py:1048 LIFTRangesParser.parse_string called with XML length 1004985
+DEBUG    app.parsers.lift_parser:lift_parser.py:1055 Wrapped in <root> (multiple lift-ranges)
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for etymology, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for etymology, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 14
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for grammatical-info
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for note-type, total elements found: 18
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for note-type, direct count: 18
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for paradigm, total elements found: 17
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for paradigm, direct count: 17
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for reversal-type, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for reversal-type, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain-ddp4, total elements found: 1792
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for semantic-domain-ddp4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for status, total elements found: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for status, direct count: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for users, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for users, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for anthro-code, total elements found: 859
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for anthro-code
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for translation-type, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for translation-type, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for from-part-of-speech, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for from-part-of-speech
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for morph-type, total elements found: 19
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for morph-type, direct count: 19
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for Publications, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for Publications, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1059 _parse_ranges returned 18 results
+DEBUG    app.parsers.lift_parser:lift_parser.py:1062 variant-type values count: 2
+DEBUG    app.services.dictionary_service:dictionary_service.py:2991 Parsed ranges keys: ['grammatical-info', 'etymology', 'lexical-relation', 'note-type', 'paradigm', 'reversal-type', 'semantic-domain-ddp4', 'status', 'users', 'anthro-code', 'translation-type', 'from-part-of-speech', 'morph-type', 'Publications', 'usage-type', 'semantic-domain', 'academic-domain', 'variant-type']
+INFO     app.services.dictionary_service:dictionary_service.py:3237 Recommended ranges already installed; returning existing ranges
+DEBUG    app.services.dictionary_service:dictionary_service.py:2933 get_ranges entering for project_id None, force_reload=False, resolved=False, current self.ranges keys: None
+DEBUG    app.services.dictionary_service:dictionary_service.py:2962 DEBUG get_ranges: env TEST_DB_NAME=test_20260617_2321_session_83723d, connector.database=test_20260617_2321_session_83723d, connector._current_db=test_20260617_2321_session_83723d
+DEBUG    app.services.dictionary_service:dictionary_service.py:2983 Querying for ranges in current database: //*[local-name()='lift-ranges']
+DEBUG    app.database.basex_connector:basex_connector.py:283 BaseX query on DB 'test_20260617_2321_session_83723d': //*[local-name()='lift-ranges']
+DEBUG    app.database.basex_connector:basex_connector.py:294 Query executed successfully: //*[local-name()='lift-ranges']...
+DEBUG    app.services.dictionary_service:dictionary_service.py:2989 Found ranges document using collection() query
+DEBUG    app.parsers.lift_parser:lift_parser.py:1048 LIFTRangesParser.parse_string called with XML length 1004985
+DEBUG    app.parsers.lift_parser:lift_parser.py:1055 Wrapped in <root> (multiple lift-ranges)
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for etymology, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for etymology, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 14
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for grammatical-info
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for note-type, total elements found: 18
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for note-type, direct count: 18
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for paradigm, total elements found: 17
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for paradigm, direct count: 17
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for reversal-type, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for reversal-type, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain-ddp4, total elements found: 1792
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for semantic-domain-ddp4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for status, total elements found: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for status, direct count: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for users, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for users, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for anthro-code, total elements found: 859
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for anthro-code
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for translation-type, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for translation-type, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for from-part-of-speech, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for from-part-of-speech
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for morph-type, total elements found: 19
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for morph-type, direct count: 19
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for Publications, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for Publications, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for usage-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for usage-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for semantic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for academic-domain, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for academic-domain, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for variant-type, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for variant-type, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1059 _parse_ranges returned 18 results
+DEBUG    app.parsers.lift_parser:lift_parser.py:1062 variant-type values count: 2
+DEBUG    app.services.dictionary_service:dictionary_service.py:2991 Parsed ranges keys: ['grammatical-info', 'etymology', 'lexical-relation', 'note-type', 'paradigm', 'reversal-type', 'semantic-domain-ddp4', 'status', 'users', 'anthro-code', 'translation-type', 'from-part-of-speech', 'morph-type', 'Publications', 'usage-type', 'semantic-domain', 'academic-domain', 'variant-type']
+INFO     app.services.dictionary_service:dictionary_service.py:3237 Recommended ranges already installed; returning existing ranges
+------------------------------ Captured log call -------------------------------
+DEBUG    app.services.dictionary_service:dictionary_service.py:1294 list_entries called with: limit=10000, offset=0, sort_by=lexical_unit, sort_order=asc, filter_text=a, db_name=test_20260617_2321_session_83723d
+DEBUG    app.database.basex_connector:basex_connector.py:283 BaseX query on DB 'test_20260617_2321_session_83723d': declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collection('test_20260617_2321_session_83723d')//lift:lift)
+DEBUG    app.database.basex_connector:basex_connector.py:294 Query executed successfully: declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+            exists(collectio...
+DEBUG    app.database.basex_connector:basex_connector.py:283 BaseX query on DB 'test_20260617_2321_session_83723d':  count(collection('test_20260617_2321_session_83723d')//entry[some $form in lexical-unit/form/text satisfies contains(lower-case($form), lower-case('a'))])
+DEBUG    app.database.basex_connector:basex_connector.py:294 Query executed successfully:  count(collection('test_20260617_2321_session_83723d')//entry[some $form in lexical-unit/form/text s...
+DEBUG    app.services.dictionary_service:dictionary_service.py:1312 Database connection status: True
+DEBUG    app.services.dictionary_service:dictionary_service.py:1315 Using database: test_20260617_2321_session_83723d
+DEBUG    app.services.dictionary_service:dictionary_service.py:1408 Constructed query for list_entries: 
+            
+            (for $entry in collection('test_20260617_2321_session_83723d')//entry[some $form in lexical-unit/form/text satisfies contains(lower-case($form), lower-case('a'))]
+            order by lower-case(($entry/lexical-unit/form/text)[1]) empty least
+            return $entry)[position() = 1 to 10000]
+            
+DEBUG    app.database.basex_connector:basex_connector.py:283 BaseX query on DB 'test_20260617_2321_session_83723d': 
+            
+            (for $entry in collection('test_20260617_2321_session_83723d')//entry[some $form in lexical-unit/form/text satisfies contains(lower-case($form), lower-case('a'))]
+           ...
+DEBUG    app.database.basex_connector:basex_connector.py:294 Query executed successfully: 
+            
+            (for $entry in collection('test_20260617_2321_session_83723d')//entry[some...
+DEBUG    app.parsers.lift_parser:lift_parser.py:154 Normalized XML: <lift><entry id="test_entry_2" guid="223e4567-e89b-12d3-a456-426614174001">
+    <lexical-unit>
+     ...
+DEBUG    app.models.entry:entry.py:996 [get_variant_relations] Entry test_entry_2 - Checking 0 relations for variant-type trait
+DEBUG    app.models.entry:entry.py:997 [get_variant_relations] Entry relations: []
+ERROR    app.services.workset_service:workset_service.py:61 Failed to create workset 'Nouns Starting with A': 'NoneType' object has no attribute 'getconn'
+---------------------------- Captured log teardown -----------------------------
+DEBUG    app.database.basex_connector:basex_connector.py:175 Disconnected from BaseX server
+___________________ TestWorksetAPI.test_update_workset_query ___________________
+/mnt/d/Dokumenty/slownik-wielki/flask-app/tests/integration/test_workset_api.py:82: in test_update_workset_query
+    ???
+app/services/workset_service.py:38: in create_workset
+    conn = current_app.pg_pool.getconn()
+E   AttributeError: 'NoneType' object has no attribute 'getconn'
+------------------------------ Captured log setup ------------------------------
+DEBUG    app:__init__.py:395 Assigned request_id c4a10aa7caaf45fb91d6b6de8e9eb29b for path /api/ranges/install_recommended
+INFO     app:__init__.py:486 BaseX status at request start [request_id=c4a10aa7caaf45fb91d6b6de8e9eb29b path=/api/ranges/install_recommended project_db=test_20260617_2321_session_83723d]: {'connected': False, 'current_db': None, 'configured_database': 'test_20260617_2321_session_83723d', 'aggressive_disconnect': False}
+DEBUG    app.services.dictionary_service:dictionary_service.py:2933 get_ranges entering for project_id None, force_reload=False, resolved=False, current self.ranges keys: None
+DEBUG    app.services.dictionary_service:dictionary_service.py:2962 DEBUG get_ranges: env TEST_DB_NAME=test_20260617_2321_session_83723d, connector.database=test_20260617_2321_session_83723d, connector._current_db=None
+DEBUG    app.services.dictionary_service:dictionary_service.py:2983 Querying for ranges in current database: //*[local-name()='lift-ranges']
+INFO     app.database.basex_connector:basex_connector.py:110 Opened BaseX database: test_20260617_2321_session_83723d
+DEBUG    app.database.basex_connector:basex_connector.py:123 Connected to BaseX server at localhost:1984 (database: test_20260617_2321_session_83723d)
+DEBUG    app.database.basex_connector:basex_connector.py:283 BaseX query on DB 'test_20260617_2321_session_83723d' [request_id=c4a10aa7caaf45fb91d6b6de8e9eb29b path=/api/ranges/install_recommended]: //*[local-name()='lift-ranges']
+DEBUG    app.database.basex_connector:basex_connector.py:294 Query executed successfully: //*[local-name()='lift-ranges']...
+DEBUG    app.services.dictionary_service:dictionary_service.py:2989 Found ranges document using collection() query
+DEBUG    app.parsers.lift_parser:lift_parser.py:1048 LIFTRangesParser.parse_string called with XML length 1004985
+DEBUG    app.parsers.lift_parser:lift_parser.py:1055 Wrapped in <root> (multiple lift-ranges)
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for grammatical-info, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for etymology, total elements found: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for etymology, direct count: 2
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for grammatical-info, total elements found: 14
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for grammatical-info
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for lexical-relation, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for lexical-relation, direct count: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for note-type, total elements found: 18
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for note-type, direct count: 18
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for paradigm, total elements found: 17
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for paradigm, direct count: 17
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for reversal-type, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for reversal-type, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for semantic-domain-ddp4, total elements found: 1792
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for semantic-domain-ddp4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for status, total elements found: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for status, direct count: 4
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for users, total elements found: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for users, direct count: 1
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for anthro-code, total elements found: 859
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for anthro-code
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for translation-type, total elements found: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1154 Using direct hierarchy for translation-type, direct count: 3
+DEBUG    app.parsers.lift_parser:lift_parser.py:1140 _parse_range_hierarchy for from-part-of-speech, total elements found: 5
+DEBUG    app.parsers.lift_parser:lift_parser.py:1143 Using parent-based hierarchy for from-part-of-speech
+DEBUG    app.parsers.lift_parser:lift_parser.py:114
+
+[… truncated 124900 chars …]

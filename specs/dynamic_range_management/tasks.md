@@ -35,7 +35,7 @@ This document outlines the implementation tasks for the Dynamic Range Management
         *   Achieve >90% test coverage for all new backend components.
         *   **Requirements**: `4.1`, `16.2.1`
 
-2.  [ ] **Backend: Dynamic Variant and Language Code Services**
+2.  [x] **Backend: Dynamic Variant and Language Code Services**
     *   This epic focuses on implementing the logic for dynamically sourcing variant types and language codes from the actual LIFT data and project settings, rather than the RANGES file.
 
     2.1. [x] **Implement Variant Type Extraction from LIFT Data**

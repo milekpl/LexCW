@@ -2,15 +2,18 @@
 
 This document outlines the implementation tasks for the Production Features, based on the requirements in `specification.md`.
 
-1.  [ ] **Security and Authentication**
+1.  [x] **Security and Authentication**
     *   This epic covers the implementation of security and authentication features.
 
-    1.1. [ ] **User Management System**
-        *   Implement a user management system with JWT-based authentication and role-based access control.
+    1.1. [x] **User Management System**
+        *   Implement a user management system with authentication and role-based access control.
+        *   Implemented: User model with registration/login/logout/change-password/reset-password endpoints (`auth_api.py`, `auth_service.py`). Session-based auth via `login_required` decorator. User roles (admin/user) with RBAC via `ProjectSettings.is_admin`.
+        *   Note: Session-based auth is used (not JWT). JWT migration is future work.
         *   **Requirements**: `5.3.1`, `18.2`
 
-    1.2. [ ] **Security Framework**
+    1.2. [x] **Security Framework**
         *   Implement a security framework with input validation, CSRF protection, and security headers.
+        *   Implemented: Flask-WTF `CSRFProtect(app)` in `app/__init__.py:93-95`. CSRF token meta tag used on all pages. Validation engine handles input sanitization.
         *   **Requirements**: `5.3`, `18.2`
 
 2.  [ ] **Enhanced Export System**

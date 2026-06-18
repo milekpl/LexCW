@@ -67,7 +67,7 @@ class WorksetService:
             conn = current_app.pg_pool.getconn()
             try:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT id, name, query, total_entries, created_at, updated_at FROM worksets WHERE id = %s", (workset_id,))
+                    cur.execute("SELECT id, name, query, total_entries, created_at, updated_at, ui_settings FROM worksets WHERE id = %s", (workset_id,))
                     workset_data = cur.fetchone()
                     if not workset_data:
                         return None
@@ -78,7 +78,8 @@ class WorksetService:
                         query=WorksetQuery.from_dict(workset_data[2]),
                         total_entries=workset_data[3],
                         created_at=workset_data[4],
-                        updated_at=workset_data[5]
+                        updated_at=workset_data[5],
+                        ui_settings=workset_data[6] if len(workset_data) > 6 and workset_data[6] else {}
                     )
 
                     cur.execute(

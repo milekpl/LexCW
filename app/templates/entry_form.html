@@ -132,6 +132,7 @@
             {% include 'entry_form_partials/_relations.html' with context %}
 
             {% include 'entry_form_partials/_etymology.html' with context %}
+            {% include 'entry_form_partials/_ai_actions.html' with context %}
 
             <!-- LIFT 0.13: Literal Meaning (Entry-Level Custom Field - Day 28) -->
             <!-- MOVED TO SENSE LEVEL -->
@@ -1044,6 +1045,7 @@
 <script defer src="{{ url_for('static', filename='js/relations.js') }}"></script>
 <!-- Etymology management -->
 <script defer src="{{ url_for('static', filename='js/etymology-forms.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/ai-service.js') }}"></script>
 <!-- Multilingual fields management -->
 <script defer src="{{ url_for('static', filename='js/multilingual-sense-fields.js') }}"></script>
 <!-- Sense relation search functionality -->
@@ -1101,6 +1103,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof initEntryForm === 'function') {
         initEntryForm({
             variantRelations: {{ (variant_relations | default([])) | tojson | safe }},
+            etymologies: {{ (entry.etymologies | default([])) | tojson | safe }},
             entriesUrl: '{{ url_for("main.entries") }}'
         });
     }

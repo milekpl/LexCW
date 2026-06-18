@@ -1315,3 +1315,113 @@ class CSSMappingService:
         with open(self.storage_path, "w", encoding="utf-8") as f:
             data = [profile.dict() for profile in self._profiles.values()]
             json.dump(data, f, indent=2)
+
+    @staticmethod
+    def get_style_templates() -> List[Dict[str, Any]]:
+        """Return pre-built CSS style templates.
+
+        Each template has a name, description, and CSS snippet that can be
+        merged into a profile's custom_css field.
+
+        Returns:
+            List of template dicts with keys: id, name, description, css
+        """
+        return [
+            {
+                "id": "dictionary-classic",
+                "name": "Dictionary Classic",
+                "description": "Traditional dictionary styling with bold headwords and indented senses",
+                "css": (
+                    ".lexical-unit { font-weight: bold; font-size: 1.3em; color: #2c3e50; }\n"
+                    ".citation-form { font-style: italic; color: #555; }\n"
+                    ".sense { margin-left: 1.5em; margin-bottom: 0.8em; }\n"
+                    ".grammatical-info { color: #888; font-size: 0.9em; font-style: italic; }\n"
+                    ".grammatical-info::before { content: '['; }\n"
+                    ".grammatical-info::after { content: ']'; }\n"
+                    ".definition { margin-left: 0.5em; }\n"
+                    ".example { margin-left: 2em; color: #666; font-size: 0.95em; }\n"
+                    ".example::before { content: '• '; color: #aaa; }\n"
+                    ".pronunciation { color: #0066cc; margin-right: 0.5em; }\n"
+                    ".relation { color: #888; font-size: 0.9em; }\n"
+                ),
+            },
+            {
+                "id": "modern-clean",
+                "name": "Modern Clean",
+                "description": "Clean, modern look with generous whitespace and subtle colors",
+                "css": (
+                    ".lexical-unit { font-weight: 600; font-size: 1.4em; color: #1a1a2e; }\n"
+                    ".sense { padding: 0.5em 0; border-bottom: 1px solid #eee; }\n"
+                    ".sense:last-child { border-bottom: none; }\n"
+                    ".grammatical-info { display: inline-block; background: #e8f4f8; color: #2c7a8c; "
+                    "padding: 0.1em 0.5em; border-radius: 3px; font-size: 0.85em; margin-right: 0.5em; }\n"
+                    ".definition { color: #333; line-height: 1.5; }\n"
+                    ".example { margin: 0.3em 0 0.3em 1.5em; padding: 0.4em 0.8em; "
+                    "background: #f8f9fa; border-left: 3px solid #dee2e6; }\n"
+                    ".pronunciation { color: #6c757d; font-size: 0.95em; }\n"
+                    ".pronunciation::before { content: '/'; }\n"
+                    ".pronunciation::after { content: '/'; }\n"
+                ),
+            },
+            {
+                "id": "academic",
+                "name": "Academic",
+                "description": "Scholarly format with numbered senses and compact layout",
+                "css": (
+                    ".lexical-unit { font-weight: bold; font-variant: small-caps; font-size: 1.2em; }\n"
+                    ".sense { margin-bottom: 0.4em; }\n"
+                    ".grammatical-info { font-style: italic; color: #444; font-size: 0.9em; }\n"
+                    ".definition { margin-left: 0.3em; }\n"
+                    ".example { margin-left: 1em; font-size: 0.9em; color: #555; }\n"
+                    ".example::before { content: '— '; }\n"
+                    ".pronunciation { font-family: 'Times New Roman', serif; }\n"
+                    ".variant { color: #555; }\n"
+                    ".variant::before { content: 'Also: '; font-style: italic; }\n"
+                ),
+            },
+            {
+                "id": "compact",
+                "name": "Compact",
+                "description": "Space-efficient layout for dense dictionary views",
+                "css": (
+                    ".lexical-unit { font-weight: bold; }\n"
+                    ".sense { margin-left: 1em; margin-bottom: 0.2em; }\n"
+                    ".grammatical-info { font-size: 0.85em; color: #888; }\n"
+                    ".definition { display: inline; }\n"
+                    ".example { display: inline; color: #666; font-size: 0.9em; }\n"
+                    ".example::before { content: ' | '; color: #ccc; }\n"
+                    ".pronunciation { font-size: 0.9em; color: #888; margin-right: 0.3em; }\n"
+                ),
+            },
+        ]
+
+    def apply_template(self, profile_id: str, template_id: str) -> Optional[DisplayProfile]:
+        """Apply a style template to a profile's custom CSS.
+
+        Args:
+            profile_id: The profile ID to update
+            template_id: The template ID from get_style_templates()
+
+        Returns:
+            The updated DisplayProfile instance or None if not found
+        """
+        templates = {t["id"]: t for t in self.get_style_templates()}
+        if template_id not in templates:
+            self._logger.warning(f"Unknown style template: {template_id}")
+            return None
+
+        profile = self._profiles.get(profile_id)
+        if not profile:
+            return None
+
+        template = templates[template_id]
+
+        # Merge: keep existing custom CSS and append template CSS
+        existing_css = getattr(profile, 'custom_css', '') or ''
+        if existing_css.strip():
+            profile.custom_css = existing_css.rstrip() + '\n\n/* Template: ' + template['name'] + ' */\n' + template['css']
+        else:
+            profile.custom_css = '/* ' + template['name'] + ' */\n' + template['css']
+
+        self._save_profiles()
+        return profile

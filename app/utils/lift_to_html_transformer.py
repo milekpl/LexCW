@@ -974,11 +974,38 @@ class LIFTToHTMLTransformer:
                             media_elem = ET.SubElement(pron_elem, "media")
                             media_elem.set("href", audio_path)
 
-                        # Add other attributes as traits
-                        if pron_data.get("is_default"):
-                            trait_elem = ET.SubElement(pron_elem, "trait")
-                            trait_elem.set("name", "default")
-                            trait_elem.set("value", "true")
+                        # is_default is form metadata, not dictionary content — skip in preview
+
+            # Handle variants (direct variant forms, not relations)
+            variants = form_data.get("variants", [])
+            if variants and isinstance(variants, list):
+                for variant_data in variants:
+                    if variant_data and isinstance(variant_data, dict):
+                        variant_elem = ET.SubElement(entry, "variant")
+
+                        # Add ref attribute if present
+                        ref = variant_data.get("ref")
+                        if ref:
+                            variant_elem.set("ref", str(ref))
+
+                        # Add forms (multilingual text)
+                        variant_form = variant_data.get("form", {})
+                        if variant_form and isinstance(variant_form, dict):
+                            for lang, text in variant_form.items():
+                                if text:
+                                    form_elem = ET.SubElement(variant_elem, "form")
+                                    form_elem.set("lang", str(lang))
+                                    text_elem = ET.SubElement(form_elem, "text")
+                                    text_elem.text = str(text)
+
+                        # Add traits (e.g., variant-type, morph-type)
+                        variant_traits = variant_data.get("traits", {})
+                        if variant_traits and isinstance(variant_traits, dict):
+                            for trait_name, trait_value in variant_traits.items():
+                                if trait_value:
+                                    trait_elem = ET.SubElement(variant_elem, "trait")
+                                    trait_elem.set("name", str(trait_name))
+                                    trait_elem.set("value", str(trait_value))
 
             # Add senses
             senses = form_data.get("senses", [])

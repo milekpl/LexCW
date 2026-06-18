@@ -97,8 +97,15 @@
                     <a class="nav-link" href="#pronunciation">Pronunciation</a>
                     <a class="nav-link" href="#etymology">Etymology</a>
                 </nav>
+                <a class="nav-link" href="#ai-assistant">AI Assistant</a>
+                <nav class="nav flex-column ms-3">
+                    <a class="nav-link" href="#ai-proofread">AI Proofreading</a>
+                    <a class="nav-link" href="#ai-draft">AI Drafting</a>
+                    <a class="nav-link" href="#ai-config">Configuration</a>
+                </nav>
                 <a class="nav-link" href="#advanced-features">Advanced Features</a>
                 <nav class="nav flex-column ms-3">
+                    <a class="nav-link" href="#word-sketch">Word Sketches</a>
                     <a class="nav-link" href="#variants">Variants & Allomorphs</a>
                     <a class="nav-link" href="#relations">Lexical Relations</a>
                     <a class="nav-link" href="#reversals">Reversals</a>
@@ -238,7 +245,77 @@ TTS: [Generate Audio]</code></pre>
                 <li><strong>Comment</strong>: Detailed notes on linguistic changes</li>
             </ul>
 
+            <h2 id="ai-assistant">AI Assistant <span class="feature-badge badge-professional">Professional</span></h2>
+            <p>
+                The built-in AI assistant helps you proofread entries and draft new ones using
+                Large Language Models (LLMs). It's designed as <strong>BYOK</strong> (Bring Your Own Key) —
+                you provide the API key and choose the provider.
+            </p>
+
+            <h3 id="ai-proofread"><i class="fas fa-robot"></i> AI Proofreading</h3>
+            <p>
+                Click <strong>AI Proofread</strong> in the entry editor to have the LLM review your entry for:
+            </p>
+            <ul class="feature-list">
+                <li><strong>Completeness</strong>: Missing definitions, examples, pronunciations</li>
+                <li><strong>Accuracy</strong>: Wrong translations, inappropriate part-of-speech</li>
+                <li><strong>Consistency</strong>: Style, terminology, formatting</li>
+                <li><strong>LIFT compliance</strong>: Valid language codes, correct structure</li>
+            </ul>
+            <p>
+                Results appear in a panel below the form with color-coded issues (red=error, yellow=warning, blue=info).
+                Issues that include a <strong>corrected_text</strong> have an <em>Apply</em> button that sets the form field
+                to the suggested value — no manual copying needed.
+            </p>
+
+            <h3 id="ai-draft"><i class="fas fa-magic"></i> AI Drafting</h3>
+            <p>
+                Click <strong>AI Draft</strong> to generate a new entry from a description. Describe the word
+                (e.g. "a type of traditional Polish dance" or just "ephemeral") and the LLM produces a
+                complete entry in YAML format that can be applied directly to the form.
+            </p>
+
+            <h3 id="ai-config"><i class="fas fa-cog"></i> Configuration</h3>
+            <p>
+                Configure the AI in <strong>Settings → AI / LLM Settings</strong>:
+            </p>
+            <ul class="feature-list">
+                <li><strong>API Key</strong>: Your LLM provider key (stored per project, never shared)</li>
+                <li><strong>API Base URL</strong>: The endpoint URL — works with OpenAI, DeepSeek, GitHub Models,
+                    NVIDIA NIM, or any OpenAI-compatible provider</li>
+                <li><strong>Model Name</strong>: The model ID (e.g. <code>gpt-4o</code>, <code>deepseek-chat</code>,
+                    <code>o3-mini</code>)</li>
+                <li><strong>Test Connection</strong>: Button to verify your settings before using AI features</li>
+            </ul>
+            <p>
+                <strong>Prompt Templates</strong> are fully customizable — edit system and user prompts directly
+                in the Settings page. The default prompts are optimized for a bilingual Polish-English dictionary
+                and know about <code>seh-fonipa</code> for IPA, POS inheritance, and optional examples.
+            </p>
+
+            <div class="example-box">
+                <strong>Tip:</strong> Batch proofreading is available at <code>POST /api/ai/batch-proofread</code>.
+                All AI features work in both interactive (entry editor) and batch (API) modes.
+            </div>
+
             <h2 id="advanced-features">Advanced Features</h2>
+
+            <h3 id="word-sketch"><i class="fas fa-chart-bar"></i> Word Sketches <span class="feature-badge badge-professional">Professional</span></h3>
+            <p>
+                Word sketches provide collocation analysis powered by <strong>ConceptSketch</strong>
+                (BlackLab-based Lucene index with 74 million sentences). They show you which words
+                commonly appear with a given lemma and in what grammatical relations.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Collocations</strong>: Words sorted by logDice association score</li>
+                <li><strong>Grammatical Relations</strong>: 41 relation types (modifiers, objects, predicates, etc.)</li>
+                <li><strong>Enrichment</strong>: Suggested examples and subentries derived from corpus data</li>
+                <li><strong>Coverage Analysis</strong>: Check which entries are missing from the corpus</li>
+            </ul>
+            <p>
+                Access word sketches from the <strong>Word Sketch Browser</strong> in the Tools menu,
+                or use the <code>/api/word-sketch/sketch/{lemma}</code> API endpoint.
+            </p>
 
             <h3 id="variants"><i class="fas fa-exchange-alt"></i> Variants & Allomorphs <span class="feature-badge badge-advanced">Advanced</span></h3>
             <p>

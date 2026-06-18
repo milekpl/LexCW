@@ -1106,7 +1106,127 @@
         setTimeout(() => alert.remove(), 5000);
     }
 
+    // ========================================================================
+    // Style Template Selector
+    // ========================================================================
+    
+    let styleTemplates = [];
+    
+    async function loadStyleTemplates() {
+        try {
+            const response = await fetch('/api/display-profiles/templates');
+            if (response.ok) {
+                const data = await response.json();
+                styleTemplates = data.templates || [];
+                populateTemplateDropdown();
+            }
+        } catch (e) {
+            console.error('Failed to load style templates:', e);
+        }
+    }
+    
+    function populateTemplateDropdown() {
+        const select = document.getElementById('styleTemplateSelect');
+        if (!select) return;
+        
+        // Keep the placeholder option
+        select.innerHTML = '<option value="">Select a template to apply...</option>';
+        
+        styleTemplates.forEach(tpl => {
+            const option = document.createElement('option');
+            option.value = tpl.id;
+            option.textContent = tpl.name;
+            select.appendChild(option);
+        });
+    }
+    
+    function onTemplateSelectChange() {
+        const select = document.getElementById('styleTemplateSelect');
+        const applyBtn = document.getElementById('btnApplyTemplate');
+        const descEl = document.getElementById('templateDescription');
+        
+        if (!select || !applyBtn) return;
+        
+        const selectedId = select.value;
+        const template = styleTemplates.find(t => t.id === selectedId);
+        
+        applyBtn.disabled = !selectedId;
+        
+        if (template && descEl) {
+            descEl.textContent = template.description;
+            descEl.style.display = 'block';
+        } else if (descEl) {
+            descEl.style.display = 'none';
+        }
+    }
+    
+    async function applyStyleTemplate() {
+        const select = document.getElementById('styleTemplateSelect');
+        const profileId = document.getElementById('profileId').value;
+        const cssTextarea = document.getElementById('profileCustomCSS');
+        
+        if (!select || !profileId) {
+            showError('Select a template and ensure a profile is loaded.');
+            return;
+        }
+        
+        const templateId = select.value;
+        if (!templateId) return;
+        
+        try {
+            const response = await fetch(`/api/display-profiles/${profileId}/apply-template`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ template_id: templateId })
+            });
+            
+            if (response.ok) {
+                const profile = await response.json();
+                if (cssTextarea && profile.custom_css) {
+                    cssTextarea.value = profile.custom_css;
+                }
+                showSuccess(`Template "${select.options[select.selectedIndex].text}" applied!`);
+                // Refresh preview if available
+                if (typeof refreshPreview === 'function') {
+                    refreshPreview();
+                }
+            } else {
+                const err = await response.json();
+                showError(err.error || 'Failed to apply template');
+            }
+        } catch (e) {
+            console.error('Error applying template:', e);
+            showError('Network error applying template');
+        }
+    }
+
+    // Wire up template UI events after DOM is ready
+    function initTemplateUI() {
+        const templateSelect = document.getElementById('styleTemplateSelect');
+        const applyBtn = document.getElementById('btnApplyTemplate');
+        const refreshBtn = document.getElementById('btnRefreshTemplates');
+        
+        if (templateSelect) {
+            templateSelect.addEventListener('change', onTemplateSelectChange);
+        }
+        if (applyBtn) {
+            applyBtn.addEventListener('click', applyStyleTemplate);
+        }
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', loadStyleTemplates);
+        }
+        
+        // Load templates when profile modal is shown
+        const profileModal = document.getElementById('profileModal');
+        if (profileModal) {
+            profileModal.addEventListener('shown.bs.modal', loadStyleTemplates);
+        }
+    }
+
     // Initialize on page load
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+        init();
+        initTemplateUI();
+    });
 
 })();

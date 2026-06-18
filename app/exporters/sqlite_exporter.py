@@ -426,6 +426,13 @@ class SQLiteExporter(BaseExporter):
                     if not example_text:
                         continue
                     
+                    # Get custom fields (handle both Example objects and dicts)
+                    example_custom_fields = None
+                    if isinstance(example, dict) and example.get('custom_fields'):
+                        example_custom_fields = json.dumps(example.get('custom_fields'))
+                    elif hasattr(example, 'custom_fields') and example.custom_fields:
+                        example_custom_fields = json.dumps(example.custom_fields)
+                    
                     # Insert example
                     cursor.execute(
                         """
@@ -438,7 +445,7 @@ class SQLiteExporter(BaseExporter):
                             sense_id,
                             example_text,
                             translation,
-                            json.dumps(example.get('custom_fields', {})) if example.get('custom_fields') else None,
+                            example_custom_fields,
                             j
                         )
                     )

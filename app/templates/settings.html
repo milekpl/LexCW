@@ -107,6 +107,105 @@
                     </div>
                 </fieldset>
 
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        AI / LLM Settings
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Configure the AI assistant for proofreading and drafting entries. Bring your own API key (BYOK). Works with any OpenAI-compatible provider (DeepSeek, GitHub Models, local LLM, etc.)."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.openai_api_key, class="form-control", placeholder="sk-... or leave empty for env var", type="password") }}
+                            <small class="form-text text-muted">Your key is stored per project and never shared.</small>
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.ai_api_base, class="form-control", placeholder="https://api.openai.com/v1") }}
+                            <small class="form-text text-muted">Change to use DeepSeek (<code>https://api.deepseek.com/v1</code>), GitHub Models, etc.</small>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            {{ render_field(form.ai_model, class="form-control", placeholder="gpt-4o") }}
+                            <small class="form-text text-muted">Model ID, e.g. <code>gpt-4o</code>, <code>deepseek-chat</code>, <code>gpt-4o-mini</code></small>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-info" id="btn-test-ai-connection">
+                                <i class="fas fa-plug"></i> Test Connection
+                            </button>
+                            <span id="ai-test-result" class="ms-2 small"></span>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
+                        Prompt Templates
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Customize the prompts sent to the LLM for proofreading and drafting. Use {entry_yaml} and {description} as placeholders."></i>
+                    </legend>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <select class="form-select" id="prompt-template-select">
+                                <option value="">Select a template to edit...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-new-template">
+                                <i class="fas fa-plus"></i> New Template
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger d-none" id="btn-delete-template">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                    <div id="prompt-template-editor" class="d-none">
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Template ID (slug)</label>
+                                <input type="text" class="form-control form-control-sm" id="tmpl-id" placeholder="my-custom-template">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Template Name</label>
+                                <input type="text" class="form-control form-control-sm" id="tmpl-name" placeholder="My Template">
+                            </div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Type</label>
+                                <select class="form-select form-select-sm" id="tmpl-type">
+                                    <option value="proofread">Proofread</option>
+                                    <option value="draft">Draft</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Description (optional)</label>
+                                <input type="text" class="form-control form-control-sm" id="tmpl-desc" placeholder="Short description">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">System Prompt</label>
+                            <textarea class="form-control form-control-sm font-monospace" id="tmpl-system" rows="3"
+                                placeholder="You are an expert lexicographer..."></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">
+                                User Prompt Template
+                                <span class="text-muted">— use <code>{'{entry_yaml}'}</code> or <code>{'{description}'}</code> as placeholders</span>
+                            </label>
+                            <textarea class="form-control form-control-sm font-monospace" id="tmpl-user" rows="5"
+                                placeholder="Please proofread the following entry..."></textarea>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-success" id="btn-save-template">
+                            <i class="fas fa-save"></i> Save Template
+                        </button>
+                        <span id="tmpl-save-result" class="ms-2 small"></span>
+                    </div>
+                </fieldset>
+
                 <!-- Spell-Check Dictionaries Section -->
                 <fieldset class="mb-4">
                     <legend class="h6">
@@ -771,4 +870,162 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 {% endif %}
+
+<script>
+// Prompt template editor
+(function() {
+    let templates = [];
+    const select = document.getElementById('prompt-template-select');
+    const editor = document.getElementById('prompt-template-editor');
+    const delBtn = document.getElementById('btn-delete-template');
+    const saveResult = document.getElementById('tmpl-save-result');
+    const fields = ['tmpl-id','tmpl-name','tmpl-type','tmpl-desc','tmpl-system','tmpl-user'];
+
+    function getCsrf() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    async function loadTemplates() {
+        try {
+            const resp = await fetch('/api/ai/prompt-templates');
+            const data = await resp.json();
+            templates = data.templates || [];
+            select.innerHTML = '<option value="">Select a template to edit...</option>';
+            templates.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name + ' (' + t.type + ')';
+                select.appendChild(opt);
+            });
+        } catch(e) { console.error('Failed to load templates', e); }
+    }
+
+    function populateEditor(t) {
+        document.getElementById('tmpl-id').value = t.id || '';
+        document.getElementById('tmpl-id').disabled = !!t.id;
+        document.getElementById('tmpl-name').value = t.name || '';
+        document.getElementById('tmpl-type').value = t.type || 'proofread';
+        document.getElementById('tmpl-desc').value = t.description || '';
+        document.getElementById('tmpl-system').value = t.system_prompt || '';
+        document.getElementById('tmpl-user').value = t.user_prompt_template || '';
+        editor.classList.remove('d-none');
+        delBtn.classList.toggle('d-none', !t.id);
+    }
+
+    function clearEditor() {
+        fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        document.getElementById('tmpl-id').disabled = false;
+        editor.classList.add('d-none');
+        delBtn.classList.add('d-none');
+        select.value = '';
+    }
+
+    select.addEventListener('change', function() {
+        if (!this.value) { clearEditor(); return; }
+        const t = templates.find(x => x.id === this.value);
+        if (t) populateEditor(t);
+    });
+
+    document.getElementById('btn-new-template').addEventListener('click', function() {
+        select.value = '';
+        fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        document.getElementById('tmpl-id').disabled = false;
+        document.getElementById('tmpl-type').value = 'proofread';
+        editor.classList.remove('d-none');
+        delBtn.classList.add('d-none');
+    });
+
+    document.getElementById('btn-save-template').addEventListener('click', async function() {
+        const data = {
+            id: document.getElementById('tmpl-id').value.trim(),
+            name: document.getElementById('tmpl-name').value.trim(),
+            type: document.getElementById('tmpl-type').value,
+            description: document.getElementById('tmpl-desc').value.trim(),
+            system_prompt: document.getElementById('tmpl-system').value.trim(),
+            user_prompt_template: document.getElementById('tmpl-user').value.trim()
+        };
+        if (!data.id || !data.name || !data.system_prompt || !data.user_prompt_template) {
+            saveResult.innerHTML = '<span class="text-danger">All fields except description are required.</span>';
+            return;
+        }
+        try {
+            const resp = await fetch('/api/ai/prompt-templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
+                body: JSON.stringify(data)
+            });
+            if (resp.ok) {
+                saveResult.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Saved</span>';
+                await loadTemplates();
+                select.value = data.id;
+                document.getElementById('tmpl-id').disabled = true;
+                delBtn.classList.remove('d-none');
+            } else {
+                const err = await resp.json();
+                saveResult.innerHTML = '<span class="text-danger">' + (err.error || 'Save failed') + '</span>';
+            }
+        } catch(e) { saveResult.innerHTML = '<span class="text-danger">Network error</span>'; }
+    });
+
+    document.getElementById('btn-delete-template').addEventListener('click', async function() {
+        const id = document.getElementById('tmpl-id').value;
+        if (!id || !confirm('Delete template "' + id + '"?')) return;
+        try {
+            const resp = await fetch('/api/ai/prompt-templates/' + id, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': getCsrf() }
+            });
+            if (resp.ok) {
+                saveResult.innerHTML = '<span class="text-success">Deleted</span>';
+                clearEditor();
+                await loadTemplates();
+            }
+        } catch(e) { saveResult.innerHTML = '<span class="text-danger">Delete failed</span>'; }
+    });
+
+    loadTemplates();
+})();
+
+// AI connection test
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('btn-test-ai-connection');
+    const result = document.getElementById('ai-test-result');
+    if (!btn || !result) return;
+
+    btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+        result.textContent = '';
+
+        const apiKey = document.querySelector('#openai_api_key')?.value || '';
+        const apiBase = document.querySelector('#ai_api_base')?.value || '';
+        const model = document.querySelector('#ai_model')?.value || '';
+
+        try {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const resp = await fetch('/api/ai/test-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf
+                },
+                body: JSON.stringify({ api_key: apiKey, api_base: apiBase, model: model })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                result.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Connected — ' +
+                    data.model + '</span>';
+            } else {
+                result.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> ' +
+                    (data.error || 'Connection failed') + '</span>';
+            }
+        } catch(e) {
+            result.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> Network error</span>';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+        }
+    });
+});
+</script>
 {% endblock %}

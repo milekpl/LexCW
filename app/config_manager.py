@@ -111,6 +111,18 @@ class ConfigManager:
             settings.basex_db_name = new_values.pop('basex_db_name')
             logger.debug('Updated basex_db_name to: %s', settings.basex_db_name)
 
+        if 'openai_api_key' in new_values:
+            settings.openai_api_key = new_values.pop('openai_api_key') or None
+            logger.debug('Updated openai_api_key')
+
+        if 'ai_api_base' in new_values:
+            settings.ai_api_base = new_values.pop('ai_api_base') or 'https://api.openai.com/v1'
+            logger.debug('Updated ai_api_base to: %s', settings.ai_api_base)
+
+        if 'ai_model' in new_values:
+            settings.ai_model = new_values.pop('ai_model') or 'gpt-4o'
+            logger.debug('Updated ai_model to: %s', settings.ai_model)
+
         if 'backup_settings' in new_values:
             new_backup = new_values.pop('backup_settings')
             logger.info('Updating backup_settings with: %s (Type: %s)', new_backup, type(new_backup))

@@ -292,6 +292,11 @@ def create_app(config_name=None):
     from app.api.word_sketch_api import word_sketch_bp
     app.register_blueprint(word_sketch_bp, url_prefix='/api/word-sketch')
 
+    # Register AI API
+    from app.api.ai_api import ai_bp
+
+    app.register_blueprint(ai_bp)
+
     # Register word sketch browser page
     from app.routes.word_sketch_routes import word_sketch_browser_bp
     app.register_blueprint(word_sketch_browser_bp)
@@ -777,6 +782,16 @@ def create_app(config_name=None):
 
         event_bus = EventBus()
         binder.bind(EventBus, to=event_bus, scope=singleton)
+
+        # Initialize and bind AI Service
+        from app.services.ai_service import AIService
+
+        ai_service = AIService(
+            prompt_templates_path=Path(
+                os.path.join(app.instance_path, "prompt_templates.json")
+            )
+        )
+        binder.bind(AIService, to=ai_service, scope=singleton)
 
         # Initialize and bind BulkOperationsService for bulk entry operations
         from app.services.bulk_operations_service import BulkOperationsService
