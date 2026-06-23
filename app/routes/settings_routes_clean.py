@@ -358,5 +358,11 @@ def import_lift_replace():
                 pass
 
 
+@settings_bp.route("/api-keys", methods=["GET"])
+def manage_api_keys():
+    """Display the API key management page."""
+    return render_template("settings/api_keys.html")
+
+
 def register_blueprints(app) -> None:
     app.register_blueprint(settings_bp)

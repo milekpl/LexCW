@@ -4,34 +4,34 @@ from app.models.search_query import SearchQuery, SearchFilter
 
 class DynamicQueryBuilder:
     """
-    Dynamic query builder for generating database-specific queries.
-    Supports both XQuery (for BaseX/LIFT data) and SQL (for PostgreSQL).
+    Dynamic query builder for generating XQuery queries against BaseX LIFT database.
+    
+    Note: PostgreSQL is used only for configuration/metadata storage.
+    All linguistic data queries use XQuery against the BaseX XML database.
     """
     
-    def __init__(self, dialect: str) -> None:
+    def __init__(self, dialect: str = "xquery") -> None:
+        """
+        Initialize the query builder.
+        
+        Args:
+            dialect: Query dialect (only "xquery" is supported for linguistic data)
+        """
+        if dialect != "xquery":
+            raise ValueError("Only 'xquery' dialect is supported for linguistic data queries")
         self.dialect = dialect
 
     def build_query(self, query: SearchQuery) -> Tuple[str, Dict[str, Any]]:
         """
-        Build a query string and parameters based on the search query.
+        Build an XQuery string and parameters based on the search query.
         
         Args:
             query: SearchQuery object containing search criteria
             
         Returns:
-            Tuple of (query_string, parameters_dict)
+            Tuple of (xquery_string, parameters_dict)
         """
-        if self.dialect == "postgresql":
-            return self._build_sql_query(query)
-        elif self.dialect == "xquery":
-            return self._build_xquery(query)
-        else:
-            raise NotImplementedError(f"Dialect {self.dialect} not supported")
-    
-    def _build_sql_query(self, query: SearchQuery) -> Tuple[str, Dict[str, Any]]:
-        """Build SQL query for PostgreSQL."""
-        # Keep existing SQL logic for corpus searches
-        return "SELECT * FROM entries WHERE lexical_unit_text LIKE %(keyword_1)s", {"keyword_1": f"%{query.keywords[0]}%"}
+        return self._build_xquery(query)
     
     def _build_xquery(self, query: SearchQuery) -> Tuple[str, Dict[str, Any]]:
         """

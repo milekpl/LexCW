@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1><i class="fa fa-key"></i> API Keys</h1>
+    <p class="text-muted">
+        API keys allow external scripts and tools to interact with your dictionary
+        programmatically. Treat them like passwords — anyone with a key can access
+        your data within the key's scopes.
+    </p>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Your API Keys</span>
+            <button class="btn btn-primary btn-sm" id="createKeyBtn">
+                <i class="fa fa-plus"></i> New Key
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="keyList">
+                <p class="text-muted" id="loadingKeys">Loading...</p>
+            </div>
+
+            <div id="newKeyResult" class="alert alert-success d-none mt-3">
+                <strong>Key created!</strong> Copy this key now — you won't see it again.
+                <pre id="newKeyValue" class="mt-2 mb-0"></pre>
+                <button class="btn btn-sm btn-outline-secondary mt-1" onclick="copyKey()">
+                    <i class="fa fa-copy"></i> Copy
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Quick Start</div>
+        <div class="card-body">
+            <p>Use your API key with any HTTP client:</p>
+            <pre><code>curl -H "Authorization: Bearer YOUR_KEY_HERE" \
+  {{ url_for('api_keys.list_keys', _external=True) }}</code></pre>
+            <p class="text-muted small">
+                Available scopes: <code>read</code>, <code>export</code>,
+                <code>pronunciation:read</code>, <code>pronunciation:write</code>,
+                <code>pronunciation:validate</code>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+let projects = [];
+
+async function loadKeys() {
+    const resp = await fetch('{{ url_for("api_keys.list_keys") }}');
+    const data = await resp.json();
+    const container = document.getElementById('keyList');
+
+    if (data.keys.length === 0) {
+        container.innerHTML = '<p class="text-muted">No API keys yet. Create one to get started.</p>';
+        return;
+    }
+
+    let html = '<table class="table table-sm"><thead><tr><th>Label</th><th>Prefix</th><th>Project</th><th>Scopes</th><th>Created</th><th>Last Used</th><th>Status</th><th></th></tr></thead><tbody>';
+    for (const k of data.keys) {
+        const status = k.is_active
+            ? '<span class="badge bg-success">Active</span>'
+            : '<span class="badge bg-secondary">Revoked</span>';
+        html += `<tr>
+            <td>${escapeHtml(k.label)}</td>
+            <td><code>${escapeHtml(k.key_prefix)}...</code></td>
+            <td>#${k.project_id}</td>
+            <td>${(k.scopes || []).join(', ') || '<em>all</em>'}</td>
+            <td>${k.created_at ? new Date(k.created_at).toLocaleDateString() : '-'}</td>
+            <td>${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'never'}</td>
+            <td>${status}</td>
+            <td>${k.is_active
+                ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeKey(${k.id})">Revoke</button>`
+                : `<button class="btn btn-sm btn-outline-success" onclick="reactivateKey(${k.id})">Reactivate</button>`
+            }</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+async function loadProjects() {
+    const resp = await fetch('/api/users/me/projects');
+    if (resp.ok) {
+        const data = await resp.json();
+        projects = data.projects || [];
+    }
+}
+
+document.getElementById('createKeyBtn').addEventListener('click', async function() {
+    const label = prompt('Enter a label for this key (e.g., "my export script"):');
+    if (!label) return;
+
+    let projectId = null;
+    if (projects.length > 0) {
+        // Use first available project
+        projectId = projects[0].id || projects[0].project_id;
+    }
+    if (!projectId) {
+        projectId = prompt('Enter project ID:');
+        if (!projectId) return;
+    }
+
+    const scopes = prompt(
+        'Enter scopes (comma-separated, or leave empty for full access):\n'
+        + 'Available: read, export, pronunciation:read, pronunciation:write, pronunciation:validate'
+    );
+
+    const scopeList = scopes ? scopes.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    try {
+        const resp = await fetch('{{ url_for("api_keys.create_key") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                project_id: parseInt(projectId),
+                label: label,
+                scopes: scopeList
+            })
+        });
+
+        const data = await resp.json();
+        if (resp.ok) {
+            document.getElementById('newKeyValue').textContent = data.key.raw_key;
+            document.getElementById('newKeyResult').classList.remove('d-none');
+            loadKeys();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    } catch (e) {
+        alert('Network error: ' + e.message);
+    }
+});
+
+async function revokeKey(id) {
+    if (!confirm('Revoke this API key? Any tools using it will stop working.')) return;
+    const resp = await fetch(`{{ url_for('api_keys.revoke_key', key_id=0) }}`.replace('/0', '/' + id), {
+        method: 'DELETE'
+    });
+    if (resp.ok) {
+        loadKeys();
+    } else {
+        const data = await resp.json();
+        alert('Error: ' + (data.error || 'Unknown'));
+    }
+}
+
+async function reactivateKey(id) {
+    const resp = await fetch(`{{ url_for('api_keys.reactivate_key', key_id=0) }}`.replace('/0', '/' + id), {
+        method: 'POST'
+    });
+    if (resp.ok) {
+        loadKeys();
+    } else {
+        const data = await resp.json();
+        alert('Error: ' + (data.error || 'Unknown'));
+    }
+}
+
+function copyKey() {
+    const el = document.getElementById('newKeyValue');
+    navigator.clipboard.writeText(el.textContent).then(() => {
+        alert('Copied!');
+    });
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+loadProjects();
+loadKeys();
+</script>
+{% endblock %}

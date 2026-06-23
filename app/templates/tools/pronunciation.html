@@ -1,0 +1,560 @@
+{% extends "base.html" %}
+
+{% block title %}Pronunciation Management{% endblock %}
+
+{% block head %}
+<style>
+    .ipa-text { font-family: 'Charis SIL', 'Doulos SIL', 'IPA Mincho', serif; font-size: 1.1em; }
+    .variant-list { max-height: 300px; overflow-y: auto; }
+    .result-badge { font-size: 0.8rem; }
+    .tab-content { min-height: 400px; }
+    pre.ipa-output { max-height: 400px; overflow-y: auto; }
+    .drop-zone { border: 2px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; }
+    .drop-zone.dragover { border-color: #0d6efd; background: #f0f7ff; }
+    .stats-card { text-align: center; padding: 1.5rem; }
+    .stats-card .number { font-size: 2rem; font-weight: bold; color: #0d6efd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1><i class="fa fa-microphone"></i> Pronunciation Management</h1>
+        <div>
+            <a href="{{ url_for('settings.manage_api_keys') }}" class="btn btn-outline-primary btn-sm">
+                <i class="fa fa-key"></i> API Keys
+            </a>
+        </div>
+    </div>
+
+    <!-- Nav tabs -->
+    <ul class="nav nav-tabs" id="pronTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="review-tab" data-bs-toggle="tab" data-bs-target="#review" type="button" role="tab">
+                <i class="fa fa-list"></i> Review
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="compress-tab" data-bs-toggle="tab" data-bs-target="#compress" type="button" role="tab">
+                <i class="fa fa-compress"></i> Compress
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="dedup-tab" data-bs-toggle="tab" data-bs-target="#dedup" type="button" role="tab">
+                <i class="fa fa-copy"></i> Deduplicate
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="validate-tab" data-bs-toggle="tab" data-bs-target="#validate" type="button" role="tab">
+                <i class="fa fa-check-circle"></i> Validate
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">
+                <i class="fa fa-upload"></i> Bulk Upload
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#help" type="button" role="tab">
+                <i class="fa fa-question-circle"></i> API Access
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content border border-top-0 p-3 bg-white" id="pronTabContent">
+
+        <!-- ======================== REVIEW TAB ======================== -->
+        <div class="tab-pane fade show active" id="review" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="number" id="totalEntries">—</div>
+                        <div class="text-muted small">Total Entries</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="number" id="withPron">—</div>
+                        <div class="text-muted small">With Pronunciation</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="number" id="anomalyCount">—</div>
+                        <div class="text-muted small">Potential Anomalies</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="number" id="dupCount">—</div>
+                        <div class="text-muted small">Duplicates Found</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Paste a JSON export of entries with pronunciations, or use the API:</label>
+                <div class="input-group">
+                    <textarea class="form-control font-monospace" id="reviewInput" rows="6" placeholder='[{"lexeme": "tree", "ipa": "triː"}, ...]'></textarea>
+                </div>
+            </div>
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-primary" onclick="runReview()"><i class="fa fa-search"></i> Analyze</button>
+                <button class="btn btn-outline-secondary" onclick="document.getElementById('reviewInput').value = sampleData"><i class="fa fa-file-text"></i> Load Sample</button>
+            </div>
+            <div id="reviewResults"></div>
+        </div>
+
+        <!-- ======================== COMPRESS TAB ======================== -->
+        <div class="tab-pane fade" id="compress" role="tabpanel">
+            <p class="text-muted">
+                Expand parenthesised optional sounds in IPA transcriptions.
+                E.g., <code>ˈskɒtɪˌsɪz(ə)m</code> → <code>ˈskɒtɪˌsɪzm</code>, <code>ˈskɒtɪˌsɪzəm</code>
+            </p>
+            <div class="mb-3">
+                <label class="form-label">Entries (JSON):</label>
+                <textarea class="form-control font-monospace" id="compressInput" rows="8" placeholder='[{"lexeme": "lactation", "ipa": "(ˌ)lækˈteɪʃ(ə)n"}]'></textarea>
+            </div>
+            <button class="btn btn-primary mb-3" onclick="runCompress()"><i class="fa fa-compress"></i> Compress</button>
+            <div id="compressResults"></div>
+        </div>
+
+        <!-- ======================== DEDUP TAB ======================== -->
+        <div class="tab-pane fade" id="dedup" role="tabpanel">
+            <p class="text-muted">
+                Find duplicate or near-duplicate pronunciations: exact matches, stress-mark variants,
+                and optional-sound equivalents (same after parentheses expansion).
+            </p>
+            <div class="mb-3">
+                <label class="form-label">Entries (JSON):</label>
+                <textarea class="form-control font-monospace" id="dedupInput" rows="8" placeholder='[{"lexeme": "record", "ipa": "ˈrekɔːd"}, ...]'></textarea>
+            </div>
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-primary" onclick="runDedup()"><i class="fa fa-copy"></i> Find Duplicates</button>
+                <button class="btn btn-outline-secondary" onclick="loadSampleDedup()"><i class="fa fa-file-text"></i> Load Sample</button>
+            </div>
+            <div id="dedupResults"></div>
+        </div>
+
+        <!-- ======================== VALIDATE TAB ======================== -->
+        <div class="tab-pane fade" id="validate" role="tabpanel">
+            <p class="text-muted">
+                Validate IPA transcriptions for legal character sequences and compute
+                basic quality metrics. For deep anomaly detection (ByT5 model), use the
+                async batch-validate endpoint via the API (requires model to be loaded on the server).
+            </p>
+            <div class="mb-3">
+                <label class="form-label">Entries (JSON):</label>
+                <textarea class="form-control font-monospace" id="validateInput" rows="8" placeholder='[{"lexeme": "thought", "ipa": "θɔːt"}, ...]'></textarea>
+            </div>
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-primary" onclick="runValidate()"><i class="fa fa-check-circle"></i> Validate</button>
+                <button class="btn btn-outline-secondary" onclick="loadSampleValidate()"><i class="fa fa-file-text"></i> Load Sample</button>
+            </div>
+            <div id="validateResults"></div>
+        </div>
+
+        <!-- ======================== BULK UPLOAD TAB ======================== -->
+        <div class="tab-pane fade" id="upload" role="tabpanel">
+            <p class="text-muted">
+                Upload a CSV or JSON file with lexeme and IPA columns to process in bulk.
+                For large datasets, use the API directly:
+            </p>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <pre class="mb-0"><code>curl -H "Authorization: Bearer YOUR_KEY" \
+  -X POST {{ url_for('pronunciation.compress_ipa', _external=True) }} \
+  -d '{"entries": [{"lexeme": "test", "ipa": "t(ɛ)st"}]}' \
+  -H "Content-Type: application/json"</code></pre>
+                </div>
+            </div>
+            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <i class="fa fa-cloud-upload fa-3x text-muted"></i>
+                <p class="mt-2 mb-0">Drop a CSV or JSON file here, or click to browse</p>
+                <p class="text-muted small">CSV format: <code>lexeme,ipa</code> (header row required)</p>
+                <input type="file" id="fileInput" accept=".csv,.json" class="d-none" onchange="handleFile(this)">
+            </div>
+            <div id="uploadResults" class="mt-3"></div>
+            <div id="bulkActions" class="mt-3 d-none">
+                <div class="card">
+                    <div class="card-header">Bulk Actions</div>
+                    <div class="card-body">
+                        <p>Loaded <strong id="bulkCount">0</strong> entries.</p>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-primary" onclick="bulkCompress()"><i class="fa fa-compress"></i> Compress All</button>
+                            <button class="btn btn-outline-warning" onclick="bulkDedup()"><i class="fa fa-copy"></i> Deduplicate</button>
+                            <button class="btn btn-outline-info" onclick="bulkValidate()"><i class="fa fa-check-circle"></i> Validate All</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================== API ACCESS TAB ======================== -->
+        <div class="tab-pane fade" id="help" role="tabpanel">
+            <h5>API Endpoints</h5>
+            <p>All endpoints require authentication (session or API key).</p>
+            <table class="table table-sm">
+                <thead><tr><th>Endpoint</th><th>Method</th><th>Scope</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>/api/pronunciation/compress</code></td><td>POST</td><td><code>pronunciation:read</code></td><td>Expand parenthesised IPA variants</td></tr>
+                    <tr><td><code>/api/pronunciation/deduplicate</code></td><td>POST</td><td><code>pronunciation:read</code></td><td>Find duplicate pronunciations</td></tr>
+                    <tr><td><code>/api/pronunciation/deduplicate/apply</code></td><td>POST</td><td><code>pronunciation:write</code></td><td>Remove/merge duplicates</td></tr>
+                    <tr><td><code>/api/pronunciation/upload</code></td><td>POST</td><td>session</td><td>Upload audio for a pronunciation</td></tr>
+                </tbody>
+            </table>
+            <p class="mt-3">Generate an API key in <a href="{{ url_for('settings.manage_api_keys') }}">Settings → API Keys</a>.</p>
+            <h5 class="mt-4">Example Scripts</h5>
+            <pre><code>#!/usr/bin/env bash
+# Export all entries, compress IPA, find duplicates — in one pipeline
+KEY="sw_your_key_here"
+URL="http://localhost:5000"
+
+# Step 1: Export (you'll need to provide the export mechanism)
+# Step 2: Pipe to compress
+curl -s -H "Authorization: Bearer $KEY" \
+  "$URL/api/pronunciation/compress" \
+  -d '{"entries": [{"lexeme": "test", "ipa": "t(ɛ)st"}]}' \
+  -H "Content-Type: application/json"</code></pre>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Sample data for demo
+const sampleData = JSON.stringify([
+    {"lexeme": "tree", "ipa": "triː"},
+    {"lexeme": "thought", "ipa": "θɔːt"},
+    {"lexeme": "lactation", "ipa": "(ˌ)lækˈteɪʃ(ə)n"},
+    {"lexeme": "scottishism", "ipa": "ˈskɒtɪˌsɪz(ə)m"},
+    {"lexeme": "record", "ipa": "ˈrekɔːd"},
+    {"lexeme": "record", "ipa": "ˌrekɔːd"},
+    {"lexeme": "cat", "ipa": "kæt"},
+    {"lexeme": "dog", "ipa": "dɒɡ"}
+], null, 2);
+
+const sampleDedup = JSON.stringify([
+    {"lexeme": "record", "ipa": "ˈrekɔːd"},
+    {"lexeme": "record", "ipa": "ˈrekɔːd"},
+    {"lexeme": "record", "ipa": "ˌrekɔːd"},
+    {"lexeme": "scottishism", "ipa": "ˈskɒtɪˌsɪz(ə)m"},
+    {"lexeme": "scottishism", "ipa": "ˈskɒtɪˌsɪzəm"},
+    {"lexeme": "lactation", "ipa": "(ˌ)lækˈteɪʃ(ə)n"},
+    {"lexeme": "lactation", "ipa": "lækˈteɪʃən"}
+], null, 2);
+
+const sampleValidate = JSON.stringify([
+    {"lexeme": "tree", "ipa": "triː"},
+    {"lexeme": "thought", "ipa": "θɔːt"},
+    {"lexeme": "cat", "ipa": "kæt"},
+    {"lexeme": "bad", "ipa": "bad!!"},
+    {"lexeme": "weird", "ipa": "wɜːɹd"},
+    {"lexeme": "empty", "ipa": ""}
+], null, 2);
+
+// --- Helpers ---
+function getJson(id) {
+    const text = document.getElementById(id).value.trim();
+    if (!text) { alert('Please enter JSON data.'); return null; }
+    try { return JSON.parse(text); }
+    catch (e) { alert('Invalid JSON: ' + e.message); return null; }
+}
+
+function showError(containerId, msg) {
+    document.getElementById(containerId).innerHTML =
+        '<div class="alert alert-danger">' + msg + '</div>';
+}
+
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// --- Review ---
+function runReview() {
+    const entries = getJson('reviewInput');
+    if (!entries) return;
+    const container = document.getElementById('reviewResults');
+    container.innerHTML = '<p class="text-muted"><i class="fa fa-spinner fa-spin"></i> Analyzing...</p>';
+
+    // Run compress + dedup + validate in parallel
+    Promise.all([
+        fetch('{{ url_for("pronunciation.compress_ipa") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({entries})
+        }).then(r => r.json()),
+        fetch('{{ url_for("pronunciation.deduplicate_pronunciations") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({entries})
+        }).then(r => r.json()),
+    ]).then(([compressData, dedupData]) => {
+        const total = entries.length;
+        const withPron = entries.filter(e => e.ipa && e.ipa.trim()).length;
+        const anomalies = entries.filter(e => {
+            const ipa = (e.ipa || '').trim();
+            return ipa.length > 0 && !/^[ ˌˈpbtdkɡfvθðszʃʒhmnŋlrjwxɑɔɜɛɪʊʌɐɒəɨɵɤæɶːieouaɛɪɔʊɜːʒʤʧŋɡʃ䜔]+$/.test(ipa);
+        }).length;
+        const dups = dedupData.duplicates ? dedupData.duplicates.length : 0;
+
+        document.getElementById('totalEntries').textContent = total;
+        document.getElementById('withPron').textContent = withPron;
+        document.getElementById('anomalyCount').textContent = anomalies;
+        document.getElementById('dupCount').textContent = dups;
+
+        let html = '<h6>Entry Overview</h6><div class="table-responsive"><table class="table table-sm">';
+        html += '<thead><tr><th>#</th><th>Lexeme</th><th>IPA</th><th>Variants</th><th>Issues</th></tr></thead><tbody>';
+        entries.forEach((e, i) => {
+            const entryCompress = compressData.results ? compressData.results.find(r => r.lexeme === e.lexeme) : null;
+            const variants = entryCompress ? entryCompress.variants : [];
+            const variantStr = variants.length > 1
+                ? '<span class="badge bg-info result-badge">' + variants.length + ' variants</span>'
+                : '<span class="text-muted">—</span>';
+            issues = [];
+            if (anomalies && (e.ipa || '').match(/[^ ˌˈpbtdkɡfvθðszʃʒhmnŋlrjwxɑɔɜɛɪʊʌɐɒəɨɵɤæɶːieouaɛɪɔʊɜːʒʤʧŋɡʃ]/)) {
+                issues.push('<span class="badge bg-warning result-badge">suspect chars</span>');
+            }
+            html += '<tr><td>' + (i+1) + '</td><td>' + escapeHtml(e.lexeme) + '</td>'
+                 + '<td class="ipa-text">' + escapeHtml(e.ipa || '') + '</td>'
+                 + '<td>' + variantStr + '</td>'
+                 + '<td>' + (issues.join(' ') || '<span class="text-muted">—</span>') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }).catch(e => {
+        showError('reviewResults', 'Error: ' + e.message);
+    });
+}
+
+// --- Compress ---
+function runCompress() {
+    const entries = getJson('compressInput');
+    if (!entries) return;
+    const container = document.getElementById('compressResults');
+    container.innerHTML = '<p class="text-muted"><i class="fa fa-spinner fa-spin"></i> Compressing...</p>';
+
+    fetch('{{ url_for("pronunciation.compress_ipa") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({entries})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.results) {
+            let html = '<div class="variant-list"><table class="table table-sm">';
+            html += '<thead><tr><th>Lexeme</th><th>Raw IPA</th><th>Variants</th></tr></thead><tbody>';
+            data.results.forEach(r => {
+                const v = r.variants && r.variants.length
+                    ? r.variants.map(v => '<span class="ipa-text badge bg-light text-dark me-1">' + escapeHtml(v) + '</span>').join('')
+                    : '<span class="text-muted">—</span>';
+                html += '<tr><td>' + escapeHtml(r.lexeme) + '</td>'
+                     + '<td class="ipa-text">' + escapeHtml(r.ipa_raw) + '</td>'
+                     + '<td>' + v + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        } else {
+            showError('compressResults', data.error || 'Unknown error');
+        }
+    })
+    .catch(e => showError('compressResults', 'Error: ' + e.message));
+}
+
+// --- Dedup ---
+function runDedup() {
+    const entries = getJson('dedupInput');
+    if (!entries) return;
+    const container = document.getElementById('dedupResults');
+    container.innerHTML = '<p class="text-muted"><i class="fa fa-spinner fa-spin"></i> Checking...</p>';
+
+    fetch('{{ url_for("pronunciation.deduplicate_pronunciations") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({entries})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.duplicates && data.duplicates.length > 0) {
+            let html = '<div class="alert alert-warning">Found <strong>' + data.duplicates.length + '</strong> duplicate group(s).</div>';
+            html += '<table class="table table-sm"><thead><tr><th>Type</th><th>Lexeme</th><th>IPA Values</th><th>Recommendation</th><th>Action</th></tr></thead><tbody>';
+            data.duplicates.forEach((d, i) => {
+                const typeLabel = {
+                    'exact': '<span class="badge bg-danger">exact</span>',
+                    'stress_variant': '<span class="badge bg-warning text-dark">stress</span>',
+                    'optional_sound_equivalent': '<span class="badge bg-info">optional sound</span>'
+                }[d.type] || d.type;
+                const ipas = d.ipa_values.map(v => '<span class="ipa-text badge bg-light text-dark me-1">' + escapeHtml(v) + '</span>').join('');
+                html += '<tr><td>' + typeLabel + '</td><td>' + escapeHtml(d.lexeme) + '</td>'
+                     + '<td>' + ipas + '</td>'
+                     + '<td class="small">' + escapeHtml(d.recommendation) + '</td>'
+                     + '<td><button class="btn btn-sm btn-outline-danger" onclick="applyDedupAction(' + i + ', \'remove\', this)">Remove Dup</button></td></tr>';
+            });
+            html += '</tbody></table></div>';
+            // Store data for apply actions
+            window._dedupData = data;
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div class="alert alert-success">No duplicate pronunciations found.</div>';
+        }
+    })
+    .catch(e => showError('dedupResults', 'Error: ' + e.message));
+}
+
+function loadSampleDedup() {
+    document.getElementById('dedupInput').value = sampleDedup;
+}
+
+function applyDedupAction(index, action, btn) {
+    if (!confirm('Apply this action?')) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+
+    const dedupData = window._dedupData;
+    if (!dedupData || !dedupData.duplicates || !dedupData.duplicates[index]) return;
+
+    const dup = dedupData.duplicates[index];
+    const actions = dup.ipa_values.map(ipa => ({
+        type: action,
+        entry_id: dup.lexeme + '_' + ipa,
+        ipa: ipa
+    }));
+
+    fetch('{{ url_for("pronunciation.apply_deduplication") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({actions})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.innerHTML = '<i class="fa fa-check"></i> Applied';
+        btn.className = 'btn btn-sm btn-success';
+    })
+    .catch(e => {
+        btn.innerHTML = 'Error';
+        btn.className = 'btn btn-sm btn-danger';
+    });
+}
+
+// --- Validate ---
+function runValidate() {
+    const entries = getJson('validateInput');
+    if (!entries) return;
+    const container = document.getElementById('validateResults');
+    container.innerHTML = '<p class="text-muted"><i class="fa fa-spinner fa-spin"></i> Validating...</p>';
+
+    // Client-side IPA validation using a basic regex
+    const ipaChars = /^[ ˌˈpbtdkɡfvθðszʃʒhmnŋlrjwxɑɔɜɛɪʊʌɐɒəɨɵɤæɶːieouaɛɪɔʊɜːʒʤʧŋɡʃ]+$/;
+
+    let html = '<table class="table table-sm"><thead><tr><th>Lexeme</th><th>IPA</th><th>Status</th><th>Issues</th></tr></thead><tbody>';
+    entries.forEach(e => {
+        const ipa = (e.ipa || '').trim();
+        let status, issues;
+        if (!ipa) {
+            status = '<span class="badge bg-secondary">empty</span>';
+            issues = 'No IPA provided';
+        } else if (!ipaChars.test(ipa)) {
+            status = '<span class="badge bg-danger">invalid</span>';
+            const bad = [...ipa].filter(c => !ipaChars.test(c)).join(', ');
+            issues = 'Invalid characters: ' + escapeHtml(bad);
+        } else {
+            status = '<span class="badge bg-success">valid</span>';
+            issues = '—';
+        }
+        html += '<tr><td>' + escapeHtml(e.lexeme) + '</td>'
+             + '<td class="ipa-text">' + escapeHtml(ipa) + '</td>'
+             + '<td>' + status + '</td>'
+             + '<td class="small">' + issues + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function loadSampleValidate() {
+    document.getElementById('validateInput').value = sampleValidate;
+}
+
+// --- Bulk upload via drag & drop ---
+function handleFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        let entries = [];
+        if (file.name.endsWith('.json')) {
+            try { entries = JSON.parse(text); }
+            catch (err) { showError('uploadResults', 'Invalid JSON: ' + err.message); return; }
+        } else if (file.name.endsWith('.csv')) {
+            const lines = text.split('\n').filter(l => l.trim());
+            const header = lines[0].toLowerCase();
+            if (!header.includes('lexeme') || !header.includes('ipa')) {
+                showError('uploadResults', 'CSV must have "lexeme" and "ipa" columns');
+                return;
+            }
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split(',');
+                if (parts.length >= 2) {
+                    entries.push({lexeme: parts[0].trim(), ipa: parts.slice(1).join(',').trim()});
+                }
+            }
+        }
+        if (entries.length === 0) {
+            showError('uploadResults', 'No entries found in file');
+            return;
+        }
+        document.getElementById('uploadResults').innerHTML =
+            '<div class="alert alert-success">Loaded <strong>' + entries.length + '</strong> entries from ' + file.name + '</div>';
+        document.getElementById('bulkCount').textContent = entries.length;
+        document.getElementById('bulkActions').classList.remove('d-none');
+        window._bulkEntries = entries;
+
+        // Pre-populate the compress tab
+        document.getElementById('compressInput').value = JSON.stringify(entries, null, 2);
+        document.getElementById('dedupInput').value = JSON.stringify(entries, null, 2);
+        document.getElementById('validateInput').value = JSON.stringify(entries, null, 2);
+        document.getElementById('reviewInput').value = JSON.stringify(entries, null, 2);
+    };
+    reader.readAsText(file);
+}
+
+// Drop zone handling
+const dropZone = document.getElementById('dropZone');
+if (dropZone) {
+    ['dragenter', 'dragover'].forEach(evt => {
+        dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+        dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+    });
+    dropZone.addEventListener('drop', e => {
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            document.getElementById('fileInput').files = e.dataTransfer.files;
+            handleFile(document.getElementById('fileInput'));
+        }
+    });
+}
+
+// Bulk action wrappers
+function bulkCompress() {
+    document.getElementById('compressInput').value = JSON.stringify(window._bulkEntries || [], null, 2);
+    document.querySelector('[data-bs-target="#compress"]').click();
+    setTimeout(runCompress, 300);
+}
+function bulkDedup() {
+    document.getElementById('dedupInput').value = JSON.stringify(window._bulkEntries || [], null, 2);
+    document.querySelector('[data-bs-target="#dedup"]').click();
+    setTimeout(runDedup, 300);
+}
+function bulkValidate() {
+    document.getElementById('validateInput').value = JSON.stringify(window._bulkEntries || [], null, 2);
+    document.querySelector('[data-bs-target="#validate"]').click();
+    setTimeout(runValidate, 300);
+}
+</script>
+{% endblock %}

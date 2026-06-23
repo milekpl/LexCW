@@ -107,6 +107,7 @@ class WorksetCuration {
                                     <li><a class="dropdown-item curate-btn" href="/workbench/worksets/${ws.id}/curate"><i class="bi bi-pencil"></i> Curate</a></li>
                                     <li><a class="dropdown-item view-entries-btn" href="#" data-workset-id="${ws.id}"><i class="bi bi-list"></i> View Entries</a></li>
                                     <li><a class="dropdown-item edit-query-btn" href="#" data-workset-id="${ws.id}"><i class="bi bi-sliders"></i> Edit Query</a></li>
+                                    <li><a class="dropdown-item refresh-workset-btn" href="#" data-workset-id="${ws.id}"><i class="bi bi-arrow-clockwise"></i> Refresh</a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><a class="dropdown-item text-danger delete-workset-btn" href="#" data-workset-id="${ws.id}"><i class="bi bi-trash"></i> Delete</a></li>
                                 </ul>
@@ -155,6 +156,14 @@ class WorksetCuration {
                 e.preventDefault();
                 const wsId = e.currentTarget.dataset.worksetId;
                 await this.editWorksetQuery(wsId);
+            });
+        });
+
+        container.querySelectorAll('.refresh-workset-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const wsId = e.currentTarget.dataset.worksetId;
+                await this.refreshWorkset(wsId);
             });
         });
     }
@@ -274,6 +283,58 @@ class WorksetCuration {
         } catch (e) {
             console.error('Failed to load workset query', e);
             window.location.href = '/workbench/query-builder';
+        }
+    }
+
+    async refreshWorkset(worksetId) {
+        if (!confirm('Refresh this workset? This will re-run the query and update the entry list.')) {
+            return;
+        }
+
+        const btn = document.querySelector(`.refresh-workset-btn[data-workset-id="${worksetId}"]`);
+        if (btn) {
+            btn.innerHTML = '<i class="bi bi-hourglass"></i> Refreshing...';
+            btn.disabled = true;
+        }
+
+        try {
+            // First, get the workset to retrieve its current query
+            const getResponse = await fetch(`/api/worksets/${worksetId}`);
+            const getData = await getResponse.json();
+
+            if (!getData.success || !getData.workset) {
+                alert('Failed to load workset for refresh');
+                return;
+            }
+
+            const query = getData.workset.query;
+
+            // Call the API to update the workset query (which refreshes entries)
+            const response = await fetch(`/api/worksets/${worksetId}/query`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': this.getCsrfToken()
+                },
+                body: JSON.stringify(query)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert(`Workset refreshed successfully. Now has ${data.updated_entries} entries.`);
+                this.loadWorksets(); // Reload the list to show updated count
+            } else {
+                alert('Failed to refresh workset: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('[WorksetCuration] Error refreshing workset:', error);
+            alert('Error refreshing workset');
+        } finally {
+            if (btn) {
+                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
+                btn.disabled = false;
+            }
         }
     }
 

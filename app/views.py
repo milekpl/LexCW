@@ -1254,31 +1254,25 @@ def download_export(filename):
 @main_bp.route("/tools/batch-edit")  # Keep old route for backward compatibility
 def batch_edit():
     """
-    Render the bulk edit page.
+    Redirect to the Workbench bulk operations interface.
     """
-    # To be implemented
-    flash("Bulk editing is not yet implemented.", "info")
-    return redirect(url_for("main.index"))
+    return redirect(url_for("workbench.bulk_operations"))
 
 
 @main_bp.route("/tools/validation")
 def validation():
     """
-    Render the validation page.
+    Redirect to the validation tool interface.
     """
-    # To be implemented
-    flash("Validation is not yet implemented.", "info")
-    return redirect(url_for("main.index"))
+    return redirect(url_for("main.validation_tool"))
 
 
 @main_bp.route("/tools/pronunciation")
 def pronunciation():
     """
-    Render the pronunciation management page.
+    Render the pronunciation management dashboard.
     """
-    # To be implemented
-    flash("Pronunciation management is not yet implemented.", "info")
-    return redirect(url_for("main.index"))
+    return render_template("tools/pronunciation.html")
 
 
 @main_bp.route("/settings")
@@ -1314,17 +1308,30 @@ def setup_wizard():
 @main_bp.route("/activity-log")
 def activity_log():
     """
-    Render the activity log page with pagination.
+    Render the activity log page with pagination and filtering.
     """
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
+    
+    # Filter parameters
+    action_filter = request.args.get("action", "", type=str)
+    search_query = request.args.get("search", "", type=str)
+    date_from = request.args.get("date_from", "", type=str)
+    date_to = request.args.get("date_to", "", type=str)
     
     try:
         dict_service = current_app.injector.get(DictionaryService)
         offset = (page - 1) * per_page
         
-        activities = dict_service.get_recent_activity(limit=per_page, offset=offset)
-        total_activities = dict_service.get_activity_count()
+        # Get filtered activities
+        activities, total_activities = dict_service.get_filtered_activities(
+            limit=per_page, 
+            offset=offset,
+            action_filter=action_filter if action_filter else None,
+            search_query=search_query if search_query else None,
+            date_from=date_from if date_from else None,
+            date_to=date_to if date_to else None
+        )
         
         total_pages = (total_activities + per_page - 1) // per_page if total_activities > 0 else 1
         
@@ -1334,7 +1341,11 @@ def activity_log():
             total_activities=total_activities,
             page=page,
             per_page=per_page,
-            total_pages=total_pages
+            total_pages=total_pages,
+            action_filter=action_filter,
+            search_query=search_query,
+            date_from=date_from,
+            date_to=date_to
         )
     except Exception as e:
         logger.error(f"Error loading activity log: {e}")

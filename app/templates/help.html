@@ -112,9 +112,19 @@
                     <a class="nav-link" href="#annotations">Annotations</a>
                 </nav>
                 <a class="nav-link" href="#custom-fields">Custom Fields</a>
-                <a class="nav-link" href="#plugins">Export Plugins</a>
+                <a class="nav-link" href="#external-scripts">External Scripts &amp; API</a>
                 <a class="nav-link" href="#ranges-editor">Ranges Editor</a>
                 <a class="nav-link" href="#validation-rules">Validation Rules</a>
+                <a class="nav-link" href="#workbench">Workbench</a>
+                <nav class="nav flex-column ms-3">
+                    <a class="nav-link" href="#query-builder">Query Builder</a>
+                    <a class="nav-link" href="#worksets">Worksets</a>
+                    <a class="nav-link" href="#curation">Entry Curation</a>
+                    <a class="nav-link" href="#bulk-operations">Bulk Operations</a>
+                </nav>
+                <a class="nav-link" href="#validation-tool">Validation Tool</a>
+                <a class="nav-link" href="#corpus-management">Corpus Management</a>
+                <a class="nav-link" href="#activity-log">Activity Log</a>
                 <a class="nav-link" href="#workflow">Workflow Features</a>
                 <a class="nav-link" href="#compatibility">FieldWorks Compatibility</a>
             </nav>
@@ -299,71 +309,80 @@ TTS: [Generate Audio]</code></pre>
                 All AI features work in both interactive (entry editor) and batch (API) modes.
             </div>
 
-            <h2 id="plugins">Export Plugins</h2>
+            <h2 id="external-scripts">External Scripts &amp; API Integration</h2>
             <p>
-                The workbench supports a plugin system for custom exporters. Plugins are self-contained
-                Python modules placed in the <code>instance/plugins/</code> directory. Each plugin has:
+                The workbench provides a rich <strong>REST API</strong> for external scripting and integration.
+                Rather than using a plugin system, you can write standalone scripts in any programming language
+                that interact with the dictionary data via HTTP API calls. This approach is more flexible,
+                secure, and empowers users to build custom workflows without modifying the application.
+            </p>
+
+            <h3><i class="fas fa-code"></i> API-First Design</h3>
+            <p>
+                All major functionality is exposed through RESTful endpoints:
             </p>
             <ul class="feature-list">
-                <li><strong>manifest.json</strong>: Plugin metadata (name, version, type, entrypoint)</li>
-                <li><strong>plugin.py</strong>: A <code>register(app)</code> function that adds routes or services</li>
+                <li><strong>Entries API</strong>: CRUD operations for dictionary entries (<code>/api/entries/*</code>)</li>
+                <li><strong>Query Builder API</strong>: Create and execute complex queries (<code>/api/query-builder/*</code>)</li>
+                <li><strong>Worksets API</strong>: Manage entry collections (<code>/api/worksets/*</code>)</li>
+                <li><strong>Validation API</strong>: Run validation rules and checks (<code>/api/validation/*</code>)</li>
+                <li><strong>Export API</strong>: Programmatic access to export formats (<code>/api/export/*</code>)</li>
+                <li><strong>Word Sketch API</strong>: Corpus analysis and enrichment (<code>/api/word-sketch/*</code>)</li>
             </ul>
-            <p>To install a plugin, drop its folder into <code>instance/plugins/</code> and restart the server.</p>
 
-            <h3>Built-in Example: StarDict Exporter</h3>
-            <p>
-                A StarDict export plugin is included at <code>instance/plugins/stardict-exporter/</code>.
-                It produces <code>.tar.gz</code> archives containing <code>.ifo</code>, <code>.idx</code>, and
-                <code>.dict</code> files compatible with GoldenDict and other StarDict readers.
-                Access it at <code>POST /api/export/stardict</code>.
-            </p>
+            <h3><i class="fas fa-terminal"></i> Example: Python Export Script</h3>
+            <pre><code>#!/usr/bin/env python3
+"""Example external script to export entries in custom format."""
+import requests
+import json
 
-            <h3>Security &amp; Permissions</h3>
-            <p>
-                Plugins execute arbitrary Python code — <strong>only install plugins from trusted sources</strong>.
-                The plugin manager supports an allowlist to control which plugins load:
-            </p>
+# Configuration
+BASE_URL = "http://localhost:5000"
+API_KEY = "your-api-key"  # If authentication is enabled
+
+# Fetch all entries
+response = requests.get(f"{BASE_URL}/api/entries/")
+entries = response.json()["entries"]
+
+# Filter and transform
+for entry in entries:
+    # Custom processing logic
+    custom_format = {
+        "word": entry["lexical_unit"]["en"],
+        "definitions": [s["definition"] for s in entry.get("senses", [])]
+    }
+    # Write to file, database, or external service
+    print(json.dumps(custom_format))</code></pre>
+
+            <h3><i class="fas fa-shield-alt"></i> Security Benefits</h3>
             <ul class="feature-list">
-                <li>Create <code>instance/plugins/enabled.json</code> with a <code>"plugins"</code> array
-                    listing the names of allowed plugins</li>
-                <li>If the file exists, <strong>only</strong> listed plugins load</li>
-                <li>If the file is absent, all discovered plugins load (backward compatible)</li>
-                <li>The Flask process must have <strong>read access</strong> to <code>instance/plugins/</code>
-                    and <strong>write access</strong> to <code>instance/</code> (plugins may create files there)</li>
+                <li><strong>No Server Code Execution</strong>: Scripts run in your environment, not on the server</li>
+                <li><strong>Language Agnostic</strong>: Use Python, JavaScript, Ruby, curl, or any HTTP client</li>
+                <li><strong>Version Control Friendly</strong>: Scripts are plain files you can track in Git</li>
+                <li><strong>Sandboxed</strong>: API permissions control what external scripts can access</li>
             </ul>
-            <div class="example-box">
-                <strong>Example enabled.json:</strong><br>
-                <code>{"plugins": ["StarDict Exporter", "Kindle Dictionary Exporter"]}</code>
-            </div>
 
-            <h3>Writing a Plugin</h3>
-<pre><code># instance/plugins/my-exporter/manifest.json
-{
-    "name": "My Exporter",
-    "version": "1.0",
-    "description": "Custom format exporter",
-    "entrypoint": "plugin.py",
-    "type": "exporter"
-}
-
-# instance/plugins/my-exporter/plugin.py
-from flask import Blueprint
-my_bp = Blueprint('my_exporter', __name__, url_prefix='/api/export')
-
-def register(app):
-    @my_bp.route('/my-format', methods=['POST'])
-    def export_my_format():
-        from app.services.dictionary_service import DictionaryService
-        svc = app.injector.get(DictionaryService)
-        entries, _ = svc.list_entries()
-        # ... produce output ...
-        return send_file(buf, download_name='export.myfmt')
-    app.register_blueprint(my_bp)</code></pre>
+            <h3><i class="fas fa-book"></i> API Documentation</h3>
             <p>
-                The <code>register(app)</code> function receives the Flask application instance. Use
-                <code>app.injector.get(ServiceClass)</code> to access any service (DictionaryService,
-                RangesService, etc.).
+                Interactive API documentation is available via Swagger UI at <code>/apidocs/</code> when
+                running the application. This provides:
             </p>
+            <ul>
+                <li>Complete endpoint listings with request/response schemas</li>
+                <li>Interactive "Try it out" functionality for testing</li>
+                <li>Authentication requirements per endpoint</li>
+                <li>Example requests and responses</li>
+            </ul>
+
+            <h3><i class="fas fa-lightbulb"></i> Common Use Cases</h3>
+            <ul>
+                <li><strong>Custom Exporters</strong>: Write scripts to export to formats not built-in (e.g., PDF, InDesign, specialized XML)</li>
+                <li><strong>Data Migration</strong>: Move data between dictionary systems or legacy formats</li>
+                <li><strong>Batch Processing</strong>: Apply complex transformations that are too specific for the general UI</li>
+                <li><strong>Integration</strong>: Connect to external services (translation APIs, corpus tools, etc.)</li>
+                <li><strong>Reporting</strong>: Generate custom statistics and reports</li>
+                <li><strong>Automation</strong>: Scheduled backups, exports, or validation runs</li>
+            </ul>
 
             <h2 id="advanced-features">Advanced Features</h2>
 
@@ -657,54 +676,48 @@ def register(app):
 
             <h3><i class="fas fa-plug"></i> Custom Validation Functions</h3>
             <p>
-                Some validation scenarios require custom logic beyond standard checks. The system supports custom Python functions
-                for advanced validation needs.
+                The Validation Rules Editor includes a comprehensive library of pre-built custom validation functions
+                for complex validation scenarios. These functions handle specialized checks beyond basic type and pattern validation.
             </p>
 
-            <h4>Who Can Add Custom Functions?</h4>
-            <ul class="feature-list">
-                <li><strong>Administrators</strong>: Can add custom validation functions to the codebase</li>
-                <li><strong>Developers</strong>: Can extend the validation engine with new function types</li>
-                <li class="text-danger"><strong>End Users</strong>: Cannot directly add custom functions (requires code deployment)</li>
-            </ul>
-
-            <h4>How to Add Custom Functions</h4>
+            <h4>Using Custom Functions (No Code Required)</h4>
             <p>
-                Custom validation functions are implemented in Python by extending the validation engine:
+                When creating or editing a validation rule, select "Custom Function" as the validation type,
+                then choose from the dropdown of available functions:
             </p>
-            <ol>
-                <li>Create a new validation function in <code>app/services/validation_engine.py</code></li>
-                <li>Register the function in the validation engine's function registry</li>
-                <li>Restart the application to load the new function</li>
-                <li>Create rules using the new function type from the Rule Editor</li>
-            </ol>
+            <ul class="feature-list">
+                <li><strong>Content Validation</strong>: Validate Sense Content or Variant, Validate Note Content</li>
+                <li><strong>Structural Checks</strong>: Validate Subsense Depth, Validate Multilingual Note Structure</li>
+                <li><strong>Relationship Integrity</strong>: No Circular Component References, No Circular Sense/Entry Relations, Validate Relation Targets Exist</li>
+                <li><strong>Consistency Rules</strong>: POS Consistency, Conflicting POS, Synonym/Antonym Exclusion</li>
+                <li><strong>Data Quality</strong>: Validate Date Fields, Validate Language Code Format, Validate Unique Note Types</li>
+                <li><strong>Linguistic Validation</strong>: IPA Characters, No Double Stress/Length markers, Hunspell Spelling</li>
+            </ul>
 
             <div class="example-box">
-                <strong><i class="fas fa-code"></i> Example: Custom Function Implementation</strong>
-                <pre class="mb-0 mt-2"><code># In app/services/validation_engine.py
-def validate_custom_check(value: str, context: dict) -> tuple[bool, str]:
-    """
-    Custom validation function.
-    Returns (is_valid, error_message).
-    """
-    if not meets_custom_criteria(value):
-        return False, "Value does not meet custom criteria"
-    return True, ""</code></pre>
+                <strong><i class="fas fa-lightbulb"></i> Example: Using Custom Functions</strong>
+                <p class="mb-2">To validate that entry relations don't create circular references:</p>
+                <ol class="mb-0">
+                    <li>Create a new rule with category "relations_level"</li>
+                    <li>Set validation type to "Custom Function"</li>
+                    <li>Select "No Circular Entry Relations" from the dropdown</li>
+                    <li>Test the rule against sample entries before saving</li>
+                </ol>
             </div>
 
-            <h4>Available Custom Function Types</h4>
+            <h4>Adding New Custom Functions (Developers Only)</h4>
             <p>
-                Standard built-in functions include:
+                To add entirely new custom function types, Python code development is required:
             </p>
-            <ul>
-                <li><strong>Required</strong>: Field must have a non-empty value</li>
-                <li><strong>Regex</strong>: Value must match a regular expression pattern</li>
-                <li><strong>Length</strong>: String length constraints (min/max)</li>
-                <li><strong>In Range</strong>: Value must be one of allowed controlled vocabulary values</li>
-                <li><strong>IPA Format</strong>: Validates International Phonetic Alphabet notation</li>
-            </ul>
+            <ol>
+                <li>Implement the function in <code>app/services/validation_engine.py</code></li>
+                <li>Register it in the custom functions registry</li>
+                <li>Restart the application to load the new function</li>
+                <li>The function will appear in the dropdown for all users</li>
+            </ol>
             <p>
-                <em>Note: Custom functions require administrator access to the server/codebase to implement.</em>
+                <em>Note: Adding new function types requires server access and code deployment. 
+                End users can configure rules using all existing custom functions without writing code.</em>
             </p>
 
             <h3><i class="fas fa-users-cog"></i> Rule Management Best Practices</h3>
@@ -715,6 +728,217 @@ def validate_custom_check(value: str, context: dict) -> tuple[bool, str]:
                 <li><strong>Test before deployment</strong>: Use the Rule Editor's test feature to preview rule behavior</li>
                 <li><strong>Version control</strong>: Export rule sets when making significant changes for backup</li>
             </ul>
+
+            <h2 id="workbench">Workbench <span class="feature-badge badge-professional">Professional</span></h2>
+            <p>
+                The Workbench provides advanced tools for managing large-scale dictionary work through 
+                query-based workflows, worksets, and batch operations.
+            </p>
+
+            <h3 id="query-builder"><i class="fas fa-filter"></i> Query Builder</h3>
+            <p>
+                Build sophisticated queries to filter and select dictionary entries based on multiple criteria. 
+                The Query Builder supports complex conditions, cross-field references, and performance indicators 
+                to help you work efficiently with large datasets.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Filter Conditions</strong>: Multiple criteria across entry fields, senses, examples, relations, and etymology</li>
+                <li><strong>Operators</strong>: Basic string matching (equals, contains, starts/ends with), numerical comparisons, list operations, and fuzzy matching</li>
+                <li><strong>Cross-Entry Operations</strong>: Find similar headwords, duplicates, components, and phonetic matches</li>
+                <li><strong>Element References</strong>: Reference values from other filter conditions for complex logic</li>
+                <li><strong>Performance Indicators</strong>: Real-time feedback on query complexity (fast/medium/slow)</li>
+                <li><strong>Query Validation</strong>: Preview result counts and validate query syntax before execution</li>
+                <li><strong>Saved Queries</strong>: Store and reuse complex filter combinations</li>
+                <li><strong>Sorting</strong>: Order results by lexical unit, part of speech, creation date, or modification date</li>
+            </ul>
+            <p>
+                <strong>Access:</strong> <em>Workbench → New Workset</em> or <em>Workbench → Query Builder</em>
+            </p>
+
+            <div class="example-box">
+                <strong><i class="fas fa-lightbulb"></i> Example Queries</strong>
+                <ul class="mb-0 mt-2">
+                    <li><strong>Missing Definitions:</strong> Find entries where sense.definition is empty</li>
+                    <li><strong>No Pronunciation:</strong> Entries lacking IPA or pronunciation data</li>
+                    <li><strong>Similar Words:</strong> Find potential duplicates using fuzzy matching</li>
+                    <li><strong>Compound Candidates:</strong> Headwords that appear as components in other entries</li>
+                </ul>
+            </div>
+
+            <h3 id="worksets"><i class="fas fa-layer-group"></i> Worksets</h3>
+            <p>
+                Worksets are collections of entries created from query criteria. They enable focused work on 
+                specific subsets of your dictionary without affecting the entire dataset.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Dynamic Creation</strong>: Build worksets from Query Builder results</li>
+                <li><strong>Entry Management</strong>: View, curate, and manage subsets of entries</li>
+                <li><strong>Progress Tracking</strong>: Visual progress bars showing completion status</li>
+                <li><strong>Bulk Operations</strong>: Apply transformations to all entries in a workset</li>
+                <li><strong>Edit Query</strong>: Modify the underlying query criteria and refresh the workset</li>
+                <li><strong>Export Integration</strong>: Workset results can feed into export workflows</li>
+            </ul>
+            <p>
+                <strong>Access:</strong> <em>Workbench → Worksets</em>
+            </p>
+
+            <h3 id="curation"><i class="fas fa-check-double"></i> Entry Curation</h3>
+            <p>
+                The Curation interface provides an efficient, keyboard-driven workflow for reviewing and 
+                processing workset entries one at a time.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Sequential Navigation</strong>: Move through entries with arrow keys or navigation buttons</li>
+                <li><strong>Status Tracking</strong>: Mark entries as Pending, Done, or Needs Review</li>
+                <li><strong>Favorites</strong>: Flag important entries for quick access</li>
+                <li><strong>Progress Visualization</strong>: Real-time progress bars showing workset completion</li>
+                <li><strong>Keyboard Shortcuts</strong>:
+                    <ul>
+                        <li>← → : Navigate previous/next entry</li>
+                        <li>d : Mark as Done</li>
+                        <li>r : Mark for Review</li>
+                        <li>p : Mark as Pending</li>
+                        <li>f : Toggle Favorite</li>
+                        <li>Home/End : Jump to first/last entry</li>
+                    </ul>
+                </li>
+                <li><strong>Quick Edit</strong>: Direct links to open entries in the full editor</li>
+            </ul>
+            <p>
+                <strong>Access:</strong> Open any workset and click <em>Start Curation</em> or <em>Curate</em>
+            </p>
+
+            <h3 id="bulk-operations"><i class="fas fa-cogs"></i> Bulk Operations</h3>
+            <p>
+                Apply automated transformations to multiple entries simultaneously using a pipeline-based 
+                workflow. Ideal for standardizing data, filling missing fields, or performing corrections.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Condition Builder</strong>: Define which entries to process using query conditions</li>
+                <li><strong>Pipeline Editor</strong>: Create multi-step transformation pipelines</li>
+                <li><strong>Preview Mode</strong>: Test operations before applying changes</li>
+                <li><strong>Operation Types</strong>:
+                    <ul>
+                        <li><strong>Update Field</strong>: Modify existing field values</li>
+                        <li><strong>Delete Field</strong>: Remove fields entirely</li>
+                        <li><strong>Add Field</strong>: Insert new fields with default values</li>
+                    </ul>
+                </li>
+                <li><strong>Match Preview</strong>: See how many entries will be affected before execution</li>
+                <li><strong>Saved Pipelines</strong>: Store reusable transformation templates</li>
+                <li><strong>Keyboard Shortcuts</strong>: Ctrl+Enter to execute, Ctrl+S to save pipeline</li>
+            </ul>
+            <p>
+                <strong>Important:</strong> Always use preview mode first to verify your conditions match 
+                the intended entries. Bulk operations affect many entries at once and cannot be easily undone.
+            </p>
+            <p>
+                <strong>Access:</strong> <em>Workbench → Bulk Operations</em>
+            </p>
+
+            <h2 id="validation-tool"><i class="fas fa-clipboard-check"></i> Validation Tool <span class="feature-badge badge-professional">Professional</span></h2>
+            <p>
+                The Validation Tool provides comprehensive batch validation across your entire dictionary 
+                or selected projects. It offers detailed reports with filtering, export capabilities, and 
+                direct navigation to problematic entries.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Project Selection</strong>: Validate across all projects or focus on specific ones</li>
+                <li><strong>Rule-Based Validation</strong>: Apply custom validation rules to find data quality issues</li>
+                <li><strong>Severity Filtering</strong>: View errors by priority (Critical, Warning, Info)</li>
+                <li><strong>Detailed Reports</strong>: See which entries fail which rules with specific messages</li>
+                <li><strong>Drill-Down Navigation</strong>: Click any issue to open the entry for immediate editing</li>
+                <li><strong>Export Reports</strong>: Download validation results for quality assurance documentation</li>
+                <li><strong>Spell Checking</strong>: Integration with LanguageTool for linguistic validation</li>
+                <li><strong>XML Validation</strong>: Validate LIFT XML structure and compliance</li>
+            </ul>
+            <p>
+                The tool is especially useful for quality assurance workflows, publication preparation, 
+                and identifying systematic data issues across large dictionaries.
+            </p>
+            <p>
+                <strong>Access:</strong> <em>Tools → Validation</em> or <em>Tools → Batch Validation</em>
+            </p>
+
+            <h2 id="corpus-management"><i class="fas fa-database"></i> Corpus Management <span class="feature-badge badge-advanced">Advanced</span></h2>
+            <p>
+                Manage parallel text corpora for dictionary enrichment and cross-referencing. The corpus 
+                management system supports integration with Lucene-based text indexes for advanced 
+                concordance and collocation analysis.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Corpus Upload</strong>: Import parallel text files (source and target languages)</li>
+                <li><strong>Lucene Integration</strong>: Automatic indexing for fast text search</li>
+                <li><strong>Concordance Views</strong>: See words in context from corpus data</li>
+                <li><strong>Word Sketch Integration</strong>: Link corpus statistics to dictionary entries</li>
+                <li><strong>Statistics Dashboard</strong>: View corpus size, coverage, and search metrics</li>
+                <li><strong>Real-time Indexing</strong>: Background processing of uploaded texts</li>
+            </ul>
+            <p>
+                <strong>Use Cases:</strong>
+            </p>
+            <ul>
+                <li>Find example sentences from real texts to add to dictionary entries</li>
+                <li>Analyze word usage patterns and collocations</li>
+                <li>Identify missing vocabulary based on corpus frequency</li>
+                <li>Support lexicographic decision-making with data-driven insights</li>
+            </ul>
+            <p>
+                <strong>Access:</strong> <em>Corpus Management</em> from the main navigation menu
+            </p>
+
+            <h3><i class="fas fa-edit"></i> Corpus Search in Entry Editor</h3>
+            <p>
+                The corpus search is fully integrated into the entry editing workflow, allowing lexicographers 
+                to find real-world usage examples without leaving the editor:
+            </p>
+            <ul class="feature-list">
+                <li><strong>One-Click Search</strong>: Click the <i class="fas fa-search"></i> icon next to any example text field</li>
+                <li><strong>Auto-Prefilled Queries</strong>: Search automatically pre-fills with the entry's headword</li>
+                <li><strong>Instant Results</strong>: Parallel source/target text displayed in KWIC format</li>
+                <li><strong>Direct Insertion</strong>: Click "Insert as Example" to add corpus sentence directly to the form</li>
+                <li><strong>Clipboard Copy</strong>: Copy any result for manual editing or external use</li>
+                <li><strong>Real Examples</strong>: Find authentic usage contexts from your uploaded parallel corpus</li>
+            </ul>
+            <div class="example-box">
+                <strong><i class="fas fa-lightbulb"></i> Workflow Tip:</strong>
+                <p class="mb-0 mt-2">
+                    When writing a dictionary entry, click the search button next to the example field. 
+                    The system searches your uploaded corpus using the headword, shows matching sentences 
+                    with translations, and lets you insert the perfect example with one click—no copy-pasting 
+                    between windows needed.
+                </p>
+            </div>
+
+            <h2 id="activity-log"><i class="fas fa-history"></i> Activity Log <span class="feature-badge badge-essential">Essential</span></h2>
+            <p>
+                Track all changes and operations performed in the dictionary system. The activity log 
+                provides an audit trail for accountability, troubleshooting, and project management.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Entry Operations</strong>: Log of all entry creations, updates, deletions, merges, and splits</li>
+                <li><strong>Undo/Redo Tracking</strong>: Record of operations that have been undone or redone</li>
+                <li><strong>Timestamps</strong>: Exact date and time for every operation</li>
+                <li><strong>Change Details</strong>: Entry IDs and lexical units affected by each operation</li>
+                <li><strong>Filtering by Action</strong>: Filter operations by type (create, update, delete, merge, split, undo, redo)</li>
+                <li><strong>Text Search</strong>: Search by entry ID or lexical unit text</li>
+                <li><strong>Date Range Filtering</strong>: Filter operations within a specific date range</li>
+                <li><strong>Pagination</strong>: Browse through large operation histories with ease</li>
+                <li><strong>Dashboard Integration</strong>: Recent activity shown on the home dashboard</li>
+            </ul>
+            <p>
+                The activity log is particularly valuable for:
+            </p>
+            <ul>
+                <li><strong>Collaborative Work</strong>: Track contributions from multiple editors</li>
+                <li><strong>Quality Control</strong>: Review recent changes before publication</li>
+                <li><strong>Recovery</strong>: Identify when problematic changes were introduced</li>
+                <li><strong>Reporting</strong>: Document work progress for funding or management</li>
+                <li><strong>Troubleshooting</strong>: Find specific operations by searching entry IDs or headwords</li>
+            </ul>
+            <p>
+                <strong>Access:</strong> <em>Activity Log</em> from the main navigation menu
+            </p>
 
             <h2 id="workflow">Workflow Features</h2>
 

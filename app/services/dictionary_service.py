@@ -3344,6 +3344,135 @@ class DictionaryService:
 
         return []
 
+    def get_filtered_activities(
+        self, 
+        limit: int = 20, 
+        offset: int = 0,
+        action_filter: Optional[str] = None,
+        search_query: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None
+    ) -> tuple[List[Dict[str, Any]], int]:
+        """
+        Get filtered activity history with pagination.
+
+        Args:
+            limit: Maximum number of activities to return.
+            offset: Number of activities to skip.
+            action_filter: Filter by action type (e.g., 'create', 'update', 'delete').
+            search_query: Search in description or entry_id.
+            date_from: Filter activities after this date (ISO format).
+            date_to: Filter activities before this date (ISO format).
+
+        Returns:
+            Tuple of (activities list, total count).
+        """
+        if self.history_service:
+            history = self.history_service.get_operation_history()
+            
+            # Filter by database
+            current_db = self.db_connector.database
+            history = [op for op in history if op.get('db_name') == current_db]
+            
+            # Apply action filter
+            if action_filter:
+                history = [op for op in history if action_filter.lower() in op.get('type', '').lower()]
+            
+            # Apply search query (case-insensitive)
+            if search_query:
+                search_lower = search_query.lower()
+                filtered_history = []
+                for op in history:
+                    # Search in entry_id
+                    if search_lower in op.get('entry_id', '').lower():
+                        filtered_history.append(op)
+                        continue
+                    # Search in data (if it contains lexical unit or other text)
+                    data = op.get('data', {})
+                    if isinstance(data, str):
+                        try:
+                            data = json.loads(data)
+                        except:
+                            pass
+                    if isinstance(data, dict):
+                        # Check lexical_unit
+                        lu = data.get('lexical_unit', {})
+                        if isinstance(lu, dict):
+                            for value in lu.values():
+                                if search_lower in str(value).lower():
+                                    filtered_history.append(op)
+                                    break
+                history = filtered_history
+            
+            # Apply date filters
+            if date_from:
+                try:
+                    from datetime import datetime
+                    from_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+                    history = [op for op in history if op.get('timestamp') and 
+                              datetime.fromisoformat(op.get('timestamp').replace('Z', '+00:00')) >= from_date]
+                except ValueError:
+                    pass
+            
+            if date_to:
+                try:
+                    from datetime import datetime
+                    to_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+                    history = [op for op in history if op.get('timestamp') and 
+                              datetime.fromisoformat(op.get('timestamp').replace('Z', '+00:00')) <= to_date]
+                except ValueError:
+                    pass
+            
+            # Get total count before pagination
+            total_count = len(history)
+            
+            # Sort by timestamp, newest first
+            history.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            
+            # Apply pagination
+            paginated_history = history[offset:offset+limit] if limit > 0 else history[offset:]
+            
+            activities = []
+            
+            # Map operation type to UI action name
+            action_map = {
+                'create': 'Entry Created',
+                'update': 'Entry Updated',
+                'delete': 'Entry Deleted',
+                'merge': 'Entries Merged',
+                'split': 'Entry Split',
+                'undo': 'Operation Undone',
+                'redo': 'Operation Redone'
+            }
+            
+            for op in paginated_history:
+                # Try to get a nice description
+                description = f"Operation on entry {op.get('entry_id')}"
+                if op.get('type') in ('create', 'update'):
+                    data = op.get('data', {})
+                    if isinstance(data, str):
+                        try:
+                            data = json.loads(data)
+                        except:
+                            pass
+                    
+                    if isinstance(data, dict) and 'lexical_unit' in data:
+                        lu = data['lexical_unit']
+                        lu_str = list(lu.values())[0] if isinstance(lu, dict) and lu else str(lu)
+                        description = f"Entry \"{lu_str}\" ({op.get('entry_id')})"
+                
+                activities.append({
+                    "timestamp": op.get('timestamp'),
+                    "action": action_map.get(op.get('type'), op.get('type', 'Unknown').capitalize()),
+                    "description": description,
+                    "entry_id": op.get('entry_id'),
+                    "id": op.get('id')
+                })
+            
+            return activities, total_count
+
+        return [], 0
+
     def get_activity_count(self) -> int:
         """
         Get the total number of recorded activities.

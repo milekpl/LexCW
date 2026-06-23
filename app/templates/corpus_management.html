@@ -105,6 +105,111 @@
             </div>
         </div>
 
+        <!-- Corpus Search Section -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-search"></i> Corpus Search</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">
+                            Search parallel corpus data to find example sentences and translations.
+                            Results are shown in KWIC (Key Word In Context) format.
+                        </p>
+                        
+                        <form id="corpus-search-form" class="row g-3">
+                            <div class="col-md-8">
+                                <label for="corpus-query" class="form-label">Search Query</label>
+                                <div class="input-group">
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="corpus-query" 
+                                           name="q"
+                                           placeholder="Enter word or phrase to search..."
+                                           required>
+                                    <button class="btn btn-primary" type="submit">
+                                        <i class="fas fa-search"></i> Search
+                                    </button>
+                                </div>
+                                <small class="text-muted">
+                                    Search in source language (source/target parallel text will be displayed)
+                                </small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="results-limit" class="form-label">Results per Page</label>
+                                <select class="form-select" id="results-limit" name="limit">
+                                    <option value="50">50</option>
+                                    <option value="100" selected>100</option>
+                                    <option value="250">250</option>
+                                    <option value="500">500</option>
+                                </select>
+                            </div>
+                        </form>
+                        
+                        <!-- Search Results Container -->
+                        <div id="search-results-container" class="mt-4" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">
+                                    <span id="search-stats" class="text-muted">Found 0 results</span>
+                                </h6>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" id="export-results-btn" onclick="exportSearchResults()">
+                                        <i class="fas fa-download"></i> Export CSV
+                                    </button>
+                                    <button class="btn btn-outline-secondary" id="clear-results-btn" onclick="clearSearchResults()">
+                                        <i class="fas fa-times"></i> Clear
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Results Table -->
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover" id="corpus-results-table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 50px;">#</th>
+                                            <th>Source Text</th>
+                                            <th>Target Text</th>
+                                            <th style="width: 100px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="corpus-results-tbody">
+                                        <!-- Results populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Pagination -->
+                            <nav id="search-pagination" class="mt-3" style="display: none;" aria-label="Search results pagination">
+                                <ul class="pagination justify-content-center mb-0" id="pagination-list">
+                                    <!-- Pagination populated by JavaScript -->
+                                </ul>
+                            </nav>
+                        </div>
+                        
+                        <!-- Initial/Empty State -->
+                        <div id="search-empty-state" class="text-center py-5 text-muted">
+                            <i class="fas fa-search fa-3x mb-3"></i>
+                            <p>Enter a search query above to find corpus examples</p>
+                        </div>
+                        
+                        <!-- Loading State -->
+                        <div id="search-loading-state" class="text-center py-5" style="display: none;">
+                            <div class="spinner-border text-primary"></div>
+                            <p class="mt-2">Searching corpus...</p>
+                        </div>
+                        
+                        <!-- Error State -->
+                        <div id="search-error-state" class="alert alert-danger mt-3" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span id="search-error-message"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row">
             <!-- File Upload Section -->
             <div class="col-md-8">
@@ -723,9 +828,257 @@
             }
         }
 
-        // Load stats when page loads
+        // Corpus Search Functionality
+        let currentSearchQuery = '';
+        let currentSearchResults = [];
+        let currentPage = 1;
+        const RESULTS_PER_PAGE = 10;
+
+        // Initialize search form
         document.addEventListener('DOMContentLoaded', function() {
             refreshStats();
+            setupCorpusSearchForm();
         });
+
+        function setupCorpusSearchForm() {
+            const searchForm = document.getElementById('corpus-search-form');
+            if (searchForm) {
+                searchForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    performCorpusSearch(1);
+                });
+            }
+        }
+
+        async function performCorpusSearch(page = 1) {
+            const queryInput = document.getElementById('corpus-query');
+            const limitSelect = document.getElementById('results-limit');
+            
+            const query = queryInput.value.trim();
+            if (!query) {
+                showToast('Please enter a search query', 'error');
+                return;
+            }
+
+            currentSearchQuery = query;
+            currentPage = page;
+
+            // Show loading state
+            document.getElementById('search-empty-state').style.display = 'none';
+            document.getElementById('search-results-container').style.display = 'none';
+            document.getElementById('search-error-state').style.display = 'none';
+            document.getElementById('search-loading-state').style.display = 'block';
+
+            try {
+                const limit = limitSelect.value;
+                const response = await fetch(`/api/corpus/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+                const data = await response.json();
+
+                // Hide loading state
+                document.getElementById('search-loading-state').style.display = 'none';
+
+                if (data.success) {
+                    currentSearchResults = data.results || [];
+                    displaySearchResults();
+                    addRecentOperation(`Corpus search: "${query}" - ${data.total} results`);
+                } else {
+                    document.getElementById('search-error-state').style.display = 'block';
+                    document.getElementById('search-error-message').textContent = data.error || 'Search failed';
+                }
+            } catch (error) {
+                console.error('Corpus search error:', error);
+                document.getElementById('search-loading-state').style.display = 'none';
+                document.getElementById('search-error-state').style.display = 'block';
+                document.getElementById('search-error-message').textContent = 'Network error during search';
+            }
+        }
+
+        function displaySearchResults() {
+            const resultsContainer = document.getElementById('search-results-container');
+            const resultsTbody = document.getElementById('corpus-results-tbody');
+            const searchStats = document.getElementById('search-stats');
+            const pagination = document.getElementById('search-pagination');
+            const paginationList = document.getElementById('pagination-list');
+
+            if (currentSearchResults.length === 0) {
+                resultsTbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-muted">
+                            <i class="fas fa-search mb-2"></i><br>
+                            No results found for "${escapeHtml(currentSearchQuery)}"
+                        </td>
+                    </tr>
+                `;
+                searchStats.textContent = 'No results found';
+                pagination.style.display = 'none';
+            } else {
+                // Calculate pagination
+                const totalResults = currentSearchResults.length;
+                const totalPages = Math.ceil(totalResults / RESULTS_PER_PAGE);
+                const startIndex = (currentPage - 1) * RESULTS_PER_PAGE;
+                const endIndex = Math.min(startIndex + RESULTS_PER_PAGE, totalResults);
+                const pageResults = currentSearchResults.slice(startIndex, endIndex);
+
+                // Update stats
+                searchStats.textContent = `Showing ${startIndex + 1}-${endIndex} of ${totalResults} results for "${currentSearchQuery}"`;
+
+                // Render results
+                resultsTbody.innerHTML = pageResults.map((result, index) => `
+                    <tr>
+                        <td class="text-muted">${startIndex + index + 1}</td>
+                        <td>${escapeHtml(result.source || '')}</td>
+                        <td>${escapeHtml(result.target || '')}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="copyToClipboard('${escapeHtml(result.source || '').replace(/'/g, "\\'")}')"
+                                    title="Copy source text">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    onclick="copyToClipboard('${escapeHtml(result.target || '').replace(/'/g, "\\'")}')"
+                                    title="Copy target text">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Render pagination
+                if (totalPages > 1) {
+                    pagination.style.display = 'block';
+                    paginationList.innerHTML = renderPagination(totalPages, currentPage);
+                } else {
+                    pagination.style.display = 'none';
+                }
+            }
+
+            // Show results container
+            resultsContainer.style.display = 'block';
+        }
+
+        function renderPagination(totalPages, currentPage) {
+            let html = '';
+            
+            // Previous button
+            html += `
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="goToPage(${currentPage - 1}); return false;">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </a>
+                </li>
+            `;
+
+            // Page numbers
+            const maxVisible = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            
+            if (endPage - startPage < maxVisible - 1) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+
+            if (startPage > 1) {
+                html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1); return false;">1</a></li>`;
+                if (startPage > 2) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>
+                    </li>
+                `;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+                html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages}); return false;">${totalPages}</a></li>`;
+            }
+
+            // Next button
+            html += `
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="goToPage(${currentPage + 1}); return false;">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+            `;
+
+            return html;
+        }
+
+        function goToPage(page) {
+            if (page < 1 || page > Math.ceil(currentSearchResults.length / RESULTS_PER_PAGE)) {
+                return;
+            }
+            currentPage = page;
+            displaySearchResults();
+            // Scroll to top of results
+            document.getElementById('corpus-results-table').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function clearSearchResults() {
+            currentSearchResults = [];
+            currentSearchQuery = '';
+            currentPage = 1;
+            
+            document.getElementById('corpus-query').value = '';
+            document.getElementById('search-results-container').style.display = 'none';
+            document.getElementById('search-empty-state').style.display = 'block';
+            document.getElementById('search-error-state').style.display = 'none';
+        }
+
+        function exportSearchResults() {
+            if (currentSearchResults.length === 0) {
+                showToast('No results to export', 'error');
+                return;
+            }
+
+            const csvContent = [
+                ['Source', 'Target'],
+                ...currentSearchResults.map(r => [
+                    escapeCsv(r.source || ''),
+                    escapeCsv(r.target || '')
+                ])
+            ].map(row => row.join(',')).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `corpus_search_${currentSearchQuery.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            showToast(`Exported ${currentSearchResults.length} results to CSV`, 'success');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeCsv(text) {
+            if (!text) return '';
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            if (/[\",\n]/.test(text)) {
+                return '"' + text.replace(/"/g, '""') + '"';
+            }
+            return text;
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to clipboard', 'success');
+            }).catch(() => {
+                showToast('Failed to copy', 'error');
+            });
+        }
     </script>
 {% endblock %}

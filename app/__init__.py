@@ -159,6 +159,10 @@ def create_app(config_name=None):
 
     app.register_blueprint(pronunciation_bp)
 
+    from app.api.api_keys import api_keys_bp
+
+    app.register_blueprint(api_keys_bp)
+
     from app.api.illustration import illustration_bp
 
     app.register_blueprint(illustration_bp)

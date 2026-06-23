@@ -226,11 +226,11 @@ def get_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
     }
 })
 def update_workset_query(workset_id: int) -> tuple[Dict[str, Any], int]:
-    """Update workset query criteria."""
+    """Update workset query criteria and refresh entries."""
     try:
-        if request.content_type and 'application/json' in request.content_type:
-            return {'error': 'JSON input disabled; use XML or service-driven update'}, 415
         data = request.get_json(silent=True)
+        if not data:
+            return {'error': 'No query data provided'}, 400
 
         workset_service = WorksetService()
         updated_count = workset_service.update_workset_query(

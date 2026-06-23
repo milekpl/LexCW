@@ -277,6 +277,83 @@ class TestWorksetSelection:
         else:
             pytest.fail("Selected actions panel not visible after selection")
 
+    def test_refresh_button_exists_in_dropdown(self, page, app_url, created_workset):
+        """Test that the refresh button exists in the workset actions dropdown."""
+        if created_workset is None:
+            pytest.skip("Workset not created - PostgreSQL required")
+
+        page.goto(f"{app_url}/workbench/worksets")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000)
+
+        # Find the workset card - look for the dropdown toggle button
+        dropdown_toggles = page.locator(".dropdown-toggle")
+        if dropdown_toggles.count() == 0:
+            pytest.fail("No dropdown toggle buttons found - workset may not have been created")
+
+        # Click the first dropdown toggle to open the actions menu
+        dropdown_toggles.first.click()
+
+        # Verify refresh button exists in the dropdown
+        refresh_btn = page.locator(".refresh-workset-btn")
+        expect(refresh_btn).to_be_visible()
+        expect(refresh_btn).to_contain_text("Refresh")
+
+    def test_refresh_button_has_correct_icon(self, page, app_url, created_workset):
+        """Test that the refresh button has the correct icon class."""
+        if created_workset is None:
+            pytest.skip("Workset not created - PostgreSQL required")
+
+        page.goto(f"{app_url}/workbench/worksets")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000)
+
+        # Find and open the dropdown
+        dropdown_toggles = page.locator(".dropdown-toggle")
+        if dropdown_toggles.count() == 0:
+            pytest.fail("No dropdown toggle buttons found")
+
+        dropdown_toggles.first.click()
+
+        # Check for the refresh icon (bi-arrow-clockwise)
+        refresh_btn = page.locator(".refresh-workset-btn")
+        expect(refresh_btn.locator("i.bi-arrow-clockwise")).to_be_visible()
+
+    def test_refresh_button_opens_confirmation_dialog(self, page, app_url, created_workset):
+        """Test that clicking refresh button opens a confirmation dialog."""
+        if created_workset is None:
+            pytest.skip("Workset not created - PostgreSQL required")
+
+        page.goto(f"{app_url}/workbench/worksets")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000)
+
+        # Find and open the dropdown
+        dropdown_toggles = page.locator(".dropdown-toggle")
+        if dropdown_toggles.count() == 0:
+            pytest.fail("No dropdown toggle buttons found")
+
+        dropdown_toggles.first.click()
+
+        # Set up dialog handler to capture the confirmation
+        dialog_message = []
+        def handle_dialog(dialog):
+            dialog_message.append(dialog.message)
+            dialog.dismiss()
+
+        page.on("dialog", handle_dialog)
+
+        # Click the refresh button
+        refresh_btn = page.locator(".refresh-workset-btn")
+        refresh_btn.click()
+
+        # Wait for dialog to appear
+        page.wait_for_timeout(500)
+
+        # Verify dialog message
+        assert len(dialog_message) > 0, "No confirmation dialog appeared"
+        assert "refresh" in dialog_message[0].lower(), f"Dialog message doesn't mention refresh: {dialog_message[0]}"
+
 
 class TestWorksetCreation:
     """Test suite for workset creation via the Query Builder UI.
