@@ -1126,110 +1126,6 @@ def _export_dual_file_lift_ui(dict_service, base_filename):
         raise
 
 
-@main_bp.route("/export/kindle")
-def export_kindle():
-    """
-    Export the dictionary for Kindle.
-    """
-    try:
-        # Get dictionary service
-        dict_service = current_app.injector.get(DictionaryService)
-
-        # Create exports directory if it doesn't exist
-        exports_dir = os.path.join(current_app.instance_path, "exports")
-        os.makedirs(exports_dir, exist_ok=True)
-
-        # Generate directory name with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        dir_name = f"kindle_export_{timestamp}"
-
-        # Get Kindle export options from form or use defaults
-        title = request.args.get("title", "Dictionary")
-        source_lang = request.args.get("source_lang", "en")
-        target_lang = request.args.get("target_lang", "pl")
-        author = request.args.get("author", "Lexicographic Curation Workbench")
-
-        # Get kindlegen path from config if available
-        kindlegen_path = current_app.config.get("KINDLEGEN_PATH")
-
-        # Export to Kindle format
-        output_path = os.path.join(exports_dir, dir_name)
-        output_dir = dict_service.export_to_kindle(
-            output_path,
-            title=title,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            author=author,
-            kindlegen_path=kindlegen_path,
-        )
-
-        # Check if MOBI file was created
-        mobi_path = os.path.join(output_dir, "dictionary.mobi")
-        mobi_created = os.path.exists(mobi_path)
-
-        flash(f"Dictionary exported to Kindle format in {dir_name}", "success")
-
-        # Return the download page for the exported files
-        return render_template(
-            "export_download.html",
-            export_type="kindle",
-            directory=dir_name,
-            files={
-                "opf": "dictionary.opf",
-                "html": "dictionary.html",
-                "mobi": "dictionary.mobi" if mobi_created else None,
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"Error exporting to Kindle format: {e}")
-        flash(f"Error exporting to Kindle format: {str(e)}", "danger")
-        return redirect(url_for("main.export_options"))
-
-
-@main_bp.route("/export/sqlite")
-def export_sqlite():
-    """
-    Export the dictionary to SQLite for mobile apps.
-    """
-    try:
-        # Get dictionary service
-        dict_service = current_app.injector.get(DictionaryService)
-
-        # Create exports directory if it doesn't exist
-        exports_dir = os.path.join(current_app.instance_path, "exports")
-        os.makedirs(exports_dir, exist_ok=True)
-
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"dictionary_export_{timestamp}.db"
-
-        # Get SQLite export options from form or use defaults
-        source_lang = request.args.get("source_lang", "en")
-        target_lang = request.args.get("target_lang", "pl")
-
-        # Export to SQLite
-        output_path = os.path.join(exports_dir, filename)
-        dict_service.export_to_sqlite(
-            output_path,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            batch_size=500,
-        )
-
-        flash(f"Dictionary exported to SQLite format as {filename}", "success")
-
-        # Return the download page for the exported file
-        return render_template(
-            "export_download.html", export_type="sqlite", files={"sqlite": filename}
-        )
-
-    except Exception as e:
-        logger.error(f"Error exporting to SQLite format: {e}")
-        flash(f"Error exporting to SQLite format: {str(e)}", "danger")
-        return redirect(url_for("main.export_options"))
-
-
 @main_bp.route("/export/html")
 def export_html():
     """
@@ -1289,7 +1185,14 @@ def export_options():
     """
     Show export options.
     """
-    return render_template("export_options.html")
+    plugins = []
+    try:
+        pm = getattr(current_app, "plugin_manager", None)
+        if pm:
+            plugins = pm.get_exporters()
+    except Exception:
+        pass
+    return render_template("export_options.html", plugins=plugins)
 
 
 @main_bp.route("/export/download/<path:filename>")

@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 
 from app.models.workset_models import db
 
-# Association table for project members (many-to-many, TODO: implement User model)
+# Association table for project members (many-to-many)
 project_members = Table(
     "project_members",
     db.metadata,
@@ -50,7 +50,14 @@ class ProjectSettings(db.Model):
     ai_api_base = Column(String(500), nullable=True, default="https://api.openai.com/v1")
     ai_model = Column(String(100), nullable=True, default="gpt-4o")
 
-    # TODO: Implement User model and relationships
+    # Email / SMTP settings
+    smtp_host = Column(String(255), nullable=True)
+    smtp_port = Column(Integer, nullable=True, default=587)
+    smtp_username = Column(String(255), nullable=True)
+    smtp_password = Column(String(255), nullable=True)
+    smtp_use_tls = Column(db.Boolean, nullable=True, default=True)
+    smtp_sender_email = Column(String(255), nullable=True)
+
     owner_id: Optional[int] = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -93,6 +100,7 @@ class User(db.Model):
     preferences: dict = Column(JSON, nullable=True, default=dict)
     reset_token: Optional[str] = Column(String(255), nullable=True)
     reset_token_expires: Optional[datetime] = Column(DateTime, nullable=True)
+    reset_token_used: bool = Column(db.Boolean, default=False, nullable=False)
 
     # Flask-Login integration
     @property

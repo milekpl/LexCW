@@ -109,6 +109,43 @@
 
                 <fieldset class="mb-4">
                     <legend class="h6">
+                        Email / SMTP Settings
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Configure outgoing email for password resets and notifications. Leave empty to disable email sending."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.smtp_host, class="form-control", placeholder="smtp.gmail.com") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ render_field(form.smtp_port, class="form-control", placeholder="587") }}
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                {{ form.smtp_use_tls(class="form-check-input") }}
+                                {{ form.smtp_use_tls.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            {{ render_field(form.smtp_username, class="form-control", placeholder="user@gmail.com") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.smtp_password, class="form-control", placeholder="App-specific password", type="password") }}
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            {{ render_field(form.smtp_sender_email, class="form-control", placeholder="noreply@dictionary.org") }}
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
                         AI / LLM Settings
                         <i class="fas fa-info-circle text-muted ms-1"
                            data-bs-toggle="tooltip"

@@ -45,6 +45,10 @@ class Config:
     # Lucene Corpus Service configuration
     LUCENE_CORPUS_URL = os.environ.get('LUCENE_CORPUS_URL') or 'http://localhost:8082'
     
+    # Application base URL for generating password reset links
+    # In production, set this to your public domain (e.g., 'https://example.com')
+    BASE_URL = os.environ.get('BASE_URL') or 'http://localhost:5000'
+    
     @staticmethod
     def init_app(app):
         """Initialize application with this configuration."""

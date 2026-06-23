@@ -97,6 +97,39 @@ class SettingsForm(FlaskForm):
         description='Include uploaded media files in backups when enabled'
     )
 
+    # Email / SMTP settings
+    smtp_host = StringField(
+        'SMTP Host',
+        validators=[Optional(), Length(max=255)],
+        description='SMTP server hostname (e.g., smtp.gmail.com)'
+    )
+    smtp_port = IntegerField(
+        'SMTP Port',
+        validators=[Optional(), NumberRange(min=1, max=65535)],
+        default=587,
+        description='SMTP server port (587 for TLS, 465 for SSL)'
+    )
+    smtp_username = StringField(
+        'SMTP Username',
+        validators=[Optional(), Length(max=255)],
+        description='SMTP authentication username'
+    )
+    smtp_password = StringField(
+        'SMTP Password',
+        validators=[Optional(), Length(max=255)],
+        description='SMTP authentication password or app-specific password'
+    )
+    smtp_use_tls = BooleanField(
+        'Use TLS',
+        default=True,
+        description='Use STARTTLS for secure connection'
+    )
+    smtp_sender_email = StringField(
+        'Sender Email',
+        validators=[Optional(), Length(max=255)],
+        description='Email address shown as the sender (From:)'
+    )
+
     # AI / LLM settings (BYOK)
     openai_api_key = StringField(
         'API Key',
@@ -189,6 +222,12 @@ class SettingsForm(FlaskForm):
                     self.openai_api_key.data = getattr(ps, 'openai_api_key', '') or ''
                     self.ai_api_base.data = getattr(ps, 'ai_api_base', 'https://api.openai.com/v1') or 'https://api.openai.com/v1'
                     self.ai_model.data = getattr(ps, 'ai_model', 'gpt-4o') or 'gpt-4o'
+                    self.smtp_host.data = getattr(ps, 'smtp_host', '') or ''
+                    self.smtp_port.data = getattr(ps, 'smtp_port', 587) or 587
+                    self.smtp_username.data = getattr(ps, 'smtp_username', '') or ''
+                    self.smtp_password.data = getattr(ps, 'smtp_password', '') or ''
+                    self.smtp_use_tls.data = getattr(ps, 'smtp_use_tls', True)
+                    self.smtp_sender_email.data = getattr(ps, 'smtp_sender_email', '') or ''
             except Exception:
                 pass
         
@@ -224,6 +263,14 @@ class SettingsForm(FlaskForm):
             self.openai_api_key.data = config.get('openai_api_key', '') or ''
             self.ai_api_base.data = config.get('ai_api_base', 'https://api.openai.com/v1') or 'https://api.openai.com/v1'
             self.ai_model.data = config.get('ai_model', 'gpt-4o') or 'gpt-4o'
+
+            # Populate SMTP settings
+            self.smtp_host.data = config.get('smtp_host', '') or ''
+            self.smtp_port.data = config.get('smtp_port', 587) or 587
+            self.smtp_username.data = config.get('smtp_username', '') or ''
+            self.smtp_password.data = config.get('smtp_password', '') or ''
+            self.smtp_use_tls.data = config.get('smtp_use_tls', True)
+            self.smtp_sender_email.data = config.get('smtp_sender_email', '') or ''
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -280,6 +327,12 @@ class SettingsForm(FlaskForm):
             'openai_api_key': self.openai_api_key.data or '',
             'ai_api_base': self.ai_api_base.data or 'https://api.openai.com/v1',
             'ai_model': self.ai_model.data or 'gpt-4o',
+            'smtp_host': self.smtp_host.data or '',
+            'smtp_port': self.smtp_port.data or 587,
+            'smtp_username': self.smtp_username.data or '',
+            'smtp_password': self.smtp_password.data or '',
+            'smtp_use_tls': bool(self.smtp_use_tls.data),
+            'smtp_sender_email': self.smtp_sender_email.data or '',
         }
         
     def get_language_statistics(self) -> Dict[str, Any]:

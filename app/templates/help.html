@@ -112,6 +112,7 @@
                     <a class="nav-link" href="#annotations">Annotations</a>
                 </nav>
                 <a class="nav-link" href="#custom-fields">Custom Fields</a>
+                <a class="nav-link" href="#plugins">Export Plugins</a>
                 <a class="nav-link" href="#ranges-editor">Ranges Editor</a>
                 <a class="nav-link" href="#validation-rules">Validation Rules</a>
                 <a class="nav-link" href="#workflow">Workflow Features</a>
@@ -297,6 +298,72 @@ TTS: [Generate Audio]</code></pre>
                 <strong>Tip:</strong> Batch proofreading is available at <code>POST /api/ai/batch-proofread</code>.
                 All AI features work in both interactive (entry editor) and batch (API) modes.
             </div>
+
+            <h2 id="plugins">Export Plugins</h2>
+            <p>
+                The workbench supports a plugin system for custom exporters. Plugins are self-contained
+                Python modules placed in the <code>instance/plugins/</code> directory. Each plugin has:
+            </p>
+            <ul class="feature-list">
+                <li><strong>manifest.json</strong>: Plugin metadata (name, version, type, entrypoint)</li>
+                <li><strong>plugin.py</strong>: A <code>register(app)</code> function that adds routes or services</li>
+            </ul>
+            <p>To install a plugin, drop its folder into <code>instance/plugins/</code> and restart the server.</p>
+
+            <h3>Built-in Example: StarDict Exporter</h3>
+            <p>
+                A StarDict export plugin is included at <code>instance/plugins/stardict-exporter/</code>.
+                It produces <code>.tar.gz</code> archives containing <code>.ifo</code>, <code>.idx</code>, and
+                <code>.dict</code> files compatible with GoldenDict and other StarDict readers.
+                Access it at <code>POST /api/export/stardict</code>.
+            </p>
+
+            <h3>Security &amp; Permissions</h3>
+            <p>
+                Plugins execute arbitrary Python code — <strong>only install plugins from trusted sources</strong>.
+                The plugin manager supports an allowlist to control which plugins load:
+            </p>
+            <ul class="feature-list">
+                <li>Create <code>instance/plugins/enabled.json</code> with a <code>"plugins"</code> array
+                    listing the names of allowed plugins</li>
+                <li>If the file exists, <strong>only</strong> listed plugins load</li>
+                <li>If the file is absent, all discovered plugins load (backward compatible)</li>
+                <li>The Flask process must have <strong>read access</strong> to <code>instance/plugins/</code>
+                    and <strong>write access</strong> to <code>instance/</code> (plugins may create files there)</li>
+            </ul>
+            <div class="example-box">
+                <strong>Example enabled.json:</strong><br>
+                <code>{"plugins": ["StarDict Exporter", "Kindle Dictionary Exporter"]}</code>
+            </div>
+
+            <h3>Writing a Plugin</h3>
+<pre><code># instance/plugins/my-exporter/manifest.json
+{
+    "name": "My Exporter",
+    "version": "1.0",
+    "description": "Custom format exporter",
+    "entrypoint": "plugin.py",
+    "type": "exporter"
+}
+
+# instance/plugins/my-exporter/plugin.py
+from flask import Blueprint
+my_bp = Blueprint('my_exporter', __name__, url_prefix='/api/export')
+
+def register(app):
+    @my_bp.route('/my-format', methods=['POST'])
+    def export_my_format():
+        from app.services.dictionary_service import DictionaryService
+        svc = app.injector.get(DictionaryService)
+        entries, _ = svc.list_entries()
+        # ... produce output ...
+        return send_file(buf, download_name='export.myfmt')
+    app.register_blueprint(my_bp)</code></pre>
+            <p>
+                The <code>register(app)</code> function receives the Flask application instance. Use
+                <code>app.injector.get(ServiceClass)</code> to access any service (DictionaryService,
+                RangesService, etc.).
+            </p>
 
             <h2 id="advanced-features">Advanced Features</h2>
 

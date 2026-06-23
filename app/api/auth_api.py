@@ -262,6 +262,56 @@ def reset_password():
     return jsonify({"message": "If the email exists, a reset link has been sent"}), 200
 
 
+@auth_api_bp.route("/reset-password/complete", methods=["POST"])
+def complete_password_reset():
+    """
+    Complete password reset using token from email link.
+    ---
+    tags:
+      - Authentication
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - token
+            - new_password
+          properties:
+            token:
+              type: string
+              description: Reset token from the email link
+              example: abc123...
+            new_password:
+              type: string
+              description: New password to set
+              example: NewSecurePass123
+    responses:
+      200:
+        description: Password reset successfully
+      400:
+        description: Invalid token or password validation error
+    """
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    token = data.get("token")
+    new_password = data.get("new_password")
+
+    if not token or not new_password:
+        return jsonify({"error": "Token and new password are required"}), 400
+
+    success, error = AuthenticationService.complete_password_reset(token, new_password)
+
+    if not success:
+        return jsonify({"error": error}), 400
+
+    return jsonify({"message": "Password has been reset successfully"}), 200
+
+
 @auth_api_bp.route("/check", methods=["GET"])
 def check_auth():
     """

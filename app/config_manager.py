@@ -123,6 +123,19 @@ class ConfigManager:
             settings.ai_model = new_values.pop('ai_model') or 'gpt-4o'
             logger.debug('Updated ai_model to: %s', settings.ai_model)
 
+        if 'smtp_host' in new_values:
+            settings.smtp_host = new_values.pop('smtp_host') or None
+        if 'smtp_port' in new_values:
+            settings.smtp_port = new_values.pop('smtp_port') or 587
+        if 'smtp_username' in new_values:
+            settings.smtp_username = new_values.pop('smtp_username') or None
+        if 'smtp_password' in new_values:
+            settings.smtp_password = new_values.pop('smtp_password') or None
+        if 'smtp_use_tls' in new_values:
+            settings.smtp_use_tls = new_values.pop('smtp_use_tls')
+        if 'smtp_sender_email' in new_values:
+            settings.smtp_sender_email = new_values.pop('smtp_sender_email') or None
+
         if 'backup_settings' in new_values:
             new_backup = new_values.pop('backup_settings')
             logger.info('Updating backup_settings with: %s (Type: %s)', new_backup, type(new_backup))

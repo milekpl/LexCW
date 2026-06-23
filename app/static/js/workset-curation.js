@@ -106,6 +106,7 @@ class WorksetCuration {
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a class="dropdown-item curate-btn" href="/workbench/worksets/${ws.id}/curate"><i class="bi bi-pencil"></i> Curate</a></li>
                                     <li><a class="dropdown-item view-entries-btn" href="#" data-workset-id="${ws.id}"><i class="bi bi-list"></i> View Entries</a></li>
+                                    <li><a class="dropdown-item edit-query-btn" href="#" data-workset-id="${ws.id}"><i class="bi bi-sliders"></i> Edit Query</a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><a class="dropdown-item text-danger delete-workset-btn" href="#" data-workset-id="${ws.id}"><i class="bi bi-trash"></i> Delete</a></li>
                                 </ul>
@@ -146,6 +147,14 @@ class WorksetCuration {
                 e.preventDefault();
                 const wsId = e.currentTarget.dataset.worksetId;
                 this.showWorksetEntries(wsId);
+            });
+        });
+
+        container.querySelectorAll('.edit-query-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const wsId = e.currentTarget.dataset.worksetId;
+                await this.editWorksetQuery(wsId);
             });
         });
     }
@@ -247,6 +256,24 @@ class WorksetCuration {
         } catch (error) {
             console.error('[WorksetCuration] Error deleting workset:', error);
             alert('Error deleting workset');
+        }
+    }
+
+    async editWorksetQuery(worksetId) {
+        try {
+            const response = await fetch(`/api/worksets/${worksetId}`);
+            const data = await response.json();
+            if (!data.success || !data.workset) {
+                console.error('Failed to load workset query');
+                window.location.href = '/workbench/query-builder';
+                return;
+            }
+            const query = data.workset.query || {};
+            sessionStorage.setItem('edit-workset-query', JSON.stringify({ worksetId, query }));
+            window.location.href = '/workbench/query-builder?edit=' + worksetId;
+        } catch (e) {
+            console.error('Failed to load workset query', e);
+            window.location.href = '/workbench/query-builder';
         }
     }
 

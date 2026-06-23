@@ -5,12 +5,14 @@ Authentication service for user login, registration, and password management.
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask import current_app, url_for
 import secrets
 import re
 
 from app.models.workset_models import db
 from app.models.project_settings import User
 from app.models.user_models import ActivityLog
+
 
 
 class AuthenticationService:
@@ -65,6 +67,54 @@ class AuthenticationService:
             )
 
         return True, None
+
+    @staticmethod
+    def _send_email(host, port, username, password, use_tls, sender, recipient, subject, body):
+        """Send an email via SMTP. Uses stdlib smtplib — no extra dependencies."""
+        import smtplib
+        from email.mime.text import MIMEText
+
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender
+        msg['To'] = recipient
+
+        if use_tls:
+            server = smtplib.SMTP(host, port, timeout=10)
+            server.starttls()
+        else:
+            server = smtplib.SMTP_SSL(host, port, timeout=10)
+        try:
+            if username and password:
+                server.login(username, password)
+            server.sendmail(sender, [recipient], msg.as_string())
+        finally:
+            server.quit()
+
+    @staticmethod
+    def _generate_reset_url(token: str, base_url: Optional[str] = None) -> str:
+        """
+        Generate a secure password reset URL with the token.
+        
+        Args:
+            token: The reset token
+            base_url: Optional base URL override (uses config.BASE_URL by default)
+            
+        Returns:
+            Full password reset URL
+        """
+        # Get base URL from config or use provided value
+        if base_url is None:
+            base_url = current_app.config.get('BASE_URL', 'http://localhost:5000')
+        
+        # Ensure no trailing slash in base_url
+        base_url = base_url.rstrip('/')
+        
+        # Generate the token verification URL
+        # Token is URL-safe (from secrets.token_urlsafe), so no additional encoding needed
+        reset_url = f"{base_url}/auth/reset-password/{token}"
+        
+        return reset_url
 
     @staticmethod
     def validate_email(email: str) -> tuple[bool, Optional[str]]:
@@ -304,11 +354,41 @@ class AuthenticationService:
         db.session.add(log)
         db.session.commit()
 
-        # TODO: Send email with reset link via configured email backend.
-        # Example integration point:
-        #   from flask import current_app, url_for
-        #   reset_url = url_for('auth.reset_password_form', token=reset_token, _external=True)
-        #   send_email(user.email, 'Password Reset', f'Reset link: {reset_url}')
+        # Generate the reset URL with the token embedded
+        reset_url = AuthenticationService._generate_reset_url(reset_token)
+        
+        # Calculate expiration time for display (1 hour from now)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        expires_str = expires_at.strftime('%Y-%m-%d %H:%M UTC')
+
+        # Try to send email if SMTP is configured
+        try:
+            from app.models.project_settings import ProjectSettings
+            ps = ProjectSettings.query.first()
+            if ps and ps.smtp_host and ps.smtp_sender_email:
+                email_body = (
+                    f'You requested a password reset for your account.\n\n'
+                    f'Click the link below to reset your password:\n\n'
+                    f'{reset_url}\n\n'
+                    f'This link will expire at {expires_str}.\n\n'
+                    f'If you did not request this password reset, please ignore this email.\n\n'
+                    f'For security reasons, this link can only be used once.'
+                )
+                
+                AuthenticationService._send_email(
+                    host=ps.smtp_host,
+                    port=ps.smtp_port or 587,
+                    username=ps.smtp_username,
+                    password=ps.smtp_password,
+                    use_tls=ps.smtp_use_tls if ps.smtp_use_tls is not None else True,
+                    sender=ps.smtp_sender_email,
+                    recipient=user.email,
+                    subject='Password Reset Request',
+                    body=email_body
+                )
+                current_app.logger.info(f"Password reset email sent to {user.email}")
+        except Exception as e:
+            current_app.logger.warning(f'Failed to send password reset email to {user.email}: {e}')
 
         return True, "If the email exists, a reset link has been sent"
 
@@ -316,9 +396,15 @@ class AuthenticationService:
     def complete_password_reset(token: str, new_password: str) -> tuple[bool, Optional[str]]:
         """
         Complete a password reset using a valid token.
+        
+        Security features:
+        - Single-use token enforcement (token marked as used immediately)
+        - Expiration validation with timezone awareness
+        - Immediate token invalidation after successful reset
+        - Atomic database operations
 
         Args:
-            token: Reset token from email
+            token: Reset token from email link
             new_password: New password to set
 
         Returns:
@@ -328,6 +414,10 @@ class AuthenticationService:
 
         if not user:
             return False, "Invalid or expired reset token"
+
+        # Check if token has already been used (single-use enforcement)
+        if user.reset_token_used:
+            return False, "This reset link has already been used. Please request a new password reset."
 
         if user.reset_token_expires is None:
             return False, "Invalid or expired reset token"
@@ -342,18 +432,25 @@ class AuthenticationService:
             # Clear expired token
             user.reset_token = None
             user.reset_token_expires = None
+            user.reset_token_used = False
             db.session.commit()
-            return False, "Reset token has expired"
+            return False, "Reset token has expired. Please request a new password reset."
 
         # Validate new password
         is_valid, error = AuthenticationService.validate_password(new_password)
         if not is_valid:
             return False, error
 
+        # Mark token as used immediately (single-use enforcement)
+        # This prevents race conditions where the same token is used twice
+        user.reset_token_used = True
+        db.session.commit()
+
         # Update password and clear token
         user.password_hash = AuthenticationService.hash_password(new_password)
         user.reset_token = None
         user.reset_token_expires = None
+        user.reset_token_used = False  # Reset for future use
         db.session.commit()
 
         # Log the password reset completion

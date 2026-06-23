@@ -217,14 +217,78 @@ def change_password():
             return render_template("auth/change_password.html")
 
         # Change password
-        result = AuthenticationService.change_password(
-            user_id=user.id, old_password=current_password, new_password=new_password
+        success, error = AuthenticationService.change_password(
+            user, current_password, new_password
         )
 
-        if result["success"]:
+        if success:
             flash("Password changed successfully.", "success")
             return redirect(url_for("auth.profile"))
         else:
-            flash(result["message"], "error")
+            flash(error or "Password change failed", "error")
 
     return render_template("auth/change_password.html")
+
+
+@auth_bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    """Display forgot password form and handle submission."""
+    # Redirect if already logged in
+    if get_current_user():
+        return redirect(url_for("main.index"))
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+
+        if not email:
+            flash("Please provide your email address.", "error")
+            return render_template("auth/forgot_password.html")
+
+        # Initiate password reset
+        AuthenticationService.reset_password(email)
+
+        # Always show success to prevent email enumeration
+        flash(
+            "If an account with that email exists, you will receive a password reset link shortly.",
+            "success",
+        )
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/forgot_password.html")
+
+
+@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password_with_token(token):
+    """
+    Display password reset form and handle submission.
+    This is the endpoint that users click through from the email link.
+    """
+    # Redirect if already logged in
+    if get_current_user():
+        return redirect(url_for("main.index"))
+
+    if request.method == "POST":
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        # Validate passwords match
+        if new_password != confirm_password:
+            flash("Passwords do not match.", "error")
+            return render_template("auth/reset_password.html", token=token)
+
+        # Complete the password reset
+        success, error = AuthenticationService.complete_password_reset(token, new_password)
+
+        if success:
+            flash(
+                "Your password has been reset successfully. Please log in with your new password.",
+                "success",
+            )
+            return redirect(url_for("auth.login"))
+        else:
+            flash(error, "error")
+            return render_template("auth/reset_password.html", token=token)
+
+    # GET request - show the reset form
+    # Validate token exists (don't reveal if it's valid yet)
+    return render_template("auth/reset_password.html", token=token)
