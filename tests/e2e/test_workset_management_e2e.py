@@ -287,7 +287,7 @@ class TestWorksetSelection:
         page.wait_for_timeout(2000)
 
         # Find the workset card - look for the dropdown toggle button
-        dropdown_toggles = page.locator(".dropdown-toggle")
+        dropdown_toggles = page.locator("#workset-list .dropdown-toggle")
         if dropdown_toggles.count() == 0:
             pytest.fail("No dropdown toggle buttons found - workset may not have been created")
 
@@ -295,7 +295,7 @@ class TestWorksetSelection:
         dropdown_toggles.first.click()
 
         # Verify refresh button exists in the dropdown
-        refresh_btn = page.locator(".refresh-workset-btn")
+        refresh_btn = page.locator(".refresh-workset-btn").first
         expect(refresh_btn).to_be_visible()
         expect(refresh_btn).to_contain_text("Refresh")
 
@@ -309,14 +309,14 @@ class TestWorksetSelection:
         page.wait_for_timeout(2000)
 
         # Find and open the dropdown
-        dropdown_toggles = page.locator(".dropdown-toggle")
+        dropdown_toggles = page.locator("#workset-list .dropdown-toggle")
         if dropdown_toggles.count() == 0:
             pytest.fail("No dropdown toggle buttons found")
 
         dropdown_toggles.first.click()
 
         # Check for the refresh icon (bi-arrow-clockwise)
-        refresh_btn = page.locator(".refresh-workset-btn")
+        refresh_btn = page.locator(".refresh-workset-btn").first
         expect(refresh_btn.locator("i.bi-arrow-clockwise")).to_be_visible()
 
     def test_refresh_button_opens_confirmation_dialog(self, page, app_url, created_workset):
@@ -329,7 +329,7 @@ class TestWorksetSelection:
         page.wait_for_timeout(2000)
 
         # Find and open the dropdown
-        dropdown_toggles = page.locator(".dropdown-toggle")
+        dropdown_toggles = page.locator("#workset-list .dropdown-toggle")
         if dropdown_toggles.count() == 0:
             pytest.fail("No dropdown toggle buttons found")
 
@@ -344,7 +344,7 @@ class TestWorksetSelection:
         page.on("dialog", handle_dialog)
 
         # Click the refresh button
-        refresh_btn = page.locator(".refresh-workset-btn")
+        refresh_btn = page.locator(".refresh-workset-btn").first
         refresh_btn.click()
 
         # Wait for dialog to appear

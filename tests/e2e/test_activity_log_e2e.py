@@ -45,7 +45,7 @@ class TestActivityLogPage:
         expect(page.locator("input[name='search']")).to_be_visible()
         expect(page.locator("input[name='date_from']")).to_be_visible()
         expect(page.locator("input[name='date_to']")).to_be_visible()
-        expect(page.locator("button[type='submit']")).to_be_visible()
+        expect(page.locator("form[action*='activity-log'] button[type='submit']")).to_be_visible()
 
     def test_action_type_filter_options(self, page, app_url):
         """Test that action type filter has all expected options."""
@@ -79,7 +79,7 @@ class TestActivityLogPage:
         page.select_option("select[name='action']", "create")
         
         # Submit the form
-        page.click("button[type='submit']")
+        page.click("form[action*='activity-log'] button[type='submit']")
         
         # Wait for page reload with filter
         page.wait_for_load_state("networkidle")
@@ -97,7 +97,7 @@ class TestActivityLogPage:
         search_input.fill("test_entry")
         
         # Submit the form
-        page.click("button[type='submit']")
+        page.click("form[action*='activity-log'] button[type='submit']")
         
         # Wait for page reload
         page.wait_for_load_state("networkidle")
@@ -118,7 +118,7 @@ class TestActivityLogPage:
         to_date.fill("2024-12-31")
         
         # Submit the form
-        page.click("button[type='submit']")
+        page.click("form[action*='activity-log'] button[type='submit']")
         
         # Wait for page reload
         page.wait_for_load_state("networkidle")
@@ -175,7 +175,7 @@ class TestActivityLogPage:
         
         # At minimum, the table headers should be visible
         expect(page.locator("th:has-text('Timestamp')")).to_be_visible()
-        expect(page.locator("th:has-text('Action')")).to_be_visible()
+        expect(page.locator("table.table th:text-is('Action')")).to_be_visible()
         expect(page.locator("th:has-text('Description')")).to_be_visible()
         expect(page.locator("th:has-text('Entry ID')")).to_be_visible()
 
@@ -184,7 +184,7 @@ class TestActivityLogPage:
         page.goto(f"{app_url}/activity-log")
         page.wait_for_load_state("networkidle")
 
-        form = page.locator("form[method='GET']")
+        form = page.locator("form[action*='activity-log']")
         expect(form).to_be_visible()
 
     def test_back_to_dashboard_link(self, page, app_url):
@@ -229,7 +229,7 @@ class TestActivityLogWithMockData:
                 lexical_input.fill("test_activity_entry")
                 
                 # Submit the form
-                submit_button = page.locator("button[type='submit']").first
+                submit_button = page.locator("form[action*='activity-log'] button[type='submit']").first
                 if submit_button.count() > 0:
                     submit_button.click()
                     page.wait_for_load_state("networkidle")
@@ -255,7 +255,7 @@ class TestActivityLogWithMockData:
         
         # Filter by 'create' action to see if our entry appears
         page.select_option("select[name='action']", "create")
-        page.click("button[type='submit']")
+        page.click("form[action*='activity-log'] button[type='submit']")
         page.wait_for_load_state("networkidle")
         
         # Page should load successfully
@@ -270,7 +270,7 @@ class TestActivityLogWithMockData:
         search_input = page.locator("input[name='search']")
         search_input.fill("test_activity")
         
-        page.click("button[type='submit']")
+        page.click("form[action*='activity-log'] button[type='submit']")
         page.wait_for_load_state("networkidle")
         
         # Check URL has search parameter

@@ -72,17 +72,16 @@ class TestQueryBuilderUI:
 
     @pytest.mark.integration
     def test_query_builder_dynamic_filter_management(self, client: FlaskClient) -> None:
-        """Test dynamic addition and removal of filter conditions."""
-        # RED: Test for JavaScript-driven filter management
+        """Test query builder page loads with external JS and dynamic filter form."""
         response = client.get('/workbench/query-builder')
         
         assert response.status_code == 200
         html = response.get_data(as_text=True)
         
-        # Should contain JavaScript for dynamic filter management
-        assert 'addFilterCondition' in html
-        assert 'removeFilterCondition' in html
-        assert 'updateQueryPreview' in html
+        # JS was refactored from inline to app/static/js/query-builder.js.
+        # Verify the external script is loaded and filter UI elements exist.
+        assert 'query-builder.js' in html, "External query-builder.js should be loaded"
+        assert '<select' in html, "Filter select elements should exist on the page"
 
     @pytest.mark.integration
     def test_query_builder_has_sorting_options(self, client: FlaskClient) -> None:

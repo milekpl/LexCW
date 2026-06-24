@@ -95,16 +95,16 @@ class TestWorksetAPI:
             "sort_order": "desc"
         }
         
-        # Verify that JSON PUT is rejected for data-rich query updates
+        # The endpoint now accepts JSON PUT for query updates and returns 200.
         resp = client.put(
             f'/api/worksets/{workset_id}/query',
             data=json.dumps(updated_query),
             content_type='application/json'
         )
-        assert resp.status_code in (400, 415)
-        # Perform update via service
-        updated_count = workset_service.update_workset_query(workset_id, WorksetQuery.from_dict(updated_query))
-        assert updated_count is not None
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data.get('success') is True
+        assert 'updated_entries' in data
 
     @pytest.mark.integration
     def test_delete_workset(self, client: FlaskClient) -> None:
