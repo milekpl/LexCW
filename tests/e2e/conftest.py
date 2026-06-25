@@ -157,6 +157,18 @@ def pristine_ranges_data() -> str:
     <range id="domain-type"/>
     <range id="location"/>
     <range id="anthropology"/>
+    <range id="etymology">
+        <range-element id="borrowed" guid="5049f0e3-0000-0000-0000-000000000301">
+            <label>
+                <form lang="en"><text>borrowed</text></form>
+            </label>
+        </range-element>
+        <range-element id="proto" guid="5049f0e3-0000-0000-0000-000000000302">
+            <label>
+                <form lang="en"><text>proto</text></form>
+            </label>
+        </range-element>
+    </range>
 </lift-ranges>'''
 
 

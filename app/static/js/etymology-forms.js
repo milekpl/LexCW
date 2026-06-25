@@ -396,7 +396,8 @@ class EtymologyFormsManager {
         });
         this.render();
         this.attachEventListeners();
-        this._populateTypeDropdown(this.etymologies.length - 1, '');
+        // render() already calls _populateTypeDropdown for all etymologies.
+        // Duplicate call would race with render()'s async populateSelect.
     }
     
     removeEtymology(index) {

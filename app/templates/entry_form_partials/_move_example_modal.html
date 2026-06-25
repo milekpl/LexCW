@@ -1,0 +1,97 @@
+<!-- Move Example / Demote Subentry Modal -->
+<div class="modal fade" id="move-example-modal"
+     tabindex="-1" aria-labelledby="move-example-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="move-example-modal-label">
+                    <i class="fas fa-arrows-alt"></i> <span id="move-modal-title-text">Move Example</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Source Info -->
+                <div class="alert alert-secondary mb-3" id="move-modal-source-info">
+                    <strong>Source:</strong> <span id="move-modal-source-text"></span>
+                </div>
+
+                <!-- Step 1: Search Destination Entry (hidden for intra-entry moves) -->
+                <div id="move-modal-step-entry" class="mb-3">
+                    <label class="form-label fw-bold">
+                        Destination Entry <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="move-modal-entry-search"
+                               placeholder="Search for a headword..."
+                               autocomplete="off" data-skip-validation>
+                    </div>
+                    <div class="form-text">Search by headword to find the target entry</div>
+
+                    <!-- Search Results -->
+                    <div class="search-results mt-2" id="move-modal-search-results"
+                         style="display: none;">
+                    </div>
+
+                    <!-- Selected Entry Display -->
+                    <div id="move-modal-selected-entry" class="mt-2" style="display: none;">
+                        <div class="alert alert-success py-2 mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Selected:</strong>
+                            <span id="move-modal-selected-entry-text"></span>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="move-modal-target-entry-id" value="">
+                </div>
+
+                <!-- Step 2: Select Destination Sense -->
+                <div id="move-modal-step-sense" class="mb-3" style="display: none;">
+                    <label class="form-label fw-bold">
+                        Destination Sense <span class="text-danger">*</span>
+                    </label>
+                    <div id="move-modal-sense-list" class="list-group">
+                        <!-- Populated dynamically -->
+                    </div>
+                    <div id="move-modal-no-senses" class="text-muted" style="display: none;">
+                        No senses found on this entry.
+                    </div>
+                </div>
+
+                <!-- Step 3: Preview (shown when both entry and sense selected) -->
+                <div id="move-modal-preview" class="mb-3" style="display: none;">
+                    <label class="form-label fw-bold">Preview</label>
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <div id="move-modal-preview-content"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Message Container -->
+                <div id="move-modal-error" class="alert alert-danger mt-3"
+                     style="display: none;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="move-modal-confirm-btn" disabled>
+                    <i class="fas fa-check me-1"></i> Confirm Move
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden data for current entry context -->
+<span id="move-modal-current-entry-id" style="display: none;"
+      data-entry-id="{{ entry.id if entry else '' }}">
+</span>
+<span id="move-modal-current-headword" style="display: none;"
+      data-headword="{{ entry.lexical_unit.values()|join(', ') if entry else '' }}">
+</span>

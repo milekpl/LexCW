@@ -1196,23 +1196,51 @@ class DictionaryService:
                 )
                 db_name = self.db_connector.database
 
-            query = self._query_builder.build_get_lift_ranges_query(db_name, has_ns)
+            # Check for a dedicated ranges database (set by E2E tests or config)
+            ranges_db_name = None
+            try:
+                ranges_db_name = os.environ.get('BASEX_RANGES_DATABASE')
+                if not ranges_db_name:
+                    from flask import current_app as _capp
+                    ranges_db_name = _capp.config.get('BASEX_RANGES_DATABASE') if _capp else None
+            except Exception:
+                pass
 
-            self.logger.debug(f"Executing query for LIFT ranges: {query}")
-            ranges_xml = self.db_connector.execute_query(query)
+            ranges_xml = None
+
+            # Try dedicated ranges database first if configured
+            if ranges_db_name and ranges_db_name != db_name:
+                try:
+                    ranges_query = self._query_builder.build_get_lift_ranges_query(ranges_db_name, has_ns)
+                    self.logger.debug("Querying dedicated ranges DB '%s': %s", ranges_db_name, ranges_query)
+                    ranges_xml = self.db_connector.execute_query(ranges_query)
+                    if ranges_xml:
+                        self.logger.debug("Found ranges in dedicated DB '%s'", ranges_db_name)
+                except Exception as e:
+                    self.logger.debug("Dedicated ranges DB '%s' query failed: %s, falling back", ranges_db_name, e)
+
+            # Fall back to main database
+            if not ranges_xml:
+                query = self._query_builder.build_get_lift_ranges_query(db_name, has_ns)
+                self.logger.debug(f"Executing query for LIFT ranges in main DB: {query}")
+                ranges_xml = self.db_connector.execute_query(query)
 
             # If namespaced query failed, try non-namespaced query as fallback
             if not ranges_xml and has_ns:
                 self.logger.debug(
                     "Namespaced ranges query returned empty, trying non-namespaced query"
                 )
-                query_no_ns = self._query_builder.build_get_lift_ranges_query(
-                    db_name, False
-                )
-                self.logger.debug(
-                    f"Executing fallback query for LIFT ranges: {query_no_ns}"
-                )
-                ranges_xml = self.db_connector.execute_query(query_no_ns)
+                if ranges_db_name and ranges_db_name != db_name:
+                    try:
+                        query_no_ns = self._query_builder.build_get_lift_ranges_query(ranges_db_name, False)
+                        ranges_xml = self.db_connector.execute_query(query_no_ns)
+                    except Exception:
+                        pass
+                if not ranges_xml:
+                    query_no_ns = self._query_builder.build_get_lift_ranges_query(
+                        db_name, False
+                    )
+                    ranges_xml = self.db_connector.execute_query(query_no_ns)
 
             if not ranges_xml:
                 self.logger.warning("LIFT ranges document not found in the database.")

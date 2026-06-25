@@ -1,0 +1,85 @@
+{# Embed-friendly entry view — no base template chrome. #}
+<div class="entry-view-embed">
+    <h2 class="entry-headword">
+        {% set headword = entry.lexical_unit.get('en', '') if entry.lexical_unit else '' %}
+        {{ headword or entry.id }}
+        {% if entry.grammatical_info %}
+            <span class="badge bg-secondary ms-2">{{ entry.grammatical_info }}</span>
+        {% endif %}
+    </h2>
+
+    {% if entry.pronunciations %}
+    <div class="entry-pronunciations mb-2">
+        {% for pron in entry.pronunciations %}
+            {% set lang = pron.get('lang', '') if pron is mapping else '' %}
+            {% set text = pron.get('text', pron) if pron is mapping else pron %}
+            <span class="pronunciation-item me-2">
+                {% if text %}/{{ text }}/{% endif %}
+                {% if lang %}<small class="text-muted">{{ lang }}</small>{% endif %}
+            </span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if entry.senses %}
+    <div class="entry-senses">
+        {% for sense in entry.senses %}
+        <div class="sense-item mb-3">
+            {% if sense.grammatical_info %}
+                <span class="badge bg-light text-dark mb-1">{{ sense.grammatical_info }}</span>
+            {% endif %}
+            {% if sense.definition %}
+                <p class="definition mb-1">
+                    {% if sense.definition is mapping %}
+                        {% for lang, text in sense.definition.items() %}
+                            {{ text.get('text', text) if text is mapping else text }}
+                        {% endfor %}
+                    {% else %}
+                        {{ sense.definition }}
+                    {% endif %}
+                </p>
+            {% endif %}
+            {% if sense.gloss %}
+                <p class="gloss text-muted fst-italic mb-1">
+                    {% if sense.gloss is mapping %}
+                        {% for lang, text in sense.gloss.items() %}
+                            {{ text.get('text', text) if text is mapping else text }}
+                        {% endfor %}
+                    {% else %}
+                        {{ sense.gloss }}
+                    {% endif %}
+                </p>
+            {% endif %}
+            {% if sense.examples %}
+                <ul class="examples list-unstyled ms-3 small">
+                    {% for ex in sense.examples %}
+                        <li class="mb-1">
+                            <i class="bi bi-quote text-muted"></i>
+                            {% if ex is mapping %}
+                                {{ ex.get('form', {}).get('en', ex.get('text', ex)) }}
+                            {% else %}
+                                {{ ex }}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if entry.notes %}
+    <div class="entry-notes small text-muted">
+        {% for note in entry.notes %}
+            <p class="mb-1">{{ note }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{{ url_for('main.edit_entry', entry_id=entry.id) }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil"></i> Edit Entry
+        </a>
+    </div>
+</div>

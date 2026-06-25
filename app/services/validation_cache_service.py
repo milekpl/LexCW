@@ -437,56 +437,24 @@ class ValidationCacheService:
         """
         Extract text from entry for spell/grammar checking.
 
+        Uses TextExtractor for comprehensive text extraction from all entry fields
+        including relations, etymologies, and special fields.
+
         Args:
             entry_data: Entry dictionary
 
         Returns:
             Combined text for validation
         """
-        text_parts = []
-
-        # Lexical unit
-        lu = entry_data.get('lexical_unit', {})
-        if isinstance(lu, dict):
-            text_parts.extend(str(v) for v in lu.values() if v)
-        elif isinstance(lu, str):
-            text_parts.append(lu)
-
-        # Senses - definitions and glosses
-        for sense in entry_data.get('senses', []):
-            if isinstance(sense, dict):
-                defn = sense.get('definition', {})
-                if isinstance(defn, dict):
-                    text_parts.extend(str(v) for v in defn.values() if v)
-                elif isinstance(defn, str):
-                    text_parts.append(defn)
-
-                gloss = sense.get('gloss', {})
-                if isinstance(gloss, dict):
-                    text_parts.extend(str(v) for v in gloss.values() if v)
-                elif isinstance(gloss, str):
-                    text_parts.append(gloss)
-
-                # Examples
-                for ex in sense.get('examples', []):
-                    if isinstance(ex, dict):
-                        form = ex.get('form', {})
-                        if isinstance(form, dict):
-                            text_parts.extend(str(v) for v in form.values() if v)
-
-        # Notes
-        notes = entry_data.get('notes', {})
-        if isinstance(notes, dict):
-            text_parts.extend(str(v) for v in notes.values() if v)
-
-        # Variants
-        for variant in entry_data.get('variants', []):
-            if isinstance(variant, dict):
-                form = variant.get('form', {})
-                if isinstance(form, dict):
-                    text_parts.extend(str(v) for v in form.values() if v)
-
-        return ' '.join(filter(None, text_parts))
+        from app.utils.text_extractor import TextExtractor
+        
+        extractor = TextExtractor(mode='all_text')  # Extract all text, not just words
+        return extractor.extract_from_entry(
+            entry_data,
+            include_etymologies=True,
+            include_relations=True,
+            include_pronunciations=False  # Not needed for spell checking
+        )
 
 
 # Global singleton instance

@@ -296,10 +296,29 @@ class RangesService:
         self._ensure_connection()
         db_name = self.db_connector.database
 
-        # Query ranges document. Must be namespace-insensitive because
-        # FieldWorks ranges typically use the ranges namespace.
-        query = f"collection('{db_name}')//*[local-name() = 'lift-ranges']"
-        ranges_xml = self.db_connector.execute_query(query)
+        # Check for a dedicated ranges database (set by E2E tests or config)
+        ranges_db_name = None
+        try:
+            ranges_db_name = os.environ.get('BASEX_RANGES_DATABASE')
+            if not ranges_db_name:
+                from flask import current_app as _cap
+                ranges_db_name = _cap.config.get('BASEX_RANGES_DATABASE') if _cap else None
+        except Exception:
+            pass
+
+        # Query ranges from dedicated ranges database first if configured
+        ranges_xml = None
+        if ranges_db_name and ranges_db_name != db_name:
+            try:
+                q = f"collection('{ranges_db_name}')//*[local-name() = 'lift-ranges']"
+                ranges_xml = self.db_connector.execute_query(q)
+            except Exception:
+                pass
+
+        # Fall back to main database
+        if not ranges_xml:
+            query = f"collection('{db_name}')//*[local-name() = 'lift-ranges']"
+            ranges_xml = self.db_connector.execute_query(query)
 
         ranges = {}
         if ranges_xml and ranges_xml.strip():
@@ -520,6 +539,24 @@ class RangesService:
                 # Query database for this specific range - it might have elements now
                 # Use local-name() for namespace-insensitive matching
                 db_name = self.db_connector.database
+                # Check dedicated ranges DB first
+                try:
+                    ranges_db_name = os.environ.get('BASEX_RANGES_DATABASE')
+                    if not ranges_db_name:
+                        from flask import current_app as _cap
+                        ranges_db_name = _cap.config.get('BASEX_RANGES_DATABASE') if _cap else None
+                    if ranges_db_name and ranges_db_name != db_name:
+                        q = f"for $range in collection('{ranges_db_name}')//*[local-name()='range'][@id='{range_id}'] return $range"
+                        result_xml = self.db_connector.execute_query(q)
+                        if result_xml and result_xml.strip():
+                            try:
+                                parsed = self.ranges_parser.parse_string(result_xml)
+                                if parsed:
+                                    self.logger.debug(f"Found range '{range_id}' in dedicated ranges DB")
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
                 query = f"for $range in collection('{db_name}')//*[local-name()='range'][@id='{range_id}'] return $range"
                 self.logger.debug(f"Checking database for range '{range_id}' (empty cached version)")
                 result_xml = self.db_connector.execute_query(query)
