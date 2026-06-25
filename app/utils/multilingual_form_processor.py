@@ -388,6 +388,14 @@ def _merge_senses_data(form_senses: List[Dict[str, Any]], existing_senses: List[
                         elif isinstance(val, str):
                             # Convert string to flattened format
                             merged_sense[field] = {'en': {'text': val}}
+                        # Fix language keys: if the value dict has a .lang field that differs
+                        # from the dict key (user changed the language selector in the UI),
+                        # re-key the entry so the .lang value is used as the authoritative key.
+                        if isinstance(val, dict):
+                            for lang_key, v in list(merged_sense[field].items()):
+                                if isinstance(v, dict) and v.get('lang') and v['lang'] != lang_key:
+                                    merged_sense[field][v['lang']] = v
+                                    del merged_sense[field][lang_key]
                         logger.debug(f"[MERGE] Sense {sense_id} field '{field}': after normalization: {merged_sense[field]}")
                 else:
                     # For other fields, preserve if missing, empty, or whitespace-only string

@@ -1906,7 +1906,28 @@ function addExample(senseIndex) {
 
   const tempDiv = document.createElement("div");
   tempDiv.innerHTML = template;
-  examplesContainer.appendChild(tempDiv.firstElementChild);
+  const newItem = tempDiv.firstElementChild;
+  examplesContainer.appendChild(newItem);
+
+  // Populate language selectors in the new example from project languages
+  var langs = window.DictionaryApp?.data?.projectLanguages;
+  if (langs) {
+    newItem.querySelectorAll('select[name$=".sentence_lang"], select[name$=".translation_lang"]').forEach(function(sel) {
+      sel.innerHTML = '';
+      langs.forEach(function(lang) {
+        var opt = document.createElement('option');
+        opt.value = lang[0];
+        opt.textContent = lang[0];
+        sel.appendChild(opt);
+      });
+      // Default sentence to source language, translation to target
+      var isTranslation = sel.name.indexOf('translation_lang') !== -1;
+      var defaultLang = document.getElementById('entry-form')?.dataset[
+        isTranslation ? 'targetLanguage' : 'sourceLanguage'
+      ] || 'en';
+      sel.value = defaultLang;
+    });
+  }
 }
 
 // Make addExample globally accessible for event handlers
@@ -2622,6 +2643,10 @@ function addAnnotation(containerType, index) {
       ? `annotations[${newIndex}]`
       : `senses[${index}].annotations[${newIndex}]`;
 
+  // Get source language for annotation content fields
+  var _srcLangForm = typeof document !== 'undefined' && document.getElementById('entry-form');
+  var _sourceLang = (_srcLangForm && _srcLangForm.dataset.sourceLanguage) || 'en';
+
   // Build collapse ID
   const collapseId =
     containerType === "entry"
@@ -2695,12 +2720,12 @@ function addAnnotation(containerType, index) {
                             <div class="card-body">
                                 <div class="annotation-content-forms">
                                     <div class="input-group mb-2">
-                                        <span class="input-group-text">en</span>
+                                        <span class="input-group-text">${_sourceLang}</span>
                                         <textarea class="form-control" 
-                                               name="${namePrefix}.content.en"
-                                               data-lang="en"
+                                               name="${namePrefix}.content.${_sourceLang}"
+                                               data-lang="${_sourceLang}"
                                                rows="2"
-                                               placeholder="Enter comment or description in English"></textarea>
+                                               placeholder="Enter comment or description in ${_sourceLang}"></textarea>
                                     </div>
                                 </div>
                                 <button type="button" class="btn btn-sm btn-outline-primary mt-2 add-annotation-language-btn">

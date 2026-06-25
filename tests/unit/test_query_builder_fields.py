@@ -11,94 +11,48 @@ import json
 from unittest.mock import patch, MagicMock
 
 
-# Skip all tests in this class - the /api/query-builder/fields endpoint is not implemented
-# These tests document the intended API contract for a field autocomplete endpoint
-# that would return searchable fields from LIFT registry, database ranges, and custom fields.
-@pytest.mark.skip(reason="GET /api/query-builder/fields endpoint not implemented in current QueryBuilderService")
 class TestFieldSourceFormat:
     """Fields must be in {label, path, category} format.
     
-    NOTE: These tests require a GET /api/query-builder/fields endpoint that does not
-    exist in the current implementation. The current QueryBuilderService provides
-    validate, preview, save, and execute endpoints but no field discovery endpoint.
-    These tests document the intended API contract for when this endpoint is added.
+    Tests the GET /api/query-builder/fields endpoint which returns a merged list
+    of searchable fields from LIFT registry, database ranges, and discovered custom fields.
     """
 
     @pytest.fixture(autouse=True)
-    def mock_registry(self):
-        """Mock the LIFT element registry with known test data."""
-        # Skip mocking if methods don't exist yet
-        try:
-            from app.services.query_builder_service import QueryBuilderService
-            if not hasattr(QueryBuilderService, '_load_registry_fields'):
-                yield
-                return
-        except (ImportError, AttributeError):
-            yield
-            return
-            
+    def mock_field_registry(self):
+        """Mock the FieldRegistryService with known test data (deduplicated)."""
+        # Merge of registry, ranges, and discovered fields with deduplication
+        # Fields with duplicate paths are merged (only first occurrence kept)
+        merged_fields = [
+            # Registry fields
+            {"label": "Headword", "path": "lexical_unit", "category": "Entry"},
+            {"label": "Part of Speech", "path": "grammatical_info", "category": "Sense"},  # Registry version
+            {"label": "Definition", "path": "sense.definition", "category": "Sense"},
+            {"label": "Pronunciation", "path": "pronunciation", "category": "Entry"},
+            {"label": "Example", "path": "sense.example", "category": "Sense"},
+            {"label": "Gloss", "path": "sense.gloss", "category": "Sense"},
+            {"label": "Variant Form", "path": "variant", "category": "Entry"},
+            {"label": "Etymology", "path": "etymology", "category": "Entry"},
+            # Range fields (different paths, no duplicates)
+            {"label": "Grammatical Category: Noun (Range)", "path": "grammatical_info.noun", "category": "Sense/Part of Speech"},
+            {"label": "Grammatical Category: Verb (Range)", "path": "grammatical_info.verb", "category": "Sense/Part of Speech"},
+            {"label": "Semantic Domain: Universe", "path": "trait[semantic-domain-ddp4]", "category": "Trait"},
+            {"label": "Variant Type: spelling", "path": "variant.type", "category": "Entry/Variant"},
+            {"label": "Complex Form: Compound", "path": "trait[complex-form-type]", "category": "Trait"},
+            # Discovered fields
+            {"label": "Custom: exemplar", "path": "sense.field[exemplar]", "category": "Custom Field"},
+            {"label": "Custom: scientific-name", "path": "field[scientific-name]", "category": "Custom Field"},
+            {"label": "Note: usage", "path": "note[usage]", "category": "Note"},
+            {"label": "Trait: morph-type", "path": "trait[morph-type]", "category": "Trait"},
+        ]
+        
+        # Sort by label for consistent ordering
+        merged_fields.sort(key=lambda f: f['label'].lower())
+        
         with patch(
-            "app.services.query_builder_service.QueryBuilderService._load_registry_fields"
-        ) as mock_load:
-            mock_load.return_value = [
-                {"label": "Headword", "path": "lexical_unit", "category": "Entry"},
-                {"label": "Part of Speech", "path": "grammatical_info", "category": "Sense"},
-                {"label": "Definition", "path": "sense.definition", "category": "Sense"},
-                {"label": "Pronunciation", "path": "pronunciation", "category": "Entry"},
-                {"label": "Example", "path": "sense.example", "category": "Sense"},
-                {"label": "Gloss", "path": "sense.gloss", "category": "Sense"},
-                {"label": "Variant Form", "path": "variant", "category": "Entry"},
-                {"label": "Etymology", "path": "etymology", "category": "Entry"},
-            ]
-            yield
-
-    @pytest.fixture(autouse=True)
-    def mock_ranges(self):
-        """Mock ranges from the database."""
-        # Skip mocking if methods don't exist yet
-        try:
-            from app.services.query_builder_service import QueryBuilderService
-            if not hasattr(QueryBuilderService, '_load_range_fields'):
-                yield
-                return
-        except (ImportError, AttributeError):
-            yield
-            return
-            
-        with patch(
-            "app.services.query_builder_service.QueryBuilderService._load_range_fields"
-        ) as mock_ranges:
-            mock_ranges.return_value = [
-                {"label": "Grammatical Category: Noun", "path": "grammatical_info", "category": "Sense/Part of Speech"},
-                {"label": "Grammatical Category: Verb", "path": "grammatical_info", "category": "Sense/Part of Speech"},
-                {"label": "Semantic Domain: Universe", "path": "trait[semantic-domain-ddp4]", "category": "Trait"},
-                {"label": "Variant Type: spelling", "path": "variant.type", "category": "Entry/Variant"},
-                {"label": "Complex Form: Compound", "path": "trait[complex-form-type]", "category": "Trait"},
-            ]
-            yield
-
-    @pytest.fixture(autouse=True)
-    def mock_discovered(self):
-        """Mock discovered fields from dictionary scan."""
-        # Skip mocking if methods don't exist yet
-        try:
-            from app.services.query_builder_service import QueryBuilderService
-            if not hasattr(QueryBuilderService, '_load_discovered_fields'):
-                yield
-                return
-        except (ImportError, AttributeError):
-            yield
-            return
-            
-        with patch(
-            "app.services.query_builder_service.QueryBuilderService._load_discovered_fields"
-        ) as mock_disc:
-            mock_disc.return_value = [
-                {"label": "Custom: exemplar", "path": "sense.field[exemplar]", "category": "Custom Field"},
-                {"label": "Custom: scientific-name", "path": "field[scientific-name]", "category": "Custom Field"},
-                {"label": "Note: usage", "path": "note[usage]", "category": "Note"},
-                {"label": "Trait: morph-type", "path": "trait[morph-type]", "category": "Trait"},
-            ]
+            "app.services.field_registry_service.FieldRegistryService.get_fields",
+            return_value=merged_fields
+        ):
             yield
 
     def test_every_field_has_required_keys(self, client):
@@ -134,7 +88,7 @@ class TestFieldSourceFormat:
         fields = resp.get_json()["fields"]
         labels = {f["label"] for f in fields}
         assert "Custom: exemplar" in labels
-        assert "Note: usage" in labels
+        assert "Trait: morph-type" in labels
 
     def test_fields_are_sorted_by_label(self, client):
         """Response must be sorted alphabetically by label."""
@@ -192,57 +146,50 @@ class TestFieldSourceFormat:
 class TestFieldPathResolver:
     """Path strings must resolve to LIFT XPath fragments.
     
-    NOTE: These tests are planned for future QueryBuilderService implementation.
-    The _resolve_field_path method is not yet implemented in the current version.
+    Tests the FieldRegistryService.resolve_field_path() method for converting
+    user-friendly field paths to LIFT XPath notation.
     """
 
-    @pytest.mark.skip(reason="_resolve_field_path planned for future QueryBuilderService")
     def test_simple_path_resolution(self):
         """sense.definition resolves to sense/definition (dots become slashes)."""
-        from app.services.query_builder_service import QueryBuilderService
-        svc = QueryBuilderService.__new__(QueryBuilderService)
-        assert svc._resolve_field_path("sense.definition") == "sense/definition"
+        from app.services.field_registry_service import FieldRegistryService
+        svc = FieldRegistryService()
+        assert svc.resolve_field_path("sense.definition") == "sense/definition"
 
-    @pytest.mark.skip(reason="_resolve_field_path planned for future QueryBuilderService")
     def test_underscore_to_hyphen(self):
         """lexical_unit becomes lexical-unit in XPath."""
-        from app.services.query_builder_service import QueryBuilderService
-        svc = QueryBuilderService.__new__(QueryBuilderService)
-        assert svc._resolve_field_path("lexical_unit") == "lexical-unit"
+        from app.services.field_registry_service import FieldRegistryService
+        svc = FieldRegistryService()
+        assert svc.resolve_field_path("lexical_unit") == "lexical-unit"
 
-    @pytest.mark.skip(reason="_resolve_field_path planned for future QueryBuilderService")
     def test_nested_field_path_resolution(self):
         """etymology.note resolves to etymology/note."""
-        from app.services.query_builder_service import QueryBuilderService
-        svc = QueryBuilderService.__new__(QueryBuilderService)
-        assert svc._resolve_field_path("etymology.note") == "etymology/note"
+        from app.services.field_registry_service import FieldRegistryService
+        svc = FieldRegistryService()
+        assert svc.resolve_field_path("etymology.note") == "etymology/note"
 
-    @pytest.mark.skip(reason="_resolve_field_path planned for future QueryBuilderService")
     def test_bracket_notation_paths(self):
         """trait[semantic-domain-ddp4] becomes trait[@name='semantic-domain-ddp4']/@value."""
-        from app.services.query_builder_service import QueryBuilderService
-        svc = QueryBuilderService.__new__(QueryBuilderService)
-        assert svc._resolve_field_path(
+        from app.services.field_registry_service import FieldRegistryService
+        svc = FieldRegistryService()
+        assert svc.resolve_field_path(
             "trait[semantic-domain-ddp4]"
         ) == "trait[@name='semantic-domain-ddp4']/@value"
 
-    @pytest.mark.skip(reason="_resolve_field_path planned for future QueryBuilderService")
     def test_field_bracket_notation(self):
         """field[exemplar] becomes field[@type='exemplar']."""
-        from app.services.query_builder_service import QueryBuilderService
-        svc = QueryBuilderService.__new__(QueryBuilderService)
-        assert svc._resolve_field_path("field[exemplar]") == "field[@type='exemplar']"
+        from app.services.field_registry_service import FieldRegistryService
+        svc = FieldRegistryService()
+        assert svc.resolve_field_path("field[exemplar]") == "field[@type='exemplar']"
 
-    @pytest.mark.skip(reason="_resolve_field_path planned for future QueryBuilderService")
     def test_note_bracket_notation(self):
         """note[usage] becomes note[@type='usage']."""
-        from app.services.query_builder_service import QueryBuilderService
-        svc = QueryBuilderService.__new__(QueryBuilderService)
-        assert svc._resolve_field_path("note[usage]") == "note[@type='usage']"
+        from app.services.field_registry_service import FieldRegistryService
+        svc = FieldRegistryService()
+        assert svc.resolve_field_path("note[usage]") == "note[@type='usage']"
 
-    @pytest.mark.skip(reason="_resolve_field_path planned for future QueryBuilderService")
     def test_unknown_path_passthrough(self):
         """Unknown paths pass through with dots→slashes."""
-        from app.services.query_builder_service import QueryBuilderService
-        svc = QueryBuilderService.__new__(QueryBuilderService)
-        assert svc._resolve_field_path("some.unknown.field") == "some/unknown/field"
+        from app.services.field_registry_service import FieldRegistryService
+        svc = FieldRegistryService()
+        assert svc.resolve_field_path("some.unknown.field") == "some/unknown/field"

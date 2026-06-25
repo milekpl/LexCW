@@ -653,10 +653,15 @@ class LIFTXMLSerializer {
         // - 'sentence' (from HTML form): "text" or {en: "text"}
         let exampleForm = exampleData.form || exampleData.forms;
 
-        // Handle 'sentence' field from HTML form - could be string or dict
+        // Handle 'sentence' field from HTML form - could be string or dict.
+        // Use the explicit language selector if available, otherwise infer from form config.
+        var formEl = typeof document !== 'undefined' && document.getElementById('entry-form');
+        var sentenceLang = (exampleData.sentence_lang) ||
+                           (formEl && formEl.dataset.sourceLanguage) || 'en';
         if (!exampleForm && exampleData.sentence) {
             if (typeof exampleData.sentence === 'string') {
-                exampleForm = { en: exampleData.sentence };
+                exampleForm = {};
+                exampleForm[sentenceLang] = exampleData.sentence;
             } else if (typeof exampleData.sentence === 'object') {
                 exampleForm = exampleData.sentence;
             }
@@ -676,7 +681,13 @@ class LIFTXMLSerializer {
         let exampleTranslations = exampleData.translations;
         if (!exampleTranslations && exampleData.translation) {
             if (typeof exampleData.translation === 'string') {
-                exampleTranslations = { en: exampleData.translation };
+                // Determine the translation language from the explicit selector if present,
+                // otherwise fall back to the form's data-target-language.
+                var targetLang = (exampleData.translation_lang) ||
+                                 (formEl && formEl.dataset.targetLanguage) ||
+                                 (formEl && formEl.dataset.sourceLanguage) || 'en';
+                exampleTranslations = {};
+                exampleTranslations[targetLang] = exampleData.translation;
             } else if (typeof exampleData.translation === 'object') {
                 exampleTranslations = exampleData.translation;
             }
@@ -820,7 +831,10 @@ class LIFTXMLSerializer {
 
         Object.entries(definitionData).forEach(([lang, defData]) => {
             if (defData && (defData.text || defData.value)) {
-                const form = this.createForm(doc, lang, defData.text || defData.value);
+                // defData may carry a .lang value from the form's language selector
+                // that differs from the dict key (field name). Honour it.
+                const actualLang = (defData.lang && defData.lang !== '') ? defData.lang : lang;
+                const form = this.createForm(doc, actualLang, defData.text || defData.value);
                 definition.appendChild(form);
             }
         });

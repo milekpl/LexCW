@@ -437,13 +437,31 @@
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Example Sentence</label>
-                                                                    <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].sentence"
-                                                                              rows="2">{{ example.form_text }}</textarea>
+                                                                    <div class="input-group">
+                                                                        <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].sentence"
+                                                                                  rows="2">{{ example.form_text }}</textarea>
+                                                                        <select class="form-select" style="max-width: 90px;"
+                                                                                name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].sentence_lang"
+                                                                                title="Language of the example sentence">
+                                                                            {% for code, label in project_languages %}
+                                                                                <option value="{{ code }}" {% if code == source_lang %}selected{% endif %}>{{ code }}</option>
+                                                                            {% endfor %}
+                                                                        </select>
+                                                                    </div>
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Translation</label>
-                                                                    <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation"
-                                                                              rows="2">{{ example.translation_text }}</textarea>
+                                                                    <div class="input-group">
+                                                                        <textarea class="form-control" name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation"
+                                                                                  rows="2">{{ example.translation_text }}</textarea>
+                                                                        <select class="form-select" style="max-width: 90px;"
+                                                                                name="senses[{{ sense_index }}].examples[{{ loop.index0 }}].translation_lang"
+                                                                                title="Language of the translation">
+                                                                            {% for code, label in project_languages %}
+                                                                                <option value="{{ code }}" {% if code == target_lang %}selected{% endif %}>{{ code }}</option>
+                                                                            {% endfor %}
+                                                                        </select>
+                                                                    </div>
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <label class="form-label">Translation Type

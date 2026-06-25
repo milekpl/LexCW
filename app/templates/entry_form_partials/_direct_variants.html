@@ -51,11 +51,11 @@
                                             {% endfor %}
                                         {% else %}
                                             <div class="input-group mb-2">
-                                                <span class="input-group-text">en</span>
+                                                <span class="input-group-text">{{ source_lang }}</span>
                                                 <input type="text" class="form-control"
-                                                       name="variants[{{ loop.index0 }}].form.en"
+                                                       name="variants[{{ loop.index0 }}].form.{{ source_lang }}"
                                                        value=""
-                                                       placeholder="Variant form in English">
+                                                       placeholder="Variant form in {{ source_lang }}">
                                             </div>
                                         {% endif %}
                                     </div>

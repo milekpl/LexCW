@@ -137,6 +137,8 @@ class DirectVariantsManager {
      * @private
      */
     _createVariantHtml(index) {
+        var formEl = typeof document !== 'undefined' && document.getElementById('entry-form');
+        var sourceLang = (formEl && formEl.dataset.sourceLanguage) || 'en';
         return `
             <div class="direct-variant-item card mb-3" data-variant-index="${index}">
                 <div class="card-header bg-warning text-dark">
@@ -158,11 +160,11 @@ class DirectVariantsManager {
                                 <label class="form-label fw-bold">Variant Form</label>
                                 <div class="variant-form-languages">
                                     <div class="input-group mb-2">
-                                        <span class="input-group-text">en</span>
+                                        <span class="input-group-text">${sourceLang}</span>
                                         <input type="text" class="form-control"
-                                               name="variants[${index}].form.en"
+                                               name="variants[${index}].form.${sourceLang}"
                                                value=""
-                                               placeholder="Variant form in English">
+                                               placeholder="Variant form in ${sourceLang}">
                                     </div>
                                 </div>
                                 <button type="button" class="btn btn-sm btn-outline-secondary add-variant-language-btn">

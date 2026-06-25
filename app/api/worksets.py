@@ -11,7 +11,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
 import logging
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union, Tuple
 from datetime import datetime
 
 from app.services.workset_service import WorksetService
@@ -1316,3 +1316,99 @@ def workset_ui_settings(workset_id: int):
     except Exception as e:
         logger.error(f"Error handling UI settings for workset {workset_id}: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@worksets_bp.route('/api/worksets/ai-review', methods=['POST'])
+def create_ai_review_workset():
+    """
+    Create a workset specifically for AI review of entries.
+
+    Request body (JSON):
+    {
+        "name": "AI Review Workset",
+        "query": {"filters": []},
+        "ai_config": {"prompt_template_id": "...", "severity_threshold": "warning", "auto_mark_review": true}
+    }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        from app.models.workset import WorksetQuery
+
+        name = data.get('name', 'AI Review')
+        query_data = data.get('query', {'filters': []})
+        query = WorksetQuery(filters=query_data.get('filters', []))
+        ai_config = data.get('ai_config')
+
+        ws = WorksetService()
+        workset = ws.create_ai_review_workset(name=name, query=query, ai_review_config=ai_config)
+
+        if workset is None:
+            return jsonify({'error': 'Failed to create workset'}), 500
+
+        return jsonify({
+            'success': True,
+            'workset_id': workset.id,
+            'name': workset.name,
+            'total_entries': workset.total_entries,
+            'ai_review_enabled': True,
+        }), 201
+    except Exception as e:
+        logger.error(f"Error creating AI review workset: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@worksets_bp.route('/api/worksets/<int:workset_id>/ai-review-results', methods=['GET'])
+def get_ai_review_results(workset_id: int):
+    """
+    Get AI review results for a workset's entries.
+
+    Returns entries with AI review status and suggestions.
+    """
+    try:
+        limit = request.args.get('limit', 200, type=int)
+        offset = request.args.get('offset', 0, type=int)
+
+        with current_app.pg_pool.getconn() as conn:
+            with conn.cursor() as cur:
+                # Get workset info
+                cur.execute("SELECT id, name, ui_settings FROM worksets WHERE id = %s", (workset_id,))
+                ws_row = cur.fetchone()
+                if not ws_row:
+                    return jsonify({'error': 'Workset not found'}), 404
+
+                workset_id_val, workset_name, ui_settings_raw = ws_row
+                ui_settings = ui_settings_raw if ui_settings_raw else {}
+
+                # Get entries with AI review data
+                cur.execute("""
+                    SELECT we.entry_id, we.status, we.ai_suggestions, we.ai_reviewed_at, we.ai_review_status
+                    FROM workset_entries we
+                    WHERE we.workset_id = %s
+                    ORDER BY we.id
+                    LIMIT %s OFFSET %s
+                """, (workset_id, limit, offset))
+
+                entries = []
+                for row in cur.fetchall():
+                    entry_id, status, ai_suggestions, ai_reviewed_at, ai_review_status = row
+                    entries.append({
+                        'entry_id': entry_id,
+                        'status': status,
+                        'ai_suggestions': ai_suggestions if ai_suggestions else [],
+                        'ai_reviewed_at': ai_reviewed_at.isoformat() if ai_reviewed_at else None,
+                        'ai_review_status': ai_review_status or 'pending',
+                    })
+
+                return jsonify({
+                    'success': True,
+                    'workset_id': workset_id_val,
+                    'workset_name': workset_name,
+                    'entries': entries,
+                    'total': len(entries),
+                    'entries_with_issues': [e for e in entries if e.get('ai_review_status') == 'issue_found'],
+                    'ai_config': ui_settings.get('ai_review_config', {}),
+                    'ai_review_enabled': ui_settings.get('ai_review_enabled', False),
+                })
+    except Exception as e:
+        logger.error(f"Error getting AI review results for workset {workset_id}: {e}")
+        return jsonify({'error': str(e)}), 500

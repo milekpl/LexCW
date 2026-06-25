@@ -61,6 +61,61 @@ class WorksetService:
             logger.error(f"Failed to create workset '{name}': {e}")
             raise
 
+    def create_ai_review_workset(
+        self, 
+        name: str, 
+        query: WorksetQuery,
+        ai_review_config: Optional[Dict[str, Any]] = None
+    ) -> Workset:
+        """
+        Create a workset specifically for AI quality control review.
+        
+        This creates a workset with metadata marking it for AI review.
+        
+        Args:
+            name: Workset name
+            query: Query criteria for entries to review
+            ai_review_config: Optional configuration for AI review
+                
+        Returns:
+            Created Workset with ai_review metadata
+        """
+        try:
+            # Create the workset normally first
+            workset = self.create_workset(name, query)
+            
+            # Store AI review configuration in workset UI settings
+            ai_config = ai_review_config or {}
+            workset.ui_settings = {
+                **(workset.ui_settings or {}),
+                'ai_review_enabled': True,
+                'ai_review_config': {
+                    'prompt_template_id': ai_config.get('prompt_template_id', 'proofreading-default'),
+                    'severity_threshold': ai_config.get('severity_threshold', 'warning'),
+                    'auto_mark_review': ai_config.get('auto_mark_review', True),
+                    'created_at': datetime.now().isoformat(),
+                    'status': 'pending'
+                }
+            }
+
+            conn = current_app.pg_pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE worksets SET ui_settings = %s WHERE id = %s",
+                        (json.dumps(workset.ui_settings), workset.id)
+                    )
+                conn.commit()
+            finally:
+                current_app.pg_pool.putconn(conn)
+
+            logger.info(f"Created AI review workset '{name}' (id={workset.id})")
+            return workset
+
+        except Exception as e:
+            logger.error(f"Failed to create AI review workset '{name}': {e}")
+            raise
+
     def get_workset(self, workset_id: int, limit: int = 50, offset: int = 0) -> Optional[Workset]:
         """Retrieve workset with pagination."""
         try:

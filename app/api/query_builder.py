@@ -14,10 +14,92 @@ import time
 from typing import Dict, Any, List
 
 from app.services.query_builder_service import QueryBuilderService
+from app.services.field_registry_service import get_field_registry_service
 
 logger = logging.getLogger(__name__)
 
 query_builder_bp = Blueprint('query_builder', __name__, url_prefix='/api/query-builder')
+
+
+@query_builder_bp.route('/fields', methods=['GET'])
+@swag_from({
+    'tags': ['Query Builder'],
+    'summary': 'Get searchable fields',
+    'description': 'Returns a merged list of searchable fields from LIFT registry, database ranges, and discovered custom fields',
+    'parameters': [
+        {
+            'name': 'search',
+            'in': 'query',
+            'type': 'string',
+            'required': False,
+            'description': 'Filter fields by search term (matches label, path, or category)'
+        },
+        {
+            'name': 'limit',
+            'in': 'query',
+            'type': 'integer',
+            'required': False,
+            'default': 100,
+            'description': 'Maximum number of fields to return'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'List of searchable fields',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'fields': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'label': {'type': 'string', 'description': 'Human-readable field label'},
+                                'path': {'type': 'string', 'description': 'Field path for queries'},
+                                'category': {'type': 'string', 'description': 'Field category (Entry, Sense, Example, Range, etc.)'}
+                            }
+                        }
+                    },
+                    'count': {'type': 'integer', 'description': 'Total number of fields returned'}
+                }
+            }
+        },
+        500: {
+            'description': 'Internal server error',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'error': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
+def get_fields() -> tuple[Dict[str, Any], int]:
+    """Get all available searchable fields for query building."""
+    try:
+        # Get query parameters
+        search_term = request.args.get('search', '').strip()
+        limit = request.args.get('limit', 100, type=int)
+        
+        # Get the field registry service
+        field_service = get_field_registry_service()
+        
+        # Get all fields
+        if search_term:
+            fields = field_service.search_fields(search_term, limit=limit)
+        else:
+            all_fields = field_service.get_fields()
+            fields = all_fields[:limit]
+        
+        return {
+            'fields': fields,
+            'count': len(fields)
+        }, 200
+        
+    except Exception as e:
+        logger.error(f"Error getting searchable fields: {e}")
+        return {'error': 'Failed to retrieve fields'}, 500
 
 
 @query_builder_bp.route('/validate', methods=['POST'])

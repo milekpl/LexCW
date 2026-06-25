@@ -107,7 +107,7 @@
 
 {% set source_lang = current_app.config.PROJECT_SETTINGS.source_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.source_language else 'en' %}
 {% set target_lang = current_app.config.PROJECT_SETTINGS.target_language.code if current_app and current_app.config.PROJECT_SETTINGS and current_app.config.PROJECT_SETTINGS.target_language else 'en' %}
-<form id="entry-form" method="post" data-source-language="{{ source_lang }}" novalidate>
+<form id="entry-form" method="post" data-source-language="{{ source_lang }}" data-target-language="{{ target_lang }}" novalidate>
     {% if entry.id %}
         <input type="hidden" name="id" value="{{ entry.id }}">
     {% endif %}
@@ -714,14 +714,28 @@
         <div class="card-body">
             <div class="mb-2">
                 <label class="form-label">Example Sentence <span class="text-danger">*</span></label>
-                <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].sentence"
-                          rows="2" required></textarea>
+                <div class="input-group">
+                    <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].sentence"
+                              rows="2" required></textarea>
+                    <select class="form-select" style="max-width: 90px;"
+                            name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].sentence_lang"
+                            title="Language of the example sentence">
+                        <!-- Populated by Jinja when rendered; JS will need to fill in -->
+                    </select>
+                </div>
             </div>
             
             <div class="mb-2">
                 <label class="form-label">Translation</label>
-                <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].translation" 
-                          rows="2"></textarea>
+                <div class="input-group">
+                    <textarea class="form-control" name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].translation" 
+                              rows="2"></textarea>
+                    <select class="form-select" style="max-width: 90px;"
+                            name="senses[SENSE_INDEX].examples[EXAMPLE_INDEX].translation_lang"
+                            title="Language of the translation">
+                        <!-- Populated by Jinja when rendered; JS will need to fill in -->
+                    </select>
+                </div>
             </div>
             
             <div class="mb-2">
@@ -1078,7 +1092,8 @@
         window.DictionaryApp = window.DictionaryApp || {};
         window.DictionaryApp.data = {
             ranges: {{ ranges | tojson | safe }},
-            componentRelations: {{ (forward_component_relations | default([])) | tojson | safe }}
+            componentRelations: {{ (forward_component_relations | default([])) | tojson | safe }},
+            projectLanguages: {{ project_languages | tojson | safe }}
         };
         // Get CSRF token from meta tag or form
         var csrfToken = '';

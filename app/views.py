@@ -1554,6 +1554,7 @@ def worksets():
         ), 500
 
 
+@workbench_bp.route("/worksets/<int:workset_id>/curation")
 @workbench_bp.route("/worksets/<int:workset_id>/curate")
 def workset_curate(workset_id: int):
     """Render the workset curation interface."""
