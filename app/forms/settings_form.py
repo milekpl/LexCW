@@ -152,6 +152,33 @@ class SettingsForm(FlaskForm):
     # Submit button
     submit = SubmitField('Update Settings')
 
+    def validate_available_target_languages(self, field: SearchableLanguageMultiSelectField) -> None:
+        codes = field.get_selected_codes()
+        if not codes:
+            raise validators.ValidationError('At least one target language must be selected')
+
+    def validate_source_language_code(self, field: SelectField) -> None:
+        if field.data:
+            lang_info = get_language_by_code(field.data)
+            if not lang_info:
+                raise validators.ValidationError(f'Unknown language code: {field.data}')
+
+    def validate(self, extra_validators: Dict[str, Any] | None = None) -> bool:
+        rv = super().validate(extra_validators)
+        if not rv:
+            return False
+
+        source_code = self.source_language_code.data
+        target_codes = self.available_target_languages.get_selected_codes()
+        overlap = [c for c in target_codes if c == source_code]
+        if overlap:
+            self.available_target_languages.errors.append(
+                f'Target language "{overlap[0]}" is the same as the source language'
+            )
+            return False
+
+        return True
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize form with comprehensive language choices."""
         super().__init__(*args, **kwargs)

@@ -94,6 +94,29 @@ class TestLanguageCodesInXML:
         print(f"Translation language: '{selected}'")
         assert selected != '', "Translation language should not be empty"
 
+    def test_add_gloss_language_button_works(self, page, app_url):
+        """Clicking '+Add Language' on Gloss should add a new language form."""
+        page.goto(f"{app_url}/entries/add")
+        page.wait_for_load_state('networkidle')
+
+        # Add a sense so gloss section is visible
+        page.click('#add-sense-btn')
+        page.wait_for_selector('.gloss-forms', state='visible', timeout=10000)
+
+        # Count initial language forms
+        initial_count = page.locator('.gloss-forms .language-form').count()
+
+        # Click Add Language on gloss
+        page.click('.add-gloss-language-btn')
+        page.wait_for_timeout(500)
+
+        # Count after click — should be one more
+        after_count = page.locator('.gloss-forms .language-form').count()
+        print(f"Gloss language forms: before={initial_count}, after={after_count}")
+        assert after_count == initial_count + 1, \
+            f"Expected {initial_count + 1} gloss forms, got {after_count}"
+        print("✅ Add Language on Gloss works")
+
     @pytest.mark.skip(reason="DirectVariantsManager init has a pre-existing race (inline script before defer). Language codes in JS template are fixed.")
     def test_direct_variant_field_names_use_source_language(self, page, app_url):
         """Direct variant field names should use $source_lang, not hardcoded 'en'."""

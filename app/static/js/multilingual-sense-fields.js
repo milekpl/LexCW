@@ -88,20 +88,27 @@ class MultilingualSenseFieldsManager {
             console.log('[MultilingualFields] Existing languages:', existingLanguages);
 
             // Get all available language options
+            let languageOptions = [];
             const languageSelect = container.querySelector('select.language-select');
             console.log('[MultilingualFields] Language select found:', !!languageSelect);
 
-            if (!languageSelect) {
-                console.error('[MultilingualFields] Language select not found in container');
-                return;
+            if (languageSelect) {
+                languageOptions = Array.from(languageSelect.options)
+                    .map(option => ({
+                        code: option.value,
+                        label: option.textContent
+                    }))
+                    .filter(lang => !existingLanguages.includes(lang.code) && lang.code);
             }
 
-            const languageOptions = Array.from(languageSelect?.options || [])
-                .map(option => ({
-                    code: option.value,
-                    label: option.textContent
-                }))
-                .filter(lang => !existingLanguages.includes(lang.code) && lang.code);
+            // Fallback: if no select found (empty glosses), use project languages from DictionaryApp
+            if (languageOptions.length === 0 && window.DictionaryApp?.data?.projectLanguages) {
+                languageOptions = window.DictionaryApp.data.projectLanguages
+                    .map(l => ({ code: l[0], label: l[1] }))
+                    .filter(lang => !existingLanguages.includes(lang.code) && lang.code);
+            }
+
+            console.log('[MultilingualFields] Available language options:', languageOptions);
             console.log('[MultilingualFields] Available language options:', languageOptions);
 
             // If no more languages available, show a message

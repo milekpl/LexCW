@@ -655,7 +655,12 @@ class LIFTXMLSerializer {
 
         // Handle 'sentence' field from HTML form - could be string or dict.
         // Use the explicit language selector if available, otherwise infer from form config.
-        var formEl = typeof document !== 'undefined' && document.getElementById('entry-form');
+        var formEl = null;
+        try {
+            formEl = typeof document !== 'undefined' && document.getElementById('entry-form');
+        } catch (e) {
+            formEl = null;
+        }
         var sentenceLang = (exampleData.sentence_lang) ||
                            (formEl && formEl.dataset.sourceLanguage) || 'en';
         if (!exampleForm && exampleData.sentence) {

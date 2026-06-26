@@ -488,8 +488,12 @@ class MergeSplitService:
             if hasattr(sense, 'id') and sense.id in existing_sense_ids:
                 # Handle conflict based on resolution strategy
                 if conflict_resolution and conflict_resolution.get('duplicate_senses') == 'rename':
-                    # Rename the sense with a suffix
-                    sense.id = f"{sense.id}_transferred"
+                    old_id = sense.id
+                    sense.id = f"{old_id}_transferred"
+                    # Update relation source fields that reference the old sense ID
+                    for rel in sense.relations:
+                        if isinstance(rel, dict) and rel.get('source') == old_id:
+                            rel['source'] = sense.id
                 elif conflict_resolution and conflict_resolution.get('duplicate_senses') == 'skip':
                     continue
                 # Default: overwrite existing sense
@@ -532,6 +536,33 @@ class MergeSplitService:
 
             # Merge relations
             target_sense.relations.extend(source_sense.relations)
+
+            # Merge subsenses (deduplicate by id)
+            target_subsenses = getattr(target_sense, 'subsenses', [])
+            source_subsenses = getattr(source_sense, 'subsenses', [])
+            if source_subsenses:
+                existing_sub_ids = {
+                    s['id'] for s in target_subsenses
+                    if isinstance(s, dict) and 'id' in s
+                }
+                for subsense in source_subsenses:
+                    sub_id = subsense.get('id') if isinstance(subsense, dict) else getattr(subsense, 'id', None)
+                    if sub_id and sub_id not in existing_sub_ids:
+                        target_subsenses.append(subsense)
+                        existing_sub_ids.add(sub_id)
+
+            # Merge semantic domains (deduplicate)
+            target_domains = getattr(target_sense, 'semantic_domains', None)
+            source_domains = getattr(source_sense, 'semantic_domains', None)
+            if source_domains:
+                if target_domains:
+                    existing_domains = set(target_domains)
+                    for domain in source_domains:
+                        if domain not in existing_domains:
+                            target_domains.append(domain)
+                            existing_domains.add(domain)
+                else:
+                    target_sense.semantic_domains = list(source_domains)
 
             # Merge other attributes as needed
             if source_sense.grammatical_info and not target_sense.grammatical_info:

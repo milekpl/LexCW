@@ -492,7 +492,17 @@ class TestGetSearchServiceFactory:
         assert service.dictionary_service is mock_dict
         assert service.xml_service is None
 
-    @pytest.mark.skip(reason="Requires Flask app context - integration test")
-    def test_factory_auto_creates_services(self):
+    def test_factory_auto_creates_services(self, mock_app):
         """Should auto-create services from Flask config."""
-        pass  # Integration test
+        from flask import current_app
+        mock_connector = Mock()
+        mock_dict_service = Mock()
+        mock_dict_service.db_connector = mock_connector
+        current_app.injector.get.return_value = mock_dict_service
+
+        service = get_search_service()
+
+        assert service is not None
+        assert isinstance(service, SearchService)
+        current_app.injector.get.assert_called_once_with(DictionaryService)
+        assert service.dictionary_service is not None

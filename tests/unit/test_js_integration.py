@@ -29,7 +29,8 @@ class TestJavaScriptIntegration:
     
     def test_form_serializer_node_script(self):
         """Test the form serializer JavaScript test script."""
-        test_script_path = os.path.join(os.path.dirname(__file__), 'unit', 'test_form_serializer.js')
+        test_dir = os.path.dirname(__file__)
+        test_script_path = os.path.join(test_dir, 'test_form_serializer.js')
         
         if not os.path.exists(test_script_path):
             pytest.skip(f"Test script not found: {test_script_path}")
@@ -40,7 +41,8 @@ class TestJavaScriptIntegration:
     
     def test_lift_xml_serializer_jest_test(self):
         """Test the LIFT XML serializer Jest test."""
-        test_script_path = os.path.join(os.path.dirname(__file__), 'unit', 'test_lift_xml_serializer.test.js')
+        test_dir = os.path.dirname(__file__)
+        test_script_path = os.path.join(test_dir, 'test_lift_xml_serializer.test.js')
         
         if not os.path.exists(test_script_path):
             pytest.skip(f"Test script not found: {test_script_path}")
@@ -49,11 +51,10 @@ class TestJavaScriptIntegration:
         
         assert result['success'], f"LIFT XML serializer test failed: {result.get('stderr', 'No error message')}"
     
-    @pytest.mark.skip(reason="JavaScript lift-xml-serializer.js has Node.js compatibility issues in test environment")
     def test_jest_test_execution(self):
         """Test that Jest can execute tests successfully."""
         # Run Jest on a specific pattern to test Jest functionality
-        result = self.runner.run_jest_tests(test_pattern="**/test_lift_xml_serializer.test.js")
+        result = self.runner.run_jest_tests(test_pattern="tests/unit/test_lift_xml_serializer.test.js")
         
         assert result['success'], f"Jest execution failed: {result.get('stderr', 'No error message')}"
     

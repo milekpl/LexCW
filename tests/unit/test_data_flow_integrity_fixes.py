@@ -224,21 +224,20 @@ class TestMergeFormDataWithEntryDataPronunciations:
 
 
 class TestEntryModelToLiftXML:
-    """Test Entry XML serialization - component: entry model
+    """Test Entry XML serialization - component: entry model"""
 
-    Note: to_lift_xml() is planned for future implementation.
-    Entry.to_dict() provides comprehensive serialization for now.
-    """
-
-    @pytest.mark.skip(reason="to_lift_xml() planned for future implementation - Entry.to_dict() provides serialization")
     def test_to_lift_xml_method_exists_and_is_callable(self):
-        """Entry model may have to_lift_xml() method in future - skipped for now."""
-        pass
+        """Entry model has to_lift_xml() method."""
+        entry = Entry(id_='test', lexical_unit={'en': 'test'})
+        assert hasattr(entry, 'to_lift_xml')
+        assert callable(entry.to_lift_xml)
 
-    @pytest.mark.skip(reason="to_lift_xml() planned for future implementation")
     def test_to_lift_xml_returns_string(self):
-        """to_lift_xml() serialization - skipped for now."""
-        pass
+        """to_lift_xml() returns a non-empty string."""
+        entry = Entry(id_='test', lexical_unit={'en': 'test'})
+        xml = entry.to_lift_xml()
+        assert isinstance(xml, str)
+        assert len(xml) > 0
 
 
 class TestHTMLExporterGetEntryXML:

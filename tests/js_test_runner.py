@@ -96,6 +96,8 @@ class JSTestRunner:
         
         if test_pattern:
             cmd.append(test_pattern)
+            # Exclude worktree copies when running a specific test file
+            cmd.extend(['--testPathIgnorePatterns', '\.worktrees'])
         
         # Add JSON output for parsing results
         cmd.extend(['--json'])

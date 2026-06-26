@@ -365,11 +365,22 @@ class TestGetExportService:
         assert isinstance(service, ExportService)
         assert service.dict_service is mock_dict
 
-    @pytest.mark.skip(reason="Requires Flask app context - integration test")
     @patch('app.services.export_service.DictionaryService')
-    def test_get_export_service_creates_new_service(self, mock_dict_class):
+    def test_get_export_service_creates_new_service(self, mock_dict_class, mock_app):
         """Should create new dictionary service if not provided."""
-        pass  # Integration test
+        from flask import current_app
+        mock_connector = Mock()
+        mock_dict_instance = Mock()
+        mock_dict_instance.db_connector = mock_connector
+        mock_dict_class.return_value = mock_dict_instance
+        current_app.injector.get.return_value = mock_dict_instance
+
+        service = get_export_service()
+
+        assert isinstance(service, ExportService)
+        assert service.dict_service is not None
+        current_app.injector.get.assert_called_once()
+        mock_dict_class.assert_called_once()
 
 
 class TestExportIntegration:

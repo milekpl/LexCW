@@ -163,15 +163,67 @@ class TestSenseMergeFieldPreservation:
         assert len(target_sense.relations) == 2
         assert all(r['ref'] == 'duplicate_ref' for r in target_sense.relations)
 
-    @pytest.mark.skip(reason="Subsense merge not yet implemented in _merge_senses_into_target")
     def test_merge_preserves_subsense_hierarchy(self):
-        """Sense merge must preserve subsense parent-child relationships (future feature)."""
-        pass
+        """Sense merge must preserve subsense parent-child relationships."""
+        target_sense = Sense(
+            id='sense_target',
+            glosses={'en': 'target'},
+            definitions={'en': 'definition'},
+            examples=[],
+            relations=[],
+            subsenses=[
+                {'id': 'sub1', 'gloss': {'en': 'subsense 1'}},
+                {'id': 'sub2', 'gloss': {'en': 'subsense 2'}}
+            ]
+        )
 
-    @pytest.mark.skip(reason="Semantic domain merge not yet implemented in _merge_senses_into_target")
+        source_sense = Sense(
+            id='sense_source',
+            glosses={'en': 'source'},
+            definitions={'en': 'source def'},
+            examples=[],
+            relations=[],
+            subsenses=[
+                {'id': 'sub3', 'gloss': {'en': 'subsense 3'}}
+            ]
+        )
+
+        service = MergeSplitService(Mock())
+        service._merge_senses_into_target(target_sense, [source_sense])
+
+        assert len(target_sense.subsenses) == 3
+        sub_ids = {s['id'] for s in target_sense.subsenses}
+        assert 'sub1' in sub_ids
+        assert 'sub2' in sub_ids
+        assert 'sub3' in sub_ids
+
     def test_merge_preserves_semantic_domains(self):
-        """Sense merge must preserve semantic domain assignments (future feature)."""
-        pass
+        """Sense merge must preserve semantic domain assignments."""
+        # Note: Uses semantic_domains (plural, List[str]) per Sense model
+        target_sense = Sense(
+            id='sense_target',
+            glosses={'en': 'target'},
+            definitions={'en': 'definition'},
+            examples=[],
+            relations=[],
+            semantic_domains=['1.2.3 Animals']
+        )
+
+        source_sense = Sense(
+            id='sense_source',
+            glosses={'en': 'source'},
+            definitions={'en': 'source def'},
+            examples=[],
+            relations=[],
+            semantic_domains=['4.5.6 Plants']
+        )
+
+        service = MergeSplitService(Mock())
+        service._merge_senses_into_target(target_sense, [source_sense])
+
+        assert isinstance(target_sense.semantic_domains, list)
+        assert '1.2.3 Animals' in target_sense.semantic_domains
+        assert '4.5.6 Plants' in target_sense.semantic_domains
 
     def test_merge_preserves_grammatical_info(self):
         """Sense merge must preserve grammatical information."""
@@ -445,10 +497,41 @@ class TestTransferRelationsUpdate:
         # Verify relations preserved
         assert len(target_entry.senses[0].relations) == 1
 
-    @pytest.mark.skip(reason="Sense ID conflict handling with rename not yet implemented")
     def test_transfer_renames_senses_on_conflict(self):
-        """Sense transfer must rename senses when duplicate IDs exist (future feature)."""
-        pass
+        """Sense transfer must rename senses when duplicate IDs exist."""
+        existing_sense = Sense(
+            id='sense_1',
+            glosses={'en': 'existing'},
+            definitions={'en': 'existing def'},
+            examples=[],
+            relations=[]
+        )
+
+        target_entry = Entry(
+            id_='target_entry',
+            lexical_unit={'en': 'target'},
+            senses=[existing_sense]
+        )
+
+        source_sense = Sense(
+            id='sense_1',
+            glosses={'en': 'new'},
+            definitions={'en': 'new def'},
+            examples=[],
+            relations=[{'type': 'synonym', 'ref': 'other', 'source': 'sense_1'}]
+        )
+
+        service = MergeSplitService(Mock())
+        service._transfer_senses_to_entry(
+            target_entry,
+            [source_sense],
+            conflict_resolution={'duplicate_senses': 'rename'}
+        )
+
+        assert len(target_entry.senses) == 2
+        transferred_sense = target_entry.senses[1]
+        assert transferred_sense.id == 'sense_1_transferred'
+        assert transferred_sense.relations[0]['source'] == 'sense_1_transferred'
 
     def test_transfer_skips_senses_on_conflict_when_configured(self):
         """Sense transfer must skip senses when skip conflict resolution configured."""

@@ -1415,6 +1415,39 @@ class Entry(BaseModel):
 
         self.traits[trait_type] = new_value
 
+    def to_lift_xml(self) -> str:
+        """Serialize this entry to LIFT XML format."""
+        parts = [f'<entry id="{self.id}"']
+        if self.date_created:
+            parts.append(f' dateCreated="{self.date_created}"')
+        if self.date_modified:
+            parts.append(f' dateModified="{self.date_modified}"')
+        parts.append('>')
+
+        if self.lexical_unit:
+            parts.append('<lexical-unit>')
+            for lang, text in self.lexical_unit.items():
+                import html
+                safe_text = html.escape(str(text))
+                parts.append(f'<form lang="{lang}"><text>{safe_text}</text></form>')
+            parts.append('</lexical-unit>')
+
+        if self.pronunciations:
+            for ws, pron in self.pronunciations.items():
+                import html
+                parts.append(f'<pronunciation><form lang="{ws}"><text>{html.escape(str(pron))}</text></form></pronunciation>')
+
+        if self.senses:
+            for sense in self.senses:
+                sense_xml = getattr(sense, 'to_lift_xml', None)
+                if sense_xml:
+                    parts.append(sense_xml())
+                else:
+                    parts.append('<sense id="unknown"/>')
+
+        parts.append('</entry>')
+        return ''.join(parts)
+
     def update_grammatical_info(self, grammatical_info: str) -> None:
         """
         Update the grammatical information for this entry.
@@ -1562,3 +1595,5 @@ class RelationGroups:
         """Allow dict-style .get() access."""
         result = self.__getitem__(key)
         return result if result else (default or [])
+
+
