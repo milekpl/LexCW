@@ -28,6 +28,7 @@ from app.utils.exceptions import (
     ExportError,
 )
 from app.utils.constants import DB_NAME_NOT_CONFIGURED
+from app.utils.data_copier import DataCopier
 from app.utils.xquery_builder import XQueryBuilder
 from app.utils.namespace_manager import LIFTNamespaceManager
 
@@ -2870,8 +2871,7 @@ class DictionaryService:
                     resolved_copy = {}
                     for k, v in self.ranges.items():
                         # Deep copy to avoid mutating internal cache
-                        import copy as _copy
-                        rcopy = _copy.deepcopy(v)
+                        rcopy = DataCopier().copy(v)
                         if 'values' in rcopy and isinstance(rcopy['values'], list):
                             rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'])
                         resolved_copy[k] = rcopy
@@ -3043,10 +3043,9 @@ class DictionaryService:
             # Apply resolved transformation if requested
             if resolved:
                 try:
-                    import copy as _copy
                     resolved_copy = {}
                     for k, v in self.ranges.items():
-                        rcopy = _copy.deepcopy(v)
+                        rcopy = DataCopier().copy(v)
                         if 'values' in rcopy and isinstance(rcopy['values'], list):
                             rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'])
                         resolved_copy[k] = rcopy

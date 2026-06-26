@@ -110,7 +110,7 @@ class TestFieldLanguageDetector(unittest.TestCase):
         )
         self.assertEqual(
             self.detector.normalize_lang_code('en_us'),
-            'en_US'
+            'en-US'
         )
         self.assertEqual(
             self.detector.normalize_lang_code('ipa'),

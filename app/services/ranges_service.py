@@ -7,6 +7,7 @@ from typing import Dict, List, Any, Optional
 import xml.etree.ElementTree as ET
 import os
 
+from app.utils.data_copier import DataCopier
 from app.database.basex_connector import BaseXConnector
 from app.parsers.lift_parser import LIFTRangesParser
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
@@ -271,8 +272,7 @@ class RangesService:
                 try:
                     custom_ranges = self._load_custom_ranges(project_id)
                     if custom_ranges:
-                        import copy
-                        merged = copy.deepcopy(cached_ranges)
+                        merged = DataCopier().copy(cached_ranges)
                         for range_name, elements in custom_ranges.items():
                             if range_name not in merged:
                                 merged[range_name] = {
@@ -526,8 +526,7 @@ class RangesService:
             # If the cached range has values from the database, return it directly
             if cached_range.get('values'):
                 if resolved:
-                    import copy
-                    rcopy = copy.deepcopy(cached_range)
+                    rcopy = DataCopier().copy(cached_range)
                     rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'], prefer_lang='en')
                     return rcopy
                 return cached_range
@@ -578,8 +577,7 @@ class RangesService:
                             db_range['config_type'] = cached_range.get('config_type')
 
                             if resolved:
-                                import copy
-                                rcopy = copy.deepcopy(db_range)
+                                rcopy = DataCopier().copy(db_range)
                                 if rcopy.get('values'):
                                     rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'], prefer_lang='en')
                                 return rcopy
@@ -591,8 +589,7 @@ class RangesService:
 
             # Return cached version (may have empty values from STANDARD_RANGE_METADATA)
             if resolved:
-                import copy
-                rcopy = copy.deepcopy(cached_range)
+                rcopy = DataCopier().copy(cached_range)
                 if rcopy.get('values'):
                     rcopy['values'] = self.ranges_parser.resolve_values_with_inheritance(rcopy['values'], prefer_lang='en')
                 return rcopy

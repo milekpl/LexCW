@@ -421,18 +421,25 @@ class NormalizationService:
         xml_string: str,
         add_root: bool = True,
         mode: Optional[NormalizationMode] = None,
-        strip_whitespace: bool = False
+        strip_whitespace: bool = False,
+        namespace: Optional[str] = None
     ) -> str:
         """
         Normalize LIFT XML string (specific to LIFT format).
 
         Consolidates logic from LIFTParser and NamespaceManager.
 
+        Unlike normalize_xml(), this does NOT decode HTML entities,
+        since the output is typically fed to an XML parser that handles
+        entities natively.
+
         Args:
             xml_string: LIFT XML string
             add_root: Whether to wrap in <lift> root if missing
             mode: Optional normalization mode override
             strip_whitespace: Whether to strip unnecessary whitespace from XML
+            namespace: Namespace URI for <lift> root element.
+                       Defaults to "http://liftonario.org/"
 
         Returns:
             Normalized LIFT XML string
@@ -443,22 +450,19 @@ class NormalizationService:
         mode = mode or self.mode
         result = xml_string
 
-        # Apply generic XML normalization
-        result = self.normalize_xml(result, mode)
+        # Remove XML declaration (same pattern as normalize_xml but skip entity decoding)
+        result = self._XML_DECLARATION_PATTERN.sub('', result).strip()
 
-        # Strip whitespace if requested (for LIFTParser compatibility)
+        # Strip whitespace if requested
         if strip_whitespace:
             result = re.sub(r'>\s+<', '><', result)
 
         # Wrap in <lift> root if needed
         if add_root and not self._XML_NAMESPACED_LIFT_PATTERN.match(result):
-            # Default LIFT namespace - add namespace to the wrapper, not the content
-            ns_uri = "http://liftonario.org/"
+            ns_uri = namespace or "http://liftonario.org/"
             result = f'<lift xmlns="{ns_uri}" xmlns:lift="{ns_uri}">{result}</lift>'
         elif self.xml_add_namespace and 'xmlns' not in result:
-            # Only add namespace to root if we're NOT wrapping in lift
-            # (i.e., the result itself should have the namespace)
-            ns_uri = "http://liftonario.org/"
+            ns_uri = namespace or "http://liftonario.org/"
             if result.startswith('<'):
                 # Add namespace to root element
                 first_tag_end = result.find('>')
@@ -737,7 +741,12 @@ def normalize_xml(xml_string: str) -> str:
     return _default_service.normalize_xml(xml_string)
 
 
-def normalize_lift_xml(xml_string: str, add_root: bool = True, strip_whitespace: bool = False) -> str:
+def normalize_lift_xml(
+    xml_string: str,
+    add_root: bool = True,
+    strip_whitespace: bool = False,
+    namespace: Optional[str] = None
+) -> str:
     """
     Normalize LIFT XML string using default settings.
     
@@ -745,8 +754,11 @@ def normalize_lift_xml(xml_string: str, add_root: bool = True, strip_whitespace:
         xml_string: LIFT XML string to normalize
         add_root: Whether to wrap in <lift> root if missing
         strip_whitespace: Whether to strip unnecessary whitespace from XML
+        namespace: Namespace URI for <lift> root element
     """
-    return _default_service.normalize_lift_xml(xml_string, add_root=add_root, strip_whitespace=strip_whitespace)
+    return _default_service.normalize_lift_xml(
+        xml_string, add_root=add_root, strip_whitespace=strip_whitespace, namespace=namespace
+    )
 
 
 def normalize_multilingual_dict(data: Dict[str, Any]) -> Dict[str, Any]:

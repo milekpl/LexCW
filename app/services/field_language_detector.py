@@ -334,29 +334,8 @@ class FieldLanguageDetector:
         Returns:
             Normalized language code
         """
-        if not code:
-            return 'en'
-
-        # Handle special codes first (before case normalization)
-        code_lower = code.lower()
-        if code_lower in ('ipa', 'x-ipa', 'x_ipa'):
-            return 'seh-fonipa'
-
-        # Convert to lowercase
-        code = code_lower
-
-        # Handle common variations
-        # 'en-us' -> 'en-US'
-        if '-' in code:
-            parts = code.split('-')
-            code = f"{parts[0]}-{parts[1].upper()}" if len(parts) > 1 else parts[0]
-
-        # 'en_us' -> 'en_US'
-        elif '_' in code:
-            parts = code.split('_')
-            code = f"{parts[0]}_{parts[1].upper()}" if len(parts) > 1 else parts[0]
-
-        return code
+        from app.utils.normalization_service import normalize_language_code
+        return normalize_language_code(code) or 'en'
 
     def is_ipa_field(self, field_path: str) -> bool:
         """Check if a field should use IPA dictionary."""

@@ -46,13 +46,12 @@ function validateIpaField(input) {
     // non-IPA characters: digits 0-9 and common ASCII punctuation
     // (except IPA delimiters / [ ] . and stress marks ˈ ˌ).
     var invalidPattern = /[0-9!#$%&()*+,:;<=>?@\\^_`{|}~]/;
+    // Check for consecutive stress marks (e.g., ˈˈ or ˌˌ or ˈˌ)
+    var consecutiveStress = /[ˈˌ]{2,}/;
     // Also flag if the value looks like it's missing IPA delimiters
     // (doesn't start with / or [)
     var looksLikeIpa = /^[\/\[]/.test(value);
 
-    // Check for consecutive stress marks (e.g., ˈˈ or ˌˌ or ˈˌ)
-    var consecutiveStress = /[ˈˌ]{2,}/;
-    
     if (invalidPattern.test(value) || consecutiveStress.test(value)) {
         input.classList.add('is-invalid');
         input.classList.remove('is-valid');

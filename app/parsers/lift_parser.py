@@ -12,6 +12,7 @@ from app.models.entry import Entry, Etymology, Relation, Variant
 from app.models.sense import Sense
 from app.models.example import Example
 from app.utils.exceptions import ValidationError
+from app.utils.normalization_service import normalize_multilingual_dict
 
 class LIFTParser:
     """Parser for LIFT format dictionary files."""
@@ -145,12 +146,8 @@ class LIFTParser:
 
     def _normalize_xml(self, xml: str) -> str:
         """Handle multiple entries without root or extra XML declarations."""
-        xml = re.sub(r'<\?xml[^>]*\?>', '', xml).strip()
-        # Always wrap in <lift> if not already wrapped as <lift> or <lift:lift>
-        if not re.match(r'^<(\w+:)?lift(\s|>)', xml):
-            ns_uri = self.NSMAP['lift']
-            xml = f'<lift xmlns="{ns_uri}" xmlns:lift="{ns_uri}">{xml}</lift>'
-        
+        from app.utils.normalization_service import normalize_lift_xml
+        xml = normalize_lift_xml(xml, namespace=self.NSMAP['lift'])
         self.logger.debug(f"Normalized XML: {xml[:100]}...")
         return xml
 
@@ -841,7 +838,7 @@ class LIFTParser:
                 content = {'und': note.text.strip()}
             if content:
                 notes[note_type] = content
-        return self._normalize_multilingual_dict(notes)
+        return normalize_multilingual_dict(notes)
 
     def _parse_traits(self, parent: ET.Element) -> Optional[Dict[str, str]]:
         """Parse trait elements."""
@@ -948,18 +945,6 @@ class LIFTParser:
             'when': elem.get('when'),
             'content': self._parse_multitext(elem, '.', flatten=True)
         }
-
-    @staticmethod
-    def _normalize_multilingual_dict(d: dict) -> dict:
-        """Ensure all values are {"text": ...} dicts."""
-        for k, v in list(d.items()):
-            if isinstance(v, dict):
-                if set(v.keys()) == {"text"} and isinstance(v["text"], str):
-                    continue
-                d[k] = LIFTParser._normalize_multilingual_dict(v)
-            else:
-                d[k] = {"text": v}
-        return d
 
     @staticmethod
     def _generate_id() -> str:
@@ -1264,8 +1249,8 @@ class LIFTRangesParser:
           - parent's effective value
           - fallback to `value` or `id` (for labels) and a `value[:3]` fallback for abbrev
         """
-        import copy
-        vals_copy = copy.deepcopy(values)
+        from app.utils.data_copier import DataCopier
+        vals_copy = DataCopier().copy(values)
 
         def pick_label(labels: Dict[str, str], parent_label: str | None) -> str:
             if not labels and parent_label:

@@ -129,7 +129,8 @@ def strip_stress_marks(ipa: str) -> str:
 
 def normalize_ipa(ipa: str) -> str:
     """Normalize an IPA string for comparison: strip stress, lowercase."""
-    return strip_stress_marks(ipa).strip().lower()
+    from app.utils.normalization_service import normalize_ipa as _norm
+    return _norm(ipa)
 
 
 # ---------------------------------------------------------------------------

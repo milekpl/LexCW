@@ -1,51 +1,19 @@
 """
-Flask routes for corpus management - TMX/CSV upload and migration via web interface.
+Flask routes for corpus management.
 """
 from __future__ import annotations
 
-import os
-import tempfile
-from pathlib import Path
+import json
+from datetime import datetime
 from typing import Dict, Any
 
 from flask import Blueprint, request, jsonify, current_app
-from werkzeug.utils import secure_filename
 from flasgger import swag_from
 
 
 
 # Create blueprint
 corpus_bp = Blueprint('corpus', __name__, url_prefix='/api/corpus')
-
-
-
-
-def _allowed_file(filename: str) -> bool:
-    """Check if uploaded file has allowed extension."""
-    allowed_extensions = {'tmx', 'csv', 'db'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
-
-
-def _format_migration_stats(stats: MigrationStats) -> Dict[str, Any]:
-    """Format migration statistics for JSON response."""
-    return {
-        'records_processed': stats.records_processed,
-        'records_exported': stats.records_exported,
-        'records_imported': stats.records_imported,
-        'errors_count': stats.errors_count,
-        'duration': stats.duration,
-        'records_per_second': stats.records_per_second
-    }
-
-
-@corpus_bp.route('/upload', methods=['POST'])
-def upload_corpus():
-    """Upload and migrate corpus file (TMX, CSV, or SQLite).
-
-    DEPRECATED: Corpus upload and PostgreSQL-based migration endpoints have been removed.
-    Use the Lucene corpus service and offline utilities for importing and converting corpora.
-    """
-    return jsonify({'success': False, 'error': 'Corpus upload and migration endpoints are deprecated. Use Lucene services or offline tools.'}), 410
 
 
 @corpus_bp.route('/stats', methods=['GET'])
@@ -240,41 +208,6 @@ def deduplicate_corpus():
             'success': False,
             'error': str(e)
         }), 500
-
-
-@corpus_bp.route('/convert/tmx-to-csv', methods=['POST'])
-def convert_tmx_to_csv():
-    """Convert TMX file to CSV format and return download."""
-    try:
-        # Check if file is present
-        if 'file' not in request.files:
-            return jsonify({'error': 'No TMX file provided'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if not file.filename.lower().endswith('.tmx'):
-            return jsonify({'error': 'File must be a TMX file'}), 400
-        
-        # Get options
-        source_lang = request.form.get('source_lang', 'en')
-        target_lang = request.form.get('target_lang', 'pl')
-        
-        # Save TMX file temporarily
-        tmx_filename = secure_filename(file.filename or 'corpus.tmx')
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f'_{tmx_filename}') as tmx_file:
-            file.save(tmx_file.name)
-            tmx_path = Path(tmx_file.name)
-        
-        # DEPRECATED: TMX-to-CSV conversion endpoint removed. Use local tools for TMX conversion.
-        return jsonify({'success': False, 'error': 'TMX to CSV conversion via web endpoint is deprecated. Use local/offline conversion utilities.'}), 410
-        
-    
-    except Exception as e:
-        current_app.logger.error(f"TMX to CSV conversion failed: {e}")
-        return jsonify({'error': f'Conversion failed: {str(e)}'}), 500
 
 
 @corpus_bp.route('/clear-cache', methods=['POST'])

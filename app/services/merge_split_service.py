@@ -5,8 +5,8 @@ Service for handling merge and split operations on dictionary entries.
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import uuid
-import copy
 import json
+from app.utils.data_copier import DataCopier
 
 from app.models.merge_split_operations import MergeSplitOperation, SenseTransfer, MergeSplitResult
 from app.models.entry import Entry
@@ -80,7 +80,7 @@ class MergeSplitService:
             )
 
             # Remove senses from source entry
-            modified_source_entry = copy.deepcopy(original_source_entry)
+            modified_source_entry = DataCopier().copy(original_source_entry)
             self._remove_senses_from_entry(modified_source_entry, sense_ids)
 
             # Save changes to database
@@ -192,8 +192,8 @@ class MergeSplitService:
                     senses_to_transfer.append(sense)
 
             # Clone entries to modify
-            modified_target_entry = copy.deepcopy(original_target_entry)
-            modified_source_entry = copy.deepcopy(original_source_entry)
+            modified_target_entry = DataCopier().copy(original_target_entry)
+            modified_source_entry = DataCopier().copy(original_source_entry)
 
             # Transfer senses to target entry
             self._transfer_senses_to_entry(modified_target_entry, senses_to_transfer, conflict_resolution)
@@ -316,7 +316,7 @@ class MergeSplitService:
                 raise ValidationError(f"Target sense {target_sense_id} not found in entry")
 
             # Clone the entry to modify
-            modified_entry = copy.deepcopy(original_entry)
+            modified_entry = DataCopier().copy(original_entry)
 
             # Find and get references to target and source senses in the cloned entry
             modified_target_sense = self._find_sense_by_id(modified_entry, target_sense_id)

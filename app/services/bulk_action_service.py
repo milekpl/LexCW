@@ -13,7 +13,7 @@ from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
 from enum import Enum
 import logging
-import copy
+from app.utils.data_copier import DataCopier
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,7 @@ class BulkActionService:
                 }
 
             # Store original state for diff
-            original = copy.deepcopy(entry.to_dict())
+            original = DataCopier().copy(entry.to_dict())
 
             # Execute action based on type
             if action.action == ActionType.SET.value:
