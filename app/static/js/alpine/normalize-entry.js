@@ -352,7 +352,16 @@
       pronunciations: normalizePronunciations(raw.pronunciations),
       etymologies: safeArray(raw.etymologies).map(normalizeEtymology),
       variants: safeArray(raw.variants).map(normalizeVariant),
-      relations: safeArray(raw.relations).map(normalizeRelation),
+      // Entry-level semantic relations ONLY. The model (entry.py) folds variant_relations
+      // and components INTO `relations` (as relations carrying a 'variant-type' /
+      // 'complex-form-type' trait), and ALSO emits them separately as `variant_relations`.
+      // Without this filter they render twice — once here (as an "undefined" relation, since
+      // their type is `_component-lexeme`, not a lexical-relation) and once in the variant
+      // component. Exclude trait-marked relations; they belong to entryVariantRelations/components.
+      relations: safeArray(raw.relations).filter(function (r) {
+        var t = r && r.traits;
+        return !(t && (t['variant-type'] || t['complex-form-type']));
+      }).map(normalizeRelation),
       variantRelations: safeArray(raw.variant_relations || raw.variantRelations).map(normalizeRelation),
       notes: normalizeNotes(raw.notes),
       annotations: safeArray(raw.annotations).map(normalizeAnnotation),

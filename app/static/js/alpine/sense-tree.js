@@ -117,7 +117,11 @@
          * Alpine init() — seed empty sense, load ranges async, setup SortableJS.
          */
         init: function () {
-          if (this.senses.length === 0) {
+          // Seed an empty sense ONLY for a brand-new entry (the add page renders
+          // Entry(id_="")). Existing entries are shown as-is — a variant entry legitimately
+          // has NO sense (it is just a headword + a relation), and forcing an empty,
+          // definition-required sense onto it breaks its save/preview.
+          if (this.senses.length === 0 && !entry.id) {
             this.addSense();
           }
           this.loadRanges();      // async; x-for fills options when rangeData arrives

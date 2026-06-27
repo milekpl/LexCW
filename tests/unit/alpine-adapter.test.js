@@ -464,6 +464,32 @@ describe('Round-trip: normalize → adapt → serializeEntry', () => {
   });
 });
 
+describe('entry relations vs variant relations (no double-render)', () => {
+  test('variant/component relations are excluded from entryRelations (kept only in variant_relations)', () => {
+    // entry.py folds variant_relations into `relations` (trait-marked) AND emits them
+    // separately; entryRelations must not render the trait-marked ones (they would show as
+    // duplicate "undefined" relations alongside the variant component).
+    const entry = normalizeEntry({
+      id: 'e1',
+      relations: [
+        { ref: 'syn-target', type: 'Synonym' },
+        { ref: 'var-target', type: '_component-lexeme', traits: { 'variant-type': 'Spelling Variant' } },
+        { ref: 'cmp-target', type: '_component-lexeme', traits: { 'complex-form-type': 'Compound' } },
+      ],
+      variant_relations: [
+        { ref: 'var-target', type: '_component-lexeme', variant_type: 'Spelling Variant' },
+      ],
+    });
+    expect(entry.relations.map(r => r.ref)).toEqual(['syn-target']); // only the real relation
+    expect(entry.variantRelations.map(r => r.ref)).toContain('var-target'); // variant kept here
+  });
+
+  test('a sense-less entry normalizes to zero senses (variant entries have no sense)', () => {
+    const entry = normalizeEntry({ id: 'variant-entry', lexical_unit: { en: 'be highly considered' }, senses: [] });
+    expect(entry.senses).toEqual([]);
+  });
+});
+
 describe('dictToForms helper', () => {
   test('should convert lang→text dict to forms array', () => {
     const forms = dictToForms({ en: 'hello', pl: 'cześć' });

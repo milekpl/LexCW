@@ -2165,8 +2165,15 @@ class DictionaryService:
             text_path = self._query_builder.get_element_path("text", has_ns)
             form_path = self._query_builder.get_element_path("form", has_ns)
             lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
 
             C = f"collection('{db_name}')"
+
+            # Entries that are variant forms have a <relation> with <trait name="variant-type">.
+            # These legitimately lack senses and pronunciations, so we exclude them from
+            # structural quality metrics.
+            VARIANT_FILTER = f"not(.//{relation_path}[{trait_path}[@name='variant-type']])"
 
             def pct(part, total):
                 return round((part / total) * 100, 1) if total > 0 else 0.0
@@ -2176,15 +2183,16 @@ class DictionaryService:
             # entries | senses | examples | entries_no_sense | senses_no_content | entries_no_pron | senses_no_example
             count_query = (
                 f"{prologue} let $entries := {C}//{entry_path}, "
-                f"  $senses := {C}//{sense_path}, "
-                f"  $examples := {C}//{example_path} "
+                f"  $non_variant := {C}//{entry_path}[{VARIANT_FILTER}], "
+                f"  $senses := $non_variant//{sense_path}, "
+                f"  $examples := $senses//{example_path} "
                 f"return string-join(("
                 f"  count($entries), "
                 f"  count($senses), "
                 f"  count($examples), "
-                f"  count($entries[empty(.//{sense_path})]), "
+                f"  count($non_variant[empty(.//{sense_path})]), "
                 f"  count($senses[empty({definition_path}) and empty({gloss_path})]), "
-                f"  count($entries[empty(.//{pronunciation_path})]), "
+                f"  count($non_variant[empty(.//{pronunciation_path})]), "
                 f"  count($senses[empty(.//{example_path})])"
                 f"), '|')"
             )
@@ -2225,11 +2233,11 @@ class DictionaryService:
                     result.append({'id': eid, 'headword': hw_clean})
                 return result
 
-            entries_no_sense_samples = sample_entries(f"empty(.//{sense_path})")
+            entries_no_sense_samples = sample_entries(f"empty(.//{sense_path}) and {VARIANT_FILTER}")
             senses_no_content_samples = sample_entries(
-                f".//{sense_path}[empty({definition_path}) and empty({gloss_path})]"
+                f".//{sense_path}[empty({definition_path}) and empty({gloss_path})] and {VARIANT_FILTER}"
             )
-            entries_no_pron_samples = sample_entries(f"empty(.//{pronunciation_path})")
+            entries_no_pron_samples = sample_entries(f"empty(.//{pronunciation_path}) and {VARIANT_FILTER}")
 
             # --- lightweight validation checks (single-pass) ---
             # Empty text nodes under definition/gloss

@@ -1326,6 +1326,28 @@ branch; migrate that section's tests; round-trip test.
 
 ### 16.3 Final decommission (only after §16.1–16.2 are all green)
 
+> **Status (2026-06-27): Phase A + delegation cleanup DONE; form-serializer/merge-harness removal DEFERRED.**
+> Done: deleted dead managers (`relations.js`, `variant-forms.js`, `direct-variants.js`) + the
+> dead `addAnnotation` cluster + dead manager-inits in `entry-form-init.js`; deleted
+> `_senses_fixed.html`; and **removed the entire conflicting `sensesContainer` click-delegation
+> block** (`entry-form.js`, was lines 723–1077) — every branch was Alpine-owned, so the §14
+> Finding-1 conflicts (incl. the stray `remove-subsense` `confirm()`) are gone. Verified: 32
+> sense e2e passed. The legacy `addExample`/`addSubsense`/`addReversal`/`reindexSenses` functions
+> it called are now fully unreferenced — delete in the final pass.
+>
+> **DEFERRED — `form-serializer.js` + merge-harness removal (do as a dedicated, fresh pass):**
+> Not safe to rush. Two concrete risks: (1) **silent data loss** — `_custom_fields.html` carries
+> `name=` attributes, so re-saving an entry that HAS custom fields currently preserves them via
+> form-serializer; removing it without explicitly capturing custom fields drops them. (2) The
+> `_basic_info` scalars (id, citation_form, status, morph_type, grammatical_info.part_of_speech,
+> homograph_number) are still serialized by form-serializer's `name`-path parsing — that must be
+> replicated (capture-at-submit) first. Required before deletion: a round-trip test that creates
+> an entry WITH custom fields + all scalars, saves, reloads, and asserts none are dropped — then
+> swap form-serializer for direct scalar+custom-field capture, then delete it and the merge
+> harness's legacy half. This is the only remaining item; everything else is Alpine-owned.
+
+
+
 When `extractAlpineState` supplies **every** data section and no `name=`-bearing inputs remain:
 
 - Delete the **legacy `document`-click delegation block** in `entry-form.js` (the §14 Finding-1
