@@ -3,71 +3,44 @@
         <h5><i class="fas fa-book"></i> Basic Information</h5>
     </div>
     <div class="card-body">
-        <div class="mb-3">
+        {# Alpine.js lexical-unit component (Stage 2.1) #}
+        <div x-data="lexicalUnit(window.__entryData || {})" class="mb-3">
             <label class="form-label">Lexical Unit <span class="text-danger">*</span></label>
             <div class="multilingual-forms lexical-unit-forms">
-                {% set default_lang_code = source_lang %}
-                {% if entry.lexical_unit %}
-                    {% for lang_code, text in entry.lexical_unit.items() %}
-                        <div class="mb-2 language-form" data-language="{{ lang_code }}">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <label class="form-label">Language</label>
-                                    <select class="form-select language-select" 
-                                            name="lexical_unit_lang.{{ lang_code }}"
-                                            data-current-lang="{{ lang_code }}">
-                                        {% for code, label in project_languages %}
-                                            <option value="{{ code }}" {% if code == lang_code %}selected{% endif %}>{{ label|safe }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div class="col-md-8">
-                                    <label class="form-label">Headword Text</label>
-                                    <input type="text" class="form-control lexical-unit-text" 
-                                           name="lexical_unit.{{ lang_code }}"
-                                           value="{{ text }}"
-                                           {% if lang_code == default_lang_code %}required{% endif %}
-                                           placeholder="Enter headword in {{ lang_code }}">
-                                </div>
-                                <div class="col-md-1 d-flex align-items-end">
-                                    {% if lang_code != default_lang_code %}
-                                        <button type="button" class="btn btn-sm btn-outline-danger remove-lexical-unit-language-btn" 
-                                                title="Remove language">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="mb-2 language-form" data-language="{{ default_lang_code }}">
+                <template x-for="(f, fi) in forms" :key="f.id">
+                    <div class="mb-2 language-form" :data-language="f.lang">
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="form-label">Language</label>
-                                <select class="form-select language-select" 
-                                        name="lexical_unit_lang.{{ default_lang_code }}"
-                                        data-current-lang="{{ default_lang_code }}">
-                                    {% for code, label in project_languages %}
-                                        <option value="{{ code }}" {% if code == default_lang_code %}selected{% endif %}>{{ label|safe }}</option>
-                                    {% endfor %}
+                                <select class="form-select language-select"
+                                        x-model="f.lang">
+                                    <template x-for="opt in languageOptions" :key="opt.code">
+                                        <option :value="opt.code" x-text="opt.label"
+                                                :selected="opt.code === f.lang"></option>
+                                    </template>
                                 </select>
                             </div>
                             <div class="col-md-8">
                                 <label class="form-label">Headword Text</label>
-                                <input type="text" class="form-control lexical-unit-text" 
-                                       name="lexical_unit.{{ default_lang_code }}"
-                                       required
-                                       placeholder="Enter headword in {{ default_lang_code }}">
+                                <input type="text" class="form-control lexical-unit-text"
+                                       x-model="f.text"
+                                       :required="fi === 0"
+                                       :placeholder="'Enter headword in ' + f.lang">
                             </div>
-                            <div class="col-md-1">
-                                <!-- No remove button for primary language -->
+                            <div class="col-md-1 d-flex align-items-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-lexical-unit-language-btn"
+                                        x-show="forms.length > 1"
+                                        @click.prevent="removeRow(f.id)"
+                                        title="Remove language">
+                                    <i class="fas fa-times"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
-                {% endif %}
+                </template>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary mt-2 add-lexical-unit-language-btn">
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2 add-lexical-unit-language-btn"
+                    @click.prevent="addRow()">
                 <i class="fas fa-plus"></i> Add Translation
             </button>
             <div class="form-text">The headword as it appears in the dictionary.</div>

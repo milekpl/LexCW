@@ -54,230 +54,67 @@ def create_entry_via_api(base_url: str, headword: str, definition: str = "Test d
     return response.json()
 
 
+def _wait_semantic_options(page: Page, minimum: int = 1) -> None:
+    """Wait until the Alpine senseTree has loaded at least `minimum` semantic-domain options."""
+    page.wait_for_function(
+        """(min) => {
+            const el = document.querySelector('[x-data^="senseTree"]');
+            if (!el || !window.Alpine) return false;
+            const d = window.Alpine.$data(el);
+            const rd = d.rangeData && d.rangeData['semantic-domain-ddp4'];
+            return Array.isArray(rd) && rd.length >= min;
+        }""",
+        arg=minimum,
+        timeout=8000,
+    )
+
+
+def _semantic_option_values(page: Page, indices: list[int]) -> list[str]:
+    """Resolve a list of rangeData indices to their option values."""
+    return page.evaluate("""(indices) => {
+        const d = window.Alpine.$data(document.querySelector('[x-data^="senseTree"]'));
+        const opts = d.rangeData['semantic-domain-ddp4'] || [];
+        const out = [];
+        for (const idx of indices) {
+            if (idx >= 0 && idx < opts.length && opts[idx].value) out.push(opts[idx].value);
+        }
+        return out;
+    }""", indices)
+
+
 def select_semantic_domain(page: Page, index: int = 1) -> None:
-    """Select a semantic domain option by directly setting the select value via JavaScript.
-
-    This bypasses the Select2 UI which can be flaky in tests.
-    For multi-select, we need to set the selected property on options.
-    """
-    # Debug: check if select exists and has options
-    debug_info = page.evaluate("""() => {
-        const selects = document.querySelectorAll('select[data-range-id="semantic-domain-ddp4"]');
-        const result = {
-            count: selects.length,
-            options: [],
-            selectedValues: []
-        };
-        if (selects.length > 0) {
-            const sel = selects[0];
-            for (let i = 0; i < sel.options.length; i++) {
-                result.options.push({value: sel.options[i].value, text: sel.options[i].textContent, selected: sel.options[i].selected});
-            }
-            for (let i = 0; i < sel.options.length; i++) {
-                if (sel.options[i].selected) {
-                    result.selectedValues.push(sel.options[i].value);
-                }
-            }
-        }
-        return result;
-    }""")
-    print(f"DEBUG: Semantic domain select info: {debug_info}")
-
-    # Ensure the select has been populated with options (wait for rangesLoader to populate)
-    try:
-        page.wait_for_function(
-            '(idx) => { const sel = document.querySelector("select[data-range-id=\"semantic-domain-ddp4\"]"); return sel && sel.options && sel.options.length > idx + 1; }',
-            index,
-            timeout=5000,
-        )
-    except Exception:
-        # Force a populate and wait a little
-        page.evaluate("""() => {
-            const sel = document.querySelector('select[data-range-id="semantic-domain-ddp4"]');
-            if (sel && window.rangesLoader) {
-                window.rangesLoader.populateSelect(sel, 'semantic-domain-ddp4', { emptyOption: 'Select semantic domain(s)' });
-            }
-        }""")
-        page.wait_for_timeout(500)
-
-    # Use JavaScript to set the select value directly
-    page.evaluate("""(idx) => {
-        const selects = document.querySelectorAll('select[data-range-id="semantic-domain-ddp4"]');
-        if (selects.length > 0) {
-            const sel = selects[0];
-            // Clear existing selections first
-            for (let i = 0; i < sel.options.length; i++) {
-                sel.options[i].selected = false;
-            }
-            // Select the target option by index (skip placeholder at index 0)
-            if (sel.options.length > idx + 1) {
-                sel.options[idx + 1].selected = true;
-            }
-            // Dispatch change events to notify any listeners
-            sel.dispatchEvent(new Event('change', { bubbles: true }));
-            sel.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    }""", index)
-    page.wait_for_timeout(200)
-
-    # Debug: check selected values after setting
-    after_selection = page.evaluate("""() => {
-        const selects = document.querySelectorAll('select[data-range-id="semantic-domain-ddp4"]');
-        const result = {selectedValues: []};
-        if (selects.length > 0) {
-            const sel = selects[0];
-            for (let i = 0; i < sel.options.length; i++) {
-                if (sel.options[i].selected) {
-                    result.selectedValues.push(sel.options[i].value);
-                }
-            }
-        }
-        return result;
-    }""")
-    print(f"DEBUG: After selection: {after_selection}")
+    """Select a semantic domain through the REAL <select x-model> (drives the UI binding)."""
+    _wait_semantic_options(page, index + 1)
+    values = _semantic_option_values(page, [index])
+    assert values, f"No semantic-domain option at index {index}"
+    page.locator('select.sense-semantic-domain-select').first.select_option(values)
+    page.wait_for_timeout(100)
+    print(f"DEBUG: Selected semantic domain: {values}")
 
 
 def select_multiple_semantic_domains(page: Page, indices: list[int]) -> None:
-    """Select multiple semantic domain options by setting the select option selections directly.
-
-    Waits for options to be present, retries by triggering the ranges loader if necessary.
-    Note: indices may exceed available options; in that case, only valid options are selected.
-    """
-    max_index = max(indices) if indices else 0
-    try:
-        page.wait_for_function(
-            '(maxIdx) => { const sel = document.querySelector("select[data-range-id=\"semantic-domain-ddp4\"]"); return sel && sel.options && sel.options.length > maxIdx + 1; }',
-            max_index,
-            timeout=5000,
-        )
-    except Exception:
-        # Try to force a populate if the loader is available
-        page.evaluate("""() => {
-            const sel = document.querySelector('select[data-range-id="semantic-domain-ddp4"]');
-            if (sel && window.rangesLoader) {
-                window.rangesLoader.populateSelect(sel, 'semantic-domain-ddp4', { emptyOption: 'Select semantic domain(s)' });
-            }
-        }""")
-        page.wait_for_timeout(500)
-
-    # Set selections (only for indices that exist)
-    page.evaluate("""(indices) => {
-        const selects = document.querySelectorAll('select[data-range-id="semantic-domain-ddp4"]');
-        if (selects.length === 0) return;
-        const sel = selects[0];
-        for (let i = 0; i < sel.options.length; i++) {
-            sel.options[i].selected = false;
-        }
-        let setCount = 0;
-        for (const idx of indices) {
-            if (sel.options.length > idx + 1) {
-                sel.options[idx + 1].selected = true;
-                setCount++;
-            }
-        }
-        // If none of the requested indices were valid, select the first available option as fallback
-        if (setCount === 0) {
-            for (let i = 1; i < sel.options.length && setCount < (indices.length || 1); i++) {
-                if (sel.options[i].value) {
-                    sel.options[i].selected = true;
-                    setCount++;
-                }
-            }
-        }
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-        sel.dispatchEvent(new Event('input', { bubbles: true }));
-    }""", indices)
-    page.wait_for_timeout(200)
-
-    after = page.evaluate("""() => {
-        const sel = document.querySelector('select[data-range-id="semantic-domain-ddp4"]');
-        const res = {selected: []};
-        if (sel) {
-            for (let i = 0; i < sel.options.length; i++) {
-                if (sel.options[i].selected) res.selected.push(sel.options[i].value);
-            }
-        }
-        return res;
-    }""")
-    print(f"DEBUG: After multiple selection: {after}")
+    """Select multiple semantic domains through the REAL <select multiple x-model>."""
+    _wait_semantic_options(page, (max(indices) + 1) if indices else 1)
+    values = _semantic_option_values(page, indices)
+    if not values:
+        values = _semantic_option_values(page, [0])
+    page.locator('select.sense-semantic-domain-select').first.select_option(values)
+    page.wait_for_timeout(100)
+    print(f"DEBUG: Selected semantic domains: {values}")
 
 
 def select_first_n_semantic_domains(page: Page, n: int = 2) -> None:
-    """Select the first n non-empty semantic domain options.
-
-    Retries until at least n selections are observed or timeout elapses.
-    """
-    # Ensure the select is populated (allowing rangesLoader to run)
+    """Select the first n semantic domains through the REAL <select multiple x-model>."""
     try:
-        page.wait_for_function(
-            '(count) => { const sel = document.querySelector("select[data-range-id=\\"semantic-domain-ddp4\\"]"); return sel && sel.options && sel.options.length > count; }',
-            n,
-            timeout=5000,
-        )
+        _wait_semantic_options(page, n)
     except Exception:
-        page.evaluate("""() => {
-            const sel = document.querySelector('select[data-range-id="semantic-domain-ddp4"]');
-            if (sel && window.rangesLoader) {
-                window.rangesLoader.populateSelect(sel, 'semantic-domain-ddp4', { emptyOption: 'Select semantic domain(s)' });
-            }
-        }""")
-        page.wait_for_timeout(500)
+        pass  # proceed with whatever loaded
+    values = _semantic_option_values(page, list(range(n)))
+    assert values, "No semantic-domain options loaded"
+    page.locator('select.sense-semantic-domain-select').first.select_option(values)
+    page.wait_for_timeout(100)
+    print(f"DEBUG: Selected first-{n} semantic domains: {values}")
 
-    # Try selecting and verify selection count; retry a few times if necessary
-    deadline = time.time() + 5.0
-    last = None
-    while time.time() < deadline:
-        page.evaluate("""(n) => {
-            const selects = document.querySelectorAll('select[data-range-id="semantic-domain-ddp4"]');
-            if (selects.length === 0) return;
-            const sel = selects[0];
-            for (let i = 0; i < sel.options.length; i++) sel.options[i].selected = false;
-            let selected = 0;
-            for (let i = 1; i < sel.options.length && selected < n; i++) {
-                if (sel.options[i].value) {
-                    sel.options[i].selected = true;
-                    selected++;
-                }
-            }
-            sel.dispatchEvent(new Event('change', { bubbles: true }));
-            sel.dispatchEvent(new Event('input', { bubbles: true }));
-        }""", n)
-        page.wait_for_timeout(200)
-        after = page.evaluate("""() => {
-            const sel = document.querySelector('select[data-range-id="semantic-domain-ddp4"]');
-            const res = {selected: []};
-            if (sel) {
-                for (let i = 0; i < sel.options.length; i++) {
-                    if (sel.options[i].selected) res.selected.push(sel.options[i].value);
-                }
-            }
-            return res;
-        }""")
-        print(f"DEBUG: After first-n selection: {after}")
-        if len(after.get('selected', [])) >= n:
-            last = after
-            break
-        # Try to force populate again in case options were not available before
-        page.evaluate("""() => {
-            const sel = document.querySelector('select[data-range-id="semantic-domain-ddp4"]');
-            if (sel && window.rangesLoader) {
-                window.rangesLoader.populateSelect(sel, 'semantic-domain-ddp4', { emptyOption: 'Select semantic domain(s)' });
-            }
-        }""")
-        page.wait_for_timeout(200)
-    if last is None:
-        # Final fetch for debugging
-        after = page.evaluate("""() => {
-            const sel = document.querySelector('select[data-range-id="semantic-domain-ddp4"]');
-            const res = {selected: []};
-            if (sel) {
-                for (let i = 0; i < sel.options.length; i++) {
-                    if (sel.options[i].selected) res.selected.push(sel.options[i].value);
-                }
-            }
-            return res;
-        }""")
-        print(f"DEBUG: After first-n final selection (timeout): {after}")
 
 
 @pytest.mark.integration
@@ -295,14 +132,14 @@ def test_select_single_semantic_domain(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Select semantic domain using Select2
     select_semantic_domain(page, index=1)
@@ -343,14 +180,14 @@ def test_select_multiple_semantic_domains(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Select multiple domains (pick first available 2)
     select_first_n_semantic_domains(page, 2)
@@ -390,14 +227,14 @@ def test_semantic_domain_persists_via_api(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Select a domain
     select_semantic_domain(page, index=1)
@@ -434,14 +271,14 @@ def test_semantic_domain_displays_in_view(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Select a domain
     select_semantic_domain(page, index=1)
@@ -494,14 +331,14 @@ def test_deselect_all_semantic_domains(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Select a domain
     select_semantic_domain(page, index=1)
@@ -524,7 +361,7 @@ def test_deselect_all_semantic_domains(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form', timeout=10000)
 
     # Deselect - clear the select
-    semantic_select = page.locator('select[data-range-id="semantic-domain-ddp4"]').first
+    semantic_select = page.locator('.sense-semantic-domain-select').first
     if semantic_select.count() > 0:
         semantic_select.select_option(index=0)  # Select placeholder
 
@@ -575,14 +412,14 @@ def test_semantic_domain_roundtrip(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     select_first_n_semantic_domains(page, 2)
 

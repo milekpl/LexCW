@@ -29,21 +29,21 @@ def test_form_submission_with_multilingual_data(page: Page, app_url: str) -> Non
     
     # Ensure a sense exists (may require clicking the Add First Sense button)
     # Only treat it as missing if no VISIBLE definition textarea exists (exclude hidden template)
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         if page.locator('#add-first-sense-btn').count() > 0:
             page.click('#add-first-sense-btn')
         else:
             page.click('#add-sense-btn')
         # Wait until a VISIBLE definition textarea appears (exclude template)
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
         else:
             raise RuntimeError('Timed out waiting for visible definition textarea to appear')
 
     # Fill in definition
-    page.locator('textarea[name*="definition"]:visible').first.fill('A test definition in English')
+    page.locator('textarea.definition-text:visible').first.fill('A test definition in English')
     
     # Submit form
     page.click('button[type="submit"]')
@@ -90,21 +90,21 @@ def test_form_submission_with_grammatical_info(page: Page, app_url: str) -> None
             pos_select.select_option(val)
     
     # Ensure a sense exists (may require clicking Add First Sense)
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         if page.locator('#add-first-sense-btn').count() > 0:
             page.click('#add-first-sense-btn')
         else:
             page.click('#add-sense-btn')
         # Wait until a VISIBLE definition textarea appears (exclude template)
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
         else:
             raise RuntimeError('Timed out waiting for visible definition textarea to appear')
 
     # Fill in definition
-    page.locator('textarea[name*="definition"]:visible').first.fill('Test definition with POS')
+    page.locator('textarea.definition-text:visible').first.fill('Test definition with POS')
     
     # Submit form
     page.click('button[type="submit"]')
@@ -127,20 +127,20 @@ def test_form_submission_with_notes(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', 'test_notes_word')
 
     # Ensure a sense exists
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         if page.locator('#add-first-sense-btn').count() > 0:
             page.click('#add-first-sense-btn')
         else:
             page.click('#add-sense-btn')
         # Wait until a VISIBLE definition textarea appears (exclude template)
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
         else:
             raise RuntimeError('Timed out waiting for visible definition textarea to appear')
 
-    page.locator('textarea[name*="definition"]:visible').first.fill('Test definition with notes')
+    page.locator('textarea.definition-text:visible').first.fill('Test definition with notes')
     
     # Add notes if note fields are available
     # Look for note fields (they might be in expandable sections)
@@ -171,20 +171,20 @@ def test_edit_form_preserves_data(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', test_word)
 
     # Ensure a sense exists before filling definition
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         if page.locator('#add-first-sense-btn').count() > 0:
             page.click('#add-first-sense-btn')
         else:
             page.click('#add-sense-btn')
         # Wait until a VISIBLE definition textarea appears (exclude template)
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
         else:
             raise RuntimeError('Timed out waiting for visible definition textarea to appear')
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(test_definition)
+    page.locator('textarea.definition-text:visible').first.fill(test_definition)
     
     page.click('button[type="submit"]')
     page.wait_for_timeout(2000)
@@ -206,7 +206,7 @@ def test_edit_form_preserves_data(page: Page, app_url: str) -> None:
             f"Lexical unit should be preserved in edit form, got: {lexical_value}"
         
         # Verify definition is preserved
-        definition_field = page.locator('textarea[name*="definition"]').first
+        definition_field = page.locator('textarea.definition-text').first
         definition_value = definition_field.input_value()
         assert test_definition in definition_value, \
             f"Definition should be preserved in edit form, got: {definition_value}"
@@ -225,20 +225,20 @@ def test_form_handles_special_characters(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', special_word)
 
     # Ensure a sense exists
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         if page.locator('#add-first-sense-btn').count() > 0:
             page.click('#add-first-sense-btn')
         else:
             page.click('#add-sense-btn')
         # Wait until a VISIBLE definition textarea appears (exclude template)
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
         else:
             raise RuntimeError('Timed out waiting for visible definition textarea to appear')
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(special_definition)
+    page.locator('textarea.definition-text:visible').first.fill(special_definition)
     
     # Submit form
     page.click('button[type="submit"]')

@@ -182,6 +182,6 @@ class TestRelationsVariantsUIPlaywright:
         relation_type_selects = page.locator("select.lexical-relation-select")
         expect(relation_type_selects.first).to_be_visible()
         
-        # Verify that search functionality is available
-        search_inputs = page.locator("input.relation-search-input")
-        expect(search_inputs.first).to_be_visible()
+        # Verify that target entry field is available (Alpine x-model text input)
+        ref_inputs = page.locator(".relation-item input[type='text']")
+        expect(ref_inputs.first).to_be_visible()

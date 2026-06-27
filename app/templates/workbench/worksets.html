@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Worksets - Dictionary Workbench{% endblock %}
+{% block title %}Curation Sessions - Dictionary Workbench{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -8,12 +8,12 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                    <h4 class="mb-0"><i class="bi bi-layer-group"></i> Worksets</h4>
-                    <p class="text-muted small mb-0">Collections of entries based on search criteria</p>
+                    <h4 class="mb-0"><i class="bi bi-layer-group"></i> Curation Sessions</h4>
+                    <p class="text-muted small mb-0">Manage and review collections of entries</p>
                 </div>
                 <div class="btn-group">
                     <a href="/workbench/query-builder" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> New Workset
+                        <i class="bi bi-plus-circle"></i> New Session
                     </a>
                     <a href="/workbench/bulk-operations" class="btn btn-outline-success">
                         <i class="bi bi-gear"></i> Bulk Operations
@@ -32,7 +32,7 @@
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Loading...</span>
                             </div>
-                            <p class="mt-2">Loading worksets...</p>
+                            <p class="mt-2">Loading sessions...</p>
                         </div>
                     </div>
                 </div>

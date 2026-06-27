@@ -64,6 +64,10 @@ class LanguageToolValidator(CacheableValidator, BatchValidator):
         # Lazy initialization of HTTP session
         self._session = None
 
+    def set_server_url(self, url: str) -> None:
+        """Update server URL at runtime (e.g. from settings page)."""
+        self.server_url = url.rstrip('/')
+
     def _get_server_url(self) -> str:
         """Get LanguageTool server URL from environment or defaults."""
         import os

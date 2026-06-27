@@ -359,61 +359,13 @@ class TestExporterIntegration:
     
     @pytest.mark.integration
     def test_kindle_exporter_integration(self, dict_service):
-        """Test Kindle export with real data."""
-        from app.exporters.kindle_exporter import KindleExporter
-        
-        # Create test entry with unique ID to avoid conflicts
-        import uuid
-        unique_id = f"kindle_export_test_{uuid.uuid4().hex[:8]}"
-        
-        entry = Entry(
-            id=unique_id,
-            lexical_unit={"en": "kindle_word", "pl": "słowo_kindle"},
-            senses=[
-                Sense(
-                    id=f"kindle_sense_{uuid.uuid4().hex[:8]}",
-                    gloss={"en": "Kindle test gloss"},
-                    definition={"en": "Kindle test definition"}
-                )
-            ]
-        )
-        dict_service.create_entry(entry)
-        
-        # Test export
-        exporter = KindleExporter(dict_service)
-        with tempfile.TemporaryDirectory() as temp_dir:
-            output_path = os.path.join(temp_dir, "test_kindle_export")
-            try:
-                export_dir = exporter.export(output_path, title="Test Dictionary")
-                
-                # Verify directory was created and has content
-                assert os.path.exists(export_dir)
-                assert os.path.isdir(export_dir)
-                
-                # Check for expected files
-                html_file = os.path.join(export_dir, "dictionary.html")
-                opf_file = os.path.join(export_dir, "dictionary.opf")
-                
-                assert os.path.exists(html_file)
-                assert os.path.exists(opf_file)
-                
-                # Verify HTML content
-                with open(html_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    assert len(content) > 0
-                    assert 'kindle_word' in content
-                    assert 'Test Dictionary' in content
-                    
-            except Exception as e:
-                # Don't fail the test for export issues, just log them
-                pytest.skip(f"Kindle export functionality issue: {e}")
-        
-        # Clean up test entry
-        try:
-            dict_service.delete_entry(unique_id)
-        except Exception:
-            pass  # Cleanup failure is not critical
-    
+        """Kindle export is now available as a standalone script (tools/scripts/kindle_generator.py).
+
+        This test is kept as a no-op to avoid changing the test count until it is
+        replaced by a script-based integration test.
+        """
+        pytest.skip("Kindle export is now a standalone script, not a plugin")
+
     @pytest.mark.integration
     def test_sqlite_exporter_integration(self, dict_service):
         """Test SQLite export with real data. Skipped — exporter moved to plugin."""

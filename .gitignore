@@ -98,4 +98,7 @@ node_modules/@sinclair/typebox/license
 .omc/ultrawork-state.json
 debug_variant_container.png
 e2e_test_logs/validation_add_page.png
-.reasonix/truncated-results/1782459607657-382a8a19-run_command.txt
+.reasonix/
+tests/e2e/test_sense_deletion.py
+tests/e2e/test_sense_deletion.py
+DUPLICATE_FUNCTIONALITY_REPORT.md

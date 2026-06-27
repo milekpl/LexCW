@@ -192,8 +192,31 @@ class LivePreviewManager {
             console.log('Serializing form data...');
             
             let formData = null;
-            // Use the existing form serializer if available
-            if (window.FormSerializer && window.FormSerializer.serializeFormToJSON) {
+            
+            // STAGE 2: Try merge harness first (Alpine components + legacy DOM for rest)
+            if (window.MergeHarness && window.Alpine) {
+                try {
+                    // Collect function-free Alpine state via the shared harness helper.
+                    var alpineState = window.MergeHarness.extractAlpineState();
+
+                    if (Object.keys(alpineState).length > 0) {
+                        var legacyData = window.FormSerializer.serializeFormToJSON(this.form, {
+                            includeEmpty: true
+                        });
+                        // Strip Alpine-owned sections from legacy
+                        window.MergeHarness.alpineSections.forEach(function (section) {
+                            delete legacyData[section];
+                        });
+                        formData = window.MergeHarness.mergeSync(legacyData, alpineState);
+                        console.log('Form data via merge harness:', formData);
+                    }
+                } catch (e) {
+                    console.warn('Merge harness failed, falling back:', e);
+                }
+            }
+            
+            // Fallback: use form serializer directly
+            if (!formData && window.FormSerializer && window.FormSerializer.serializeFormToJSON) {
                 try {
                     formData = window.FormSerializer.serializeFormToJSON(this.form, {
                         includeEmpty: true

@@ -222,58 +222,6 @@ class TestExportHTML:
         assert "Export failed" in str(exc_info.value)
 
 
-class TestExportKindle:
-    """Test Kindle export functionality"""
-
-    def test_export_kindle_when_method_available(self):
-        """Should export to Kindle format when method is available on dictionary service."""
-        # Create a plain Mock (not spec'd) so we can add arbitrary attributes
-        mock_dict = Mock()
-        mock_css = Mock(spec=CSSMappingService)
-        mock_dict.export_to_kindle = Mock(return_value='/path/to/output.mobi')
-        
-        service = ExportService(mock_dict, mock_css)
-        result = service.export_kindle(
-            output_path='/tmp/exports',
-            title='Test Dictionary',
-            source_lang='en',
-            target_lang='es',
-            author='Test Author'
-        )
-        
-        assert result == '/path/to/output.mobi'
-        mock_dict.export_to_kindle.assert_called_once()
-
-    def test_export_kindle_without_method_raises_plugin_error(self):
-        """Should raise ExportError when Kindle export not available (moved to plugin)."""
-        mock_dict = Mock(spec=DictionaryService)
-        mock_css = Mock(spec=CSSMappingService)
-        # Ensure export_to_kindle doesn't exist
-        if hasattr(mock_dict, 'export_to_kindle'):
-            delattr(mock_dict, 'export_to_kindle')
-        
-        service = ExportService(mock_dict, mock_css)
-        
-        with pytest.raises(ExportError) as exc_info:
-            service.export_kindle(output_path='/tmp/exports')
-        
-        assert "plugin" in str(exc_info.value).lower()
-        assert "kindle" in str(exc_info.value).lower()
-
-    def test_export_kindle_error_handling(self):
-        """Should wrap Kindle export errors in ExportError."""
-        mock_dict = Mock(spec=DictionaryService)
-        mock_dict.export_to_kindle = Mock(side_effect=Exception("Kindle error"))
-        mock_css = Mock(spec=CSSMappingService)
-        
-        service = ExportService(mock_dict, mock_css)
-        
-        with pytest.raises(ExportError) as exc_info:
-            service.export_kindle(output_path='/tmp/exports')
-        
-        assert "Kindle error" in str(exc_info.value)
-
-
 class TestFileHandling:
     """Test file handling utilities"""
 

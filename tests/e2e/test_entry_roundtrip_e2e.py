@@ -79,13 +79,13 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', component1_name)
 
     # Add a sense with definition
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"{component1_name} definition")
+    page.locator('textarea.definition-text:visible').first.fill(f"{component1_name} definition")
 
     # Save the entry
     page.click('#save-btn', timeout=10000)
@@ -107,13 +107,13 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form')
     page.fill('input.lexical-unit-text', component2_name)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"{component2_name} definition")
+    page.locator('textarea.definition-text:visible').first.fill(f"{component2_name} definition")
     page.click('#save-btn', timeout=10000)
     page.wait_for_load_state('networkidle')
 
@@ -135,13 +135,13 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', compound_name)
 
     # Add a sense
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"{compound_name} definition")
+    page.locator('textarea.definition-text:visible').first.fill(f"{compound_name} definition")
 
     # Add first component - need to select component type first using JavaScript for Select2
     # For Select2, we need to trigger the select2:select event
@@ -361,13 +361,13 @@ def test_related_words_show_headwords_not_ids(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form')
     page.fill('input.lexical-unit-text', entry_a_name)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"{entry_a_name} definition")
+    page.locator('textarea.definition-text:visible').first.fill(f"{entry_a_name} definition")
     page.click('#save-btn')
     page.wait_for_load_state('networkidle')
 
@@ -386,42 +386,27 @@ def test_related_words_show_headwords_not_ids(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form')
     page.fill('input.lexical-unit-text', entry_b_name)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"{entry_b_name} definition")
+    page.locator('textarea.definition-text:visible').first.fill(f"{entry_b_name} definition")
 
-    # Add relation to entry A - first click "Add Relation" button to show the search input
-    add_relation_btn = page.locator('#add-relation-btn')
-    if add_relation_btn.count() > 0:
-        add_relation_btn.click()
-        # Wait for the new relation item to be added
-        page.wait_for_selector('.relation-item[data-relation-index="0"]', timeout=10000)
-
-    # Select relation type first (required for saving) - use JavaScript for Select2
-    page.evaluate('''() => {
-        const select = document.querySelector('.relation-item[data-relation-index="0"] .lexical-relation-select');
-        select.value = 'antonym';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-    }''')
-
-    # The search input is inside the new relation item, use class selector
-    relation_input = page.locator('.relation-item[data-relation-index="0"] .relation-search-input')
-    expect(relation_input).to_be_visible()
-    relation_input.fill(entry_a_name)
-    page.click('.relation-item[data-relation-index="0"] .relation-search-btn')
-    page.wait_for_timeout(500)
-
-    # Click on the first search result using JavaScript to trigger selection
-    page.evaluate('''() => {
-        const firstResult = document.querySelector('#search-results-0 .search-result-item:not(.create-entry-option)');
-        if (firstResult) {
-            firstResult.click();
-        }
-    }''')
+    # Add relation to entry A via the Alpine entry-relations component.
+    page.locator('.add-relation-btn').first.click()  # class, not id
+    page.wait_for_selector('.relation-item', timeout=10000)
+    # Pick a real relation type from the loaded lexical-relation range.
+    rel_type = page.evaluate(
+        '''() => {
+            const el = document.querySelector('[x-data^="entryRelations"]');
+            const opts = (el && window.Alpine) ? (window.Alpine.$data(el).relationTypeOptions || []) : [];
+            return opts.length ? opts[0].value : '';
+        }''')
+    if rel_type:
+        page.locator('.relation-item .lexical-relation-select').first.select_option(rel_type)
+    page.locator('.relation-item input[type="text"]').first.fill(entry_a_id)
     page.wait_for_timeout(300)
 
     # Save
@@ -494,15 +479,15 @@ def test_entry_full_crud_roundtrip(page: Page, app_url: str) -> None:
     page.fill('#citation-form', f"citation-{timestamp}")
 
     # Ensure sense exists
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
     # Fill definition
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Test definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Test definition for {headword}")
 
     # Save
     page.click('#save-btn', timeout=10000)
@@ -546,8 +531,8 @@ def test_entry_full_crud_roundtrip(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', f"{headword}-updated")
 
     # Update definition
-    if page.locator('textarea[name*="definition"]:visible').count() > 0:
-        page.locator('textarea[name*="definition"]:visible').first.fill(f"Updated definition for {headword}")
+    if page.locator('textarea.definition-text:visible').count() > 0:
+        page.locator('textarea.definition-text:visible').first.fill(f"Updated definition for {headword}")
 
     # Save
     page.click('#save-btn', timeout=10000)
@@ -591,13 +576,13 @@ def test_css_display_renders_entry(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form')
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"CSS test definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"CSS test definition for {headword}")
 
     page.click('#save-btn')
     page.wait_for_load_state('networkidle')

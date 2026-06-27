@@ -10,6 +10,8 @@ from app.forms.settings_form import SettingsForm
 from app.config_manager import ConfigManager
 from app.services.dictionary_service import DictionaryService
 from app.models.project_settings import ProjectSettings
+from app.services.word_sketch import WordSketchClient
+from app.api.word_sketch_api import get_ws_client
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 logger = logging.getLogger(__name__)
@@ -42,6 +44,33 @@ def manage_settings() -> Any:
                 return redirect(url_for('settings.manage_settings'))
             
             saved = config_manager.update_current_settings(new_settings)
+
+            # Push external service URLs to live instances
+            try:
+                lt_url = new_settings.get('languagetool_url')
+                if lt_url:
+                    from app.validators.languagetool_validator import LanguageToolValidator
+                    from app.services.validation_cache_service import ValidationCacheService
+                    vcs = getattr(current_app, 'injector', None) and current_app.injector.get(ValidationCacheService)
+                    if vcs and hasattr(vcs, 'validators'):
+                        for v in vcs.validators:
+                            if isinstance(v, LanguageToolValidator):
+                                v.set_server_url(lt_url)
+
+                corpus_url = new_settings.get('corpus_url')
+                if corpus_url and hasattr(current_app, 'lucene_corpus_client'):
+                    current_app.lucene_corpus_client.set_base_url(corpus_url)
+
+                ws_url = new_settings.get('wordsketch_url')
+                if ws_url:
+                    if hasattr(current_app, 'word_sketch_client'):
+                        current_app.word_sketch_client.set_base_url(ws_url)
+                    else:
+                        from app.services.word_sketch import WordSketchClient
+                        current_app.word_sketch_client = WordSketchClient(base_url=ws_url)
+            except Exception as e:
+                logger.warning('Failed to push service URLs to live instances: %s', e)
+
             # Log what ended up persisted for diagnostics
             try:
                 logger.info('Project settings updated (request): %s', new_settings)
@@ -72,22 +101,34 @@ def manage_settings() -> Any:
         project_settings = config_manager.get_settings(project_query)
         if project_settings:
             current_settings = project_settings.serialization_dict
+            current_settings['languagetool_url'] = getattr(project_settings, 'languagetool_url', 'http://localhost:8081') or 'http://localhost:8081'
+            current_settings['corpus_url'] = getattr(project_settings, 'corpus_url', 'http://localhost:8082') or 'http://localhost:8082'
+            current_settings['wordsketch_url'] = getattr(project_settings, 'wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
             project_id = project_settings.id
         else:
+            ps = ProjectSettings.query.first()
             current_settings = {
                 'project_name': config_manager.get_project_name(),
                 'source_language': config_manager.get_source_language(),
                 'target_languages': config_manager.get_target_languages(),
                 'backup_settings': getattr(config_manager, 'get_backup_settings', lambda: {})(),
-                'basex_db_name': config_manager.get_setting('basex_db_name', 'dictionary')
+                'basex_db_name': config_manager.get_setting('basex_db_name', 'dictionary'),
+                'languagetool_url': getattr(ps, 'languagetool_url', 'http://localhost:8081') if ps else 'http://localhost:8081',
+                'corpus_url': getattr(ps, 'corpus_url', 'http://localhost:8082') if ps else 'http://localhost:8082',
+                'wordsketch_url': getattr(ps, 'wordsketch_url', 'http://localhost:8083') if ps else 'http://localhost:8083',
             }
     else:
+        # Read external service URLs from ProjectSettings
+        ps = ProjectSettings.query.first()
         current_settings = {
             'project_name': config_manager.get_project_name(),
             'source_language': config_manager.get_source_language(),
             'target_languages': config_manager.get_target_languages(),
             'backup_settings': getattr(config_manager, 'get_backup_settings', lambda: {})(),
-            'basex_db_name': config_manager.get_setting('basex_db_name', 'dictionary')
+            'basex_db_name': config_manager.get_setting('basex_db_name', 'dictionary'),
+            'languagetool_url': getattr(ps, 'languagetool_url', 'http://localhost:8081') if ps else 'http://localhost:8081',
+            'corpus_url': getattr(ps, 'corpus_url', 'http://localhost:8082') if ps else 'http://localhost:8082',
+            'wordsketch_url': getattr(ps, 'wordsketch_url', 'http://localhost:8083') if ps else 'http://localhost:8083',
         }
         # Get the current project ID from the first project
         first_project = ProjectSettings.query.first()
@@ -356,6 +397,47 @@ def import_lift_replace():
                 os.unlink(ranges_temp_path)
             except Exception:
                 pass
+
+
+@settings_bp.route("/health-check", methods=["POST"])
+def health_check():
+    """Check health of external services."""
+    import requests as http_requests
+    from requests.exceptions import RequestException
+
+    data = request.get_json() or {}
+    services = data.get('services', ['languagetool', 'corpus', 'wordsketch'])
+    ps = ProjectSettings.query.first()
+    result = {}
+
+    if 'languagetool' in services:
+        url = getattr(ps, 'languagetool_url', None) or 'http://localhost:8081'
+        try:
+            resp = http_requests.get(f"{url.rstrip('/')}/v2/check", params={'language': 'en', 'text': 'test'}, timeout=5)
+            result['languagetool'] = {'status': 'ok' if resp.ok else 'unhealthy'}
+        except RequestException:
+            result['languagetool'] = {'status': 'unhealthy'}
+
+    if 'corpus' in services:
+        client = getattr(current_app, 'lucene_corpus_client', None)
+        if client:
+            result['corpus'] = {'status': 'ok' if client.is_available() else 'unhealthy'}
+        else:
+            result['corpus'] = {'status': 'unavailable'}
+
+    if 'wordsketch' in services:
+        try:
+            ws_client = get_ws_client()
+            if getattr(ws_client, 'base_url', None):
+                url = ws_client.base_url
+            else:
+                url = getattr(ps, 'wordsketch_url', None) or 'http://localhost:8083'
+                ws_client = WordSketchClient(base_url=url)
+            result['wordsketch'] = {'status': 'ok' if ws_client.is_available() else 'unhealthy'}
+        except RequestException:
+            result['wordsketch'] = {'status': 'unhealthy'}
+
+    return jsonify(result)
 
 
 @settings_bp.route("/api-keys", methods=["GET"])

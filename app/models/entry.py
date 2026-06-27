@@ -9,6 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from app.models.base import BaseModel
+from app.models.serializable import SerializableMixin
 from app.utils.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -55,16 +56,6 @@ class Etymology(BaseModel):
         self.comment: Optional[Dict[str, str]] = comment
         self.custom_fields: Dict[str, Dict[str, str]] = custom_fields or {}
 
-    def to_dict(self) -> Dict[str, Any]:
-        result = super().to_dict()
-        result['form'] = self.form
-        result['gloss'] = self.gloss
-        if self.comment:
-            result['comment'] = self.comment
-        if self.custom_fields:
-            result['custom_fields'] = self.custom_fields
-        return result
-
 
 class Relation(BaseModel):
     """
@@ -91,16 +82,6 @@ class Variant(BaseModel):
         self.grammatical_traits: Dict[str, str] | None = kwargs.pop('grammatical_traits', None)
         # Add direct traits for LIFT <variant> elements with direct trait elements
         self.traits: Dict[str, str] | None = kwargs.pop('traits', None)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert variant to dictionary with nested objects."""
-        result = super().to_dict()
-
-        # Convert nested form object
-        if hasattr(self.form, 'to_dict'):
-            result['form'] = self.form.to_dict()
-
-        return result
 
 
 class Entry(BaseModel):
@@ -599,14 +580,17 @@ class Entry(BaseModel):
 
         return None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, **kwargs) -> Dict[str, Any]:
         """
         Convert the entry to a dictionary for serialization (round-trip safe).
+
+        Uses SerializableMixin for recursive serialization of nested objects
+        (senses, relations, etymologies, variants) and adds computed properties.
 
         Returns:
             Dictionary representation of the entry with computed properties.
         """
-        result = super().to_dict()
+        result = SerializableMixin.to_dict(self, **kwargs)
 
         # Always include date fields, even if None
         result['date_created'] = self.date_created if hasattr(self, 'date_created') else None
@@ -617,19 +601,6 @@ class Entry(BaseModel):
         result['order'] = self.order if hasattr(self, 'order') else None
 
         # Note: headword is a computed property and should not be included in dict
-
-        # Convert nested objects to dictionaries
-        for attr_name in ['senses', 'relations', 'etymologies', 'variants']:
-            if attr_name in result and result[attr_name]:
-                converted_items = []
-                for item in result[attr_name]:
-                    if hasattr(item, 'to_dict'):
-                        # It's a model object with to_dict method
-                        converted_items.append(item.to_dict())
-                    else:
-                        # It's already a dict
-                        converted_items.append(item)
-                result[attr_name] = converted_items
 
         # Add variant relations derived from relations with variant-type traits
         result['variant_relations'] = self.get_variant_relations()
@@ -643,9 +614,6 @@ class Entry(BaseModel):
         # Include header_info from LIFT files
         if hasattr(self, 'header_info') and self.header_info is not None:
             result['header_info'] = self.header_info
-
-        # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
-
 
         return result
 

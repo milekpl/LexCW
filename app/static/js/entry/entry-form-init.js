@@ -29,25 +29,11 @@
             window.pronunciationFormsManager = new PronunciationFormsManager('pronunciation-container');
         }
 
-        // Initialize variant forms manager
-        if (window.VariantFormsManager && document.getElementById('variants-container')) {
-            window.variantFormsManager = new VariantFormsManager('variants-container', {
-                variantRelations: options.variantRelations || []
-            });
-        }
+        // Variant relations is now Alpine-owned (§16.2.3). Legacy VariantFormsManager deleted.
 
-        // Initialize relations manager
-        if (window.RelationsManager && document.getElementById('relations-container')) {
-            window.relationsManager = new RelationsManager('relations-container');
-        }
+        // Relations is now Alpine-owned (§16.2.2). Legacy RelationsManager deleted.
 
-        // Initialize etymology forms manager
-        if (window.EtymologyFormsManager && document.getElementById('etymology-container')) {
-            window.etymologyFormsManager = new EtymologyFormsManager('etymology-container', {
-                rangeId: 'etymology',
-                etymologies: options.etymologies || []
-            });
-        }
+        // Etymology is now Alpine-owned (§13). Legacy EtymologyFormsManager deleted.
 
         // Initialize AI service UI
         if (window.AIServiceUI) {

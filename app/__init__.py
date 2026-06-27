@@ -854,18 +854,4 @@ def create_app(config_name=None):
     app.lucene_corpus_client = LuceneCorpusClient(
         base_url=app.config.get("LUCENE_CORPUS_URL", "http://localhost:8082")
     )
-
-    # Load plugins
-    from app.services.plugin_manager import PluginManager
-
-    plugins_dir = Path(os.path.join(app.instance_path, "plugins"))
-    plugin_manager = PluginManager(plugins_dir)
-    app.plugin_manager = plugin_manager
-    if not is_testing:
-        plugin_manager.load_all(app)
-        app.logger.info(
-            "Plugin manager initialized with %d plugins",
-            len(plugin_manager.get_loaded_plugins()),
-        )
-
     return app

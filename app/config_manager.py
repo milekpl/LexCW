@@ -136,6 +136,18 @@ class ConfigManager:
         if 'smtp_sender_email' in new_values:
             settings.smtp_sender_email = new_values.pop('smtp_sender_email') or None
 
+        if 'languagetool_url' in new_values:
+            settings.languagetool_url = new_values.pop('languagetool_url') or 'http://localhost:8081'
+            logger.debug('Updated languagetool_url to: %s', settings.languagetool_url)
+
+        if 'corpus_url' in new_values:
+            settings.corpus_url = new_values.pop('corpus_url') or 'http://localhost:8082'
+            logger.debug('Updated corpus_url to: %s', settings.corpus_url)
+
+        if 'wordsketch_url' in new_values:
+            settings.wordsketch_url = new_values.pop('wordsketch_url') or 'http://localhost:8083'
+            logger.debug('Updated wordsketch_url to: %s', settings.wordsketch_url)
+
         if 'backup_settings' in new_values:
             new_backup = new_values.pop('backup_settings')
             logger.info('Updating backup_settings with: %s (Type: %s)', new_backup, type(new_backup))

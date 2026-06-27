@@ -1,73 +1,83 @@
-<div class="card mb-4 notes-section">
+{# Alpine.js notes component (Stage 2.3) #}
+{# note_types is embedded by server for the type selector dropdown #}
+
+<script>
+  window.__noteTypes = {{ note_types | tojson | safe }};
+</script>
+
+<div x-data="notes(window.__entryData || {})" class="card mb-4 notes-section">
     <div class="card-header bg-secondary text-white">
         <h5><i class="fas fa-sticky-note"></i> Entry Notes</h5>
     </div>
     <div class="card-body">
         <div id="notes-container">
-            <!-- Server-side rendered note items -->
-            {% if entry.notes %}
-                {% for note_type, note_content in entry.notes.items() %}
-                <div class="note-item mb-4 border rounded p-3" data-note-type="{{ note_type }}">
+            <template x-for="(note, ni) in items" :key="note.id">
+                <div class="note-item mb-4 border rounded p-3" :data-note-type="note.type">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-bold">Note: {{ note_type }}</span>
+                        <span class="fw-bold" x-text="'Note: ' + (note.type || 'new')"></span>
                         <div>
-                            <button type="button" class="btn btn-sm btn-secondary move-up-btn" data-item-type="note" title="Move Up">↑</button>
-                            <button type="button" class="btn btn-sm btn-secondary move-down-btn" data-item-type="note" title="Move Down">↓</button>
+                            <button type="button" class="btn btn-sm btn-secondary move-up-btn"
+                                    @click.prevent="if(ni > 0) { var m = items.splice(ni, 1)[0]; items.splice(ni - 1, 0, m); }"
+                                    title="Move Up">↑</button>
+                            <button type="button" class="btn btn-sm btn-secondary move-down-btn"
+                                    @click.prevent="if(ni < items.length - 1) { var m = items.splice(ni, 1)[0]; items.splice(ni + 1, 0, m); }"
+                                    title="Move Down">↓</button>
                         </div>
                     </div>
+
                     <div class="row align-items-center mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Note Type</label>
-                            <select class="form-select note-type-select" name="notes.{{ note_type }}.type">
-                                {% for value, label in note_types %}
-                                <option value="{{ value }}" {% if note_type == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
+                            <select class="form-select note-type-select"
+                                    x-model="note.type">
+                                <template x-for="nt in noteTypes" :key="nt[0]">
+                                    <option :value="nt[0]" x-text="nt[1]"
+                                            :selected="nt[0] === note.type"></option>
+                                </template>
                             </select>
                         </div>
                         <div class="col-md-6 text-end">
-                            <button type="button" class="btn btn-sm btn-outline-danger remove-note-btn" 
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-note-btn"
+                                    @click.prevent="removeItem(note.id)"
                                     title="Remove note">
                                 <i class="fas fa-trash"></i> Remove Note
                             </button>
                         </div>
                     </div>
-                    
+
                     <div class="multilingual-forms">
-                        <!-- Multilingual note (always dict format) -->
-                        {% for lang, text in note_content.items() %}
-                        <div class="mb-3 language-form" data-language="{{ lang }}">
-                            {{ new_macros.render_multilingual_item(
-                                'notes.' ~ note_type ~ '.' ~ lang,
-                                lang,
-                                text,
-                                project_languages,
-                                'Note Text',
-                                removable=true,
-                                placeholder_lang=lang
-                            ) }}
-                        </div>
-                        {% endfor %}
+                        <template x-for="c in note.content" :key="c.id">
+                            <div class="mb-3 language-form" :data-language="c.lang">
+                                <div class="input-group">
+                                    <span class="input-group-text" x-text="c.lang"></span>
+                                    <textarea class="form-control note-text"
+                                              x-model="c.text" rows="2"
+                                              :placeholder="'Note text in ' + c.lang"></textarea>
+                                    <button type="button" class="btn btn-outline-danger"
+                                            @click.prevent="removeRow(note.content, c.id)"
+                                            x-show="note.content.length > 1">×</button>
+                                </div>
+                            </div>
+                        </template>
                     </div>
-                    
+
                     <div class="mt-3">
-                        <button type="button" class="btn btn-sm btn-outline-primary add-language-btn" 
+                        <button type="button" class="btn btn-sm btn-outline-primary add-language-btn"
+                                @click.prevent="addRow(note.content)"
                                 title="Add another language">
                             <i class="fas fa-plus"></i> Add Language
                         </button>
                     </div>
                 </div>
-                {% endfor %}
-            {% endif %}
-            
-            <!-- Fallback message if no notes exist -->
-            {% if not entry.notes %}
-            <div class="text-muted mb-3" id="no-notes-message">
+            </template>
+
+            <div class="text-muted mb-3" id="no-notes-message" x-show="items.length === 0">
                 No notes added yet. Click "Add Note" to get started.
             </div>
-            {% endif %}
         </div>
-        
-        <button type="button" class="btn btn-sm btn-primary" id="add-note-btn">
+
+        <button type="button" class="btn btn-sm btn-primary" id="add-note-btn"
+                @click.prevent="addItem()">
             <i class="fas fa-plus"></i> Add Note
         </button>
     </div>

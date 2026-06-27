@@ -1,14 +1,21 @@
 """
 Base model class for all data models.
+
+Extends SerializableMixin for standardized serialization/deserialization
+while preserving backward compatibility with the original simple __dict__ dump.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
 import json
 import uuid
 
+from app.models.serializable import SerializableMixin
 
-class BaseModel:
+
+class BaseModel(SerializableMixin):
     """Base model class with common functionality."""
+    
+    _exclude_fields: Set[str] = set()
     
     def __init__(self, id_: Optional[str] = None, **kwargs):
         """
@@ -22,14 +29,22 @@ class BaseModel:
         for key, value in kwargs.items():
             setattr(self, key, value)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, exclude: Optional[Set[str]] = None, include: Optional[Set[str]] = None, **kwargs) -> Dict[str, Any]:
         """
         Convert the model to a dictionary.
         
+        Delegates to SerializableMixin for datetime isoformat conversion,
+        None-value filtering, and recursive serialization of nested objects.
+        
+        Args:
+            exclude: Additional fields to exclude from serialization
+            include: If specified, only include these fields
+            **kwargs: Additional arguments (for compatibility with SerializableMixin)
+            
         Returns:
             Dictionary representation of the model.
         """
-        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
+        return SerializableMixin.to_dict(self, exclude=exclude, include=include, **kwargs)
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'BaseModel':

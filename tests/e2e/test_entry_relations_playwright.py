@@ -58,7 +58,7 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
         page.wait_for_selector('#entry-form')
         page.fill('input.lexical-unit-text', headword)
         # Ensure there is a sense by clicking the appropriate add sense button if necessary
-        if page.locator('textarea[name*="definition"]:visible').count() == 0:
+        if page.locator('textarea.definition-text:visible').count() == 0:
             if page.locator('#add-first-sense-btn').count() > 0 and page.locator('#add-first-sense-btn').first.is_visible():
                 page.click('#add-first-sense-btn')
             elif page.locator('#add-sense-btn').count() > 0 and page.locator('#add-sense-btn').first.is_visible():
@@ -72,14 +72,14 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
 
             # Wait for visible definition textarea
             for _ in range(50):
-                if page.locator('textarea[name*="definition"]:visible').count() > 0:
+                if page.locator('textarea.definition-text:visible').count() > 0:
                     break
                 page.wait_for_timeout(100)
             else:
                 raise RuntimeError('Timed out waiting for visible definition textarea to appear')
 
         # Fill visible definition
-        page.locator('textarea[name*="definition"]:visible').first.fill(f"{headword} entry")
+        page.locator('textarea.definition-text:visible').first.fill(f"{headword} entry")
         
         # Save using the dedicated #save-btn ID, which is more reliable
         try:

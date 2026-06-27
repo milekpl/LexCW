@@ -39,7 +39,7 @@ def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
 
     # Wait for a visible definition textarea to appear
     for _ in range(50):
-        if page.locator('textarea[name*="definition"]:visible').count() > 0:
+        if page.locator('textarea.definition-text:visible').count() > 0:
             break
         page.wait_for_timeout(100)
 
@@ -52,7 +52,7 @@ def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
 
     # Wait for a second visible definition textarea to appear
     for _ in range(50):
-        if page.locator('textarea[name*="definition"]:visible').count() > 1:
+        if page.locator('textarea.definition-text:visible').count() > 1:
             break
         page.wait_for_timeout(100)
 

@@ -77,60 +77,37 @@
                 >Entries</a
               >
             </li>
-            <li class="nav-item">
-              <a
-                class="nav-link {% if request.endpoint == 'main.search' %}active{% endif %}"
-                href="{{ url_for('main.search') }}"
-                >Search</a
-              >
-            </li>
-            <li class="nav-item">
-              <a
-                class="nav-link {% if request.endpoint == 'main.corpus_management' %}active{% endif %}"
-                href="{{ url_for('main.corpus_management') }}"
-                >Corpus Management</a
-              >
-            </li>
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle"
                 href="#"
-                id="importExportDropdown"
+                id="workbenchDropdown"
                 role="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
               >
-                Import/Export
+                Workbench
               </a>
-              <ul class="dropdown-menu" aria-labelledby="importExportDropdown">
+              <ul class="dropdown-menu" aria-labelledby="workbenchDropdown">
                 <li>
                   <a
                     class="dropdown-item"
-                    href="{{ url_for('main.import_lift') }}"
-                    >Import LIFT</a
+                    href="{{ url_for('workbench.query_builder') }}"
+                    ><i class="fas fa-filter"></i> Query Builder</a
                   >
                 </li>
                 <li>
                   <a
                     class="dropdown-item"
-                    href="{{ url_for('main.export_lift') }}"
-                    >Export to LIFT (Dual Files)</a
+                    href="{{ url_for('workbench.worksets') }}"
+                    ><i class="fas fa-layer-group"></i> Curation Sessions</a
                   >
                 </li>
-                <li><hr class="dropdown-divider" /></li>
                 <li>
                   <a
                     class="dropdown-item"
-                    href="{{ url_for('main.export_html') }}"
-                    ><i class="fa fa-globe"></i> Export to HTML</a
-                  >
-                </li>
-                <li><hr class="dropdown-divider" /></li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="{{ url_for('main.export_options') }}"
-                    ><i class="fa fa-cog"></i> Export Options</a
+                    href="{{ url_for('workbench.bulk_operations') }}"
+                    ><i class="fas fa-bolt"></i> Bulk Operations</a
                   >
                 </li>
               </ul>
@@ -155,10 +132,40 @@
                 <li>
                   <a
                     class="dropdown-item"
-                    href="{{ url_for('main.batch_edit') }}"
-                    ><i class="fas fa-edit"></i> Bulk Edit</a
+                    href="{{ url_for('main.corpus_management') }}"
+                    ><i class="fas fa-database"></i> Corpus Management</a
                   >
                 </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.import_lift') }}"
+                    ><i class="fas fa-file-import"></i> Import LIFT</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.export_lift') }}"
+                    ><i class="fas fa-file-export"></i> Export to LIFT</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.export_html') }}"
+                    ><i class="fa fa-globe"></i> Export to HTML</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.export_options') }}"
+                    ><i class="fa fa-cog"></i> Export Options</a
+                  >
+                </li>
+                <li><hr class="dropdown-divider" /></li>
                 <li>
                   <a
                     class="dropdown-item"
@@ -198,6 +205,13 @@
                 <li>
                   <a class="dropdown-item" href="{{ url_for('main.settings') }}"
                     ><i class="fas fa-cog"></i> Settings</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.data_quality_dashboard') }}"
+                    ><i class="fas fa-chart-bar"></i> Data Quality Dashboard</a
                   >
                 </li>
                 <li>

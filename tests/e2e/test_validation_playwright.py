@@ -33,7 +33,7 @@ def test_validation_respects_project_settings(page: Page, app_url: str, ensure_s
     ensure_sense(page)
     
     # Fill in the default template sense definition (in default sense template)
-    page.locator('textarea[name*="definition"]:visible').first.fill('English definition')
+    page.locator('textarea.definition-text:visible').first.fill('English definition')
     
     # Try to save - should validate
     page.click('button[type="submit"]')
@@ -58,7 +58,7 @@ def test_empty_source_language_definition_allowed(page: Page, app_url: str, ensu
     
     # Ensure a sense and fill in the template definition (it will be created as first sense)
     ensure_sense(page)
-    page.locator('textarea[name*="definition"]:visible').first.fill('word')  # Target language definition
+    page.locator('textarea.definition-text:visible').first.fill('word')  # Target language definition
     
     # Save - should succeed
     page.click('button[type="submit"]')
@@ -86,13 +86,13 @@ def test_ipa_character_validation(page: Page, app_url: str, ensure_sense):
     if add_pronunciation_btn.count() > 0:
         add_pronunciation_btn.click()
         # Fill with invalid IPA - adjust selector based on actual form structure
-        ipa_input = page.locator('input[name*="pronunciation"]').first
+        ipa_input = page.locator('input.ipa-input').first
         if ipa_input.count() > 0:
             ipa_input.fill('invalid@#$')
     
     # Ensure a sense exists and add a valid sense definition
     ensure_sense(page)
-    page.locator('textarea[name*="definition"]:visible').first.fill('test definition')
+    page.locator('textarea.definition-text:visible').first.fill('test definition')
     
     # Try to save
     page.click('button[type="submit"]')

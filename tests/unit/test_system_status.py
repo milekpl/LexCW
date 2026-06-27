@@ -25,9 +25,12 @@ class TestSystemStatus(unittest.TestCase):
 
     def test_system_status_connected(self):
         """Test system status when connected."""
-        # Configure the mock
+        # Configure the mock to return real db:info XML with size
         self.connector.is_connected.return_value = True
-        self.connector.execute_query.return_value = "<info>Mock DB info</info>"
+        self.connector.execute_query.return_value = (
+            '<database><databaseproperties><name>test_db</name>'
+            '<size>193 MB</size><nodes>1000</nodes></databaseproperties></database>'
+        )
 
         # Get the system status
         status = self.dict_service.get_system_status()
@@ -35,8 +38,7 @@ class TestSystemStatus(unittest.TestCase):
         # Check the results
         self.assertEqual(status['db_connected'], True)
         self.assertIsNotNone(status['last_backup'])
-        self.assertTrue(isinstance(status['storage_percent'], (int, float)))
-        self.assertTrue(0 <= status['storage_percent'] <= 100)
+        self.assertEqual(status['storage_percent'], 193)
 
         # Verify the connector was called correctly
         self.assertTrue(self.connector.is_connected.called)
@@ -87,7 +89,7 @@ class TestSystemStatus(unittest.TestCase):
         # Check the results
         self.assertEqual(status['db_connected'], True)
         self.assertIsNotNone(status['last_backup'])
-        self.assertEqual(status['storage_percent'], 25)  # Should fall back to default value
+        self.assertEqual(status['storage_percent'], 0)  # Should fall back to 0
 
 if __name__ == "__main__":
     unittest.main()

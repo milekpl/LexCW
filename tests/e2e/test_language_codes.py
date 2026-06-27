@@ -162,7 +162,7 @@ class TestLanguageCodesInXML:
         page.wait_for_load_state('networkidle')
 
         # Fill basic entry data
-        page.fill('input[name="lexical_unit.en"]', 'languagetest')
+        page.fill('input.lexical-unit-text', 'languagetest')
 
         # Add sense and fill definition
         page.click('#add-sense-btn')

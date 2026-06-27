@@ -212,61 +212,7 @@ class ExportService:
             logger.error("Error exporting to HTML format: %s", str(e), exc_info=True)
             raise ExportError(f"Failed to export to HTML: {str(e)}")
     
-    def export_kindle(
-        self,
-        output_path: str,
-        title: str = "Dictionary",
-        source_lang: str = "en",
-        target_lang: str = "pl",
-        author: str = "Lexicographic Curation Workbench",
-        kindlegen_path: Optional[str] = None
-    ) -> str:
-        """
-        Export dictionary to Kindle format.
-        
-        Note: Kindle export has been moved to a plugin. This method will attempt
-        to use the dictionary service if available, otherwise raises an error
-        directing users to the plugin.
-        
-        Args:
-            output_path: Directory to save the export
-            title: Title of the dictionary
-            source_lang: Source language code
-            target_lang: Target language code
-            author: Author name
-            kindlegen_path: Path to kindlegen executable
-            
-        Returns:
-            Path to the exported file
-            
-        Raises:
-            ExportError: If export fails or plugin not available
-        """
-        try:
-            # Check if dictionary service has export_to_kindle method
-            if hasattr(self.dict_service, 'export_to_kindle'):
-                result_path = self.dict_service.export_to_kindle(
-                    output_path=output_path,
-                    title=title,
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    author=author,
-                    kindlegen_path=kindlegen_path
-                )
-                return result_path
-            else:
-                # Kindle export moved to plugin
-                raise ExportError(
-                    "Kindle export has been moved to a plugin. "
-                    "Please install the kindle-exporter plugin from instance/plugins/kindle-exporter/"
-                )
-            
-        except ExportError:
-            raise
-        except Exception as e:
-            logger.error("Error exporting to Kindle format: %s", str(e))
-            raise ExportError(f"Failed to export to Kindle: {str(e)}")
-    
+
     def get_export_path(
         self,
         filename: str,

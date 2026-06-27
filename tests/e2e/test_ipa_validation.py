@@ -10,6 +10,9 @@ Usage:
     pytest tests/e2e/test_ipa_validation.py -v
 """
 
+import re
+import time
+import requests
 import pytest
 from playwright.sync_api import expect
 
@@ -33,7 +36,7 @@ class TestRealtimeIPAValidation:
         page.wait_for_load_state('networkidle')
 
         # Fill basic data
-        page.fill('input[name="lexical_unit.en"]', 'testword')
+        page.fill('input.lexical-unit-text', 'testword')
 
         # Wait for pronunciation section
         page.wait_for_selector('#pronunciation-container', state='visible')
@@ -77,7 +80,7 @@ class TestRealtimeIPAValidation:
         page.wait_for_load_state('networkidle')
 
         # Fill basic data
-        page.fill('input[name="lexical_unit.en"]', 'testword')
+        page.fill('input.lexical-unit-text', 'testword')
 
         # Wait for pronunciation section
         page.wait_for_selector('#pronunciation-container', state='visible')
@@ -130,7 +133,7 @@ class TestRealtimeIPAValidation:
         page.wait_for_load_state('networkidle')
 
         # Fill basic data
-        page.fill('input[name="lexical_unit.en"]', 'testword')
+        page.fill('input.lexical-unit-text', 'testword')
 
         # Wait for pronunciation section
         page.wait_for_selector('#pronunciation-container', state='visible')
@@ -173,7 +176,7 @@ class TestRealtimeIPAValidation:
         page.wait_for_load_state('networkidle')
 
         # Fill basic data
-        page.fill('input[name="lexical_unit.en"]', 'testword')
+        page.fill('input.lexical-unit-text', 'testword')
 
         # Wait for pronunciation section
         page.wait_for_selector('#pronunciation-container', state='visible')
@@ -224,7 +227,7 @@ class TestRealtimeIPAValidation:
         page.wait_for_load_state('networkidle')
 
         # Fill basic data
-        page.fill('input[name="lexical_unit.en"]', 'testword')
+        page.fill('input.lexical-unit-text', 'testword')
 
         # Wait for pronunciation section
         page.wait_for_selector('#pronunciation-container', state='visible')
@@ -257,3 +260,116 @@ class TestRealtimeIPAValidation:
         has_invalid = ipa_input.evaluate('el => el.classList.contains("is-invalid")')
 
         print("✅ IPA validation appears to be debounced")
+
+
+@pytest.mark.e2e
+class TestIPARoundtrip:
+    """Test that IPA values survive a save → reload cycle."""
+
+    def test_ipa_value_persists_after_save_and_reload(self, page, app_url):
+        """
+        Type IPA → save → reload → assert value persisted under lang=\"seh-fonipa\".
+
+        This is the test that would have caught the adapter bug (§12.4a) where
+        the adapter hardcoded {en: value} instead of using the pronunciation's
+        writing system type.  Also asserts exactly one .ipa-input to prove the
+        legacy PronunciationFormsManager is no longer fighting Alpine.
+        """
+        base_url = app_url
+        timestamp = str(int(time.time() * 1000))
+        headword = f"ipa-roundtrip-{timestamp}"
+        ipa_value = "/ˈraʊnd.trɪp/"
+
+        # ── Create entry with IPA ──────────────────────────────────────────
+        page.goto(f"{base_url}/entries/add")
+        page.wait_for_load_state("networkidle")
+
+        # Fill lexical unit
+        page.fill("input.lexical-unit-text", headword)
+
+        # Ensure a sense exists so save doesn't fail validation
+        if page.locator("textarea.definition-text:visible").count() == 0:
+            page.click("#add-sense-btn")
+            for _ in range(50):
+                if page.locator("textarea.definition-text:visible").count() > 0:
+                    break
+                page.wait_for_timeout(100)
+        page.locator("textarea.definition-text:visible").first.fill("Roundtrip test definition")
+
+        # Add pronunciation and fill IPA
+        page.wait_for_selector("#pronunciation-container", state="visible")
+        add_btn = page.locator("#add-pronunciation-btn")
+        if add_btn.is_visible():
+            add_btn.click()
+            page.wait_for_selector(".pronunciation-item", state="visible")
+
+        # Assert exactly one IPA input (Alpine owns rendering; legacy is neutered)
+        ipa_count = page.locator(".ipa-input").count()
+        assert ipa_count == 1, f"Expected exactly 1 .ipa-input, found {ipa_count}"
+
+        ipa_input = page.locator(".ipa-input").first
+        ipa_input.fill(ipa_value)
+
+        # ── Save ────────────────────────────────────────────────────────────
+        page.wait_for_timeout(800)
+        try:
+            page.wait_for_load_state("networkidle", timeout=10000)
+        except Exception:
+            pass
+
+        with page.expect_response(
+            lambda r: "/api/xml/entries" in r.url and r.request.method in ("POST", "PUT"),
+            timeout=20000,
+        ):
+            page.evaluate("() => submitForm()")
+
+        # ── Find created entry ──────────────────────────────────────────────
+        entry_id = None
+        for _ in range(20):
+            resp = requests.get(f"{base_url}/api/search?q={headword}&limit=10")
+            data = resp.json()
+            if data.get("entries") and len(data["entries"]) > 0:
+                entry_id = data["entries"][0]["id"]
+                break
+            time.sleep(0.5)
+        assert entry_id, f"Could not find created entry {headword}"
+
+        # ── Verify via API: IPA persisted under lang="seh-fonipa" ──────────
+        # The LIFT XML should contain <form lang="seh-fonipa"><text>/ˈraʊnd.trɪp/</text></form>
+        xml_resp = requests.get(f"{base_url}/api/xml/entries/{entry_id}")
+        assert xml_resp.ok, f"Failed to get XML for {entry_id}"
+        xml_text = xml_resp.text
+
+        # Assert the IPA value appears with the correct writing system
+        assert ipa_value in xml_text, (
+            f"IPA value '{ipa_value}' not found in saved XML"
+        )
+        assert 'lang="seh-fonipa"' in xml_text, (
+            f"Expected lang=\"seh-fonipa\" in XML, but not found. XML snippet: {xml_text[:500]}"
+        )
+        # Double-check: the IPA value should be inside a form with the right lang
+        pattern = re.compile(
+            r'<form\s+lang="seh-fonipa"\s*>\s*<text[^>]*>' + re.escape(ipa_value) + r'</text>',
+            re.DOTALL
+        )
+        assert pattern.search(xml_text), (
+            f"IPA value not found inside <form lang=\"seh-fonipa\"> element"
+        )
+
+        # ── Reload the edit form and verify DOM ─────────────────────────────
+        page.goto(f"{base_url}/entries/{entry_id}/edit")
+        page.wait_for_selector("#entry-form", state="visible", timeout=10000)
+
+        # Still exactly one IPA input
+        ipa_count_after = page.locator(".ipa-input").count()
+        assert ipa_count_after == 1, (
+            f"Expected exactly 1 .ipa-input after reload, found {ipa_count_after}"
+        )
+
+        # The IPA value should be pre-filled
+        reloaded_value = page.locator(".ipa-input").first.input_value()
+        assert reloaded_value == ipa_value, (
+            f"IPA value should be '{ipa_value}' after reload, got '{reloaded_value}'"
+        )
+
+        print("✅ IPA round-trip: value persisted under lang=seh-fonipa")

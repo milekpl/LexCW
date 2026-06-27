@@ -142,18 +142,7 @@ def index():
         "storage_percent": 0,
     }
 
-    recent_activity = [
-        {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "action": "Entry Created",
-            "description": 'Added new entry "example"',
-        },
-        {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "action": "Entry Updated",
-            "description": 'Updated entry "test"',
-        },
-    ]
+    recent_activity = []
 
     # Try to get cached dashboard data first (new key, then old keys for migration)
     cache = CacheService()
@@ -1064,66 +1053,14 @@ def export_lift():
     This ensures better data integrity and easier management of ranges.
     """
     try:
-        # Get dictionary service
-        dict_service = current_app.injector.get(DictionaryService)
-
-        # Create a unique filename
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        base_filename = f"dictionary_export_{timestamp}"
-        
-        # Always export as dual files for better data integrity
-        return _export_dual_file_lift_ui(dict_service, base_filename)
+        from app.services.export_service import get_export_service
+        service = get_export_service()
+        return service.export_lift(dual_file=True, as_download=True)
 
     except Exception as e:
         logger.error(f"Error exporting LIFT file: {e}")
         flash(f"Error exporting LIFT file: {str(e)}", "danger")
         return redirect(url_for("main.index"))
-
-
-# [Removed _export_single_file_lift_ui - no longer needed as we always use dual-file export]
-
-
-def _export_dual_file_lift_ui(dict_service, base_filename):
-    """Export LIFT as dual files (main + ranges) in a ZIP archive for UI."""
-    import zipfile
-    import io
-    
-    # Generate filenames
-    lift_filename = f"{base_filename}.lift"
-    ranges_filename = f"{base_filename}.lift-ranges"
-    zip_filename = f"{base_filename}.zip"
-    
-    # Create in-memory ZIP file
-    zip_buffer = io.BytesIO()
-    
-    try:
-        # Export main LIFT file with range references
-        lift_content = dict_service.export_lift(dual_file=True)
-        
-        # Export ranges file
-        ranges_content = dict_service.export_lift_ranges()
-        
-        # Create ZIP archive with both files
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Add main LIFT file
-            zipf.writestr(lift_filename, lift_content)
-            
-            # Add ranges file
-            zipf.writestr(ranges_filename, ranges_content)
-        
-        # Return ZIP file as download
-        return Response(
-            zip_buffer.getvalue(),
-            content_type='application/zip',
-            headers={
-                'Content-Disposition': f'attachment; filename="{zip_filename}"'
-            }
-        )
-        
-    except Exception as e:
-        # If any error occurs, log it and re-raise
-        logger.error(f"Error in dual-file export: {e}")
-        raise
 
 
 @main_bp.route("/export/html")
@@ -1132,44 +1069,25 @@ def export_html():
     Export the dictionary to HTML format with alphabetical navigation.
     """
     try:
-        # Get dictionary service
-        dict_service = current_app.injector.get(DictionaryService)
-
-        # Get CSS mapping service
-        from app.services.css_mapping_service import CSSMappingService
-        css_service = CSSMappingService()
-
-        # Create exports directory if it doesn't exist
+        from app.services.export_service import get_export_service
+        service = get_export_service()
         exports_dir = os.path.join(current_app.instance_path, "exports")
-        os.makedirs(exports_dir, exist_ok=True)
 
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"dictionary_export_{timestamp}.zip"
-
-        # Get options from query params
         title = request.args.get("title", "Dictionary")
         column_layout = request.args.get("column_layout", "single")
-        show_subentries = request.args.get("show_subentries", "true").lower() == "true"
-
-        # Validate column_layout
         if column_layout not in ("single", "two"):
             column_layout = "single"
+        show_subentries = request.args.get("show_subentries", "true").lower() == "true"
 
-        # Import and use the HTML exporter
-        from app.exporters.html_exporter import HTMLExporter
-        exporter = HTMLExporter(dict_service, css_service)
-        output_path = os.path.join(exports_dir, filename)
-        exporter.export(
-            output_path=output_path,
+        full_path, filename = service.export_html(
+            output_path=exports_dir,
             title=title,
             column_layout=column_layout,
-            show_subentries=show_subentries
+            show_subentries=show_subentries,
+            return_path_only=False
         )
 
         flash(f"Dictionary exported to HTML format as {filename}", "success")
-
-        # Return the download page for the exported file
         return render_template(
             "export_download.html", export_type="html", files={"html": filename}
         )
@@ -1185,14 +1103,7 @@ def export_options():
     """
     Show export options.
     """
-    plugins = []
-    try:
-        pm = getattr(current_app, "plugin_manager", None)
-        if pm:
-            plugins = pm.get_exporters()
-    except Exception:
-        pass
-    return render_template("export_options.html", plugins=plugins)
+    return render_template("export_options.html")
 
 
 @main_bp.route("/export/download/<path:filename>")
@@ -1204,46 +1115,17 @@ def download_export(filename):
         filename: Name of the file to download.
     """
     try:
-        # Get the directory and filename
-        if "/" in filename:
-            directory, filename = filename.split("/", 1)
-        else:
-            directory = None
-
-        # Construct the path
-        if directory:
-            file_path = os.path.join(
-                current_app.instance_path, "exports", directory, filename
-            )
-        else:
-            file_path = os.path.join(current_app.instance_path, "exports", filename)
-
-        # Check if file exists
-        if not os.path.isfile(file_path):
-            flash(f"File not found: {filename}", "danger")
-            return redirect(url_for("main.export_options"))
-
-        # Determine MIME type based on file extension
-        mime_type = "application/octet-stream"  # Default
-        if filename.endswith(".lift"):
-            mime_type = "application/xml"
-        elif filename.endswith(".db"):
-            mime_type = "application/x-sqlite3"
-        elif filename.endswith(".mobi"):
-            mime_type = "application/x-mobipocket-ebook"
-        elif filename.endswith(".opf"):
-            mime_type = "application/oebps-package+xml"
-        elif filename.endswith(".html"):
-            mime_type = "text/html"
-
-        # Send file
-        return send_from_directory(
-            os.path.dirname(file_path),
-            os.path.basename(file_path),
-            mimetype=mime_type,
-            as_attachment=True,
+        from app.services.export_service import get_export_service
+        service = get_export_service()
+        return service.prepare_download_response(
+            filename=filename,
+            instance_path=current_app.instance_path,
+            as_attachment=True
         )
 
+    except FileNotFoundError:
+        flash(f"File not found: {filename}", "danger")
+        return redirect(url_for("main.export_options"))
     except Exception as e:
         logger.error(f"Error downloading file: {e}")
         flash(f"Error downloading file: {str(e)}", "danger")
@@ -1351,6 +1233,22 @@ def activity_log():
         logger.error(f"Error loading activity log: {e}")
         flash(f"Error loading activity log: {str(e)}", "danger")
         return redirect(url_for("main.index"))
+
+
+@main_bp.route("/data-quality")
+def data_quality_dashboard():
+    """
+    Render the data quality dashboard page.
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        metrics = dict_service.get_quality_metrics()
+    except Exception as e:
+        logger.error(f"Error loading quality metrics: {e}")
+        metrics = None
+        flash("Could not load quality metrics from database.", "warning")
+
+    return render_template("data_quality_dashboard.html", metrics=metrics)
 
 
 @main_bp.route("/audio/<filename>")

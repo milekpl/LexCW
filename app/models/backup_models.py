@@ -25,6 +25,8 @@ class Backup(BaseModel):
     timestamp, type, and validation status.
     """
     
+    _include_none_fields = {'description', 'restore_timestamp', 'restore_status'}
+    
     def __init__(
         self,
         db_name: str,
@@ -63,19 +65,8 @@ class Backup(BaseModel):
         self.restore_timestamp = restore_timestamp
         self.restore_status = restore_status
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert backup record to dictionary for serialization."""
-        result = super().to_dict()
-        result['db_name'] = self.db_name
-        result['type'] = self.type
-        result['file_path'] = self.file_path
-        result['file_size'] = self.file_size
-        result['description'] = self.description
-        result['timestamp'] = self.timestamp.isoformat() if self.timestamp else None
-        result['status'] = self.status
-        result['restore_timestamp'] = self.restore_timestamp.isoformat() if self.restore_timestamp else None
-        result['restore_status'] = self.restore_status
-        # Friendly display name: prefer description, else filename, else timestamp
+    def to_dict(self, **kwargs) -> Dict[str, Any]:
+        result = super().to_dict(**kwargs)
         try:
             if self.description and str(self.description).strip():
                 result['display_name'] = str(self.description).strip()
@@ -121,6 +112,8 @@ class ScheduledBackup(BaseModel):
     frequency, timing, and status.
     """
     
+    _include_none_fields = {'last_run', 'last_status'}
+    
     def __init__(
         self,
         db_name: str,
@@ -158,19 +151,6 @@ class ScheduledBackup(BaseModel):
         self.last_run = last_run
         self.last_status = last_status
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert scheduled backup record to dictionary for serialization."""
-        result = super().to_dict()
-        result['db_name'] = self.db_name
-        result['interval'] = self.interval
-        result['time'] = self.time
-        result['type'] = self.type
-        result['next_run'] = self.next_run.isoformat() if self.next_run else None
-        result['active'] = self.active
-        result['last_run'] = self.last_run.isoformat() if self.last_run else None
-        result['last_status'] = self.last_status
-        return result
-
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ScheduledBackup":
         """Create a ScheduledBackup instance from a dictionary."""
@@ -205,6 +185,8 @@ class OperationHistory(BaseModel):
     merge, and split operations on dictionary entries.
     """
     
+    _include_none_fields = {'entry_id', 'user_id', 'db_name'}
+    
     def __init__(
         self,
         type_: str,
@@ -235,18 +217,6 @@ class OperationHistory(BaseModel):
         self.db_name = db_name
         self.timestamp = kwargs.get('timestamp', datetime.utcnow())
         self.status = status
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert operation history record to dictionary for serialization."""
-        result = super().to_dict()
-        result['type'] = self.type
-        result['data'] = self.data
-        result['entry_id'] = self.entry_id
-        result['user_id'] = self.user_id
-        result['db_name'] = self.db_name
-        result['timestamp'] = self.timestamp.isoformat() if self.timestamp else None
-        result['status'] = self.status
-        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OperationHistory":

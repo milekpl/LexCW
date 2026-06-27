@@ -10,6 +10,7 @@ import json
 
 from app.services.ranges_service import RangesService
 from app.services.ranges_service import reload_custom_ranges_config
+from app.services.ranges_dedup import dedupe_exact_duplicates, summarize_duplicates
 from app.services.dictionary_service import DictionaryService
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
 from app.utils.api_response_handler import api_response_handler, get_service
@@ -52,10 +53,20 @@ ranges_editor_bp = Blueprint('ranges_editor', __name__, url_prefix='/api/ranges-
 })
 @api_response_handler()
 def list_ranges() -> Union[Response, Tuple[Response, int]]:
-    """Get all ranges."""
+    """Get all ranges (with exact-duplicate range elements removed from served data)."""
     service = get_service(RangesService)
     ranges = service.get_all_ranges()
-    return ranges
+    out: dict = {}
+    for rid, rdata in (ranges or {}).items():
+        if isinstance(rdata, dict) and rdata.get('values'):
+            cleaned, removed = dedupe_exact_duplicates(rdata['values'])
+            if removed:
+                # Shallow copy so the service cache is not mutated.
+                rdata = {**rdata, 'values': cleaned}
+                current_app.logger.info(
+                    f"Range '{rid}': removed {removed} exact duplicate element(s) from served data")
+        out[rid] = rdata
+    return out
 
 
 @ranges_editor_bp.route('/config', methods=['GET'])
@@ -162,6 +173,15 @@ def get_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         resolved = str(resolved_raw).lower() in ('1', 'true', 'yes')
 
     range_data = service.get_range(range_id, resolved=resolved)
+    # Remove exact duplicate range elements (same id AND guid — FieldWorks export noise)
+    # from served data. Lossless, and defence-in-depth against the x-for duplicate-key
+    # render bug (spec §11.2). id/guid conflicts are left for the user (see /duplicates).
+    if isinstance(range_data, dict) and range_data.get('values'):
+        cleaned, removed = dedupe_exact_duplicates(range_data['values'])
+        if removed:
+            range_data = {**range_data, 'values': cleaned}
+            current_app.logger.info(
+                f"Range '{range_id}': removed {removed} exact duplicate element(s) from served data")
     return range_data
 
 @ranges_editor_bp.route('/', methods=['POST'])
@@ -903,6 +923,58 @@ def get_range_usage(range_id: str) -> Union[Response, Tuple[Response, int]]:
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
         current_app.logger.error(f"Error getting usage for range {range_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ranges_editor_bp.route('/<range_id>/duplicates', methods=['GET'])
+@swag_from({
+    'tags': ['Ranges Editor'],
+    'summary': 'Detect duplicate range elements',
+    'description': ('Report duplicate range elements: exact duplicates (same id AND guid — '
+                    'FieldWorks export noise, auto-removed from served data) and id/guid '
+                    'conflicts (same id, different guid — require a user decision). Conflicts '
+                    'are annotated with whether each id is referenced by any entry.'),
+    'parameters': [{'in': 'path', 'name': 'range_id', 'required': True, 'type': 'string'}],
+    'responses': {
+        200: {'description': 'Duplicate summary'},
+        404: {'description': 'Range not found'},
+        500: {'description': 'Server error'},
+    }
+})
+def get_range_duplicates(range_id: str) -> Union[Response, Tuple[Response, int]]:
+    """Report exact duplicates and id/guid conflicts for a range, with usage on conflicts."""
+    try:
+        service = current_app.injector.get(RangesService)
+        # Raw (non-deduped) values straight from the service, so we can report what exists.
+        range_data = service.get_range(range_id)
+        values = range_data.get('values', []) if isinstance(range_data, dict) else []
+        summary = summarize_duplicates(values)
+
+        # Annotate each id/guid conflict with whether it is referenced by any entry, so the
+        # editor can offer to delete UNREFERENCED conflicts and require a merge decision for
+        # referenced ones.
+        if summary['id_conflicts']:
+            try:
+                usage = service.get_usage_by_element(range_id) or {}
+                elements_usage = usage.get('elements', {}) if isinstance(usage, dict) else {}
+            except Exception as usage_err:  # usage scan is best-effort
+                current_app.logger.warning(
+                    f"Usage scan failed for range '{range_id}': {usage_err}")
+                elements_usage = {}
+            for conflict in summary['id_conflicts']:
+                count = 0
+                el = elements_usage.get(conflict['id'])
+                if isinstance(el, dict):
+                    count = el.get('count', 0) or 0
+                conflict['usage_count'] = count
+                conflict['referenced'] = count > 0
+
+        return jsonify({'success': True, 'data': summary})
+    except NotFoundError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        current_app.logger.error(
+            f"Error detecting duplicates for range {range_id}: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

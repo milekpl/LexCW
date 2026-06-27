@@ -52,6 +52,10 @@ class LuceneCorpusClient:
         self._session = requests.Session()
         self._session.timeout = 30
 
+    def set_base_url(self, url: str) -> None:
+        """Update base URL at runtime (e.g. from settings page)."""
+        self.base_url = url.rstrip('/')
+
     def health(self) -> Dict[str, Any]:
         """
         Get service health status.

@@ -35,7 +35,7 @@ class TestCustomFieldsPlaywright:
         page.wait_for_load_state("load")
         
         # Fill minimum required fields for entry
-        lexical_unit = page.locator('input[name="lexical_unit"]').first
+        lexical_unit = page.locator('input.lexical-unit-text').first
         if lexical_unit.is_visible():
             lexical_unit.fill("test-word")
         
@@ -46,7 +46,7 @@ class TestCustomFieldsPlaywright:
             page.wait_for_timeout(300)
         
         # Fill sense definition
-        sense_def = page.locator('textarea[name*="senses"][name*="definition"]').first
+        sense_def = page.locator('textarea.definition-text').first
         if sense_def.is_visible():
             sense_def.fill("test definition")
 
@@ -446,7 +446,7 @@ class TestCustomFieldsPlaywright:
         page.wait_for_timeout(500)
         
         # Fill second sense definition
-        sense_defs = page.locator('textarea[name*="senses[1].definition"][name*=".text"]')
+        sense_defs = page.locator('.sense-item').nth(1).locator('textarea.definition-text')
         if sense_defs.count() > 0:
             sense_defs.first.fill('second definition')
         

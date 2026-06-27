@@ -62,7 +62,7 @@ def test_edit_form_homograph_behavior(page: Page, app_url: str, ensure_sense) ->
     # Fill in minimal required fields
     page.fill('input.lexical-unit-text', 'homograph_test_word')
     ensure_sense(page)
-    page.locator('textarea[name*="definition"]:visible').first.fill('Test definition')
+    page.locator('textarea.definition-text:visible').first.fill('Test definition')
     
     # Submit form
     page.click('button[type="submit"]')
@@ -101,6 +101,6 @@ def test_form_is_functional(page: Page, app_url: str, ensure_sense) -> None:
     
     # Ensure sense exists and verify form can accept definition
     ensure_sense(page)
-    page.locator('textarea[name*="definition"]:visible').first.fill('test definition')
-    definition_value = page.locator('textarea[name*="definition"]:visible').first.input_value()
+    page.locator('textarea.definition-text:visible').first.fill('test definition')
+    definition_value = page.locator('textarea.definition-text:visible').first.input_value()
     assert 'test definition' in definition_value, "Form should accept definition input"

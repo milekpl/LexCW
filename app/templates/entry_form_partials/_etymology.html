@@ -1,4 +1,6 @@
-<div class="card mb-4">
+{# Alpine.js etymology component (§13) #}
+
+<div x-data="etymology(window.__entryData || {})" class="card mb-4">
     <div class="card-header bg-warning text-dark">
         <div class="d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
@@ -9,14 +11,123 @@
                    data-bs-html="true"
                    title="<strong>About Etymology:</strong><br>Etymology traces the historical origin and development of words. This includes information about source languages, etymological forms, meanings, and the type of linguistic change (inheritance, borrowing, derivation, etc.)."></i>
             </h5>
-            <button type="button" class="btn btn-sm btn-light" id="add-etymology-btn">
+            <button type="button" class="btn btn-sm btn-light" id="add-etymology-btn"
+                    @click.prevent="addItem()">
                 <i class="fas fa-plus"></i> Add Etymology
             </button>
         </div>
     </div>
     <div class="card-body">
         <div id="etymology-container">
-            <!-- Etymology forms will be populated by JavaScript -->
+            <template x-for="(etym, ei) in items" :key="etym.id">
+                <div class="etymology-form-item card mb-3" :data-index="ei">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="etymology-type-label fw-bold" x-text="etym.type || 'New Etymology'"></span>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-secondary move-up-btn"
+                                    @click.prevent="if(ei > 0) { var m = items.splice(ei, 1)[0]; items.splice(ei - 1, 0, m); }"
+                                    title="Move Up">↑</button>
+                            <button type="button" class="btn btn-sm btn-secondary move-down-btn"
+                                    @click.prevent="if(ei < items.length - 1) { var m = items.splice(ei, 1)[0]; items.splice(ei + 1, 0, m); }"
+                                    title="Move Down">↓</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-etymology-btn"
+                                    @click.prevent="removeItem(etym.id)"
+                                    title="Remove">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Etymology Type</label>
+                                    <select class="form-control etymology-type-select"
+                                            x-model="etym.type"
+                                            required>
+                                        <option value="">Select type...</option>
+                                        <template x-for="opt in etymologyTypeOptions" :key="opt.key">
+                                            <option :value="opt.value" x-text="opt.label"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Source Language</label>
+                                    <input type="text" class="form-control etymology-source-input"
+                                           x-model="etym.source"
+                                           placeholder="e.g., Latin, Proto-Germanic" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Etymological Form (multilingual) -->
+                        <div class="etymology-form-section mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label mb-0">Etymological Form</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary add-etymology-lang-btn"
+                                        @click.prevent="addRow(etym.formForms)"
+                                        title="Add form in another language">
+                                    <i class="fas fa-plus"></i> Add Language
+                                </button>
+                            </div>
+                            <div class="etymology-form-langs">
+                                <template x-for="f in etym.formForms" :key="f.id">
+                                    <div class="input-group mb-2 etymology-form-lang-row">
+                                        <span class="input-group-text etymology-form-lang-input"
+                                              style="max-width: 90px;" x-text="f.lang"></span>
+                                        <input type="text" class="form-control etymology-form-text-input"
+                                               x-model="f.text"
+                                               placeholder="Etymological form">
+                                        <button type="button" class="btn btn-outline-danger remove-etymology-lang-btn"
+                                                @click.prevent="removeRow(etym.formForms, f.id)"
+                                                x-show="etym.formForms.length > 1"
+                                                title="Remove this language">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            <small class="form-text text-muted">The etymon (ancestor word form)</small>
+                        </div>
+
+                        <!-- Gloss / Meaning (multilingual) -->
+                        <div class="etymology-gloss-section mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label mb-0">Gloss / Meaning</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary add-etymology-lang-btn"
+                                        @click.prevent="addRow(etym.glossForms)"
+                                        title="Add gloss in another language">
+                                    <i class="fas fa-plus"></i> Add Language
+                                </button>
+                            </div>
+                            <div class="etymology-gloss-langs">
+                                <template x-for="g in etym.glossForms" :key="g.id">
+                                    <div class="input-group mb-2 etymology-gloss-lang-row">
+                                        <span class="input-group-text etymology-gloss-lang-input"
+                                              style="max-width: 90px;" x-text="g.lang"></span>
+                                        <input type="text" class="form-control etymology-gloss-text-input"
+                                               x-model="g.text"
+                                               placeholder="Meaning/gloss">
+                                        <button type="button" class="btn btn-outline-danger remove-etymology-lang-btn"
+                                                @click.prevent="removeRow(etym.glossForms, g.id)"
+                                                x-show="etym.glossForms.length > 1"
+                                                title="Remove this language">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            <small class="form-text text-muted">Translation or meaning of the etymon</small>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <div class="text-muted mt-3" x-show="items.length === 0">
+                <em>No etymologies added yet.</em>
+            </div>
         </div>
     </div>
 </div>

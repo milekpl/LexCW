@@ -1,8 +1,8 @@
-from flask import Blueprint, render_template, jsonify, request, current_app, flash, redirect, url_for, send_from_directory
-from flasgger import swag_from
 import os
 from datetime import datetime
-from app.services.basex_backup_manager import BaseXBackupManager
+from flask import Blueprint, render_template, jsonify, request, current_app, flash, redirect, url_for, send_from_directory
+from flasgger import swag_from
+from app.services.backup_service import get_backup_service
 
 # Create blueprint
 backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
@@ -19,8 +19,6 @@ backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
 })
 def backup_management():
     """Render the backup management interface."""
-    # Use the configured database name from app config, not from project settings
-    # This ensures we always use the correct database for backups
     db_name = current_app.config.get('BASEX_DATABASE', 'dictionary')
     return render_template('backup_management.html', title="Backup Management", db_name=db_name)
 
@@ -40,26 +38,21 @@ def download_backup():
     Create a backup and return it as a downloadable file.
     """
     try:
-        # Get backup manager service
-        backup_manager = current_app.injector.get(BaseXBackupManager)
-
-        # Use configured database name, not hardcoded 'dictionary'
+        service = get_backup_service()
         db_name = current_app.config.get('BASEX_DATABASE', 'dictionary')
 
-        # Create a backup
-        backup = backup_manager.create_backup(
+        meta, op_id = service.create_backup(
             db_name=db_name,
             backup_type='manual'
         )
 
-        # Check if backup file exists
-        if not os.path.exists(backup.file_path):
+        file_path = meta.get('file_path')
+        if not file_path or not os.path.exists(file_path):
             flash('Backup file was not created successfully.', 'error')
             return redirect(url_for('backup.backup_management'))
 
-        # Return the file as a download
-        directory = os.path.dirname(backup.file_path)
-        filename = os.path.basename(backup.file_path)
+        directory = os.path.dirname(file_path)
+        filename = os.path.basename(file_path)
 
         return send_from_directory(
             directory,

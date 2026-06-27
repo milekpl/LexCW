@@ -150,6 +150,53 @@ def get_dashboard_stats():
         }), 500
 
 
+@dashboard_bp.route('/quality', methods=['GET'])
+def get_quality_metrics():
+    """
+    Get data quality/completeness metrics for the dictionary.
+    ---
+    tags:
+      - Dashboard
+    responses:
+      200:
+        description: Quality metrics
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            data:
+              type: object
+              properties:
+                totals:
+                  type: object
+                entries_without_senses:
+                  type: object
+                senses_without_content:
+                  type: object
+                entries_without_pronunciations:
+                  type: object
+                senses_without_examples:
+                  type: object
+      500:
+        description: Internal server error
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        metrics = dict_service.get_quality_metrics()
+        return jsonify({
+            'success': True,
+            'data': metrics,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting quality metrics: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @dashboard_bp.route('/clear-cache', methods=['POST'])
 @swag_from({
     'tags': ['Dashboard'],

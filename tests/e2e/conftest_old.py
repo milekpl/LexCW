@@ -1102,7 +1102,7 @@ def ensure_sense():
     """
     def _ensure(page):
         # If a VISIBLE definition textarea is present, we assume a sense exists
-        if page.locator('textarea[name*="definition"]:visible').count() == 0:
+        if page.locator('textarea.definition-text:visible').count() == 0:
             # Try the explicit first-sense button first
             if page.locator('#add-first-sense-btn').count() > 0 and page.locator('#add-first-sense-btn').first.is_visible():
                 page.click('#add-first-sense-btn')
@@ -1119,7 +1119,7 @@ def ensure_sense():
 
             # Wait for a VISIBLE definition textarea to appear
             for _ in range(50):
-                if page.locator('textarea[name*="definition"]:visible').count() > 0:
+                if page.locator('textarea.definition-text:visible').count() > 0:
                     break
                 page.wait_for_timeout(100)
             else:

@@ -159,22 +159,14 @@ class QueryBuilderService:
                 dict_service = get_dictionary_service()
                 
                 # Use the same search logic as preview but just get the count
-                if search_params.get('advanced_query'):
-                    # For advanced queries, do a limited search to estimate
-                    entries, estimated_count = dict_service.search_entries(
-                        search_params.get('query', ''),
-                        fields=search_params.get('fields'),
-                        limit=1000,  # Large limit to get better count estimate
-                        offset=0
-                    )
-                else:
-                    # For basic queries, use standard search
-                    entries, estimated_count = dict_service.search_entries(
-                        search_params.get('query', ''),
-                        fields=search_params.get('fields'),
-                        limit=1000,
-                        offset=0
-                    )
+                field_regexes = search_params.get('field_regexes', {})
+                entries, estimated_count = dict_service.search_entries(
+                    search_params.get('query', ''),
+                    fields=search_params.get('fields'),
+                    limit=1000,  # Large limit to get better count estimate
+                    offset=0,
+                    field_regexes=field_regexes,
+                )
                 
                 # Estimate performance based on result count and query complexity
                 filter_count = len(filters)
@@ -223,7 +215,8 @@ class QueryBuilderService:
                 search_params.get('query', ''),
                 fields=search_params.get('fields'),
                 limit=limit,
-                offset=0
+                offset=0,
+                field_regexes=search_params.get('field_regexes', {}),
             )
             
             # Convert entries to dict format for JSON serialization
@@ -242,6 +235,7 @@ class QueryBuilderService:
                     'filters_count': len(query_data.get('filters', [])),
                     'search_query': search_params.get('query', ''),
                     'search_fields': search_params.get('fields', []),
+                    'field_regexes': search_params.get('field_regexes', {}),
                     'advanced_query': search_params.get('advanced_query', False)
                 }
             }
@@ -261,19 +255,40 @@ class QueryBuilderService:
             return {
                 'query': '',  # Empty query searches all
                 'fields': ['lexical_unit', 'definitions', 'glosses'], 
-                'advanced_query': False
+                'advanced_query': False,
+                'field_regexes': {},
             }
         
         # Simple text search for basic queries
         basic_text_queries = []
         advanced_filters = {}
+        field_regexes = {}
         fields_to_search = []
         is_advanced = False
+
+        # Map UI field names to internal field keys used by search_entries()
+        FIELD_MAP = {
+            'lexical_unit': 'lexical_unit',
+            'headword': 'lexical_unit',
+            'sense.definition': 'definitions',
+            'sense.gloss': 'glosses',
+            'sense.example': 'example',
+            'citation': 'citation_form',
+            'note': 'note',
+        }
         
         for filter_data in filters:
             field = filter_data.get('field', '')
             operator = filter_data.get('operator', '')
             value = filter_data.get('value', '')
+            
+            # Handle regex operator — works across all fields
+            if operator == 'regex':
+                mapped = FIELD_MAP.get(field, field.replace('sense.', ''))
+                field_regexes[mapped] = value
+                fields_to_search.append(mapped)
+                is_advanced = True
+                continue
             
             # Handle basic text searches
             if operator in ['contains', 'equals', 'starts_with'] and field in ['lexical_unit', 'headword']:
@@ -312,6 +327,7 @@ class QueryBuilderService:
             'query': combined_query,
             'fields': list(set(fields_to_search)) if fields_to_search else ['lexical_unit', 'definitions', 'glosses'],
             'filters': advanced_filters,
+            'field_regexes': field_regexes,
             'advanced_query': is_advanced
         }
     

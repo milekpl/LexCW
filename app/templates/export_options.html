@@ -42,9 +42,6 @@
             </div>
         </div>
         
-        <!-- Kindle export available as plugin: instance/plugins/kindle-exporter/ -->
-        <!-- SQLite export available as plugin: instance/plugins/sqlite-exporter/ -->
-
         <div class="col-md-4 mb-4">
             <div class="card h-100">
                 <div class="card-header bg-warning text-dark">
@@ -88,35 +85,6 @@
             </div>
         </div>
     </div>
-    
-    <!-- Plugin-based exporters (loaded from instance/plugins/) -->
-    {% if plugins %}
-    <h3 class="mt-4"><i class="fa fa-puzzle-piece"></i> Plugin Exporters</h3>
-    <div class="row">
-        {% for plugin in plugins %}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 border-info">
-                <div class="card-header bg-info bg-opacity-10 d-flex justify-content-between align-items-center">
-                    <div>
-                        <h4 class="mb-0">{{ plugin.name }}</h4>
-                        <small class="text-muted">v{{ plugin.version }}</small>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p>{{ plugin.description }}</p>
-                </div>
-                <div class="card-footer">
-                    <button type="button" class="btn btn-info plugin-export-btn"
-                            data-plugin="{{ plugin.name }}"
-                            data-endpoint="{{ plugin.endpoint or '/api/export/' ~ plugin.name.lower().replace(' ', '-') }}">
-                        <i class="fa fa-download"></i> Export
-                    </button>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 
     <div class="mt-3">
         <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
@@ -124,56 +92,4 @@
         </a>
     </div>
 </div>
-
-<script>
-document.querySelectorAll('.plugin-export-btn').forEach(btn => {
-    btn.addEventListener('click', async function() {
-        const endpoint = this.dataset.endpoint;
-        const pluginName = this.dataset.plugin;
-        const origText = this.innerHTML;
-        this.disabled = true;
-        this.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Exporting...';
-
-        try {
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const resp = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrf
-                },
-                body: JSON.stringify({
-                    title: 'Dictionary',
-                    source_lang: 'en',
-                    target_lang: 'pl'
-                })
-            });
-            if (!resp.ok) {
-                let errMsg;
-                try {
-                    const err = await resp.json();
-                    errMsg = err.error || err.message || `HTTP ${resp.status}`;
-                } catch {
-                    // Response wasn't JSON — fall back to text
-                    const text = await resp.text();
-                    errMsg = text || `HTTP ${resp.status}`;
-                }
-                throw new Error(errMsg);
-            }
-            const blob = await resp.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = pluginName.toLowerCase().replace(/\s+/g, '_') + '.tar.gz';
-            a.click();
-            window.URL.revokeObjectURL(url);
-        } catch (e) {
-            alert(pluginName + ': ' + e.message);
-        } finally {
-            this.innerHTML = origText;
-            this.disabled = false;
-        }
-    });
-});
-</script>
 {% endblock %}

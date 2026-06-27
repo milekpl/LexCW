@@ -140,7 +140,7 @@ class TestSettingsRoute(unittest.TestCase):
             'project_name': 'Backup Project',
             'source_language_code': 'en',
             'source_language_name': 'English',
-            'available_target_languages': '[]',
+            'available_target_languages': '["fr"]',
             'backup_directory': '/tmp/my_backups',
             'auto_backup_schedule': 'daily',
             'backup_retention': '5',
@@ -169,7 +169,7 @@ class TestSettingsRoute(unittest.TestCase):
             'project_name': 'No Backup Project',
             'source_language_code': 'en',
             'source_language_name': 'English',
-            'available_target_languages': '[]',
+            'available_target_languages': '["fr"]',
             'backup_directory': '/tmp/no_backups',
             'auto_backup_schedule': 'none',
             'backup_retention': '3',
@@ -199,8 +199,7 @@ class TestSettingsRoute(unittest.TestCase):
             'project_name': 'A New Project Name',
             'source_language_code': 'fr',
             'source_language_name': 'French',
-            'target_language_code': 'es',
-            'target_language_name': 'Spanish',
+            'available_target_languages': '["es"]',
             'csrf_token': 'testing_csrf_token'
         }
 

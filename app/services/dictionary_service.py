@@ -1457,6 +1457,7 @@ class DictionaryService:
         pos: Optional[str] = None,
         exact_match: Optional[bool] = False,
         case_sensitive: Optional[bool] = False,
+        field_regexes: Optional[Dict[str, str]] = None,
     ) -> Tuple[List[Entry], int]:
         """
         Search for entries.
@@ -1512,8 +1513,14 @@ class DictionaryService:
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
 
-                # Determine whether to use exact match or contains based on exact_match flag
-                if exact_match:
+                # Regex match takes precedence
+                regex_pattern = field_regexes.get('lexical_unit') if field_regexes else None
+                if regex_pattern:
+                    escaped = self._query_builder.escape_xquery_string(regex_pattern)
+                    conditions.append(
+                        f"(some $form in $entry/{lexical_unit_path}/{form_path}/{text_path} satisfies matches($form, '{escaped}', 'i'))"
+                    )
+                elif exact_match:
                     if case_sensitive:
                         # Case-sensitive exact match
                         conditions.append(
@@ -1540,7 +1547,13 @@ class DictionaryService:
                 gloss_path = self._query_builder.get_element_path("gloss", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
 
-                if exact_match:
+                regex_pattern = field_regexes.get('glosses') if field_regexes else None
+                if regex_pattern:
+                    escaped = self._query_builder.escape_xquery_string(regex_pattern)
+                    conditions.append(
+                        f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies matches($gloss, '{escaped}', 'i'))"
+                    )
+                elif exact_match:
                     if case_sensitive:
                         conditions.append(
                             f"(some $gloss in $entry/{sense_path}/{gloss_path}/{text_path} satisfies $gloss = '{q_escaped}')"
@@ -1566,7 +1579,13 @@ class DictionaryService:
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
 
-                if exact_match:
+                regex_pattern = field_regexes.get('definitions') if field_regexes else None
+                if regex_pattern:
+                    escaped = self._query_builder.escape_xquery_string(regex_pattern)
+                    conditions.append(
+                        f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies matches($def, '{escaped}', 'i'))"
+                    )
+                elif exact_match:
                     if case_sensitive:
                         conditions.append(
                             f"(some $def in $entry/{sense_path}/{definition_path}/{form_path}/{text_path} satisfies $def = '{q_escaped}')"
@@ -1590,7 +1609,13 @@ class DictionaryService:
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
 
-                if exact_match:
+                regex_pattern = field_regexes.get('citation_form') if field_regexes else None
+                if regex_pattern:
+                    escaped = self._query_builder.escape_xquery_string(regex_pattern)
+                    conditions.append(
+                        f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies matches($citation, '{escaped}', 'i'))"
+                    )
+                elif exact_match:
                     if case_sensitive:
                         conditions.append(
                             f"(some $citation in $entry/{citation_path}/{form_path}/{text_path} satisfies $citation = '{q_escaped}')"
@@ -1615,7 +1640,13 @@ class DictionaryService:
                 form_path = self._query_builder.get_element_path("form", has_ns)
                 text_path = self._query_builder.get_element_path("text", has_ns)
 
-                if exact_match:
+                regex_pattern = field_regexes.get('example') if field_regexes else None
+                if regex_pattern:
+                    escaped = self._query_builder.escape_xquery_string(regex_pattern)
+                    conditions.append(
+                        f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies matches($example, '{escaped}', 'i'))"
+                    )
+                elif exact_match:
                     if case_sensitive:
                         conditions.append(
                             f"(some $example in $entry/{sense_path}/{example_path}/{form_path}/{text_path} satisfies $example = '{q_escaped}')"
@@ -1640,44 +1671,50 @@ class DictionaryService:
                 text_path = self._query_builder.get_element_path("text", has_ns)
                 sense_path = self._query_builder.get_element_path("sense", has_ns)
 
-                # Entry-level notes
-                if exact_match:
+                regex_pattern = field_regexes.get('note') if field_regexes else None
+                if regex_pattern:
+                    escaped = self._query_builder.escape_xquery_string(regex_pattern)
+                    entry_notes_condition = (
+                        f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies matches($note, '{escaped}', 'i'))"
+                    )
+                    sense_notes_condition = (
+                        f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies matches($note, '{escaped}', 'i'))"
+                    )
+                elif exact_match:
                     if case_sensitive:
                         entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies $note = '{q_escaped}')"
                     else:
                         entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies lower-case($note) = '{q_escaped.lower()}')"
-                else:
-                    if case_sensitive:
-                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains($note, '{q_escaped}'))"
-                    else:
-                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
-
-                # Sense-level notes
-                if exact_match:
                     if case_sensitive:
                         sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies $note = '{q_escaped}')"
                     else:
                         sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies lower-case($note) = '{q_escaped.lower()}')"
                 else:
                     if case_sensitive:
+                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains($note, '{q_escaped}'))"
+                    else:
+                        entry_notes_condition = f"(some $note in $entry/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
+                    if case_sensitive:
                         sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies contains($note, '{q_escaped}'))"
                     else:
                         sense_notes_condition = f"(some $note in $entry/{sense_path}/{note_path}/{form_path}/{text_path} satisfies contains(lower-case($note), '{q_escaped.lower()}'))"
 
-                conditions.append(
-                    f"({entry_notes_condition} or {sense_notes_condition})"
-                )
+                if regex_pattern or q_escaped:
+                    conditions.append(
+                        f"({entry_notes_condition} or {sense_notes_condition})"
+                    )
 
-            # Safety check: if no conditions were added, return empty results
+            # Build search_condition from conditions (or a catch-all if empty)
             if not conditions:
-                self.logger.warning("No valid search fields provided: %s", fields)
-                return [], 0
-
-            # Add grammatical info (POS) condition if specified
-            if pos:
+                if not q_escaped and not field_regexes:
+                    search_condition = "true()"
+                    self.logger.debug("Empty search — returning all entries")
+                else:
+                    self.logger.warning("No valid search fields provided: %s", fields)
+                    return [], 0
+            elif pos:
                 grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
                 pos_condition = f"($entry/{grammatical_info_path}[@value = '{pos}'] or $entry//sense/{grammatical_info_path}[@value = '{pos}'])"
-                # For POS filtering, we use 'and' to combine with other conditions
                 search_condition = f"({' or '.join(conditions)}) and {pos_condition}"
             else:
                 search_condition = " or ".join(conditions)
@@ -2085,6 +2122,169 @@ class DictionaryService:
                 "Error counting senses and examples: %s", str(e), exc_info=True
             )
             raise DatabaseError(f"Failed to count senses and examples: {e}") from e
+
+    def get_quality_metrics(self, project_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Compute data quality/completeness metrics from the database.
+
+        Uses a single-pass XQuery to compute all structural counts, then
+        runs individual lightweight queries for sample entries.  This avoids
+        repeated full-database scans.
+
+        Args:
+            project_id: Optional project ID to determine database.
+
+        Returns:
+            Dict with totals, issue categories (each with count, pct, and
+            up to 5 sample entries), and lightweight validation checks.
+        """
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except:
+                    pass
+
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            pronunciation_path = self._query_builder.get_element_path("pronunciation", has_ns)
+            definition_path = self._query_builder.get_element_path("definition", has_ns)
+            gloss_path = self._query_builder.get_element_path("gloss", has_ns)
+            example_path = self._query_builder.get_element_path("example", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+
+            C = f"collection('{db_name}')"
+
+            def pct(part, total):
+                return round((part / total) * 100, 1) if total > 0 else 0.0
+
+            # --- single-pass count query ---
+            # Returns 7 pipe-delimited integers:
+            # entries | senses | examples | entries_no_sense | senses_no_content | entries_no_pron | senses_no_example
+            count_query = (
+                f"{prologue} let $entries := {C}//{entry_path}, "
+                f"  $senses := {C}//{sense_path}, "
+                f"  $examples := {C}//{example_path} "
+                f"return string-join(("
+                f"  count($entries), "
+                f"  count($senses), "
+                f"  count($examples), "
+                f"  count($entries[empty(.//{sense_path})]), "
+                f"  count($senses[empty({definition_path}) and empty({gloss_path})]), "
+                f"  count($entries[empty(.//{pronunciation_path})]), "
+                f"  count($senses[empty(.//{example_path})])"
+                f"), '|')"
+            )
+            raw = self.db_connector.execute_query(count_query)
+            parts = raw.strip().split('|') if raw else ['0'] * 7
+            total_entries = int(parts[0]) if len(parts) > 0 else 0
+            total_senses = int(parts[1]) if len(parts) > 1 else 0
+            total_examples = int(parts[2]) if len(parts) > 2 else 0
+            entries_no_sense_count = int(parts[3]) if len(parts) > 3 else 0
+            senses_no_content_count = int(parts[4]) if len(parts) > 4 else 0
+            entries_no_pron_count = int(parts[5]) if len(parts) > 5 else 0
+            senses_no_examples_count = int(parts[6]) if len(parts) > 6 else 0
+
+            # --- lightweight sample queries (limited to 5, fast because they use predicates) ---
+            SAMPLE_LIMIT = 5
+
+            def sample_entries(condition_xpath):
+                q = (
+                    f"{prologue} let $all := {C}//{entry_path}[{condition_xpath}] "
+                    f"for $e at $pos in $all "
+                    f"where $pos <= {SAMPLE_LIMIT} "
+                    f"let $hw := $e/{lexical_unit_path}/{form_path}/{text_path}/string() "
+                    f"return concat($e/@id, '|||', $hw)"
+                )
+                raw = self.db_connector.execute_query(q)
+                if not raw:
+                    return []
+                result = []
+                for row in raw.strip().split('\n'):
+                    row = row.strip()
+                    if not row:
+                        continue
+                    parts = row.split('|||', 1)
+                    eid = parts[0] if len(parts) > 0 else ''
+                    hw = parts[1] if len(parts) > 1 else ''
+                    # Clean up headwords that contain embedded GUIDs or pipes
+                    hw_clean = hw.split('|')[0] if '|' in hw else hw
+                    result.append({'id': eid, 'headword': hw_clean})
+                return result
+
+            entries_no_sense_samples = sample_entries(f"empty(.//{sense_path})")
+            senses_no_content_samples = sample_entries(
+                f".//{sense_path}[empty({definition_path}) and empty({gloss_path})]"
+            )
+            entries_no_pron_samples = sample_entries(f"empty(.//{pronunciation_path})")
+
+            # --- lightweight validation checks (single-pass) ---
+            # Empty text nodes under definition/gloss
+            empty_text_count = 0
+            try:
+                etq = (
+                    f"{prologue} let $defs := {C}//{sense_path}/{definition_path}//{text_path}"
+                    f"[string-length(normalize-space(.)) = 0], "
+                    f"  $glosses := {C}//{sense_path}/{gloss_path}/{text_path}"
+                    f"[string-length(normalize-space(.)) = 0] "
+                    f"return string-join((count($defs), count($glosses)), '|')"
+                )
+                et_raw = self.db_connector.execute_query(etq)
+                et_parts = et_raw.strip().split('|') if et_raw else ['0', '0']
+                empty_text_count = int(et_parts[0]) + int(et_parts[1]) if len(et_parts) > 1 else 0
+            except Exception:
+                self.logger.warning("Could not compute empty text node count", exc_info=True)
+
+            return {
+                "totals": {
+                    "entries": total_entries,
+                    "senses": total_senses,
+                    "examples": total_examples,
+                },
+                "entries_without_senses": {
+                    "count": entries_no_sense_count,
+                    "pct": pct(entries_no_sense_count, total_entries),
+                    "samples": entries_no_sense_samples,
+                },
+                "senses_without_content": {
+                    "count": senses_no_content_count,
+                    "pct": pct(senses_no_content_count, total_senses),
+                    "samples": senses_no_content_samples,
+                },
+                "entries_without_pronunciations": {
+                    "count": entries_no_pron_count,
+                    "pct": pct(entries_no_pron_count, total_entries),
+                    "samples": entries_no_pron_samples,
+                },
+                "senses_without_examples": {
+                    "count": senses_no_examples_count,
+                    "pct": pct(senses_no_examples_count, total_senses),
+                    "samples": [],
+                },
+                "validation_checks": {
+                    "empty_text_nodes": {
+                        "count": empty_text_count,
+                        "description": "Empty or whitespace-only text under definition or gloss",
+                    },
+                },
+            }
+
+        except Exception as e:
+            self.logger.error("Error computing quality metrics: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to compute quality metrics: {e}") from e
 
     def import_lift(self, lift_path: str, mode: str = "merge", ranges_path: Optional[str] = None, project_id: Optional[int] = None) -> int:
         """
@@ -3247,15 +3447,19 @@ class DictionaryService:
             storage_percent = 0
             if db_connected:
                 try:
-                    # Try to get database size information
                     size_info = self.db_connector.execute_query(f'db:info("{self.db_connector.database}")')
                     if size_info:
-                        # In a real implementation, we would parse size info to calculate storage percentage
-                        # For now, provide a realistic value
-                        storage_percent = 42
+                        m = re.search(r'<size>([\d.]+)\s*(MB|GB|KB)</size>', size_info)
+                        if m:
+                            val, unit = float(m.group(1)), m.group(2)
+                            if unit == 'GB':
+                                storage_percent = round(val * 1024)
+                            elif unit == 'MB':
+                                storage_percent = round(val)
+                            else:
+                                storage_percent = round(val / 1024, 1)
                 except Exception:
-                    # Fallback if we can't get size info
-                    storage_percent = 25
+                    storage_percent = 0
 
             # Get backup info if services available
             last_backup = "Never"

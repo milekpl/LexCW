@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Data Quality Dashboard - Lexicographic Curation Workbench{% endblock %}
+
+{% block extra_css %}
+<style>
+    .quality-card {
+        border-radius: 0;
+        border: 1px solid #dee2e6;
+    }
+    .quality-count {
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .quality-good { color: #198038; }
+    .quality-warn { color: #b35c00; }
+    .quality-bad { color: #a2191f; }
+    .summary-stat { text-align: center; padding: 1rem; }
+    .summary-stat .stat-value { font-size: 1.75rem; font-weight: 700; }
+    .summary-stat .stat-label { font-size: 0.85rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.03em; }
+    .sample-list { font-size: 0.85rem; }
+    .sample-list a { text-decoration: none; }
+    .sample-list a:hover { text-decoration: underline; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Data Quality Dashboard</h2>
+        <div>
+            <button type="button" id="refresh-quality-btn" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    {% if metrics %}
+    {# ---- Summary stats ---- #}
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card quality-card h-100"><div class="card-body summary-stat">
+                <div class="stat-value text-primary">{{ metrics.totals.entries }}</div>
+                <div class="stat-label">Total Entries</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card quality-card h-100"><div class="card-body summary-stat">
+                <div class="stat-value text-success">{{ metrics.totals.senses }}</div>
+                <div class="stat-label">Total Senses</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card quality-card h-100"><div class="card-body summary-stat">
+                <div class="stat-value text-info">{{ metrics.totals.examples }}</div>
+                <div class="stat-label">Total Examples</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card quality-card h-100"><div class="card-body summary-stat">
+                <div class="stat-value">{{ metrics.validation_checks.empty_text_nodes.count }}</div>
+                <div class="stat-label">Empty Text Nodes</div>
+            </div></div>
+        </div>
+    </div>
+
+    {# ---- Structural checks (each card = metric + sample entries) ---- #}
+    <div class="row g-3 mb-4">
+        {% set issues = [
+            ('entries_without_senses', 'Entries without Senses', 'fas fa-layer-group',
+             'Entries that have no sense elements. May include variant forms (irregular past tense, etc.) that legitimately lack their own senses.'),
+            ('senses_without_content', 'Senses without Content', 'fas fa-align-left',
+             'Senses that have neither a definition nor a gloss.'),
+            ('entries_without_pronunciations', 'Entries without Pronunciations', 'fas fa-volume-up',
+             'Entries with no pronunciation element recorded.'),
+            ('senses_without_examples', 'Senses without Examples', 'fas fa-quote-right',
+             'Senses that have no usage example.'),
+        ] %}
+        {% for key, label, icon, hint in issues %}
+        <div class="col-md-6">
+            <div class="card quality-card h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="{{ icon }} me-1"></i>{{ label }}</h6>
+                    <span class="quality-count {% if metrics[key].count == 0 %}quality-good{% elif metrics[key].pct < 15 %}quality-warn{% else %}quality-bad{% endif %}">
+                        {{ metrics[key].count }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="quality-pct mb-2">{{ metrics[key].pct }}% of {% if 'sense' in key %}senses{% else %}entries{% endif %}</div>
+                    <p class="small text-muted mb-2">{{ hint }}</p>
+                    {% if metrics[key].samples and metrics[key].samples|length > 0 %}
+                    <div class="sample-list">
+                        <strong class="small">Sample entries:</strong>
+                        <ul class="list-unstyled mt-1 mb-0">
+                            {% for s in metrics[key].samples %}
+                            <li>
+                                <a href="{{ url_for('main.view_entry', entry_id=s.id) }}">
+                                    <i class="fas fa-external-link-alt fa-xs me-1"></i>{{ s.headword or '(no headword)' }}
+                                </a>
+                                <small class="text-muted">({{ s.id[:16] }}{% if s.id|length > 16 %}…{% endif %})</small>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% elif metrics[key].count > 0 %}
+                    <p class="small text-muted mb-0">(sample query returned no results)</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# ---- Validation-rule-based checks ---- #}
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card quality-card">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-clipboard-check me-1"></i>Validation-Rule-Based Checks</h6>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        These metrics mirror common validation rules by querying the database directly.
+                        For a full rule-based check (including custom rules), use the
+                        <a href="{{ url_for('main.validation_tool') }}">Batch Validation</a> tool.
+                    </p>
+                    <div class="row g-3">
+                        {% for vkey, vdata in metrics.validation_checks.items() %}
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <div class="quality-count {% if vdata.count == 0 %}quality-good{% else %}quality-warn{% endif %}">
+                                        {{ vdata.count }}
+                                    </div>
+                                    <div class="small fw-semibold mt-1">{{ vdata.description }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ---- Notes ---- #}
+    <div class="row">
+        <div class="col-12">
+            <div class="card quality-card">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-1"></i>About This Dashboard</h6>
+                </div>
+                <div class="card-body small text-muted">
+                    <p class="mb-1">
+                        These are <strong>structural</strong> checks computed directly from the LIFT XML in the database.
+                        They may overshoot (variant forms without senses are flagged) or undershoot
+                        (problems recorded in Note fields are not detected).
+                    </p>
+                    <p class="mb-0">
+                        For more precise quality checks, use the
+                        <a href="{{ url_for('main.validation_tool') }}">Batch Validation</a> tool
+                        which runs your project's configured validation rules. You can also define
+                        custom quality criteria as validation rules in the
+                        <a href="{{ url_for('main.validation_rules_admin') }}">Rule Editor</a>.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Could not load quality metrics. The database may be unavailable or empty.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/quality-dashboard.js') }}"></script>
+{% endblock %}

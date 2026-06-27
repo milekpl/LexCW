@@ -5,7 +5,7 @@
 {% block content %}
 <div class="row mb-4">
     <div class="col">
-        <h2><i class="fas fa-search"></i> Advanced Search</h2>
+        <h2><i class="fas fa-search"></i> Search</h2>
         <p class="lead">Find entries, senses, and examples in the dictionary database.</p>
     </div>
 </div>
@@ -17,6 +17,9 @@
                 <h5><i class="fas fa-filter"></i> Search Filters</h5>
             </div>
             <div class="card-body">
+                <div class="alert alert-info py-2 mb-3">
+                    <small><i class="fas fa-info-circle"></i> Need complex conditions? Try the <a href="{{ url_for('workbench.query_builder') }}" class="alert-link">Query Builder</a>.</small>
+                </div>
                 <form id="search-form">
                     <div class="mb-3">
                         <label for="search-query" class="form-label">Search Query</label>

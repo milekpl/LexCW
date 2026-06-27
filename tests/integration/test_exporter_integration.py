@@ -19,14 +19,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from app.models.entry import Entry
 from app.models.sense import Sense
 from app.services.dictionary_service import DictionaryService
-# Built-in exporters moved to instance/plugins/ — skip tests if absent.
-try:
-    from app.exporters.kindle_exporter import KindleExporter
-    HAS_KINDLE = True
-except ModuleNotFoundError:
-    KindleExporter = None
-    HAS_KINDLE = False
-
 try:
     from app.exporters.sqlite_exporter import SQLiteExporter
     HAS_SQLITE = True
@@ -208,135 +200,6 @@ class TestExporterIntegration:
             pass
     
     @pytest.mark.integration
-    @pytest.mark.skipif(not HAS_KINDLE, reason="Kindle exporter moved to plugin")
-    def test_kindle_exporter_real_data(self, dict_service):
-        """Test Kindle exporter with real dictionary data."""
-        exporter = KindleExporter(dict_service)
-        
-        with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as temp_file:
-            temp_file_path = temp_file.name
-        
-        output_dir = None
-        try:
-            # Test export - Kindle exporter creates a directory, not a single file  
-            output_dir = exporter.export(temp_file_path, title="Test Dictionary Export", author="Test Author")
-            
-            # Verify output directory was created
-            assert os.path.exists(output_dir), f"Output directory {output_dir} was not created"
-            
-            # Verify HTML file was created and has content
-            html_file = os.path.join(output_dir, "dictionary.html")
-            assert os.path.exists(html_file), f"HTML file {html_file} was not created"
-            
-            file_size = os.path.getsize(html_file)
-            assert file_size > 0, "Export HTML file is empty"
-            
-            # Verify content
-            with open(html_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Check for basic HTML structure
-            assert '<!DOCTYPE html>' in content
-            assert '<html' in content
-            assert '</html>' in content
-            assert '<head>' in content
-            assert '<body>' in content
-            
-            # Check for title (title is embedded in HTML title tag)
-            assert 'Test Dictionary Export' in content
-            # Note: Author may not appear in HTML content, focus on actual data
-            
-            # Check for at least one test entry
-            has_test_entries = any(word in content for word in ['export_word1', 'export_word2', 'export_word3'])
-            assert has_test_entries, f"No test entries found in content: {content[:200]}..."
-            
-            # Verify OPF file was also created
-            opf_file = os.path.join(output_dir, "dictionary.opf")
-            assert os.path.exists(opf_file), f"OPF file {opf_file} was not created"
-            
-            print(f"Kindle export file size: {file_size} bytes")
-            print(f"Content preview: {content[:500]}...")
-            
-        finally:
-            # Clean up - handle Windows file permission issues
-            time.sleep(0.1)  # Brief pause for Windows file handles
-            
-            # Remove temp file
-            if os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                except PermissionError:
-                    # On Windows, sometimes we need to wait
-                    time.sleep(0.5)
-                    try:
-                        os.unlink(temp_file_path)
-                    except PermissionError:
-                        pass  # Give up gracefully
-            
-            # Remove output directory
-            if output_dir and os.path.exists(output_dir):
-                try:
-                    shutil.rmtree(output_dir)
-                except PermissionError:
-                    time.sleep(0.5)
-                    try:
-                        shutil.rmtree(output_dir)
-                    except PermissionError:
-                        pass  # Give up gracefully
-    
-    @pytest.mark.integration
-    @pytest.mark.skipif(not HAS_KINDLE, reason="Kindle exporter moved to plugin")
-    def test_kindle_exporter_custom_options(self, dict_service):
-        """Test Kindle exporter with custom options."""
-        exporter = KindleExporter(dict_service)
-        
-        with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as temp_file:
-            temp_file_path = temp_file.name
-        
-        output_dir = None
-        try:
-            # Test with custom options - Kindle exporter returns directory path
-            output_dir = exporter.export(
-                temp_file_path,
-                title="Custom Dictionary",
-                author="Custom Author"
-            )
-            
-            # Check the HTML file in the output directory
-            html_file = os.path.join(output_dir, "dictionary.html")
-            assert os.path.exists(html_file), f"HTML file {html_file} was not created"
-            
-            with open(html_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                
-            assert 'Custom Dictionary' in content
-            # Note: Author may not appear in HTML content
-            
-        finally:
-            # Clean up - handle Windows file permission issues
-            time.sleep(0.1)
-            
-            if os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                except PermissionError:
-                    time.sleep(0.5)
-                    try:
-                        os.unlink(temp_file_path)
-                    except PermissionError:
-                        pass
-            
-            if output_dir and os.path.exists(output_dir):
-                try:
-                    shutil.rmtree(output_dir)
-                except PermissionError:
-                    time.sleep(0.5)
-                    try:
-                        shutil.rmtree(output_dir)
-                    except PermissionError:
-                        pass
-    
-    @pytest.mark.integration
     @pytest.mark.skipif(not HAS_SQLITE, reason="SQLite exporter moved to plugin")
     def test_sqlite_exporter_real_data(self, dict_service):
         """Test SQLite exporter with real dictionary data."""
@@ -483,16 +346,11 @@ class TestExporterIntegration:
                         pass  # Give up gracefully
     
     @pytest.mark.integration
-    @pytest.mark.skipif(not HAS_KINDLE or not HAS_SQLITE, reason="One or both exporters moved to plugins")
+    @pytest.mark.skipif(not HAS_SQLITE, reason="SQLite exporter moved to plugin")
     def test_exporter_error_handling(self, dict_service):
         """Test error handling in exporters."""
-        kindle_exporter = KindleExporter(dict_service)
         sqlite_exporter = SQLiteExporter(dict_service)
-        
-        # Test with empty entries list
-        with pytest.raises((ExportError, ValueError)):
-            kindle_exporter.export("test.html", entries=[])
-        
+
         with pytest.raises((ExportError, ValueError)):
             sqlite_exporter.export("test.db", entries=[])
         
@@ -540,27 +398,6 @@ class TestExporterIntegration:
         empty_service = DictionaryService(db_connector=connector)
         
         try:
-            # Test Kindle export from empty DB - should raise ExportError
-            kindle_exporter = KindleExporter(empty_service)
-            with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as temp_file:
-                temp_filename = temp_file.name
-            # The exporter may raise ExportError on empty DB, or produce an empty output file.
-            try:
-                kindle_exporter.export(temp_filename, title="Empty Dictionary")
-            except ExportError as e:
-                # Expected in some environments
-                pass
-            else:
-                # If no exception, ensure output file exists and does not contain entries
-                assert os.path.exists(temp_filename)
-                with open(temp_filename, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                assert 'No entries to export' in content or 'export_word' not in content
-                try:
-                    os.unlink(temp_filename)
-                except PermissionError:
-                    pass
-
             # Test SQLite exporter: accept ExportError or an empty DB file
             sqlite_exporter = SQLiteExporter(empty_service)
             with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_file:

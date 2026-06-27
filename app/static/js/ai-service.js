@@ -80,9 +80,13 @@ class AIServiceUI {
             }
         });
 
-        // Etymology
-        if (window.etymologyFormsManager) {
-            data.etymologies = window.etymologyFormsManager.getEtymologies();
+        // Etymology (Alpine-owned since §13)
+        var etymEl = document.querySelector('[x-data^="etymology"]');
+        if (etymEl && window.Alpine) {
+            var etymData = window.Alpine.$data(etymEl);
+            if (etymData && etymData.items) {
+                data.etymologies = JSON.parse(JSON.stringify(etymData.items));
+            }
         }
 
         return data;

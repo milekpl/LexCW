@@ -58,6 +58,11 @@ class ProjectSettings(db.Model):
     smtp_use_tls = Column(db.Boolean, nullable=True, default=True)
     smtp_sender_email = Column(String(255), nullable=True)
 
+    # External service URLs
+    languagetool_url = Column(String(500), nullable=True, default="http://localhost:8081")
+    corpus_url = Column(String(500), nullable=True, default="http://localhost:8082")
+    wordsketch_url = Column(String(500), nullable=True, default="http://localhost:8083")
+
     owner_id: Optional[int] = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -77,6 +82,9 @@ class ProjectSettings(db.Model):
             "target_languages": self.target_languages,
             "backup_settings": self.backup_settings or {},
             "field_visibility_defaults": self.field_visibility_defaults or {},
+            "languagetool_url": self.languagetool_url or 'http://localhost:8081',
+            "corpus_url": self.corpus_url or 'http://localhost:8082',
+            "wordsketch_url": self.wordsketch_url or 'http://localhost:8083',
         }
 
 

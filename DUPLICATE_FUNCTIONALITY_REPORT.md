@@ -39,13 +39,6 @@ class ExportService:
         pass
 ```
 
-**✅ STATUS: COMPLETED**
-- Created `app/services/export_service.py` with unified ExportService
-- Refactored `app/api/export.py` to use ExportService
-- Refactored `app/views.py` to use ExportService
-- Eliminated ~150 lines of duplicate export logic
-- 28 passing tests in `tests/unit/test_export_service.py`
-
 ---
 
 ### 2. Search/Query Functions (`search_entries`, `find_entries`)
@@ -72,13 +65,6 @@ class SearchService:
         # Routes to appropriate backend (XQuery, Lucene, etc.)
         pass
 ```
-
-**✅ STATUS: COMPLETED**
-- Created `app/services/search_service.py` with unified SearchService
-- Supports both DictionaryService and XMLEntryService backends
-- Smart auto-selection based on query complexity
-- Refactored `app/api/search.py` to use SearchService
-- Eliminates inconsistent results between API and UI search
 
 ---
 
@@ -107,14 +93,6 @@ class ValidationPipeline:
         return self.engine.validate(entry, mode)
 ```
 
-**✅ STATUS: COMPLETED**
-- Created `app/services/unified_validation_pipeline.py` with UnifiedValidationPipeline
-- Plugin architecture supporting SPELLING, RULES, STRUCTURAL, REFERENCE, SEMANTIC validation types
-- Plugin adapters: `SpellingValidatorPlugin`, `RulesValidatorPlugin`
-- Backward-compatible adapter: `ValidationCacheServiceAdapter`
-- 61 passing tests in `tests/unit/test_unified_validation_pipeline.py`
-- Eliminates confusion between 4+ different `validate_entry` implementations
-
 ---
 
 ### 4. Query Validation (`validate_query`)
@@ -125,31 +103,9 @@ class ValidationPipeline:
 - `app/services/workset_service.py::validate_query()` - Workset-specific
 - `app/services/query_builder_service.py::validate_query()` - General query validation
 
-**Issue:** Duplicate query validation logic between QueryBuilderService and WorksetService
+**Issue:** Duplicate query validation logic
 
-**Impact:**
-- Inconsistent validation between worksets and query builder
-- Different field/operator support in different contexts
-- Duplicate code for validation and estimation logic
-
-**Recommendation:**
-```python
-# Single QueryValidator service
-class QueryValidator:
-    def validate(self, query_data, mode='comprehensive') -> QueryValidationResult:
-        # Unified validation with configurable strictness
-        pass
-```
-
-**✅ STATUS: COMPLETED**
-- Created `app/services/query_validation_service.py` with unified QueryValidator
-- Supports SIMPLE, COMPREHENSIVE, and STRICT validation modes
-- Comprehensive LIFT schema field validation (from QueryBuilderService)
-- Simple field validation for worksets (from WorksetService)
-- Cross-reference validation with regex parsing
-- Performance estimation with database lookup or heuristic
-- 49 passing tests in `tests/unit/test_query_validation_service.py`
-- Eliminates duplicate validation logic between worksets and query builder
+**Recommendation:** Consolidate into `QueryValidationService`
 
 ---
 
@@ -211,21 +167,11 @@ class TextExtractor:
     def extract_words(self, text: str, language: str = None) -> List[str]:
         # Language-aware tokenization
         pass
-
+    
     def extract_from_entry(self, entry: Dict) -> str:
         # Extract all text fields from entry structure
         pass
 ```
-
-**✅ STATUS: COMPLETED**
-- Created `app/utils/text_extractor.py` with unified TextExtractor
-- Language-aware tokenization support (Latin, Cyrillic, CJK, Arabic, Hebrew, Devanagari, Thai)
-- Factory method `TextExtractor.for_language()` for language-specific extractors
-- Support for WORDS, PHRASES, ALL_TEXT, and UNIQUE extraction modes
-- HTML/XML tag stripping and entity decoding
-- Entry structure navigation for complete text extraction
-- 49 passing tests in `tests/unit/test_text_extractor.py`
-- Eliminates inconsistent tokenization across 4+ different approaches
 
 ---
 
@@ -253,22 +199,12 @@ class DataCopier:
     def copy_entry(entry) -> Entry:
         # Ensure all nested structures are copied
         pass
-
+    
     @staticmethod
     def copy_sense(sense) -> Sense:
         # Specialized sense copying
         pass
 ```
-
-**✅ STATUS: COMPLETED**
-- Created `app/utils/data_copier.py` with unified DataCopier class
-- Type-aware copying with support for dataclasses, serializable objects, and primitives
-- Circular reference protection with configurable handling
-- Specialized `copy_entry()` and `copy_sense()` methods for dictionary structures
-- Configurable depth limiting and ID preservation
-- 53 passing tests in `tests/unit/test_data_copier.py`
-- Replaces 28+ scattered `copy.deepcopy()` calls across merge_split_service, ranges_service, bulk_action_service, dictionary_service, and lift_parser
-- Eliminates risk of inconsistent copy depth and missing deep copies
 
 ---
 
@@ -280,47 +216,11 @@ class DataCopier:
 - `app/services/field_language_detector.py::normalize_lang_code()` - Language code normalization
 - `app/parsers/lift_parser.py::_normalize_multilingual_dict()` - Dict normalization
 - `app/parsers/lift_parser.py::_normalize_xml()` - XML normalization
-- `app/utils/namespace_manager.py::normalize_lift_xml()` - LIFT XML namespace normalization
+- `app/utils/namespace_manager.py::normalize_lift_xml()` - LIFT XML normalization
 
 **Issue:** 6 different normalization utilities without shared patterns
 
-**Impact:**
-- Inconsistent normalization behavior across modules
-- Duplicated logic for language code variants (IPA special codes, BCP 47, ISO 639)
-- Different XML normalization approaches
-- No centralized Unicode normalization strategy
-
-**Recommendation:**
-```python
-# Unified normalization service
-class NormalizationService:
-    def normalize_ipa(self, ipa: str) -> str:
-        # Remove stress, normalize diacritics
-        pass
-
-    def normalize_language_code(self, code: str) -> str:
-        # Handle ISO 639, BCP 47, special codes
-        pass
-
-    def normalize_lift_xml(self, xml: str) -> str:
-        # LIFT XML formatting
-        pass
-
-    def normalize_multilingual_dict(self, d: dict) -> dict:
-        # Standardize dict structure
-        pass
-```
-
-**✅ STATUS: COMPLETED**
-- Created `app/utils/normalization_service.py` with unified NormalizationService
-- IPA normalization: stress mark removal, diacritics handling, Unicode normalization
-- Language code normalization: ISO 639 (2-letter, 3-letter), BCP 47 format, regional codes, script codes, special IPA codes
-- XML normalization: declaration removal, whitespace normalization, entity decoding, LIFT-specific formatting
-- Multilingual dict normalization: text format standardization, recursive normalization, language code normalization
-- Field path normalization: dot notation, bracket/arrows/slashes conversion
-- Unicode normalization: NFC, NFD, NFKC, NFKD forms
-- 72 passing tests in `tests/unit/test_normalization_service.py`
-- Consolidates 6+ scattered normalization functions into single service
+**Recommendation:** Create `NormalizationService` or `app/utils/normalization.py`
 
 ---
 

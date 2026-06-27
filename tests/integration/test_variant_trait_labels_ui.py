@@ -73,7 +73,7 @@ class TestVariantTraitLabelsUI:
         assert 'add-variant-btn' in html_content
 
         # Should load variant-forms.js which defines VariantFormsManager
-        assert 'variant-forms.js' in html_content
+        assert 'entry-variant-relations.js' in html_content  # Alpine variant component (§16.2.3)
 
     @pytest.mark.integration
     def test_variant_forms_uses_traits_based_range_id(self, client: FlaskClient) -> None:
@@ -85,7 +85,7 @@ class TestVariantTraitLabelsUI:
         
         # The JavaScript should load the variant-forms.js file which contains 
         # the configuration for 'variant-type' range ID
-        assert 'variant-forms.js' in html_content
+        assert 'entry-variant-relations.js' in html_content  # Alpine variant component (§16.2.3)
 
     @pytest.mark.integration
     def test_variant_forms_manager_initialization(self, client: FlaskClient) -> None:
@@ -96,7 +96,7 @@ class TestVariantTraitLabelsUI:
         html_content = response.get_data(as_text=True)
 
         # Should load the variant-forms.js script
-        assert 'variant-forms.js' in html_content
+        assert 'entry-variant-relations.js' in html_content  # Alpine variant component (§16.2.3)
 
         # Should have the variants container for the manager to initialize
         assert 'variants-container' in html_content

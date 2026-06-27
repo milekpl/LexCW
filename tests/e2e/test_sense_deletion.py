@@ -423,7 +423,7 @@ def test_sense_deletion_persists_after_save(page, app_url):
         f"BUG: Deleted sense reappeared! Expected 1 sense after reload, got {final_count}"
 
     # Verify the remaining sense has the correct content
-    remaining_def = real_senses.first.locator('textarea[name*="definition"][name$=".text"]').first.input_value()
+    remaining_def = real_senses.first.locator('textarea.definition-text').first.input_value()
     assert remaining_def == 'First definition', \
         f"Wrong sense remained. Expected 'First definition', got '{remaining_def}'"
 
@@ -432,7 +432,13 @@ def test_sense_deletion_persists_after_save(page, app_url):
 
 @pytest.mark.integration
 def test_default_template_not_serialized(page, flask_test_server):
-    """Test that the default-sense-template is never included in serialization."""
+    """A new entry serializes exactly one sense — no phantom/template sense.
+
+    The Alpine sense tree renders senses from reactive state via x-for, so the old
+    hidden ``#default-sense-template`` clone-source no longer exists; this test now
+    asserts that architecture (no template element) and that a fresh entry seeds and
+    saves exactly one real sense.
+    """
     base_url = _get_base_url(flask_test_server)
     page = page
 
@@ -440,25 +446,18 @@ def test_default_template_not_serialized(page, flask_test_server):
     page.goto(f"{base_url}/entries/add", timeout=30000)
     page.wait_for_load_state("networkidle")
 
-    # Verify default template exists in DOM
-    default_template = page.locator('#default-sense-template, .default-sense-template')
-    expect(default_template).to_have_count(1)
+    # The legacy clone-source template must NOT exist (eliminated by the Alpine refactor).
+    expect(page.locator('#default-sense-template, .default-sense-template')).to_have_count(0)
 
-    # Check if we need to add a sense first
-    real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
-    if real_senses.count() == 0:
-        add_sense_btn = page.locator('#add-sense-btn')
-        if add_sense_btn.is_visible():
-            add_sense_btn.click()
-            expect(page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')).to_have_count(1, timeout=3000)
+    # A new entry is seeded with exactly one real sense.
+    real_senses = page.locator('.sense-item')
+    expect(real_senses).to_have_count(1, timeout=3000)
 
     # Fill minimal entry data
     page.locator('input.lexical-unit-text').first.fill('template_test')
-    first_sense = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)').first
-    first_sense.locator('textarea[name*="definition"]').first.fill('Test definition')
+    real_senses.first.locator('textarea.definition-text').first.fill('Test definition')
 
-    # Verify there is exactly 1 real sense item
-    real_senses = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)')
+    # Still exactly one real sense item
     expect(real_senses).to_have_count(1, timeout=3000)
 
     # Save
@@ -636,7 +635,7 @@ def test_add_and_remove_sense(page, flask_test_server):
 
     # Fill in the new sense with minimal data
     new_sense = page.locator('.sense-item:not(#default-sense-template):not(.default-sense-template)').last
-    new_sense.locator('textarea[name*="definition"][name$=".text"]').first.fill('New test definition')
+    new_sense.locator('textarea.definition-text').first.fill('New test definition')
 
     # Remove the last sense
     page.on('dialog', lambda dialog: dialog.accept())

@@ -113,21 +113,15 @@ class Example(BaseModel):
             first_lang = next(iter(self.translations.keys()))
             self.translations[first_lang] = value
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, **kwargs) -> Dict[str, Any]:
         """
         Convert the example to a dictionary.
         
         Returns:
             Dictionary representation of the example.
         """
-        result = super().to_dict()
-        # Add form_text property to the dict
+        result = super().to_dict(**kwargs)
         result['form_text'] = self.form_text
-        # Day 47-48: Add source and note if present
-        if self.source:
-            result['source'] = self.source
-        if self.note:
-            result['note'] = self.note
         return result
 
     def validate(self) -> bool:

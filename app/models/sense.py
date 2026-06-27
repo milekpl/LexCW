@@ -498,78 +498,32 @@ class Sense(BaseModel):
         """
         return list(self.glosses.keys())
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, **kwargs) -> Dict[str, Any]:
         """
         Convert the sense to a dictionary, including computed properties.
         
+        Uses SerializableMixin for recursive serialization of nested
+        Example objects and subsenses, then adds computed properties.
+
         Returns:
             Dictionary representation of the sense.
         """
-        result = super().to_dict()
-        
-        # Convert Example objects to dicts
-        if 'examples' in result and result['examples']:
-            result['examples'] = [
-                ex.to_dict() if hasattr(ex, 'to_dict') else ex 
-                for ex in result['examples']
-            ]
-        
+        from app.models.serializable import SerializableMixin
+        result = SerializableMixin.to_dict(self, **kwargs)
+
         # Add computed properties for template compatibility
         result['definition'] = self.definition
         result['gloss'] = self.gloss
 
-        # Sense-level fields
+        # Sense-level fields (stored as private attrs / properties)
         result['usage_type'] = self.usage_type
         result['domain_type'] = self.domain_type
-        
-        # LIFT 0.13: Include subsenses (recursive)
-        if hasattr(self, 'subsenses') and self.subsenses:
-            result['subsenses'] = [
-                subsense.to_dict() if isinstance(subsense, Sense) else subsense
-                for subsense in self.subsenses
-            ]
-        else:
-            result['subsenses'] = []
-        
-        # LIFT 0.13: Include reversals - Day 24-25
-        if hasattr(self, 'reversals') and self.reversals:
-            result['reversals'] = self.reversals
-        else:
-            result['reversals'] = []
 
-        # Sense-level variant relations
-        if hasattr(self, 'variant_relations') and self.variant_relations:
-            result['variant_relations'] = self.variant_relations
-        else:
-            result['variant_relations'] = []
-
-        # LIFT 0.13: Include annotations - Day 26-27
-        if hasattr(self, 'annotations') and self.annotations:
-            result['annotations'] = self.annotations
-        else:
-            result['annotations'] = []
-        
         # LIFT 0.13: FieldWorks Standard Custom Fields - Day 28
-        if hasattr(self, 'exemplar') and self.exemplar:
-            result['exemplar'] = self.exemplar
-        else:
-            result['exemplar'] = None
-        
-        if hasattr(self, 'scientific_name') and self.scientific_name:
-            result['scientific_name'] = self.scientific_name
-        else:
-            result['scientific_name'] = None
-
-        if hasattr(self, 'literal_meaning') and self.literal_meaning:
-            result['literal_meaning'] = self.literal_meaning
-        else:
-            result['literal_meaning'] = None
-
-        # Include semantic_domains in the serialized dictionary for LIFT generation
-        if hasattr(self, 'semantic_domains') and self.semantic_domains is not None:
-            result['semantic_domains'] = self.semantic_domains
-        else:
-            result['semantic_domains'] = None
+        for field in ('exemplar', 'scientific_name', 'literal_meaning', 'semantic_domains'):
+            value = getattr(self, field, None)
+            if value:
+                result[field] = value
 
         return result
 

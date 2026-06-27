@@ -178,6 +178,46 @@
 
                 <fieldset class="mb-4">
                     <legend class="h6">
+                        External Services
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Configure URLs for external services used by the dictionary app. Health is checked automatically."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.languagetool_url, class="form-control", placeholder="http://localhost:8081") }}
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <span id="lt-health" class="small ms-2">
+                                <i class="fas fa-spinner fa-spin text-muted"></i> Checking...
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            {{ render_field(form.corpus_url, class="form-control", placeholder="http://localhost:8082") }}
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <span id="corpus-health" class="small ms-2">
+                                <i class="fas fa-spinner fa-spin text-muted"></i> Checking...
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            {{ render_field(form.wordsketch_url, class="form-control", placeholder="http://localhost:8083") }}
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <span id="ws-health" class="small ms-2">
+                                <i class="fas fa-spinner fa-spin text-muted"></i> Checking...
+                            </span>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
                         Prompt Templates
                         <i class="fas fa-info-circle text-muted ms-1"
                            data-bs-toggle="tooltip"
@@ -330,77 +370,6 @@
                     <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary ms-2">Cancel</a>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <div class="card mt-4">
-        <div class="card-header">
-            Current Settings Overview
-        </div>
-        <div class="card-body">
-            <dl class="row">
-                <dt class="col-sm-4">Project Name:</dt>
-                <dd class="col-sm-8">{{ current_settings.project_name }}</dd>
-
-                <dt class="col-sm-4">Source Language (Vernacular):</dt>
-                <dd class="col-sm-8">{{ current_settings.source_language.name }} ({{ current_settings.source_language.code }})</dd>
-
-                <dt class="col-sm-4">Target Languages:</dt>
-                <dd class="col-sm-8">
-                    {% if current_settings.target_languages %}
-                        {% for lang in current_settings.target_languages %}
-                            {{ lang.name }} ({{ lang.code }}){% if not loop.last %}, {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        None configured
-                    {% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Backup Directory:</dt>
-                <dd class="col-sm-8">
-                    {% if current_settings.backup_settings and current_settings.backup_settings.directory %}
-                        {{ current_settings.backup_settings.directory }}
-                    {% else %}
-                        Not configured
-                    {% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Auto Backup Schedule:</dt>
-                <dd class="col-sm-8">
-                    {% if current_settings.backup_settings and current_settings.backup_settings.schedule %}
-                        {{ current_settings.backup_settings.schedule|title }}
-                    {% else %}
-                        Daily
-                    {% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Backup Retention:</dt>
-                <dd class="col-sm-8">
-                    {% if current_settings.backup_settings and current_settings.backup_settings.retention %}
-                        {{ current_settings.backup_settings.retention }} backups
-                    {% else %}
-                        10 backups
-                    {% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Backup Compression:</dt>
-                <dd class="col-sm-8">
-                    {% if current_settings.backup_settings and current_settings.backup_settings.compression %}
-                        Enabled
-                    {% else %}
-                        Disabled
-                    {% endif %}
-                </dd>
-
-                <dt class="col-sm-4">Include Media in Backups:</dt>
-                <dd class="col-sm-8">
-                    {% if current_settings.backup_settings and current_settings.backup_settings.include_media %}
-                        Enabled
-                    {% else %}
-                        Disabled
-                    {% endif %}
-                </dd>
-            </dl>
         </div>
     </div>
 
@@ -1023,8 +992,40 @@ document.addEventListener('DOMContentLoaded', function(){
     loadTemplates();
 })();
 
+// External services health check
+async function checkServiceHealth() {
+    function setHealth(id, status) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (status === 'ok') {
+            el.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Online</span>';
+        } else {
+            el.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> Offline</span>';
+        }
+    }
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const resp = await fetch('/settings/health-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+            body: JSON.stringify({})
+        });
+        const data = await resp.json();
+        setHealth('lt-health', data.languagetool?.status);
+        setHealth('corpus-health', data.corpus?.status);
+        setHealth('ws-health', data.wordsketch?.status);
+    } catch(e) {
+        ['lt-health','corpus-health','ws-health']
+            .forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '<span class="text-muted"><i class="fas fa-question-circle"></i> Unknown</span>';
+            });
+    }
+}
+
 // AI connection test
 document.addEventListener('DOMContentLoaded', function() {
+    checkServiceHealth();
     const btn = document.getElementById('btn-test-ai-connection');
     const result = document.getElementById('ai-test-result');
     if (!btn || !result) return;

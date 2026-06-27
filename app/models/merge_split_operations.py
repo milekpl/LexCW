@@ -26,6 +26,8 @@ class MergeSplitOperation(BaseModel):
         metadata: Additional operation metadata
     """
 
+    _include_none_fields = {'target_id', 'user_id', 'metadata'}
+
     def __init__(
         self,
         operation_type: str,
@@ -60,38 +62,15 @@ class MergeSplitOperation(BaseModel):
         self.status: str = kwargs.get('status', 'pending')
         self.metadata: Dict[str, Any] = kwargs.get('metadata', {})
 
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the operation to a dictionary for serialization.
-
-        Returns:
-            Dictionary representation of the operation
-        """
-        result = super().to_dict()
-        result['operation_type'] = self.operation_type
-        result['source_id'] = self.source_id
-        result['target_id'] = self.target_id
-        result['sense_ids'] = self.sense_ids
-        result['timestamp'] = self.timestamp.isoformat()
-        result['user_id'] = self.user_id
-        result['status'] = self.status
-        result['metadata'] = self.metadata
-        return result
-
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MergeSplitOperation":
         """
         Create a MergeSplitOperation instance from a dictionary.
         """
-        # Extract positional arguments for __init__
         operation_type = data.pop("operation_type")
         source_id = data.pop("source_id")
-
-        # Convert timestamp from ISO format string to datetime object
         if 'timestamp' in data and isinstance(data['timestamp'], str):
             data['timestamp'] = datetime.fromisoformat(data['timestamp'])
-        
-        # Create instance
         return cls(
             operation_type=operation_type,
             source_id=source_id,
@@ -121,6 +100,8 @@ class SenseTransfer(BaseModel):
         metadata: Additional transfer metadata
     """
 
+    _include_none_fields = {'metadata'}
+
     def __init__(
         self,
         sense_id: str,
@@ -145,36 +126,16 @@ class SenseTransfer(BaseModel):
         self.transfer_date: datetime = kwargs.get('transfer_date', datetime.now())
         self.metadata: Dict[str, Any] = kwargs.get('metadata', {})
 
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the transfer to a dictionary for serialization.
-
-        Returns:
-            Dictionary representation of the transfer
-        """
-        result = super().to_dict()
-        result['sense_id'] = self.sense_id
-        result['original_entry_id'] = self.original_entry_id
-        result['new_entry_id'] = self.new_entry_id
-        result['transfer_date'] = self.transfer_date.isoformat()
-        result['metadata'] = self.metadata
-        return result
-
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SenseTransfer":
         """
         Create a SenseTransfer instance from a dictionary.
         """
-        # Extract positional arguments for __init__
         sense_id = data.pop("sense_id")
         original_entry_id = data.pop("original_entry_id")
         new_entry_id = data.pop("new_entry_id")
-
-        # Convert transfer_date from ISO format string to datetime object
         if 'transfer_date' in data and isinstance(data['transfer_date'], str):
             data['transfer_date'] = datetime.fromisoformat(data['transfer_date'])
-
-        # Create instance
         return cls(
             sense_id=sense_id,
             original_entry_id=original_entry_id,
@@ -226,29 +187,6 @@ class MergeSplitResult(BaseModel):
         self.warnings: List[str] = kwargs.get('warnings', [])
         self.errors: List[str] = kwargs.get('errors', [])
         self.metadata: Dict[str, Any] = kwargs.get('metadata', {})
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the result to a dictionary for serialization.
-
-        Returns:
-            Dictionary representation of the result
-        """
-        result = super().to_dict()
-        result['operation_id'] = self.operation_id
-        result['success'] = self.success
-        result['transferred_senses'] = self.transferred_senses
-        result['conflicts_resolved'] = self.conflicts_resolved
-        result['warnings'] = self.warnings
-        result['errors'] = self.errors
-        result['metadata'] = self.metadata
-
-        if self.source_entry:
-            result['source_entry'] = self.source_entry.to_dict()
-        if self.target_entry:
-            result['target_entry'] = self.target_entry.to_dict()
-
-        return result
 
     def add_warning(self, warning_message: str) -> None:
         """Add a warning message to the result."""

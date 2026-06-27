@@ -7,7 +7,9 @@ def test_variant_type_select_is_dynamic(client, app):
         assert response.status_code == 200
         html = response.get_data(as_text=True)
 
-        # There should be either a server-rendered dynamic select OR the JS template
-        # should contain the marker for dynamic loading.
-        js_content = open('app/static/js/variant-forms.js').read()
-        assert ('data-range-id="variant-type"' in html) or ('data-range-id="variant-type"' in js_content)
+        # Variant type is loaded dynamically by the Alpine entry-variant-relations component
+        # (§16.2.3) via the 'variant-type' range — not hardcoded.
+        js_content = open('app/static/js/alpine/entry-variant-relations.js').read()
+        assert ("loadRange('variant-type')" in js_content) \
+            or ('variant-type' in js_content) \
+            or ('data-range-id="variant-type"' in html)

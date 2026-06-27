@@ -9,7 +9,7 @@ def test_debug_click_handlers(page: Page, app_url: str):
     page.wait_for_load_state("load")
     
     # Fill in the entry
-    lexical_unit = page.locator('input[name="lexical_unit"]').first
+    lexical_unit = page.locator('input.lexical-unit-text').first
     if lexical_unit.is_visible():
         lexical_unit.fill("test-word")
     
@@ -17,7 +17,7 @@ def test_debug_click_handlers(page: Page, app_url: str):
     if add_sense_btn.is_visible():
         add_sense_btn.click()
         # Wait for a definition textarea to appear instead of sleeping
-        page.wait_for_selector('textarea[name*="definition"]:visible', timeout=3000)
+        page.wait_for_selector('textarea.definition-text:visible', timeout=3000)
     
     page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
     # Wait for the add-literal-meaning-language button to be visible after scrolling

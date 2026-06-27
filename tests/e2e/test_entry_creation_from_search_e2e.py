@@ -29,13 +29,13 @@ def test_create_entry_from_relation_search(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', 'test_base_entry')
 
     # Add a sense
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill('A test definition')
+    page.locator('textarea.definition-text:visible').first.fill('A test definition')
 
     # Save the entry to get an ID for editing
     page.click('button[type="submit"]')
@@ -53,31 +53,21 @@ def test_create_entry_from_relation_search(page: Page, app_url: str) -> None:
     else:
         pytest.skip("Could not find test entry to edit")
 
-    # Add a relation
+    # Add a relation (Alpine-owned §16.2.2 — type select + ref text input)
     if page.locator('#add-relation-btn').count() > 0:
         page.click('#add-relation-btn')
         page.wait_for_timeout(500)
 
-    # Find the relation search input
-    relation_search_input = page.locator('.relation-search-input').first
-    if relation_search_input.count() > 0:
-        # Type a unique search term that won't match any existing entry
-        unique_term = f"nonexistent_entry_{__name__}_test"
-        relation_search_input.fill(unique_term)
-        page.wait_for_timeout(500)
+    # Verify the Alpine relation item appeared
+    assert page.locator('.relation-item').count() > 0, "Relation item not added"
 
-        # Check if "Create new entry" option appears
-        create_option = page.locator('.create-entry-option:has-text("Create new entry")')
-        if create_option.count() > 0:
-            # The feature is working - create option is shown
-            assert unique_term in create_option.text_content()
-        else:
-            # Without the feature, we just verify search worked
-            # The feature adds this option, so if it's missing, the test may fail
-            # In production, this should show the create option
-            pass
+    # Fill target entry ref in the Alpine x-model input
+    ref_input = page.locator('.relation-item input[type="text"]').first
+    if ref_input.count() > 0:
+        ref_input.fill("test-ref-entry-id")
+        page.wait_for_timeout(300)
 
-    # Just verify the form loads correctly with relations section
+    # Verify form loads correctly with relations section
     assert page.locator('#relations-container').count() > 0 or page.locator('.relation-item').count() >= 0
 
 
@@ -93,13 +83,13 @@ def test_create_entry_from_sense_relation_search(page: Page, app_url: str) -> No
     page.fill('input.lexical-unit-text', 'test_sense_relation_entry')
 
     # Add a sense
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill('Test sense definition')
+    page.locator('textarea.definition-text:visible').first.fill('Test sense definition')
 
     # Save the entry
     page.click('button[type="submit"]')
@@ -150,13 +140,13 @@ def test_create_entry_from_variant_search(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', 'test_variant_parent')
 
     # Add a sense
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill('Parent entry definition')
+    page.locator('textarea.definition-text:visible').first.fill('Parent entry definition')
 
     # Save the entry
     page.click('button[type="submit"]')
@@ -271,13 +261,13 @@ def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
     exact_term = f"exact_match_test_{__name__}"
     page.fill('input.lexical-unit-text', exact_term)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill('Exact match definition')
+    page.locator('textarea.definition-text:visible').first.fill('Exact match definition')
 
     page.click('button[type="submit"]')
     page.wait_for_timeout(2000)
@@ -289,13 +279,13 @@ def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
     partial_term = f"exact_match_test_partial_{__name__}"
     page.fill('input.lexical-unit-text', partial_term)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill('Partial match definition')
+    page.locator('textarea.definition-text:visible').first.fill('Partial match definition')
 
     page.click('button[type="submit"]')
     page.wait_for_timeout(2000)
@@ -343,13 +333,13 @@ def test_circular_reference_detection(page: Page, app_url: str) -> None:
     entry_name = f"circular_test_entry_{__name__}"
     page.fill('input.lexical-unit-text', entry_name)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
-    page.locator('textarea[name*="definition"]:visible').first.fill('Test definition')
+    page.locator('textarea.definition-text:visible').first.fill('Test definition')
 
     page.click('button[type="submit"]')
     page.wait_for_timeout(2000)

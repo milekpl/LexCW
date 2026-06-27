@@ -325,23 +325,19 @@ function initializeEntryForm() {
     const entryPos = entryPosSelect.value;
     if (!entryPos) return; // Don't propagate empty values
 
-    const sensePosSelects = document.querySelectorAll(
-      "#senses-container .dynamic-grammatical-info"
-    );
+    // Delegate to the Alpine senseTree component (§11.4).
+    // applyEntryPos only overwrites senses whose grammaticalInfo is empty —
+    // preserving any sense-level POS the user set explicitly.
+    const el = document.querySelector('[x-data^="senseTree"]');
+    if (el && window.Alpine) {
+      window.Alpine.$data(el).applyEntryPos(entryPos);
+    }
 
-    sensePosSelects.forEach((senseSelect) => {
-      // Only set POS on senses that don't have a value yet
-      if (!senseSelect.value || senseSelect.value.trim() === "") {
-        senseSelect.value = entryPos;
-
-        // Trigger change event so any listeners update UI state
-        const event = new Event("change", { bubbles: true });
-        senseSelect.dispatchEvent(event);
-      }
+    // After propagation, update inheritance state to reflect new sense values.
+    // Alpine updates the DOM via microtask, so wait one tick before reading it.
+    Promise.resolve().then(function () {
+      updateGrammaticalCategoryInheritance();
     });
-
-    // After propagation, update inheritance state to reflect new sense values
-    updateGrammaticalCategoryInheritance();
   }
 
   /**
@@ -614,95 +610,17 @@ function initializeEntryForm() {
       addSense();
     });
 
-  // Handle adding/removing lexical unit language forms
-  document
-    .querySelector(".add-lexical-unit-language-btn")
-    ?.addEventListener("click", function () {
-      const container = document.querySelector(".lexical-unit-forms");
-      if (!container) return;
-
-      // Get existing languages
-      const existingLangs = Array.from(
-        container.querySelectorAll(".language-form")
-      ).map((form) => form.dataset.language);
-
-      // Get available languages from the first select
-      const firstSelect = container.querySelector("select.language-select");
-      if (!firstSelect) return;
-
-      const availableLangs = Array.from(firstSelect.options)
-        .map((opt) => ({ code: opt.value, label: opt.textContent }))
-        .filter((lang) => !existingLangs.includes(lang.code));
-
-      if (availableLangs.length === 0) {
-        alert("All available languages have already been added.");
-        return;
-      }
-
-      const newLang = availableLangs[0];
-
-      // Create new language form
-      const newForm = document.createElement("div");
-      newForm.className = "mb-2 language-form";
-      newForm.dataset.language = newLang.code;
-      newForm.innerHTML = `
-            <div class="row">
-                <div class="col-md-3">
-                    <label class="form-label">Language</label>
-                    <select class="form-select language-select" 
-                            name="lexical_unit_lang.${newLang.code}"
-                            data-current-lang="${newLang.code}">
-                        ${Array.from(firstSelect.options)
-                          .map(
-                            (opt) =>
-                              `<option value="${opt.value}" ${
-                                opt.value === newLang.code ? "selected" : ""
-                              }>${opt.textContent}</option>`
-                          )
-                          .join("")}
-                    </select>
-                </div>
-                <div class="col-md-8">
-                    <label class="form-label">Headword Text</label>
-                    <input type="text" class="form-control lexical-unit-text" 
-                           name="lexical_unit.${newLang.code}"
-                           placeholder="Enter headword in ${newLang.code}">
-                </div>
-                <div class="col-md-1 d-flex align-items-end">
-                    <button type="button" class="btn btn-sm btn-outline-danger remove-lexical-unit-language-btn" 
-                            title="Remove language">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-
-      container.appendChild(newForm);
-    });
-
-  document
-    .querySelector(".lexical-unit-forms")
-    ?.addEventListener("click", function (e) {
-      const removeBtn = e.target.closest(".remove-lexical-unit-language-btn");
-      if (removeBtn) {
-        const languageForm = removeBtn.closest(".language-form");
-        if (languageForm && confirm("Remove this language variant?")) {
-          languageForm.remove();
-        }
-      }
-    });
+  // STAGE 2.1: Lexical-unit forms now managed by Alpine — legacy handlers are no-ops
 
   // --- Event Delegation for Dynamic Elements ---
 
   document
     .getElementById("pronunciation-container")
     ?.addEventListener("click", function (e) {
+      // STAGE 2.2: Pronunciation remove is now handled by Alpine @click — skip legacy handler
       const removeBtn = e.target.closest(".remove-pronunciation-btn");
       if (removeBtn) {
-        if (confirm("Are you sure you want to remove this pronunciation?")) {
-          removeBtn.closest(".pronunciation-item")?.remove();
-        }
-        return;
+        return; // Alpine handles removal via splice on the items array
       }
 
       const uploadBtn = e.target.closest(".upload-audio-btn");
@@ -802,460 +720,6 @@ function initializeEntryForm() {
       }
     });
 
-  // --- Entry-Level Annotation Handlers (document-level, outside senses container) ---
-  document.addEventListener("click", function (e) {
-    // Only handle entry-level annotation buttons (not sense-level, which are in sensesContainer)
-    const target = e.target.closest(
-      ".add-annotation-btn, .remove-annotation-btn, .add-annotation-language-btn"
-    );
-    if (!target) return;
-
-    // Check if this is an entry-level annotation (not inside senses-container)
-    if (target.closest("#senses-container")) {
-      // Let the sensesContainer handler deal with it
-      return;
-    }
-
-    // Handle Add Annotation for entry
-    if (target.classList.contains("add-annotation-btn")) {
-      const containerType = target.dataset.containerType;
-      const index = target.dataset.index;
-      addAnnotation(containerType, index);
-      return;
-    }
-
-    // Handle Remove Annotation for entry
-    if (target.classList.contains("remove-annotation-btn")) {
-      const annotationItem = target.closest(".annotation-item");
-      const containerType = target.dataset.containerType;
-      const index = target.dataset.index;
-      if (
-        annotationItem &&
-        confirm("Are you sure you want to remove this annotation?")
-      ) {
-        removeAnnotation(annotationItem, containerType, index);
-      }
-      return;
-    }
-
-    // Handle Add Language for entry annotations
-    if (target.classList.contains("add-annotation-language-btn")) {
-      addAnnotationLanguage(target);
-      return;
-    }
-  });
-
-  if (sensesContainer) {
-    sensesContainer.addEventListener("click", function (e) {
-      const removeSenseBtn = e.target.closest(".remove-sense-btn");
-      if (removeSenseBtn) {
-        const senseItem = removeSenseBtn.closest(".sense-item");
-        if (
-          senseItem &&
-          confirm(
-            "Are you sure you want to remove this sense and all its examples?"
-          )
-        ) {
-          const senseId =
-            senseItem.querySelector('[name*=".id"]')?.value || "unknown";
-
-          senseItem.remove();
-
-          reindexSenses();
-          // The MutationObserver will automatically trigger updateGrammaticalCategoryInheritance.
-        }
-        return;
-      }
-
-      // Handle move sense up button
-      const moveSenseUpBtn = e.target.closest(".move-sense-up");
-      if (moveSenseUpBtn) {
-        const senseItem = moveSenseUpBtn.closest(".sense-item");
-        const prevSenseItem = senseItem.previousElementSibling;
-        if (prevSenseItem && prevSenseItem.classList.contains("sense-item")) {
-          sensesContainer.insertBefore(senseItem, prevSenseItem);
-          reindexSenses();
-          showToast("Sense moved up successfully", "success");
-        }
-        return;
-      }
-
-      // Handle move sense down button
-      const moveSenseDownBtn = e.target.closest(".move-sense-down");
-      if (moveSenseDownBtn) {
-        const senseItem = moveSenseDownBtn.closest(".sense-item");
-        const nextSenseItem = senseItem.nextElementSibling;
-        if (nextSenseItem && nextSenseItem.classList.contains("sense-item")) {
-          sensesContainer.insertBefore(nextSenseItem, senseItem);
-          reindexSenses();
-          showToast("Sense moved down successfully", "success");
-        }
-        return;
-      }
-
-      // --- Illustration Handlers (Add / Upload / Labels) ---
-      const addIllustrationBtn = e.target.closest(".add-illustration-btn");
-      if (addIllustrationBtn) {
-        const senseIndex = addIllustrationBtn.dataset.senseIndex;
-        const container = addIllustrationBtn
-          .closest(".sense-item")
-          ?.querySelector(".illustrations-container");
-        if (!container) return;
-
-        const illustrationIndex =
-          container.querySelectorAll(".illustration-item").length;
-        const card = document.createElement("div");
-        card.className = "illustration-item card mb-3";
-        card.dataset.illustrationIndex = illustrationIndex;
-        card.innerHTML = `
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0"><i class="fas fa-image"></i> Illustration ${
-                              illustrationIndex + 1
-                            }</h6>
-                            <button type="button" class="btn btn-sm btn-outline-danger remove-illustration-btn" title="Remove illustration">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Image Path/URL</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control illustration-href" name="senses[${senseIndex}].illustrations[${illustrationIndex}].href" placeholder="images/photo.jpg or https://example.com/image.jpg" readonly>
-                                <button class="btn btn-outline-secondary upload-illustration-btn" type="button" data-sense-index="${senseIndex}" data-illustration-index="${illustrationIndex}" title="Upload image file">
-                                    <i class="fas fa-upload"></i> Upload Image
-                                </button>
-                            </div>
-                            <div class="form-text">Relative path (e.g., images/photo.jpg) or absolute URL</div>
-                        </div>
-                        <div class="mb-3 image-preview-container" style="display:none;"></div>
-                        <div class="illustration-labels">
-                            <label class="form-label">Labels/Captions (Multilingual)</label>
-                            <div class="multilingual-forms illustration-label-forms"></div>
-                            <button type="button" class="btn btn-sm btn-outline-primary add-illustration-label-language-btn mt-1" data-sense-index="${senseIndex}" data-illustration-index="${illustrationIndex}" title="Add caption in another language">
-                                <i class="fas fa-plus"></i> Add Caption Language
-                            </button>
-                        </div>
-                    </div>
-                `;
-
-        const placeholder = container.querySelector(".no-illustrations");
-        if (placeholder) placeholder.remove();
-
-        container.appendChild(card);
-        return;
-      }
-
-      const uploadIllustrationBtn = e.target.closest(
-        ".upload-illustration-btn"
-      );
-      if (uploadIllustrationBtn) {
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = "image/*";
-
-        fileInput.onchange = async (ev) => {
-          const file = ev.target.files[0];
-          if (!file) return;
-          const senseIndex = uploadIllustrationBtn.dataset.senseIndex;
-          const illustrationIndex =
-            uploadIllustrationBtn.dataset.illustrationIndex;
-
-          const senseItem = uploadIllustrationBtn.closest(".sense-item");
-          const hrefInput = senseItem.querySelector(
-            `.illustration-item[data-illustration-index="${illustrationIndex}"] .illustration-href`
-          );
-          const previewContainer = senseItem.querySelector(
-            `.illustration-item[data-illustration-index="${illustrationIndex}"] .image-preview-container`
-          );
-
-          // Upload image to server
-          try {
-            const form = new FormData();
-            form.append("image_file", file);
-
-            // Get CSRF token
-            const headers = getCsrfHeaders();
-
-            const resp = await fetch("/api/illustration/upload", {
-              method: "POST",
-              headers: headers,
-              body: form,
-            });
-
-            const data = await resp.json();
-            if (!resp.ok || !data.success) {
-              showToast(
-                "Image upload failed: " + (data.message || resp.statusText),
-                "error"
-              );
-              return;
-            }
-
-            const filename = data.filename;
-            const path = `images/${filename}`;
-
-            if (hrefInput) hrefInput.value = path;
-
-            if (previewContainer) {
-              previewContainer.style.display = "block";
-              previewContainer.innerHTML = `<img src="/static/${path}" class="img-thumbnail illustration-preview" style="max-width:300px;max-height:200px;" alt="Illustration preview" onerror="this.style.display='none';">`;
-            }
-          } catch (err) {
-            console.error("Image upload failed", err);
-            showToast("Image upload failed", "error");
-          }
-        };
-
-        fileInput.click();
-        return;
-      }
-
-      const addIllustrationLabelBtn = e.target.closest(
-        ".add-illustration-label-language-btn"
-      );
-      if (addIllustrationLabelBtn) {
-        const senseIndex = addIllustrationLabelBtn.dataset.senseIndex;
-        const illustrationIndex =
-          addIllustrationLabelBtn.dataset.illustrationIndex;
-        const container = addIllustrationLabelBtn
-          .closest(".illustration-item")
-          ?.querySelector(".illustration-label-forms");
-        if (!container) return;
-
-        const languageOptions = Array.from(
-          document.querySelectorAll("select.language-select option")
-        ).map((o) => ({ code: o.value, label: o.textContent }));
-        const existing = Array.from(
-          container.querySelectorAll(".language-form-group")
-        ).map((g) => g.dataset.lang);
-        const available = languageOptions.filter(
-          (l) => !existing.includes(l.code)
-        );
-        const newLang = available.length ? available[0].code : "en";
-
-        const div = document.createElement("div");
-        div.className = "language-form-group mb-2 border rounded p-2";
-        div.dataset.lang = newLang;
-        div.innerHTML = `
-                    <div class="row align-items-center">
-                        <div class="col-md-3"><span class="badge bg-secondary">${newLang}</span></div>
-                        <div class="col-md-9">
-                            <div class="d-flex align-items-center">
-                                <input type="text" class="form-control form-control-sm illustration-label-text" name="senses[${senseIndex}].illustrations[${illustrationIndex}].label.${newLang}" placeholder="Caption in ${newLang}">
-                                <button type="button" class="btn btn-sm btn-outline-danger remove-illustration-label-language-btn ms-2" title="Remove this language"><i class="fas fa-times"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-        container.appendChild(div);
-        return;
-      }
-
-      const removeIllustrationLabelBtn = e.target.closest(
-        ".remove-illustration-label-language-btn"
-      );
-      if (removeIllustrationLabelBtn) {
-        const form = removeIllustrationLabelBtn.closest(".language-form-group");
-        if (form && confirm("Remove this caption language?")) form.remove();
-        return;
-      }
-
-      const addExampleBtn = e.target.closest(".add-example-btn");
-      if (addExampleBtn) {
-        const senseIndex = addExampleBtn.dataset.senseIndex;
-        addExample(senseIndex);
-        addExampleBtn.closest(".no-examples")?.remove(); // Remove the placeholder if it exists.
-        return;
-      }
-
-      const removeExampleBtn = e.target.closest(".remove-example-btn");
-      if (removeExampleBtn) {
-        const exampleItem = removeExampleBtn.closest(".example-item");
-        const senseIndex = removeExampleBtn.dataset.senseIndex;
-        if (
-          exampleItem &&
-          confirm("Are you sure you want to remove this example?")
-        ) {
-          const examplesContainer = exampleItem.parentElement;
-          exampleItem.remove();
-          reindexExamples(senseIndex);
-
-          if (examplesContainer.children.length === 0) {
-            examplesContainer.innerHTML = `
-                            <div class="no-examples text-center text-muted py-3 border rounded">
-                                <p>No examples added yet</p>
-                                <button type="button" class="btn btn-sm btn-outline-primary add-example-btn" data-sense-index="${senseIndex}">
-                                    <i class="fas fa-plus"></i> Add Example
-                                </button>
-                            </div>`;
-          }
-        }
-      }
-
-      // --- Subsense Handlers (LIFT 0.13 - Day 22) ---
-      const addSubsenseBtn = e.target.closest(".add-subsense-btn");
-      if (addSubsenseBtn) {
-        const senseIndex = addSubsenseBtn.dataset.senseIndex;
-        addSubsense(senseIndex);
-        // Remove placeholder if exists
-        const subsensesContainer = document.querySelector(
-          `.subsenses-container[data-sense-index="${senseIndex}"]`
-        );
-        subsensesContainer?.querySelector(".no-subsenses")?.remove();
-        return;
-      }
-
-      const removeSubsenseBtn = e.target.closest(".remove-subsense-btn");
-      if (removeSubsenseBtn) {
-        const subsenseItem = removeSubsenseBtn.closest(".subsense-item");
-        const senseIndex = removeSubsenseBtn.dataset.senseIndex;
-        if (
-          subsenseItem &&
-          confirm("Are you sure you want to remove this subsense?")
-        ) {
-          const subsensesContainer = subsenseItem.parentElement;
-          subsenseItem.remove();
-          reindexSubsenses(senseIndex);
-
-          // Show placeholder if no subsenses remain
-          if (subsensesContainer.children.length === 0) {
-            subsensesContainer.innerHTML = `
-                            <div class="no-subsenses text-center text-muted py-2 border border-success border-opacity-25 rounded">
-                                <p class="mb-2"><small>No subsenses yet. Add subsenses to create more specific meanings under this sense.</small></p>
-                            </div>`;
-          }
-        }
-        return;
-      }
-
-      const addNestedSubsenseBtn = e.target.closest(".add-nested-subsense-btn");
-      if (addNestedSubsenseBtn) {
-        const senseIndex = addNestedSubsenseBtn.dataset.senseIndex;
-        const parentSubsenseIndex = addNestedSubsenseBtn.dataset.subsenseIndex;
-        addNestedSubsense(senseIndex, parentSubsenseIndex);
-        return;
-      }
-
-      // --- LIFT 0.13: Reversal Handlers (Day 24-25) ---
-      const addReversalBtn = e.target.closest(".add-reversal-btn");
-      if (addReversalBtn) {
-        const senseIndex = addReversalBtn.dataset.senseIndex;
-        addReversal(senseIndex);
-        return;
-      }
-
-      const removeReversalBtn = e.target.closest(".remove-reversal-btn");
-      if (removeReversalBtn) {
-        const reversalItem = removeReversalBtn.closest(".reversal-item");
-        const senseIndex = removeReversalBtn.dataset.senseIndex;
-        if (
-          reversalItem &&
-          confirm("Are you sure you want to remove this reversal?")
-        ) {
-          removeReversal(reversalItem, senseIndex);
-        }
-        return;
-      }
-
-      // --- LIFT 0.13: Annotation Handlers (Day 26-27) ---
-      const addAnnotationBtn = e.target.closest(".add-annotation-btn");
-      if (addAnnotationBtn) {
-        const containerType = addAnnotationBtn.dataset.containerType; // "entry" or "sense"
-        const index = addAnnotationBtn.dataset.index;
-        addAnnotation(containerType, index);
-        return;
-      }
-
-      const removeAnnotationBtn = e.target.closest(".remove-annotation-btn");
-      if (removeAnnotationBtn) {
-        const annotationItem = removeAnnotationBtn.closest(".annotation-item");
-        const containerType = removeAnnotationBtn.dataset.containerType;
-        const index = removeAnnotationBtn.dataset.index;
-        if (
-          annotationItem &&
-          confirm("Are you sure you want to remove this annotation?")
-        ) {
-          removeAnnotation(annotationItem, containerType, index);
-        }
-        return;
-      }
-
-      // --- Annotation Add Language Button ---
-      const addAnnotationLanguageBtn = e.target.closest(
-        ".add-annotation-language-btn"
-      );
-      if (addAnnotationLanguageBtn) {
-        addAnnotationLanguage(addAnnotationLanguageBtn);
-        return;
-      }
-
-      // --- Literal Meaning Add Language Button ---
-      const addLiteralMeaningBtn = e.target.closest(
-        ".add-literal-meaning-language-btn"
-      );
-      if (addLiteralMeaningBtn) {
-        addCustomFieldLanguage(addLiteralMeaningBtn, "literal-meaning");
-        return;
-      }
-
-      // --- Exemplar Add Language Button ---
-      const addExemplarBtn = e.target.closest(".add-exemplar-language-btn");
-      if (addExemplarBtn) {
-        addCustomFieldLanguage(addExemplarBtn, "exemplar");
-        return;
-      }
-
-      // --- Scientific Name Add Language Button ---
-      const addScientificNameBtn = e.target.closest(
-        ".add-scientific-name-language-btn"
-      );
-      if (addScientificNameBtn) {
-        addCustomFieldLanguage(addScientificNameBtn, "scientific-name");
-        return;
-      }
-
-      // --- Sense Relations Handlers ---
-      const addSenseRelationBtn = e.target.closest(".add-sense-relation-btn");
-      if (addSenseRelationBtn) {
-        const senseIndex = addSenseRelationBtn.dataset.senseIndex;
-        addSenseRelation(senseIndex);
-        // Remove placeholder if exists
-        const relationsContainer = document.querySelector(
-          `.sense-relations-container[data-sense-index="${senseIndex}"]`
-        );
-        relationsContainer?.querySelector(".no-sense-relations")?.remove();
-        return;
-      }
-
-      const removeSenseRelationBtn = e.target.closest(
-        ".remove-sense-relation-btn"
-      );
-      if (removeSenseRelationBtn) {
-        const relationItem = removeSenseRelationBtn.closest(
-          ".sense-relation-item"
-        );
-        const senseIndex = removeSenseRelationBtn.dataset.senseIndex;
-        const relationIndex = removeSenseRelationBtn.dataset.relationIndex;
-        if (
-          relationItem &&
-          confirm("Are you sure you want to remove this sense relation?")
-        ) {
-          const relationsContainer = relationItem.parentElement;
-          relationItem.remove();
-          reindexSenseRelations(senseIndex);
-
-          // Show placeholder if no relations remain
-          if (relationsContainer.children.length === 0) {
-            relationsContainer.innerHTML = `
-                            <div class="no-sense-relations text-center text-muted py-2 border border-warning border-opacity-25 rounded">
-                                <p class="mb-2"><small>No sense relations yet. Add relations to link this sense to related meanings.</small></p>
-                            </div>`;
-          }
-        }
-        return;
-      }
-    });
-  }
 
   // --- Audio Modal Handling ---
   const audioPreviewModalEl = document.getElementById("audioPreviewModal");
@@ -1478,9 +942,8 @@ async function submitForm() {
     return;
   }
 
-  // Ensure sense indices and field names are consistent before we serialize.
-  // The save flow calls `submitForm()` directly (bypassing the form submit event),
-  // so we must normalize here.
+  // STAGE 1: Senses are now Alpine-managed; reindexSenses is a no-op.
+  // Sense ordering is maintained reactively by the Alpine senseTree component.
   try {
     reindexSenses();
   } catch (err) {
@@ -1530,63 +993,39 @@ async function submitForm() {
       }`
     );
 
-    // Serialize form to JSON first
-    const formData = await window.FormSerializer.serializeFormToJSONSafe(form, {
+    // STAGE 1: Serialize form to JSON first (legacy path for non-Alpine sections)
+    const legacyData = await window.FormSerializer.serializeFormToJSONSafe(form, {
       includeEmpty: false,
     });
 
-    // Normalize senses and refresh relations directly from DOM to avoid stale values before XML generation
-    formData.senses = normalizeIndexedArray(formData.senses);
-    applySenseRelationsFromDom(form, formData, normalizeIndexedArray);
-
-    // FIX: Convert 'gloss' to 'glosses' for API compatibility
-    // The form serializer uses 'gloss' (singular) with nested structure {en: {text: '...', lang: 'en'}}
-    // But the model and API expect 'glosses' (plural) with flat structure {'en': 'text'}
-    // Handle both flat string format {'en': 'text'} and object format {'en': {text: '...'}}
-    if (formData.senses) {
-      formData.senses.forEach((sense, idx) => {
-        if (sense && sense.gloss) {
-          const glossData = sense.gloss;
-          const convertedGlosses = {};
-          if (glossData && typeof glossData === "object") {
-            Object.entries(glossData).forEach(([lang, entry]) => {
-              // Handle both object format {text: '...'} and flat string format '...'
-              if (entry && typeof entry === "object" && entry.text) {
-                convertedGlosses[lang] = entry.text;
-              } else if (typeof entry === "string") {
-                convertedGlosses[lang] = entry;
-              }
-            });
-          }
-          if (Object.keys(convertedGlosses).length > 0) {
-            sense.glosses = convertedGlosses;
-          }
-          delete sense.gloss;
-        }
-        // Also handle subsenses
-        if (sense && sense.subsenses) {
-          sense.subsenses.forEach((subsense, subIdx) => {
-            if (subsense && subsense.gloss) {
-              const glossData = subsense.gloss;
-              const convertedGlosses = {};
-              if (glossData && typeof glossData === "object") {
-                Object.entries(glossData).forEach(([lang, entry]) => {
-                  if (entry && typeof entry === "object" && entry.text) {
-                    convertedGlosses[lang] = entry.text;
-                  } else if (typeof entry === "string") {
-                    convertedGlosses[lang] = entry;
-                  }
-                });
-              }
-              if (Object.keys(convertedGlosses).length > 0) {
-                subsense.glosses = convertedGlosses;
-              }
-              delete subsense.gloss;
-            }
-          });
-        }
-      });
+    // Extract function-free state from all Alpine-owned components.
+    // (Alpine component objects contain methods; structuredClone throws on those,
+    //  so extraction goes through the merge harness's per-key clone helper.)
+    var alpineState = {};
+    if (window.Alpine && window.MergeHarness) {
+      alpineState = window.MergeHarness.extractAlpineState();
     }
+
+    // Merge legacy + Alpine into one serializer input (Stage 2 scaffolding)
+    var formData;
+    if (Object.keys(alpineState).length > 0 && window.MergeHarness) {
+      // Strip Alpine-owned sections from legacy data
+      window.MergeHarness.alpineSections.forEach(function (section) {
+        delete legacyData[section];
+      });
+      // Senses (incl. relations) are fully Alpine-owned; the adapter supplies them.
+      // Do NOT read relations from the DOM here — the Alpine template has no
+      // name=/legacy-selector inputs, so a DOM read would clobber Alpine state with [].
+      formData = window.MergeHarness.mergeSync(legacyData, alpineState);
+    } else {
+      formData = legacyData;
+      // Apply legacy post-processing for non-Alpine path
+      formData.senses = normalizeIndexedArray(formData.senses);
+      applySenseRelationsFromDom(form, formData, normalizeIndexedArray);
+    }
+
+    // Note: gloss→glosses conversion is handled by the Alpine adapter
+    // (alpine-to-serializer.js emits `glosses` directly). No post-processing needed here.
 
     // Update progress
     progressBar.style.width = "30%";
@@ -1747,249 +1186,39 @@ async function submitForm() {
 
 /**
  * Adds a new pronunciation field group to the form.
+ * 
+ * STAGE 2.2 (Alpine migration): No-op. Pronunciation management is handled by the Alpine
+ * pronunciation component. Will be deleted in Stage 3.
  */
 function addPronunciation() {
-  const container = document.getElementById("pronunciation-container");
-  const templateEl = document.getElementById("pronunciation-template");
-  if (!container || !templateEl) return;
-
-  const newIndex = container.querySelectorAll(".pronunciation-item").length;
-  const template = templateEl.innerHTML.replace(/INDEX/g, newIndex);
-
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = template;
-  const newItem = tempDiv.firstElementChild;
-
-  container.appendChild(newItem);
-
-  // Initialize IPA validation on the new input field
-  const ipaInput = newItem.querySelector(".ipa-input");
-  if (ipaInput && typeof initializeIPAValidation === "function") {
-    // Assuming initializeIPAValidation can be called to set up a single element or re-scan
-    initializeIPAValidation(); // Re-run to catch new inputs
-  }
+  console.debug("[addPronunciation] Stage 2.2: pronunciations now managed by Alpine — no-op");
 }
 
 /**
  * Adds a new sense field group to the form.
+ * 
+ * STAGE 1 (Alpine migration): No-op. Sense management is handled by the Alpine
+ * senseTree component. This function is kept as a no-op for backward compatibility
+ * with callers that still reference it. Will be deleted in Stage 3.
  */
 async function addSense() {
-  const container = document.getElementById("senses-container");
-  const templateEl = document.getElementById("sense-template");
-  if (!container || !templateEl) {
-    console.error("[addSense] Missing container or template element");
-    return;
-  }
-
-  // Count only real senses, excluding the default template
-  const existingSenses = container.querySelectorAll(
-    ".sense-item:not(#default-sense-template):not(.default-sense-template)"
-  );
-
-  // Calculate new index based on the highest existing index + 1
-  // This ensures we don't collide with any existing sense indices
-  let maxIndex = -1;
-  existingSenses.forEach((sense) => {
-    const idx = parseInt(sense.dataset.senseIndex, 10);
-    if (!isNaN(idx) && idx > maxIndex) {
-      maxIndex = idx;
-    }
-  });
-  const newIndex = maxIndex + 1;
-  const newNumber = newIndex + 1;
-
-  console.log(
-    `[addSense] Adding new sense at index ${newIndex} (existing senses: ${existingSenses.length}, max existing index: ${maxIndex})`
-  );
-
-  let template = templateEl.innerHTML
-    .replace(/INDEX/g, newIndex)
-    .replace(/NUMBER/g, newNumber);
-
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = template;
-  const newSenseElement = tempDiv.firstElementChild;
-
-  // Validate that no fields with the same name already exist
-  const newFields = newSenseElement.querySelectorAll("[name]");
-  let hasDuplicates = false;
-  newFields.forEach((field) => {
-    const existingField = container.querySelector(`[name="${field.name}"]`);
-    if (existingField && !field.name.includes("TEMPLATE")) {
-      console.warn(
-        `[addSense] Warning: Field with name "${field.name}" already exists in the form!`
-      );
-      hasDuplicates = true;
-    }
-  });
-
-  if (hasDuplicates) {
-    console.error(
-      "[addSense] Duplicate field names detected! Aborting sense addition to prevent data corruption."
-    );
-    return;
-  }
-
-  container.appendChild(newSenseElement);
-  console.log(`[addSense] New sense added successfully at index ${newIndex}`);
-
-  // Initialize any Select2 elements within the new sense
-  $(newSenseElement)
-    .find(".select2-tags")
-    .select2({
-      theme: "bootstrap-5",
-      tags: true,
-      tokenSeparators: [",", " "],
-      placeholder: "Enter or select values...",
-    });
-
-  // Populate the grammatical info select for the new sense
-  const grammaticalSelect = newSenseElement.querySelector(
-    ".dynamic-grammatical-info"
-  );
-  if (grammaticalSelect && window.rangesLoader) {
-    await window.rangesLoader.populateSelect(
-      grammaticalSelect,
-      "grammatical-info",
-      {
-        emptyOption: "Select part of speech",
-      }
-    );
-    // The event listener for 'change' is handled by delegation on the form, so no need to add one here.
-  }
-
-  // Populate semantic domain select for the new sense (sense-level)
-  const semanticDomainSelect = newSenseElement.querySelector(
-    'select[name*=".semantic_domain_"]'
-  );
-  if (semanticDomainSelect && window.rangesLoader) {
-    await window.rangesLoader.populateSelect(
-      semanticDomainSelect,
-      "semantic-domain-ddp4",
-      {
-        emptyOption: "Select semantic domain(s)",
-      }
-    );
-  }
-
-  // Populate usage type select for the new sense (sense-level)
-  const usageTypeSelect = newSenseElement.querySelector(
-    'select[name*=".usage_type"]'
-  );
-  if (usageTypeSelect && window.rangesLoader) {
-    await window.rangesLoader.populateSelect(usageTypeSelect, "usage-type", {
-      emptyOption: "Select usage type(s)",
-    });
-  }
-
-  // The MutationObserver will handle calling updateGrammaticalCategoryInheritance.
+  console.debug("[addSense] Stage 1: senses now managed by Alpine senseTree component — no-op");
 }
 
 /**
  * Adds a new example field group to a specific sense.
- * @param {number|string} senseIndex - The index of the parent sense.
+ * 
+ * STAGE 1 (Alpine migration): No-op. Example management is handled by the Alpine
+ * senseTree component. This function is kept as a no-op for backward compatibility.
+ * Will be deleted in Stage 3.
  */
 function addExample(senseIndex) {
-  const examplesContainer = document.querySelector(
-    `.sense-item[data-sense-index="${senseIndex}"] .examples-container`
-  );
-  const templateEl = document.getElementById("example-template");
-  if (!examplesContainer || !templateEl) return;
-
-  const newIndex = examplesContainer.querySelectorAll(".example-item").length;
-  const newNumber = newIndex + 1;
-
-  let template = templateEl.innerHTML
-    .replace(/SENSE_INDEX/g, senseIndex)
-    .replace(/EXAMPLE_INDEX/g, newIndex)
-    .replace(/NUMBER/g, newNumber);
-
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = template;
-  const newItem = tempDiv.firstElementChild;
-  examplesContainer.appendChild(newItem);
-
-  // Populate language selectors in the new example from project languages
-  var langs = window.DictionaryApp?.data?.projectLanguages;
-  if (langs) {
-    newItem.querySelectorAll('select[name$=".sentence_lang"], select[name$=".translation_lang"]').forEach(function(sel) {
-      sel.innerHTML = '';
-      langs.forEach(function(lang) {
-        var opt = document.createElement('option');
-        opt.value = lang[0];
-        opt.textContent = lang[0];
-        sel.appendChild(opt);
-      });
-      // Default sentence to source language, translation to target
-      var isTranslation = sel.name.indexOf('translation_lang') !== -1;
-      var defaultLang = document.getElementById('entry-form')?.dataset[
-        isTranslation ? 'targetLanguage' : 'sourceLanguage'
-      ] || 'en';
-      sel.value = defaultLang;
-    });
-  }
+  console.debug("[addExample] Stage 1: examples now managed by Alpine senseTree component — no-op");
 }
 
-// Make addExample globally accessible for event handlers
+// STAGE 1: No-op wrapper kept for backward compatibility
 window.addExampleForCorpus = function (senseIndex, sentence, translation) {
-  addExample(senseIndex);
-
-  // Find the newly added example textarea and fill it in
-  const examplesContainer = document.querySelector(
-    `.sense-item[data-sense-index="${senseIndex}"] .examples-container`
-  );
-  if (!examplesContainer) {
-    Logger.warn("addExampleForCorpus: Examples container not found", {
-      senseIndex,
-    });
-    return;
-  }
-
-  // Find the sentence and translation textareas
-  const textareas = examplesContainer.querySelectorAll(
-    'textarea[name*="examples"]'
-  );
-  let filledSentence = false;
-  let filledTranslation = false;
-
-  for (let i = 0; i < textareas.length; i++) {
-    const textarea = textareas[i];
-    if (textarea.name.endsWith(".sentence") && !textarea.value.trim()) {
-      textarea.value = sentence || "";
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-      textarea.dispatchEvent(new Event("change", { bubbles: true }));
-      Logger.info("addExampleForCorpus: Filled example sentence", {
-        senseIndex,
-        sentenceLength: (sentence || "").length,
-      });
-      filledSentence = true;
-    } else if (
-      textarea.name.endsWith(".translation") &&
-      !textarea.value.trim()
-    ) {
-      textarea.value = translation || "";
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-      textarea.dispatchEvent(new Event("change", { bubbles: true }));
-      Logger.info("addExampleForCorpus: Filled example translation", {
-        senseIndex,
-        translationLength: (translation || "").length,
-      });
-      filledTranslation = true;
-    }
-  }
-
-  if (!filledSentence) {
-    Logger.warn(
-      "addExampleForCorpus: Could not find example sentence textarea to fill",
-      { senseIndex }
-    );
-  }
-  if (!filledTranslation) {
-    Logger.warn(
-      "addExampleForCorpus: Could not find example translation textarea to fill",
-      { senseIndex }
-    );
-  }
+  console.debug("[addExampleForCorpus] Stage 1: examples now managed by Alpine — no-op");
 };
 
 /**
@@ -2441,109 +1670,24 @@ function reindexReversals(senseIndex) {
   });
 }
 
-// --- Re-indexing Functions ---
+// --- Re-indexing Functions (STAGE 1: no-ops — Alpine owns sense ordering) ---
 
 /**
- * Re-indexes all sense fields after a sense is removed to ensure continuous indices.
+ * Re-indexes all sense fields after a sense is removed.
+ * STAGE 1: No-op. Alpine manages sense ordering via reactive arrays.
+ * Will be deleted in Stage 3.
  */
 function reindexSenses() {
-  // CRITICAL: Exclude the default-sense-template to avoid reindexing it
-  const senseItems = document.querySelectorAll(
-    "#senses-container > .sense-item:not(#default-sense-template):not(.default-sense-template)"
-  );
-  senseItems.forEach((sense, newIndex) => {
-    const oldIndex = sense.dataset.senseIndex;
-    const oldIndexString = oldIndex != null ? String(oldIndex) : null;
-
-    // Update visual elements - find all headers that contain the sense number
-    sense.querySelectorAll("h6").forEach((header) => {
-      if (header.textContent.includes("Sense")) {
-        header.textContent = `Sense ${newIndex + 1}`;
-      }
-    });
-
-    // Also update span elements that contain "Sense" text
-    sense.querySelectorAll("span").forEach((span) => {
-      if (span.textContent.includes("Sense")) {
-        span.textContent = `Sense ${newIndex + 1}`;
-      }
-    });
-
-    // Always normalize the data attribute to match DOM order.
-    sense.dataset.senseIndex = newIndex;
-
-    // Update buttons that rely on the index
-    sense.querySelectorAll("[data-sense-index]").forEach((btn) => {
-      btn.dataset.senseIndex = newIndex;
-    });
-
-    // Always normalize field names to match the DOM order index.
-    // This fixes cases where duplicated/misaligned names cause multi-value arrays.
-    sense.querySelectorAll('[name^="senses["]').forEach((field) => {
-      const name = field.getAttribute("name");
-      if (!name) return;
-      field.setAttribute(
-        "name",
-        name.replace(/senses\[\d+\]/g, `senses[${newIndex}]`)
-      );
-    });
-
-    // Update multilingual field indices if the manager exists
-    if (window.multilingualSenseFieldsManager && oldIndexString !== null) {
-      window.multilingualSenseFieldsManager.updateSenseIndices(
-        oldIndexString,
-        String(newIndex)
-      );
-    }
-
-    // Update example buttons and headers
-    sense.querySelectorAll(".add-example-btn").forEach((btn) => {
-      btn.dataset.senseIndex = newIndex;
-    });
-
-    // Reindex examples within this sense
-    reindexExamples(newIndex);
-  });
-
-  // After reindexing, check if we need to update grammatical inheritance
-  if (typeof updateGrammaticalCategoryInheritance === "function") {
-    updateGrammaticalCategoryInheritance();
-  }
+  console.debug("[reindexSenses] Stage 1: sense ordering managed by Alpine — no-op");
 }
 
 /**
  * Re-indexes example fields within a sense after one is removed.
- * @param {number|string} senseIndex - The index of the parent sense.
+ * STAGE 1: No-op. Alpine manages example ordering via reactive arrays.
+ * Will be deleted in Stage 3.
  */
 function reindexExamples(senseIndex) {
-  const exampleItems = document.querySelectorAll(
-    `.sense-item[data-sense-index="${senseIndex}"] .example-item`
-  );
-  exampleItems.forEach((example, newIndex) => {
-    const oldIndexMatch = RegExp(/\[examples\]\[(\d+)\]/).exec(
-      example.querySelector('[name*="[examples]["]')?.getAttribute("name")
-    );
-    const oldIndex = oldIndexMatch ? oldIndexMatch[1] : null;
-
-    if (oldIndex === null || oldIndex === newIndex.toString()) return;
-
-    // Update visual elements
-    example.querySelector("small").textContent = `Example ${newIndex + 1}`;
-
-    // Update remove button
-    const removeBtn = example.querySelector(".remove-example-btn");
-    if (removeBtn) removeBtn.dataset.exampleIndex = newIndex;
-
-    // FIX: Update field names with a more robust regex.
-    // This correctly targets the `examples[<number>]` part of the name.
-    example.querySelectorAll('[name*="[examples]["]').forEach((field) => {
-      const name = field.getAttribute("name");
-      field.setAttribute(
-        "name",
-        name.replace(`[examples][${oldIndex}]`, `[examples][${newIndex}]`)
-      );
-    });
-  });
+  console.debug("[reindexExamples] Stage 1: example ordering managed by Alpine — no-op");
 }
 
 /**
@@ -2613,292 +1757,6 @@ function generateAudio(word, ipa, index) {
       btn.innerHTML = originalText;
       btn.disabled = false;
     });
-}
-
-// =====================
-// LIFT 0.13: Annotation Management (Day 26-27)
-// =====================
-
-/**
- * Adds a new annotation to entry or sense.
- * @param {string} containerType - "entry" or "sense"
- * @param {number|string} index - The index (0 for entry, sense index for sense)
- */
-function addAnnotation(containerType, index) {
-  const selector =
-    containerType === "entry"
-      ? '.annotations-container[data-container-type="entry"]'
-      : `.annotations-container[data-container-type="sense"][data-index="${index}"]`;
-
-  const annotationsContainer = document.querySelector(selector);
-  if (!annotationsContainer) return;
-
-  const newIndex =
-    annotationsContainer.querySelectorAll(".annotation-item").length;
-  const newNumber = newIndex + 1;
-
-  // Build name prefix
-  const namePrefix =
-    containerType === "entry"
-      ? `annotations[${newIndex}]`
-      : `senses[${index}].annotations[${newIndex}]`;
-
-  // Get source language for annotation content fields
-  var _srcLangForm = typeof document !== 'undefined' && document.getElementById('entry-form');
-  var _sourceLang = (_srcLangForm && _srcLangForm.dataset.sourceLanguage) || 'en';
-
-  // Build collapse ID
-  const collapseId =
-    containerType === "entry"
-      ? `annotation-content-entry-${newIndex}`
-      : `annotation-content-${index}-${newIndex}`;
-
-  // Create new annotation HTML
-  const newAnnotationHTML = `
-        <div class="annotation-item card mb-3 border-warning" data-annotation-index="${newIndex}">
-            <div class="card-header bg-warning bg-opacity-10">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-tag"></i> Annotation ${newNumber}</span>
-                    <button type="button" class="btn btn-sm btn-outline-danger remove-annotation-btn"
-                            data-container-type="${containerType}" data-index="${index}" data-annotation-index="${newIndex}">
-                        <i class="fas fa-trash"></i> Remove
-                    </button>
-                </div>
-            </div>
-            <div class="card-body">
-                <!-- Annotation Name (required) -->
-                <div class="mb-3">
-                    <label class="form-label">Name <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control annotation-name-input" 
-                           name="${namePrefix}.name"
-                           placeholder="e.g., review-status, comment, flagged"
-                           required>
-                    <small class="form-text text-muted">
-                        Common names: review-status, comment, reviewer-comment, approval-status, flagged, priority, needs-revision
-                    </small>
-                </div>
-                
-                <!-- Annotation Value (optional) -->
-                <div class="mb-3">
-                    <label class="form-label">Value</label>
-                    <input type="text" class="form-control" 
-                           name="${namePrefix}.value"
-                           placeholder="e.g., approved, pending, rejected">
-                </div>
-                
-                <!-- Annotation Who (optional) -->
-                <div class="mb-3">
-                    <label class="form-label">Who</label>
-                    <input type="text" class="form-control" 
-                           name="${namePrefix}.who"
-                           placeholder="e.g., editor@example.com, John Doe">
-                    <small class="form-text text-muted">Person or email who created this annotation (will be auto-filled with username when user management is implemented)</small>
-                </div>
-                
-                <!-- Annotation When (auto-populated) -->
-                <div class="mb-3">
-                    <label class="form-label">When</label>
-                    <input type="datetime-local" class="form-control" 
-                           name="${namePrefix}.when"
-                           value="${new Date().toISOString().slice(0, 16)}"
-                           readonly>
-                    <small class="form-text text-muted">Timestamp when this annotation was created (auto-generated)</small>
-                </div>
-                
-                <!-- Annotation Content (collapsible) -->
-                <div class="annotation-content-section">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <label class="form-label mb-0">Content</label>
-                        <button type="button" class="btn btn-sm btn-outline-secondary toggle-content-btn"
-                                data-bs-toggle="collapse" 
-                                data-bs-target="#${collapseId}">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                    </div>
-                    <div class="collapse" id="${collapseId}">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <div class="annotation-content-forms">
-                                    <div class="input-group mb-2">
-                                        <span class="input-group-text">${_sourceLang}</span>
-                                        <textarea class="form-control" 
-                                               name="${namePrefix}.content.${_sourceLang}"
-                                               data-lang="${_sourceLang}"
-                                               rows="2"
-                                               placeholder="Enter comment or description in ${_sourceLang}"></textarea>
-                                    </div>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-primary mt-2 add-annotation-language-btn">
-                                    <i class="fas fa-plus"></i> Add Language
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = newAnnotationHTML.trim();
-  const newAnnotationElement = tempDiv.firstElementChild;
-
-  // Remove "no annotations" placeholder if exists
-  const noAnnotationsPlaceholder =
-    annotationsContainer.querySelector(".no-annotations");
-  if (noAnnotationsPlaceholder) {
-    noAnnotationsPlaceholder.remove();
-  }
-
-  annotationsContainer.appendChild(newAnnotationElement);
-}
-
-/**
- * Removes an annotation from entry or sense.
- * @param {Element} annotationItem - The annotation item element to remove.
- * @param {string} containerType - "entry" or "sense"
- * @param {number|string} index - The index (0 for entry, sense index for sense)
- */
-function removeAnnotation(annotationItem, containerType, index) {
-  if (!annotationItem) return;
-
-  const annotationsContainer = annotationItem.closest(".annotations-container");
-  annotationItem.remove();
-
-  // If no more annotations, show placeholder
-  const remainingAnnotations =
-    annotationsContainer.querySelectorAll(".annotation-item");
-  if (remainingAnnotations.length === 0) {
-    const placeholder = document.createElement("div");
-    placeholder.className =
-      "no-annotations text-center text-muted py-3 border border-warning border-opacity-25 rounded";
-    const placeholderText =
-      containerType === "entry"
-        ? "No entry-level annotations yet. Add annotations for editorial workflow (review status, comments, etc.)."
-        : "No annotations yet. Add annotations for editorial workflow (review status, comments, etc.).";
-    placeholder.innerHTML = `<p class="mb-2"><small>${placeholderText}</small></p>`;
-    annotationsContainer.appendChild(placeholder);
-  } else {
-    // Re-index remaining annotations
-    reindexAnnotations(containerType, index);
-  }
-}
-
-/**
- * Re-indexes all annotations for entry or sense after removal.
- * @param {string} containerType - "entry" or "sense"
- * @param {number|string} index - The index (0 for entry, sense index for sense)
- */
-function reindexAnnotations(containerType, index) {
-  const selector =
-    containerType === "entry"
-      ? '.annotations-container[data-container-type="entry"]'
-      : `.annotations-container[data-container-type="sense"][data-index="${index}"]`;
-
-  const annotationsContainer = document.querySelector(selector);
-  if (!annotationsContainer) return;
-
-  const annotationItems =
-    annotationsContainer.querySelectorAll(".annotation-item");
-  annotationItems.forEach((annotation, newIndex) => {
-    const oldIndex = annotation.dataset.annotationIndex;
-    if (oldIndex === newIndex.toString()) return;
-
-    // Update visual elements
-    annotation.querySelector(
-      ".card-header span"
-    ).innerHTML = `<i class="fas fa-tag"></i> Annotation ${newIndex + 1}`;
-
-    // Update data attribute
-    annotation.dataset.annotationIndex = newIndex;
-
-    // Build name prefix for replacement
-    const oldNamePrefix =
-      containerType === "entry"
-        ? `annotations[${oldIndex}]`
-        : `senses[${index}].annotations[${oldIndex}]`;
-
-    const newNamePrefix =
-      containerType === "entry"
-        ? `annotations[${newIndex}]`
-        : `senses[${index}].annotations[${newIndex}]`;
-
-    // Update all name attributes
-    annotation.querySelectorAll("[name]").forEach((input) => {
-      const name = input.getAttribute("name");
-      const newName = name.replace(oldNamePrefix, newNamePrefix);
-      input.setAttribute("name", newName);
-    });
-
-    // Update data-annotation-index on buttons
-    annotation.querySelectorAll("[data-annotation-index]").forEach((btn) => {
-      btn.dataset.annotationIndex = newIndex;
-    });
-
-    // Update collapse target IDs
-    const toggleBtn = annotation.querySelector(".toggle-content-btn");
-    const collapseDiv = annotation.querySelector(".collapse");
-    if (toggleBtn && collapseDiv) {
-      const oldCollapseId = collapseDiv.id;
-      const newCollapseId =
-        containerType === "entry"
-          ? `annotation-content-entry-${newIndex}`
-          : `annotation-content-${index}-${newIndex}`;
-
-      collapseDiv.id = newCollapseId;
-      toggleBtn.setAttribute("data-bs-target", `#${newCollapseId}`);
-    }
-  });
-}
-
-/**
- * Adds a new language field to an annotation's content section.
- * @param {Element} button - The "Add Language" button element.
- */
-function addAnnotationLanguage(button) {
-  const contentBody = button.closest(".card-body");
-  const formsContainer = contentBody.querySelector(".annotation-content-forms");
-
-  if (!formsContainer) return;
-
-  // Prompt for language code
-  const langCode = prompt("Enter language code (e.g., fr, es, de):");
-  if (!langCode || !langCode.trim()) return;
-
-  const sanitizedLang = langCode.trim().toLowerCase();
-
-  // Check if language already exists
-  const existingLangs = Array.from(
-    formsContainer.querySelectorAll(".input-group-text")
-  ).map((span) => span.textContent.trim());
-  if (existingLangs.includes(sanitizedLang)) {
-    alert(`Language "${sanitizedLang}" already exists.`);
-    return;
-  }
-
-  // Get the name prefix from an existing textarea
-  const existingTextarea = formsContainer.querySelector("textarea");
-  if (!existingTextarea) return;
-
-  const existingName = existingTextarea.getAttribute("name");
-  const nameBase = existingName.substring(0, existingName.lastIndexOf(".") + 1);
-
-  // Create new language input
-  const newLangHTML = `
-        <div class="input-group mb-2">
-            <span class="input-group-text">${sanitizedLang}</span>
-            <textarea class="form-control" 
-                   name="${nameBase}${sanitizedLang}"
-                   data-lang="${sanitizedLang}"
-                   rows="2"
-                   placeholder="Enter comment or description in ${sanitizedLang}"></textarea>
-            <button type="button" class="btn btn-outline-danger remove-annotation-language-btn" title="Remove this language">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    `;
-
-  formsContainer.insertAdjacentHTML("beforeend", newLangHTML);
 }
 
 // Event listener for removing language fields from annotations

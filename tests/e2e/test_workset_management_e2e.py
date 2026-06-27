@@ -30,7 +30,7 @@ class TestWorksetListPage:
         page.wait_for_load_state("networkidle")
 
         # Check that main components are present - new template structure
-        expect(page.locator("h4:has-text('Worksets')")).to_be_visible()
+        expect(page.locator("h4:has-text('Curation Sessions')")).to_be_visible()
         expect(page.locator("#workset-list")).to_be_visible()
 
     def test_create_workset_link_exists(self, page, app_url):

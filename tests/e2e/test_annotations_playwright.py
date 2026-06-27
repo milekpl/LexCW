@@ -61,7 +61,7 @@ class TestAnnotationsPlaywright:
 
         # Now we should be on the entry form - verify
         # Fill minimum required fields
-        lexical_unit = page.locator('input[name="lexical_unit"]').first
+        lexical_unit = page.locator('input.lexical-unit-text').first
         if lexical_unit.is_visible():
             lexical_unit.fill("test-word")
 

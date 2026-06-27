@@ -1,4 +1,7 @@
-<div class="card mb-4 direct-variants-section">
+{# Alpine.js direct variants (allomorphs) component (§16.2.3) #}
+{# Manages <variant> elements with inline form, traits, grammatical_info, and grammatical_traits #}
+
+<div x-data="entryDirectVariants(window.__entryData || {})" class="card mb-4 direct-variants-section">
     <div class="card-header bg-warning text-dark">
         <div class="d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
@@ -9,25 +12,24 @@
                    data-bs-html="true"
                    title="<strong>About Direct Variants (Allomorphs):</strong><br>These represent direct variant forms with traits, like LIFT &lt;variant&gt; elements containing &lt;form&gt; and &lt;trait&gt; elements. They are different from variant relations which connect to other entries. Examples include 'grass roots' with morph-type='stem'."></i>
             </h5>
-            <button type="button" class="btn btn-sm btn-light" id="add-direct-variant-btn">
+            <button type="button" class="btn btn-sm btn-light add-direct-variant-btn"
+                    @click.prevent="addItem()">
                 <i class="fas fa-plus"></i> Add Direct Variant
             </button>
         </div>
     </div>
     <div class="card-body">
         <div id="direct-variants-container">
-            <!-- Server-side rendered direct variant items -->
-            {% if entry.variants %}
-                {% for variant in entry.variants %}
-                <div class="direct-variant-item card mb-3" data-variant-index="{{ loop.index0 }}">
+            <template x-for="(dv, vi) in items" :key="dv.id">
+                <div class="direct-variant-item card mb-3">
                     <div class="card-header bg-warning text-dark">
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-0">
                                 <i class="fas fa-copy me-2"></i>
-                                Direct Variant {{ loop.index }}
+                                Direct Variant <span x-text="vi + 1"></span>
                             </h6>
                             <button type="button" class="btn btn-sm btn-light remove-direct-variant-btn"
-                                    data-index="{{ loop.index0 }}" title="Remove direct variant">
+                                    @click.prevent="removeItem(dv.id)" title="Remove direct variant">
                                 <i class="fas fa-trash text-danger"></i>
                             </button>
                         </div>
@@ -35,31 +37,26 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-8">
-                                <!-- Variant form -->
+                                <!-- Variant form (multilingual) -->
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Variant Form</label>
                                     <div class="variant-form-languages">
-                                        {% if variant.form %}
-                                            {% for lang, text in variant.form.items() %}
+                                        <template x-for="lang in getFormLangs(dv)" :key="lang">
                                             <div class="input-group mb-2">
-                                                <span class="input-group-text">{{ lang }}</span>
+                                                <span class="input-group-text" x-text="lang"></span>
                                                 <input type="text" class="form-control"
-                                                       name="variants[{{ loop.index0 }}].form.{{ lang }}"
-                                                       value="{{ text }}"
-                                                       placeholder="Variant form in {{ lang }}">
+                                                       x-model="dv.form[lang]"
+                                                       :placeholder="'Variant form in ' + lang">
+                                                <button type="button" class="btn btn-outline-danger btn-sm"
+                                                        @click.prevent="removeFormLang(dv, lang)"
+                                                        title="Remove this language">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
                                             </div>
-                                            {% endfor %}
-                                        {% else %}
-                                            <div class="input-group mb-2">
-                                                <span class="input-group-text">{{ source_lang }}</span>
-                                                <input type="text" class="form-control"
-                                                       name="variants[{{ loop.index0 }}].form.{{ source_lang }}"
-                                                       value=""
-                                                       placeholder="Variant form in {{ source_lang }}">
-                                            </div>
-                                        {% endif %}
+                                        </template>
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary add-variant-language-btn">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            @click.prevent="addFormLang(dv)">
                                         <i class="fas fa-plus"></i> Add Language
                                     </button>
                                 </div>
@@ -69,32 +66,39 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Variant Traits</label>
                                     <div class="variant-traits">
-                                        {% if variant.traits %}
-                                            {% for trait_name, trait_value in variant.traits.items() %}
+                                        <template x-for="(tkey, tIdx) in getTraitKeys(dv)" :key="tkey">
                                             <div class="input-group mb-2">
-                                                <input type="text" class="form-control trait-name-input"
-                                                       name="variants[{{ loop.index0 }}].traits.{{ trait_name }}"
-                                                       value="{{ trait_value }}"
-                                                       placeholder="{{ trait_name }}">
+                                                <input type="text" class="form-control form-control-sm trait-name-input"
+                                                       style="max-width: 100px;"
+                                                       :value="tkey"
+                                                       placeholder="name"
+                                                       @input="renameTrait(dv, tkey, $event.target.value)">
+                                                <input type="text" class="form-control form-control-sm trait-value-input"
+                                                       x-model="dv.traits[tkey]"
+                                                       placeholder="value">
+                                                <button type="button" class="btn btn-outline-danger btn-sm"
+                                                        @click.prevent="removeTrait(dv, tkey)"
+                                                        title="Remove this trait">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
                                             </div>
-                                            {% endfor %}
-                                        {% endif %}
+                                        </template>
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary add-variant-trait-btn">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            @click.prevent="addTrait(dv)">
                                         <i class="fas fa-plus"></i> Add Trait
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Grammatical info and traits -->
+
+                        <!-- Grammatical info and grammatical traits -->
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">Grammatical Info</label>
                                     <input type="text" class="form-control"
-                                           name="variants[{{ loop.index0 }}].grammatical_info"
-                                           value="{{ variant.grammatical_info if variant.grammatical_info else '' }}"
+                                           x-model="dv.grammatical_info"
                                            placeholder="Grammatical information">
                                 </div>
                             </div>
@@ -102,18 +106,26 @@
                                 <div class="mb-3">
                                     <label class="form-label">Grammatical Traits</label>
                                     <div class="variant-grammatical-traits">
-                                        {% if variant.grammatical_traits %}
-                                            {% for trait_name, trait_value in variant.grammatical_traits.items() %}
+                                        <template x-for="(gtkey, gtIdx) in getGrammaticalTraitKeys(dv)" :key="gtkey">
                                             <div class="input-group mb-2">
-                                                <input type="text" class="form-control grammatical-trait-input"
-                                                       name="variants[{{ loop.index0 }}].grammatical_traits.{{ trait_name }}"
-                                                       value="{{ trait_value }}"
-                                                       placeholder="{{ trait_name }}={{ trait_value }}">
+                                                <input type="text" class="form-control form-control-sm grammatical-trait-input"
+                                                       style="max-width: 100px;"
+                                                       :value="gtkey"
+                                                       placeholder="name"
+                                                       @input="renameGrammaticalTrait(dv, gtkey, $event.target.value)">
+                                                <input type="text" class="form-control form-control-sm"
+                                                       x-model="dv.grammatical_traits[gtkey]"
+                                                       placeholder="value">
+                                                <button type="button" class="btn btn-outline-danger btn-sm"
+                                                        @click.prevent="removeGrammaticalTrait(dv, gtkey)"
+                                                        title="Remove grammatical trait">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
                                             </div>
-                                            {% endfor %}
-                                        {% endif %}
+                                        </template>
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary add-grammatical-trait-btn">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            @click.prevent="addGrammaticalTrait(dv)">
                                         <i class="fas fa-plus"></i> Add Grammatical Trait
                                     </button>
                                 </div>
@@ -121,19 +133,11 @@
                         </div>
                     </div>
                 </div>
-                {% endfor %}
-            {% else %}
-            <!-- Empty state when no direct variants exist -->
-            <div class="empty-state text-center py-4">
-                <i class="fas fa-copy fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No Direct Variants</h5>
-                <p class="text-muted">This entry does not have any direct variant forms defined.</p>
-                <p class="text-muted">
-                    <strong>What are direct variants?</strong> Direct variants (allomorphs) are variant forms with their own traits,
-                    like "grass roots" with morph-type="stem", separate from variant relations that connect to other entries.
-                </p>
+            </template>
+
+            <div class="text-muted" x-show="items.length === 0">
+                <em>No direct variants yet.</em>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>

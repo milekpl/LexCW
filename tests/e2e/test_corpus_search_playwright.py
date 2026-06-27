@@ -66,7 +66,7 @@ def test_search_corpus_button_exists_in_senses(page: Page, app_url: str, ensure_
 
     # Ensure we have a sense with a definition
     ensure_sense(page)
-    page.locator('textarea[name*="definition"]:visible').first.fill('Test definition')
+    page.locator('textarea.definition-text:visible').first.fill('Test definition')
 
     # Check for Search Corpus buttons - there should be one near definitions
     # and one near examples

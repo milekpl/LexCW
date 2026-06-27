@@ -149,6 +149,28 @@ class SettingsForm(FlaskForm):
         description='The model identifier (e.g. gpt-4o, deepseek-chat, gpt-4o-mini, o3-mini)'
     )
 
+    # External service URLs
+    languagetool_url = StringField(
+        'LanguageTool URL',
+        validators=[Optional(), Length(max=500)],
+        default='http://localhost:8081',
+        description='LanguageTool grammar checking server URL'
+    )
+
+    corpus_url = StringField(
+        'Corpus Search URL',
+        validators=[Optional(), Length(max=500)],
+        default='http://localhost:8082',
+        description='Lucene corpus search service URL'
+    )
+
+    wordsketch_url = StringField(
+        'Word Sketch URL',
+        validators=[Optional(), Length(max=500)],
+        default='http://localhost:8083',
+        description='Word sketch / collocation analysis service URL'
+    )
+
     # Submit button
     submit = SubmitField('Update Settings')
 
@@ -241,7 +263,7 @@ class SettingsForm(FlaskForm):
                 self.backup_compression.data = backup_settings.get('compression', True)
                 self.backup_include_media.data = backup_settings.get('include_media', False)
 
-            # Populate AI settings from ProjectSettings (not stored in config manager)
+            # Populate AI & infrastructure settings from ProjectSettings (not stored in config manager)
             try:
                 from app.models.project_settings import ProjectSettings
                 ps = ProjectSettings.query.first()
@@ -255,6 +277,9 @@ class SettingsForm(FlaskForm):
                     self.smtp_password.data = getattr(ps, 'smtp_password', '') or ''
                     self.smtp_use_tls.data = getattr(ps, 'smtp_use_tls', True)
                     self.smtp_sender_email.data = getattr(ps, 'smtp_sender_email', '') or ''
+                    self.languagetool_url.data = getattr(ps, 'languagetool_url', 'http://localhost:8081') or 'http://localhost:8081'
+                    self.corpus_url.data = getattr(ps, 'corpus_url', 'http://localhost:8082') or 'http://localhost:8082'
+                    self.wordsketch_url.data = getattr(ps, 'wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
             except Exception:
                 pass
         
@@ -298,6 +323,11 @@ class SettingsForm(FlaskForm):
             self.smtp_password.data = config.get('smtp_password', '') or ''
             self.smtp_use_tls.data = config.get('smtp_use_tls', True)
             self.smtp_sender_email.data = config.get('smtp_sender_email', '') or ''
+
+            # Populate external service URLs
+            self.languagetool_url.data = config.get('languagetool_url', 'http://localhost:8081') or 'http://localhost:8081'
+            self.corpus_url.data = config.get('corpus_url', 'http://localhost:8082') or 'http://localhost:8082'
+            self.wordsketch_url.data = config.get('wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -360,6 +390,9 @@ class SettingsForm(FlaskForm):
             'smtp_password': self.smtp_password.data or '',
             'smtp_use_tls': bool(self.smtp_use_tls.data),
             'smtp_sender_email': self.smtp_sender_email.data or '',
+            'languagetool_url': self.languagetool_url.data or 'http://localhost:8081',
+            'corpus_url': self.corpus_url.data or 'http://localhost:8082',
+            'wordsketch_url': self.wordsketch_url.data or 'http://localhost:8083',
         }
         
     def get_language_statistics(self) -> Dict[str, Any]:

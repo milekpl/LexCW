@@ -89,6 +89,11 @@ class WordSketchClient:
         self._cache = cache
         self._available: Optional[bool] = None  # Lazy health check
 
+    def set_base_url(self, url: str) -> None:
+        """Update base URL at runtime (e.g. from settings page) and reset cached availability."""
+        self.base_url = url.rstrip('/')
+        self._available = None
+
     def is_available(self) -> bool:
         """Check if service is available with lazy initialization."""
         if self._available is None:

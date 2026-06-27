@@ -34,128 +34,59 @@ class PronunciationFormsManager {
     }
 
     init() {
-        this.setupEventListeners();
-        this.renderExistingPronunciations();
+        // Stage 2.3: Alpine now owns pronunciation rendering (x-for, addItem/removeItem).
+        // The legacy manager is neutered to audio-only.  Do NOT render HTML, do NOT
+        // bind add/remove/CV/tone handlers — those are Alpine's responsibility.
+        this.setupAudioListeners();
+        this.attachAudioHandlersToExisting();
     }
 
-    setupEventListeners() {
-        // Add pronunciation button
-        const addButton = document.getElementById('add-pronunciation-btn');
-        if (addButton) {
-            addButton.addEventListener('click', () => this.addPronunciation());
-        }
-        
-        // Delegate removal events
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.remove-pronunciation-btn')) {
-                const index = parseInt(e.target.closest('.remove-pronunciation-btn').dataset.index);
-                this.removePronunciation(index);
-            }
-        });
-        
-        // Audio generation events
+    /**
+     * Only bind audio-related listeners.  Alpine owns add/remove/reorder/CV/tone.
+     */
+    setupAudioListeners() {
+        // Audio generation button (delegated inside the container)
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('.generate-audio-btn')) {
-                const index = parseInt(e.target.closest('.generate-audio-btn').dataset.index);
+                var index = parseInt(e.target.closest('.generate-audio-btn').dataset.index);
                 this.generateAudio(index);
             }
-        });
-        
-        // LIFT 0.13: CV Pattern and Tone (Day 40)
-        // Add cv-pattern language button
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.add-cv-pattern-language-btn')) {
-                const button = e.target.closest('.add-cv-pattern-language-btn');
-                const pronIndex = button.dataset.pronIndex;
-                const container = button.closest('.mt-3').querySelector('.cv-pattern-forms');
-                this.addPronunciationCustomFieldLanguage(container, pronIndex, 'cv_pattern');
-            }
-        });
-        
-        // Remove cv-pattern language button
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.remove-cv-pattern-language-btn')) {
-                const languageForm = e.target.closest('.language-form-group');
-                this.removePronunciationCustomFieldLanguage(languageForm);
-            }
-        });
-        
-        // Add tone language button
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.add-tone-language-btn')) {
-                const button = e.target.closest('.add-tone-language-btn');
-                const pronIndex = button.dataset.pronIndex;
-                const container = button.closest('.mt-3').querySelector('.tone-forms');
-                this.addPronunciationCustomFieldLanguage(container, pronIndex, 'tone');
-            }
-        });
-        
-        // Remove tone language button
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.remove-tone-language-btn')) {
-                const languageForm = e.target.closest('.language-form-group');
-                this.removePronunciationCustomFieldLanguage(languageForm);
+            // Audio upload button
+            if (e.target.closest('.upload-audio-btn')) {
+                var idx = parseInt(e.target.closest('.upload-audio-btn').dataset.index);
+                this.generateAudio(idx);  // same upload flow (opens file picker)
             }
         });
     }
     
-    renderExistingPronunciations() {
-        // Check if pronunciation fields are already rendered server-side
-        const existingItems = this.container.querySelectorAll('.pronunciation-item');
-        
-        if (existingItems.length > 0) {
-            // Server-side rendered fields exist - attach event handlers
-            console.log('[DEBUG] Found', existingItems.length, 'server-side rendered pronunciation fields');
-            this.attachEventHandlersToExisting();
-            return;
-        }
-        
-        // No server-side fields - use JavaScript rendering
-        this.container.innerHTML = '';
-        
-        // If no pronunciations exist, add an empty one
-        if (!this.pronunciations || this.pronunciations.length === 0) {
-            this.addPronunciation();            
-            return;
-        } 
-        
-        // Render each existing pronunciation
-        this.pronunciations.forEach((pron, index) => {
-            this.renderPronunciation(pron, index);
-        });
-    }
-    
-    attachEventHandlersToExisting() {
-        // Attach event handlers to existing remove audio buttons
-        const existingRemoveButtons = this.container.querySelectorAll('.remove-audio-btn');
-        existingRemoveButtons.forEach(button => {
-            button.addEventListener('click', async (e) => {
-                const audioPreview = e.target.closest('.audio-preview');
-                const pronunciationItem = e.target.closest('.pronunciation-item');
+    /**
+     * Attach audio-delete handlers to existing (server-side rendered) audio previews.
+     * Alpine owns rendering; the legacy manager only manages audio lifecycle.
+     */
+    attachAudioHandlersToExisting() {
+        var self = this;
+        var existingRemoveButtons = this.container.querySelectorAll('.remove-audio-btn');
+        existingRemoveButtons.forEach(function (button) {
+            button.addEventListener('click', async function (e) {
+                var audioPreview = e.target.closest('.audio-preview');
+                var pronunciationItem = e.target.closest('.pronunciation-item');
                 
                 if (audioPreview && pronunciationItem) {
-                    const audioInput = pronunciationItem.querySelector('input[name$=".audio_path"]');
-                    const filename = audioInput.value;
+                    var audioInput = pronunciationItem.querySelector('input[x-model="item.audioPath"]');
+                    if (!audioInput) {
+                        // Fall back to legacy name= selector for entries that haven't been re-saved
+                        audioInput = pronunciationItem.querySelector('input[name$=".audio_path"]');
+                    }
+                    var filename = audioInput ? (audioInput.value || '') : '';
                     
                     if (filename) {
                         try {
-                            // Delete the file from server
-                            const response = await fetch(`/api/pronunciation/delete/${filename}`, {
+                            var response = await fetch('/api/pronunciation/delete/' + filename, {
                                 method: 'DELETE',
-                                headers: this.getHeaders()
+                                headers: self.getHeaders()
                             });
-                            
                             if (response.ok) {
                                 console.log('Audio file deleted from server');
-                            } else {
-                                // Try JSON first, then fall back to text for HTML error bodies
-                                try {
-                                    const err = await response.json();
-                                    console.warn('Failed to delete audio file from server', err);
-                                } catch (parseErr) {
-                                    const txt = await response.text();
-                                    console.warn('Failed to delete audio file from server:', txt || response.statusText);
-                                }
                             }
                         } catch (error) {
                             console.warn('Error deleting audio file:', error);
@@ -163,13 +94,12 @@ class PronunciationFormsManager {
                     }
                     
                     // Clear the audio input value
-                    audioInput.value = '';
+                    if (audioInput) audioInput.value = '';
                     
                     // Remove the preview
                     audioPreview.remove();
                     
-                    // Show feedback
-                    this.showMessage('Audio file removed', 'info');
+                    self.showMessage('Audio file removed', 'info');
                 }
             });
         });
@@ -355,13 +285,15 @@ class PronunciationFormsManager {
     }
     
     generateAudio(index) {
-        // Get the IPA value
-        const item = this.container.querySelector(`.pronunciation-item[data-index="${index}"]`);
+        // Get the IPA value from the Alpine-managed input
+        var item = this.container.querySelector('.pronunciation-item[data-index="' + index + '"]');
         if (!item) return;
         
-        const ipaInput = item.querySelector('input[name$=".value"]');
-        const audioInput = item.querySelector('input[name$=".audio_path"]');
-        const generateBtn = item.querySelector('.generate-audio-btn');
+        var ipaInput = item.querySelector('input.ipa-input');  // Alpine-rendered
+        if (!ipaInput) ipaInput = item.querySelector('input[name$=".value"]'); // legacy fallback
+        var audioInput = item.querySelector('input[x-model="item.audioPath"]');
+        if (!audioInput) audioInput = item.querySelector('input[name$=".audio_path"]'); // legacy fallback
+        var generateBtn = item.querySelector('.generate-audio-btn');
         
         if (!ipaInput || !ipaInput.value.trim()) {
             alert('Please enter an IPA transcription first.');
@@ -519,9 +451,10 @@ class PronunciationFormsManager {
                 console.warn('Failed to delete audio file:', e);
             }
 
-            // Clear the audio input value
-            const audioInput = item.querySelector('input[name$=".audio_path"]');
-            audioInput.value = '';
+            // Clear the audio input value (Alpine-managed, fall back to legacy)
+            var audioInput = item.querySelector('input[x-model="item.audioPath"]');
+            if (!audioInput) audioInput = item.querySelector('input[name$=".audio_path"]');
+            if (audioInput) audioInput.value = '';
             
             // Remove the preview
             audioPreview.remove();

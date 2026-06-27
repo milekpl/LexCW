@@ -743,9 +743,10 @@ for entry in entries:
             </p>
             <ul class="feature-list">
                 <li><strong>Filter Conditions</strong>: Multiple criteria across entry fields, senses, examples, relations, and etymology</li>
-                <li><strong>Operators</strong>: Basic string matching (equals, contains, starts/ends with), numerical comparisons, list operations, and fuzzy matching</li>
+                <li><strong>Operators</strong>: Basic string matching (equals, contains, starts/ends with), <strong>regular expression (regex)</strong>, numerical comparisons, list operations, and fuzzy matching</li>
                 <li><strong>Cross-Entry Operations</strong>: Find similar headwords, duplicates, components, and phonetic matches</li>
                 <li><strong>Element References</strong>: Reference values from other filter conditions for complex logic</li>
+                <li><strong>Regex Search</strong>: Use XPath regex patterns for field-level search — e.g., <code>^un.*</code> finds headwords starting with <em>un-</em>, <code>.*ing$</code> finds glosses ending in <em>-ing</em>. Supports anchors (<code>^</code>, <code>$</code>), character classes (<code>[aeiou]</code>, <code>\d</code>, <code>\w</code>), quantifiers (<code>*</code>, <code>+</code>, <code>?</code>, <code>{n,m}</code>), alternation (<code>foo|bar</code>), and the <code>i</code> flag (case-insensitive, always on). Note: XPath regex differs from Python/PCRE — no lookahead/lookbehind, no <code>\b</code> word boundary. Supported on lexical unit, definition, gloss, example, citation, and note fields.</li>
                 <li><strong>Performance Indicators</strong>: Real-time feedback on query complexity (fast/medium/slow)</li>
                 <li><strong>Query Validation</strong>: Preview result counts and validate query syntax before execution</li>
                 <li><strong>Saved Queries</strong>: Store and reuse complex filter combinations</li>
@@ -762,24 +763,25 @@ for entry in entries:
                     <li><strong>No Pronunciation:</strong> Entries lacking IPA or pronunciation data</li>
                     <li><strong>Similar Words:</strong> Find potential duplicates using fuzzy matching</li>
                     <li><strong>Compound Candidates:</strong> Headwords that appear as components in other entries</li>
+                    <li><strong>Regex Pattern:</strong> <code>^[a-c].*</code> — find all headwords starting with letters A through C</li>
                 </ul>
             </div>
 
-            <h3 id="worksets"><i class="fas fa-layer-group"></i> Worksets</h3>
+            <h3 id="worksets"><i class="fas fa-layer-group"></i> Curation Sessions</h3>
             <p>
-                Worksets are collections of entries created from query criteria. They enable focused work on 
+                Curation Sessions (powered by worksets) are collections of entries created from query criteria. They enable focused work on 
                 specific subsets of your dictionary without affecting the entire dataset.
             </p>
             <ul class="feature-list">
-                <li><strong>Dynamic Creation</strong>: Build worksets from Query Builder results</li>
+                <li><strong>Dynamic Creation</strong>: Build sessions from Query Builder results</li>
                 <li><strong>Entry Management</strong>: View, curate, and manage subsets of entries</li>
                 <li><strong>Progress Tracking</strong>: Visual progress bars showing completion status</li>
-                <li><strong>Bulk Operations</strong>: Apply transformations to all entries in a workset</li>
-                <li><strong>Edit Query</strong>: Modify the underlying query criteria and refresh the workset</li>
-                <li><strong>Export Integration</strong>: Workset results can feed into export workflows</li>
+                <li><strong>Bulk Operations</strong>: Apply transformations to all entries in a session</li>
+                <li><strong>Edit Query</strong>: Modify the underlying query criteria and refresh the session</li>
+                <li><strong>Export Integration</strong>: Session results can feed into export workflows</li>
             </ul>
             <p>
-                <strong>Access:</strong> <em>Workbench → Worksets</em>
+                <strong>Access:</strong> <em>Workbench → Curation Sessions</em>
             </p>
 
             <h3 id="curation"><i class="fas fa-check-double"></i> Entry Curation</h3>

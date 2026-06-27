@@ -119,15 +119,15 @@ def test_create_entry_with_gloss(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', headword)
 
     # Add a sense if needed
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
     # Fill definition
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Click "Add Language" button to add a gloss input field
     # (gloss inputs are only shown after clicking this button for new senses)
@@ -139,7 +139,7 @@ def test_create_entry_with_gloss(page: Page, app_url: str) -> None:
     # Find and fill gloss field - use the pattern from render_multilingual_item macro
     # The name pattern is senses[INDEX].gloss.LANG.text
     # Note: gloss uses input field, not textarea (field_type='input')
-    gloss_input = page.locator('input[name*="gloss"][name*="text"]').first
+    gloss_input = page.locator('input.gloss-text').first
     if gloss_input.count() > 0:
         gloss_input.fill("A short gloss explanation")
 
@@ -183,15 +183,15 @@ def test_create_entry_with_multilingual_gloss(page: Page, app_url: str) -> None:
     page.fill('input.lexical-unit-text', headword)
 
     # Add a sense if needed
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
     # Fill definition
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Click "Add Language" button to add a gloss input field
     add_gloss_btn = page.locator('button.add-gloss-language-btn').first
@@ -200,7 +200,7 @@ def test_create_entry_with_multilingual_gloss(page: Page, app_url: str) -> None:
         page.wait_for_timeout(500)
 
     # Fill EN gloss - gloss uses input field, not textarea
-    gloss_inputs = page.locator('input[name*="gloss"][name*="text"]')
+    gloss_inputs = page.locator('input.gloss-text')
     if gloss_inputs.count() > 0:
         gloss_inputs.first.fill("English gloss text")
 
@@ -211,7 +211,7 @@ def test_create_entry_with_multilingual_gloss(page: Page, app_url: str) -> None:
         page.wait_for_timeout(500)
 
         # Fill PL gloss
-        all_gloss_inputs = page.locator('input[name*="gloss"][name*="text"]')
+        all_gloss_inputs = page.locator('input.gloss-text')
         if all_gloss_inputs.count() > 1:
             all_gloss_inputs.nth(1).fill("Polish gloss text")
 
@@ -387,14 +387,14 @@ def test_gloss_roundtrip(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form', timeout=10000)
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Click "Add Language" button to add a gloss input field
     add_gloss_btn = page.locator('button.add-gloss-language-btn').first
@@ -402,7 +402,7 @@ def test_gloss_roundtrip(page: Page, app_url: str) -> None:
         add_gloss_btn.click()
         page.wait_for_timeout(500)
 
-    gloss_input = page.locator('input[name*="gloss"][name*="text"]').first
+    gloss_input = page.locator('input.gloss-text').first
     if gloss_input.count() > 0:
         gloss_input.fill(gloss1)
 
@@ -429,7 +429,7 @@ def test_gloss_roundtrip(page: Page, app_url: str) -> None:
     page.goto(f"{base_url}/entries/{entry_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
 
-    gloss_input = page.locator('input[name*="gloss"][name*="text"]').first
+    gloss_input = page.locator('input.gloss-text').first
     if gloss_input.count() > 0:
         gloss_input.clear()
         gloss_input.fill(gloss2)

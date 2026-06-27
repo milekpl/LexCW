@@ -114,6 +114,30 @@ def pristine_ranges_data() -> str:
                 <form lang="en"><text>adj</text></form>
             </abbrev>
         </range-element>
+        <!-- Two classes of real FieldWorks duplicate, both seeded here:
+             1. EXACT duplicate (same id AND same guid, the two `...a1` elements): pure
+                FieldWorks export noise. The ranges API removes these from served data
+                (app/services/ranges_dedup). Exercised by test_ranges_duplicates_api.
+             2. id CONFLICT (same id, DIFFERENT guid: `...a1` vs `...a2`): ambiguous, NOT
+                auto-removed (needs a user decision), so it still reaches the form and makes
+                the flattened option list contain a repeated `value` — which regresses any
+                range x-for keyed on opt.value (Alpine drops the whole list on duplicate
+                :key). Exercised by test_range_duplicate_keys. See spec §11.2 / §15.1. -->
+        <range-element id="Pronoun" guid="5049f0e3-12a4-4e9f-97f7-6009108279a1">
+            <label>
+                <form lang="en"><text>Pronoun</text></form>
+            </label>
+        </range-element>
+        <range-element id="Pronoun" guid="5049f0e3-12a4-4e9f-97f7-6009108279a1">
+            <label>
+                <form lang="en"><text>Pronoun</text></form>
+            </label>
+        </range-element>
+        <range-element id="Pronoun" guid="5049f0e3-12a4-4e9f-97f7-6009108279a2">
+            <label>
+                <form lang="en"><text>Pronoun</text></form>
+            </label>
+        </range-element>
     </range>
     <range id="lexical-relation">
         <range-element id="Synonym" guid="5049f0e3-12a4-4e9f-97f7-60091082793f"/>
@@ -563,7 +587,7 @@ def ensure_sense():
     def _ensure_sense(page):
         """Ensure at least one sense form exists on the page."""
         # Only add sense if no VISIBLE definition textarea exists (exclude hidden template)
-        if page.locator('textarea[name*="definition"]:visible').count() == 0:
+        if page.locator('textarea.definition-text:visible').count() == 0:
             if page.locator('#add-first-sense-btn').count() > 0:
                 page.click('#add-first-sense-btn')
             elif page.locator('#add-sense-btn').count() > 0:
@@ -578,7 +602,7 @@ def ensure_sense():
             
             # Wait until a VISIBLE definition textarea appears (exclude template)
             for _ in range(50):
-                if page.locator('textarea[name*="definition"]:visible').count() > 0:
+                if page.locator('textarea.definition-text:visible').count() > 0:
                     break
                 page.wait_for_timeout(100)
             else:

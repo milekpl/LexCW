@@ -69,14 +69,14 @@ def test_add_single_example(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Find and click add example button
     add_example_btn = page.locator('button.add-example-btn').first
@@ -87,7 +87,7 @@ def test_add_single_example(page: Page, app_url: str) -> None:
     # Fill example text - look for textarea in example item (field name is .sentence, not .form)
     example_item = page.locator('.example-item').first
     if example_item.count() > 0:
-        example_textarea = example_item.locator('textarea[name*="examples"][name*="sentence"]')
+        example_textarea = example_item.locator('textarea.example-sentence-text')
         if example_textarea.count() > 0:
             example_textarea.first.fill(example_text)
 
@@ -142,14 +142,14 @@ def test_add_example_with_translation(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Add example
     add_example_btn = page.locator('button.add-example-btn').first
@@ -160,12 +160,12 @@ def test_add_example_with_translation(page: Page, app_url: str) -> None:
     # Fill example text
     example_item = page.locator('.example-item').first
     if example_item.count() > 0:
-        example_textarea = example_item.locator('textarea[name*="examples"][name*="sentence"]')
+        example_textarea = example_item.locator('textarea.example-sentence-text')
         if example_textarea.count() > 0:
             example_textarea.first.fill(example_text)
 
         # Fill translation - look for translation field
-        translation_input = example_item.locator('textarea[name*="examples"][name*="translation"]')
+        translation_input = example_item.locator('textarea.example-translation-text')
         if translation_input.count() > 0:
             translation_input.first.fill(translation_text)
 
@@ -221,14 +221,14 @@ def test_add_multiple_examples(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Add first example
     add_example_btn = page.locator('button.add-example-btn').first
@@ -238,7 +238,7 @@ def test_add_multiple_examples(page: Page, app_url: str) -> None:
 
     example_items = page.locator('.example-item')
     if example_items.count() > 0:
-        example_items.first.locator('textarea[name*="examples"][name*="sentence"]').fill(example1)
+        example_items.first.locator('textarea.example-sentence-text').fill(example1)
 
     # Add second example
     add_example_btn.click()
@@ -246,7 +246,7 @@ def test_add_multiple_examples(page: Page, app_url: str) -> None:
 
     example_items = page.locator('.example-item')
     if example_items.count() > 1:
-        example_items.nth(1).locator('textarea[name*="examples"][name*="sentence"]').fill(example2)
+        example_items.nth(1).locator('textarea.example-sentence-text').fill(example2)
 
     # Add third example
     add_example_btn.click()
@@ -254,7 +254,7 @@ def test_add_multiple_examples(page: Page, app_url: str) -> None:
 
     example_items = page.locator('.example-item')
     if example_items.count() > 2:
-        example_items.nth(2).locator('textarea[name*="examples"][name*="sentence"]').fill(example3)
+        example_items.nth(2).locator('textarea.example-sentence-text').fill(example3)
 
     page.wait_for_timeout(800)
     try:
@@ -312,7 +312,7 @@ def test_example_persists_via_api(page: Page, app_url: str) -> None:
 
     example_item = page.locator('.example-item').first
     if example_item.count() > 0:
-        example_textarea = example_item.locator('textarea[name*="examples"][name*="sentence"]')
+        example_textarea = example_item.locator('textarea.example-sentence-text')
         if example_textarea.count() > 0:
             example_textarea.first.fill(expected_example)
 
@@ -366,7 +366,7 @@ def test_example_displays_in_view(page: Page, app_url: str) -> None:
 
     example_item = page.locator('.example-item').first
     if example_item.count() > 0:
-        example_textarea = example_item.locator('textarea[name*="examples"][name*="sentence"]')
+        example_textarea = example_item.locator('textarea.example-sentence-text')
         if example_textarea.count() > 0:
             example_textarea.first.fill(expected_example)
 
@@ -461,14 +461,14 @@ def test_delete_example(page: Page, app_url: str) -> None:
 
     page.fill('input.lexical-unit-text', headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click('#add-first-sense-btn')
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(f"Definition for {headword}")
+    page.locator('textarea.definition-text:visible').first.fill(f"Definition for {headword}")
 
     # Add example
     add_example_btn = page.locator('button.add-example-btn').first
@@ -478,7 +478,7 @@ def test_delete_example(page: Page, app_url: str) -> None:
 
     example_item = page.locator('.example-item').first
     if example_item.count() > 0:
-        example_textarea = example_item.locator('textarea[name*="examples"][name*="sentence"]')
+        example_textarea = example_item.locator('textarea.example-sentence-text')
         if example_textarea.count() > 0:
             example_textarea.first.fill(example_text)
 
@@ -526,7 +526,7 @@ def test_delete_example(page: Page, app_url: str) -> None:
             page.wait_for_timeout(500)
         else:
             # Clear the text field instead
-            example_textarea = example_item.locator('textarea[name*="examples"][name*="sentence"]')
+            example_textarea = example_item.locator('textarea.example-sentence-text')
             if example_textarea.count() > 0:
                 example_textarea.first.clear()
 

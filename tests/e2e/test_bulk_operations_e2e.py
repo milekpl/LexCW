@@ -254,7 +254,7 @@ class TestWorksetBulkDelete:
         page.wait_for_load_state("networkidle")
 
         # The page should have worksets content - new template structure
-        expect(page.locator("h4:has-text('Worksets')")).to_be_visible()
+        expect(page.locator("h4:has-text('Curation Sessions')")).to_be_visible()
 
     def test_create_workset_button_exists(self, page, app_url):
         """Test that create workset button exists."""

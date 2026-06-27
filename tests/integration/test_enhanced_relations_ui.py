@@ -69,13 +69,13 @@ def test_relation_ui_page_loads_with_enhanced_search(client: FlaskClient):
 
     html_content = response.get_data(as_text=True)
 
-    # Check that relations section is present
+    # Check that relations section is present (Alpine-owned §16.2.2)
     assert "Relations" in html_content
     assert "relations-container" in html_content
-    # Check that relations.js is loaded (which defines RelationsManager)
-    assert "relations.js" in html_content
+    # Check that entry-relations.js Alpine component is loaded
+    assert "entry-relations.js" in html_content
     # Check for relation management UI elements (present in empty state too)
-    assert "add-relation-btn" in html_content or "relation-search-input" in html_content or "lexical-relation-select" in html_content
+    assert "add-relation-btn" in html_content or "lexical-relation-select" in html_content
 
 
 @pytest.mark.integration

@@ -562,14 +562,61 @@ class RangesEditor {
                     ${elements.map(elem => renderElement(elem)).join('')}
                 </div>
             `;
-            
+
+            // Surface duplicate range-elements (spec §15.1): exact duplicates are auto-removed
+            // server-side; id/guid conflicts are flagged here for a manual decision.
+            this.renderDuplicateBanner(rangeId, container);
+
         } catch (error) {
             console.error('Failed to load elements:', error);
-            document.getElementById('elementsContainer').innerHTML = 
+            document.getElementById('elementsContainer').innerHTML =
                 '<p class="text-danger">Failed to load elements</p>';
         }
     }
-    
+
+    /**
+     * Flag duplicate range elements above the element list.
+     * Exact duplicates (same id AND guid) are FieldWorks export noise — already excluded from
+     * served data — so they are reported as an info note. id/guid conflicts (same id, different
+     * guid) are ambiguous: flagged as a warning, annotated with usage so the lexicographer can
+     * delete an unused copy or merge referenced ones. Never auto-deletes conflicts.
+     */
+    async renderDuplicateBanner(rangeId, container) {
+        try {
+            const response = await fetch(`/api/ranges-editor/${rangeId}/duplicates`);
+            const result = await response.json();
+            if (!result.success || !result.data || !result.data.has_duplicates) return;
+            const d = result.data;
+            const parts = [];
+            if (d.exact_duplicate_count > 0) {
+                parts.push(`<div class="alert alert-info py-2 mb-2">
+                    <i class="bi bi-info-circle"></i>
+                    ${Number(d.exact_duplicate_count)} exact duplicate element(s) (identical id and
+                    GUID — a FieldWorks export artifact) detected and automatically excluded from this range.
+                </div>`);
+            }
+            if (d.id_conflicts && d.id_conflicts.length > 0) {
+                const rows = d.id_conflicts.map(c => {
+                    const usageCount = Number(c.usage_count) || 0;
+                    const usage = c.referenced
+                        ? `<span class="badge bg-warning text-dark">used by ${usageCount} entr${usageCount === 1 ? 'y' : 'ies'} — merge, don't delete</span>`
+                        : `<span class="badge bg-secondary">unused — safe to delete a copy</span>`;
+                    return `<li><strong>${this.escapeHtml(String(c.id))}</strong> appears with ${Number(c.count)} different GUIDs ${usage}</li>`;
+                }).join('');
+                parts.push(`<div class="alert alert-warning py-2 mb-2">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Duplicate identities with different GUIDs need review:</strong>
+                    <ul class="mb-0 mt-1">${rows}</ul>
+                </div>`);
+            }
+            if (parts.length) {
+                container.insertAdjacentHTML('afterbegin', parts.join(''));
+            }
+        } catch (e) {
+            console.warn('[RangesEditor] duplicate check failed:', e);
+        }
+    }
+
     async loadUsage(rangeId) {
         try {
             const response = await fetch(`/api/ranges-editor/${rangeId}/usage`);

@@ -71,14 +71,14 @@ def test_create_entry_with_multiple_senses(page: Page, app_url: str) -> None:
     page.fill("input.lexical-unit-text", headword)
 
     # Add first sense
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click("#add-first-sense-btn")
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(
+    page.locator('textarea.definition-text:visible').first.fill(
         f"First sense definition for {headword}"
     )
 
@@ -89,7 +89,7 @@ def test_create_entry_with_multiple_senses(page: Page, app_url: str) -> None:
         page.wait_for_timeout(500)
 
     # Wait for second definition field to appear
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     for _ in range(50):
         if definition_textareas.count() >= 2:
             break
@@ -102,7 +102,7 @@ def test_create_entry_with_multiple_senses(page: Page, app_url: str) -> None:
     add_sense_btn.click()
     page.wait_for_timeout(500)
 
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     for _ in range(50):
         if definition_textareas.count() >= 3:
             break
@@ -145,19 +145,19 @@ def test_each_sense_has_all_fields(page: Page, app_url: str) -> None:
     page.fill("input.lexical-unit-text", headword)
 
     # Add first sense with definition
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click("#add-first-sense-btn")
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(
+    page.locator('textarea.definition-text:visible').first.fill(
         f"Definition with all fields"
     )
 
     # Add gloss to first sense
-    gloss_inputs = page.locator('textarea[name*="gloss"][name*="text"]')
+    gloss_inputs = page.locator('.gloss-text')
     if gloss_inputs.count() > 0:
         gloss_inputs.first.fill("First sense gloss")
 
@@ -167,7 +167,7 @@ def test_each_sense_has_all_fields(page: Page, app_url: str) -> None:
         add_sense_btn.click()
         page.wait_for_timeout(500)
 
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     for _ in range(50):
         if definition_textareas.count() >= 2:
             break
@@ -177,7 +177,7 @@ def test_each_sense_has_all_fields(page: Page, app_url: str) -> None:
         definition_textareas.nth(1).fill(f"Second sense definition")
 
         # Add gloss to second sense
-        all_gloss = page.locator('textarea[name*="gloss"][name*="text"]')
+        all_gloss = page.locator('.gloss-text')
         if all_gloss.count() > 1:
             all_gloss.nth(1).fill("Second sense gloss")
 
@@ -228,14 +228,14 @@ def test_edit_individual_senses(page: Page, app_url: str) -> None:
 
     page.fill("input.lexical-unit-text", headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click("#add-first-sense-btn")
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(original_def1)
+    page.locator('textarea.definition-text:visible').first.fill(original_def1)
 
     # Add second sense
     add_sense_btn = page.locator("#add-sense-btn").first
@@ -243,7 +243,7 @@ def test_edit_individual_senses(page: Page, app_url: str) -> None:
         add_sense_btn.click()
         page.wait_for_timeout(500)
 
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     for _ in range(50):
         if definition_textareas.count() >= 2:
             break
@@ -284,7 +284,7 @@ def test_edit_individual_senses(page: Page, app_url: str) -> None:
     page.goto(f"{base_url}/entries/{entry_id}/edit")
     page.wait_for_selector("#entry-form", timeout=10000)
 
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     if definition_textareas.count() >= 1:
         definition_textareas.first.clear()
         definition_textareas.first.fill(updated_def1)
@@ -330,14 +330,14 @@ def test_delete_middle_sense(page: Page, app_url: str) -> None:
 
     page.fill("input.lexical-unit-text", headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click("#add-first-sense-btn")
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill(
+    page.locator('textarea.definition-text:visible').first.fill(
         "Sense 1 definition"
     )
 
@@ -347,7 +347,7 @@ def test_delete_middle_sense(page: Page, app_url: str) -> None:
         add_sense_btn.click()
         page.wait_for_timeout(500)
 
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     for _ in range(50):
         if definition_textareas.count() >= 3:
             break
@@ -419,21 +419,21 @@ def test_reorder_senses(page: Page, app_url: str) -> None:
 
     page.fill("input.lexical-unit-text", headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click("#add-first-sense-btn")
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill("First definition")
+    page.locator('textarea.definition-text:visible').first.fill("First definition")
 
     add_sense_btn = page.locator("#add-sense-btn").first
     for i in range(2):
         add_sense_btn.click()
         page.wait_for_timeout(500)
 
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     for _ in range(50):
         if definition_textareas.count() >= 3:
             break
@@ -563,20 +563,20 @@ def test_multisense_roundtrip(page: Page, app_url: str) -> None:
 
     page.fill("input.lexical-unit-text", headword)
 
-    if page.locator('textarea[name*="definition"]:visible').count() == 0:
+    if page.locator('textarea.definition-text:visible').count() == 0:
         page.click("#add-first-sense-btn")
         for _ in range(50):
-            if page.locator('textarea[name*="definition"]:visible').count() > 0:
+            if page.locator('textarea.definition-text:visible').count() > 0:
                 break
             page.wait_for_timeout(100)
 
-    page.locator('textarea[name*="definition"]:visible').first.fill("Roundtrip sense 1")
+    page.locator('textarea.definition-text:visible').first.fill("Roundtrip sense 1")
 
     add_sense_btn = page.locator("#add-sense-btn").first
     add_sense_btn.click()
     page.wait_for_timeout(500)
 
-    definition_textareas = page.locator('textarea[name*="definition"]:visible')
+    definition_textareas = page.locator('textarea.definition-text:visible')
     for _ in range(50):
         if definition_textareas.count() >= 2:
             break
@@ -624,7 +624,7 @@ def test_multisense_roundtrip(page: Page, app_url: str) -> None:
     # per project language × sense), which would break a fragile nth(N) approach.
     page.wait_for_selector('.sense-item[data-sense-index="2"]', timeout=5000)
     new_sense_textarea = page.locator(
-        '.sense-item[data-sense-index="2"] textarea[name*="definition"]'
+        '.sense-item[data-sense-index="2"] textarea.definition-text'
     ).first
     new_sense_textarea.fill("Roundtrip sense 3")
 

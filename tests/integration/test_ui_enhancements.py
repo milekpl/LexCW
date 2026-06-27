@@ -233,29 +233,9 @@ class TestJavaScriptFileUploadHandlers:
         assert re.search(r"e\.target\.closest\(\s*['\"]\.generate-audio-btn['\"]\s*\)", js_content)
         assert 'generateAudio' in js_content
     
-    def test_multilingual_sense_fields_js_has_illustration_picker(self, client: FlaskClient):
-        """Test that multilingual-sense-fields.js contains multilingual field management."""
-        response = client.get('/static/js/multilingual-sense-fields.js')
-        assert response.status_code == 200
-        
-        js_content = response.data.decode('utf-8')
-        
-        # Verify core multilingual field functionality exists
-        assert 'MultilingualSenseFieldsManager' in js_content
-        assert 'addLanguageField' in js_content
-        assert '.add-definition-language-btn' in js_content or ".add-definition-language-btn" in js_content
-    
-    def test_multilingual_sense_fields_js_has_preview_initialization(self, client: FlaskClient):
-        """Test that multilingual-sense-fields.js initializes correctly."""
-        response = client.get('/static/js/multilingual-sense-fields.js')
-        assert response.status_code == 200
-        
-        js_content = response.data.decode('utf-8')
-        
-        # Verify initialization and event listeners
-        assert 'initEventListeners' in js_content
-        assert 'DOMContentLoaded' in js_content
-        assert 'window.multilingualSenseFieldsManager' in js_content
+    # multilingual-sense-fields.js deleted in Stage 4 cleanup —
+    # its sense-level add/remove language functionality was replaced by
+    # Alpine addRow/removeRow in Stage 1.
 
     def test_entry_form_js_has_illustration_handlers(self, client: FlaskClient):
         """Test that entry-form.js contains illustration add/upload handlers."""
