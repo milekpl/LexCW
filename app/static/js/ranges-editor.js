@@ -1013,7 +1013,7 @@ class RangesEditor {
                         value: value,
                         parent: parent,
                         language: elementLanguage || undefined, // Only send if not empty
-                        description: descriptions
+                        descriptions: descriptions
                     })
                 });
             } else {
@@ -1028,7 +1028,7 @@ class RangesEditor {
                         value: value,
                         parent: parent,
                         language: elementLanguage || undefined, // Only send if not empty
-                        description: descriptions
+                        descriptions: descriptions
                     })
                 });
             }

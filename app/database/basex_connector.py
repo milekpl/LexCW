@@ -165,11 +165,14 @@ class BaseXConnector:
             self._created = 0
 
     def is_connected(self) -> bool:
+        """Check if we have a live connection WITHOUT creating a new one."""
         try:
-            conn = self._acquire(timeout=2)
+            conn = self._pool.get_nowait()
             alive = conn.session is not None
             self._release(conn)
             return alive
+        except queue.Empty:
+            return False
         except Exception:
             return False
 

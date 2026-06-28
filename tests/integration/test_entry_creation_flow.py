@@ -66,13 +66,13 @@ class TestEntryCreationFlow:
 class TestClientSideEntryCreation:
     """Test cases for client-side entry creation JavaScript."""
 
-    def test_form_serializer_handles_new_entry(self, client):
-        """Test that form serializer handles new entries without ID."""
-        response = client.get('/static/js/form-serializer.js')
+    def test_xml_serializer_handles_new_entry(self, client):
+        """Test that XML serializer handles new entries without ID."""
+        response = client.get('/static/js/lift-xml-serializer.js')
         js_code = response.data.decode('utf-8')
 
         # Check that the serializer handles missing IDs
-        assert 'temp-' in js_code or 'new_entry_' in js_code, \
+        assert 'generateEntryId' in js_code, \
             "Serializer should generate temp IDs for new entries"
 
     def test_entry_form_js_generates_temp_id(self, client):

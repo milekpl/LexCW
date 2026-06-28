@@ -292,7 +292,7 @@ class Entry(BaseModel):
                 relation_dict = {
                     'type': variant_relation_data.get('type', '_component-lexeme'),
                     'ref': variant_relation_data['ref'],
-                    'traits': {'variant-type': variant_relation_data.get('variant_type', 'Unspecified Variant')},
+                    'traits': {'variant-type': variant_relation_data.get('variant_type', '')},
                     'order': variant_relation_data.get('order', len(self.relations))
                 }
                 self.relations.append(Relation(**relation_dict))

@@ -47,25 +47,8 @@ class LivePreviewManager {
     }
     
     _initializeEventListeners() {
-        console.log('Initializing event listeners...');
-        
-        // Listen for input events on the form
+        // Single `input` event covers keyboard, paste, select, and checkbox changes.
         this.form.addEventListener('input', (e) => {
-            this._handleFormChange(e);
-        });
-        
-        // Listen for change events (for selects, checkboxes, etc.)
-        this.form.addEventListener('change', (e) => {
-            this._handleFormChange(e);
-        });
-        
-        // Listen for keyup events as well (more reliable for some inputs)
-        this.form.addEventListener('keyup', (e) => {
-            this._handleFormChange(e);
-        });
-        
-        // Listen for paste events
-        this.form.addEventListener('paste', (e) => {
             this._handleFormChange(e);
         });
         
@@ -204,22 +187,10 @@ class LivePreviewManager {
                 }
             }
 
-            // Fallback: use form serializer directly when MergeHarness is absent
-            if (!formData && window.FormSerializer && window.FormSerializer.serializeFormToJSON) {
-                try {
-                    formData = window.FormSerializer.serializeFormToJSON(this.form, {
-                        includeEmpty: true
-                    });
-                    console.log('Form data serialized via FormSerializer:', formData);
-                } catch (e) {
-                    console.warn('FormSerializer failed, falling back:', e);
-                }
-            }
-            
             if (!formData) {
-                // Last-resort degraded fallback: runs only when BOTH MergeHarness AND
-                // FormSerializer are absent (e.g. script load failures). Alpine state is
-                // not available here; this is acceptable because MergeHarness is absent too.
+                // Last-resort degraded fallback: runs only when MergeHarness is absent
+                // (e.g. script load failures). Alpine state is not available here; this is
+                // acceptable because MergeHarness is absent too.
                 console.log('Using simple form serialization fallback');
                 const rawData = new FormData(this.form);
                 formData = {};

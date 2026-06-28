@@ -19,11 +19,11 @@ class OperationHistoryService:
 
     def __init__(self, history_file_path: str = 'instance/operation_history.json', max_history: int = 100, event_bus: Optional['EventBus'] = None):
         self.history_file_path = history_file_path
-        self.max_history = max_history  # Maximum number of operations to keep in history
+        self.max_history = max_history
         self.event_bus = event_bus
+        self._history_cache = None
         self._ensure_history_file_exists()
 
-        # Subscribe to entry_updated events if event_bus is provided
         if event_bus:
             event_bus.on('entry_updated', self._on_entry_updated)
 
@@ -49,43 +49,34 @@ class OperationHistoryService:
             db_name=None
         )
 
-    def _read_history(self):
+    def _load_from_disk(self):
+        """Read history from disk once and populate the in-memory cache."""
         try:
             with open(self.history_file_path, 'r') as f:
                 content = f.read().strip()
                 if not content:
-                    return {
-                        'operations': [],
-                        'transfers': [],
-                        'undo_stack': [],
-                        'redo_stack': []
-                    }
-                data = json.loads(content)
+                    data = {}
+                else:
+                    data = json.loads(content)
         except (FileNotFoundError, json.JSONDecodeError):
-            return {
-                'operations': [],
-                'transfers': [],
-                'undo_stack': [],
-                'redo_stack': []
-            }
+            data = {}
 
         if isinstance(data, list):
-            # Convert legacy list format to dictionary
-            data = {
-                'operations': data,
-                'transfers': [],
-                'undo_stack': [],
-                'redo_stack': []
-            }
-        
-        # Ensure all required keys exist
+            data = {'operations': data, 'transfers': [], 'undo_stack': [], 'redo_stack': []}
+
         for key in ['operations', 'transfers', 'undo_stack', 'redo_stack']:
             if key not in data:
                 data[key] = []
-                
-        return data
+
+        self._history_cache = data
+
+    def _read_history(self):
+        if self._history_cache is None:
+            self._load_from_disk()
+        return self._history_cache
 
     def _write_history(self, data):
+        self._history_cache = data
         with open(self.history_file_path, 'w') as f:
             json.dump(data, f, indent=4)
 
@@ -266,13 +257,14 @@ class OperationHistoryService:
         """
         Clear all operation history and reset stacks.
         """
+        self._history_cache = {
+            'operations': [],
+            'transfers': [],
+            'undo_stack': [],
+            'redo_stack': []
+        }
         with open(self.history_file_path, 'w') as f:
-            json.dump({
-                'operations': [],
-                'transfers': [],
-                'undo_stack': [],
-                'redo_stack': []
-            }, f, indent=4)
+            json.dump(self._history_cache, f, indent=4)
 
     def get_all_merge_split_operations(self) -> List[MergeSplitOperation]:
         """

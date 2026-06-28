@@ -938,7 +938,7 @@ def process_variant_relations_form_data(form_data: Dict[str, Any]) -> List[Dict[
             'type': variant.get('type', '_component-lexeme'),
             'ref': variant['ref'],
             'traits': {
-                'variant-type': variant.get('variant_type', 'Unspecified Variant')
+                'variant-type': variant.get('variant_type', '')
             }
         }
 

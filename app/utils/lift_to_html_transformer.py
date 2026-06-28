@@ -1026,7 +1026,7 @@ class LIFTToHTMLTransformer:
                     if vr_data and isinstance(vr_data, dict):
                         rel_type = vr_data.get("type", "_component-lexeme")
                         ref = vr_data.get("ref")
-                        variant_type = vr_data.get("variant_type") or "Unspecified Variant"
+                        variant_type = vr_data.get("variant_type") or ""
                         order = vr_data.get("order")
 
                         if ref:

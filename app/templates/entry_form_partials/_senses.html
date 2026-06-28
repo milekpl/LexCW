@@ -216,7 +216,7 @@
                               :placeholder="'Note in ' + nf.lang"></textarea>
                     <button type="button" class="btn btn-outline-danger"
                             @click.prevent="removeRow(sense.noteForms, nf.id)"
-                            x-show="sense.noteForms.length > 1">×</button>
+                            x-show="sense.noteForms.length > 0">×</button>
                   </div>
                 </template>
               </div>
@@ -238,7 +238,7 @@
                            :placeholder="'Literal meaning in ' + lm.lang">
                     <button type="button" class="btn btn-outline-danger"
                             @click.prevent="removeRow(sense.literalMeaningForms, lm.id)"
-                            x-show="sense.literalMeaningForms.length > 1">×</button>
+                            x-show="sense.literalMeaningForms.length > 0">×</button>
                   </div>
                 </template>
               </div>
@@ -261,7 +261,7 @@
                            :placeholder="'Exemplar in ' + ef.lang">
                     <button type="button" class="btn btn-outline-danger"
                             @click.prevent="removeRow(sense.exemplarForms, ef.id)"
-                            x-show="sense.exemplarForms.length > 1">×</button>
+                            x-show="sense.exemplarForms.length > 0">×</button>
                   </div>
                 </template>
               </div>
@@ -284,7 +284,7 @@
                            :placeholder="'Scientific name in ' + sn.lang">
                     <button type="button" class="btn btn-outline-danger"
                             @click.prevent="removeRow(sense.scientificNameForms, sn.id)"
-                            x-show="sense.scientificNameForms.length > 1">×</button>
+                            x-show="sense.scientificNameForms.length > 0">×</button>
                   </div>
                 </template>
               </div>

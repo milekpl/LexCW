@@ -1,6 +1,15 @@
 # Plan — §16.3 Phase B: decommission `form-serializer.js` + the merge harness's legacy half
 
-**Status:** Ready to execute, with ONE hard prerequisite (custom_fields).
+**Status:** ✅ DONE & VERIFIED (2026-06-28). `form-serializer.js` (+ worker, browser-test, unit
+tests) deleted; `custom_fields` ported to Alpine (`entryCustomFields` component + `createCustomField`
+in the serializer + normalize/adapter/section wiring), fixing the pre-existing silent-loss bug; save
+path is Alpine-only; dead `FormSerializer` fallback arms removed.
+**Gates met:** `scripts/audit_serialization.py` → **0 suspects**; no live `FormSerializer` reference
+remains; `tests/unit/alpine-adapter.test.js` 43 passed; new `tests/e2e/test_custom_fields_roundtrip_e2e.py`
+gate (custom field populates → edits → persists) passes; broad e2e regression 24 passed / 1 skipped;
+core gates (custom-fields, citation/status, form-submission, entry-roundtrip) 12 passed / 1 skipped.
+**Known pre-existing (NOT regressions):** 3 sense-level exemplar/scientific-name *language-removal*
+tests in `test_custom_fields_playwright.py` fail identically at clean HEAD — out of scope here.
 **Author:** verification pass (Claude Opus 4.8), 2026-06-28.
 **Goal:** Remove the legacy `name=`-attribute DOM serializer (`form-serializer.js`) and the merge
 harness's "serialize legacy DOM → merge Alpine over it" half, so the entry form has a **single

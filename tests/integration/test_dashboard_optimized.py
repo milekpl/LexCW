@@ -74,7 +74,7 @@ class TestDashboard:
         assert 'System Status' in homepage_response_text
         assert 'Database Connection' in homepage_response_text
         assert 'Last Backup' in homepage_response_text
-        assert 'Storage Usage' in homepage_response_text
+        assert 'Database Size' in homepage_response_text
 
     @pytest.mark.integration
     def test_homepage_contains_stats_section(self, homepage_response_text):
@@ -284,7 +284,7 @@ class TestDashboard:
         # Should contain properly formatted status elements
         assert 'Database Connection' in homepage_response_text
         assert 'Last Backup' in homepage_response_text  
-        assert 'Storage Usage' in homepage_response_text
+        assert 'Database Size' in homepage_response_text
         
         # Should NOT contain raw JSON field names
         json_field_names = [

@@ -406,6 +406,9 @@
       notes: normalizeNotes(raw.notes),
       annotations: safeArray(raw.annotations).map(normalizeAnnotation),
 
+      // Custom fields: preserve {field_type: {lang: text}} shape as-is
+      customFields: safeObject(raw.custom_fields),
+
       // LIFT header info
       headerInfo: raw.header_info || raw.headerInfo || null
     };

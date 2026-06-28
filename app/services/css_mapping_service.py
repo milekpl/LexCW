@@ -455,9 +455,12 @@ class CSSMappingService:
                             elem.attrib["__aspect_handled"] = "1"
                             any_applied = True
                         elif rel_map is not None:
-                            # No abbreviation/label found for this variant type — clear
-                            # type so the text shows only the headword, not the raw value.
-                            elem.attrib.pop("type", None)
+                            # No abbreviation/label found for this relation type.
+                            # For variant-type relations (swapped from _component-lexeme),
+                            # clear type so the text shows only the headword.
+                            # For regular relations, keep the original type as-is.
+                            if "data-original-type" in elem.attrib:
+                                elem.attrib.pop("type", None)
                             elem.attrib["__aspect_handled"] = "1"
                             any_applied = True
                     else:

@@ -129,8 +129,12 @@ def list_entries() -> Any:
                 limit = 100
             if offset is None:
                 offset = 0
-        # Redis cache key - include all relevant parameters for cache correctness
-        cache_key = f"entries:{limit}:{offset}:{sort_by}:{sort_order}:{filter_text}"
+        # Cache miss - query dictionary service
+        dict_service = get_dictionary_service()
+
+        # Redis cache key - include DB name to prevent cross-project collisions
+        db_name = dict_service.db_connector.database or 'default'
+        cache_key = f"entries:{db_name}:{limit}:{offset}:{sort_by}:{sort_order}:{filter_text}"
         cache = CacheService()
         if cache.is_available():
             cached = cache.get(cache_key)
@@ -138,8 +142,6 @@ def list_entries() -> Any:
                 logger.info(f"Returning cached entries for key: {cache_key}")
                 return jsonify(json.loads(cached))
 
-        # Cache miss - query dictionary service
-        dict_service = get_dictionary_service()
         entries, total_count = dict_service.list_entries(
             limit=limit,
             offset=offset,

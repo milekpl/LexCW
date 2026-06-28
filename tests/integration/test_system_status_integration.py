@@ -22,7 +22,7 @@ class TestSystemStatusIntegration:
         assert 'Last Backup' in html_content
         assert 'Next Scheduled Backup' in html_content
         assert 'Total Backups' in html_content
-        assert 'Storage Usage' in html_content
+        assert 'Database Size' in html_content
         
     def test_dashboard_includes_system_status_data(self, client: FlaskClient) -> None:
         """Test that the dashboard includes actual system status data."""
@@ -38,7 +38,7 @@ class TestSystemStatusIntegration:
         assert 'Last Backup' in html_content
         assert 'Next Scheduled Backup' in html_content
         assert 'Total Backups' in html_content
-        assert 'Storage Usage' in html_content
+        assert 'Database Size' in html_content
         
         # Check that badges are present (indicating actual data is rendered)
         assert 'db-status-badge' in html_content

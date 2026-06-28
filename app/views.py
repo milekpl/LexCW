@@ -4,6 +4,7 @@ Views for the Lexicographic Curation Workbench's frontend.
 
 import logging
 import os
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from flask import (
     Blueprint,
@@ -305,33 +306,32 @@ def view_entry(entry_id):
                     dict_service=dict_service
                 )
                 
-                # If show_subentries is enabled, append subentry HTML
+                # If show_subentries is enabled, fetch and render all subentries in one query
                 if default_profile.show_subentries and subentries:
-                    subentry_html_parts = []
-                    for subentry_info in subentries:
-                        try:
-                            # Get subentry XML (entries are stored without namespaces)
-                            subentry_query = dict_service._query_builder.build_entry_by_id_query(
-                                subentry_info['id'], db_name, has_namespace=False
+                    try:
+                        ids = [s["id"] for s in subentries if s.get("id")]
+                        if ids:
+                            preds = " or ".join(f"@id='{i}'" for i in ids)
+                            subentries_xml = dict_service.db_connector.execute_query(
+                                f"xquery collection()//entry[{preds}]"
                             )
-                            subentry_xml = dict_service.db_connector.execute_query(subentry_query)
-
-                            if subentry_xml:
-                                subentry_rendered = css_service.render_entry(
-                                    subentry_xml,
-                                    profile=default_profile,
-                                    dict_service=dict_service
-                                )
-                                # Wrap in subentry container with CSS class
-                                subentry_html_parts.append(
-                                    f'<div class="subentry" data-subentry-id="{subentry_info["id"]}">{subentry_rendered}</div>'
-                                )
-                        except Exception as e:
-                            logger.warning(f"Error rendering subentry {subentry_info['id']}: {e}")
-                    
-                    # Append all subentries to main entry HTML
-                    if subentry_html_parts:
-                        css_html += '\n'.join(subentry_html_parts)
+                            if subentries_xml:
+                                wrapped = f"<root>{subentries_xml}</root>"
+                                root = ET.fromstring(wrapped)
+                                for child, sub_id in zip(root, ids):
+                                    full_xml = ET.tostring(child, encoding="unicode")
+                                    rendered = css_service.render_entry(
+                                        full_xml,
+                                        profile=default_profile,
+                                        dict_service=dict_service,
+                                    )
+                                    subentry_html_parts.append(
+                                        f'<div class="subentry" data-subentry-id="{sub_id}">{rendered}</div>'
+                                    )
+                        if subentry_html_parts:
+                            css_html += "\n".join(subentry_html_parts)
+                    except Exception as e:
+                        logger.warning("Error rendering subentries: %s", e)
                         
         except Exception as e:
             logger.warning("Error rendering entry with CSS: %s", e)
@@ -680,33 +680,34 @@ def edit_entry(entry_id):
                     dict_service=dict_service
                 )
                 
-                # If show_subentries is enabled, append subentry HTML
+                # If show_subentries is enabled, fetch and render all subentries in one query
                 if default_profile.show_subentries and subentries_data:
-                    subentry_html_parts = []
-                    for subentry_info in subentries_data:
-                        try:
-                            # Get subentry XML (entries are stored without namespaces)
-                            subentry_query = dict_service._query_builder.build_entry_by_id_query(
-                                subentry_info['id'], db_name, has_namespace=False
+                    try:
+                        ids = [s["id"] for s in subentries_data if s.get("id")]
+                        if ids:
+                            joined = ",".join(
+                                f"collection()//entry[@id='{i}']" for i in ids
                             )
-                            subentry_xml = dict_service.db_connector.execute_query(subentry_query)
-
-                            if subentry_xml:
-                                subentry_rendered = css_service.render_entry(
-                                    subentry_xml,
-                                    profile=default_profile,
-                                    dict_service=dict_service
-                                )
-                                # Wrap in subentry container with CSS class
-                                subentry_html_parts.append(
-                                    f'<div class="subentry" data-subentry-id="{subentry_info["id"]}">{subentry_rendered}</div>'
-                                )
-                        except Exception as e:
-                            logger.warning(f"Error rendering subentry {subentry_info['id']}: {e}")
-                    
-                    # Append all subentries to main entry HTML
-                    if subentry_html_parts:
-                        css_html += '\n'.join(subentry_html_parts)
+                            subentries_xml = dict_service.db_connector.execute_query(
+                                f"xquery ({joined})"
+                            )
+                            if subentries_xml:
+                                for sub_xml in subentries_xml.split("</entry>"):
+                                    if not sub_xml.strip():
+                                        continue
+                                    full_xml = sub_xml + "</entry>"
+                                    rendered = css_service.render_entry(
+                                        full_xml,
+                                        profile=default_profile,
+                                        dict_service=dict_service,
+                                    )
+                                    subentry_html_parts.append(
+                                        f'<div class="subentry" data-subentry-id="">{rendered}</div>'
+                                    )
+                        if subentry_html_parts:
+                            css_html += "\n".join(subentry_html_parts)
+                    except Exception as e:
+                        logger.warning("Error rendering subentries: %s", e)
                         
         except Exception as e:
             logger.warning("Error rendering entry with CSS: %s", e)

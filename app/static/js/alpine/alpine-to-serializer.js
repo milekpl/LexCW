@@ -306,6 +306,10 @@
       }
       return out;
     });
+    // Custom fields: passed through as-is ({field_type: {lang: text}})
+    if (state.custom_fields && Object.keys(state.custom_fields).length > 0) {
+      result.custom_fields = state.custom_fields;
+    }
     if (state.headerInfo) result.header_info = state.headerInfo;
 
     return result;

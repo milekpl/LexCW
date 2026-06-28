@@ -25,10 +25,14 @@ class TestBaseXConnector:
         """Test that we can connect to a BaseX server."""
         connector = BaseXConnector(HOST, PORT, USERNAME, PASSWORD)
         
-        # Connect to the server
+        # is_connected() checks the pool without creating new connections.
+        # Pool is empty after init.
+        assert connector.is_connected() is False
+
+        # Connect (pre-warms the pool)
         assert connector.connect() is True
         assert connector.is_connected() is True
-        
+
         # Disconnect
         connector.disconnect()
         assert connector.is_connected() is False

@@ -456,7 +456,8 @@ def create_app(config_name=None):
                 else:
                     # Invalid project ID in session
                     session.pop("project_id", None)
-                    return redirect(url_for("settings.list_projects", next=request.url))
+                    if not request.path.startswith("/api/"):
+                        return redirect(url_for("settings.list_projects", next=request.url))
             except Exception as e:
                 app.logger.error(f"Error loading project context: {e}")
         else:
@@ -472,12 +473,15 @@ def create_app(config_name=None):
                 if not request.path.startswith("/api/"):
                     return redirect(url_for("settings.list_projects", next=request.url))
 
-    # Per-request BaseX connector logging: capture DB/session status early for diagnostics
+    # Per-request BaseX connector logging: only in testing/E2E to avoid overhead in production
     @app.before_request
     def log_basex_status():
         try:
             from app.database.basex_connector import BaseXConnector
             from flask import has_request_context, g, request
+
+            if not (app.config.get("TESTING") or app.config.get("E2E_TESTING")):
+                return
 
             # Skip logging for static files and exempt paths
             EXEMPT_PATHS = app.config.get('LOG_EXEMPT_PATHS', frozenset())

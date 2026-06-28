@@ -278,6 +278,12 @@ class TestCustomFieldsPlaywright:
         field = _textareas_in(container).first
         field.fill('first sense exemplar')
 
+        # Baseline before we add a sense (the add page pre-seeds one sense and the
+        # autouse fixture already added another, so the absolute count is fixture-
+        # dependent — assert the delta, not a hardcoded total).
+        exemplar_labels = page.locator('label').filter(has_text=re.compile(r'Exemplar', re.IGNORECASE))
+        before = exemplar_labels.count()
+
         page.locator('#add-sense-btn').click()
         page.wait_for_timeout(500)
 
@@ -285,9 +291,9 @@ class TestCustomFieldsPlaywright:
         if sense_defs.count() > 0:
             sense_defs.first.fill('second definition')
 
-        # Both senses should have Exemplar sections
-        exemplar_labels = page.locator('label').filter(has_text=re.compile(r'Exemplar', re.IGNORECASE))
-        expect(exemplar_labels).to_have_count(2)
+        # Adding a sense adds exactly one more Exemplar section...
+        expect(exemplar_labels).to_have_count(before + 1)
 
+        # ...and the first sense's exemplar value survives the re-render (the real point).
         first_field = _textareas_in(_field_container(page, 'Exemplar'))
         expect(first_field).to_have_value('first sense exemplar')

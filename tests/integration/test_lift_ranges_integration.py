@@ -67,15 +67,16 @@ def test_entry_form_loads_lift_ranges(client: FlaskClient, basex_test_connector)
     assert open_tag_start != -1 and close_tag_end != -1, "Could not extract select element HTML"
     pos_select_html = html[open_tag_start:close_tag_end+9]
 
-    # Verify data attributes and name
-    assert 'data-range-id="grammatical-info"' in pos_select_html, \
-        "Expected select element to have data-range-id attribute for dynamic loading"
+    # Verify Alpine data binding for dynamic range loading
+    assert 'x-model="grammaticalInfo"' in pos_select_html, \
+        "Expected select element to have x-model binding for Alpine state"
     
-    assert 'name="grammatical_info.part_of_speech"' in pos_select_html, \
-        "Expected select element to have correct name attribute"
+    # The options are loaded dynamically by Alpine via grammaticalInfoOptions
+    assert 'x-for="opt in grammaticalInfoOptions"' in pos_select_html, \
+        "Expected Alpine x-for template for dynamic range options"
     
-    # The options are loaded dynamically by JavaScript, so we just verify the infrastructure is in place
-    assert 'Select part of speech' in pos_select_html or 'Options will be dynamically loaded from LIFT ranges' in pos_select_html, \
+    # Verify placeholder element
+    assert 'Select part of speech' in pos_select_html, \
         "Expected placeholder content indicating dynamic loading"
 
 @pytest.mark.integration

@@ -179,7 +179,7 @@ class LIFTXMLSerializer {
                     ref: variantData.ref,
                     order: variantData.order,
                     traits: {
-                        'variant-type': variantData.variant_type || 'Unspecified Variant'
+                        'variant-type': variantData.variant_type || ''
                     }
                 };
                 const relation = this.createRelation(doc, relationData);
@@ -226,6 +226,14 @@ class LIFTXMLSerializer {
             Object.entries(formData.notes).forEach(([type, noteData]) => {
                 const note = this.createNote(doc, type, noteData);
                 entry.appendChild(note);
+            });
+        }
+
+        // Add custom fields (LIFT <field type="..."> elements)
+        if (formData.custom_fields && Object.keys(formData.custom_fields).length > 0) {
+            Object.entries(formData.custom_fields).forEach(([fieldType, fieldContent]) => {
+                const field = this.createCustomField(doc, fieldType, fieldContent);
+                if (field) entry.appendChild(field);
             });
         }
 
@@ -770,6 +778,24 @@ class LIFTXMLSerializer {
             }
         });
         return citation;
+    }
+
+    /**
+     * Create custom field element (LIFT <field type="..."> with multitext forms).
+     * Shape: fieldContent is {lang: text} dict. Returns null if no content.
+     */
+    createCustomField(doc, fieldType, fieldContent) {
+        if (!fieldType || !fieldContent || typeof fieldContent !== 'object') return null;
+        const field = doc.createElementNS(this.LIFT_NS, 'field');
+        field.setAttribute('type', fieldType);
+        let hasContent = false;
+        Object.entries(fieldContent).forEach(([lang, text]) => {
+            if (text) {
+                field.appendChild(this.createForm(doc, lang, text));
+                hasContent = true;
+            }
+        });
+        return hasContent ? field : null;
     }
 
     /**

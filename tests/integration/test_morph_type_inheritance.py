@@ -140,5 +140,5 @@ class TestMorphTypeInheritance:
         # Lexical unit is now Alpine-managed (x-model, not pre-rendered value=).
         # The entry data JSON still contains the headword.
         assert 'Protestant' in html
-        # morph_type is still server-rendered (legacy select)
-        assert 'value="stem"' in html or 'data-selected="stem"' in html
+        # morph_type is Alpine-managed via entry-data JSON
+        assert '"morph_type":"stem"' in html or '"morph_type": "stem"' in html

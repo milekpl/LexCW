@@ -61,6 +61,7 @@ STANDARD_RANGE_METADATA = {
 # and are recorded in CONFIG_PROVIDED_RANGES so they can be marked when added.
 CONFIG_PROVIDED_RANGES: set[str] = set()
 CONFIG_RANGE_TYPES: Dict[str, str] = {}
+_CUSTOM_CFG_MTIME: float = -1.0  # mtime cache for custom_ranges.json
 # NOTE: keep the in-code STANDARD_RANGE_METADATA as the primary fallback
 # for friendly labels; the JSON file now only contains custom FieldWorks lists.
 try:
@@ -98,15 +99,22 @@ except Exception:
 
 
 def reload_custom_ranges_config() -> None:
-    """Reload custom_ranges.json and update in-memory metadata sets."""
-    global CONFIG_PROVIDED_RANGES
+    """Reload custom_ranges.json only if the file has changed on disk."""
+    global CONFIG_PROVIDED_RANGES, _CUSTOM_CFG_MTIME
+    import json
+    _app_dir = os.path.dirname(os.path.dirname(__file__))
+    _cfg_path = os.path.join(_app_dir, 'config', 'custom_ranges.json')
+    if not os.path.exists(_cfg_path):
+        CONFIG_PROVIDED_RANGES = set()
+        _CUSTOM_CFG_MTIME = -1
+        return
     try:
-        import json
-        _app_dir = os.path.dirname(os.path.dirname(__file__))
-        _cfg_path = os.path.join(_app_dir, 'config', 'custom_ranges.json')
-        if not os.path.exists(_cfg_path):
-            CONFIG_PROVIDED_RANGES = set()
-            return
+        current_mtime = os.path.getmtime(_cfg_path)
+    except OSError:
+        return
+    if current_mtime == _CUSTOM_CFG_MTIME:
+        return  # file unchanged, skip reload
+    try:
         with open(_cfg_path, 'r', encoding='utf-8') as f:
             _cfg = json.load(f)
         CONFIG_PROVIDED_RANGES.clear()
@@ -123,8 +131,8 @@ def reload_custom_ranges_config() -> None:
                 'label': label or STANDARD_RANGE_METADATA.get(_k, {}).get('label'),
                 'description': desc or STANDARD_RANGE_METADATA.get(_k, {}).get('description')
             }
+        _CUSTOM_CFG_MTIME = current_mtime
     except Exception:
-        # ignore reload errors
         pass
 
 

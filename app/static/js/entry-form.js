@@ -174,9 +174,10 @@ function initializeEntryForm() {
       // Alpine-owned sections (lexical-unit, senses, relations, etc. have no name= inputs).
       // Using the legacy serializer alone yields an empty lexicalUnit -> "must have at
       // least one form".
+      // All sections are Alpine-owned (§16.3 B2); buildSerializerInput is the sole path.
       let formData = window.MergeHarness
         ? window.MergeHarness.buildSerializerInput(entryForm, { includeEmpty: true })
-        : window.FormSerializer.serializeFormToJSON(entryForm, { includeEmpty: true });
+        : {};
 
       // A brand-new entry (add page) has id=""; give the preview a temporary id so the
       // serializer (which requires an id) can render it — mirrors the submit path.
@@ -1001,35 +1002,10 @@ async function submitForm() {
       }`
     );
 
-    // STAGE 1: Serialize form to JSON first (legacy path for non-Alpine sections)
-    const legacyData = await window.FormSerializer.serializeFormToJSONSafe(form, {
-      includeEmpty: false,
-    });
-
-    // Extract function-free state from all Alpine-owned components.
-    // (Alpine component objects contain methods; structuredClone throws on those,
-    //  so extraction goes through the merge harness's per-key clone helper.)
-    var alpineState = {};
-    if (window.Alpine && window.MergeHarness) {
-      alpineState = window.MergeHarness.extractAlpineState();
-    }
-
-    // Merge legacy + Alpine into one serializer input (Stage 2 scaffolding)
-    var formData;
-    if (Object.keys(alpineState).length > 0 && window.MergeHarness) {
-      // Strip Alpine-owned sections from legacy data
-      window.MergeHarness.alpineSections.forEach(function (section) {
-        delete legacyData[section];
-      });
-      // Senses (incl. relations) are fully Alpine-owned; the adapter supplies them.
-      // Do NOT read relations from the DOM here — the Alpine template has no
-      // name=/legacy-selector inputs, so a DOM read would clobber Alpine state with [].
-      formData = window.MergeHarness.mergeSync(legacyData, alpineState);
-    } else {
-      formData = legacyData;
-      // Apply legacy post-processing for non-Alpine path
-      formData.senses = normalizeIndexedArray(formData.senses);
-      applySenseRelationsFromDom(form, formData, normalizeIndexedArray);
+    // All sections are Alpine-owned (§16.3 B2). Build serializer input from Alpine state only.
+    var formData = {};
+    if (window.MergeHarness) {
+      formData = window.MergeHarness.buildSerializerInput(form);
     }
 
     // Note: gloss→glosses conversion is handled by the Alpine adapter

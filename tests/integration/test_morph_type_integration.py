@@ -53,14 +53,10 @@ class TestMorphTypeIntegration:
                 response = client.get('/entries/add')
                 assert response.status_code == 200
                 
-                # Check that morph-type field is present but empty
+                # Check that morph-type Alpine binding is present
                 html = response.data.decode('utf-8')
                 assert 'id="morph-type"' in html
-                assert 'name="morph_type"' in html
-                assert 'data-range-id="morph-type"' in html
-                
-                # Should not have data-selected attribute when empty
-                assert 'data-selected=""' in html or 'data-selected' not in html
+                assert 'x-model="morphType"' in html
 
     @pytest.mark.integration
     def test_existing_entry_form_shows_backend_morph_type(self, app, client, mock_dict_service):
@@ -83,8 +79,8 @@ class TestMorphTypeIntegration:
                 
                 html = response.data.decode('utf-8')
                 assert 'id="morph-type"' in html
-                assert 'name="morph_type"' in html
-                assert 'data-selected="suffix"' in html
+                assert 'x-model="morphType"' in html
+                assert '"morph_type":"suffix"' in html or '"morph_type": "suffix"' in html
 
     @pytest.mark.integration
     def test_create_entry_api_auto_classifies_morph_type(self, app, client, mock_dict_service):
@@ -235,12 +231,9 @@ class TestMorphTypeIntegration:
                 
                 html = response.data.decode('utf-8')
                 
-                # Should have data-selected attribute with backend value
-                assert 'data-selected="prefix"' in html
-            
-            # Should still have other required attributes
-            assert 'data-range-id="morph-type"' in html
-            assert 'name="morph_type"' in html
+                # Should have Alpine binding with backend morph_type value
+                assert 'x-model="morphType"' in html
+                assert '"morph_type":"prefix"' in html or '"morph_type": "prefix"' in html
 
     @pytest.mark.integration
     def test_api_json_response_includes_morph_type(self, app, client, mock_dict_service):
@@ -327,7 +320,7 @@ class TestMorphTypeIntegration:
                 assert response.status_code == 200
                 
                 html = response.data.decode('utf-8')
-                assert 'data-selected="prefix"' in html
+                assert '"morph_type":"prefix"' in html or '"morph_type": "prefix"' in html
 
 
 if __name__ == '__main__':
