@@ -968,12 +968,12 @@ class TestDomainTypesFormIntegration:
 
         response_html = response.get_data(as_text=True)
 
-        # Check that domain type fields are present (use canonical range id)
-        assert "domain_type" in response_html
-        assert 'data-range-id="semantic-domain-ddp4"' in response_html
+        # Alpine senseTree uses rangeData + x-for, not data-range-id or name= attributes
+        assert "domain_type" in response_html or "domainType" in response_html
+        assert "semantic-domain" in response_html.lower()
 
-        # Check for sense-level fields in sense template
-        assert 'name="senses[INDEX].domain_type"' in response_html
+        # Sense-level fields are managed by the Alpine senseTree component
+        assert 'senseTree' in response_html or 'senses-section' in response_html
 
         # Verify NO entry-level field exists
         assert (

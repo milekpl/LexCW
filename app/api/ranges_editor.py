@@ -573,6 +573,7 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
             'id': data['id'],
             'labels': data.get('labels', {}),
             'descriptions': data.get('descriptions', {}),
+            'abbrev': data.get('abbrev', ''),
             'abbrevs': data.get('abbrevs', {}),
             'parent': data.get('parent', ''),
             'traits': data.get('traits', {})

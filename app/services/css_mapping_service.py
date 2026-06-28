@@ -143,7 +143,7 @@ class CSSMappingService:
                             abbr_text = abbrev_str
                         else:
                             abbr_text = None
-                            
+
                         if val_id and abbr_text:
                             target_map[val_id] = abbr_text
                     else:
@@ -417,6 +417,27 @@ class CSSMappingService:
                             self._logger.debug(f"Relation '{rel_type}' did not match filter '{filter_config}'")
                             continue
 
+                    # For _component-lexeme relations, check if they carry a variant-type
+                    # trait and use the variant-type range for mapping instead.
+                    if rel_type == "_component-lexeme":
+                        for t in elem.findall("trait"):
+                            if t.attrib.get("name") == "variant-type":
+                                trait_val = t.attrib.get("value", "")
+                                if trait_val:
+                                    # Mark as variant-type relation so CSS can target it
+                                    elem.attrib["data-variant-type"] = trait_val
+                                    # Swap type to the trait value so mapping can resolve it
+                                    if "data-original-type" not in elem.attrib:
+                                        elem.attrib["data-original-type"] = rel_type
+                                    elem.attrib["type"] = trait_val
+                                    rel_type = trait_val
+                                    # Use variant-type range
+                                    if use_label:
+                                        rel_map = element_label_maps.get("variant-type")
+                                    else:
+                                        rel_map = element_abbr_maps.get("variant-type")
+                                break
+
                     # Only apply an explicit aspect when the profile provided one.
                     # If no aspect was specified, do NOT apply a mapping but mark
                     # the element as handled so that generic abbreviation replacement
@@ -426,6 +447,17 @@ class CSSMappingService:
                             elem, aspect, rel_map or {}
                         )
                         if applied:
+                            # If the resolved abbreviation/label is empty, omit the
+                            # variant-type label (pop type so text shows only headword).
+                            current_type = elem.attrib.get("type", "")
+                            if not current_type:
+                                elem.attrib.pop("type", None)
+                            elem.attrib["__aspect_handled"] = "1"
+                            any_applied = True
+                        elif rel_map is not None:
+                            # No abbreviation/label found for this variant type — clear
+                            # type so the text shows only the headword, not the raw value.
+                            elem.attrib.pop("type", None)
                             elem.attrib["__aspect_handled"] = "1"
                             any_applied = True
                     else:
@@ -454,9 +486,9 @@ class CSSMappingService:
 
                 self._logger.debug(f"Handling variant-relation config: aspect={aspect}")
 
-                # If the user provided a filter but did not explicitly set an aspect,
-                # default to 'label' for variant relations.
-                if not aspect and pe.config and isinstance(pe.config, dict) and pe.config.get('filter'):
+                # Default to label display for variant relations so the variant type
+                # resolves to a human-readable form (e.g. "Irregular Form").
+                if not aspect:
                     aspect = 'label'
 
                 # Choose label map for 'label' or 'full' aspects; abbrev map for 'abbr'
@@ -481,11 +513,28 @@ class CSSMappingService:
 
                     rel_type = elem.attrib.get("type", "")
 
-                    # Only process variant-type relations for variant-relation config
-                    if rel_type != "variant-type":
+                    # Determine the effective variant-type key to use for mapping.
+                    # For type="variant-type" relations, the key is "variant-type"
+                    # itself. For type="_component-lexeme" relations (SIL Fieldworks
+                    # variant cross-refs), the key comes from the child
+                    # <trait name="variant-type" value="...">.
+                    effective_type = None
+                    is_component_lexeme = rel_type == "_component-lexeme"
+                    if is_component_lexeme:
+                        for t in elem.findall("trait"):
+                            if t.attrib.get("name") == "variant-type":
+                                effective_type = t.attrib.get("value", "")
+                                break
+                        if not effective_type:
+                            continue
+                    elif rel_type == "variant-type":
+                        effective_type = rel_type
+                    else:
                         continue
 
-                    self._logger.debug(f"Variant-relation element: type='{rel_type}', filter_config={filter_config}")
+                    self._logger.debug(
+                        f"Variant-relation element: type='{rel_type}', effective_type='{effective_type}', filter_config={filter_config}"
+                    )
 
                     # Check if this relation matches the filter
                     if filter_config:
@@ -494,15 +543,20 @@ class CSSMappingService:
                             continue
 
                     # Apply the mapping
-                    if aspect and rel_map:
-                        applied = self._apply_relation_display_aspect(
-                            elem, aspect, rel_map or {}
-                        )
-                        if applied:
-                            elem.attrib["__aspect_handled"] = "1"
-                            any_applied = True
+                    if aspect and rel_map and effective_type in rel_map:
+                        resolved = rel_map[effective_type]
+                        if "data-original-type" not in elem.attrib:
+                            elem.attrib["data-original-type"] = rel_type
+                        elem.attrib["type"] = resolved
+                        elem.attrib["data-variant-type"] = effective_type
+                        elem.attrib["__aspect_handled"] = "1"
+                        any_applied = True
+                    elif aspect and rel_map:
+                        # Effective type not found in map — skip mapping but don't
+                        # mark as handled, so the generic relation handler can try.
+                        pass
                     else:
-                        # Mark as handled to preserve the original
+                        # No explicit aspect — mark as handled to preserve original
                         elem.attrib["__aspect_handled"] = "1"
 
                 # Mark as handled if we processed any
@@ -973,14 +1027,18 @@ class CSSMappingService:
                 for val in values_list:
                     val_id = val.get("id")
                     abbrev = val.get("abbrev")
-                    if val_id and abbrev:
-                        # Abbrev can be a string or dict with language keys
-                        if isinstance(abbrev, dict):
-                            # Try requested language, then English, then any available, then ID
-                            abbr_text = abbrev.get(lang) or abbrev.get("en") or (list(abbrev.values())[0] if abbrev else val_id)
+                    if val_id:
+                        if abbrev:
+                            # Abbrev can be a string or dict with language keys
+                            if isinstance(abbrev, dict):
+                                # Try requested language, then English, then any available, then ID
+                                abbr_text = abbrev.get(lang) or abbrev.get("en") or (list(abbrev.values())[0] if abbrev else val_id)
+                            else:
+                                abbr_text = abbrev
                         else:
-                            abbr_text = abbrev
-                        target_map[val_id] = abbr_text
+                            abbr_text = None
+                        if abbr_text:
+                            target_map[val_id] = abbr_text
 
                     # Recursively process children
                     children = val.get("children", [])

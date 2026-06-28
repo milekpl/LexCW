@@ -170,14 +170,22 @@ function initializeEntryForm() {
     if (!window.xmlSerializer || !xmlPreviewContent) return;
 
     try {
-      // Serialize form to JSON first (includeEmpty: true to ensure we get all fields)
-      const formData = window.FormSerializer.serializeFormToJSON(entryForm, {
-        includeEmpty: true,
-      });
+      // Build the serializer input via the shared helper: legacy DOM merged with all
+      // Alpine-owned sections (lexical-unit, senses, relations, etc. have no name= inputs).
+      // Using the legacy serializer alone yields an empty lexicalUnit -> "must have at
+      // least one form".
+      let formData = window.MergeHarness
+        ? window.MergeHarness.buildSerializerInput(entryForm, { includeEmpty: true })
+        : window.FormSerializer.serializeFormToJSON(entryForm, { includeEmpty: true });
 
-      // Normalize senses and refresh relations directly from DOM to avoid stale values
-      formData.senses = normalizeIndexedArray(formData.senses);
-      applySenseRelationsFromDom(entryForm, formData, normalizeIndexedArray);
+      // A brand-new entry (add page) has id=""; give the preview a temporary id so the
+      // serializer (which requires an id) can render it — mirrors the submit path.
+      if (!formData.id) {
+        formData.id =
+          (window.xmlSerializer.generateEntryId &&
+            window.xmlSerializer.generateEntryId()) ||
+          `temp-${Date.now()}`;
+      }
 
       // Generate XML directly from form data (serializer now handles snake_case)
       const xmlString = window.xmlSerializer.serializeEntry(formData);

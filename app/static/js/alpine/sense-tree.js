@@ -403,6 +403,55 @@
           if (idx !== -1) sense.relations.splice(idx, 1);
         },
 
+        // --- Sense annotation management (regression fix) ---
+
+        addAnnotation: function (sense) {
+          if (!sense.annotations) sense.annotations = [];
+          sense.annotations.push({
+            id: (window.AlpineNormalize && window.AlpineNormalize.generateId)
+              ? window.AlpineNormalize.generateId()
+              : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11),
+            name: '', value: '', who: '', when: '',
+            content: {},
+            contentForms: []
+          });
+        },
+
+        removeAnnotation: function (sense, annId) {
+          if (!sense.annotations) return;
+          var idx = -1;
+          for (var i = 0; i < sense.annotations.length; i++) {
+            if (sense.annotations[i].id === annId) { idx = i; break; }
+          }
+          if (idx !== -1) sense.annotations.splice(idx, 1);
+        },
+
+        addAnnotationContentRow: function (ann) {
+          if (!ann.contentForms) ann.contentForms = [];
+          var used = new Set(ann.contentForms.map(function (r) { return r.lang; }));
+          var opts = this.languageOptions;
+          var next = '';
+          for (var i = 0; i < opts.length; i++) {
+            if (!used.has(opts[i].code)) { next = opts[i].code; break; }
+          }
+          ann.contentForms.push({
+            id: (window.AlpineNormalize && window.AlpineNormalize.generateId)
+              ? window.AlpineNormalize.generateId()
+              : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11),
+            lang: next,
+            text: ''
+          });
+        },
+
+        removeAnnotationContentRow: function (ann, rowId) {
+          if (!ann.contentForms) return;
+          var idx = -1;
+          for (var i = 0; i < ann.contentForms.length; i++) {
+            if (ann.contentForms[i].id === rowId) { idx = i; break; }
+          }
+          if (idx !== -1) ann.contentForms.splice(idx, 1);
+        },
+
         // --- Reversal helpers (§16.1) ---
 
         addReversal: function (sense) {

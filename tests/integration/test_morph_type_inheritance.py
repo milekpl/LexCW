@@ -137,6 +137,8 @@ class TestMorphTypeInheritance:
         assert response.status_code == 200
         html = response.data.decode('utf-8')
 
-        # Check for lexical unit and morph-type present in form
-        assert 'value="Protestant"' in html
+        # Lexical unit is now Alpine-managed (x-model, not pre-rendered value=).
+        # The entry data JSON still contains the headword.
+        assert 'Protestant' in html
+        # morph_type is still server-rendered (legacy select)
         assert 'value="stem"' in html or 'data-selected="stem"' in html

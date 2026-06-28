@@ -101,13 +101,9 @@ class TestSettingsPageUX:
         page = page
         page.goto(f"{app_url}/settings/")
         
-        # Current settings overview should exist - use more specific selector
-        overview = page.locator('div.card-header:has-text("Current Settings Overview")')
-        expect(overview).to_be_visible()
-        
-        # Should show project name
-        project_display = page.locator('dt:has-text("Project Name") + dd')
-        expect(project_display).to_be_visible()
+        # Settings page should show project name field (tabbed layout)
+        project_name = page.locator('input[name="project_name"]')
+        expect(project_name).to_be_visible()
 
 
 @pytest.mark.integration

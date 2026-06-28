@@ -841,8 +841,8 @@ class RangesEditor {
             title.textContent = 'Edit Element';
             document.getElementById('elementId').value = elementData.id;
             document.getElementById('elementId').readOnly = true;
-            // Set single abbreviation field (for backward compatibility)
-            document.getElementById('elementAbbrev').value = elementData.abbrev || '';
+            // Set single abbreviation field — prefer explicit abbrev, then effective_abbrev (computed)
+            document.getElementById('elementAbbrev').value = elementData.abbrev || elementData.effective_abbrev || '';
             // If there are multilingual abbreviations, we'll use the 'en' one as default, or first available
             if (elementData.abbrevs && Object.keys(elementData.abbrevs).length > 0) {
                 if (elementData.abbrevs['en']) {

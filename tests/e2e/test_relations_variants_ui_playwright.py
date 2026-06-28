@@ -122,7 +122,7 @@ class TestRelationsVariantsUIPlaywright:
         
         # Verify that user-friendly content IS visible
         assert "Relations" in page_source
-        assert "Semantic Relationship" in page_source or "No Semantic Relations" in page_source
+        assert "Semantic Relationship" in page_source or "semantic relations" in page_source.lower()
 
     def test_variant_form_interaction(self, page: Page, app_url, test_entry_with_variants):
         """Test adding a new variant through the UI."""
@@ -145,13 +145,9 @@ class TestRelationsVariantsUIPlaywright:
         variant_items = page.locator(".variant-item")
         expect(variant_items.first).to_be_visible()
         
-        # Verify that the form contains user-friendly fields
-        variant_type_selects = page.locator("select[name*='variant_type']")
-        expect(variant_type_selects.first).to_be_visible()
-        
-        # Verify that technical fields are hidden
-        hidden_inputs = page.locator("input[type='hidden'][name*='variant_relations']")
-        assert hidden_inputs.count() > 0, "Hidden technical fields should be present but not visible"
+        # Alpine variant-relations uses x-model with variantTypeOptions range, not name=
+        variant_select = page.locator(".variant-item select")
+        expect(variant_select.first).to_be_visible()
 
     def test_relation_form_interaction(self, page: Page, app_url, test_entry_with_variants):
         """Test adding a new relation through the UI."""
@@ -163,9 +159,9 @@ class TestRelationsVariantsUIPlaywright:
         # Wait for page to load and JavaScript to initialize
         page.wait_for_selector("#add-relation-btn", timeout=10000)
         
-        # Wait for JavaScript to be fully loaded and initialized
-        page.wait_for_function("typeof window.RelationsManager !== 'undefined'")
-        page.wait_for_function("typeof window.relationsManager !== 'undefined'")
+        # Alpine entry-relations component is loaded; RelationsManager is deleted
+        # Wait for Alpine to initialize (senseTree presence confirms Alpine is ready)
+        page.wait_for_function("typeof window.Alpine !== 'undefined'", timeout=5000)
         
         # Click add relation button
         add_relation_btn = page.locator("#add-relation-btn")

@@ -307,16 +307,24 @@ class HTMLBuilder:
                             continue
 
                         # Special handling for relations: filter out _component-lexeme
-                        # This SIL Fieldworks relation type is used for subentries and should never render
+                        # unless it carries a variant-type trait (variant relation).
+                        # _component-lexeme is used by SIL Fieldworks for both subentries
+                        # and variant cross-references — variants should display.
                         if tag == "relation":
                             rel_type = child.attrib.get("type", "")
                             if rel_type == "_component-lexeme":
-                                self.logger.debug(
-                                    f"Skipping _component-lexeme relation (never rendered)"
+                                # Check if this is a variant relation (has variant-type trait)
+                                has_variant_type = any(
+                                    t.attrib.get("name") == "variant-type"
+                                    for t in child.findall("trait")
                                 )
-                                # Mark as processed so it won't be rendered elsewhere
-                                processed.add(id(child))
-                                continue
+                                if not has_variant_type:
+                                    self.logger.debug(
+                                        f"Skipping _component-lexeme relation (never rendered)"
+                                    )
+                                    # Mark as processed so it won't be rendered elsewhere
+                                    processed.add(id(child))
+                                    continue
 
                         # Check filter for this specific config
                         if config.filter:
@@ -370,12 +378,16 @@ class HTMLBuilder:
                                 "div" if config.display_mode == "block" else "span"
                             )
 
-                            # Trait data attribute logic
+                            # Data attribute logic for grouped elements
                             attr_html = ""
                             if tag == "trait" and group_candidates:
                                 first_name = group_candidates[0].attrib.get("name", "")
                                 if first_name:
                                     attr_html = f' data-trait-name="{first_name}"'
+                            elif tag == "relation" and group_candidates:
+                                vt = group_candidates[0].attrib.get("data-variant-type", "")
+                                if vt:
+                                    attr_html = f' data-variant-type="{vt}"'
 
                             html = f'<{tag_name} class="{config.css_class}"{attr_html}>'
                             if config.prefix:
@@ -1006,6 +1018,27 @@ class LIFTToHTMLTransformer:
                                     trait_elem = ET.SubElement(variant_elem, "trait")
                                     trait_elem.set("name", str(trait_name))
                                     trait_elem.set("value", str(trait_value))
+
+            # Handle variant_relations: convert to relations with variant-type traits
+            variant_relations = form_data.get("variant_relations", [])
+            if variant_relations and isinstance(variant_relations, list):
+                for vr_data in variant_relations:
+                    if vr_data and isinstance(vr_data, dict):
+                        rel_type = vr_data.get("type", "_component-lexeme")
+                        ref = vr_data.get("ref")
+                        variant_type = vr_data.get("variant_type") or "Unspecified Variant"
+                        order = vr_data.get("order")
+
+                        if ref:
+                            relation_elem = ET.SubElement(entry, "relation")
+                            relation_elem.set("type", str(rel_type))
+                            relation_elem.set("ref", str(ref))
+                            if order is not None:
+                                relation_elem.set("order", str(order))
+                            if variant_type:
+                                trait_elem = ET.SubElement(relation_elem, "trait")
+                                trait_elem.set("name", "variant-type")
+                                trait_elem.set("value", str(variant_type))
 
             # Add senses
             senses = form_data.get("senses", [])

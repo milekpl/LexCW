@@ -149,7 +149,28 @@
     if (sense.notes && Object.keys(sense.notes).length > 0) result.notes = sense.notes;
     if (sense.relations && sense.relations.length > 0) result.relations = sense.relations;
     if (sense.variantRelations && sense.variantRelations.length > 0) result.variant_relations = sense.variantRelations;
-    if (sense.annotations && sense.annotations.length > 0) result.annotations = sense.annotations;
+    // Convert annotations: contentForms (Alpine) → content dict (serializer)
+    if (sense.annotations && sense.annotations.length > 0) {
+      result.annotations = sense.annotations.map(function (ann) {
+        var out = {
+          id: ann.id,
+          name: ann.name || '',
+          value: ann.value || '',
+          who: ann.who || '',
+          when: ann.when || ''
+        };
+        // Convert contentForms array back to {lang: text} dict
+        if (ann.contentForms && ann.contentForms.length > 0) {
+          out.content = {};
+          ann.contentForms.forEach(function (cf) {
+            if (cf.lang && cf.text) out.content[cf.lang] = cf.text;
+          });
+        } else if (ann.content && Object.keys(ann.content).length > 0) {
+          out.content = ann.content;
+        }
+        return out;
+      });
+    }
     if (sense.reversals && sense.reversals.length > 0) result.reversals = sense.reversals;
     if (sense.exemplar) result.exemplar = sense.exemplar;
     if (sense.scientificName) result.scientific_name = sense.scientificName;
@@ -249,7 +270,25 @@
       }
       result.notes[n.type] = out;
     });
-    result.annotations = state.annotations || [];
+    // Convert entry-level annotations: contentForms (Alpine) → content dict (serializer)
+    result.annotations = (state.annotations || []).map(function (ann) {
+      var out = {
+        name: ann.name || '',
+        value: ann.value || '',
+        who: ann.who || '',
+        when: ann.when || ''
+      };
+      if (ann.id) out.id = ann.id;
+      if (ann.contentForms && ann.contentForms.length > 0) {
+        out.content = {};
+        ann.contentForms.forEach(function (cf) {
+          if (cf.lang && cf.text) out.content[cf.lang] = cf.text;
+        });
+      } else if (ann.content && Object.keys(ann.content).length > 0) {
+        out.content = ann.content;
+      }
+      return out;
+    });
     if (state.headerInfo) result.header_info = state.headerInfo;
 
     return result;

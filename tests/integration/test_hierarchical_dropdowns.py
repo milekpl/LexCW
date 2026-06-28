@@ -1,62 +1,56 @@
-"""Integration tests for hierarchical dropdown functionality."""
+"""Integration tests for range-backed dropdowns (Alpine.js variant).
+
+After the Alpine refactor, range-backed selects use Alpine's loadRanges()
+→ flattenRangeValues() → x-for with :key on <option> elements. The old
+Select2 + data-hierarchical + dynamic-lift-range patterns are replaced.
+"""
 import pytest
+import os
 
 
-class TestHierarchicalDropdownTemplate:
-    """Test cases for hierarchical dropdown template structure."""
+_ENTRY_FORM_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'templates')
+_ALPINE_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'static', 'js', 'alpine')
 
-    def test_entry_form_has_hierarchical_attribute_on_domain_type(self):
-        """Test that domain_type select has hierarchical attribute."""
-        import os
-        template_path = os.path.join(
-            os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
 
-        # Find domain_type select with hierarchical attribute
-        assert 'data-hierarchical="true"' in content, "domain_type should have data-hierarchical='true'"
+def _read_template(name):
+    with open(os.path.join(_ENTRY_FORM_DIR, name), 'r') as f:
+        return f.read()
 
-    def test_entry_form_has_hierarchical_attribute_on_usage_type(self):
-        """Test that usage_type select has hierarchical attribute."""
-        import os
-        template_path = os.path.join(
-            os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
 
-        # Find usage_type select with hierarchical attribute
-        assert 'data-hierarchical="true"' in content, "usage_type should have data-hierarchical='true'"
+class TestAlpineRangeDropdowns:
+    """Alpine components load ranges asynchronously and render via x-for."""
 
-    def test_domain_type_has_multiple_attribute(self):
-        """Test that domain_type supports multiple selection."""
-        import os
-        template_path = os.path.join(
-            os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form_partials', '_senses.html'
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
+    def test_sense_tree_has_domain_type_options(self):
+        """senseTree exposes domainTypeOptions from rangeData['domain-type']."""
+        content = _read_template('entry_form_partials/_senses.html')
+        assert 'domainTypeOptions' in content
 
-        # The domain_type select should have 'multiple' attribute
-        # Check for pattern where is_multiple=true appears near domain_type
-        assert "is_multiple=true" in content, "domain_type should have is_multiple=true for multi-select"
+    def test_sense_tree_has_usage_type_options(self):
+        """senseTree exposes usageTypeOptions from rangeData['usage-type']."""
+        content = _read_template('entry_form_partials/_senses.html')
+        assert 'usageTypeOptions' in content
 
-    def test_usage_type_has_multiple_attribute(self):
-        """Test that usage_type supports multiple selection."""
-        import os
-        template_path = os.path.join(
-            os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
+    def test_sense_tree_has_semantic_domain_options(self):
+        """senseTree exposes semanticDomainOptions from rangeData['semantic-domain-ddp4']."""
+        content = _read_template('entry_form_partials/_senses.html')
+        assert 'semanticDomainOptions' in content
 
-        # The usage_type select should have 'multiple' attribute
-        assert 'multiple' in content, "usage_type should have 'multiple' attribute for multi-select"
+    def test_sense_tree_supports_multiple_select(self):
+        """Domain type and usage type use Alpine's multiple select with arrays."""
+        with open(os.path.join(_ALPINE_DIR, 'sense-tree.js'), 'r') as f:
+            js_code = f.read()
+        assert 'domainType' in js_code
+        assert 'usageType' in js_code
+
+    def test_entry_relations_has_lexical_relation_options(self):
+        """entryRelations exposes relationTypeOptions from rangeData['lexical-relation']."""
+        content = _read_template('entry_form_partials/_relations.html')
+        assert 'relationTypeOptions' in content
+
+    def test_entry_variant_relations_has_variant_type_options(self):
+        """entryVariantRelations exposes variantTypeOptions from rangeData['variant-type']."""
+        content = _read_template('entry_form_partials/_variants.html')
+        assert 'variantTypeOptions' in content
 
 
 class TestRangesLoaderJavaScript:
@@ -68,121 +62,79 @@ class TestRangesLoaderJavaScript:
         assert response.status_code == 200
         assert b'RangesLoader' in response.data
 
-    def test_ranges_loader_has_populate_hierarchical_options(self, client):
-        """Test that RangesLoader has _populateHierarchicalOptions method."""
+    def test_ranges_loader_has_load_range_method(self, client):
+        """Test that RangesLoader has loadRange method (used by Alpine components)."""
         response = client.get('/static/js/ranges-loader.js')
         js_code = response.data.decode('utf-8')
 
-        assert '_populateHierarchicalOptions' in js_code, "_populateHierarchicalOptions method not found"
+        assert 'loadRange' in js_code, "loadRange method not found"
 
-    def test_ranges_loader_has_hierarchical_parameter(self, client):
-        """Test that populateSelect accepts hierarchical parameter."""
-        response = client.get('/static/js/ranges-loader.js')
-        js_code = response.data.decode('utf-8')
-
-        assert 'hierarchical' in js_code, "hierarchical parameter not found in RangesLoader"
-        assert 'indentChar' in js_code, "indentChar configuration not found"
-
-    def test_ranges_loader_uses_template_result(self, client):
-        """Test that RangesLoader uses Select2 templateResult for indentation."""
-        response = client.get('/static/js/ranges-loader.js')
-        js_code = response.data.decode('utf-8')
-
-        assert 'templateResult' in js_code, "Select2 templateResult not found"
-        assert 'data-indent' in js_code or "dataset.indent" in js_code, "indent data attribute handling not found"
-
-    def test_ranges_loader_handles_multiple_select(self, client):
-        """Test that RangesLoader handles multiple select elements."""
-        response = client.get('/static/js/ranges-loader.js')
-        js_code = response.data.decode('utf-8')
-
-        assert 'selectElement.multiple' in js_code, "multiple select handling not found"
-        assert 'option.selected' in js_code, "option.selected assignment not found"
-
-    def test_ranges_loader_has_flatten_option(self, client):
+    def test_ranges_loader_has_flatten_parents_option(self, client):
         """Test that RangesLoader has flattenParents option."""
         response = client.get('/static/js/ranges-loader.js')
         js_code = response.data.decode('utf-8')
 
         assert 'flattenParents' in js_code, "flattenParents option not found"
 
-
-class TestHierarchicalDropdownAPI:
-    """Test cases for hierarchical dropdown API endpoints."""
-
-    def test_ranges_loader_loads_all_ranges(self, client):
-        """Test that ranges loader loadAllRanges method exists and is properly structured."""
+    def test_ranges_loader_uses_caching(self, client):
+        """Test that RangesLoader caches loaded ranges."""
         response = client.get('/static/js/ranges-loader.js')
         js_code = response.data.decode('utf-8')
 
-        assert 'loadAllRanges' in js_code, "loadAllRanges method should exist"
-        assert 'loadRange' in js_code, "loadRange method should exist"
-        assert 'cache' in js_code, "RangesLoader should use caching"
-
-    def test_domain_type_range_exists(self, client):
-        """Test that domain-type range is available."""
-        response = client.get('/api/ranges-editor')
-
-        # The endpoint might return 404 or redirect, but should not error
-        # The important thing is the JS code handles the response properly
-        assert response.status_code in [200, 404, 308, 301], "Ranges endpoint should be accessible"
+        assert 'cache' in js_code or 'Cache' in js_code, "caching not found"
 
 
-class TestHierarchicalDropdownRendering:
-    """Test cases for hierarchical dropdown rendering in templates."""
+class TestEntryFormTemplate:
+    """Test cases for entry form template — Alpine-era patterns."""
 
-    def test_semantic_domain_has_hierarchical(self):
-        """Test that semantic domain select has hierarchical attribute."""
-        import os
-        template_path = os.path.join(
-            os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
-
-        # Semantic domain should be hierarchical
-        assert 'semantic-domain' in content or 'Semantic Domain' in content
-
-
-class TestHierarchicalDropdownJavaScriptIntegration:
-    """Integration tests for hierarchical dropdown JavaScript functionality."""
-
-    def test_entry_form_includes_ranges_loader(self, client):
+    def test_entry_form_includes_ranges_loader(self):
         """Test that entry form includes ranges-loader.js."""
-        import os
-        template_path = os.path.join(
-            os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
+        content = _read_template('entry_form.html')
+        assert 'ranges-loader.js' in content, "ranges-loader.js not included"
 
-        assert 'ranges-loader.js' in content, "ranges-loader.js not included in entry form"
+    def test_entry_form_includes_alpine_components(self):
+        """Test that entry form includes Alpine component scripts."""
+        content = _read_template('entry_form.html')
+        assert 'sense-tree.js' in content
+        assert 'alpine-to-serializer.js' in content
+        assert 'normalize-entry.js' in content
 
-    def test_dynamic_lift_range_class_present(self, client):
-        """Test that dynamic-lift-range class is used for hierarchical selects."""
-        import os
-        template_path = os.path.join(
-            os.path.dirname(__file__), '..', '..',
-            'app', 'templates', 'entry_form.html'
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
+    def test_entry_form_registers_senses_section(self):
+        """Test that merge harness registers senses."""
+        content = _read_template('entry_form.html')
+        assert "registerAlpineSection('senses')" in content
 
-        assert 'dynamic-lift-range' in content, "dynamic-lift-range class not found"
+    def test_entry_form_includes_entry_relations(self):
+        """Test that entry form includes the entry-relations Alpine component."""
+        content = _read_template('entry_form.html')
+        assert 'entry-relations.js' in content
+        assert "registerAlpineSection('relations')" in content
 
-    def test_ranges_loader_initialized_in_entry_form_js(self, client):
-        """Test that rangesLoader is initialized in entry-form.js."""
-        response = client.get('/static/js/entry-form.js')
-        js_code = response.data.decode('utf-8')
+    def test_entry_form_includes_entry_variant_relations(self):
+        """Test that entry form includes the entry-variant-relations Alpine component."""
+        content = _read_template('entry_form.html')
+        assert 'entry-variant-relations.js' in content
+        assert "registerAlpineSection('variant_relations')" in content
 
-        assert 'rangesLoader' in js_code, "rangesLoader not found in entry-form.js"
-        assert 'window.rangesLoader' in js_code or 'rangesLoader =' in js_code, "rangesLoader initialization not found"
+    def test_entry_form_includes_entry_direct_variants(self):
+        """Test that entry form includes the entry-direct-variants Alpine component."""
+        content = _read_template('entry_form.html')
+        assert 'entry-direct-variants.js' in content
+        assert "registerAlpineSection('variants')" in content
 
-    def test_entry_form_js_passes_hierarchical_option(self, client):
-        """Test that entry-form.js passes hierarchical option to populateSelect."""
-        response = client.get('/static/js/entry-form.js')
-        js_code = response.data.decode('utf-8')
 
-        assert 'hierarchical: hierarchical' in js_code or 'hierarchical =' in js_code, "hierarchical option not passed to populateSelect"
+class TestAlpineSenseTreeJS:
+    """Tests for the sense-tree.js Alpine component source."""
+
+    def test_loadRanges_exists(self):
+        with open(os.path.join(_ALPINE_DIR, 'sense-tree.js'), 'r') as f:
+            js_code = f.read()
+        assert 'loadRanges' in js_code
+        assert 'flattenRangeValues' in js_code
+
+    def test_range_data_keys(self):
+        with open(os.path.join(_ALPINE_DIR, 'sense-tree.js'), 'r') as f:
+            js_code = f.read()
+        assert 'grammatical-info' in js_code
+        assert 'domain-type' in js_code
+        assert 'lexical-relation' in js_code

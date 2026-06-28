@@ -117,7 +117,7 @@ class TestQueryBuilderPage:
         page.wait_for_load_state("networkidle")
 
         # Find and click on Worksets link (in button group)
-        worksets_link = page.locator("a[href='/workbench/worksets']")
+        worksets_link = page.locator(".btn-group a[href='/workbench/worksets']")
         expect(worksets_link).to_be_visible()
         worksets_link.click()
 
@@ -131,7 +131,7 @@ class TestQueryBuilderPage:
         page.wait_for_load_state("networkidle")
 
         # Find and click on Bulk Operations link (in button group)
-        bulk_ops_link = page.locator("a[href='/workbench/bulk-operations']")
+        bulk_ops_link = page.locator(".btn-group a[href='/workbench/bulk-operations']")
         expect(bulk_ops_link).to_be_visible()
         bulk_ops_link.click()
 

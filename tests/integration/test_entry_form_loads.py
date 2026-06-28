@@ -106,6 +106,6 @@ class TestEntryFormLoading:
         content = response.get_data(as_text=True)
         # Check for entry-level status field
         assert 'name="status"' in content or 'id="status"' in content
-        # Check for sense-level domain_type (semantic domain) and usage_type fields
-        assert 'name="senses[0].domain_type"' in content or '.domain_type' in content
-        assert 'name="senses[0].usage_type"' in content or '.usage_type' in content
+        # Alpine uses senseTree component with range-backed selects (x-model, not name=)
+        assert 'domainTypeOptions' in content or 'domain_type' in content
+        assert 'usageTypeOptions' in content or 'usage_type' in content

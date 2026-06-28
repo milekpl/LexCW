@@ -185,8 +185,8 @@ class TestBulkOperationsPage:
         page.goto(f"{app_url}/workbench/bulk-operations")
         page.wait_for_load_state("networkidle")
 
-        # Find and click on Query Builder link (in button group)
-        query_builder_link = page.locator("a[href='/workbench/query-builder']")
+        # Use .btn-group scope to avoid strict-mode violation from nav dropdown dup
+        query_builder_link = page.locator(".btn-group a[href='/workbench/query-builder']")
         expect(query_builder_link).to_be_visible()
         query_builder_link.click()
 
@@ -199,8 +199,8 @@ class TestBulkOperationsPage:
         page.goto(f"{app_url}/workbench/bulk-operations")
         page.wait_for_load_state("networkidle")
 
-        # Find and click on Worksets link (in button group)
-        worksets_link = page.locator("a[href='/workbench/worksets']")
+        # Use .btn-group scope to avoid strict-mode violation from nav dropdown dup
+        worksets_link = page.locator(".btn-group a[href='/workbench/worksets']")
         expect(worksets_link).to_be_visible()
         worksets_link.click()
 

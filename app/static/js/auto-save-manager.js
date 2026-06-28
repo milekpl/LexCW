@@ -92,9 +92,19 @@ class AutoSaveManager {
     async performSave() {
         try {
             this.showSaveIndicator('saving');
-            
-            // Get current form data
-            const formData = this.stateManager.serializeToJSON();
+
+            // Get current form data, merging Alpine component state when available.
+            // If MergeHarness is present (Alpine migration active) we build the payload
+            // through the shared helper so Alpine-owned sections (senses, lexical unit,
+            // etc.) are included.  Falls back to the legacy stateManager path when the
+            // harness is absent (non-Alpine environments or script load failures).
+            let formData;
+            if (window.MergeHarness) {
+                const form = this.form || document.getElementById('entry-form');
+                formData = window.MergeHarness.buildSerializerInput(form, { includeEmpty: false });
+            } else {
+                formData = this.stateManager.serializeToJSON();
+            }
             
             // Validate before saving
             const validationResult = await this.validationEngine.validateCompleteForm(formData);
@@ -213,10 +223,16 @@ class AutoSaveManager {
         switch (action) {
             case 'merge':
                 // Merge: keep the user's local edits on top of server data.
-                // Capture local form state, reload server data, then re-apply
-                // local edits so both server-side changes and local changes survive.
+                // Capture local form state (via Alpine-aware path), reload server data,
+                // then re-apply local edits so both server-side changes and local changes survive.
                 try {
-                    const localData = this.stateManager.serializeToJSON();
+                    let localData;
+                    if (window.MergeHarness) {
+                        const form = this.form || document.getElementById('entry-form');
+                        localData = window.MergeHarness.buildSerializerInput(form, { includeEmpty: false });
+                    } else {
+                        localData = this.stateManager.serializeToJSON();
+                    }
                     this.stateManager.updateFromJSON(conflictData.serverData);
                     // Shallow-merge local edits back on top (server data + local changes)
                     this.stateManager.updateFromJSON(

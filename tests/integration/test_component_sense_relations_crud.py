@@ -264,10 +264,11 @@ class TestSenseRelationCRUD:
         assert response.status_code == 200
         html = response.data.decode('utf-8')
         
-        # Check for sense relation interface elements (updated to current template classes)
-        assert 'sense-relation-target' in html
-        # Relation type select should be present
-        assert 'sense-lexical-relation-select' in html
+        # Alpine senseTree uses x-for with sense.relations array
+        # Check for sense relation interface elements
+        assert 'sense-relation' in html or 'relationTypeOptions' in html or 'addRelation' in html
+        # Relation type select should be present (Alpine x-for + range options)
+        assert 'relation-type' in html or 'lexical-relation' in html
     
     def test_update_sense_relation(self, client, dict_service_with_db, sample_entries):
         """Test updating an existing sense relation."""

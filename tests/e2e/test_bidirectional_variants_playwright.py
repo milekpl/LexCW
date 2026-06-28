@@ -322,7 +322,8 @@ class TestVariantRelationDisplay:
         visible_text = page.locator("body").inner_text()
 
         # Should show empty state message
-        assert "No Variants" in visible_text or "No variants" in visible_text, \
+        # Alpine shows "No outgoing variant relations yet" or similar
+        assert any(text in visible_text for text in ["No Variants", "No variants", "No outgoing variant"]), \
             "Entry with no variants should show empty state"
 
     def test_multiple_variants_all_displayed(self, page: Page, app_url, configured_flask_app):

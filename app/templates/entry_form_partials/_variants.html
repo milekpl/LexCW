@@ -12,7 +12,7 @@
                    data-bs-html="true"
                    title="<strong>About Variants:</strong><br>Variants represent different forms, spellings, or morphological variations of the same lexical item. Examples include 'protestor' vs 'protester', 'Protestant ethic' vs 'Protestant work ethic', or inflected forms like plurals and past tense forms."></i>
             </h5>
-            <button type="button" class="btn btn-sm btn-light add-variant-btn"
+            <button type="button" class="btn btn-sm btn-light add-variant-btn" id="add-variant-btn"
                     @click.prevent="addItem()">
                 <i class="fas fa-plus"></i> Add Variant
             </button>
@@ -86,7 +86,7 @@
                     <i class="fas fa-arrow-left me-2"></i>Incoming Variants (other entries that are variants of this one)
                 </h6>
                 {% for variant in incoming %}
-                <div class="variant-item card mb-3">
+                <div class="variant-item card mb-3" data-direction="incoming">
                     <div class="card-header bg-info text-white">
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-0">

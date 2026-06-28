@@ -1416,8 +1416,9 @@ class RangesService:
                 text_elem = ET.SubElement(form, 'text')
                 text_elem.text = text
         
-        # Add abbreviations
+        # Add abbreviations — prefer multilingual abbrevs, fall back to simple abbrev
         abbrevs = element_data.get('abbrevs', {})
+        simple_abbrev = element_data.get('abbrev', '')
         if abbrevs:
             abbrev_elem = ET.SubElement(elem, 'abbrev')
             for lang, text in abbrevs.items():
@@ -1425,6 +1426,12 @@ class RangesService:
                 form.set('lang', lang)
                 text_elem = ET.SubElement(form, 'text')
                 text_elem.text = text
+        elif simple_abbrev:
+            abbrev_elem = ET.SubElement(elem, 'abbrev')
+            form = ET.SubElement(abbrev_elem, 'form')
+            form.set('lang', 'en')
+            text_elem = ET.SubElement(form, 'text')
+            text_elem.text = simple_abbrev
         
         # Add language preference as a trait if provided
         language_preference = element_data.get('language')

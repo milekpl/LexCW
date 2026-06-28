@@ -1,7 +1,7 @@
 /**
  * entryAnnotations — Alpine.data component for entry-level annotations (§16.2).
  *
- * Each annotation has name, value, who, when, and a content object.
+ * Each annotation has name, value, who, when, and multilingual content forms.
  * No seeding — annotations are optional.
  */
 
@@ -17,8 +17,23 @@
       return {
         items: entry.annotations || [],
 
+        // Project language options for content-form language selects
+        languageOptions: [],
+
         init: function () {
-          // No seeding — annotations are optional.
+          this._loadLanguageOptions();
+        },
+
+        _loadLanguageOptions: function () {
+          var self = this;
+          try {
+            var appData = window.DictionaryApp && window.DictionaryApp.data;
+            if (appData && appData.projectLanguages) {
+              self.languageOptions = appData.projectLanguages.map(function (pl) {
+                return { code: pl[0], label: pl[1] };
+              });
+            }
+          } catch (e) { /* ignore */ }
         },
 
         addItem: function () {
@@ -30,7 +45,8 @@
             value: '',
             who: '',
             when: '',
-            content: {}
+            content: {},
+            contentForms: []
           });
         },
 
@@ -40,6 +56,34 @@
             if (this.items[i].id === id) { idx = i; break; }
           }
           if (idx !== -1) this.items.splice(idx, 1);
+        },
+
+        // --- Multilingual content row management ---
+
+        addContentRow: function (ann) {
+          if (!ann.contentForms) ann.contentForms = [];
+          var used = new Set(ann.contentForms.map(function (r) { return r.lang; }));
+          var opts = this.languageOptions;
+          var next = '';
+          for (var i = 0; i < opts.length; i++) {
+            if (!used.has(opts[i].code)) { next = opts[i].code; break; }
+          }
+          ann.contentForms.push({
+            id: (window.AlpineNormalize && window.AlpineNormalize.generateId)
+              ? window.AlpineNormalize.generateId()
+              : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11),
+            lang: next,
+            text: ''
+          });
+        },
+
+        removeContentRow: function (ann, rowId) {
+          if (!ann.contentForms) return;
+          var idx = -1;
+          for (var i = 0; i < ann.contentForms.length; i++) {
+            if (ann.contentForms[i].id === rowId) { idx = i; break; }
+          }
+          if (idx !== -1) ann.contentForms.splice(idx, 1);
         }
       };
     });

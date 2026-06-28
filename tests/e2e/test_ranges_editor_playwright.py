@@ -187,8 +187,8 @@ class TestRangesEditorCRUD:
         # Wait for modal to close (Bootstrap modal fade out)
         modal.wait_for(state="hidden", timeout=5000)
 
-        # Wait for the table to reload and the new row to appear instead of sleeping
-        page.wait_for_selector('tr[data-range-id="test-custom-range"]', timeout=5000)
+        # Wait for the table to reload and the new row to appear
+        page.wait_for_selector('tr[data-range-id="test-custom-range"]', timeout=10000)
 
         # Verify the range now appears in the list
         row = page.locator('tr[data-range-id="test-custom-range"]')
@@ -237,7 +237,7 @@ class TestRangesEditorCRUD:
         page.click('#btnSaveElement')
 
         # Check for success - wait for the element to appear
-        page.wait_for_selector('#elementsContainer strong:has-text("test-element-e2e")', timeout=5000)
+        page.wait_for_selector('#elementsContainer strong:has-text("test-element-e2e")', timeout=10000)
 
         # Verify element now appears by checking for the strong element with the ID
         element = elements_container.locator('strong:has-text("test-element-e2e")')

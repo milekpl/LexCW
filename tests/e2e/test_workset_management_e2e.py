@@ -39,7 +39,7 @@ class TestWorksetListPage:
         page.wait_for_load_state("networkidle")
 
         # Primary button for creating new workset
-        expect(page.locator("a.btn-primary[href='/workbench/query-builder']")).to_be_visible()
+        expect(page.locator("a.btn-primary[href='/workbench/query-builder']").first).to_be_visible()
 
     def test_workset_list_container_exists(self, page, app_url):
         """Test that the workset list container is present."""
@@ -54,7 +54,7 @@ class TestWorksetListPage:
         page.wait_for_load_state("networkidle")
 
         # Click on Query Builder link (in the button group)
-        page.click("a[href='/workbench/query-builder']")
+        page.click(".btn-group a[href='/workbench/query-builder']")
         page.wait_for_load_state("networkidle")
         assert "/workbench/query-builder" in page.url
 
@@ -63,7 +63,7 @@ class TestWorksetListPage:
         page.wait_for_load_state("networkidle")
 
         # Click on Bulk Operations link (in the button group)
-        page.click("a[href='/workbench/bulk-operations']")
+        page.click(".btn-group a[href='/workbench/bulk-operations']")
         page.wait_for_load_state("networkidle")
         assert "/workbench/bulk-operations" in page.url
 

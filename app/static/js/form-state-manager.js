@@ -43,10 +43,17 @@ class FormStateManager {
     }
     
     /**
-     * Capture current form state as the baseline for change detection
+     * Capture current form state as the baseline for change detection.
+     * When MergeHarness is present (Alpine migration active) we use the merged
+     * Alpine+legacy state so the baseline reflects Alpine-owned fields too.
      */
     captureInitialState() {
-        this.originalState = this.serializeFormToJSON();
+        if (window.MergeHarness) {
+            const form = document.getElementById('entry-form');
+            this.originalState = window.MergeHarness.buildSerializerInput(form, { includeEmpty: false });
+        } else {
+            this.originalState = this.serializeFormToJSON();
+        }
         this.currentState = this.deepClone(this.originalState);
     }
     
@@ -91,15 +98,23 @@ class FormStateManager {
     }
     
     /**
-     * Get list of fields that have been modified
+     * Get list of fields that have been modified.
+     * When MergeHarness is present we diff against the Alpine-merged state so
+     * changes to Alpine-owned sections (senses, lexical unit, etc.) are detected.
      * @returns {Array} Array of changed field paths
      */
     getChangedFields() {
         const changes = [];
-        const current = this.serializeFormToJSON();
-        
+        let current;
+        if (window.MergeHarness) {
+            const form = document.getElementById('entry-form');
+            current = window.MergeHarness.buildSerializerInput(form, { includeEmpty: false });
+        } else {
+            current = this.serializeFormToJSON();
+        }
+
         this.findChanges(this.originalState, current, '', changes);
-        
+
         return changes;
     }
     

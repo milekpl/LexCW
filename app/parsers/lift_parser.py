@@ -965,7 +965,7 @@ class LIFTParser:
                 if value := trait.get('value', '').strip():
                     values.add(value)
             
-            return [{'id': v, 'value': v, 'abbrev': v[:3].lower(),
+            return [{'id': v, 'value': v,
                      'description': {'en': f'{v} {trait_name.replace("-", " ")}'}} 
                     for v in sorted(values)]
         except Exception as e:
@@ -987,7 +987,7 @@ class LIFTParser:
                         extra.add(trait.get('value').strip())
             for v in sorted(extra):
                 if not any(r['id'] == v for r in results):
-                    results.append({'id': v, 'value': v, 'abbrev': v[:3].lower(), 'description': {'en': f"{v} variant-type"}})
+                    results.append({'id': v, 'value': v, 'description': {'en': f"{v} variant-type"}})
         except Exception as e:
             self.logger.error(f"Error extracting variant types from variant traits: {e}")
         return results
@@ -1241,14 +1241,7 @@ class LIFTRangesParser:
         return {}
 
     def resolve_values_with_inheritance(self, values: List[Dict[str, Any]], prefer_lang: str = 'en') -> List[Dict[str, Any]]:
-        """Return a deep-copied values list with *effective* properties applied via inheritance.
-
-        This is non-mutating and computes `effective_label` and `effective_abbrev` for each
-        element using the following precedence:
-          - element-specific value (prefer `labels[prefer_lang]`)
-          - parent's effective value
-          - fallback to `value` or `id` (for labels) and a `value[:3]` fallback for abbrev
-        """
+        """Return a deep-copied values list with *effective* properties applied via inheritance."""
         from app.utils.data_copier import DataCopier
         vals_copy = DataCopier().copy(values)
 
@@ -1263,16 +1256,13 @@ class LIFTRangesParser:
             # otherwise take first
             return next(iter(labels.values()))
 
-        def pick_abbrev(abbrev: str, abbrevs: Dict[str, str], parent_abbrev: str | None, fallback: str) -> str:
-            # Prefer explicit abbrev on the element first, then multilingual abbrevs,
-            # then parent's effective abbrev, then a simple fallback.
+        def pick_abbrev(abbrev: str, abbrevs: Dict[str, str], parent_abbrev: str | None) -> str:
             own = abbrev if abbrev and abbrev.strip() else None
             own_multi = None
             if abbrevs:
                 if prefer_lang in abbrevs and abbrevs[prefer_lang].strip():
                     own_multi = abbrevs[prefer_lang]
                 else:
-                    # take first non-empty
                     for v in abbrevs.values():
                         if v and v.strip():
                             own_multi = v
@@ -1283,12 +1273,12 @@ class LIFTRangesParser:
                 return own_multi
             if parent_abbrev:
                 return parent_abbrev
-            return (fallback[:3] if fallback else '')
+            return ''
 
         def walk(nodes: List[Dict[str, Any]], parent_label: str | None = None, parent_abbrev: str | None = None) -> None:
             for n in nodes:
                 label = pick_label(n.get('labels', {}), parent_label)
-                abbrev = pick_abbrev(n.get('abbrev', ''), n.get('abbrevs', {}), parent_abbrev, n.get('value') or n.get('id') or '')
+                abbrev = pick_abbrev(n.get('abbrev', ''), n.get('abbrevs', {}), parent_abbrev)
                 # Attach effective values
                 n['effective_label'] = label or (n.get('value') or n.get('id') or '')
                 n['effective_abbrev'] = abbrev
@@ -1321,7 +1311,6 @@ class LIFTRangesParser:
                 {
                     'id': v,
                     'value': v,
-                    'abbrev': v[:3].lower(),
                     'description': {'en': f"{v} {trait_name.replace('-', ' ')}"}
                 }
                 for v in sorted(values)

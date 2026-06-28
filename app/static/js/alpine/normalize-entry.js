@@ -168,7 +168,7 @@
       notes: safeObject(raw.notes),
       relations: safeArray(raw.relations),
       variantRelations: safeArray(raw.variant_relations),
-      annotations: safeArray(raw.annotations),
+      annotations: safeArray(raw.annotations).map(normalizeAnnotation),
       reversals: safeArray(raw.reversals),
       exemplar: raw.exemplar || null,
       scientificName: raw.scientific_name || raw.scientificName || null,
@@ -317,7 +317,8 @@
       value: safeString(raw.value || ''),
       who: safeString(raw.who || ''),
       when: safeString(raw.when || ''),
-      content: safeObject(raw.content)
+      content: safeObject(raw.content),
+      contentForms: dictToForms(raw.content)
     };
   }
 
@@ -362,7 +363,17 @@
         var t = r && r.traits;
         return !(t && (t['variant-type'] || t['complex-form-type']));
       }).map(normalizeRelation),
-      variantRelations: safeArray(raw.variant_relations || raw.variantRelations).map(normalizeRelation),
+      variantRelations: safeArray(raw.variant_relations || raw.variantRelations).map(function (vr) {
+        if (!vr) vr = {};
+        return {
+          id: vr.id || generateId(),
+          ref: safeString(vr.ref || ''),
+          variant_type: vr.variant_type || vr.variantType || '',
+          type: safeString(vr.type || ''),
+          order: vr.order || 0,
+          traits: vr.traits || {}
+        };
+      }),
       notes: normalizeNotes(raw.notes),
       annotations: safeArray(raw.annotations).map(normalizeAnnotation),
 

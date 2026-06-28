@@ -158,47 +158,44 @@ class TestFieldVisibilityJavaScript:
 
 
 class TestDirectVariantsJavaScript:
-    """Test cases for the DirectVariantsManager JavaScript class."""
+    """Test cases for the Alpine entry-direct-variants.js component."""
 
     def test_js_file_exists(self, client):
-        """Test that the direct-variants.js file is served."""
-        response = client.get('/static/js/direct-variants.js')
+        """Test that the entry-direct-variants.js file is served."""
+        response = client.get('/static/js/alpine/entry-direct-variants.js')
         assert response.status_code == 200
-        assert b'DirectVariantsManager' in response.data
+        assert b'entryDirectVariants' in response.data
 
-    def test_js_class_exports(self, client):
-        """Test that the JS class is properly exported."""
-        response = client.get('/static/js/direct-variants.js')
+    def test_js_component_registered(self, client):
+        """Test that the Alpine component is properly registered."""
+        response = client.get('/static/js/alpine/entry-direct-variants.js')
         js_code = response.data.decode('utf-8')
 
-        assert 'window.DirectVariantsManager = DirectVariantsManager' in js_code
-        assert 'class DirectVariantsManager' in js_code
+        assert "Alpine.data('entryDirectVariants'" in js_code
+        assert 'entryDirectVariants' in js_code
 
     def test_js_has_required_methods(self, client):
-        """Test that the JS class has required methods."""
-        response = client.get('/static/js/direct-variants.js')
+        """Test that the Alpine component has required methods."""
+        response = client.get('/static/js/alpine/entry-direct-variants.js')
         js_code = response.data.decode('utf-8')
 
         required_methods = [
-            'add',
-            'remove',
-            'reindex',
-            'addLanguage',
+            'addItem',
+            'removeItem',
+            'addFormLang',
             'addTrait',
-            'addGrammaticalTrait',
-            'getCount'
+            'addGrammaticalTrait'
         ]
 
         for method in required_methods:
-            assert f'{method}(' in js_code, f"Method {method} not found"
+            assert f'{method}:' in js_code or f'{method} (' in js_code, f"Method {method} not found"
 
-    def test_js_uses_custom_events(self, client):
-        """Test that the JS class emits events."""
-        response = client.get('/static/js/direct-variants.js')
+    def test_js_alpine_init_registered(self, client):
+        """Test that the component registers on alpine:init."""
+        response = client.get('/static/js/alpine/entry-direct-variants.js')
         js_code = response.data.decode('utf-8')
 
-        assert 'CustomEvent' in js_code
-        assert 'directVariants:' in js_code
+        assert 'alpine:init' in js_code
 
 
 class TestEntryFormTemplateFile:
@@ -251,7 +248,7 @@ class TestEntryFormTemplateFile:
         with open(template_path, 'r') as f:
             content = f.read()
 
-        assert 'direct-variants.js' in content, "direct-variants.js not found"
+        assert 'entry-direct-variants.js' in content, "entry-direct-variants.js not found"
 
     def test_entry_form_has_field_sections(self):
         """Test that entry form has field sections with correct classes."""
@@ -313,13 +310,13 @@ class TestEntryFormTemplateIntegration:
         assert 'class FieldVisibilityManager' in js_code
 
     def test_direct_variants_js_is_valid(self, client):
-        """Test that direct-variants.js is valid JavaScript."""
-        response = client.get('/static/js/direct-variants.js')
+        """Test that entry-direct-variants.js is valid JavaScript."""
+        response = client.get('/static/js/alpine/entry-direct-variants.js')
         assert response.status_code == 200
 
         js_code = response.data.decode('utf-8')
-        # Verify it's valid JavaScript by checking for class definition
-        assert 'class DirectVariantsManager' in js_code
+        # Verify it's valid JavaScript by checking for Alpine component registration
+        assert 'entryDirectVariants' in js_code
 
 
 class TestFieldVisibilityCheckboxData:

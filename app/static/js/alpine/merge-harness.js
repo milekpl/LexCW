@@ -161,6 +161,41 @@
     },
 
     /**
+     * Build a fully-merged serializer input from a form element, combining legacy DOM
+     * state with all Alpine-owned component state.
+     *
+     * This is the single canonical sync path used by live-preview, XML-preview, auto-save,
+     * and change-detection.  It mirrors exactly what updateXmlPreview / _serializeFormData
+     * do: serialize legacy DOM → strip alpineSections → mergeSync with extractAlpineState().
+     *
+     * Call sites that already have the entry form element should pass it; callers without
+     * a reference can fall back to `document.getElementById('entry-form')`.
+     *
+     * @param {HTMLFormElement} form - The entry form element
+     * @param {Object} [serializerOptions] - Options forwarded to serializeFormToJSON
+     * @returns {Object} Merged object ready for serializeEntry(), or {} if Alpine is absent
+     */
+    buildSerializerInput: function (form, serializerOptions) {
+      var opts = serializerOptions || { includeEmpty: false };
+      var legacyData = {};
+      if (window.FormSerializer && window.FormSerializer.serializeFormToJSON) {
+        try {
+          legacyData = window.FormSerializer.serializeFormToJSON(form, opts);
+        } catch (e) {
+          console.warn('[MergeHarness.buildSerializerInput] Legacy serialization failed:', e);
+          legacyData = {};
+        }
+      }
+      var alpineState = this.extractAlpineState();
+      // Strip Alpine-owned sections from legacy before merge
+      this.alpineSections.forEach(function (section) {
+        delete legacyData[section];
+      });
+      var merged = this.mergeSync(legacyData, alpineState);
+      return merged;
+    },
+
+    /**
      * Register a section as Alpine-owned.
      * Called at the start of each stage.
      */

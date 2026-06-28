@@ -84,13 +84,13 @@ class TestLIFTTraitsAndLanguageCodes:
         dialectal_type = next((t for t in variant_types if t["id"] == "dialectal"), None)
         assert dialectal_type is not None
         assert dialectal_type["value"] == "dialectal"
-        assert dialectal_type["abbrev"] == "dia"  # First 3 chars as abbreviation
+        assert "abbrev" not in dialectal_type  # No auto-generated abbreviation
         
         # Verify that the spelling type is included
         spelling_type = next((t for t in variant_types if t["id"] == "spelling"), None)
         assert spelling_type is not None
         assert spelling_type["value"] == "spelling"
-        assert spelling_type["abbrev"] == "spe"  # First 3 chars as abbreviation
+        assert "abbrev" not in spelling_type  # No auto-generated abbreviation
 
     def test_extract_language_codes(self, sample_lift_with_traits: str) -> None:
         """Test extracting language codes from LIFT data."""
