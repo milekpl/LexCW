@@ -490,6 +490,62 @@ describe('entry relations vs variant relations (no double-render)', () => {
   });
 });
 
+describe('entryMeta Alpine path: citation + status (Part B port)', () => {
+  let serializer;
+  beforeEach(() => { serializer = new LIFTXMLSerializer(); });
+
+  test('normalizeEntry surfaces citation (from citations list) + status (from traits)', () => {
+    const state = normalizeEntry({
+      id: 'e1', lexical_unit: { en: 'word' },
+      citations: [{ en: 'cited-form' }], traits: { status: 'draft', 'morph-type': 'stem' }
+    });
+    expect(state.citation).toBe('cited-form');
+    expect(state.status).toBe('draft');
+  });
+
+  test('adapter emits citation_form + status from state.entryMeta', () => {
+    const input = alpineStateToSerializerInput({
+      id: 'e1', lexicalUnitForms: [{ id: 'a', lang: 'en', text: 'word' }],
+      entryMeta: { grammaticalInfo: '', morphType: '', citation: 'cited-form', status: 'draft' }
+    });
+    expect(input.citation_form).toBe('cited-form');
+    expect(input.status).toBe('draft');
+  });
+
+  test('full path: entryMeta → adapter → serializer emits <citation> + status trait', () => {
+    const input = alpineStateToSerializerInput({
+      id: 'e1', lexicalUnitForms: [{ id: 'a', lang: 'en', text: 'word' }],
+      entryMeta: { grammaticalInfo: '', morphType: '', citation: 'cited-form', status: 'draft' }
+    });
+    const xml = serializer.serializeEntry(input);
+    expect(xml).toContain('<citation>');
+    expect(xml).toContain('cited-form');
+    expect(xml).toContain('<trait name="status" value="draft"');
+  });
+});
+
+describe('citation + status serialization (data-loss fix)', () => {
+  let serializer;
+  beforeEach(() => { serializer = new LIFTXMLSerializer(); });
+
+  test('flat citation_form is emitted as <citation> (was silently dropped)', () => {
+    const xml = serializer.serializeEntry({ id: 'c1', lexical_unit: { en: 'word' }, citation_form: 'word (cited)' });
+    expect(xml).toContain('<citation>');
+    expect(xml).toContain('word (cited)');
+  });
+
+  test('status is emitted as an entry-level trait (was silently dropped)', () => {
+    const xml = serializer.serializeEntry({ id: 's1', lexical_unit: { en: 'w' }, status: 'draft' });
+    expect(xml).toContain('<trait name="status" value="draft"');
+  });
+
+  test('multilingual citation dict round-trips all languages', () => {
+    const xml = serializer.serializeEntry({ id: 'c2', lexical_unit: { en: 'w' }, citation: { en: 'cite-en', pl: 'cyt-pl' } });
+    expect(xml).toContain('cite-en');
+    expect(xml).toContain('cyt-pl');
+  });
+});
+
 describe('dictToForms helper', () => {
   test('should convert lang→text dict to forms array', () => {
     const forms = dictToForms({ en: 'hello', pl: 'cześć' });
@@ -527,5 +583,91 @@ describe('dictToForms helper', () => {
     const forms = dictToForms({ en: '', pl: 'valid' });
     expect(forms).toHaveLength(1);
     expect(forms[0].lang).toBe('pl');
+  });
+});
+
+describe('entryMeta golden test (Part A) — entry-level POS + morph_type round-trip', () => {
+  let serializer;
+  beforeEach(() => { serializer = new LIFTXMLSerializer(); });
+
+  test('entryMeta section in state → adapter → serializer emits entry-level grammatical-info', () => {
+    // Simulate extractAlpineState() producing { entryMeta: {grammaticalInfo, morphType} }
+    // alongside the rest of the normalized entry state.
+    const baseState = normalizeEntry({
+      id: 'meta-test-001',
+      lexical_unit: { en: 'testword' },
+      senses: [{ id: 's1', definitions: { en: 'a definition' }, glosses: {} }],
+      grammatical_info: 'Noun',
+      morph_type: 'stem'
+    });
+
+    // Simulate what the merge harness produces: entryMeta section overrides direct fields.
+    // The adapter must prefer entryMeta when present (single source of truth).
+    const stateWithEntryMeta = Object.assign({}, baseState, {
+      entryMeta: { grammaticalInfo: 'Verb', morphType: 'prefix' }
+    });
+
+    const serializerInput = alpineStateToSerializerInput(stateWithEntryMeta);
+
+    // entryMeta takes priority over baseState.grammaticalInfo
+    expect(serializerInput.grammatical_info).toBe('Verb');
+    expect(serializerInput.morph_type).toBe('prefix');
+
+    const xml = serializer.serializeEntry(serializerInput);
+
+    // Entry-level grammatical-info must appear BEFORE the first <sense> — not inside it
+    const gramPos = xml.indexOf('<grammatical-info value="Verb"');
+    const sensePos = xml.indexOf('<sense ');
+    expect(gramPos).toBeGreaterThan(-1);
+    expect(sensePos).toBeGreaterThan(-1);
+    expect(gramPos).toBeLessThan(sensePos); // entry-level, not sense-level
+
+    // morph-type trait at entry level
+    expect(xml).toContain('<trait name="morph-type" value="prefix"');
+  });
+
+  test('without entryMeta section, adapter falls back to direct grammaticalInfo/morphType', () => {
+    // Backward compatibility: state without entryMeta key still works.
+    const state = normalizeEntry({
+      id: 'meta-test-002',
+      lexical_unit: { en: 'fallback' },
+      senses: [{ id: 's1', definitions: { en: 'def' }, glosses: {} }],
+      grammatical_info: 'Adjective',
+      morph_type: 'stem'
+    });
+    // state.entryMeta is absent → adapter uses state.grammaticalInfo directly
+    expect(state.entryMeta).toBeUndefined();
+
+    const serializerInput = alpineStateToSerializerInput(state);
+    expect(serializerInput.grammatical_info).toBe('Adjective');
+    expect(serializerInput.morph_type).toBe('stem');
+
+    const xml = serializer.serializeEntry(serializerInput);
+    expect(xml).toContain('<grammatical-info value="Adjective"');
+    expect(xml).toContain('<trait name="morph-type" value="stem"');
+  });
+
+  test('empty grammaticalInfo in entryMeta does not emit grammatical-info element', () => {
+    const state = Object.assign({}, normalizeEntry({
+      id: 'meta-test-003',
+      lexical_unit: { en: 'nopos' },
+      senses: [{ id: 's1', definitions: { en: 'def' }, glosses: {} }]
+    }), { entryMeta: { grammaticalInfo: '', morphType: '' } });
+
+    const serializerInput = alpineStateToSerializerInput(state);
+    expect(serializerInput.grammatical_info).toBeFalsy();
+    expect(serializerInput.morph_type).toBeFalsy();
+
+    const xml = serializer.serializeEntry(serializerInput);
+    // Should not have an entry-level grammatical-info (no POS set)
+    // Note: any grammatical-info that appears must be inside a sense, not at entry level
+    // (a simpler check: the entry element itself should not start with <grammatical-info)
+    const entryOpen = xml.indexOf('<entry ');
+    const firstGram = xml.indexOf('<grammatical-info');
+    const firstSense = xml.indexOf('<sense ');
+    // Either no grammatical-info at all, or it's inside a sense (not at entry level)
+    if (firstGram !== -1) {
+      expect(firstGram).toBeGreaterThan(firstSense);
+    }
   });
 });

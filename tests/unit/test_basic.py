@@ -135,7 +135,10 @@ class TestBaseXConnector:
         assert db_val is not None, "Connector.database should not be None"
         # Accept explicit 'test_db', auto-generated 'test_*' names, or an explicit TEST_DB_NAME env var
         assert (db_val == "test_db") or (db_val.startswith('test_')) or (db_val == os.environ.get('TEST_DB_NAME')), f"Unexpected connector.database: {db_val}"
-        assert connector._session is None
+        # No connection pool initialized yet
+        status = connector.get_status()
+        assert status['connected'] is False
+        assert status['pool_size'] == 0
     
     @patch('app.database.basex_connector.BaseXSession')
     @pytest.mark.unit
@@ -145,18 +148,22 @@ class TestBaseXConnector:
             host="localhost",
             port=1984,
             username="admin",
-            password="admin"
+            password="admin",
+            pool_size=2
         )
         
         # Mock the session
         mock_session_instance = Mock()
         mock_session.return_value = mock_session_instance
         
+        # Avoid DB open failure (no database set)
         result = connector.connect()
         
         assert result == True
-        assert connector._session == mock_session_instance
         mock_session.assert_called_once_with("localhost", 1984, "admin", "admin")
+        status = connector.get_status()
+        assert status['connected'] is True
+        assert status['pool_size'] == 1
     
     @pytest.mark.unit
     def test_connector_context_manager(self):

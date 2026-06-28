@@ -31,19 +31,16 @@ def test_debug_click_handlers(page: Page, app_url: str):
     templates = page.locator('[id*="template"], .d-none, .template')
     print(f"Template-like elements: {templates.count()}")
     
-    # Check the actual button element
+    # Check the actual button element (use Playwright locator, not native querySelector
+    # since :has-text() is Playwright-specific and doesn't work in browser context)
     btn = page.locator('button:has-text("Add Language")').first
-    btn_html = page.evaluate("""
-        () => {
-            const btn = document.querySelector('button:has-text("Add Language")');
-            if (btn) {
-                return {
-                    outerHTML: btn.outerHTML,
-                    parentElement: btn.parentElement?.tagName,
-                    ancestors: getAncestors(btn)
-                };
-            }
-            return null;
+    btn_html = btn.evaluate("""
+        (el) => {
+            return {
+                outerHTML: el.outerHTML,
+                parentElement: el.parentElement?.tagName,
+                ancestors: getAncestors(el)
+            };
         }
         
         function getAncestors(elem) {

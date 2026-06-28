@@ -73,42 +73,35 @@ class TestCorpusUpload:
             'target_lang': 'pl'
         })
 
-        assert response.status_code == 410
-        data = response.get_json()
-        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
+        # Route removed — corpus management is now at /corpus/management
+        assert response.status_code == 404
     
     @pytest.mark.integration
     def test_upload_csv_file_deprecated(self, client):
-        """CSV upload endpoint is deprecated and returns 410."""
+        """CSV upload route removed — corpus management moved."""
         csv_content = "source_text,target_text\nHello,Cześć\nWorld,Świat"
 
         response = client.post('/api/corpus/upload', data={
             'file': (io.BytesIO(csv_content.encode()), 'test.csv')
         })
 
-        assert response.status_code == 410
-        data = response.get_json()
-        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
+        assert response.status_code == 404
     
     @pytest.mark.integration
     def test_upload_no_file_deprecated(self, client):
-        """No-file upload should return deprecation response (410)."""
+        """Upload route removed — corpus management moved."""
         response = client.post('/api/corpus/upload', data={})
 
-        assert response.status_code == 410
-        data = response.get_json()
-        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
+        assert response.status_code == 404
     
     @pytest.mark.integration
     def test_upload_invalid_file_type_deprecated(self, client):
-        """Invalid-file-type upload should return deprecation response (410)."""
+        """Upload route removed — corpus management moved."""
         response = client.post('/api/corpus/upload', data={
             'file': (io.BytesIO(b'invalid content'), 'test.txt')
         })
 
-        assert response.status_code == 410
-        data = response.get_json()
-        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
+        assert response.status_code == 404
 
 
 
@@ -181,16 +174,12 @@ class TestTmxToCsvConversion:
             'target_lang': 'pl'
         })
 
-        assert response.status_code == 410
-        data = response.get_json()
-        assert 'deprecated' in data['error'].lower() or 'removed' in data['error'].lower()
+        # Route removed — corpus conversion moved elsewhere
+        assert response.status_code == 404
     
     @pytest.mark.integration
     def test_convert_tmx_no_file_error(self, client):
-        """Test error when no TMX file is provided."""
+        """Conversion route removed — corpus management moved."""
         response = client.post('/api/corpus/convert/tmx-to-csv', data={})
         
-        assert response.status_code == 400
-        data = response.get_json()
-        assert 'error' in data
-        assert 'No TMX file provided' in data['error']
+        assert response.status_code == 404

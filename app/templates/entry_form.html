@@ -372,6 +372,7 @@
 <script defer src="{{ url_for('static', filename='js/alpine/entry-relations.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/alpine/entry-variant-relations.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/alpine/entry-direct-variants.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/alpine/entry-meta.js') }}"></script>
 
 <!-- Alpine.js 3.14.x -- pinned version with SRI -->
 <!-- Must load AFTER alpine modules so alpine:init listeners are already registered -->
@@ -392,6 +393,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.MergeHarness.registerAlpineSection('relations');      // 16.2.2
     window.MergeHarness.registerAlpineSection('variant_relations'); // 16.2.3
     window.MergeHarness.registerAlpineSection('variants');          // 16.2.3
+    window.MergeHarness.registerAlpineSection('grammatical_info');  // Part A
+    window.MergeHarness.registerAlpineSection('morph_type');        // Part A
+    window.MergeHarness.registerAlpineSection('citation_form');     // Part B
+    window.MergeHarness.registerAlpineSection('status');            // Part B
   }
 });
 </script>

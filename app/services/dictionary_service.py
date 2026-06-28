@@ -923,99 +923,107 @@ class DictionaryService:
             self.logger.error("Error updating entry %s: %s", entry.id, str(e))
             raise DatabaseError(f"Failed to update entry: {str(e)}") from e
 
+    def _resolve_db_name(self, project_id: Optional[int] = None) -> str:
+        db_name = self.db_connector.database
+        if project_id:
+            try:
+                from app.config_manager import ConfigManager
+                from flask import current_app
+                cm = current_app.injector.get(ConfigManager)
+                settings = cm.get_settings_by_id(project_id)
+                if settings:
+                    db_name = settings.basex_db_name
+            except Exception as e:
+                self.logger.debug("Error getting db_name for project %s: %s", project_id, e)
+        return db_name or 'dictionary'
+
     def _handle_bidirectional_relations(self, entry: 'Entry', project_id: Optional[int] = None) -> None:
         """
         Handle bidirectional relations by creating reverse relations for target entries.
-
-        When an entry has a bidirectional relation (e.g., 'synonim'), this method
-        creates the reverse relation in the target entry (e.g., if A is synonym of B,
-        then B should also have A as synonym in its relations).
-
-        Args:
-            entry: The entry being updated that may contain bidirectional relations
+        Batched into a single XQuery to avoid N+1 round-trips.
         """
         from app.utils.bidirectional_relations import is_relation_bidirectional, get_reverse_relation_type
-        from app.models.entry import Relation
 
-        # Process entry-level relations
+        db_name = self._resolve_db_name(project_id)
+
+        # Collect all reverse relation inserts needed (entry-level)
+        inserts = []
         for relation in entry.relations:
             rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
             rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
+            if rel_ref and is_relation_bidirectional(rel_type, self):
+                reverse_rel_type = get_reverse_relation_type(rel_type, self)
+                inserts.append((rel_ref, reverse_rel_type))
 
-            if is_relation_bidirectional(rel_type, self):  # Pass self (the dict_service) for dynamic range checking
-                try:
-                    # Get the target entry that should receive the reverse relation
-                    target_entry = self.get_entry(rel_ref, project_id=project_id)
-
-                    # Determine the reverse relation type
-                    reverse_rel_type = get_reverse_relation_type(rel_type, self)
-
-                    # Check if the reverse relation already exists to avoid duplication
-                    reverse_relation_exists = False
-                    for target_rel in target_entry.relations:
-                        target_rel_type = getattr(target_rel, 'type', target_rel.get('type', '') if isinstance(target_rel, dict) else '')
-                        target_rel_ref = getattr(target_rel, 'ref', target_rel.get('ref', '') if isinstance(target_rel, dict) else '')
-                        if target_rel_type == reverse_rel_type and target_rel_ref == entry.id:
-                            reverse_relation_exists = True
-                            break
-
-                    # Add reverse relation if it doesn't already exist
-                    if not reverse_relation_exists:
-                        reverse_relation = Relation(type=reverse_rel_type, ref=entry.id)
-                        target_entry.relations.append(reverse_relation)
-
-                        # Save the target entry with the new reverse relation
-                        # Skip validation and skip bidirectional processing to avoid recursion
-                        self.update_entry(target_entry, skip_validation=True, skip_bidirectional=True, project_id=project_id)
-
-                        self.logger.info(f"Added reverse relation '{reverse_rel_type}' from '{rel_ref}' to '{entry.id}'")
-
-                except Exception as e:
-                    self.logger.warning(f"Could not create reverse relation for type '{rel_type}' from '{entry.id}' to '{rel_ref}': {str(e)}")
-
-        # Process sense-level relations
-        for sense_idx, sense in enumerate(entry.senses):
+        # Collect all reverse relation inserts needed (sense-level)
+        sense_inserts = []  # (target_entry_id, reverse_rel_type, source_entry_id)
+        for sense in entry.senses:
             if hasattr(sense, 'relations') and sense.relations:
                 for relation in sense.relations:
                     rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
                     rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
-
-                    if is_relation_bidirectional(rel_type, self):  # Pass self (the dict_service) for dynamic range checking
+                    if rel_ref and is_relation_bidirectional(rel_type, self):
                         try:
-                            # For sense relations, the ref might be the target sense ID
-                            # We need to find which entry contains the target sense
                             target_entry = self._find_entry_by_sense_id(rel_ref, project_id=project_id)
-
                             if target_entry:
-                                # For sense-to-sense relations, we need to determine which sense in target entry this relates to
-                                # For now, we'll add it to the target entry as a general relation
-                                # In future refinement, this could be more sophisticated
                                 reverse_rel_type = get_reverse_relation_type(rel_type, self)
-
-                                # Check if reverse relation already exists (avoid duplication)
-                                reverse_relation_exists = False
-                                for target_rel in target_entry.relations:
-                                    target_rel_type = getattr(target_rel, 'type', target_rel.get('type', '') if isinstance(target_rel, dict) else '')
-                                    target_rel_ref = getattr(target_rel, 'ref', target_rel.get('ref', '') if isinstance(target_rel, dict) else '')
-                                    if target_rel_type == reverse_rel_type and target_rel_ref == entry.id:
-                                        reverse_relation_exists = True
-                                        break
-
-                                if not reverse_relation_exists:
-                                    reverse_relation = Relation(type=reverse_rel_type, ref=entry.id)
-                                    target_entry.relations.append(reverse_relation)
-
-                                    # Save the target entry
-                                    self.update_entry(target_entry, skip_validation=True, project_id=project_id)
-
-                                    self.logger.info(f"Added reverse sense relation '{reverse_rel_type}' to entry '{target_entry.id}' for sense relation from '{entry.id}'")
-
+                                sense_inserts.append((target_entry.id, reverse_rel_type, entry.id))
                         except Exception as e:
-                            self.logger.warning(f"Could not create reverse sense relation for type '{rel_type}' from sense in '{entry.id}' to target '{rel_ref}': {str(e)}")
+                            self.logger.warning(
+                                "Could not find target entry for sense relation '%s' from '%s': %s",
+                                rel_type, entry.id, e,
+                            )
+
+        all_inserts = inserts + [(sid, rt) for sid, rt, _ in sense_inserts]
+        if not all_inserts:
+            return
+
+        # Build a single XQuery with one clause per target entry
+        # Each clause: find the target entry, check reverse relation doesn't exist, insert
+        clauses = []
+        for target_id, rev_type in all_inserts:
+            escaped_ref = entry.id.replace("'", "''")
+            escaped_type = rev_type.replace("'", "''")
+            escaped_target = str(target_id).replace("'", "''")
+            clauses.append(
+                f"let $e := collection('{db_name}')//entry[@id='{escaped_target}']\n"
+                f"return insert node <relation type='{escaped_type}' ref='{escaped_ref}'/> into $e"
+            )
+
+        query = "(\n" + ",\n".join(clauses) + "\n)"
+        try:
+            self.db_connector.execute_update(query)
+            self.logger.info(
+                "Added %d reverse relations from '%s' in a single XQuery",
+                len(all_inserts), entry.id,
+            )
+        except Exception as e:
+            self.logger.warning(
+                "Batch reverse relation insert failed for '%s': %s. Falling back to per-relation.",
+                entry.id, e,
+            )
+            # Fallback: insert one at a time
+            from app.models.entry import Relation
+            for target_id, rev_type in all_inserts:
+                try:
+                    target_entry = self.get_entry(target_id, project_id=project_id)
+                    reverse_exists = any(
+                        getattr(r, 'type', r.get('type', '') if isinstance(r, dict) else '') == rev_type
+                        and getattr(r, 'ref', r.get('ref', '') if isinstance(r, dict) else '') == entry.id
+                        for r in target_entry.relations
+                    )
+                    if not reverse_exists:
+                        target_entry.relations.append(Relation(type=rev_type, ref=entry.id))
+                        self.update_entry(target_entry, skip_validation=True, skip_bidirectional=True, project_id=project_id)
+                except Exception as e2:
+                    self.logger.warning(
+                        "Could not create reverse relation '%s' for '%s': %s",
+                        rev_type, target_id, e2,
+                    )
 
     def _find_entry_by_sense_id(self, sense_id: str, project_id: Optional[int] = None) -> Optional['Entry']:
         """
-        Find an entry that contains a specific sense ID.
+        Find an entry that contains a specific sense ID using a direct XQuery.
 
         Args:
             sense_id: The ID of the sense to search for
@@ -1025,36 +1033,35 @@ class DictionaryService:
         """
         # First, try the direct approach - if sense_id is in expected format entry_id_sense_guid
         if '_' in sense_id:
-            # Could be entry_id_sense_id format, try to get entry by extracting entry part
             parts = sense_id.split('_')
             if len(parts) >= 2:
-                # Try to reconstruct possible entry ID formats
-                possible_entry_ids = [
-                    '_'.join(parts[:-1]),  # Everything before last underscore
-                ]
+                possible_id = '_'.join(parts[:-1])
+                try:
+                    entry = self.get_entry(possible_id, project_id=project_id)
+                    for sense in entry.senses:
+                        if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
+                            return entry
+                except Exception:
+                    pass
 
-                for possible_id in possible_entry_ids:
-                    try:
-                        entry = self.get_entry(possible_id, project_id=project_id)
-                        # Check if this entry contains the sense
-                        for sense in entry.senses:
-                            if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
-                                return entry
-                    except:
-                        continue
-
-        # If the simple approach didn't work, search all entries
-        # (this would be expensive but needed for exact match)
+        # Fallback: direct XQuery instead of loading all entries into memory
+        db_name = self._resolve_db_name(project_id)
+        escaped_id = sense_id.replace("'", "''")
+        query = (
+            f"collection('{db_name}')//entry"
+            f"[.//sense[@id='{escaped_id}' or @id_='{escaped_id}']]"
+        )
         try:
-            all_entries, _ = self.list_entries(project_id=project_id, limit=None)
-            for entry in all_entries:
-                for sense in entry.senses:
-                    if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
-                        return entry
-        except:
+            result = self.db_connector.execute_query(query)
+            if result:
+                from app.parsers.lift_parser import LIFTParser
+                parser = LIFTParser(validate=False)
+                entries = parser.parse_string(f"<lift>{result}</lift>")
+                if entries:
+                    return entries[0]
+        except Exception:
             pass
 
-        # If we still can't find it, raise an exception
         raise NotFoundError(f"No entry found containing sense with ID: {sense_id}")
 
     def entry_exists(self, entry_id: str, project_id: Optional[int] = None) -> bool:

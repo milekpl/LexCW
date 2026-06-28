@@ -1432,22 +1432,86 @@ class RangesService:
             form.set('lang', 'en')
             text_elem = ET.SubElement(form, 'text')
             text_elem.text = simple_abbrev
-        
-        # Add language preference as a trait if provided
-        language_preference = element_data.get('language')
-        if language_preference:
-            # Add language preference as a special trait
-            lang_trait = ET.SubElement(elem, 'trait')
-            lang_trait.set('name', 'display-language')
-            lang_trait.set('value', language_preference)
 
-        # Add other traits
+        # Add traits
         traits = element_data.get('traits', {})
         for trait_name, trait_value in traits.items():
-            # Skip the 'display-language' trait if it's also in the traits dict to avoid duplication
-            if trait_name != 'display-language':
-                trait_elem = ET.SubElement(elem, 'trait')
-                trait_elem.set('name', trait_name)
-                trait_elem.set('value', trait_value)
+            trait_elem = ET.SubElement(elem, 'trait')
+            trait_elem.set('name', trait_name)
+            trait_elem.set('value', trait_value)
 
         return ET.tostring(elem, encoding='unicode')
+    
+    def import_list_xml(self, file_path: str) -> Dict[str, Any]:
+        """Import a FieldWorks list.xml file into the database.
+
+        Parses list.xml and stores the extracted ranges as a LIFT ranges
+        document in BaseX, so the real abbreviations (e.g., "irreg. infl.",
+        "comp.", "der.") are available in the Range Editor and CSS preview.
+
+        Args:
+            file_path: Path to the list.xml file.
+
+        Returns:
+            Dict with keys:
+              - ranges_imported: number of ranges imported
+              - values_imported: total number of range values imported
+              - ranges: list of range IDs that were imported
+        """
+        from app.parsers.fieldworks_list_parser import FieldWorksListParser
+
+        parser = FieldWorksListParser()
+        ranges = parser.parse_file(file_path)
+
+        if not ranges:
+            self.logger.warning("No ranges could be parsed from list.xml")
+            return {"ranges_imported": 0, "values_imported": 0, "ranges": []}
+
+        lift_xml = parser.to_lift_ranges_xml(ranges)
+        self.logger.info(
+            "Generated LIFT ranges XML from list.xml (%d ranges, %d chars)",
+            len(ranges), len(lift_xml),
+        )
+
+        total_values = sum(len(rdata.get("values", [])) for rdata in ranges.values())
+        range_ids = list(ranges.keys())
+
+        db_name = self.db_connector.database
+        if not db_name:
+            return {"ranges_imported": 0, "values_imported": 0, "ranges": []}
+
+        self._ensure_connection()
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".list-ranges.xml", delete=False, encoding="utf-8"
+        ) as f:
+            f.write(lift_xml)
+            temp_path = f.name
+
+        try:
+            filename = "list-ranges.xml"
+            self.db_connector.execute_command(f"OPEN {db_name}")
+            self.db_connector.execute_command(
+                f'ADD TO {filename} "{os.path.abspath(temp_path).replace(chr(92), "/")}"'
+            )
+            self.logger.info("list.xml ranges added to database as %s", filename)
+        except Exception as e:
+            self.logger.error("Failed to add list.xml ranges to database: %s", e)
+            raise
+        finally:
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass
+
+        # Invalidate cache so next read picks up the new data
+        self._invalidate_cache()
+
+        return {
+            "ranges_imported": len(ranges),
+            "values_imported": total_values,
+            "ranges": range_ids,
+        }
+
+

@@ -127,7 +127,8 @@
       { selector: '[x-data^="entryAnnotations"]', dataKey: 'items',  stateKey: 'annotations' },   // §16.2
       { selector: '[x-data^="entryRelations"]',  dataKey: 'items',  stateKey: 'relations' },      // §16.2.2
       { selector: '[x-data^="entryVariantRelations"]', dataKey: 'items',  stateKey: 'variantRelations' }, // §16.2.3
-      { selector: '[x-data^="entryDirectVariants"]', dataKey: 'items',  stateKey: 'variants' },          // §16.2.3
+      { selector: '[x-data^="entryDirectVariants"]', dataKey: 'items',      stateKey: 'variants' },   // §16.2.3
+      { selector: '[x-data^="entryMeta"]',          dataKey: 'serialized', stateKey: 'entryMeta' },   // §plan Part A
     ],
 
     /**

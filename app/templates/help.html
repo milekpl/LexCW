@@ -127,6 +127,7 @@
                 <a class="nav-link" href="#activity-log">Activity Log</a>
                 <a class="nav-link" href="#workflow">Workflow Features</a>
                 <a class="nav-link" href="#compatibility">FieldWorks Compatibility</a>
+                <a class="nav-link ps-3 small" href="#list-xml-import">Importing list.xml Abbreviations</a>
             </nav>
         </div>
     </div>
@@ -1012,9 +1013,67 @@ for entry in entries:
                 <li><strong>Lossless Import</strong>: Import LIFT files from FieldWorks/FLEx preserving 91% of elements</li>
                 <li><strong>Round-trip Preservation</strong>: Export back to LIFT maintaining all implemented data</li>
                 <li><strong>Range Files</strong>: Full support for LIFT-ranges custom classifications</li>
+                <li><strong>List XML Import</strong>: Import FieldWorks <code>list.xml</code> for real abbreviations (see <a href="#list-xml-import">below</a>)</li>
                 <li><strong>Header Fields</strong>: Custom field definitions preserved</li>
                 <li><strong>Tested Compatibility</strong>: Verified with real FieldWorks and LanguageForge files</li>
             </ul>
+
+            <div class="card bg-light mb-3" id="list-xml-import">
+                <div class="card-body">
+                    <h4 class="card-title"><i class="fas fa-list"></i> Importing Real Abbreviations via list.xml</h4>
+                    <p>
+                        When you export a LIFT file from FieldWorks Language Explorer (FLEx), the
+                        <strong>Variant Types</strong>, <strong>Complex Form Types</strong>,
+                        <strong>Parts of Speech</strong>, and other controlled vocabularies are
+                        exported with their full names only — not their abbreviations. This means
+                        the Range Editor and dictionary preview will show placeholder values
+                        (e.g., full names truncated to 3 characters) instead of the real
+                        abbreviations linguists have curated in FieldWorks.
+                    </p>
+                    <h5>How to Get Real Abbreviations</h5>
+                    <ol>
+                        <li>
+                            In FLEx, go to <strong>File → Export → List of Lists</strong>.
+                        </li>
+                        <li>
+                            Save the output as <code>list.xml</code>.
+                        </li>
+                        <li>
+                            On the <a href="{{ url_for('main.import_lift') }}">Import page</a>,
+                            upload <code>list.xml</code> alongside your LIFT file (and
+                            optional <code>.lift-ranges</code> file).
+                        </li>
+                    </ol>
+                    <h5>What Happens During Import</h5>
+                    <ul>
+                        <li>
+                            The parser maps FieldWorks list names (e.g., "Variant Type Names")
+                            to internal range IDs.
+                        </li>
+                        <li>
+                            Multilingual labels, abbreviations, and descriptions are extracted
+                            from the XML.
+                        </li>
+                        <li>
+                            FieldWorks 3-letter language codes (Eng, Pol, Frn) are normalized
+                            to 2-letter ISO 639-1 codes (en, pl, fr).
+                        </li>
+                        <li>
+                            The data is stored as LIFT ranges XML in the database, merged with
+                            any existing <code>.lift-ranges</code> data.
+                        </li>
+                        <li>
+                            The Range Editor immediately shows real abbreviations like
+                            "irreg. infl.", "comp.", "contr.", "der.", "ph. v."
+                        </li>
+                    </ul>
+                    <h5>CLI Alternative</h5>
+                    <p>
+                        You can also import from the command line:
+                    </p>
+                    <pre><code>flask import-list-xml /path/to/list.xml</code></pre>
+                </div>
+            </div>
 
             <h3><i class="fas fa-puzzle-piece"></i> Element Coverage Breakdown</h3>
             <p>Detailed breakdown of the 51/56 LIFT elements implemented (91%):</p>

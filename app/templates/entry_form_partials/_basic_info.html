@@ -3,6 +3,9 @@
         <h5><i class="fas fa-book"></i> Basic Information</h5>
     </div>
     <div class="card-body">
+        {# Alpine.js entry-meta component (Part A): POS + morph_type #}
+        <div x-data="entryMeta(window.__entryData || {})" style="display:contents">
+
         {# Alpine.js lexical-unit component (Stage 2.1) #}
         <div x-data="lexicalUnit(window.__entryData || {})" class="mb-3">
             <label class="form-label">Lexical Unit <span class="text-danger">*</span></label>
@@ -61,43 +64,68 @@
         </div>
         {% endif %}
 
+        {# Alpine-owned Citation Form — no name= attribute #}
         <div class="mb-3">
             <label for="citation-form" class="form-label">Citation Form</label>
-            <input type="text" class="form-control" id="citation-form" name="citation_form" 
-                   value="{{ entry.citation_form }}">
+            <input type="text" class="form-control" id="citation-form"
+                   x-model="citation">
             <div class="form-text">Optional citation form if different from the headword.</div>
         </div>
 
-        {{ new_macros.render_dynamic_select(
-            name='grammatical_info.part_of_speech',
-            id='part-of-speech',
-            range_id='grammatical-info',
-            label='Part of Speech',
-            selected_value=entry.grammatical_info,
-            placeholder='Select part of speech',
-            custom_classes='dynamic-grammatical-info',
-            tooltip='This field is automatically inherited from senses. If all senses have the same grammatical category, it will be set automatically. If there are discrepancies, you\'ll need to resolve them manually.'
-        ) }}
+        {# Alpine-owned Part of Speech (entry level) — no name= attribute #}
+        <div class="mb-3">
+            <label for="part-of-speech" class="form-label">
+                Part of Speech
+                <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                    <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top"
+                       title="This field is automatically inherited from senses. If all senses have the same grammatical category, it will be set automatically. If there are discrepancies, you'll need to resolve them manually."></i>
+                </span>
+            </label>
+            <select id="part-of-speech"
+                    class="form-select dynamic-grammatical-info"
+                    x-model="grammaticalInfo">
+                <option value="">Select part of speech</option>
+                <template x-for="opt in grammaticalInfoOptions" :key="opt.key">
+                    <option :value="opt.value" x-text="opt.label"
+                            :selected="opt.value === grammaticalInfo"></option>
+                </template>
+            </select>
+        </div>
 
-        {{ new_macros.render_dynamic_select(
-            name='status',
-            id='status',
-            range_id='status',
-            label='Status',
-            selected_value=entry.status,
-            is_hierarchical=true,
-            placeholder='Select status'
-        ) }}
+        {# Alpine-owned Status — no name= attribute (persists as <trait name="status">) #}
+        <div class="mb-3">
+            <label for="status" class="form-label">Status</label>
+            <select id="status"
+                    class="form-select"
+                    x-model="status">
+                <option value="">Select status</option>
+                <template x-for="opt in statusOptions" :key="opt.key">
+                    <option :value="opt.value" x-text="opt.label"
+                            :selected="opt.value === status"></option>
+                </template>
+            </select>
+        </div>
 
-        {{ new_macros.render_dynamic_select(
-            name='morph_type',
-            id='morph-type',
-            range_id='morph-type',
-            label='Morphological Type',
-            selected_value=entry.morph_type,
-            is_hierarchical=true,
-            placeholder='Select morphological type',
-            tooltip='Automatically classified based on headword form: contains whitespace=phrase, ends with hyphen=prefix, starts with hyphen=suffix, both=infix, default=stem.'
-        ) }}
+        {# Alpine-owned Morphological Type — no name= attribute #}
+        <div class="mb-3">
+            <label for="morph-type" class="form-label">
+                Morphological Type
+                <span class="input-group-text border-0 bg-transparent p-0 ms-1">
+                    <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top"
+                       title="Automatically classified based on headword form: contains whitespace=phrase, ends with hyphen=prefix, starts with hyphen=suffix, both=infix, default=stem."></i>
+                </span>
+            </label>
+            <select id="morph-type"
+                    class="form-select"
+                    x-model="morphType">
+                <option value="">Select morphological type</option>
+                <template x-for="opt in morphTypeOptions" :key="opt.key">
+                    <option :value="opt.value" x-text="opt.label"
+                            :selected="opt.value === morphType"></option>
+                </template>
+            </select>
+        </div>
+
+        </div>{# end entryMeta wrapper #}
     </div>
 </div>

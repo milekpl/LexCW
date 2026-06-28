@@ -72,6 +72,31 @@
   }
 
   /**
+   * Derive a single citation text from the server shape.
+   *
+   * LIFT `<citation>` is a multitext; `to_dict()` emits it as `citations`
+   * (a list of {lang: text} dicts). The entry form has always edited a single
+   * citation text (the legacy `entry.citation_form` input), so we surface the
+   * first non-empty value. On re-save the adapter re-emits it as `citation_form`,
+   * which the serializer wraps under the headword's primary language — matching
+   * the long-standing single-language citation behaviour (no new data loss).
+   */
+  function firstCitationText(raw) {
+    if (raw.citation_form) return safeString(raw.citation_form);
+    var cits = safeArray(raw.citations);
+    for (var i = 0; i < cits.length; i++) {
+      var c = cits[i];
+      if (c && typeof c === 'object') {
+        var keys = Object.keys(c);
+        for (var k = 0; k < keys.length; k++) {
+          if (c[keys[k]]) return safeString(c[keys[k]]);
+        }
+      }
+    }
+    return '';
+  }
+
+  /**
    * Convert a lang→text dict (server shape: {en: "text", pl: "tekst"})
    * into an array of {id, lang, text} objects.
    *
@@ -344,6 +369,10 @@
       // Grammatical info at entry level
       grammaticalInfo: safeString(raw.grammatical_info || raw.grammaticalInfo || ''),
       morphType: safeString(raw.morph_type || raw.morphType || ''),
+
+      // Citation (single source-language text) + status (entry-level `status` trait)
+      citation: firstCitationText(raw),
+      status: safeString((raw.traits && raw.traits.status) || raw.status || ''),
 
       // Senses — the core tree
       senses: safeArray(raw.senses).map(normalizeSense),

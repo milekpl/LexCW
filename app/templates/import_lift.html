@@ -49,6 +49,29 @@
                         </div>
                         
                         <div class="mb-3">
+                            <label for="list_xml_file" class="form-label">
+                                FieldWorks List File <span class="text-info">(Recommended)</span>
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="list_xml_file" 
+                                   name="list_xml_file" 
+                                   accept=".xml">
+                            <div class="form-text">
+                                Upload a <strong>list.xml</strong> file exported from FieldWorks 
+                                Language Explorer (<em>File &gt; Export &gt; List of Lists</em>).
+                                This provides real abbreviations 
+                                (e.g., "irreg. infl.", "comp.", "der.") for Variant Types, 
+                                Complex Form Types, Parts of Speech, and other controlled 
+                                vocabularies. <strong>Recommended for FieldWorks users.</strong>
+                                <a href="/help#list-xml-import" 
+                                   class="text-decoration-none">
+                                    <i class="fas fa-question-circle me-1"></i> Learn more
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" 
                                        type="checkbox" 
@@ -115,7 +138,26 @@
                         <li>Files with .lift or .xml extensions</li>
                         <li>UTF-8 encoded files are recommended</li>
                         <li>.lift-ranges files for semantic domains and grammatical information (highly recommended)</li>
+                        <li>FieldWorks <strong>list.xml</strong> file for real abbreviations 
+                            (recommended for FieldWorks users)</li>
                     </ul>
+                    
+                    <h6>FieldWorks Users: Getting Real Abbreviations</h6>
+                    <p>
+                        When exporting from FieldWorks Language Explorer (FLEx), you can
+                        additionally export a <strong>list.xml</strong> file containing the
+                        real abbreviations for Variant Types, Complex Form Types, Parts of
+                        Speech, and other controlled vocabularies. To generate this file:
+                    </p>
+                    <ol>
+                        <li>In FLEx, go to <strong>File &gt; Export &gt; List of Lists</strong></li>
+                        <li>Save the output as <strong>list.xml</strong></li>
+                        <li>Upload it alongside your LIFT and .lift-ranges files above</li>
+                    </ol>
+                    <p>
+                        Once imported, the Range Editor and dictionary display will use
+                        authentic FieldWorks abbreviations instead of generated placeholders.
+                    </p>
                     
                     <h6>Entry Structure</h6>
                     <ul>

@@ -35,12 +35,10 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
 ) -> None:
     """E2E regression for entry-level complex form/component relations.
 
-    NOTE: The variant search UI (variant-search-input, variant-search-btn,
-    select[data-range-id="variant-type"]) was replaced with Alpine x-model
-    text inputs in the §16.2 refactor. This test needs a rewrite for the
-    new UI pattern. Skipping until the Alpine test flow is defined.
+    Alpine §16.2 refactor: variant type uses x-model select with variantTypeOptions
+    (not data-range-id); target ref is a plain text input (no search widget).
     """
-    pytest.skip("Variant search UI replaced with Alpine x-model inputs (§16.2 refactor)")
+    base_url = get_base_url(app_url)
 
     # We'll create required sample entries (component, variant) via the UI so they exist in the same test DB
     timestamp = str(int(time.time() * 1000))
@@ -401,58 +399,36 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
     assert variant_items.count() >= 1, f"Expected at least one variant item, current count: {variant_items.count()}"
     variant_item = variant_items.last
 
-    # Select variant type from its dynamic-lift-range select
-    # Skip Select2 UI interaction which can be flaky; directly set the select value via JavaScript
-    variant_type_select = variant_item.locator('select[data-range-id="variant-type"]')
+    # Alpine variant-relations: select variant type from x-model options,
+    # then fill target entry ref in the plain text input.
+    variant_type_select = variant_item.locator('select').first
     variant_type_select.wait_for()
     
     page.evaluate("""() => {
-        const el = document.querySelector('select[data-range-id="variant-type"]');
+        const el = document.querySelector('.variant-item select');
         if (el && el.options && el.options.length > 1) {
             el.value = el.options[1].value || el.options[0].value;
-            el.dispatchEvent(new Event('change'));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
         } else if (el) {
-            if (!el.options.length) {
+            if (!el.options.length || el.options[0].value === '') {
                 const opt = document.createElement('option');
                 opt.value = 'test-variant';
                 opt.text = 'test-variant';
                 el.appendChild(opt);
             }
-            el.value = el.options[0].value;
-            el.dispatchEvent(new Event('change'));
+            el.value = el.options[el.options.length - 1].value;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
         }
     }""")
     page.wait_for_timeout(300)
 
-    # Use the variant search interface to connect to variantTargetEntryId
-    variant_search_input = variant_item.locator('input.variant-search-input')
-    variant_search_button = variant_item.locator('button.variant-search-btn')
+    # Alpine uses x-model text input for target entry ref (no search widget)
+    ref_input = variant_item.locator('input[type="text"]').first
+    ref_input.fill(variant_id)
+    page.wait_for_timeout(300)
 
-    variant_search_input.fill("variant")
-    try:
-        variant_search_button.click()
-    except Exception as e:
-        print('Variant search button click failed:', e)
-        try:
-            html = variant_search_button.inner_html() if variant_search_button.count() > 0 else 'not found'
-        except Exception:
-            html = 'could not read variant search button HTML'
-        print('Variant search button HTML:', html)
-        variant_search_button.click(force=True)
-
-    variant_results = page.locator('#variant-search-results-0')
-    variant_results.wait_for(state='visible')
-
-    first_variant_result = variant_results.locator('.search-result-item, .list-group-item').first
-    try:
-        first_variant_result.click()
-    except Exception as e:
-        print('Clicking variant result failed:', e)
-        print('Variant results HTML snapshot:', variant_results.inner_html())
-        first_variant_result.click(force=True)
-
-    # Basic smoke check that the variant UI shows the chosen target
-    expect(variant_item).to_contain_text("variant")
+    # Verify the ref input was filled with the variant target ID
+    expect(ref_input).to_have_value(variant_id)
 
     # --- Save the entry via form submission ---
     # Submit the form by dispatching a submit event, which triggers JavaScript handlers
@@ -527,7 +503,7 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
         assert any(str(r.get('ref')) == component_id for r in relations), "Neither UI showed component nor server recorded component relation"
 
     # 2) Variants card should list our variant target entry
-    variants_section = page.locator('div.variants-section')
+    variants_section = page.locator('div.variants-section').first
     expect(variants_section).to_contain_text("Variants")
     try:
         expect(variants_section).to_contain_text("variant")
@@ -536,7 +512,7 @@ def test_entry_complex_components_and_variants_persist_in_correct_sections(
         assert any(str(r.get('ref')) == variant_id for r in relations), "Neither UI showed variant nor server recorded variant relation"
 
     # 3) Generic Relations box should NOT show any _component-lexeme relation rows
-    relations_section = page.locator('div.relations-section')
+    relations_section = page.locator('div.relations-section').first
     expect(relations_section).to_contain_text("Relations")
 
     # Ensure that no relation row in this box contains the component headword text

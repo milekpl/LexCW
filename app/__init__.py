@@ -7,6 +7,8 @@ This module initializes the Flask application and registers all blueprints.
 import os
 import logging
 from pathlib import Path
+
+import click
 from flask import Flask, session, g, request, redirect, url_for
 from flasgger import Swagger
 from injector import Injector, singleton
@@ -854,4 +856,18 @@ def create_app(config_name=None):
     app.lucene_corpus_client = LuceneCorpusClient(
         base_url=app.config.get("LUCENE_CORPUS_URL", "http://localhost:8082")
     )
+
+    # CLI commands
+    @app.cli.command("import-list-xml")
+    @click.argument("file_path", type=click.Path(exists=True))
+    def import_list_xml_command(file_path):
+        """Import a FieldWorks list.xml file to populate range abbreviations."""
+        from app.services.ranges_service import RangesService
+        ranges_service = current_app.injector.get(RangesService)
+        result = ranges_service.import_list_xml(file_path)
+        click.echo(
+            f"Imported {result['ranges_imported']} ranges "
+            f"({result['values_imported']} values) from {file_path}"
+        )
+
     return app

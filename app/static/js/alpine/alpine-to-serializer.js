@@ -219,8 +219,25 @@
     if (state.dateCreated) result.date_created = state.dateCreated;
     if (state.dateModified) result.date_modified = state.dateModified;
     if (state.order !== undefined) result.order = state.order;
-    if (state.grammaticalInfo) result.grammatical_info = state.grammaticalInfo;
-    if (state.morphType) result.morph_type = state.morphType;
+
+    // Entry-level POS + morph type: prefer entryMeta section (new Alpine component);
+    // fall back to top-level grammaticalInfo/morphType for backward compatibility.
+    var gramInfo = (state.entryMeta && state.entryMeta.grammaticalInfo)
+      ? state.entryMeta.grammaticalInfo
+      : (state.grammaticalInfo || '');
+    var morphType = (state.entryMeta && state.entryMeta.morphType)
+      ? state.entryMeta.morphType
+      : (state.morphType || '');
+    if (gramInfo) result.grammatical_info = gramInfo;
+    if (morphType) result.morph_type = morphType;
+
+    // Citation (single source-language text) + status, owned by the entryMeta
+    // component. serializeEntry wraps citation_form under the headword's primary
+    // language and emits status as an entry-level <trait name="status">.
+    var citation = (state.entryMeta && state.entryMeta.citation) || '';
+    var status = (state.entryMeta && state.entryMeta.status) || '';
+    if (citation) result.citation_form = citation;
+    if (status) result.status = status;
 
     // Senses
     result.senses = (state.senses || []).map(adaptSense);

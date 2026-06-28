@@ -561,3 +561,82 @@ def get_project_languages_api() -> Union[Response, Tuple[Response, int]]:
             'success': False,
             'error': str(e)
         }), 500
+
+
+@ranges_bp.route('/import-list-xml', methods=['POST'])
+def import_list_xml() -> Union[Response, Tuple[Response, int]]:
+    """
+    Import a FieldWorks list.xml file to populate range abbreviations.
+
+    list.xml contains the real FieldWorks abbreviations (e.g., "irreg. infl.",
+    "comp.", "der.") for Variant Types, Complex Form Types, Parts of Speech,
+    and other controlled vocabularies. This endpoint parses it and stores
+    the data in BaseX so the Range Editor and CSS preview can use the
+    authentic abbreviations.
+
+    When exporting from FieldWorks Language Explorer (FLEx), select
+    "File > Export > List of Lists" to generate list.xml. Upload it here
+    alongside your LIFT and .lift-ranges files.
+
+    ---
+    tags:
+      - Ranges
+    summary: Import FieldWorks list.xml for range abbreviations
+    description: |
+      Parse and store FieldWorks list.xml data to provide real abbreviations
+      for Variant Types, Complex Form Types, Parts of Speech, etc.
+    consumes:
+      - multipart/form-data
+    parameters:
+      - name: list_file
+        in: formData
+        type: file
+        required: true
+        description: The list.xml file exported from FieldWorks
+    responses:
+      200:
+        description: Successfully imported list.xml data
+      400:
+        description: No file uploaded or invalid format
+      500:
+        description: Error processing list.xml
+    """
+    if 'list_file' not in request.files:
+        return jsonify({'success': False, 'error': 'No list_file uploaded'}), 400
+
+    list_file = request.files['list_file']
+    if not list_file.filename:
+        return jsonify({'success': False, 'error': 'Empty filename'}), 400
+
+    import tempfile, os
+    temp_path = None
+    try:
+        temp_path = os.path.join(
+            tempfile.gettempdir(),
+            f"list_{os.urandom(4).hex()}.xml",
+        )
+        list_file.save(temp_path)
+
+        from app.services.ranges_service import RangesService
+        ranges_service = current_app.injector.get(RangesService)
+        result = ranges_service.import_list_xml(temp_path)
+
+        return jsonify({
+            'success': True,
+            'data': result,
+            'message': (
+                f"Imported {result['ranges_imported']} ranges "
+                f"({result['values_imported']} values) from list.xml"
+            ),
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+        }), 500
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass

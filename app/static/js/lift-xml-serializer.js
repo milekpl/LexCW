@@ -129,6 +129,27 @@ class LIFTXMLSerializer {
             entry.appendChild(morphTrait);
         }
 
+        // Add citation (multitext, optional). Accept a {lang: text} dict (Alpine adapter) or a
+        // flat string from the legacy `citation_form` field (assign it the headword's language).
+        // Previously dropped entirely — serializeEntry never emitted <citation>.
+        let citation = formData.citation || formData.citations || null;
+        if (!citation && formData.citation_form) {
+            const primaryLang = (lexicalUnit && Object.keys(lexicalUnit)[0]) || 'en';
+            citation = { [primaryLang]: formData.citation_form };
+        }
+        if (citation && typeof citation === 'object' && Object.keys(citation).length > 0) {
+            const citationEl = this.createCitation(doc, citation);
+            if (citationEl.hasChildNodes()) {
+                entry.appendChild(citationEl);
+            }
+        }
+
+        // Add status as an entry-level trait (the parser reads it back via _parse_traits).
+        // Previously dropped — serializeEntry never emitted it.
+        if (formData.status) {
+            entry.appendChild(this.createTrait(doc, 'status', formData.status));
+        }
+
         // Add pronunciations
         if (formData.pronunciations && formData.pronunciations.length > 0) {
             formData.pronunciations.forEach(pronData => {
@@ -725,7 +746,7 @@ class LIFTXMLSerializer {
      */
     createLexicalUnit(doc, lexicalUnitData) {
         const lexUnit = doc.createElementNS(this.LIFT_NS, 'lexical-unit');
-        
+
         Object.entries(lexicalUnitData).forEach(([lang, text]) => {
             if (text) {
                 const form = this.createForm(doc, lang, text);
@@ -734,6 +755,21 @@ class LIFTXMLSerializer {
         });
 
         return lexUnit;
+    }
+
+    /**
+     * Create a <citation> element (LIFT multitext, like <lexical-unit>).
+     * @param {Document} doc
+     * @param {Object} citationData - {lang: text} dict
+     */
+    createCitation(doc, citationData) {
+        const citation = doc.createElementNS(this.LIFT_NS, 'citation');
+        Object.entries(citationData).forEach(([lang, text]) => {
+            if (text) {
+                citation.appendChild(this.createForm(doc, lang, text));
+            }
+        });
+        return citation;
     }
 
     /**

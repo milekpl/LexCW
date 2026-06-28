@@ -999,6 +999,12 @@ def import_lift():
                 flash("Invalid ranges file type. Please upload a .lift-ranges file or leave empty.", "warning")
                 ranges_file = None
 
+        # Handle optional list.xml file (FieldWorks abbreviation data)
+        list_file = None
+        list_temp_path = None
+        if "list_xml_file" in request.files and request.files["list_xml_file"].filename:
+            list_file = request.files["list_xml_file"]
+
         try:
             # Save the LIFT file temporarily
             lift_filepath = os.path.join(current_app.instance_path, "uploads", lift_file.filename)
@@ -1010,6 +1016,11 @@ def import_lift():
                 ranges_temp_path = os.path.join(current_app.instance_path, "uploads", ranges_file.filename)
                 ranges_file.save(ranges_temp_path)
 
+            # Save the list.xml file temporarily if provided
+            if list_file:
+                list_temp_path = os.path.join(current_app.instance_path, "uploads", list_file.filename)
+                list_file.save(list_temp_path)
+
             # Get dictionary service
             dict_service = current_app.injector.get(DictionaryService)
 
@@ -1019,6 +1030,25 @@ def import_lift():
 
             # Import the LIFT file with optional ranges file
             entry_count = dict_service.import_lift(lift_filepath, mode=mode, ranges_path=ranges_temp_path)
+
+            # If list.xml was provided, import it to get real abbreviations
+            if list_temp_path:
+                try:
+                    from app.services.ranges_service import RangesService
+                    ranges_service = current_app.injector.get(RangesService)
+                    result = ranges_service.import_list_xml(list_temp_path)
+                    if result["ranges_imported"] > 0:
+                        flash(
+                            f"Imported {result['ranges_imported']} ranges from list.xml "
+                            f"({result['values_imported']} values with real abbreviations).",
+                            "success",
+                        )
+                except Exception as list_e:
+                    logger.warning("Error importing list.xml: %s", list_e)
+                    flash(
+                        f"Warning: Could not import list.xml: {list_e}",
+                        "warning",
+                    )
 
             flash(
                 f"Successfully imported {entry_count} entries from LIFT file.",
@@ -1038,6 +1068,8 @@ def import_lift():
                     os.unlink(lift_filepath)
                 if ranges_temp_path and os.path.exists(ranges_temp_path):
                     os.unlink(ranges_temp_path)
+                if list_temp_path and os.path.exists(list_temp_path):
+                    os.unlink(list_temp_path)
             except Exception:
                 pass
 
