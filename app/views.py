@@ -246,25 +246,26 @@ def view_entry(entry_id):
     """
     Render the entry detail page.
 
-    Supports configurable view modes via ?view= URL parameter,
-    session, and user preferences. Modes:
-        - default: CSS display + cross-references (read-only)
-        - annotations: + annotations + custom fields
-        - all: + structured senses view
+    All sections are rendered server-side; view-mode toggling
+    (default / annotations / all) happens client-side for
+    instant switching.  Modes control visibility of:
+        - annotations: annotations + custom fields cards
+        - all:         + structured senses view
 
     Args:
         entry_id: ID of the entry to view.
     """
     try:
-        # Determine view mode: URL param > workset context > session > user pref > default
-        view_mode = request.args.get('view')
+        # Determine initial view mode hint for client-side JS.
+        # URL param > workset context > session > default.
         valid_modes = ('default', 'annotations', 'all')
-        if view_mode in valid_modes:
-            session['entry_view_mode'] = view_mode
+        initial_view_mode = request.args.get('view')
+        if initial_view_mode in valid_modes:
+            session['entry_view_mode'] = initial_view_mode
         elif request.args.get('workset_id'):
-            view_mode = 'annotations'
+            initial_view_mode = 'annotations'
         else:
-            view_mode = session.get('entry_view_mode', 'default')
+            initial_view_mode = session.get('entry_view_mode', 'default')
 
         # Get dictionary service
         dict_service = current_app.injector.get(DictionaryService)
@@ -286,12 +287,12 @@ def view_entry(entry_id):
         enriched_grouped_relations = RelationGroups(entry.relations, ranges)
         enriched_grouped_relations.enrich_with_display_text(dict_service)
 
-        # Get complete variant relations (both directions)
+        # Variant relations (both directions) — always rendered
         variant_relations = entry.get_complete_variant_relations(dict_service)
 
-        # Conditional data for annotations / all modes
-        custom_fields = entry.custom_fields if view_mode in ('annotations', 'all') else None
-        annotations = entry.annotations if view_mode in ('annotations', 'all') else None
+        # Annotations and custom fields — always rendered (hidden by default in client JS)
+        custom_fields = entry.custom_fields
+        annotations = entry.annotations
 
         # Get CSS-rendered HTML for the entry using default profile
         from app.services.css_mapping_service import CSSMappingService
@@ -364,7 +365,7 @@ def view_entry(entry_id):
                              variant_relations=variant_relations, custom_fields=custom_fields,
                              annotations=annotations,
                              enriched_grouped_relations=enriched_grouped_relations,
-                             view_mode=view_mode)
+                             initial_view_mode=initial_view_mode)
 
     except NotFoundError:
         flash(f"Entry with ID {entry_id} not found.", "danger")
