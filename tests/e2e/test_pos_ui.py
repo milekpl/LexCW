@@ -10,6 +10,25 @@ def _get_base_url(flask_test_server):
     return flask_test_server
 
 
+# Sense POS is a searchable combobox (no <select>); its value lives in the Alpine
+# senseTree state. Read/write it there — driving sense.grammaticalInfo updates the
+# combobox display and fires the inheritance $watch, just like a real pick.
+def _sense_pos(page, idx):
+    return page.evaluate(
+        "(i) => { const el = document.querySelector('[x-data^=\"senseTree\"]');"
+        " return el ? (window.Alpine.$data(el).senses[i] || {}).grammaticalInfo : null; }",
+        idx,
+    )
+
+
+def _set_sense_pos(page, idx, value):
+    page.evaluate(
+        "([i, v]) => { const el = document.querySelector('[x-data^=\"senseTree\"]');"
+        " window.Alpine.$data(el).senses[i].grammaticalInfo = v; }",
+        [idx, value],
+    )
+
+
 @pytest.mark.integration
 def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
     """Test that setting POS on entry level propagates to all senses.
@@ -77,13 +96,12 @@ def test_entry_pos_propagates_to_senses(page: Page, flask_test_server):
     assert entry_pos_value == "Adjective", f"Entry POS should be 'Adjective', got '{entry_pos_value}'"
 
     # Verify POS propagated to first sense
-    sense_pos_selects = page.locator(".sense-item .dynamic-grammatical-info")
-    first_sense_pos = sense_pos_selects.nth(0).input_value()
+    first_sense_pos = _sense_pos(page, 0)
     print(f"First sense POS: {first_sense_pos}")
     assert first_sense_pos == "Adjective", f"First sense POS should inherit 'Adjective', got '{first_sense_pos}'"
 
     # Verify POS propagated to second sense
-    second_sense_pos = sense_pos_selects.nth(1).input_value()
+    second_sense_pos = _sense_pos(page, 1)
     print(f"Second sense POS: {second_sense_pos}")
     assert second_sense_pos == "Adjective", f"Second sense POS should inherit 'Adjective', got '{second_sense_pos}'"
 
@@ -121,9 +139,8 @@ def test_entry_pos_propagation_with_existing_sense_pos(page: Page, flask_test_se
     sense_definition = page.locator(".sense-item .definition-text").first
     sense_definition.fill("First test definition")
 
-    # Set first sense POS to Verb (using JavaScript)
-    page.evaluate('document.querySelector(".sense-item .dynamic-grammatical-info").value = "Verb"')
-    page.evaluate('document.querySelector(".sense-item .dynamic-grammatical-info").dispatchEvent(new Event("change", {bubbles: true}))')
+    # Set first sense POS to Verb (via Alpine senseTree state)
+    _set_sense_pos(page, 0, "Verb")
 
     # Add second sense
     page.click("#add-sense-btn")
@@ -144,13 +161,12 @@ def test_entry_pos_propagation_with_existing_sense_pos(page: Page, flask_test_se
     assert entry_pos_value == "Adjective", f"Entry POS should be 'Adjective', got '{entry_pos_value}'"
 
     # First sense should remain "Verb" (it was set before entry POS)
-    sense_pos_selects = page.locator(".sense-item .dynamic-grammatical-info")
-    first_sense_pos = sense_pos_selects.nth(0).input_value()
+    first_sense_pos = _sense_pos(page, 0)
     print(f"First sense POS: {first_sense_pos}")
     assert first_sense_pos == "Verb", f"First sense POS should remain 'Verb', got '{first_sense_pos}'"
 
     # Second sense should become "Adjective" (inherited from entry)
-    second_sense_pos = sense_pos_selects.nth(1).input_value()
+    second_sense_pos = _sense_pos(page, 1)
     print(f"Second sense POS: {second_sense_pos}")
     assert second_sense_pos == "Adjective", f"Second sense POS should inherit 'Adjective', got '{second_sense_pos}'"
 

@@ -246,19 +246,35 @@ def view_entry(entry_id):
     """
     Render the entry detail page.
 
+    Supports configurable view modes via ?view= URL parameter,
+    session, and user preferences. Modes:
+        - default: CSS display + cross-references (read-only)
+        - annotations: + annotations + custom fields
+        - all: + structured senses view
+
     Args:
         entry_id: ID of the entry to view.
     """
     try:
+        # Determine view mode: URL param > workset context > session > user pref > default
+        view_mode = request.args.get('view')
+        valid_modes = ('default', 'annotations', 'all')
+        if view_mode in valid_modes:
+            session['entry_view_mode'] = view_mode
+        elif request.args.get('workset_id'):
+            view_mode = 'annotations'
+        else:
+            view_mode = session.get('entry_view_mode', 'default')
+
         # Get dictionary service
         dict_service = current_app.injector.get(DictionaryService)
 
         # Get entry (use non-validating method to allow viewing invalid entries)
         entry = dict_service.get_entry_for_editing(entry_id)
-        
+
         # Get component relations (main entries this is a subentry of)
         component_relations = entry.get_component_relations(dict_service)
-        
+
         # Get subentries (reverse component relations)
         subentries = entry.get_subentries(dict_service)
 
@@ -270,13 +286,20 @@ def view_entry(entry_id):
         enriched_grouped_relations = RelationGroups(entry.relations, ranges)
         enriched_grouped_relations.enrich_with_display_text(dict_service)
 
+        # Get complete variant relations (both directions)
+        variant_relations = entry.get_complete_variant_relations(dict_service)
+
+        # Conditional data for annotations / all modes
+        custom_fields = entry.custom_fields if view_mode in ('annotations', 'all') else None
+        annotations = entry.annotations if view_mode in ('annotations', 'all') else None
+
         # Get CSS-rendered HTML for the entry using default profile
         from app.services.css_mapping_service import CSSMappingService
         from app.services.display_profile_service import DisplayProfileService
-        
+
         css_service = CSSMappingService()
         profile_service = DisplayProfileService()
-        
+
         # Get default profile or create one if it doesn't exist
         default_profile = profile_service.get_default_profile()
         if not default_profile:
@@ -286,7 +309,7 @@ def view_entry(entry_id):
                 description="Auto-created default profile"
             )
             profile_service.set_default_profile(default_profile.id)
-        
+
         # Render entry with CSS - need to get raw XML from database
         css_html = None
         try:
@@ -298,14 +321,14 @@ def view_entry(entry_id):
                 entry_id, db_name, has_namespace=False
             )
             entry_xml = dict_service.db_connector.execute_query(query)
-            
+
             if entry_xml:
                 css_html = css_service.render_entry(
                     entry_xml,
                     profile=default_profile,
                     dict_service=dict_service
                 )
-                
+
                 # If show_subentries is enabled, fetch and render all subentries in one query
                 if default_profile.show_subentries and subentries:
                     try:
@@ -332,13 +355,16 @@ def view_entry(entry_id):
                             css_html += "\n".join(subentry_html_parts)
                     except Exception as e:
                         logger.warning("Error rendering subentries: %s", e)
-                        
+
         except Exception as e:
             logger.warning("Error rendering entry with CSS: %s", e)
 
         return render_template("entry_view.html", entry=entry, css_html=css_html,
                              component_relations=component_relations, subentries=subentries,
-                             enriched_grouped_relations=enriched_grouped_relations)
+                             variant_relations=variant_relations, custom_fields=custom_fields,
+                             annotations=annotations,
+                             enriched_grouped_relations=enriched_grouped_relations,
+                             view_mode=view_mode)
 
     except NotFoundError:
         flash(f"Entry with ID {entry_id} not found.", "danger")
@@ -528,17 +554,6 @@ def edit_entry(entry_id):
             # Prepare the entry XML using DictionaryService's method
             entry_xml = dict_service._prepare_entry_xml(entry)
             
-            # CRITICAL: Close DictionaryService's persistent connection during update
-            # This allows XMLEntryService to get exclusive access to the database
-            db_connector = dict_service.db_connector
-            was_connected = db_connector.is_connected()
-            if was_connected:
-                try:
-                    db_connector.disconnect()
-                    logger.info(f"[EDIT_ENTRY] Disconnected DictionaryService connection before XMLEntryService update")
-                except Exception as e:
-                    logger.warning(f"[EDIT_ENTRY] Failed to disconnect: {e}")
-            
             try:
                 # Try to update, fall back to create if entry doesn't exist
                 try:
@@ -557,14 +572,6 @@ def edit_entry(entry_id):
             except Exception as update_error:
                 logger.error(f"[EDIT_ENTRY] Update/create failed: {update_error}", exc_info=True)
                 return jsonify({"error": f"Failed to save entry: {str(update_error)}"}), 500
-            finally:
-                # CRITICAL: Reconnect DictionaryService after update
-                if was_connected:
-                    try:
-                        db_connector.connect()
-                        logger.info(f"[EDIT_ENTRY] Reconnected DictionaryService connection after update")
-                    except Exception as e:
-                        logger.error(f"[EDIT_ENTRY] Failed to reconnect DictionaryService: {e}", exc_info=True)
 
 
         # Try to load the entry for editing
@@ -685,24 +692,22 @@ def edit_entry(entry_id):
                     try:
                         ids = [s["id"] for s in subentries_data if s.get("id")]
                         if ids:
-                            joined = ",".join(
-                                f"collection()//entry[@id='{i}']" for i in ids
-                            )
+                            preds = " or ".join(f"@id='{i}'" for i in ids)
                             subentries_xml = dict_service.db_connector.execute_query(
-                                f"xquery ({joined})"
+                                f"xquery collection()//entry[{preds}]"
                             )
                             if subentries_xml:
-                                for sub_xml in subentries_xml.split("</entry>"):
-                                    if not sub_xml.strip():
-                                        continue
-                                    full_xml = sub_xml + "</entry>"
+                                wrapped = f"<root>{subentries_xml}</root>"
+                                root = ET.fromstring(wrapped)
+                                for child, sub_id in zip(root, ids):
+                                    full_xml = ET.tostring(child, encoding="unicode")
                                     rendered = css_service.render_entry(
                                         full_xml,
                                         profile=default_profile,
                                         dict_service=dict_service,
                                     )
                                     subentry_html_parts.append(
-                                        f'<div class="subentry" data-subentry-id="">{rendered}</div>'
+                                        f'<div class="subentry" data-subentry-id="{sub_id}">{rendered}</div>'
                                     )
                         if subentry_html_parts:
                             css_html += "\n".join(subentry_html_parts)
@@ -1075,6 +1080,12 @@ def import_lift():
                 pass
 
     return render_template("import_lift.html")
+
+
+@main_bp.route("/import/list-xml")
+def import_list_xml():
+    """Standalone page for importing FieldWorks list.xml abbreviations."""
+    return render_template("import_list_xml.html")
 
 
 @main_bp.route("/export/lift")

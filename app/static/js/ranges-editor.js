@@ -232,7 +232,7 @@ class RangesEditor {
                 <td>
                     <strong>${this.escapeHtml(this.getLabel(range))}</strong>
                 </td>
-                <td>${range.values ? range.values.length : 0}</td>
+                <td>${range.total_element_count != null ? range.total_element_count : (range.values ? range.values.length : 0)}</td>
                 <td>
                     ${range.official ? '<span class="badge bg-secondary me-2">Official</span>' : '<span class="badge bg-warning text-dark me-2">Custom</span>'}
                     <button class="btn btn-sm btn-outline-primary" title="Edit"
@@ -448,15 +448,14 @@ class RangesEditor {
                 this.addEditLanguageField('editLabelsContainer', 'labels');
             }
             
-            // Load elements
-            await this.loadElements(rangeId);
-            
-            // Load usage
-            await this.loadUsage(rangeId);
-            
-            // Show modal
+            // Show modal immediately — don't block on elements/usage
             const modal = new bootstrap.Modal(document.getElementById('editRangeModal'));
             modal.show();
+
+            // Load elements and usage in the background (non-blocking)
+            // Elements load via Alpine component, usage loads into its tab
+            this.loadElements(rangeId);
+            this.loadUsage(rangeId);
             
         } catch (error) {
             console.error('Failed to load range:', error);
@@ -486,85 +485,54 @@ class RangesEditor {
     
     async loadElements(rangeId) {
         try {
+            // Delegate to Alpine.js component if available
+            const el = document.getElementById('elements');
+            if (el && typeof Alpine !== 'undefined') {
+                const data = Alpine.$data(el);
+                if (data && data.loadElements) {
+                    await data.loadElements(rangeId);
+                    // Duplicate banner goes into its own div outside Alpine
+                    this.renderDuplicateBanner(rangeId, document.getElementById('duplicateBanner'));
+                    return;
+                }
+            }
+
+            // Fallback: load directly (no Alpine)
             const response = await fetch(`/api/ranges-editor/${rangeId}/elements`);
             const result = await response.json();
-            
-            if (!result.success) {
-                document.getElementById('elementsContainer').innerHTML = 
-                    `<p class="text-danger">Error loading elements: ${result.error}</p>`;
-                return;
-            }
-            
-            const elements = result.data;
             const container = document.getElementById('elementsContainer');
 
-            if (!elements || elements.length === 0) {
+            if (!result.success) {
+                container.innerHTML = `<p class="text-danger">Error loading elements: ${result.error}</p>`;
+                return;
+            }
+
+            const elements = result.data || [];
+            if (elements.length === 0) {
                 container.innerHTML = '<p class="text-muted">No elements defined</p>';
                 return;
             }
 
-            // Recursive renderer for elements and children
-            const renderElement = (elem) => {
+            // Legacy fallback: build HTML directly (when Alpine not loaded)
+            const renderElement = (elem, rid) => {
                 const abbrev = elem.effective_abbrev || elem.abbrev || (elem.abbrevs ? (elem.abbrevs['en'] || Object.values(elem.abbrevs)[0]) : '');
                 const label = elem.effective_label || (elem.labels && (elem.labels.en || Object.values(elem.labels)[0])) || elem.value || elem.id;
-
                 const badges = [];
-                if (abbrev) {
-                    badges.push(`<span class="badge bg-info me-1">${this.escapeHtml(abbrev)}</span>`);
-                }
+                if (abbrev) badges.push(`<span class="badge bg-info me-1">${this.escapeHtml(abbrev)}</span>`);
                 if (elem.abbrevs && Object.keys(elem.abbrevs).length > 0) {
                     badges.push(Object.entries(elem.abbrevs).map(([lang, abbr]) =>
                         `<span class="badge bg-secondary me-1" title="${this.escapeHtml(lang)}">${this.escapeHtml(abbr)}</span>`
                     ).join(''));
                 }
-
                 const desc = (elem.description && (elem.description.en || Object.values(elem.description)[0])) ?
                     `<small class="text-muted">${this.escapeHtml(elem.description.en || Object.values(elem.description)[0])}</small>` : '';
-
-                let html = `
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <div class="d-flex align-items-center mb-1">
-                                    <strong class="me-2">${this.escapeHtml(elem.id)}</strong>
-                                    ${badges.join('')}
-                                    <small class="text-muted ms-2">${this.escapeHtml(label)}</small>
-                                </div>
-                                ${desc}
-                            </div>
-                            <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-primary" title="Edit"
-                                        onclick="editor.editElement('${this.escapeHtml(rangeId)}', '${this.escapeHtml(elem.id)}')">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" title="Delete"
-                                        onclick="editor.deleteElement('${this.escapeHtml(rangeId)}', '${this.escapeHtml(elem.id)}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-
+                let html = `<div class="list-group-item"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1"><div class="d-flex align-items-center mb-1"><strong class="me-2">${this.escapeHtml(elem.id)}</strong>${badges.join('')}<small class="text-muted ms-2">${this.escapeHtml(label)}</small></div>${desc}</div><div class="btn-group"><button class="btn btn-sm btn-outline-primary" title="Edit" onclick="editor.editElement('${this.escapeHtml(rid)}', '${this.escapeHtml(elem.id)}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-danger" title="Delete" onclick="editor.deleteElement('${this.escapeHtml(rid)}', '${this.escapeHtml(elem.id)}')"><i class="bi bi-trash"></i></button></div></div></div>`;
                 if (elem.children && elem.children.length > 0) {
-                    html += `<div class="ms-3">
-                                <div class="list-group">
-                                    ${elem.children.map(child => renderElement(child)).join('')}
-                                </div>
-                             </div>`;
+                    html += `<div class="ms-3"><div class="list-group">${elem.children.map(child => renderElement(child, rid)).join('')}</div></div>`;
                 }
-
                 return html;
             };
-
-            container.innerHTML = `
-                <div class="list-group">
-                    ${elements.map(elem => renderElement(elem)).join('')}
-                </div>
-            `;
-
-            // Surface duplicate range-elements (spec §15.1): exact duplicates are auto-removed
-            // server-side; id/guid conflicts are flagged here for a manual decision.
+            container.innerHTML = `<div class="list-group">${elements.map(elem => renderElement(elem, rangeId)).join('')}</div>`;
             this.renderDuplicateBanner(rangeId, container);
 
         } catch (error) {
@@ -583,6 +551,7 @@ class RangesEditor {
      */
     async renderDuplicateBanner(rangeId, container) {
         try {
+            if (container) container.innerHTML = '';
             const response = await fetch(`/api/ranges-editor/${rangeId}/duplicates`);
             const result = await response.json();
             if (!result.success || !result.data || !result.data.has_duplicates) return;
@@ -1077,13 +1046,19 @@ class RangesEditor {
     }
     
     showError(message) {
-        // Simple alert for now - could be improved with toast notifications
-        alert(message);
+        if (typeof showToast !== 'undefined') {
+            showToast(message, 'error');
+        } else {
+            console.error(message);
+        }
     }
     
     showSuccess(message) {
-        // Simple alert for now - could be improved with toast notifications
-        alert(message);
+        if (typeof showToast !== 'undefined') {
+            showToast(message, 'success');
+        } else {
+            console.log(message);
+        }
     }
     
     escapeHtml(text) {
@@ -1093,8 +1068,9 @@ class RangesEditor {
     }
 }
 
-// Initialize on page load
+// Initialize on page load — exposed as window.editor for Alpine components
 let editor;
 document.addEventListener('DOMContentLoaded', () => {
     editor = new RangesEditor();
+    window.editor = editor;
 });

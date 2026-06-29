@@ -276,7 +276,9 @@ class RangesService:
                 import time as _time
                 age = _time.time() - cached_time
                 self.logger.debug(f"Using cached ranges (age: {age:.1f}s)")
-                # Merge any custom ranges from DB so direct inserts are visible
+                # Merge any custom ranges from DB so direct inserts are visible.
+                # Only append elements whose IDs are not already present to avoid
+                # duplicating entries that were merged before the cache was populated.
                 try:
                     custom_ranges = self._load_custom_ranges(project_id)
                     if custom_ranges:
@@ -287,9 +289,13 @@ class RangesService:
                                     'id': range_name,
                                     'guid': f'custom-{range_name}',
                                     'description': {},
-                                    'values': []
+                                    'values': list(elements)
                                 }
-                            merged[range_name]['values'].extend(elements)
+                            else:
+                                existing_ids = {e.get('id') for e in merged[range_name].get('values', [])}
+                                new_elements = [e for e in elements if e.get('id') not in existing_ids]
+                                if new_elements:
+                                    merged[range_name]['values'].extend(new_elements)
                             # Ensure non-official flag when appropriate
                             if not merged[range_name].get('official'):
                                 merged[range_name]['official'] = False
@@ -619,7 +625,26 @@ class RangesService:
             self.logger.error(f"Error parsing specific range XML for {range_id}")
             raise NotFoundError(f"Range '{range_id}' not found")
         raise NotFoundError(f"Range '{range_id}' not found")
-    
+
+    def get_range_element(self, range_id: str, element_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a single range element by ID.  Uses the cached ranges data
+        (same as every other reader) so the result is always consistent with
+        what ``get_range`` returns."""
+        range_data = self.get_range(range_id)
+        if not range_data or not range_data.get('values'):
+            return None
+
+        def _find(values: list) -> Optional[Dict]:
+            for elem in (values or []):
+                if elem.get('id') == element_id:
+                    return elem
+                child = _find(elem.get('children', []))
+                if child:
+                    return child
+            return None
+
+        return _find(range_data['values'])
+
     def create_range(self, range_data: Dict[str, Any]) -> str:
         """
         Create new range.
@@ -1057,7 +1082,24 @@ class RangesService:
         return True
     
     # --- Usage Analysis & Migration ---
-    
+
+    def count_range_usage(self, range_id: str, element_id: str) -> int:
+        """
+        Fast count of entries referencing a specific element — returns only the
+        count, not the entries themselves. Used by the duplicates endpoint.
+        """
+        if range_id == 'grammatical-info':
+            query = f"count(//entry[.//grammatical-info[@value = '{element_id}']])"
+        elif range_id == 'lexical-relation':
+            query = f"count(//entry[.//relation[@type = '{element_id}']])"
+        else:
+            query = f"count(//entry[.//trait[@name = '{range_id}' and @value = '{element_id}']])"
+        result = self.db_connector.execute_query(query)
+        try:
+            return int(result.strip()) if result and result.strip() else 0
+        except ValueError:
+            return 0
+
     def find_range_usage(
         self, range_id: str, element_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
@@ -1164,59 +1206,62 @@ class RangesService:
     def get_usage_by_element(self, range_id: str) -> Dict[str, Any]:
         """
         Get usage statistics grouped by element value.
-        
-        Args:
-            range_id: Range ID to analyze.
-        
-        Returns:
-            Dict with structure:
-            {
-                'total_entries': int,
-                'elements': {
-                    'element_id': {
-                        'count': int,
-                        'label': str,
-                        'sample_entries': [{'entry_id': str, 'headword': str}, ...]
-                    }
-                }
-            }
+
+        Uses a SINGLE XQuery that returns counts AND sample entries together,
+        avoiding the N+1 query problem of the previous implementation.
         """
-        # Get all elements in the range
         range_data = self.get_range(range_id)
         elements = {elem['id']: elem for elem in range_data.get('values', [])}
-        
-        # Build query to get all usage grouped by value
+
+        # Single query: for each distinct value, return value|||count|||samples
         if range_id == 'grammatical-info':
             query = """
             for $value in distinct-values(//entry//grammatical-info/@value)
+            let $entries := //entry[.//grammatical-info[@value = $value]]
             return concat(
               $value, '|||',
-              count(//entry[.//grammatical-info[@value = $value]])
+              count($entries), '|||',
+              string-join(
+                for $e in subsequence($entries, 1, 5)
+                return concat($e/@id, '~|~', string($e/lexical-unit/form[1]/text[1])),
+                '~||~'
+              )
             )
             """
         elif range_id == 'lexical-relation':
             query = """
             for $type in distinct-values(//entry//relation/@type)
+            let $entries := //entry[.//relation[@type = $type]]
             return concat(
               $type, '|||',
-              count(//entry[.//relation[@type = $type]])
+              count($entries), '|||',
+              string-join(
+                for $e in subsequence($entries, 1, 5)
+                return concat($e/@id, '~|~', string($e/lexical-unit/form[1]/text[1])),
+                '~||~'
+              )
             )
             """
         else:
             query = f"""
             for $value in distinct-values(//entry//trait[@name = '{range_id}']/@value)
+            let $entries := //entry[.//trait[@name = '{range_id}' and @value = $value]]
             return concat(
               $value, '|||',
-              count(//entry[.//trait[@name = '{range_id}' and @value = $value]])
+              count($entries), '|||',
+              string-join(
+                for $e in subsequence($entries, 1, 5)
+                return concat($e/@id, '~|~', string($e/lexical-unit/form[1]/text[1])),
+                '~||~'
+              )
             )
             """
-        
+
         result = self.db_connector.execute_query(query)
-        
-        # Parse results
+
         usage_by_element = {}
-        total_entries = set()
-        
+        all_entry_ids = set()
+
         if result and result.strip():
             for line in result.strip().split('\n'):
                 if not line:
@@ -1226,7 +1271,21 @@ class RangesService:
                     element_id = parts[0]
                     try:
                         count = int(parts[1])
-                        
+
+                        # Parse sample entries from the third pipe-delimited field
+                        sample_entries = []
+                        if len(parts) >= 3 and parts[2].strip():
+                            for entry_str in parts[2].split('~||~'):
+                                if not entry_str:
+                                    continue
+                                entry_parts = entry_str.split('~|~')
+                                if len(entry_parts) >= 2:
+                                    sample_entries.append({
+                                        'entry_id': entry_parts[0],
+                                        'headword': entry_parts[1]
+                                    })
+                                    all_entry_ids.add(entry_parts[0])
+
                         # Get element label
                         elem_data = elements.get(element_id, {})
                         label = ''
@@ -1234,22 +1293,19 @@ class RangesService:
                             label = elem_data['description'].get('en', list(elem_data['description'].values())[0] if elem_data['description'] else '')
                         elif 'abbrev' in elem_data:
                             label = elem_data['abbrev']
-                        
-                        # Get sample entries for this element
-                        sample_usage = self.find_range_usage(range_id, element_id)
-                        
+
                         usage_by_element[element_id] = {
                             'count': count,
                             'label': label or element_id,
-                            'sample_entries': sample_usage[:5]  # First 5 samples
+                            'sample_entries': sample_entries
                         }
-                        
+
                     except (ValueError, IndexError) as e:
                         self.logger.warning(f"Failed to parse usage stats line: {line}, error: {e}")
                         continue
-        
+
         return {
-            'total_entries': len(set(entry['entry_id'] for elem_usage in usage_by_element.values() for entry in elem_usage['sample_entries'])),
+            'total_entries': len(all_entry_ids),
             'elements': usage_by_element
         }
     

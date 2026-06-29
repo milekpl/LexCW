@@ -60,9 +60,10 @@ def create_app(config_name=None):
     else:
         app.config.from_object("config.DevelopmentConfig")
 
-    # Force debug mode for detailed error reporting during development/testing
-    app.debug = True
-    app.config["DEBUG"] = True
+    # Only force debug in development/testing; respect production config
+    if config_name != "production":
+        app.debug = True
+        app.config["DEBUG"] = True
 
     # Load instance config if it exists
     app.config.from_pyfile("config.py", silent=True)
@@ -370,19 +371,8 @@ def create_app(config_name=None):
     swagger = Swagger(app, config=swagger_config)
     app.swagger = swagger  # Store reference to avoid unused variable warning
 
-    # Add a safe url_for wrapper to templates that returns a fallback when an endpoint
-    # is not registered (prevents BuildError during unit tests when blueprints may
-    # not be present).
-    from werkzeug.routing import BuildError as _BuildError
-
-    def safe_url_for(endpoint: str, **values: object) -> str:
-        try:
-            return url_for(endpoint, **values)
-        except _BuildError:
-            # Return harmless placeholder instead of raising during template rendering
-            return "#"
-
-    app.jinja_env.globals['safe_url_for'] = safe_url_for
+    # safe_url_for is registered as a template global in app/views.py via
+    # @main_bp.app_template_global(). No need to duplicate here.
 
     # Register error handlers
     @app.errorhandler(404)

@@ -131,15 +131,17 @@ def test_sense_pos_field_behavior(page: Page, app_url: str, ensure_sense) -> Non
     ensure_sense(page)
     page.locator('textarea.definition-text:visible').first.fill('First sense definition')
     
-    # Try to set sense-level grammatical info if available
-    sense_pos_fields = page.locator('.sense-item .dynamic-grammatical-info')
-    
-    if sense_pos_fields.count() > 0:
-        sense_pos_fields.first.select_option('Noun')
-        
-        # Verify selection worked
-        selected = sense_pos_fields.first.input_value()
-        assert selected == 'Noun', f"Sense POS should be Noun, got: {selected}"
+    # Sense POS is a searchable combobox bound to Alpine sense.grammaticalInfo.
+    # Set it via Alpine state (equivalent to picking 'Noun' in the combobox) and verify.
+    page.evaluate(
+        "() => { const el = document.querySelector('[x-data^=\"senseTree\"]');"
+        " window.Alpine.$data(el).senses[0].grammaticalInfo = 'Noun'; }"
+    )
+    selected = page.evaluate(
+        "() => { const el = document.querySelector('[x-data^=\"senseTree\"]');"
+        " return window.Alpine.$data(el).senses[0].grammaticalInfo; }"
+    )
+    assert selected == 'Noun', f"Sense POS should be Noun, got: {selected}"
     
     # Submit form
     page.click('button[type="submit"]')

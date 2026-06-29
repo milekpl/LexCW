@@ -68,6 +68,9 @@ class XMLEntryService:
     
     Provides high-level CRUD operations, XML validation, and search functionality.
     """
+
+    # Class-level cache: {db_name: has_namespace} — avoids probing DB on every instance
+    _namespace_cache: dict[str, bool] = {}
     
     def __init__(
         self,
@@ -111,12 +114,17 @@ class XMLEntryService:
             or 'dictionary'
         )
         
-        # Initialize namespace manager and query builder
-        self._detect_namespace_usage()
-        self._query_builder = XQueryBuilder()
+        # Lazy session — reused across method calls (Issue #4)
+        self._session: BaseXClient.Session | None = None
         
-        # Test connection on initialization
-        self._test_connection()
+        # Reuse namespace detection from class-level cache (Issue #10)
+        if self.database in XMLEntryService._namespace_cache:
+            self._has_namespace = XMLEntryService._namespace_cache[self.database]
+            logger.info(f"Reusing cached namespace for '{self.database}': {self._has_namespace}")
+        else:
+            self._detect_namespace_usage()
+        
+        self._query_builder = XQueryBuilder()
     
     def _detect_namespace_usage(self) -> bool:
         """
@@ -140,20 +148,24 @@ class XMLEntryService:
             q = session.query(query)
             result = q.execute()
             q.close()
-            session.close()
             
             self._has_namespace = (result.lower() == 'true')
+            # Cache at class level so future instances skip the probe
+            XMLEntryService._namespace_cache[self.database] = self._has_namespace
             logger.info(f"Detected namespace usage for '{self.database}': {self._has_namespace}")
             return self._has_namespace
             
+        except DatabaseConnectionError:
+            raise  # Propagate connection failures so __init__ fails fast
         except Exception as e:
             logger.warning(f"Failed to detect namespace usage: {e}")
             # Fallback to True as LIFT standard uses namespaces
+            XMLEntryService._namespace_cache[self.database] = True
             return True
     
     def _get_session(self) -> BaseXClient.Session:
         """
-        Get a new BaseX session.
+        Get a BaseX session, reusing an existing one if available.
         
         Returns:
             BaseX session object
@@ -161,6 +173,15 @@ class XMLEntryService:
         Raises:
             DatabaseConnectionError: If connection fails
         """
+        if self._session is not None:
+            try:
+                # Quick liveness check — if the socket is dead, discard and recreate
+                self._session.execute("()")
+                return self._session
+            except Exception:
+                logger.debug("Existing session stale, creating new one")
+                self._session = None
+
         try:
             session = BaseXClient.Session(
                 self.host,
@@ -169,19 +190,20 @@ class XMLEntryService:
                 self.password
             )
             session.execute(f"OPEN {self.database}")
+            self._session = session
             return session
         except Exception as e:
             logger.error(f"Failed to connect to BaseX: {e}")
             raise DatabaseConnectionError(f"Cannot connect to BaseX database: {e}") from e
     
-    def _test_connection(self) -> None:
-        """Test database connection during initialization."""
-        try:
-            session = self._get_session()
-            session.close()
-            logger.info(f"Successfully connected to BaseX database '{self.database}'")
-        except Exception as e:
-            logger.error(f"Database connection test failed: {e}")
+    def close(self) -> None:
+        """Close the underlying session if open."""
+        if self._session is not None:
+            try:
+                self._session.close()
+            except Exception:
+                pass
+            self._session = None
             raise
     
     def _validate_lift_xml(self, xml_string: str) -> ET.Element:
@@ -315,8 +337,6 @@ class XMLEntryService:
         except Exception as e:
             logger.error(f"Failed to create entry {entry_id}: {e}", exc_info=True)
             raise XMLEntryServiceError(f"Failed to create entry: {e}") from e
-        finally:
-            session.close()
     
     def get_entry(self, entry_id: str) -> dict[str, Any]:
         """
@@ -464,8 +484,6 @@ class XMLEntryService:
         except Exception as e:
             logger.error(f"Failed to retrieve entry {entry_id}: {e}")
             raise XMLEntryServiceError(f"Failed to retrieve entry: {e}") from e
-        finally:
-            session.close()
     
     def update_entry(self, entry_id: str, xml_string: str) -> dict[str, Any]:
         """
@@ -488,7 +506,7 @@ class XMLEntryService:
         logger.debug("update_entry called for %s", entry_id)
         
         try:
-            # Validate XML
+            # Validate XML (1st and only parse)
             root = self._validate_lift_xml(xml_string)
             xml_entry_id = root.attrib['id']
             
@@ -504,49 +522,42 @@ class XMLEntryService:
             if not self.entry_exists(entry_id):
                 raise EntryNotFoundError(f"Entry '{entry_id}' not found")
             
-            # Generate normalized XML with appropriate namespace
-            xml_clean = LIFTNamespaceManager.normalize_lift_xml(
-                xml_string,
-                LIFTNamespaceManager.LIFT_NAMESPACE if self._has_namespace else None
-            )
+            # Apply namespace normalization in-place on the already-parsed root
+            # (avoids re-parsing the string through normalize_lift_xml)
+            target_ns = LIFTNamespaceManager.LIFT_NAMESPACE if self._has_namespace else None
+            if target_ns == LIFTNamespaceManager.LIFT_NAMESPACE:
+                LIFTNamespaceManager._add_lift_namespace(root)
+            elif target_ns is None:
+                LIFTNamespaceManager._remove_namespaces(root)
+            else:
+                LIFTNamespaceManager._set_custom_namespace(root, target_ns)
+            
+            # Sanitize: remove empty/template senses in-place
+            removed = []
+            for parent in root.iter():
+                for child in list(parent):
+                    tag_local = child.tag.split('}')[-1]
+                    if tag_local == 'sense':
+                        has_content = any(
+                            (desc.text or '').strip()
+                            for desc in child.iter()
+                            if desc is not child
+                        )
+                        if not has_content:
+                            removed.append(child.attrib.get('id'))
+                            parent.remove(child)
+            if removed:
+                logger.info(f"Removed empty/template senses during XML update: {removed}")
+            
+            # Single serialize for the XQuery
+            xml_clean = ET.tostring(root, encoding='unicode')
+            logger.info(f"[XML UPDATE] Final sanitized XML (truncated): {xml_clean[:500]}")
             
             session = self._get_session()
         except Exception as prep_error:
             logger.error(f"Error preparing XML for update: {prep_error}")
             raise
         try:
-            # Use XQueryBuilder for update query
-            # Ideally we would use replace node, but delete+insert is safer for complex structures
-            
-            # Before inserting, sanitize XML to remove empty/template senses
-            try:
-                root_elem = ET.fromstring(xml_clean)
-                # remove empty <sense> elements: those with no child text or meaningful content
-                removed = []
-                # iterate parents to allow removal
-                for parent in root_elem.iter():
-                    for child in list(parent):
-                        tag_local = child.tag.split('}')[-1]
-                        if tag_local == 'sense':
-                            # Determine if it has meaningful text content in any descendant
-                            has_content = False
-                            for desc in child.iter():
-                                if desc is child:
-                                    continue
-                                text = (desc.text or '').strip()
-                                if text:
-                                    has_content = True
-                                    break
-                            if not has_content:
-                                removed.append(child.attrib.get('id'))
-                                parent.remove(child)
-                if removed:
-                    logger.info(f"Removed empty/template senses during XML update: {removed}")
-                xml_clean = ET.tostring(root_elem, encoding='unicode')
-                logger.info(f"[XML UPDATE] Final sanitized XML (truncated): {xml_clean[:500]}")
-            except ET.ParseError as e:
-                logger.warning(f"Failed to parse XML for sanitization: {e}")
-
             # Delete old entry
             delete_query = XQueryBuilder.build_delete_entry_query(
                 entry_id, self.database, self._has_namespace
@@ -556,9 +567,6 @@ class XMLEntryService:
             insert_query = XQueryBuilder.build_insert_entry_query(
                 xml_clean, self.database, self._has_namespace
             )
-            
-            # Execute as transaction-like (though BaseX doesn't support full ACID trans across multiple queries without script)
-            # We'll execute them sequentially
             
             logger.debug(f"Deleting old entry {entry_id}")
             q_del = session.query(delete_query)
@@ -587,8 +595,6 @@ class XMLEntryService:
         except Exception as e:
             logger.error(f"Failed to update entry {entry_id}: {e}")
             raise XMLEntryServiceError(f"Failed to update entry: {e}") from e
-        finally:
-            session.close()
     
     def delete_entry(self, entry_id: str) -> dict[str, Any]:
         """
@@ -631,8 +637,6 @@ class XMLEntryService:
         except Exception as e:
             logger.error(f"Failed to delete entry {entry_id}: {e}")
             raise XMLEntryServiceError(f"Failed to delete entry: {e}") from e
-        finally:
-            session.close()
     
     def entry_exists(self, entry_id: str) -> bool:
         """
@@ -662,8 +666,6 @@ class XMLEntryService:
         except Exception as e:
             logger.error(f"Failed to check entry existence {entry_id}: {e}", exc_info=True)
             return False
-        finally:
-            session.close()
     
     def search_entries(
         self,
@@ -767,8 +769,6 @@ class XMLEntryService:
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise XMLEntryServiceError(f"Search failed: {e}") from e
-        finally:
-            session.close()
     
     def get_database_stats(self) -> dict[str, Any]:
         """

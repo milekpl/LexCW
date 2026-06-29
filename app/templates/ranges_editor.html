@@ -159,11 +159,69 @@
           </div>
           
           <!-- Elements Tab -->
-          <div class="tab-pane fade" id="elements" role="tabpanel">
-            <button class="btn btn-sm btn-primary mb-3" id="btnNewElement">
-              <i class="bi bi-plus"></i> New Element
-            </button>
-            <div id="elementsContainer"></div>
+          <div class="tab-pane fade" id="elements" role="tabpanel" x-data="rangeElements()">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <button class="btn btn-sm btn-primary" id="btnNewElement">
+                <i class="bi bi-plus"></i> New Element
+              </button>
+              <div x-show="totalElements > 0">
+                <small class="text-muted me-2" x-text="totalElements + ' elements, depth ' + depth"></small>
+                <button class="btn btn-sm btn-outline-secondary me-1" @click="expandAll()" title="Expand all">
+                  <i class="bi bi-plus-square"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @click="collapseAll()" title="Collapse all">
+                  <i class="bi bi-dash-square"></i>
+                </button>
+              </div>
+            </div>
+
+            <div x-show="loading" class="text-muted py-3">
+              <i class="bi bi-hourglass-split"></i> Loading elements...
+            </div>
+
+            <div x-show="!loading && flatNodes.length === 0" class="text-muted py-3">
+              No elements defined
+            </div>
+
+            <div x-show="!loading && flatNodes.length > 0" class="list-group" id="elementsContainer">
+              <template x-for="node in visibleNodes" :key="node.id + '-' + node._flatIndex">
+                <div class="list-group-item"
+                     :style="'padding-left: ' + (node.depth * 24 + 12) + 'px'">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center mb-1">
+                        <button class="btn btn-sm btn-link p-0 me-1 text-decoration-none"
+                                x-show="node.hasChildren"
+                                @click="toggleExpand(node.id)"
+                                :title="isExpanded(node.id) ? 'Collapse' : 'Expand (' + node.childCount + ' children)'">
+                          <i :class="isExpanded(node.id) ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"></i>
+                        </button>
+                        <span x-show="!node.hasChildren" style="width: 18px; display: inline-block;"></span>
+                        <strong class="me-2" x-text="node.id"></strong>
+                        <span class="badge bg-info me-1" x-show="node.abbrev" x-text="node.abbrev"></span>
+                        <template x-for="ma in node.multiAbbrevs" :key="ma.lang">
+                          <span class="badge bg-secondary me-1" :title="ma.lang" x-text="ma.abbr"></span>
+                        </template>
+                        <small class="text-muted ms-2" x-text="node.label"></small>
+                      </div>
+                      <small class="text-muted" x-show="node.desc" x-text="node.desc"></small>
+                    </div>
+                    <div class="btn-group">
+                      <button class="btn btn-sm btn-outline-primary" title="Edit"
+                              @click="editElement(node.rangeId, node.id)">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button class="btn btn-sm btn-outline-danger" title="Delete"
+                              @click="deleteElement(node.rangeId, node.id)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <div id="duplicateBanner"></div>
           </div>
           
           <!-- Usage Tab -->
@@ -289,5 +347,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script defer src="{{ url_for('static', filename='js/alpine/range-elements.js') }}"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
 <script src="{{ url_for('static', filename='js/ranges-editor.js') }}"></script>
 {% endblock %}

@@ -522,8 +522,13 @@ class TestSessionManagement:
     
     def test_get_session_success(self, xml_service, mock_basex_session):
         """Test getting a valid session."""
+        # Restore real _get_session (fixture patches it to bypass session reuse logic)
+        import types
+        xml_service._get_session = types.MethodType(XMLEntryService._get_session, xml_service)
+
         with patch('app.services.xml_entry_service.BaseXClient.Session') as mock_session_class:
             mock_session_class.return_value = mock_basex_session
+            xml_service._session = None  # Clear cached session so mock is used
             
             session = xml_service._get_session()
             
@@ -532,6 +537,7 @@ class TestSessionManagement:
     
     def test_get_session_connection_failure(self):
         """Test session creation failure."""
+        XMLEntryService._namespace_cache.clear()  # Ensure namespace detection runs
         with patch('app.services.xml_entry_service.BaseXClient.Session') as mock_session_class:
             mock_session_class.side_effect = Exception("Connection failed")
             

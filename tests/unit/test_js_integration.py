@@ -27,18 +27,6 @@ class TestJavaScriptIntegration:
         if not self.runner.check_jest_available():
             pytest.skip("Jest not available, skipping JavaScript tests")
     
-    def test_form_serializer_node_script(self):
-        """Test the form serializer JavaScript test script."""
-        test_dir = os.path.dirname(__file__)
-        test_script_path = os.path.join(test_dir, 'test_form_serializer.js')
-        
-        if not os.path.exists(test_script_path):
-            pytest.skip(f"Test script not found: {test_script_path}")
-        
-        result = run_specific_js_test(test_script_path)
-        
-        assert result['success'], f"Form serializer test failed: {result.get('stderr', 'No error message')}"
-    
     def test_lift_xml_serializer_jest_test(self):
         """Test the LIFT XML serializer Jest test."""
         test_dir = os.path.dirname(__file__)
@@ -134,47 +122,7 @@ class TestJavaScriptBrowserCompatibility:
     
     def test_js_dom_api_compatibility(self):
         """Test JavaScript code that uses DOM APIs for Node.js compatibility."""
-        # This tests that our JavaScript can run in both browser and Node.js environments
-        # by checking for proper mocking of browser globals
-        
-        # Example: Test form serializer with mocked browser globals
-        shim_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'js_node_shim.js'))
-        form_serializer_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'static', 'js', 'form-serializer.js'))
-
-        test_script_content = f"""
-        // Load centralized Node shim
-        require('{shim_path}');
-        // Ensure console is available
-        global.console = console;
-
-        // Import and test the form serializer
-        const FormSerializer = require('{form_serializer_path}');
-        const {{ serializeFormToJSON }} = FormSerializer;
-
-        // Simple test
-        const mockFormData = {{
-            forEach: function(callback) {{
-                callback('test_value', 'test_field');
-            }}
-        }};
-
-        const result = serializeFormToJSON(mockFormData);
-        console.log('Test passed:', JSON.stringify(result));
-        """
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as temp:
-            temp.write(test_script_content)
-            temp_path = temp.name
-        
-        try:
-            result = subprocess.run(['node', temp_path], 
-                                  capture_output=True, 
-                                  text=True, 
-                                  timeout=10)
-            
-            assert result.returncode == 0, f"Browser compatibility test failed: {result.stderr}"
-        finally:
-            os.unlink(temp_path)
+        pytest.skip("form-serializer.js removed in Alpine refactor (§16.3 B2)")
 
 
 if __name__ == "__main__":

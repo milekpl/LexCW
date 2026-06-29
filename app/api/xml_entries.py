@@ -78,12 +78,13 @@ def create_entry() -> Any:
         
         logger.info('[XML API] Entry created: %s', result['id'])
         
-        # Clear entries cache after successful creation
+        # Invalidate entries cache (version bump — avoids stampede)
         from app.services.cache_service import CacheService
         cache = CacheService()
         if cache.is_available():
-            cache.clear_pattern('entries:*')
-            logger.info('[XML API] Cleared entries cache after creating entry %s', result['id'])
+            db_name = current_app.config.get('BASEX_DATABASE') or 'default'
+            cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+            logger.info('[XML API] Invalidated entries cache (version bump) after creating entry %s', result['id'])
         
         # Return response
         return jsonify({
@@ -142,12 +143,13 @@ def update_entry(entry_id: str) -> Any:
         
         logger.info('[XML API] Entry saved: %s', result['id'])
 
-        # Clear entries cache after successful update or create
+        # Invalidate entries cache (version bump — avoids stampede)
         from app.services.cache_service import CacheService
         cache = CacheService()
         if cache.is_available():
-          cache.clear_pattern('entries:*')
-          logger.info('[XML API] Cleared entries cache after saving entry %s', result['id'])
+          db_name = current_app.config.get('BASEX_DATABASE') or 'default'
+          cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+          logger.info('[XML API] Invalidated entries cache (version bump) after saving entry %s', result['id'])
         
         # Return response
         return jsonify({
@@ -193,12 +195,13 @@ def delete_entry(entry_id: str) -> Any:
         
         logger.info('[XML API] Entry deleted: %s', entry_id)
         
-        # Clear entries cache after successful deletion
+        # Invalidate entries cache (version bump — avoids stampede)
         from app.services.cache_service import CacheService
         cache = CacheService()
         if cache.is_available():
-            cache.clear_pattern('entries:*')
-            logger.info('[XML API] Cleared entries cache after deleting entry %s', entry_id)
+            db_name = current_app.config.get('BASEX_DATABASE') or 'default'
+            cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+            logger.info('[XML API] Invalidated entries cache (version bump) after deleting entry %s', entry_id)
         
         # Return response
         return jsonify({

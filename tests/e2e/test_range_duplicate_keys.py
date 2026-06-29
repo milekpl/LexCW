@@ -45,7 +45,7 @@ def test_grammatical_info_fixture_has_duplicate_values(page: Page, app_url: str)
 @pytest.mark.integration
 @pytest.mark.playwright
 def test_sense_range_select_renders_all_options_despite_duplicates(page: Page, app_url: str) -> None:
-    """The sense Part-of-Speech select must render every option, even though the range
+    """The sense Part-of-Speech combobox must render every option, even though the range
     flattens to duplicate values. With :key="opt.value" Alpine renders nothing."""
     page.goto(f"{app_url}/entries/add")
     page.wait_for_selector('#entry-form', timeout=10000)
@@ -61,15 +61,18 @@ def test_sense_range_select_renders_all_options_despite_duplicates(page: Page, a
     result = page.evaluate("""() => {
         const d = window.Alpine.$data(document.querySelector('[x-data^="senseTree"]'));
         const rangeLen = (d.rangeData['grammatical-info'] || []).length;
-        const sel = document.querySelector('.sense-grammatical-info-select');
-        // dynamic options = all <option> minus the static "Select part of speech" placeholder
-        const dynamicOptions = sel.querySelectorAll('option').length - 1;
+        const widget = document.querySelector('.sense-grammatical-info-select');
+        // Combobox options are list-group buttons (x-for keyed on opt.key); they exist in
+        // the DOM even while the dropdown is collapsed. Exclude the muted "— none —" entry.
+        const dynamicOptions = widget.querySelectorAll(
+            '.list-group-item-action:not(.text-muted)').length;
         return { rangeLen, dynamicOptions };
     }""")
     assert result["dynamicOptions"] == result["rangeLen"], (
-        f"Range select dropped options (rendered {result['dynamicOptions']} of "
+        f"Range combobox dropped options (rendered {result['dynamicOptions']} of "
         f"{result['rangeLen']}). A range x-for is keyed on opt.value (duplicate :key); "
         f"key on opt.key instead. See spec §11.2."
     )
     # Sanity: 'Pronoun' (the duplicated value) must actually appear as an option.
-    assert page.locator('.sense-grammatical-info-select option', has_text='Pronoun').count() >= 1
+    assert page.locator(
+        '.sense-grammatical-info-select .list-group-item-action', has_text='Pronoun').count() >= 1

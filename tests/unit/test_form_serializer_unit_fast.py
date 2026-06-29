@@ -21,20 +21,6 @@ class TestFormSerializerUnit:
     """Fast unit tests for form serializer integration."""
     
     @pytest.mark.unit
-    def test_form_serializer_javascript_exists(self) -> None:
-        """Test that the form serializer JavaScript file exists."""
-        serializer_path = os.path.join(
-            os.path.dirname(__file__), '..', '..', 'app', 'static', 'js', 'form-serializer.js'
-        )
-        assert os.path.exists(serializer_path), "Form serializer JavaScript file must exist"
-        
-        # Check file has content
-        with open(serializer_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        assert len(content) > 100, "Form serializer file should have substantial content"
-        assert 'FormSerializer' in content, "Form serializer should define FormSerializer"
-    
-    @pytest.mark.unit
     def test_simple_field_serialization(self) -> None:
         """Test that simple form data structure works."""
         form_data: Dict[str, Any] = {

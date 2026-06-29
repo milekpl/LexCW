@@ -126,6 +126,18 @@
           }
           this.loadRanges();      // async; x-for fills options when rangeData arrives
           this.setupSortable();
+
+          // Entry⇄sense POS inheritance: the sense Part of Speech is now a combobox
+          // (no <select> 'change' event), so drive the legacy inheritance check from a
+          // reactive watch on the senses' grammaticalInfo signature.
+          this.$watch(
+            'senses.map(s => s.grammaticalInfo).join("\\u0000")',
+            function () {
+              if (window.updateGrammaticalCategoryInheritance) {
+                window.updateGrammaticalCategoryInheritance();
+              }
+            }
+          );
         },
 
         /**

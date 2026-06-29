@@ -82,37 +82,49 @@ def _semantic_option_values(page: Page, indices: list[int]) -> list[str]:
     }""", indices)
 
 
+def _set_semantic_domains(page: Page, values: list[str]) -> None:
+    """Set the first sense's semantic domains via Alpine state.
+
+    Semantic Domain is now a searchable combobox bound to sense.semanticDomains
+    (an array), not a <select multiple>. Driving the array directly is equivalent
+    to clicking options and persists identically on save.
+    """
+    page.evaluate(
+        "(vals) => { const el = document.querySelector('[x-data^=\"senseTree\"]');"
+        " window.Alpine.$data(el).senses[0].semanticDomains = vals; }",
+        values,
+    )
+    page.wait_for_timeout(100)
+
+
 def select_semantic_domain(page: Page, index: int = 1) -> None:
-    """Select a semantic domain through the REAL <select x-model> (drives the UI binding)."""
+    """Select a single semantic domain (drives Alpine sense.semanticDomains)."""
     _wait_semantic_options(page, index + 1)
     values = _semantic_option_values(page, [index])
     assert values, f"No semantic-domain option at index {index}"
-    page.locator('select.sense-semantic-domain-select').first.select_option(values)
-    page.wait_for_timeout(100)
+    _set_semantic_domains(page, values)
     print(f"DEBUG: Selected semantic domain: {values}")
 
 
 def select_multiple_semantic_domains(page: Page, indices: list[int]) -> None:
-    """Select multiple semantic domains through the REAL <select multiple x-model>."""
+    """Select multiple semantic domains (drives Alpine sense.semanticDomains)."""
     _wait_semantic_options(page, (max(indices) + 1) if indices else 1)
     values = _semantic_option_values(page, indices)
     if not values:
         values = _semantic_option_values(page, [0])
-    page.locator('select.sense-semantic-domain-select').first.select_option(values)
-    page.wait_for_timeout(100)
+    _set_semantic_domains(page, values)
     print(f"DEBUG: Selected semantic domains: {values}")
 
 
 def select_first_n_semantic_domains(page: Page, n: int = 2) -> None:
-    """Select the first n semantic domains through the REAL <select multiple x-model>."""
+    """Select the first n semantic domains (drives Alpine sense.semanticDomains)."""
     try:
         _wait_semantic_options(page, n)
     except Exception:
         pass  # proceed with whatever loaded
     values = _semantic_option_values(page, list(range(n)))
     assert values, "No semantic-domain options loaded"
-    page.locator('select.sense-semantic-domain-select').first.select_option(values)
-    page.wait_for_timeout(100)
+    _set_semantic_domains(page, values)
     print(f"DEBUG: Selected first-{n} semantic domains: {values}")
 
 
@@ -360,10 +372,9 @@ def test_deselect_all_semantic_domains(page: Page, app_url: str) -> None:
     page.goto(f"{base_url}/entries/{entry_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
 
-    # Deselect - clear the select
-    semantic_select = page.locator('.sense-semantic-domain-select').first
-    if semantic_select.count() > 0:
-        semantic_select.select_option(index=0)  # Select placeholder
+    # Deselect - clear the combobox selection (Alpine array → empty)
+    page.wait_for_timeout(800)  # let senseTree load + normalize the saved sense
+    _set_semantic_domains(page, [])
 
     # The live-preview module has a 500 ms debounce.  If the browser is already in
     # networkidle state before the debounce fires, wait_for_load_state("networkidle")

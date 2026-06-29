@@ -267,13 +267,20 @@ function initializeEntryForm() {
     const requiredIndicator = document.getElementById("pos-required-indicator");
     if (!entryPartOfSpeechSelect) return;
 
-    // Get all sense grammatical categories that have a selected value
-    const senseGrammaticalSelects = document.querySelectorAll(
-      "#senses-container .dynamic-grammatical-info"
-    );
-    const senseCategories = Array.from(senseGrammaticalSelects)
-      .map((select) => select.value)
-      .filter((value) => value && value.trim()); // Only consider non-empty values
+    // Sense POS now lives in the Alpine senseTree (sense.grammaticalInfo) — the sense
+    // Part of Speech is a searchable combobox, not a DOM <select>. Read from Alpine.
+    let senseCategories = [];
+    const senseTreeEl = document.querySelector('[x-data^="senseTree"]');
+    if (senseTreeEl && window.Alpine) {
+      try {
+        const stData = window.Alpine.$data(senseTreeEl);
+        senseCategories = (stData.senses || [])
+          .map((s) => s.grammaticalInfo)
+          .filter((value) => value && value.trim());
+      } catch (e) {
+        /* Alpine not ready yet — nothing to inherit */
+      }
+    }
 
     // REFACTOR: Clear existing validation state more robustly.
     entryPartOfSpeechSelect.classList.remove("is-invalid", "is-valid");
@@ -294,9 +301,16 @@ function initializeEntryForm() {
     const uniqueCategories = [...new Set(senseCategories)];
 
     if (uniqueCategories.length === 1) {
-      // All senses agree. Auto-inherit the category.
+      // All senses agree. Auto-inherit the category. Entry POS is owned by the Alpine
+      // entryMeta component (x-model="grammaticalInfo"), so set it there — a raw
+      // `.value =` would not sync back into Alpine state and would be lost on save.
       const commonCategory = uniqueCategories[0];
-      entryPartOfSpeechSelect.value = commonCategory;
+      const entryMetaEl = document.querySelector('[x-data^="entryMeta"]');
+      if (entryMetaEl && window.Alpine) {
+        try { window.Alpine.$data(entryMetaEl).grammaticalInfo = commonCategory; } catch (e) { /* ignore */ }
+      } else {
+        entryPartOfSpeechSelect.value = commonCategory;
+      }
       entryPartOfSpeechSelect.required = false;
       if (requiredIndicator) requiredIndicator.style.display = "none";
 

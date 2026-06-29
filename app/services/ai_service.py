@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -638,6 +639,7 @@ class AIService:
         model: str = DEFAULT_MODEL,
         prompt_template_id: str = "proofreading-default",
         api_base: str = DEFAULT_API_BASE,
+        max_workers: int = 5,
     ) -> List[Dict[str, Any]]:
         """Proofread multiple entries in batch.
 
@@ -647,12 +649,12 @@ class AIService:
             model: Model ID.
             prompt_template_id: Prompt template ID.
             api_base: API base URL.
+            max_workers: Max parallel LLM requests (bounded to avoid rate limits).
 
         Returns:
             List of result dicts (same structure as proofread_entry), one per entry.
         """
-        results = []
-        for i, entry_data in enumerate(entries):
+        def _proofread_one(i: int, entry_data: dict) -> dict:
             try:
                 result = self.proofread_entry(
                     entry_data=entry_data,
@@ -662,17 +664,28 @@ class AIService:
                     api_base=api_base,
                 )
                 result["entry_index"] = i
-                entry_id = entry_data.get("id", str(i))
-                result["entry_id"] = entry_id
-                results.append(result)
+                result["entry_id"] = entry_data.get("id", str(i))
+                return result
             except AIServiceError as e:
                 logger.error(f"Batch proofread failed for entry {i}: {e}")
-                results.append({
+                return {
                     "entry_index": i,
                     "entry_id": entry_data.get("id", str(i)),
                     "error": str(e),
                     "suggestions": [],
-                })
+                }
+
+        # Bounded pool — LLM calls are latency-bound, parallelism helps a lot
+        results: List[Dict[str, Any]] = [None] * len(entries)  # type: ignore[list-item]
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(entries) or 1)) as pool:
+            futures = {
+                pool.submit(_proofread_one, i, entry_data): i
+                for i, entry_data in enumerate(entries)
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                results[idx] = future.result()
+
         return results
 
     # ========================================================================

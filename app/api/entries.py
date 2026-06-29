@@ -30,6 +30,23 @@ def get_dictionary_service() -> DictionaryService:
     return current_app.injector.get(DictionaryService)
 
 
+def _entries_cache_version(cache: CacheService, db_name: str) -> str:
+    """Return the current cache version for the given database, defaulting to '1'."""
+    version = cache.get(f"entries:version:{db_name}")
+    return str(version) if version is not None else "1"
+
+
+def _entries_cache_key(db_name: str, version: str, limit: int, offset: int, sort_by: str, sort_order: str, filter_text: str) -> str:
+    """Build a versioned entries cache key so we can invalidate by bumping the version."""
+    return f"entries:v{version}:{db_name}:{limit}:{offset}:{sort_by}:{sort_order}:{filter_text}"
+
+
+def _invalidate_entries_cache(cache: CacheService, db_name: str) -> None:
+    """Invalidate entries cache by bumping the per-database version counter."""
+    if cache.is_available():
+        cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+
+
 @entries_bp.route("/", methods=["GET"], strict_slashes=False)
 @swag_from(
     {
@@ -134,8 +151,9 @@ def list_entries() -> Any:
 
         # Redis cache key - include DB name to prevent cross-project collisions
         db_name = dict_service.db_connector.database or 'default'
-        cache_key = f"entries:{db_name}:{limit}:{offset}:{sort_by}:{sort_order}:{filter_text}"
         cache = CacheService()
+        version = _entries_cache_version(cache, db_name)
+        cache_key = _entries_cache_key(db_name, version, limit, offset, sort_by, sort_order, filter_text)
         if cache.is_available():
             cached = cache.get(cache_key)
             if cached:
@@ -338,7 +356,7 @@ def create_entry() -> Any:
             # Clear cache after creation
             cache = CacheService()
             if cache.is_available():
-                cache.clear_pattern("entries:*")
+                _invalidate_entries_cache(cache, current_app.injector.get(DictionaryService).db_connector.database or 'default')
             return jsonify({"success": True, "id": result.get("id", None)}), 201
         # Get request data
         try:
@@ -370,11 +388,12 @@ def create_entry() -> Any:
         project_id = session.get("project_id")
         entry_id = dict_service.create_entry(entry, project_id=project_id)
 
-        # Clear entries cache after successful creation
+        # Invalidate entries cache (version bump, not pattern delete — avoids stampede)
         cache = CacheService()
         if cache.is_available():
-            cache.clear_pattern("entries:*")
-            logger.info(f"Cleared entries cache after creating entry {entry_id}")
+            db_name = dict_service.db_connector.database or 'default'
+            cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+            logger.info(f"Invalidated entries cache (version bump) after creating entry {entry_id}")
 
         # Return response
         return jsonify({"success": True, "id": entry_id}), 201
@@ -604,11 +623,12 @@ def update_entry(entry_id: str) -> Any:
             entry, skip_validation=skip_validation, project_id=project_id
         )
 
-        # Clear entries cache after successful update
+        # Invalidate entries cache (version bump — avoids stampede)
         cache = CacheService()
         if cache.is_available():
-            cache.clear_pattern("entries:*")
-            logger.info(f"Cleared entries cache after updating entry {entry_id}")
+            db_name = dict_service.db_connector.database or 'default'
+            cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+            logger.info(f"Invalidated entries cache (version bump) after updating entry {entry_id}")
 
         # Invalidate validation cache for this entry
         try:
@@ -685,11 +705,12 @@ def delete_entry(entry_id: str) -> Any:
         # Delete entry
         dict_service.delete_entry(entry_id)
 
-        # Clear entries cache after successful deletion
+        # Invalidate entries cache (version bump — avoids stampede)
         cache = CacheService()
         if cache.is_available():
-            cache.clear_pattern("entries:*")
-            logger.info(f"Cleared entries cache after deleting entry {entry_id}")
+            db_name = dict_service.db_connector.database or 'default'
+            cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+            logger.info(f"Invalidated entries cache (version bump) after deleting entry {entry_id}")
 
         # Invalidate validation cache for this entry
         try:

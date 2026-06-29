@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Import list.xml{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Import FieldWorks list.xml</h1>
+
+            <div class="card">
+                <div class="card-body">
+                    <form id="listXmlForm" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-3">
+                            <label for="list_file" class="form-label">
+                                Select list.xml File <span class="text-danger">*</span>
+                            </label>
+                            <input type="file"
+                                   class="form-control"
+                                   id="list_file"
+                                   name="list_file"
+                                   accept=".xml"
+                                   required>
+                            <div class="form-text">
+                                Upload a <strong>list.xml</strong> file exported from FieldWorks
+                                Language Explorer (<em>File &gt; Export &gt; List of Lists</em>).
+                                This provides real abbreviations
+                                (e.g., "irreg. infl.", "comp.", "der.") for Variant Types,
+                                Complex Form Types, Parts of Speech, and other controlled
+                                vocabularies.
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" id="importBtn">
+                                <i class="fas fa-upload me-2"></i>Import list.xml
+                            </button>
+                            <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+
+                    <div id="result" class="mt-4" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">What is list.xml?</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        FieldWorks Language Explorer (FLEx) stores controlled vocabularies
+                        (Variant Types, Complex Form Types, Parts of Speech, etc.) in
+                        <strong>list.xml</strong>. This file contains the real abbreviations
+                        and labels that your dictionary project uses.
+                    </p>
+                    <h6>How to export list.xml from FLEx</h6>
+                    <ol>
+                        <li>In FLEx, go to <strong>File &gt; Export &gt; List of Lists</strong></li>
+                        <li>Save the output as <strong>list.xml</strong></li>
+                        <li>Upload it using the form above</li>
+                    </ol>
+                    <h6>What gets imported</h6>
+                    <ul>
+                        <li><strong>Variant Types</strong> &mdash; abbreviations like "irreg. infl.", "comp."</li>
+                        <li><strong>Complex Form Types</strong> &mdash; abbreviations for compound/derivative types</li>
+                        <li><strong>Parts of Speech</strong> &mdash; POS labels and abbreviations</li>
+                        <li><strong>Semantic Domains</strong> &mdash; domain classification labels</li>
+                        <li>Other FieldWorks possibility lists that map to app ranges</li>
+                    </ul>
+                    <h6>When to use this</h6>
+                    <p>
+                        Use this page if you have <strong>already imported your LIFT file</strong>
+                        but want to add real FieldWorks abbreviations afterwards. You can also
+                        import list.xml during the initial LIFT import on the
+                        <a href="{{ url_for('main.import_lift') }}">Import LIFT</a> page.
+                    </p>
+                    <p class="mb-0">
+                        <a href="/help#list-xml-import" class="text-decoration-none">
+                            <i class="fas fa-question-circle me-1"></i> Learn more in the help docs
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('listXmlForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const fileInput = document.getElementById('list_file');
+    const resultDiv = document.getElementById('result');
+    const importBtn = document.getElementById('importBtn');
+
+    if (!fileInput.files.length) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div class="alert alert-warning">Please select a list.xml file.</div>';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('list_file', fileInput.files[0]);
+
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    importBtn.disabled = true;
+    importBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Importing...';
+    resultDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/ranges/import-list-xml', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+            body: formData
+        });
+        const result = await response.json();
+
+        resultDiv.style.display = 'block';
+        if (result.success) {
+            const d = result.data;
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Import successful!</strong><br>
+                    Imported <strong>${d.ranges_imported}</strong> ranges
+                    (<strong>${d.values_imported}</strong> values) from list.xml.<br>
+                    <small class="text-muted">Ranges: ${d.ranges.join(', ')}</small>
+                </div>`;
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>${result.error}</div>`;
+        }
+    } catch (err) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Request failed: ${err.message}</div>`;
+    } finally {
+        importBtn.disabled = false;
+        importBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Import list.xml';
+    }
+});
+</script>
+{% endblock %}

@@ -24,12 +24,17 @@ class DummyService:
 class DummyCache:
     def __init__(self) -> None:
         self.cleared_patterns: list[str] = []
+        self.incremented_keys: list[tuple[str, int]] = []
 
     def is_available(self) -> bool:
         return True
 
     def clear_pattern(self, pattern: str) -> int:
         self.cleared_patterns.append(pattern)
+        return 1
+
+    def increment(self, key: str, amount: int = 1, ttl: int = 0) -> int:
+        self.incremented_keys.append((key, amount))
         return 1
 
 
@@ -70,4 +75,5 @@ def test_xml_update_clears_cache(xml_app: tuple[Flask, DummyService, DummyCache]
 
     assert response.status_code == 200
     assert ('cache_test', xml_payload) in service.updated
-    assert 'entries:*' in cache.cleared_patterns
+    # Version bumping replaces clear_pattern to avoid cache stampede
+    assert any('entries:version:' in k for k, _ in cache.incremented_keys)

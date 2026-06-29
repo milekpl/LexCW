@@ -10,6 +10,56 @@
   })();
 </script>
 
+{#
+  search_select — Alpine combobox with a type-to-filter search box over range options.
+  Pure UI (searchSelect holds open/query); the value(s) stay on the senseTree scope, so
+  there is no serialization change. `model`/`options` are Alpine expressions evaluated in
+  the surrounding sense (or subsense) scope, e.g. model='sense.grammaticalInfo'.
+    multiple=false → scalar binding (single pick);  multiple=true → array binding (chips).
+#}
+{% macro search_select(label, model, options, multiple=false, help='', placeholder='Type to search…', field_class='') %}
+<div class="mb-3 searchable-select {{ field_class }}" x-data="searchSelect()" @click.outside="open = false">
+  <label class="form-label">{{ label }}</label>
+  {% if multiple %}
+  <div class="d-flex flex-wrap gap-1 mb-1" x-show="{{ model }}.length > 0">
+    <template x-for="__v in {{ model }}" :key="__v">
+      <span class="badge bg-secondary d-inline-flex align-items-center">
+        <span x-text="labelFor(__v, {{ options }})"></span>
+        <button type="button" class="btn-close btn-close-white ms-1" style="font-size:.55em"
+                aria-label="Remove" @click.prevent="toggle({{ model }}, __v)"></button>
+      </span>
+    </template>
+  </div>
+  {% endif %}
+  <div class="position-relative">
+    <input type="text" class="form-control" autocomplete="off"
+           {% if multiple %}
+           x-model="query" @focus="open = true" placeholder="{{ placeholder }}"
+           {% else %}
+           :value="open ? query : displayValue({{ model }}, {{ options }})"
+           @focus="open = true; query = ''" @input="query = $event.target.value; open = true"
+           placeholder="{{ placeholder }}"
+           {% endif %}>
+    <div class="list-group position-absolute w-100 shadow-sm" x-show="open"
+         style="z-index:1060; max-height:240px; overflow-y:auto;">
+      {% if not multiple %}
+      <button type="button" class="list-group-item list-group-item-action text-muted small"
+              @click="{{ model }} = ''; query = ''; open = false">&mdash; none &mdash;</button>
+      {% endif %}
+      <template x-for="opt in filter({{ options }}, query)" :key="opt.key">
+        <button type="button" class="list-group-item list-group-item-action"
+                :class="{ active: {% if multiple %}{{ model }}.includes(opt.value){% else %}{{ model }} === opt.value{% endif %} }"
+                @click="{% if multiple %}toggle({{ model }}, opt.value); query = ''{% else %}{{ model }} = opt.value; query = ''; open = false{% endif %}"
+                x-text="opt.label"></button>
+      </template>
+      <div class="list-group-item disabled text-muted small"
+           x-show="filter({{ options }}, query).length === 0">No matches</div>
+    </div>
+  </div>
+  {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+</div>
+{% endmacro %}
+
 <div class="card senses-section"
      x-data="senseTree(window.__entryData || {})">
   <div class="card-header bg-primary text-white">
@@ -153,56 +203,28 @@
               </div>
             </div>
 
-            <!-- Grammatical Info (x-model, options from reactive rangeData) -->
-            <div class="mb-3">
-              <label class="form-label">Part of Speech</label>
-              <select class="form-select sense-grammatical-info-select dynamic-grammatical-info"
-                      x-model="sense.grammaticalInfo">
-                <option value="">Select part of speech</option>
-                <template x-for="opt in grammaticalInfoOptions" :key="opt.key">
-                  <option :value="opt.value" x-text="opt.label"></option>
-                </template>
-              </select>
-            </div>
+            <!-- Part of Speech (searchable, single-select) -->
+            {{ search_select('Part of Speech', 'sense.grammaticalInfo', 'grammaticalInfoOptions',
+                             placeholder='Search part of speech…',
+                             field_class='sense-grammatical-info-select dynamic-grammatical-info') }}
 
-            <!-- Domain Type (x-model, options from reactive rangeData) -->
-            <div class="mb-3">
-              <label class="form-label">Domain Type</label>
-              <select class="form-select sense-domain-type-select"
-                      x-model="sense.domainType"
-                      multiple>
-                <template x-for="opt in domainTypeOptions" :key="opt.key">
-                  <option :value="opt.value" x-text="opt.label"></option>
-                </template>
-              </select>
-              <div class="form-text">Academic or disciplinary domain this sense belongs to.</div>
-            </div>
+            <!-- Domain Type (searchable, multi-select) -->
+            {{ search_select('Domain Type', 'sense.domainType', 'domainTypeOptions', multiple=true,
+                             help='Academic or disciplinary domain this sense belongs to.',
+                             placeholder='Search domain type…',
+                             field_class='sense-domain-type-select') }}
 
-            <!-- Semantic Domain (x-model, options from reactive rangeData) -->
-            <div class="mb-3">
-              <label class="form-label">Semantic Domain</label>
-              <select class="form-select sense-semantic-domain-select"
-                      x-model="sense.semanticDomains"
-                      multiple>
-                <template x-for="opt in semanticDomainOptions" :key="opt.key">
-                  <option :value="opt.value" x-text="opt.label"></option>
-                </template>
-              </select>
-              <div class="form-text">Semantic categorization for this sense.</div>
-            </div>
+            <!-- Semantic Domain (searchable, multi-select) -->
+            {{ search_select('Semantic Domain', 'sense.semanticDomains', 'semanticDomainOptions', multiple=true,
+                             help='Semantic categorization for this sense.',
+                             placeholder='Search semantic domain…',
+                             field_class='sense-semantic-domain-select') }}
 
-            <!-- Usage Type (x-model, options from reactive rangeData) -->
-            <div class="mb-3">
-              <label class="form-label">Usage Type</label>
-              <select class="form-select sense-usage-type-select"
-                      x-model="sense.usageType"
-                      multiple>
-                <template x-for="opt in usageTypeOptions" :key="opt.key">
-                  <option :value="opt.value" x-text="opt.label"></option>
-                </template>
-              </select>
-              <div class="form-text">Usage classification for this sense.</div>
-            </div>
+            <!-- Usage Type (searchable, multi-select) -->
+            {{ search_select('Usage Type', 'sense.usageType', 'usageTypeOptions', multiple=true,
+                             help='Usage classification for this sense.',
+                             placeholder='Search usage type…',
+                             field_class='sense-usage-type-select') }}
 
             <!-- Sense Note (multilingual) -->
             <div class="mb-3">
@@ -567,16 +589,9 @@
                         </button>
                       </div>
 
-                      <!-- Subsense Grammatical Info -->
-                      <div class="mb-3">
-                        <label class="form-label">Part of Speech</label>
-                        <select class="form-select form-select-sm" x-model="sub.grammaticalInfo">
-                          <option value="">Select part of speech</option>
-                          <template x-for="opt in grammaticalInfoOptions" :key="opt.key">
-                            <option :value="opt.value" x-text="opt.label"></option>
-                          </template>
-                        </select>
-                      </div>
+                      <!-- Subsense Part of Speech (searchable, single-select) -->
+                      {{ search_select('Part of Speech', 'sub.grammaticalInfo', 'grammaticalInfoOptions',
+                                       placeholder='Search part of speech…') }}
                     </div>
                   </div>
                 </template>

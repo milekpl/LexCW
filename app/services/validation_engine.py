@@ -136,6 +136,17 @@ class ValidationEngine:
         If project_rules is provided, use those rules instead of loading from file.
         If project_id was set, try to load from project rules cache or database.
         """
+        # Short-circuit: if the same rules file is already cached and no explicit
+        # project_rules override, skip all file I/O and regex compilation.
+        effective_file = rules_file or self.rules_file
+        if (
+            project_rules is None
+            and not self.project_id
+            and ValidationEngine._rules_file_loaded == effective_file
+            and ValidationEngine._rules_cache
+        ):
+            return  # class-level cache already populated for this file
+
         # Priority order:
         # 1. Explicitly passed project_rules
         # 2. Project rules from cache (if project_id set)

@@ -20,6 +20,16 @@ from flasgger import swag_from
 ranges_editor_bp = Blueprint('ranges_editor', __name__, url_prefix='/api/ranges-editor')
 
 
+def _count_elements_recursive(values: list) -> int:
+    """Count all elements in a range, including nested children."""
+    count = 0
+    for elem in (values or []):
+        count += 1
+        if isinstance(elem, dict) and elem.get('children'):
+            count += _count_elements_recursive(elem['children'])
+    return count
+
+
 @ranges_editor_bp.route('/', methods=['GET'])
 @swag_from({
     'tags': ['Ranges Editor'],
@@ -65,10 +75,11 @@ def list_ranges() -> Union[Response, Tuple[Response, int]]:
                 rdata = {**rdata, 'values': cleaned}
                 current_app.logger.info(
                     f"Range '{rid}': removed {removed} exact duplicate element(s) from served data")
+        # Add recursive element count so the table shows total, not just top-level
+        if isinstance(rdata, dict):
+            rdata['total_element_count'] = _count_elements_recursive(rdata.get('values', []))
         out[rid] = rdata
     return out
-
-
 @ranges_editor_bp.route('/config', methods=['GET'])
 @api_response_handler()
 def get_config_ranges() -> Union[Response, Tuple[Response, int]]:
@@ -272,10 +283,6 @@ def create_range() -> Union[Response, Tuple[Response, int]]:
         service = current_app.injector.get(RangesService)
         guid = service.create_range(data)
 
-        # Force RangesService to repopulate its cache so subsequent GET requests
-        # see the new range immediately (bypass potentially stale cache)
-        service.get_all_ranges(force_reload=True)
-
         # Also invalidate DictionaryService cache for other consumers
         try:
             dict_service = current_app.injector.get(DictionaryService)
@@ -364,9 +371,6 @@ def update_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         service = current_app.injector.get(RangesService)
         service.update_range(range_id, data)
 
-        # Force RangesService to repopulate its cache
-        service.get_all_ranges(force_reload=True)
-
         # Refresh dictionary ranges cache
         try:
             dict_service = current_app.injector.get(DictionaryService)
@@ -441,9 +445,6 @@ def delete_range(range_id: str) -> Union[Response, Tuple[Response, int]]:
         
         service = current_app.injector.get(RangesService)
         service.delete_range(range_id, migration=migration)
-
-        # Force RangesService to repopulate its cache
-        service.get_all_ranges(force_reload=True)
 
         # Refresh cache so editor and consumers see removal
         try:
@@ -586,9 +587,6 @@ def create_range_element(range_id: str) -> Union[Response, Tuple[Response, int]]
         service = current_app.injector.get(RangesService)
         guid = service.create_range_element(range_id, element_data)
 
-        # Force RangesService to repopulate its cache
-        service.get_all_ranges(force_reload=True)
-
         # Refresh dictionary ranges cache so the editor sees the new element without manual reload
         try:
             dict_service = current_app.injector.get(DictionaryService)
@@ -642,29 +640,7 @@ def get_range_element(range_id: str, element_id: str) -> Union[Response, Tuple[R
     """Get specific element from a range."""
     try:
         service = current_app.injector.get(RangesService)
-
-        # Accept resolved query param similar to list_range_elements
-        resolved_raw = request.args.get('resolved', None)
-        resolved = False
-        if resolved_raw is not None:
-            resolved = str(resolved_raw).lower() in ('1', 'true', 'yes')
-
-        range_data = service.get_range(range_id, resolved=resolved)
-
-        # Recursive helper to find element anywhere in hierarchy
-        def find_element(values, eid):
-            for elem in values:
-                if elem.get('id') == eid:
-                    return elem
-                children = elem.get('children', [])
-                if children:
-                    found = find_element(children, eid)
-                    if found:
-                        return found
-            return None
-
-        # Find the element (handles hierarchical ranges)
-        element = find_element(range_data.get('values', []), element_id)
+        element = service.get_range_element(range_id, element_id)
 
         if not element:
             return jsonify({
@@ -748,9 +724,6 @@ def update_range_element(range_id: str, element_id: str) -> Union[Response, Tupl
         service = current_app.injector.get(RangesService)
         service.update_range_element(range_id, element_id, data)
 
-        # Force RangesService to repopulate its cache
-        service.get_all_ranges(force_reload=True)
-
         # Refresh cache to ensure editor sees updated data
         try:
             dict_service = current_app.injector.get(DictionaryService)
@@ -826,9 +799,6 @@ def delete_range_element(range_id: str, element_id: str) -> Union[Response, Tupl
         
         service = current_app.injector.get(RangesService)
         service.delete_range_element(range_id, element_id, migration=migration)
-
-        # Force RangesService to repopulate its cache
-        service.get_all_ranges(force_reload=True)
 
         # Refresh cache so editor and other consumers reflect deletion
         try:
@@ -953,22 +923,20 @@ def get_range_duplicates(range_id: str) -> Union[Response, Tuple[Response, int]]
 
         # Annotate each id/guid conflict with whether it is referenced by any entry, so the
         # editor can offer to delete UNREFERENCED conflicts and require a merge decision for
-        # referenced ones.
+        # referenced ones. Uses a targeted count query per conflict id (not the full
+        # get_usage_by_element which scans all elements).
         if summary['id_conflicts']:
-            try:
-                usage = service.get_usage_by_element(range_id) or {}
-                elements_usage = usage.get('elements', {}) if isinstance(usage, dict) else {}
-            except Exception as usage_err:  # usage scan is best-effort
-                current_app.logger.warning(
-                    f"Usage scan failed for range '{range_id}': {usage_err}")
-                elements_usage = {}
             for conflict in summary['id_conflicts']:
-                count = 0
-                el = elements_usage.get(conflict['id'])
-                if isinstance(el, dict):
-                    count = el.get('count', 0) or 0
-                conflict['usage_count'] = count
-                conflict['referenced'] = count > 0
+                try:
+                    conflict['usage_count'] = service.count_range_usage(
+                        range_id, conflict['id'])
+                    conflict['referenced'] = conflict['usage_count'] > 0
+                except Exception as usage_err:  # usage scan is best-effort
+                    current_app.logger.warning(
+                        f"Usage count failed for range '{range_id}' "
+                        f"element '{conflict['id']}': {usage_err}")
+                    conflict['usage_count'] = 0
+                    conflict['referenced'] = False
 
         return jsonify({'success': True, 'data': summary})
     except NotFoundError as e:
