@@ -64,9 +64,16 @@ class ValidationEngine:
                     warnings.append("Definition seems very short")
                     
         # Check for duplicates in context if applicable
-        if field_name == 'lexical_unit' and context.get('form_data'):
-            # This would check against existing entries in a real implementation
-            pass
+        if field_name == 'lexical_unit' and context.get('existing_lexical_units'):
+            existing_units = context['existing_lexical_units']
+            current_entry_id = context.get('entry_id')
+            check_value = value.strip() if isinstance(value, str) else str(value)
+            for existing in existing_units:
+                existing_id = existing.get('id') if isinstance(existing, dict) else None
+                existing_value = existing.get('value') if isinstance(existing, dict) else str(existing)
+                if existing_id != current_entry_id and existing_value and existing_value.strip() == check_value:
+                    warnings.append(f"Another entry with lexical unit '{check_value}' already exists")
+                    break
             
         return {
             'valid': len(errors) == 0,

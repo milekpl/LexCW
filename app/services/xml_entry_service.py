@@ -204,7 +204,6 @@ class XMLEntryService:
             except Exception:
                 pass
             self._session = None
-            raise
     
     def _validate_lift_xml(self, xml_string: str) -> ET.Element:
         """

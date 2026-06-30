@@ -546,7 +546,7 @@ def _apply_field(
         el = ET.SubElement(parent, _lift_tag("field"))
         el.set("type", field.value)
     elif lift_element == "variant":
-        pass
+        parent.set("ref", field.value)
     elif lift_element == "sense_relation":
         rel = ET.SubElement(parent, _lift_tag("relation"))
         rel.set("type", field.value)

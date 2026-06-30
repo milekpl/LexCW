@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 import logging
+
+logger = logging.getLogger(__name__)
 import uuid
 from typing import Dict, List, Any, Optional
 import xml.etree.ElementTree as ET
@@ -132,8 +134,8 @@ def reload_custom_ranges_config() -> None:
                 'description': desc or STANDARD_RANGE_METADATA.get(_k, {}).get('description')
             }
         _CUSTOM_CFG_MTIME = current_mtime
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not reload custom ranges config: {e}")
 
 
 class RangesService:
@@ -266,8 +268,8 @@ class RangesService:
         # Ensure config-driven metadata is up-to-date (reload if the config file changed)
         try:
             reload_custom_ranges_config()
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Caught exception: {e}")
 
         # Check cache first - return cached result if valid (unless force_reload)
         if not force_reload:
@@ -317,17 +319,26 @@ class RangesService:
             if not ranges_db_name:
                 from flask import current_app as _cap
                 ranges_db_name = _cap.config.get('BASEX_RANGES_DATABASE') if _cap else None
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Caught exception: {e}")
 
         # Query ranges from dedicated ranges database first if configured
         ranges_xml = None
+        main_ranges_xml = None
         if ranges_db_name and ranges_db_name != db_name:
             try:
                 q = f"collection('{ranges_db_name}')//*[local-name() = 'lift-ranges']"
                 ranges_xml = self.db_connector.execute_query(q)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Caught exception: {e}")
+
+            # Also query the main database so runtime modifications
+            # (e.g. elements added during E2E tests) are visible
+            try:
+                main_q = f"collection('{db_name}')//*[local-name() = 'lift-ranges']"
+                main_ranges_xml = self.db_connector.execute_query(main_q)
+            except Exception as e:
+                self.logger.debug(f"Caught exception: {e}")
 
         # Fall back to main database
         if not ranges_xml:
@@ -344,6 +355,16 @@ class RangesService:
                 ranges = {}
         else:
             self.logger.warning("No ranges found in database")
+
+        # Merge any ranges from the main database, letting them override
+        # the dedicated ranges DB so runtime modifications take effect
+        if main_ranges_xml and main_ranges_xml.strip():
+            try:
+                main_ranges = self.ranges_parser.parse_string(main_ranges_xml)
+                if main_ranges:
+                    ranges.update(main_ranges)
+            except ET.ParseError as e:
+                self.logger.error(f"Error parsing main database ranges XML: {e}")
 
         # NOTE: previously we cached parsed ranges here (before merging
         # custom or config-provided ranges). That caused custom ranges
@@ -534,8 +555,8 @@ class RangesService:
                 cached_vals = cached_range.get('values', [])
                 if contains_effective(cached_vals):
                     self.logger.warning(f"Cached range '{range_id}' already contains effective_* fields; this may indicate mutation.")
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Caught exception: {e}")
 
             # If the cached range has values from the database, return it directly
             if cached_range.get('values'):
@@ -566,10 +587,10 @@ class RangesService:
                                 parsed = self.ranges_parser.parse_string(result_xml)
                                 if parsed:
                                     self.logger.debug(f"Found range '{range_id}' in dedicated ranges DB")
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+                            except Exception as e:
+                                self.logger.debug(f"Caught exception: {e}")
+                except Exception as e:
+                    self.logger.debug(f"Caught exception: {e}")
                 query = f"for $range in collection('{db_name}')//*[local-name()='range'][@id='{range_id}'] return $range"
                 self.logger.debug(f"Checking database for range '{range_id}' (empty cached version)")
                 result_xml = self.db_connector.execute_query(query)
@@ -1566,8 +1587,8 @@ class RangesService:
         finally:
             try:
                 os.unlink(temp_path)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Caught exception: {e}")
 
         # Invalidate cache so next read picks up the new data
         self._invalidate_cache()

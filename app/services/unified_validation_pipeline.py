@@ -303,9 +303,23 @@ class UnifiedValidationPipeline:
 
     def _init_default_plugins(self) -> None:
         """Initialize default validation plugins."""
-        # These will be populated when specific validator implementations
-        # are refactored to use the plugin interface
-        pass
+        try:
+            from app.validators.spelling_validator_plugin import SpellingValidatorPlugin
+            self.register_plugin(SpellingValidatorPlugin())
+        except Exception as e:
+            logger.debug(f"SpellingValidatorPlugin not available: {e}")
+
+        try:
+            from app.validators.rules_validator_plugin import (
+                RulesValidatorPlugin,
+                StructuralValidatorPlugin,
+                ReferenceValidatorPlugin,
+            )
+            self.register_plugin(RulesValidatorPlugin())
+            self.register_plugin(StructuralValidatorPlugin())
+            self.register_plugin(ReferenceValidatorPlugin())
+        except Exception as e:
+            logger.debug(f"RulesValidatorPlugin not available: {e}")
 
     def register_plugin(self, plugin: ValidatorPlugin) -> None:
         """
@@ -661,8 +675,16 @@ class UnifiedValidationPipeline:
         Returns:
             Cached result or None
         """
-        # TODO: Implement cache lookup using cache_service
-        # This will be implemented when integrating with ValidationCacheService
+        cache_key = self._build_cache_key(entry_data, options, types_to_run)
+        if cache_key is None:
+            return None
+
+        try:
+            cached = self.cache_service.get(cache_key)
+            if cached is not None:
+                return self._deserialize_result(cached)
+        except Exception as e:
+            logger.warning(f"Cache lookup failed: {e}")
         return None
 
     def _cache_result(
@@ -681,9 +703,98 @@ class UnifiedValidationPipeline:
             types_to_run: Set of validation types that were run
             result: Validation result to cache
         """
-        # TODO: Implement caching using cache_service
-        # This will be implemented when integrating with ValidationCacheService
-        pass
+        cache_key = self._build_cache_key(entry_data, options, types_to_run)
+        if cache_key is None:
+            return
+
+        try:
+            serialized = self._serialize_result(result)
+            self.cache_service.set(cache_key, serialized, ttl=3600)
+        except Exception as e:
+            logger.warning(f"Cache store failed: {e}")
+
+    def _build_cache_key(
+        self,
+        entry_data: Dict[str, Any],
+        options: ValidationOptions,
+        types_to_run: Set[ValidationType]
+    ) -> Optional[str]:
+        """Build a deterministic cache key from validation inputs."""
+        entry_id = entry_data.get('id')
+        if not entry_id:
+            return None
+
+        date_modified = entry_data.get('date_modified', '')
+        type_names = sorted(t.name for t in types_to_run)
+        mode = options.validation_mode
+        source_lang = options.source_lang or ''
+        target_lang = options.target_lang or ''
+
+        raw = f"validation:{entry_id}:{date_modified}:{':'.join(type_names)}:{mode}:{source_lang}:{target_lang}"
+        return hashlib.sha256(raw.encode()).hexdigest()[:64]
+
+    def _serialize_result(self, result: PipelineValidationResult) -> Dict[str, Any]:
+        """Serialize a PipelineValidationResult to a cacheable dict."""
+        return result.to_dict()
+
+    def _deserialize_result(self, data: Dict[str, Any]) -> PipelineValidationResult:
+        """Deserialize a cached dict back to PipelineValidationResult."""
+        issues = []
+        for issue_dict in data.get('issues', []):
+            issues.append(ValidationIssue(
+                type=ValidationType[issue_dict['type']],
+                severity=ValidationSeverity(issue_dict['severity']),
+                code=issue_dict['code'],
+                message=issue_dict['message'],
+                path=issue_dict.get('path', ''),
+                field=issue_dict.get('field'),
+                suggestions=issue_dict.get('suggestions', []),
+                metadata=issue_dict.get('metadata', {})
+            ))
+
+        by_type = {}
+        for type_name, issue_dicts in data.get('by_type', {}).items():
+            vtype = ValidationType[type_name]
+            by_type[vtype] = [
+                ValidationIssue(
+                    type=ValidationType[i['type']],
+                    severity=ValidationSeverity(i['severity']),
+                    code=i['code'],
+                    message=i['message'],
+                    path=i.get('path', ''),
+                    field=i.get('field'),
+                    suggestions=i.get('suggestions', []),
+                    metadata=i.get('metadata', {})
+                )
+                for i in issue_dicts
+            ]
+
+        by_severity = {}
+        for sev_name, issue_dicts in data.get('by_severity', {}).items():
+            sev = ValidationSeverity(sev_name)
+            by_severity[sev] = [
+                ValidationIssue(
+                    type=ValidationIssue if False else ValidationType[i['type']],
+                    severity=ValidationSeverity(i['severity']),
+                    code=i['code'],
+                    message=i['message'],
+                    path=i.get('path', ''),
+                    field=i.get('field'),
+                    suggestions=i.get('suggestions', []),
+                    metadata=i.get('metadata', {})
+                )
+                for i in issue_dicts
+            ]
+
+        return PipelineValidationResult(
+            is_valid=data.get('valid', True),
+            issues=issues,
+            by_type=by_type,
+            by_severity=by_severity,
+            metadata=data.get('metadata', {}),
+            cached=True,
+            validation_time_ms=data.get('validation_time_ms')
+        )
 
 
 # Global pipeline instance

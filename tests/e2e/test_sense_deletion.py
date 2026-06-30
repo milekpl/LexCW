@@ -647,6 +647,9 @@ def test_add_and_remove_sense(page, flask_test_server):
     save_btn = page.locator('button[type="submit"]:has-text("Save Entry")')
     save_btn.click()
 
+    # After save, the JS redirects to the view page (/entries/{id}?status=saved).
+    # Wait for that redirect to complete before reloading the edit page.
+    page.wait_for_url(f"**/entries/{entry_id}*", timeout=15000)
     page.wait_for_load_state("networkidle", timeout=10000)
 
     # Reload the page to verify persistence

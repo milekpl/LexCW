@@ -602,6 +602,13 @@ def edit_entry(entry_id):
             except Exception as update_error:
                 logger.error(f"[EDIT_ENTRY] Update/create failed: {update_error}", exc_info=True)
                 return jsonify({"error": f"Failed to save entry: {str(update_error)}"}), 500
+            finally:
+                # Close the XMLEntryService session to release the database lock,
+                # otherwise subsequent requests hang with "Database opened by another process"
+                try:
+                    xml_service.close()
+                except Exception:
+                    pass
 
 
         # Try to load the entry for editing

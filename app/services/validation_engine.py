@@ -1574,8 +1574,8 @@ class ValidationEngine:
                 if chars:
                     escaped = re.escape(''.join(sorted(chars)))
                     return re.compile(f'^[{escaped}]+$')
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Caught exception: {e}")
 
         # 2. Use compiled pattern from validation_rules.json
         validation_cfg = rule_config.get('validation', {}) or {}
@@ -2040,12 +2040,12 @@ class SchematronValidator:
                 finally:
                     try:
                         Path(xml_path).unlink()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug(f"Caught exception: {e}")
                     try:
                         Path(svrl_path).unlink()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug(f"Caught exception: {e}")
 
             # lxml-based validator
             xml_doc = etree.fromstring(xml_content.encode('utf-8'))

@@ -870,8 +870,8 @@ class CSSMappingService:
                 for elem in temp_root.findall(".//*[@__aspect_handled]"):
                     del elem.attrib["__aspect_handled"]
                 entry_xml_with_relations = ET.tostring(temp_root, encoding="unicode")
-            except Exception:
-                pass
+            except Exception as e:
+                self._logger.debug(f"Caught exception: {e}")
 
             # Extract entry-level PoS if all senses have the same grammatical-info
             # Use the XML with abbreviations so entry-level PoS uses abbr too
@@ -1190,10 +1190,22 @@ class CSSMappingService:
                             or range_abbr_maps.get(f"{field_type}s")
                             or range_abbr_maps.get(field_type.rstrip("s"))
                         )
-                        # fields usually have content in form/text, but might use traits or other mechanism
-                        # if we were to resolve content IDs in fields, it would be here.
-                        # But for now we just handle the trait-like attributes.
-                        pass
+
+                        if range_map:
+                            # Resolve content IDs in form/text elements
+                            for form_elem in elem.findall(".//form"):
+                                text_elem = form_elem.find("text")
+                                if text_elem is not None and text_elem.text:
+                                    current_value = text_elem.text.strip()
+                                    if current_value in range_map:
+                                        text_elem.text = range_map[current_value]
+                                        elem.attrib["__aspect_handled"] = "1"
+
+                            # Also check for trait-like value attribute
+                            current_value = elem.attrib.get("value", "")
+                            if current_value and current_value in range_map:
+                                elem.attrib["value"] = range_map[current_value]
+                                elem.attrib["__aspect_handled"] = "1"
 
             # Convert back to string
             return ET.tostring(root, encoding="unicode")

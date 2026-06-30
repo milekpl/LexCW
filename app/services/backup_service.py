@@ -146,8 +146,8 @@ class BackupService:
                     import shutil
 
                     shutil.copytree(uploads, tgt, dirs_exist_ok=True)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Caught exception: {e}")
 
         current_app.backup_ops[op_id] = {"status": "done", "backup_meta": meta}
         return meta, op_id
@@ -188,8 +188,8 @@ class BackupService:
                             "status": "failed",
                             "error": str(bg_e),
                         }
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Caught exception: {e}")
 
         t = threading.Thread(target=_run, daemon=True)
         t.start()
@@ -301,8 +301,8 @@ class BackupService:
                             ]
                         ) or candidate.name == "lift-ranges":
                             z.write(candidate, arcname=candidate.name)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Caught exception: {e}")
 
         buf.seek(0)
         return send_file(

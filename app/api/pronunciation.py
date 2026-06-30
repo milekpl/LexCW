@@ -440,11 +440,22 @@ def apply_deduplication():
             continue
 
         if action_type == "remove":
-            # TODO: wire to dictionary_service.delete_pronunciation()
-            applied += 1
+            try:
+                from app.services.dictionary_service import DictionaryService
+                dictionary_service = current_app.injector.get(DictionaryService)
+                dictionary_service.delete_pronunciation(entry_id, action.get("writing_system", "seh-fonipa"))
+                applied += 1
+            except Exception as e:
+                errors.append({"index": i, "error": f"Failed to remove pronunciation: {str(e)}"})
         elif action_type == "merge_to_compressed":
-            # TODO: wire to dictionary_service.update_pronunciation()
-            applied += 1
+            try:
+                from app.services.dictionary_service import DictionaryService
+                dictionary_service = current_app.injector.get(DictionaryService)
+                ipa_value = action.get("ipa", "")
+                dictionary_service.update_pronunciation(entry_id, action.get("writing_system", "seh-fonipa"), ipa_value)
+                applied += 1
+            except Exception as e:
+                errors.append({"index": i, "error": f"Failed to merge pronunciation: {str(e)}"})
         else:
             errors.append({"index": i, "error": f"Unknown action type: {action_type}"})
 

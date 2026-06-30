@@ -219,9 +219,95 @@ class FieldRegistryService:
         
         fields.extend(common_custom_fields)
         
-        # TODO: If we have dictionary service access, scan for actual custom fields
+        # Scan for actual custom fields if we have dictionary service access
+        if project_id:
+            try:
+                from flask import current_app
+                from app.services.dictionary_service import DictionaryService
+                dictionary_service = current_app.injector.get(DictionaryService)
+                discovered = self._scan_custom_fields(dictionary_service, project_id)
+                existing_paths = {f['path'] for f in fields}
+                for field in discovered:
+                    if field['path'] not in existing_paths:
+                        fields.append(field)
+                        existing_paths.add(field['path'])
+            except Exception as e:
+                self.logger.debug(f"Dynamic field scanning unavailable: {e}")
         
         return fields
+    
+    def _scan_custom_fields(self, dictionary_service, project_id: int) -> List[Dict[str, str]]:
+        """
+        Scan a sample of entries to discover custom fields and traits.
+        
+        Args:
+            dictionary_service: DictionaryService instance
+            project_id: Project ID to scan
+            
+        Returns:
+            List of discovered custom field definitions
+        """
+        custom_fields = {}
+        
+        try:
+            entries, _ = dictionary_service.list_entries(
+                limit=50,
+                offset=0,
+                project_id=project_id
+            )
+            
+            for entry in entries:
+                entry_dict = entry.to_dict() if hasattr(entry, 'to_dict') else entry
+                
+                # Scan for custom field[] elements
+                for key in entry_dict:
+                    if key.startswith('field[') and key.endswith(']'):
+                        field_name = key[6:-1]
+                        if field_name not in custom_fields:
+                            custom_fields[field_name] = {
+                                "label": f"Custom: {field_name.replace('-', ' ').title()}",
+                                "path": f"field[{field_name}]",
+                                "category": "Custom Field"
+                            }
+                
+                # Scan for custom trait[] elements
+                for key in entry_dict:
+                    if key.startswith('trait[') and key.endswith(']'):
+                        trait_name = key[6:-1]
+                        if trait_name not in custom_fields:
+                            custom_fields[trait_name] = {
+                                "label": f"Trait: {trait_name.replace('-', ' ').title()}",
+                                "path": f"trait[{trait_name}]",
+                                "category": "Trait"
+                            }
+                
+                # Scan senses for custom fields
+                senses = entry_dict.get('senses', [])
+                if isinstance(senses, list):
+                    for sense in senses:
+                        if isinstance(sense, dict):
+                            for key in sense:
+                                if key.startswith('field[') and key.endswith(']'):
+                                    field_name = key[6:-1]
+                                    if field_name not in custom_fields:
+                                        custom_fields[field_name] = {
+                                            "label": f"Custom: {field_name.replace('-', ' ').title()}",
+                                            "path": f"field[{field_name}]",
+                                            "category": "Custom Field"
+                                        }
+                                elif key.startswith('trait[') and key.endswith(']'):
+                                    trait_name = key[6:-1]
+                                    if trait_name not in custom_fields:
+                                        custom_fields[trait_name] = {
+                                            "label": f"Trait: {trait_name.replace('-', ' ').title()}",
+                                            "path": f"trait[{trait_name}]",
+                                            "category": "Trait"
+                                        }
+        
+        except Exception as e:
+            self.logger.warning(f"Error scanning custom fields: {e}")
+        
+        return list(custom_fields.values())
     
     def _fetch_dynamic_ranges(self, project_id: int) -> List[Dict[str, str]]:
         """

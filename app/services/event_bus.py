@@ -1,7 +1,10 @@
 """
 Simple event bus with signal/slot pattern for service coordination.
 """
+import logging
 from typing import Dict, List, Callable, Any
+
+logger = logging.getLogger(__name__)
 
 class EventBus:
     """
@@ -33,6 +36,5 @@ class EventBus:
         for callback in self._subscribers.get(event, []):
             try:
                 callback(data)
-            except Exception:
-                # Log but don't break other subscribers
-                pass
+            except Exception as e:
+                logger.warning(f"EventBus subscriber error for '{event}': {e}", exc_info=True)

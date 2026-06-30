@@ -16,12 +16,15 @@ Features:
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
 from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Type, TypeVar, Union, get_type_hints
+
+logger = logging.getLogger(__name__)
 
 
 T = TypeVar('T', bound='SerializableMixin')
@@ -168,8 +171,8 @@ def _deserialize_value(
         if isinstance(value, (int, float, str)):
             try:
                 return Decimal(str(value))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not deserialize Decimal: {e}")
         return value
 
     # Handle lists with type hints

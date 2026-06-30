@@ -175,7 +175,7 @@ class DictionaryService:
                     try:
                         admin_connector.execute_command(f"OPEN {db_name}")
                         admin_connector.execute_command("CLOSE")
-                    except:
+                    except Exception:
                         pass  # Database might not be open, that's fine
 
                     # Retry DROP if another process has the DB open
@@ -436,8 +436,8 @@ class DictionaryService:
         try:
             if connector.execute_query(f"exists(doc('ranges.lift-ranges')//lift-ranges)"):
                 return ['ranges.lift-ranges']
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Could not check for ranges.lift-ranges: {e}")
 
         return []
 
@@ -461,8 +461,8 @@ class DictionaryService:
                 if path.startswith('/') and len(path) > 2 and path[2] == ':':
                     path = path[1:]
                 return path
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Could not parse file URI: {e}")
 
         # If it's an absolute path, return it
         if os.path.isabs(href):
@@ -653,7 +653,7 @@ class DictionaryService:
                 # Reconnect the main connector to the new database
                 try:
                     self.db_connector.disconnect()
-                except:
+                except Exception:
                     pass  # Ignore disconnect errors
                 
                 # Set flag to prevent automatic range loading after drop
@@ -1099,8 +1099,8 @@ class DictionaryService:
                     for sense in entry.senses:
                         if sense.id == sense_id or (hasattr(sense, 'id_') and sense.id_ == sense_id):
                             return entry
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug(f"Could not find entry by sense ID {sense_id}: {e}")
 
         # Fallback: direct XQuery instead of loading all entries into memory
         db_name = self._resolve_db_name(project_id)
@@ -1117,8 +1117,8 @@ class DictionaryService:
                 entries = parser.parse_string(f"<lift>{result}</lift>")
                 if entries:
                     return entries[0]
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Could not parse XQuery result for sense ID {sense_id}: {e}")
 
         raise NotFoundError(f"No entry found containing sense with ID: {sense_id}")
 
@@ -1222,6 +1222,60 @@ class DictionaryService:
             self.logger.error("Error deleting entry %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to delete entry: {str(e)}") from e
 
+    def delete_pronunciation(self, entry_id: str, writing_system: str, project_id: Optional[int] = None) -> bool:
+        """
+        Delete a pronunciation from an entry.
+
+        Args:
+            entry_id: ID of the entry containing the pronunciation.
+            writing_system: The writing system code of the pronunciation to remove.
+            project_id: Optional project ID to determine database.
+
+        Returns:
+            True if the pronunciation was deleted successfully.
+
+        Raises:
+            NotFoundError: If the entry or pronunciation does not exist.
+            DatabaseError: If there is an error updating the entry.
+        """
+        entry = self.get_entry(entry_id, project_id=project_id)
+        if writing_system not in entry.pronunciations:
+            raise NotFoundError(
+                f"Pronunciation '{writing_system}' not found in entry '{entry_id}'"
+            )
+
+        del entry.pronunciations[writing_system]
+        self.update_entry(entry, skip_validation=True, project_id=project_id)
+        return True
+
+    def update_pronunciation(
+        self,
+        entry_id: str,
+        writing_system: str,
+        ipa_value: str,
+        project_id: Optional[int] = None
+    ) -> bool:
+        """
+        Update or add a pronunciation on an entry.
+
+        Args:
+            entry_id: ID of the entry containing the pronunciation.
+            writing_system: The writing system code for the pronunciation.
+            ipa_value: The new IPA transcription value.
+            project_id: Optional project ID to determine database.
+
+        Returns:
+            True if the pronunciation was updated successfully.
+
+        Raises:
+            NotFoundError: If the entry does not exist.
+            DatabaseError: If there is an error updating the entry.
+        """
+        entry = self.get_entry(entry_id, project_id=project_id)
+        entry.pronunciations[writing_system] = ipa_value
+        self.update_entry(entry, skip_validation=True, project_id=project_id)
+        return True
+
     def get_lift_ranges(self, project_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Get all LIFT ranges from the database.
@@ -1269,8 +1323,8 @@ class DictionaryService:
                 if not ranges_db_name:
                     from flask import current_app as _capp
                     ranges_db_name = _capp.config.get('BASEX_RANGES_DATABASE') if _capp else None
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Could not resolve ranges database name: {e}")
 
             ranges_xml = None
 
@@ -1300,8 +1354,8 @@ class DictionaryService:
                     try:
                         query_no_ns = self._query_builder.build_get_lift_ranges_query(ranges_db_name, False)
                         ranges_xml = self.db_connector.execute_query(query_no_ns)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug(f"Could not query ranges from dedicated DB: {e}")
                 if not ranges_xml:
                     query_no_ns = self._query_builder.build_get_lift_ranges_query(
                         db_name, False
@@ -1961,7 +2015,8 @@ class DictionaryService:
                     settings = cm.get_settings_by_id(project_id)
                     if settings:
                         db_name = settings.basex_db_name
-                except: pass
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
 
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
@@ -2132,7 +2187,8 @@ class DictionaryService:
                     settings = cm.get_settings_by_id(project_id)
                     if settings:
                         db_name = settings.basex_db_name
-                except: pass
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
 
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
@@ -2213,11 +2269,12 @@ class DictionaryService:
                     settings = cm.get_settings_by_id(project_id)
                     if settings:
                         db_name = settings.basex_db_name
-                except:
+                except (ImportError, AttributeError, RuntimeError):
                     pass
 
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
 
             has_ns = self._detect_namespace_usage()
             prologue = self._query_builder.get_namespace_prologue(has_ns)
@@ -2575,8 +2632,8 @@ class DictionaryService:
             finally:
                 try:
                     admin_connector.disconnect()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug(f"Could not disconnect admin connector: {e}")
 
         except Exception as e:
             self.logger.error("Error in replace import: %s", str(e), exc_info=True)
@@ -2759,7 +2816,7 @@ class DictionaryService:
             # Clean up temporary file
             try:
                 os.unlink(temp_entries_path)
-            except:
+            except OSError:
                 pass
         try:
             if not os.path.exists(lift_path):
@@ -2870,7 +2927,7 @@ class DictionaryService:
                     # Clean up temporary file
                     try:
                         os.unlink(temp_entries_path)
-                    except:
+                    except OSError:
                         pass
 
             finally:
@@ -3629,7 +3686,7 @@ class DictionaryService:
                     if isinstance(data, str):
                         try:
                             data = json.loads(data)
-                        except:
+                        except (json.JSONDecodeError, TypeError):
                             pass
                     
                     if isinstance(data, dict) and 'lexical_unit' in data:
@@ -3696,7 +3753,7 @@ class DictionaryService:
                     if isinstance(data, str):
                         try:
                             data = json.loads(data)
-                        except:
+                        except (json.JSONDecodeError, TypeError):
                             pass
                     if isinstance(data, dict):
                         # Check lexical_unit
@@ -3757,7 +3814,7 @@ class DictionaryService:
                     if isinstance(data, str):
                         try:
                             data = json.loads(data)
-                        except:
+                        except (json.JSONDecodeError, TypeError):
                             pass
                     
                     if isinstance(data, dict) and 'lexical_unit' in data:
@@ -3813,7 +3870,8 @@ class DictionaryService:
                     settings = cm.get_settings_by_id(project_id)
                     if settings:
                         db_name = settings.basex_db_name
-                except: pass
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
 
             if not db_name:
                 return 0

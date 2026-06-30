@@ -3,11 +3,14 @@ Service for persisting and retrieving comprehensive operation history for undo/r
 """
 
 import json
+import logging
 import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from app.models.merge_split_operations import MergeSplitOperation, SenseTransfer
 from app.models.backup_models import OperationHistory as OperationHistoryModel
+
+logger = logging.getLogger(__name__)
 
 
 class OperationHistoryService:
@@ -286,8 +289,9 @@ class OperationHistoryService:
                         id_=op_id,  # Pass ID with underscore as expected by BaseModel
                         **{k: v for k, v in op.items() if k not in ['operation_type', 'source_id', 'target_id', 'id', 'type']}
                     ))
-                except:
+                except (ValueError, TypeError, KeyError) as e:
                     # If there's a problem reconstructing the object, skip it
+                    logger.debug(f"Skipping malformed merge/split operation: {e}")
                     continue
         return merge_split_ops
 

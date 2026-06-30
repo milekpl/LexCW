@@ -289,8 +289,8 @@ class BaseXBackupManager:
                     # Some connectors might accept only filename; try filename-only as last resort
                     try:
                         self.basex_connector.execute_command(f"EXPORT '{filepath.name}'")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug(f"Could not export with filename only: {e}")
 
                 # Wait and check if file exists (assume it was created in BaseX server's directory)
                 import time
@@ -671,8 +671,8 @@ class BaseXBackupManager:
                                     old_id = existing.get('id')
                                     if old_id in found_ids:
                                         found_ids.discard(old_id)
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    self.logger.debug(f"Could not discard backup ID: {e}")
 
                                 # Ensure meta has id and timestamp set (same code as normal path)
                                 if not meta.get('id'):
@@ -693,8 +693,8 @@ class BaseXBackupManager:
                                         try:
                                             ts_part = file_path.name.split('_backup_')[1].replace('.lift', '')
                                             timestamp_str = datetime.strptime(ts_part, "%Y%m%d_%H%M%S").isoformat()
-                                        except Exception:
-                                            pass
+                                        except Exception as e:
+                                            self.logger.debug(f"Caught exception: {e}")
                                     if not timestamp_str:
                                         timestamp_str = datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
                                     meta['timestamp'] = timestamp_str
@@ -752,8 +752,8 @@ class BaseXBackupManager:
                             try:
                                 ts_part = file_path.name.split('_backup_')[1].replace('.lift', '')
                                 timestamp_str = datetime.strptime(ts_part, "%Y%m%d_%H%M%S").isoformat()
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                self.logger.debug(f"Caught exception: {e}")
                         if not timestamp_str:
                             timestamp_str = datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
                         meta['timestamp'] = timestamp_str
@@ -915,8 +915,8 @@ class BaseXBackupManager:
                         shutil.rmtree(stale, ignore_errors=True)
                     else:
                         stale.unlink()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Caught exception: {e}")
 
         # Generate ranges using real data from database or sample file
         try:
@@ -926,8 +926,8 @@ class BaseXBackupManager:
             self.basex_connector.database = db_name
             try:
                 self.basex_connector.execute_command(f"OPEN {db_name}")
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Caught exception: {e}")
             
             # Try to get ranges from database
             from app.services.ranges_service import RangesService
@@ -1317,8 +1317,8 @@ class BaseXBackupManager:
                         else:
                             sidecar.unlink()
                         deleted_any = True
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug(f"Caught exception: {e}")
             
             # Note: We do NOT delete the shared 'self.backup_directory / "lift-ranges"' 
             # as it might be used by other backups or the system.

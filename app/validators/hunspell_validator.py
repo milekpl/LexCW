@@ -128,8 +128,8 @@ class HunspellValidator(CacheableValidator, BatchValidator):
             if hunspell_obj is None:
                 try:
                     hunspell_obj = hunspell.Hunspell(lang)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug(f"Caught exception: {e}")
 
             if hunspell_obj:
                 self._hunspell_instances[lang] = hunspell_obj

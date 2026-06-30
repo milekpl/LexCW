@@ -36,8 +36,8 @@ def _get_api_key() -> str:
             settings = ProjectSettings.query.get(int(project_id))
             if settings and settings.openai_api_key:
                 return settings.openai_api_key
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Caught exception: {e}")
 
     # Fallback: try the first (default) project
     try:
@@ -45,8 +45,8 @@ def _get_api_key() -> str:
         settings = ProjectSettings.query.first()
         if settings and settings.openai_api_key:
             return settings.openai_api_key
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Caught exception: {e}")
 
     # Last resort: env var
     return os.environ.get("OPENAI_API_KEY", "")
@@ -66,16 +66,16 @@ def _get_model(data: dict) -> str:
             settings = ProjectSettings.query.get(int(project_id))
             if settings and settings.ai_model:
                 return settings.ai_model
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Caught exception: {e}")
 
     try:
         from app.models.project_settings import ProjectSettings
         settings = ProjectSettings.query.first()
         if settings and settings.ai_model:
             return settings.ai_model
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Caught exception: {e}")
 
     return os.environ.get("LLM_MODEL") or "gpt-4o"
 
@@ -91,16 +91,16 @@ def _get_api_base() -> str:
             settings = ProjectSettings.query.get(int(project_id))
             if settings and settings.ai_api_base:
                 return settings.ai_api_base
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Caught exception: {e}")
 
     try:
         from app.models.project_settings import ProjectSettings
         settings = ProjectSettings.query.first()
         if settings and settings.ai_api_base:
             return settings.ai_api_base
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Caught exception: {e}")
 
     return os.environ.get("AI_API_BASE") or "https://api.openai.com/v1"
 
