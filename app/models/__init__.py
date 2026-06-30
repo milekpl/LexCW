@@ -13,6 +13,7 @@ from app.models.display_profile import DisplayProfile, ProfileElement
 from app.models.custom_ranges import CustomRange, CustomRangeValue
 from app.models.validation_models import ProjectValidationRule, ValidationRuleTemplate
 from app.models.dictionary_models import ProjectDictionary, UserDictionary, SystemDictionary
+from app.models.import_mapping import ImportMapping, ImportFieldMapping, ImportLanguageMapping
 
 
 __all__ = [
@@ -33,5 +34,8 @@ __all__ = [
     'ValidationRuleTemplate',
     'ProjectDictionary',
     'UserDictionary',
-    'SystemDictionary'
+    'SystemDictionary',
+    'ImportMapping',
+    'ImportFieldMapping',
+    'ImportLanguageMapping',
 ]

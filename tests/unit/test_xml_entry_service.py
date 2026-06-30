@@ -141,6 +141,7 @@ class TestXMLEntryServiceInit:
     
     def test_init_connection_failure(self):
         """Test initialization fails with bad connection."""
+        XMLEntryService._namespace_cache.clear()  # Ensure namespace detection runs
         with patch('app.services.xml_entry_service.BaseXClient.Session') as mock_session_class:
             mock_session_class.side_effect = Exception("Connection failed")
             

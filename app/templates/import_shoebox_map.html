@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Map SFM Markers — Import Shoebox{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .marker-row td { vertical-align: middle; }
+    .marker-row .form-select, .marker-row .form-control { font-size: 0.875rem; }
+    .entry-preview { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Map SFM Markers</h1>
+            <p class="text-muted">
+                {{ file_name }} · {{ entry_count }} entries detected ·
+                {{ marker_stats|length }} unique markers
+            </p>
+
+            <form method="post" action="{{ url_for('main.import_shoebox_execute') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="import_key" value="{{ import_key }}"/>
+                <input type="hidden" name="file_name" value="{{ file_name }}"/>
+
+                <!-- Mapping table -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <span>Marker Mapping</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Marker</th>
+                                    <th>Sample Values</th>
+                                    <th>LIFT Element</th>
+                                    <th>Level</th>
+                                    <th>Language</th>
+                                    <th>Key</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for marker, info in marker_stats|dictsort %}
+                                <tr class="marker-row">
+                                    <td><code>\{{ marker }}</code></td>
+                                    <td class="small text-muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                        {{ info.samples|join(', ') }}
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="el_{{ marker }}">
+                                            {% for opt in lift_element_options %}
+                                            <option value="{{ opt }}"
+                                                {%- if info.suggested_element == opt %} selected{% endif %}>
+                                                {{ opt }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="lv_{{ marker }}">
+                                            {% for lvl in ['entry', 'sense', 'example', 'pronunciation', 'variant'] %}
+                                            <option value="{{ lvl }}"
+                                                {%- if info.suggested_level == lvl %} selected{% endif %}>
+                                                {{ lvl|capitalize }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="lang_{{ marker }}" style="width:110px">
+                                            <option value="">—</option>
+                                            {% for code, name in project_languages %}
+                                            <option value="{{ code }}">{{ name }} ({{ code }})</option>
+                                            {% endfor %}
+                                            <option value="seh-fonipa">IPA (seh-fonipa)</option>
+                                        </select>
+                                    </td>
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input"
+                                               name="key_{{ marker }}" value="1"
+                                               {% if info.suggested_key %}checked{% endif %}>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="ft_{{ marker }}">
+                                            {% for ft in field_type_options %}
+                                            <option value="{{ ft }}"
+                                                {%- if info.suggested_field_type == ft %} selected{% endif %}>
+                                                {{ ft }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Entry preview -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <span>Entry Preview (first {{ entry_previews|length }})</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    {% for marker, _ in marker_stats|dictsort %}
+                                    <th>\{{ marker }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in entry_previews %}
+                                <tr>
+                                    <td class="text-muted">{{ loop.index }}</td>
+                                    {% for marker, info in marker_stats|dictsort %}
+                                    <td class="small">{{ entry.get(marker, '') }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Options -->
+                <div class="card mb-4">
+                    <div class="card-header">Import Options</div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="mode" class="form-label">Import Mode</label>
+                                <select class="form-select" id="mode" name="mode">
+                                    <option value="merge">Merge with existing data</option>
+                                    <option value="replace">Replace all existing data</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="save_mapping_name" class="form-label">Save mapping as</label>
+                                <input type="text" class="form-control" id="save_mapping_name"
+                                       name="save_mapping_name"
+                                       placeholder="Leave empty to not save">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-file-import"></i> Import {{ entry_count }} Entries
+                </button>
+                <a href="{{ url_for('main.import_shoebox') }}" class="btn btn-secondary ms-2">Cancel</a>
+                    </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .field-mapping-row:last-child .btn-remove-field {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">{{ title }}</h1>
+
+            <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                <div class="card mb-4">
+                    <div class="card-header">Mapping Details</div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="name" name="name"
+                                       value="{{ mapping.name if mapping else '' }}" required>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="file_type" class="form-label">File Type</label>
+                                <select class="form-select" id="file_type" name="file_type">
+                                    <option value="sfm" {% if mapping and mapping.file_type == 'sfm' %}selected{% endif %}>
+                                        SFM / Shoebox
+                                    </option>
+                                    <option value="csv" {% if mapping and mapping.file_type == 'csv' %}selected{% endif %}>
+                                        CSV
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <input type="text" class="form-control" id="description" name="description"
+                                       value="{{ mapping.description if mapping else '' }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Field Mappings</span>
+                        <button type="button" class="btn btn-sm btn-success" id="btn-add-field">
+                            <i class="fas fa-plus"></i> Add Field
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-striped mb-0" id="field-mappings-table">
+                            <thead>
+                                <tr>
+                                    <th>Field Marker / Column</th>
+                                    <th>LIFT Element</th>
+                                    <th>Level</th>
+                                    <th>Language</th>
+                                    <th>Key</th>
+                                    <th>Field Type</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for fm in mapping.field_mappings or [] %}
+                                <tr class="field-mapping-row">
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               name="fm_marker[]" value="{{ fm.field_marker }}" required>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               name="fm_element[]" value="{{ fm.lift_element }}">
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="fm_level[]">
+                                            <option value="entry" {% if fm.level == 'entry' %}selected{% endif %}>Entry</option>
+                                            <option value="sense" {% if fm.level == 'sense' %}selected{% endif %}>Sense</option>
+                                            <option value="example" {% if fm.level == 'example' %}selected{% endif %}>Example</option>
+                                            <option value="pronunciation" {% if fm.level == 'pronunciation' %}selected{% endif %}>Pronunciation</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               name="fm_lang[]" value="{{ fm.lang or '' }}">
+                                    </td>
+                                    <td>
+                                        <input type="checkbox" class="form-check-input"
+                                               name="fm_key[]" value="1"
+                                               {% if fm.is_key %}checked{% endif %}>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="fm_type[]">
+                                            <option value="normal" {% if fm.field_type == 'normal' %}selected{% endif %}>Normal</option>
+                                            <option value="cross-ref-source" {% if fm.field_type == 'cross-ref-source' %}selected{% endif %}>Cross-ref source (\lf)</option>
+                                            <option value="cross-ref-target" {% if fm.field_type == 'cross-ref-target' %}selected{% endif %}>Cross-ref target (\lv)</option>
+                                            <option value="variant-target" {% if fm.field_type == 'variant-target' %}selected{% endif %}>Variant target (\mn)</option>
+                                            <option value="variant-type" {% if fm.field_type == 'variant-type' %}selected{% endif %}>Variant type (\vt)</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-field">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {# Always show at least one empty row #}
+                                {% if not mapping or not mapping.field_mappings %}
+                                <tr class="field-mapping-row">
+                                    <td><input type="text" class="form-control form-control-sm" name="fm_marker[]" required></td>
+                                    <td><input type="text" class="form-control form-control-sm" name="fm_element[]"></td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="fm_level[]">
+                                            <option value="entry">Entry</option>
+                                            <option value="sense">Sense</option>
+                                            <option value="example">Example</option>
+                                            <option value="pronunciation">Pronunciation</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="text" class="form-control form-control-sm" name="fm_lang[]"></td>
+                                    <td><input type="checkbox" class="form-check-input" name="fm_key[]" value="1"></td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="fm_type[]">
+                                            <option value="normal">Normal</option>
+                                            <option value="cross-ref-source">Cross-ref source (\lf)</option>
+                                            <option value="cross-ref-target">Cross-ref target (\lv)</option>
+                                            <option value="variant-target">Variant target (\mn)</option>
+                                            <option value="variant-type">Variant type (\vt)</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-field">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Language Mappings</span>
+                        <button type="button" class="btn btn-sm btn-success" id="btn-add-lang">
+                            <i class="fas fa-plus"></i> Add Language
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-striped mb-0" id="lang-mappings-table">
+                            <thead>
+                                <tr>
+                                    <th>Source (file) Language</th>
+                                    <th>Target (ISO) Language</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lm in mapping.language_mappings or [] %}
+                                <tr class="lang-mapping-row">
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               name="lm_source[]" value="{{ lm.source_lang }}" required>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               name="lm_target[]" value="{{ lm.target_lang }}" required>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-lang">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Mapping
+                </button>
+                <a href="{{ url_for('main.import_mappings') }}" class="btn btn-secondary ms-2">Cancel</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function() {
+    function addFieldRow() {
+        const tbody = document.querySelector('#field-mappings-table tbody');
+        const row = document.createElement('tr');
+        row.className = 'field-mapping-row';
+        row.innerHTML = `
+            <td><input type="text" class="form-control form-control-sm" name="fm_marker[]" required></td>
+            <td><input type="text" class="form-control form-control-sm" name="fm_element[]"></td>
+            <td>
+                <select class="form-select form-select-sm" name="fm_level[]">
+                    <option value="entry">Entry</option>
+                    <option value="sense">Sense</option>
+                    <option value="example">Example</option>
+                    <option value="pronunciation">Pronunciation</option>
+                </select>
+            </td>
+            <td><input type="text" class="form-control form-control-sm" name="fm_lang[]"></td>
+            <td><input type="checkbox" class="form-check-input" name="fm_key[]" value="1"></td>
+            <td>
+                <select class="form-select form-select-sm" name="fm_type[]">
+                    <option value="normal">Normal</option>
+                    <option value="cross-ref-source">Cross-ref source (\\lf)</option>
+                    <option value="cross-ref-target">Cross-ref target (\\lv)</option>
+                    <option value="variant-target">Variant target (\\mn)</option>
+                    <option value="variant-type">Variant type (\\vt)</option>
+                </select>
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-remove-field">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>`;
+        tbody.appendChild(row);
+    }
+
+    function addLangRow() {
+        const tbody = document.querySelector('#lang-mappings-table tbody');
+        const row = document.createElement('tr');
+        row.className = 'lang-mapping-row';
+        row.innerHTML = `
+            <td><input type="text" class="form-control form-control-sm" name="lm_source[]" required></td>
+            <td><input type="text" class="form-control form-control-sm" name="lm_target[]" required></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-remove-lang">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>`;
+        tbody.appendChild(row);
+    }
+
+    document.getElementById('btn-add-field').addEventListener('click', addFieldRow);
+    document.getElementById('btn-add-lang').addEventListener('click', addLangRow);
+
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.btn-remove-field')) {
+            const row = e.target.closest('tr');
+            const tbody = row.parentElement;
+            if (tbody.querySelectorAll('tr').length > 1) {
+                row.remove();
+            }
+        }
+        if (e.target.closest('.btn-remove-lang')) {
+            const row = e.target.closest('tr');
+            row.remove();
+        }
+    });
+})();
+</script>
+{% endblock %}

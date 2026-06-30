@@ -53,6 +53,9 @@ class DisplayProfile(db.Model):
     # Ownership (optional, for future multi-user support)
     owner_id: Optional[int] = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     
+    # Export configuration for Markdown/PDF export
+    export_config: Optional[dict] = Column(JSON, nullable=True)
+
     # Relationships
     elements: List['ProfileElement'] = relationship(
         'ProfileElement',
@@ -79,8 +82,18 @@ class DisplayProfile(db.Model):
             'is_system': self.is_system,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'export_config': self.export_config,
             'elements': [elem.to_dict() for elem in self.elements] if self.elements else []
         }
+
+    def get_export_config(self) -> dict:
+        """Get export config with defaults applied."""
+        base = self.export_config or {}
+        defaults = {
+            "lexicon_type": "lexeme-based",
+            "subentry_style": "indented",
+        }
+        return {**defaults, **base}
     
     def to_config(self) -> dict:
         """Convert profile to configuration format for CSS mapping service."""

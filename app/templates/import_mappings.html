@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Import Mappings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Import Mappings</h1>
+
+            <p class="text-muted">
+                Mappings describe how fields in a Shoebox/SFM or CSV file map to
+                LIFT elements. Create one for each import format you use.
+            </p>
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Saved Mappings</span>
+                    <a href="{{ url_for('main.import_mapping_new') }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus"></i> New Mapping
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Field Mappings</th>
+                                <th>Description</th>
+                                <th>Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in mappings %}
+                            <tr>
+                                <td>{{ m.name }}</td>
+                                <td><span class="badge bg-info">{{ m.file_type }}</span></td>
+                                <td>{{ m.field_mappings|length }}</td>
+                                <td class="text-muted small">{{ m.description|truncate(60) or '' }}</td>
+                                <td class="small">{{ m.updated_at.strftime('%Y-%m-%d') if m.updated_at else '' }}</td>
+                                <td>
+                                    <a href="{{ url_for('main.import_mapping_edit', mapping_id=m.id) }}"
+                                       class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <form method="post"
+                                          action="{{ url_for('main.import_mapping_delete', mapping_id=m.id) }}"
+                                          style="display:inline"
+                                          onsubmit="return confirm('Delete this mapping?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    No mappings yet. <a href="{{ url_for('main.import_mapping_new') }}">Create one</a>.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

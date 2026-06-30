@@ -1089,6 +1089,558 @@ def import_list_xml():
     return render_template("import_list_xml.html")
 
 
+# -- Shoebox / SFM import --------------------------------------------------
+
+
+LIFT_ELEMENT_OPTIONS = [
+    # Entry-level
+    "lexeme", "citation",
+    "entry_note", "entry_trait", "entry_field",
+    # Pronunciation
+    "pronunciation_form", "pronunciation_media",
+    # Sense-level
+    "gloss", "definition", "grammatical_info",
+    "sense_note", "sense_trait", "sense_field",
+    "sense_relation", "reversal", "illustration",
+    # Example-level
+    "example_form", "example_translation", "example_note",
+    # Variant
+    "variant_form", "variant_note", "variant_trait", "variant_field",
+    # Etymology
+    "etymology_form", "etymology_gloss",
+    # General
+    "annotation",
+]
+
+FIELD_TYPE_OPTIONS = [
+    "normal", "cross-ref-source", "cross-ref-target",
+    "variant-target", "variant-type",
+]
+
+
+@main_bp.route("/import/shoebox", methods=["GET", "POST"])
+def import_shoebox():
+    """Two-step SFM import: upload → preview markers → map → import."""
+    from app.services.sfm_parser import SFMParser, _parse_marker_line
+    from collections import Counter
+
+    if request.method == "POST":
+        if "sfm_file" not in request.files:
+            flash("No SFM file selected", "danger")
+            return redirect(request.url)
+
+        sfm_file = request.files["sfm_file"]
+        if sfm_file.filename == "":
+            flash("No SFM file selected", "danger")
+            return redirect(request.url)
+
+        try:
+            text = sfm_file.read().decode("utf-8", errors="replace")
+        except Exception as e:
+            flash(f"Could not read file: {e}", "danger")
+            return redirect(request.url)
+
+        # Auto-detect markers and collect stats
+        parser = SFMParser.auto_detect(text)
+        doc = parser.parse(text)
+
+        # Build marker stats: frequency, sample values, suggested mapping
+        marker_values: dict[str, list[str]] = {}
+        marker_counts: Counter = Counter()
+        for entry in doc.entries[:100]:
+            for f in entry.fields:
+                marker_counts[f.marker] += 1
+                if f.marker not in marker_values:
+                    marker_values[f.marker] = []
+                if len(marker_values[f.marker]) < 5:
+                    marker_values[f.marker].append(f.value[:60])
+            for sense in entry.senses:
+                for f in sense.fields:
+                    marker_counts[f.marker] += 1
+                    if f.marker not in marker_values:
+                        marker_values[f.marker] = []
+                    if len(marker_values[f.marker]) < 5:
+                        marker_values[f.marker].append(f.value[:60])
+            for pron in entry.pronunciations:
+                for f in pron.fields:
+                    marker_counts[f.marker] += 1
+                    if f.marker not in marker_values:
+                        marker_values[f.marker] = []
+                    if len(marker_values[f.marker]) < 5:
+                        marker_values[f.marker].append(f.value[:60])
+
+        from app.services.import_mapping_service import _guess_lift_element
+
+        marker_stats = {}
+        for marker in sorted(marker_counts):
+            samples = marker_values.get(marker, [])
+            marker_stats[marker] = {
+                "count": marker_counts[marker],
+                "samples": samples,
+                "suggested_element": _guess_lift_element(marker, "entry"),
+                "suggested_level": (
+                    "entry" if marker in parser.entry_keys
+                    else "sense" if marker in parser.sense_keys
+                    else "example" if marker in parser.example_keys
+                    else "pronunciation" if marker in parser.pronun_keys
+                    else "variant" if marker in parser.variant_keys
+                    else "entry"
+                ),
+                "suggested_key": marker in parser.entry_keys or marker in parser.sense_keys or marker in parser.variant_keys,
+                "suggested_field_type": (
+                    "cross-ref-source" if marker in parser.cross_ref_source
+                    else "cross-ref-target" if marker in parser.cross_ref_target
+                    else "variant-target" if marker in parser.variant_target
+                    else "variant-type" if marker in parser.variant_type
+                    else "normal"
+                ),
+                "suggested_lang": None,
+            }
+
+        # Build entry previews (first 10) — flatten all fields
+        entry_previews = []
+        for entry in doc.entries[:10]:
+            preview = {}
+            for f in entry.fields:
+                preview[f.marker] = f.value[:60]
+            for sense in entry.senses:
+                for f in sense.fields:
+                    preview[f.marker] = f.value[:60]
+                for ex in sense.examples:
+                    for f in ex.fields:
+                        preview[f.marker] = f.value[:60]
+            for pron in entry.pronunciations:
+                for f in pron.fields:
+                    preview[f.marker] = f.value[:60]
+            # Sort by marker for consistent display
+            preview = dict(sorted(preview.items()))
+            entry_previews.append(preview)
+
+        # Save text to temp file for the execute step
+        import uuid, os
+        import_key = str(uuid.uuid4())
+        uploads_dir = os.path.join(
+            current_app.instance_path, "uploads", "sfm_imports"
+        )
+        os.makedirs(uploads_dir, exist_ok=True)
+        temp_path = os.path.join(uploads_dir, f"{import_key}.sfm")
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        try:
+            project_langs = get_project_languages()
+        except Exception:
+            project_langs = []
+
+        return render_template(
+            "import_shoebox_map.html",
+            import_key=import_key,
+            file_name=sfm_file.filename,
+            entry_count=len(doc.entries),
+            marker_stats=marker_stats,
+            entry_previews=entry_previews,
+            lift_element_options=LIFT_ELEMENT_OPTIONS,
+            field_type_options=FIELD_TYPE_OPTIONS,
+            project_languages=project_langs,
+        )
+
+    return render_template("import_shoebox.html")
+
+
+@main_bp.route("/import/shoebox/execute", methods=["POST"])
+def import_shoebox_execute():
+    """Execute the SFM import with user-specified marker mapping."""
+    from app.services.sfm_parser import SFMParser
+    from app.services.import_converter import import_parsed_document
+
+    import_key = request.form.get("import_key", "")
+    if not import_key:
+        flash("Missing import key.", "danger")
+        return redirect(url_for("main.import_shoebox"))
+
+    temp_path = os.path.join(
+        current_app.instance_path, "uploads", "sfm_imports", f"{import_key}.sfm"
+    )
+    if not os.path.exists(temp_path):
+        flash("Import session expired. Please upload the file again.", "danger")
+        return redirect(url_for("main.import_shoebox"))
+
+    try:
+        with open(temp_path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except Exception as e:
+        flash(f"Could not read temp file: {e}", "danger")
+        return redirect(url_for("main.import_shoebox"))
+    finally:
+        try:
+            os.unlink(temp_path)
+        except Exception:
+            pass
+
+    # Reconstruct field_map from form data
+    field_map = {}
+    key_markers: set[str] = set()
+
+    for raw_marker, value in request.form.items():
+        if raw_marker.startswith("el_"):
+            m = raw_marker[3:]
+            field_map.setdefault(m, {})["lift_element"] = value
+        elif raw_marker.startswith("lv_"):
+            m = raw_marker[3:]
+            field_map.setdefault(m, {})["level"] = value
+        elif raw_marker.startswith("lang_"):
+            m = raw_marker[5:]
+            field_map.setdefault(m, {})["lang"] = value or None
+        elif raw_marker.startswith("ft_"):
+            m = raw_marker[3:]
+            field_map.setdefault(m, {})["field_type"] = value
+        elif raw_marker.startswith("key_"):
+            m = raw_marker[4:]
+            if value == "1":
+                key_markers.add(m)
+                field_map.setdefault(m, {})["is_key"] = True
+            else:
+                field_map.setdefault(m, {})["is_key"] = False
+
+    # Fill in defaults for any missing keys
+    for marker in list(field_map.keys()):
+        fm = field_map[marker]
+        fm.setdefault("lift_element", "field")
+        fm.setdefault("level", "entry")
+        fm.setdefault("is_key", False)
+        fm.setdefault("field_type", "normal")
+
+    # Build parser from the user's mapping
+    entry_keys = {m for m, c in field_map.items() if c["is_key"] and c["level"] == "entry"}
+    sense_keys = {m for m, c in field_map.items() if c["is_key"] and c["level"] == "sense"}
+    example_keys = {m for m, c in field_map.items() if c["is_key"] and c["level"] == "example"}
+    pronun_keys = {m for m, c in field_map.items() if c["is_key"] and c["level"] == "pronunciation"}
+    variant_keys = {m for m, c in field_map.items() if c["is_key"] and c["level"] == "variant"}
+    cross_ref_source = {m for m, c in field_map.items() if c["field_type"] == "cross-ref-source"}
+    cross_ref_target = {m for m, c in field_map.items() if c["field_type"] == "cross-ref-target"}
+    variant_target = {m for m, c in field_map.items() if c["field_type"] == "variant-target"}
+    variant_type = {m for m, c in field_map.items() if c["field_type"] == "variant-type"}
+    example_field_keys = example_keys | {m for m, c in field_map.items() if c["level"] == "example"}
+
+    mode = request.form.get("mode", "merge")
+
+    try:
+        variant_field_keys = variant_keys | {m for m, c in field_map.items() if c["level"] == "variant"}
+        parser = SFMParser(
+            entry_keys=entry_keys,
+            sense_keys=sense_keys,
+            example_keys=example_keys,
+            pronun_keys=pronun_keys,
+            variant_keys=variant_keys,
+            pronun_field_keys=pronun_keys,
+            example_field_keys=example_field_keys,
+            variant_field_keys=variant_field_keys,
+            cross_ref_source=cross_ref_source,
+            cross_ref_target=cross_ref_target,
+            variant_target=variant_target,
+            variant_type=variant_type,
+        )
+        doc = parser.parse(text)
+
+        dict_service = current_app.injector.get(DictionaryService)
+        result = import_parsed_document(doc, field_map, {}, dict_service, mode=mode)
+
+        # Optionally save the mapping
+        save_name = request.form.get("save_mapping_name", "").strip()
+        if save_name:
+            from app.services.import_mapping_service import ImportMappingService
+            mapping_svc = ImportMappingService()
+            field_mappings_list = []
+            for marker, cfg in field_map.items():
+                field_mappings_list.append({
+                    "field_marker": marker,
+                    "lift_element": cfg["lift_element"],
+                    "level": cfg["level"],
+                    "lang": cfg.get("lang"),
+                    "is_key": cfg.get("is_key", False),
+                    "field_type": cfg.get("field_type", "normal"),
+                })
+            try:
+                mapping_svc.create(
+                    name=save_name,
+                    file_type="sfm",
+                    field_mappings=field_mappings_list,
+                    owner_id=getattr(g, "user", None) and g.user.get("id"),
+                )
+                flash(f"Mapping saved as '{save_name}'.", "success")
+            except Exception as e:
+                logger.warning("Could not save mapping: %s", e)
+
+        flash(
+            f"Imported {result['imported']} entries from SFM file.",
+            "success",
+        )
+        return redirect(url_for("main.entries"))
+
+    except Exception as e:
+        logger.error(f"Error importing SFM file: {e}")
+        flash(f"Error importing SFM file: {str(e)}", "danger")
+        return redirect(url_for("main.import_shoebox"))
+
+
+# -- CSV import ------------------------------------------------------------
+
+
+@main_bp.route("/import/csv", methods=["GET", "POST"])
+def import_csv():
+    """Import a CSV file using a column mapping."""
+    from app.services.csv_parser import CSVParser
+    from app.services.import_converter import import_csv_data
+    from app.services.import_mapping_service import ImportMappingService
+
+    mapping_svc = ImportMappingService()
+    mappings = [m for m in mapping_svc.get_all() if m.file_type == "csv"]
+
+    if request.method == "POST":
+        if "csv_file" not in request.files:
+            flash("No CSV file selected", "danger")
+            return redirect(request.url)
+
+        csv_file = request.files["csv_file"]
+        if csv_file.filename == "":
+            flash("No CSV file selected", "danger")
+            return redirect(request.url)
+
+        mapping_id = request.form.get("mapping_id", type=int)
+        mode = request.form.get("mode", "merge")
+        delim_raw = request.form.get("delimiter", ",")
+        delimiter = "\t" if delim_raw == "\\t" else delim_raw
+
+        mapping = mapping_svc.get_by_id(mapping_id) if mapping_id else None
+        if mapping is None:
+            flash("Please select a column mapping.", "danger")
+            return redirect(request.url)
+
+        try:
+            text = csv_file.read().decode("utf-8", errors="replace")
+            parser = CSVParser(delimiter=delimiter)
+            data = parser.parse(text)
+            field_map = mapping_svc.to_field_map_dict(mapping)
+            lang_map = mapping_svc.to_language_map_dict(mapping)
+
+            dict_service = current_app.injector.get(DictionaryService)
+            result = import_csv_data(data, field_map, lang_map, dict_service, mode=mode)
+
+            flash(
+                f"Imported {result['imported']} entries from CSV file.",
+                "success",
+            )
+            return redirect(url_for("main.entries"))
+
+        except Exception as e:
+            logger.error(f"Error importing CSV file: {e}")
+            flash(f"Error importing CSV file: {str(e)}", "danger")
+            return redirect(request.url)
+
+    return render_template(
+        "import_csv.html",
+        mappings=mappings,
+        selected_mapping_id=None,
+    )
+
+
+# -- Import mapping management ---------------------------------------------
+
+
+@main_bp.route("/import/mappings")
+def import_mappings():
+    """List all saved import mappings."""
+    from app.services.import_mapping_service import ImportMappingService
+    mapping_svc = ImportMappingService()
+    mappings = mapping_svc.get_all()
+    return render_template("import_mappings.html", mappings=mappings)
+
+
+@main_bp.route("/import/mappings/new", methods=["GET", "POST"])
+def import_mapping_new():
+    """Create a new import mapping."""
+    from app.services.import_mapping_service import ImportMappingService
+    mapping_svc = ImportMappingService()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Name is required.", "danger")
+            return redirect(request.url)
+
+        file_type = request.form.get("file_type", "sfm")
+        description = request.form.get("description", "").strip() or None
+
+        fm_markers = request.form.getlist("fm_marker[]")
+        fm_elements = request.form.getlist("fm_element[]")
+        fm_levels = request.form.getlist("fm_level[]")
+        fm_langs = request.form.getlist("fm_lang[]")
+        fm_keys = request.form.getlist("fm_key[]")
+        fm_types = request.form.getlist("fm_type[]")
+
+        field_mappings = []
+        for i, marker in enumerate(fm_markers):
+            marker = marker.strip()
+            if not marker:
+                continue
+            field_mappings.append({
+                "field_marker": marker,
+                "lift_element": fm_elements[i].strip() if i < len(fm_elements) else "",
+                "level": fm_levels[i].strip() if i < len(fm_levels) else "entry",
+                "lang": fm_langs[i].strip() if i < len(fm_langs) and fm_langs[i].strip() else None,
+                "is_key": True if fm_keys and fm_keys[i] == "1" else False,
+                "field_type": fm_types[i].strip() if i < len(fm_types) else "normal",
+            })
+
+        lm_sources = request.form.getlist("lm_source[]")
+        lm_targets = request.form.getlist("lm_target[]")
+        language_mappings = []
+        for i, src in enumerate(lm_sources):
+            src = src.strip()
+            tgt = lm_targets[i].strip() if i < len(lm_targets) else ""
+            if src and tgt:
+                language_mappings.append({
+                    "source_lang": src,
+                    "target_lang": tgt,
+                })
+
+        mapping = mapping_svc.create(
+            name=name,
+            file_type=file_type,
+            description=description,
+            field_mappings=field_mappings,
+            language_mappings=language_mappings,
+            owner_id=getattr(g, "user", None) and g.user.get("id"),
+        )
+        flash(f"Mapping '{mapping.name}' created.", "success")
+        return redirect(url_for("main.import_mappings"))
+
+    return render_template("import_mapping_form.html", title="New Import Mapping", mapping=None)
+
+
+@main_bp.route("/import/mappings/<int:mapping_id>/edit", methods=["GET", "POST"])
+def import_mapping_edit(mapping_id):
+    """Edit an existing import mapping."""
+    from app.services.import_mapping_service import ImportMappingService
+    mapping_svc = ImportMappingService()
+    mapping = mapping_svc.get_by_id(mapping_id)
+    if mapping is None:
+        flash("Mapping not found.", "danger")
+        return redirect(url_for("main.import_mappings"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Name is required.", "danger")
+            return redirect(request.url)
+
+        file_type = request.form.get("file_type", "sfm")
+        description = request.form.get("description", "").strip() or None
+
+        fm_markers = request.form.getlist("fm_marker[]")
+        fm_elements = request.form.getlist("fm_element[]")
+        fm_levels = request.form.getlist("fm_level[]")
+        fm_langs = request.form.getlist("fm_lang[]")
+        fm_keys = request.form.getlist("fm_key[]")
+        fm_types = request.form.getlist("fm_type[]")
+
+        field_mappings = []
+        for i, marker in enumerate(fm_markers):
+            marker = marker.strip()
+            if not marker:
+                continue
+            field_mappings.append({
+                "field_marker": marker,
+                "lift_element": fm_elements[i].strip() if i < len(fm_elements) else "",
+                "level": fm_levels[i].strip() if i < len(fm_levels) else "entry",
+                "lang": fm_langs[i].strip() if i < len(fm_langs) and fm_langs[i].strip() else None,
+                "is_key": True if fm_keys and fm_keys[i] == "1" else False,
+                "field_type": fm_types[i].strip() if i < len(fm_types) else "normal",
+            })
+
+        lm_sources = request.form.getlist("lm_source[]")
+        lm_targets = request.form.getlist("lm_target[]")
+        language_mappings = []
+        for i, src in enumerate(lm_sources):
+            src = src.strip()
+            tgt = lm_targets[i].strip() if i < len(lm_targets) else ""
+            if src and tgt:
+                language_mappings.append({
+                    "source_lang": src,
+                    "target_lang": tgt,
+                })
+
+        mapping_svc.update(
+            mapping_id=mapping.id,
+            name=name,
+            file_type=file_type,
+            description=description,
+            field_mappings=field_mappings,
+            language_mappings=language_mappings,
+        )
+        flash(f"Mapping '{name}' updated.", "success")
+        return redirect(url_for("main.import_mappings"))
+
+    return render_template("import_mapping_form.html", title="Edit Import Mapping", mapping=mapping)
+
+
+@main_bp.route("/import/mappings/<int:mapping_id>/delete", methods=["POST"])
+def import_mapping_delete(mapping_id):
+    """Delete an import mapping."""
+    from app.services.import_mapping_service import ImportMappingService
+    mapping_svc = ImportMappingService()
+    if mapping_svc.delete(mapping_id):
+        flash("Mapping deleted.", "success")
+    else:
+        flash("Mapping not found.", "danger")
+    return redirect(url_for("main.import_mappings"))
+
+
+# -- API: import mappings --------------------------------------------------
+
+
+@main_bp.route("/api/import-mappings", methods=["GET"])
+def api_import_mappings_list():
+    """List all import mappings as JSON."""
+    from app.services.import_mapping_service import ImportMappingService
+    mapping_svc = ImportMappingService()
+    return jsonify([m.to_dict() for m in mapping_svc.get_all()])
+
+
+@main_bp.route("/api/import-mappings/<int:mapping_id>", methods=["GET"])
+def api_import_mappings_get(mapping_id):
+    """Get a single import mapping as JSON."""
+    from app.services.import_mapping_service import ImportMappingService
+    mapping_svc = ImportMappingService()
+    mapping = mapping_svc.get_by_id(mapping_id)
+    if mapping is None:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(mapping.to_dict())
+
+
+@main_bp.route("/api/import-mappings/auto-detect", methods=["POST"])
+def api_import_mappings_auto_detect():
+    """Auto-detect markers from uploaded SFM text and create a mapping."""
+    from app.services.import_mapping_service import ImportMappingService
+    mapping_svc = ImportMappingService()
+
+    data = request.get_json(silent=True)
+    if not data or "text" not in data:
+        return jsonify({"error": "Missing 'text' in request body"}), 400
+
+    name = data.get("name", "Auto-detected")
+    try:
+        mapping = mapping_svc.auto_detect_mapping_from_sfm(
+            data["text"],
+            name=name,
+            owner_id=getattr(g, "user", None) and g.user.get("id"),
+        )
+        return jsonify(mapping.to_dict()), 201
+    except Exception as e:
+        logger.exception("Auto-detect error")
+        return jsonify({"error": str(e)}), 500
+
+
 @main_bp.route("/export/lift")
 def export_lift():
     """
@@ -1143,12 +1695,58 @@ def export_html():
         return redirect(url_for("main.export_options"))
 
 
+@main_bp.route("/export/markdown")
+def export_markdown():
+    """
+    Export the dictionary to Pandoc Markdown format (for PDF conversion).
+    """
+    try:
+        from app.services.export_service import get_export_service
+        service = get_export_service()
+        exports_dir = os.path.join(current_app.instance_path, "exports")
+
+        title = request.args.get("title", "Dictionary")
+        profile_id = request.args.get("profile_id", type=int)
+
+        full_path, filename, warnings = service.export_markdown(
+            output_path=exports_dir,
+            title=title,
+            profile_id=profile_id,
+            return_path_only=False
+        )
+
+        msg = f"Dictionary exported to Markdown as {filename}"
+        if warnings:
+            msg += f" ({len(warnings)} unmapped value{'s' if len(warnings) != 1 else ''})"
+        flash(msg, "success")
+        return render_template(
+            "export_download.html",
+            export_type="markdown",
+            files={"markdown": filename},
+            export_warnings=warnings,
+        )
+
+    except Exception as e:
+        logger.error(f"Error exporting to Markdown format: {e}")
+        flash(f"Error exporting to Markdown format: {str(e)}", "danger")
+        return redirect(url_for("main.export_options"))
+
+
 @main_bp.route("/export")
 def export_options():
     """
     Show export options.
     """
-    return render_template("export_options.html")
+    profiles = []
+    from app.services.display_profile_service import DisplayProfileService
+    from app.services.lift_element_registry import LIFTElementRegistry
+    try:
+        registry = LIFTElementRegistry()
+        profile_svc = DisplayProfileService(registry=registry)
+        profiles = profile_svc.list_profiles()
+    except Exception as e:
+        current_app.logger.warning("Could not load display profiles: %s", str(e), exc_info=True)
+    return render_template("export_options.html", display_profiles=profiles)
 
 
 @main_bp.route("/export/download/<path:filename>")

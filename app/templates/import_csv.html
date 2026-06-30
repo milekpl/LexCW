@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Import CSV File{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Import CSV File</h1>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-3">
+                            <label for="csv_file" class="form-label">
+                                Select CSV File <span class="text-danger">*</span>
+                            </label>
+                            <input type="file"
+                                   class="form-control"
+                                   id="csv_file"
+                                   name="csv_file"
+                                   accept=".csv,.tsv,.txt"
+                                   required>
+                            <div class="form-text">
+                                Upload a comma-separated (.csv) or tab-separated (.tsv) file.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="delimiter" class="form-label">Delimiter</label>
+                            <select class="form-select" id="delimiter" name="delimiter">
+                                <option value=",">Comma (,)</option>
+                                <option value="\t">Tab</option>
+                                <option value=";">Semicolon (;)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="mapping_id" class="form-label">
+                                Column Mapping <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="mapping_id" name="mapping_id" required>
+                                <option value="">— Select a mapping —</option>
+                                {% for m in mappings %}
+                                <option value="{{ m.id }}"
+                                    {%- if selected_mapping_id == m.id %} selected{% endif %}>
+                                    {{ m.name }} ({{ m.file_type }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                Choose a saved column-header-to-LIFT mapping, or
+                                <a href="{{ url_for('main.import_mappings') }}">create a new one</a> first.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="mode" class="form-label">Import Mode</label>
+                            <select class="form-select" id="mode" name="mode">
+                                <option value="merge">Merge with existing data</option>
+                                <option value="replace">Replace all existing data</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-file-import"></i> Import
+                        </button>
+                        <a href="{{ url_for('main.entries') }}" class="btn btn-secondary ms-2">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

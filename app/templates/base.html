@@ -147,8 +147,30 @@
                 <li>
                   <a
                     class="dropdown-item"
+                    href="{{ url_for('main.import_shoebox') }}"
+                    ><i class="fas fa-file-alt"></i> Import Shoebox / SFM</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.import_csv') }}"
+                    ><i class="fas fa-file-csv"></i> Import CSV</a
+                  >
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
                     href="{{ url_for('main.import_list_xml') }}"
                     ><i class="fas fa-list"></i> Import list.xml</a
+                  >
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('main.import_mappings') }}"
+                    ><i class="fas fa-cog"></i> Import Mappings</a
                   >
                 </li>
                 <li>

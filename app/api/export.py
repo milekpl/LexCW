@@ -107,6 +107,74 @@ def export_html():
         }), 500
 
 
+@export_bp.route('/markdown', methods=['POST'])
+def export_markdown():
+    """
+    Export the dictionary to Pandoc Markdown format.
+
+    JSON Body:
+        output_path: Directory to save the exported file (default: instance/exports)
+        title: Title of the dictionary (default: Dictionary)
+        profile_id: Display profile ID for field/abbreviation config (optional)
+
+    Returns:
+        JSON response with the path to the exported file.
+    """
+    try:
+        data = request.get_json() or {}
+        output_path = data.get('output_path', 'instance/exports')
+        title = data.get('title', 'Dictionary')
+        profile_id = data.get('profile_id')
+
+        service = get_export_service()
+        result_path, filename, warnings = service.export_markdown(
+            output_path=output_path,
+            title=title,
+            profile_id=profile_id,
+            return_path_only=False
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Markdown export completed successfully',
+            'result_path': result_path,
+            'filename': filename,
+            'warnings': [
+                {'element_type': w.element_type, 'value': w.value,
+                 'entry_headword': w.entry_headword}
+                for w in warnings
+            ]
+        })
+
+    except Exception as e:
+        logger.error("Error exporting to Markdown format: %s", str(e), exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f"Error exporting to Markdown format: {str(e)}"
+        }), 500
+
+
+@export_bp.route('/markdown', methods=['GET'])
+def export_markdown_info():
+    """Get information about Markdown export endpoint."""
+    return jsonify({
+        'name': 'Markdown Export',
+        'description': 'Export dictionary entries to Pandoc-compatible Markdown format',
+        'method': 'POST',
+        'parameters': {
+            'output_path': {'type': 'string', 'description': 'Directory to save exported file'},
+            'title': {'type': 'string', 'description': 'Title for the dictionary'},
+            'profile_id': {'type': 'integer', 'description': 'Display profile ID (optional)'}
+        },
+        'returns': {
+            'success': 'boolean',
+            'message': 'Success or error message',
+            'result_path': 'Path to exported file',
+            'filename': 'Name of exported file'
+        }
+    })
+
+
 @export_bp.route('/html', methods=['GET'])
 def export_html_info():
     """Get information about HTML export endpoint."""

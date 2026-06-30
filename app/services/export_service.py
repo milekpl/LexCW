@@ -28,6 +28,11 @@ try:
 except ImportError:
     HTMLExporter = None  # Will be checked at runtime
 
+try:
+    from app.exporters.markdown_exporter import MarkdownExporter
+except ImportError:
+    MarkdownExporter = None  # Will be checked at runtime
+
 logger = logging.getLogger(__name__)
 
 
@@ -213,6 +218,57 @@ class ExportService:
             raise ExportError(f"Failed to export to HTML: {str(e)}")
     
 
+    def export_markdown(
+        self,
+        output_path: str,
+        title: str = "Dictionary",
+        profile_id: Optional[int] = None,
+        return_path_only: bool = False
+    ) -> str:
+        """
+        Export dictionary to Pandoc Markdown format.
+
+        Args:
+            output_path: Directory to save the exported file
+            title: Title of the dictionary
+            profile_id: Optional DisplayProfile ID for field/abbreviation config
+            return_path_only: If True, returns just the path; if False, returns (path, filename)
+
+        Returns:
+            Full path to exported file, or (path, filename) tuple
+
+        Raises:
+            ExportError: If export fails
+        """
+        try:
+            if MarkdownExporter is None:
+                raise ImportError("MarkdownExporter not available")
+
+            os.makedirs(output_path, exist_ok=True)
+
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"dictionary_export_{timestamp}.md"
+            full_path = os.path.join(output_path, filename)
+
+            print(f"  [export] Starting markdown export (profile_id={profile_id})...", flush=True)
+            exporter = MarkdownExporter(self.dict_service)
+            exporter.export(
+                output_path=full_path,
+                title=title,
+                profile_id=profile_id,
+                css_service=self.css_service,
+            )
+
+            logger.info("Markdown export created: %s", full_path)
+
+            if return_path_only:
+                return full_path, exporter.last_warnings
+            return full_path, filename, exporter.last_warnings
+
+        except Exception as e:
+            logger.error("Error exporting to Markdown format: %s", str(e), exc_info=True)
+            raise ExportError(f"Failed to export to Markdown: {str(e)}")
+
     def get_export_path(
         self,
         filename: str,
@@ -267,6 +323,7 @@ class ExportService:
             '.json': 'application/json',
             '.xml': 'application/xml',
             '.txt': 'text/plain',
+            '.md': 'text/markdown',
         }
         
         ext = os.path.splitext(filename)[1].lower()

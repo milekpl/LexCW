@@ -84,6 +84,44 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h3 class="card-title">Markdown / PDF (Pandoc)</h3>
+                </div>
+                <div class="card-body">
+                    <p>Export the dictionary to Pandoc-compatible Markdown for PDF generation.</p>
+                    <p>Use this to produce a print-ready two-column dictionary PDF:</p>
+                    <ul>
+                        <li>Single <code>.md</code> file with all entries</li>
+                        <li>Grouped alphabetically with YAML frontmatter</li>
+                        <li>Convert to PDF with pandoc</li>
+                    </ul>
+                    <form action="{{ url_for('main.export_markdown') }}" method="get">
+                        <div class="mb-3">
+                            <label for="md_title" class="form-label">Dictionary Title</label>
+                            <input type="text" class="form-control" id="md_title" name="title" value="Dictionary">
+                        </div>
+                        <div class="mb-3">
+                            <label for="md_profile" class="form-label">Display Profile</label>
+                            <select class="form-select" id="md_profile" name="profile_id">
+                                <option value="">— Simple (no profile) —</option>
+                                {% for p in display_profiles %}
+                                <option value="{{ p.id }}">{{ p.name }}{% if p.is_default %} (default){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Controls field selection, ordering, abbreviations, and entry hierarchy.</div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fa fa-file-text"></i> Export to Markdown
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="mt-3">

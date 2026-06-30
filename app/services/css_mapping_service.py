@@ -106,6 +106,19 @@ class CSSMappingService:
             return True
         return False
 
+    def get_abbreviation_map(self, range_id: str, lang: str = "en") -> Dict[str, str]:
+        """Get abbreviation map for a single range.
+
+        Args:
+            range_id: Range ID (e.g. "grammatical-info", "lexical-relation")
+            lang: Language code for abbreviations
+
+        Returns:
+            Dictionary mapping value IDs to abbreviations, or empty dict if unavailable.
+        """
+        maps = self._build_range_lookup(lang)
+        return maps.get(range_id, {})
+
     def _build_range_lookup(self, lang: str = "en") -> Dict[str, Dict[str, str]]:
         """Build lookup maps for all ranges (abbreviations).
 

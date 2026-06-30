@@ -128,6 +128,8 @@
                 <a class="nav-link" href="#workflow">Workflow Features</a>
                 <a class="nav-link" href="#compatibility">FieldWorks Compatibility</a>
                 <a class="nav-link ps-3 small" href="#list-xml-import">Importing list.xml Abbreviations</a>
+                <a class="nav-link ps-3 small" href="#sfm-csv-import">Importing SFM / CSV Data</a>
+                <a class="nav-link ps-3 small" href="#markdown-export">Exporting to Markdown</a>
             </nav>
         </div>
     </div>
@@ -1072,6 +1074,126 @@ for entry in entries:
                         You can also import from the command line:
                     </p>
                     <pre><code>flask import-list-xml /path/to/list.xml</code></pre>
+                </div>
+            </div>
+
+            <div class="card bg-light mb-3" id="sfm-csv-import">
+                <div class="card-body">
+                    <h4 class="card-title"><i class="fas fa-file-import"></i> Importing SFM / Shoebox and CSV Data</h4>
+                    <p>
+                        The workbench supports importing dictionary data from <strong>Standard Format Marker (SFM)</strong>
+                        files (also called Shoebox files) and <strong>CSV</strong> spreadsheets. This allows you to
+                        migrate legacy dictionary data from tools like Shoebox, Toolbox, or spreadsheet-based workflows.
+                    </p>
+
+                    <h5>How SFM Import Works</h5>
+                    <ol>
+                        <li>
+                            Go to <strong>Tools → Import Shoebox / SFM</strong> from the navigation menu.
+                        </li>
+                        <li>
+                            Upload your <code>.sfm</code> or <code>.txt</code> file.
+                        </li>
+                        <li>
+                            The system parses the file and displays all detected markers with sample values
+                            in an interactive mapping table.
+                        </li>
+                        <li>
+                            For each marker, choose:
+                            <ul>
+                                <li><strong>LIFT Element</strong> — what kind of data the marker represents (e.g., <code>\lx</code> → headword, <code>\ph</code> → pronunciation, <code>\ps</code> → part of speech, <code>\de</code> → definition). The dropdown exposes all 26 LIFT data-carrying elements.</li>
+                                <li><strong>Level</strong> — whether the field belongs at the entry, sense, example, pronunciation, or variant level.</li>
+                                <li><strong>Key</strong> — check this for markers that start a new entry or sense (e.g., <code>\lx</code> starts a new entry).</li>
+                                <li><strong>Language</strong> — the language code for multilingual data (e.g., <code>\d_Pol</code> → <code>pl</code>).</li>
+                                <li><strong>Field Type</strong> — normal data, cross-reference source/target, or variant marker.</li>
+                            </ul>
+                        </li>
+                        <li>
+                            Click <strong>Execute Import</strong>. The system converts the SFM data to LIFT XML
+                            and merges it into the dictionary database.
+                        </li>
+                    </ol>
+
+                    <h5>CSV Import</h5>
+                    <p>
+                        CSV import follows the same two-step workflow (upload → map columns → import),
+                        with one row per sense. Define which column holds the headword, part of speech,
+                        definition, etc., just like with SFM markers.
+                    </p>
+
+                    <h5>Inline Allomorph / Variant Support</h5>
+                    <p>
+                        SFM files can include inline allomorphs using <code>\am</code> and <code>\al</code> markers.
+                        These create <code>&lt;variant&gt;</code> elements in the generated LIFT. Map
+                        <code>\am</code> to <code>variant_form</code> at the <strong>variant</strong> level.
+                        Cross-reference variants via <code>\mn</code> (variant target) and <code>\vt</code>
+                        (variant type) field types.
+                    </p>
+
+                    <h5>Cross-References</h5>
+                    <p>
+                        Use <code>\lf</code> (source) and <code>\lv</code> (target) markers with field types
+                        <strong>cross-ref-source</strong> and <strong>cross-ref-target</strong>. References
+                        are resolved in Phase 2 after entries are imported; unresolved references are stored
+                        as <code>&lt;annotation type="import-residue"&gt;</code> elements.
+                    </p>
+
+                    <h5>Tips</h5>
+                    <ul>
+                        <li>
+                            <strong>Language codes</strong> in marker names (e.g., <code>\ps_Eng</code>) are
+                            automatically extracted — you don't need to set the language manually for those.
+                        </li>
+                        <li>
+                            <strong>Preview</strong> the entry table before importing to verify your mapping
+                            produces the expected structure.
+                        </li>
+                        <li>
+                            <strong>Save mappings</strong> for reuse by giving them a name before importing.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card bg-light mb-3" id="markdown-export">
+                <div class="card-body">
+                    <h4 class="card-title"><i class="fas fa-file-export"></i> Exporting to Markdown</h4>
+                    <p>
+                        The workbench can export your dictionary as a <strong>Markdown</strong> document suitable for
+                        publishing, documentation, or further processing with tools like Pandoc.
+                    </p>
+                    <h5>How to Export</h5>
+                    <ol>
+                        <li>
+                            Go to <strong>Tools → Export → Markdown</strong> from the navigation menu.
+                        </li>
+                        <li>
+                            Optionally select a <strong>display profile</strong> to control which fields
+                            appear and how they are formatted.
+                        </li>
+                        <li>
+                            Optionally filter by <strong>entry range</strong> (e.g., A–M) or
+                            <strong>part of speech</strong>.
+                        </li>
+                        <li>
+                            Click <strong>Export</strong>. The system generates a Markdown file that
+                            includes headwords, pronunciations, parts of speech, definitions, glosses,
+                            examples, and other mapped fields.
+                        </li>
+                        <li>
+                            Download the resulting <code>.md</code> file. You can convert it to PDF,
+                            HTML, or other formats using Pandoc:
+                            <pre><code>pandoc dictionary.md -o dictionary.pdf --pdf-engine=xelatex</code></pre>
+                        </li>
+                    </ol>
+                    <h5>Features</h5>
+                    <ul>
+                        <li>Multilingual content preserved with language annotations.</li>
+                        <li>Pronunciation data (IPA) included where available.</li>
+                        <li>Example sentences with translations.</li>
+                        <li>Headwords grouped and sorted alphabetically.</li>
+                        <li>Works with Pandoc, Jekyll, Hugo, and other Markdown-based publishing tools.</li>
+                    </ul>
                 </div>
             </div>
 

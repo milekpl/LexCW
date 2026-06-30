@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Import Shoebox / SFM File{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Import Shoebox / SFM File</h1>
+
+            <p class="text-muted">
+                Upload a Shoebox / Toolbox / Standard Format (.sfm, .txt, .db) file.
+                We'll detect all markers and let you map them to LIFT elements before importing.
+            </p>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-3">
+                            <label for="sfm_file" class="form-label">
+                                Select SFM File <span class="text-danger">*</span>
+                            </label>
+                            <input type="file"
+                                   class="form-control"
+                                   id="sfm_file"
+                                   name="sfm_file"
+                                   accept=".sfm,.txt,.db,.lift"
+                                   required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload"></i> Upload &amp; Preview
+                        </button>
+                        <a href="{{ url_for('main.entries') }}" class="btn btn-secondary ms-2">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
