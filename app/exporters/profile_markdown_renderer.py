@@ -253,6 +253,14 @@ class ProfileDrivenMarkdownRenderer:
     def _abbr(self, value: str, range_id: str, entry_hw: str, entry_id: str) -> str:
         """Return abbreviation if available, otherwise the raw value."""
         abbr_map = self.abbr_maps.get(range_id, {})
+        if value and value not in abbr_map:
+            self.warnings.append(UnmappedWarning(
+                entry_headword=entry_hw,
+                entry_id=entry_id,
+                element_type=range_id,
+                value=value,
+                range_id=range_id,
+            ))
         return abbr_map.get(value, value)
 
     # -- Lexeme-based (flat alphabetical) --------------------------------

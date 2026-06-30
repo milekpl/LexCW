@@ -70,14 +70,15 @@ class TestCacheService:
             mock_client = Mock()
             mock_redis.return_value = mock_client
             mock_client.ping.return_value = True
-            mock_client.keys.return_value = [b'entries:*:1', b'entries:*:2']
+            # scan returns (cursor, keys_list) — cursor=0 means last page
+            mock_client.scan.return_value = (0, [b'entries:*:1', b'entries:*:2'])
             mock_client.delete.return_value = 2
             
             cache_service = CacheService()
             
             result = cache_service.clear_pattern('entries:*')
             assert result == 2
-            mock_client.keys.assert_called_once_with('entries:*')
+            mock_client.scan.assert_called_once_with(cursor=0, match='entries:*', count=100)
     
     def test_cache_fallback_when_redis_unavailable(self):
         """Test that service works without Redis."""

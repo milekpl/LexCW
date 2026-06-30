@@ -698,6 +698,63 @@ class DictionaryService:
             pass
         return None
 
+    def resolve_headwords_batch(self, ref_ids: List[str], db_name: str = None) -> Dict[str, str]:
+        """Resolve a list of entry/sense ref IDs to display text in one XQuery.
+
+        Args:
+            ref_ids: List of ref IDs to resolve.
+            db_name: Optional database name. Uses connector default if None.
+
+        Returns:
+            Dict mapping ref_id -> headword/display text.
+        """
+        if not ref_ids:
+            return {}
+
+        try:
+            target_db = db_name or self.db_connector.database
+            if not target_db:
+                return {}
+
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            lu_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+
+            # Escape IDs for XQuery string literals
+            ids_quoted = ', '.join(f'"{eid}"' for eid in ref_ids)
+
+            query = f"""{prologue}
+            <results>{{
+              for $entry in collection('{target_db}')//{entry_path}[@id = ({ids_quoted})]
+              let $hw := string($entry/{lu_path}/{form_path}/{text_path}[1])
+              return
+                <item id="{{string($entry/@id)}}" headword="{{$hw}}"/>
+            }}</results>
+            """
+
+            xml_result = self.db_connector.execute_query(query)
+            if not xml_result:
+                return {}
+
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(xml_result)
+            result: Dict[str, str] = {}
+            for item in root.findall("item"):
+                item_id = item.get("id", "")
+                headword = item.get("headword", "")
+                if item_id and headword:
+                    result[item_id] = headword
+
+            return result
+
+        except Exception as e:
+            self.logger.warning(f"Batch headword resolution failed: {e}")
+            return {}
+
     def get_entry(self, entry_id: str, project_id: Optional[int] = None) -> Entry:
         """
         Get an entry by ID.
@@ -770,6 +827,7 @@ class DictionaryService:
                 raise NotFoundError(f"Entry with ID '{entry_id}' could not be parsed")
 
             entry = entries[0]
+            entry._raw_xml = entry_xml
             self.logger.debug("Entry parsed successfully: %s", entry.id)
 
             return entry
@@ -4040,6 +4098,7 @@ class DictionaryService:
                 raise NotFoundError(f"Entry with ID '{entry_id}' could not be parsed")
 
             entry = entries[0]
+            entry._raw_xml = entry_xml
             self.logger.debug("Entry parsed successfully for editing: %s", entry.id)
 
             return entry

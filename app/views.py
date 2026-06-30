@@ -273,8 +273,15 @@ def view_entry(entry_id):
         # Get entry (use non-validating method to allow viewing invalid entries)
         entry = dict_service.get_entry_for_editing(entry_id)
 
+        # Batch-resolve all relation ref IDs to headwords in one query
+        all_ref_ids = list(set(
+            str(r.ref) for r in entry.relations
+            if hasattr(r, 'ref') and r.ref
+        ))
+        headword_cache = dict_service.resolve_headwords_batch(all_ref_ids) if all_ref_ids else {}
+
         # Get component relations (main entries this is a subentry of)
-        component_relations = entry.get_component_relations(dict_service)
+        component_relations = entry.get_component_relations(dict_service, headword_cache=headword_cache)
 
         # Get subentries (reverse component relations)
         subentries = entry.get_subentries(dict_service)
@@ -285,7 +292,7 @@ def view_entry(entry_id):
 
         # Enrich entry-level relations (grouped_relations) with display text
         enriched_grouped_relations = RelationGroups(entry.relations, ranges)
-        enriched_grouped_relations.enrich_with_display_text(dict_service)
+        enriched_grouped_relations.enrich_with_display_text(dict_service, headword_cache=headword_cache)
 
         # Variant relations (both directions) — always rendered
         variant_relations = entry.get_complete_variant_relations(dict_service)
@@ -298,7 +305,7 @@ def view_entry(entry_id):
         from app.services.css_mapping_service import CSSMappingService
         from app.services.display_profile_service import DisplayProfileService
 
-        css_service = CSSMappingService()
+        css_service = current_app.injector.get(CSSMappingService)
         profile_service = DisplayProfileService()
 
         # Get default profile or create one if it doesn't exist
@@ -311,24 +318,46 @@ def view_entry(entry_id):
             )
             profile_service.set_default_profile(default_profile.id)
 
-        # Render entry with CSS - need to get raw XML from database
+        # Build a headword map from already resolved relations
+        # so the CSS pipeline can skip re-resolving them
+        headword_map = {}
+        for rel in enriched_grouped_relations.all_relations:
+            ref = rel.get('ref')
+            text = rel.get('ref_display_text')
+            if ref and text:
+                headword_map[ref] = text
+        for rel in variant_relations:
+            ref = rel.get('ref')
+            text = rel.get('ref_display_text')
+            if ref and text:
+                headword_map[ref] = text
+        for comp in component_relations:
+            ref = comp.get('ref')
+            text = comp.get('ref_display_text')
+            if ref and text:
+                headword_map[ref] = text
+
+        # Render entry with CSS using the raw XML from the parsed entry
         css_html = None
         try:
-            # Query database for raw XML
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
-            db_name = dict_service.db_connector.database
-            query = dict_service._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_namespace=False
-            )
-            entry_xml = dict_service.db_connector.execute_query(query)
-
+            entry_xml = getattr(entry, '_raw_xml', None)
             if entry_xml:
-                css_html = css_service.render_entry(
-                    entry_xml,
-                    profile=default_profile,
-                    dict_service=dict_service
-                )
+                # Check Redis cache for rendered CSS HTML
+                cache_key_css = f"entry_css:v1:{entry_id}:{getattr(default_profile, 'id', 'default')}"
+                cache = CacheService()
+                cached_css = cache.get(cache_key_css) if cache.is_available() else None
+                if cached_css:
+                    css_html = cached_css
+                else:
+                    css_html = css_service.render_entry(
+                        entry_xml,
+                        profile=default_profile,
+                        dict_service=dict_service,
+                        headword_map=headword_map
+                    )
+                    # Cache for 5 minutes
+                    if css_html and cache.is_available():
+                        cache.set(cache_key_css, css_html, ttl=300)
 
                 # If show_subentries is enabled, fetch and render all subentries in one query
                 if default_profile.show_subentries and subentries:
@@ -616,10 +645,18 @@ def edit_entry(entry_id):
             logger.debug("[DEBUG VIEW] Number of entry relations: %d", len(entry.relations))
             for rel in entry.relations:
                 logger.debug("  Relation: type=%s, ref=%s, traits=%s", rel.type, rel.ref, rel.traits)
+
+            # Batch-resolve all relation ref IDs to headwords in one query
+            all_ref_ids = list(set(
+                str(r.ref) for r in entry.relations
+                if hasattr(r, 'ref') and r.ref
+            ))
+            headword_cache = dict_service.resolve_headwords_batch(all_ref_ids) if all_ref_ids else {}
+
             variant_relations_data = entry.get_complete_variant_relations(dict_service)
             logger.debug("[DEBUG VIEW] variant_relations_data returned: %d items", len(variant_relations_data))
             # Extract enriched component_relations for template (with display text for main entries)
-            component_relations_data = entry.get_component_relations(dict_service)
+            component_relations_data = entry.get_component_relations(dict_service, headword_cache=headword_cache)
             # Extract forward component relations (where this entry HAS components)
             forward_component_relations_data = entry.get_forward_component_relations(dict_service)
             # Extract subentries (reverse component relations)
@@ -627,7 +664,7 @@ def edit_entry(entry_id):
 
             # Create enriched grouped_relations for template (can't set on entry because it's a property)
             enriched_grouped_relations = RelationGroups(entry.relations, ranges)
-            enriched_grouped_relations.enrich_with_display_text(dict_service)
+            enriched_grouped_relations.enrich_with_display_text(dict_service, headword_cache=headword_cache)
 
             # Enrich sense relations with display text
             for sense in entry.senses:
@@ -658,7 +695,7 @@ def edit_entry(entry_id):
             from app.services.css_mapping_service import CSSMappingService
             from app.services.display_profile_service import DisplayProfileService
             
-            css_service = CSSMappingService()
+            css_service = current_app.injector.get(CSSMappingService)
             profile_service = DisplayProfileService()
             
             # Get default profile or create one if it doesn't exist
@@ -671,21 +708,33 @@ def edit_entry(entry_id):
                 )
                 profile_service.set_default_profile(default_profile.id)
             
-            # Render entry with CSS - need to get raw XML from database
-            # Query database for raw XML
-            # Entries are stored without namespaces (stripped by _prepare_entry_xml),
-            # so use non-namespaced queries for consistency
-            db_name = dict_service.db_connector.database
-            query = dict_service._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_namespace=False
-            )
-            entry_xml = dict_service.db_connector.execute_query(query)
-            
+            # Build a headword map from already resolved relations
+            headword_map = {}
+            if entry:
+                for rel in enriched_grouped_relations.all_relations:
+                    ref = rel.get('ref')
+                    text = rel.get('ref_display_text')
+                    if ref and text:
+                        headword_map[ref] = text
+                for rel in variant_relations_data:
+                    ref = rel.get('ref')
+                    text = rel.get('ref_display_text')
+                    if ref and text:
+                        headword_map[ref] = text
+                for comp in component_relations_data:
+                    ref = comp.get('ref')
+                    text = comp.get('ref_display_text')
+                    if ref and text:
+                        headword_map[ref] = text
+
+            # Render entry with CSS using the raw XML from the parsed entry
+            entry_xml = getattr(entry, '_raw_xml', None) if entry else None
             if entry_xml:
                 css_html = css_service.render_entry(
                     entry_xml,
                     profile=default_profile,
-                    dict_service=dict_service
+                    dict_service=dict_service,
+                    headword_map=headword_map
                 )
                 
                 # If show_subentries is enabled, fetch and render all subentries in one query
@@ -2215,7 +2264,7 @@ def live_preview():
             }), 400
             
         # Get services
-        css_service = CSSMappingService()
+        css_service = current_app.injector.get(CSSMappingService)
         profile_service = DisplayProfileService()
         
         # Get default profile or create one

@@ -172,10 +172,15 @@ class CacheService:
             return 0
         
         try:
-            keys = self.redis_client.keys(pattern)
-            if keys:
-                return self.redis_client.delete(*keys)
-            return 0
+            deleted = 0
+            cursor = 0
+            while True:
+                cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+                if keys:
+                    deleted += self.redis_client.delete(*keys)
+                if cursor == 0:
+                    break
+            return deleted
         except Exception as e:
             self.logger.error(f"Cache clear pattern error for '{pattern}': {e}")
             return 0

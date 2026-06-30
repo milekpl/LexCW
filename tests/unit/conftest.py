@@ -138,7 +138,16 @@ def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     
     # Mock dependency injection
     from unittest.mock import Mock
+    from app.services.css_mapping_service import CSSMappingService
+
     mock_injector = Mock()
+
+    def _injector_get(cls):
+        if cls == CSSMappingService:
+            return CSSMappingService()
+        return Mock()
+
+    mock_injector.get.side_effect = _injector_get
     app.injector = mock_injector
     
     # Attach mocked services

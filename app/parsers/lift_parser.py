@@ -206,6 +206,12 @@ class LIFTParser:
 
             entry_elem = ET.SubElement(root, f"{{{self.NSMAP['lift']}}}entry", attrib)
             
+            # Entry-level grammatical-info
+            if hasattr(entry, 'grammatical_info') and entry.grammatical_info:
+                ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}grammatical-info", {
+                    'value': entry.grammatical_info
+                })
+
             # Lexical unit - follows LIFT standard format with forms inside lexical-unit
             if entry.lexical_unit:
                 lu = ET.SubElement(entry_elem, f"{{{self.NSMAP['lift']}}}lexical-unit")

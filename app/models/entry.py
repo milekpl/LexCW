@@ -645,13 +645,15 @@ class Entry(BaseModel):
         result['senses'] = [sense.to_display_dict() for sense in self.senses]
         return result
 
-    def get_component_relations(self, dict_service=None) -> List[Dict[str, Any]]:
+    def get_component_relations(self, dict_service=None,
+                                 headword_cache: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
         Extract component information from _component-lexeme relations with complex-form-type traits.
         These represent relationships where this entry is a subentry/complex form of a main entry.
         
         Args:
             dict_service: DictionaryService instance for enriching component data
+            headword_cache: Optional pre-resolved map of ref_id -> headword to skip queries.
         
         Returns:
             List of dictionaries containing component information extracted from relations.
@@ -691,28 +693,32 @@ class Entry(BaseModel):
                     # Enrich with main entry information if dict_service is available
                     if dict_service:
                         try:
-                            main_entry = dict_service.get_entry(component_info['ref'])
-                            if main_entry:
-                                # Extract lexical unit for display
-                                if hasattr(main_entry, 'lexical_unit'):
-                                    if isinstance(main_entry.lexical_unit, dict):
-                                        # Multi-language lexical unit - extract first available
-                                        for lang in ['en', 'pl', 'cs', 'sk']:
-                                            if lang in main_entry.lexical_unit:
-                                                component_info['ref_lexical_unit'] = main_entry.lexical_unit[lang]
-                                                break
-                                        if 'ref_lexical_unit' not in component_info:
-                                            first_key = list(main_entry.lexical_unit.keys())[0]
-                                            component_info['ref_lexical_unit'] = main_entry.lexical_unit[first_key]
-                                    else:
-                                        component_info['ref_lexical_unit'] = str(main_entry.lexical_unit)
-                                
-                                # Create display text with homograph number as subscript if present
-                                display_text = component_info.get('ref_lexical_unit', component_info['ref'])
-                                if hasattr(main_entry, 'homograph_number') and main_entry.homograph_number:
-                                    # Use HTML subscript for consistency with other parts of the UI
-                                    display_text += f'<sub style="font-size: 0.8em; color: #6c757d;">{main_entry.homograph_number}</sub>'
-                                component_info['ref_display_text'] = display_text
+                            # Use headword cache if available
+                            if headword_cache and component_info['ref'] in headword_cache:
+                                hw = headword_cache[component_info['ref']]
+                                component_info['ref_display_text'] = hw
+                                component_info['ref_lexical_unit'] = hw
+                            else:
+                                main_entry = dict_service.get_entry(component_info['ref'])
+                                if main_entry:
+                                    # Extract lexical unit for display
+                                    if hasattr(main_entry, 'lexical_unit'):
+                                        if isinstance(main_entry.lexical_unit, dict):
+                                            for lang in ['en', 'pl', 'cs', 'sk']:
+                                                if lang in main_entry.lexical_unit:
+                                                    component_info['ref_lexical_unit'] = main_entry.lexical_unit[lang]
+                                                    break
+                                            if 'ref_lexical_unit' not in component_info:
+                                                first_key = list(main_entry.lexical_unit.keys())[0]
+                                                component_info['ref_lexical_unit'] = main_entry.lexical_unit[first_key]
+                                        else:
+                                            component_info['ref_lexical_unit'] = str(main_entry.lexical_unit)
+                                    
+                                    # Create display text with homograph number as subscript if present
+                                    display_text = component_info.get('ref_lexical_unit', component_info['ref'])
+                                    if hasattr(main_entry, 'homograph_number') and main_entry.homograph_number:
+                                        display_text += f'<sub style="font-size: 0.8em; color: #6c757d;">{main_entry.homograph_number}</sub>'
+                                    component_info['ref_display_text'] = display_text
                         except Exception as e:
                             # Log but don't fail - continue without enrichment
                             logger.warning("[Entry] Warning: Could not enrich component relation %s: %s", component_info['ref'], e)
@@ -754,30 +760,26 @@ class Entry(BaseModel):
         try:
             # Query BaseX for entries that have a _component-lexeme relation pointing to this entry
             query = f"""
+                <results>{{
                 for $entry in collection('dictionary')//entry
                 where $entry/relation[@type='_component-lexeme' and @ref='{self.id}']
                 return $entry
+                }}</results>
             """
             
             result_xml = dict_service.db_connector.execute_query(query)
             
             if result_xml:
-                # Parse the results
                 import xml.etree.ElementTree as ET
-                import re
                 
-                # Extract all entry elements from the result
-                entry_matches = re.findall(r'<entry[^>]*>.*?</entry>', result_xml, re.DOTALL)
+                root = ET.fromstring(result_xml)
+                entry_elements = list(root) if root.tag == 'results' else [root]
                 
-                for entry_xml in entry_matches:
+                for entry_elem in entry_elements:
+                    subentry_id = entry_elem.get('id')
+                    if not subentry_id:
+                        continue
                     try:
-                        # Parse the entry to extract information
-                        entry_elem = ET.fromstring(entry_xml)
-                        subentry_id = entry_elem.get('id')
-                        
-                        if not subentry_id:
-                            continue
-                        
                         # Get the full entry object for richer information
                         subentry = dict_service.get_entry(subentry_id)
                         
@@ -1074,9 +1076,11 @@ class Entry(BaseModel):
             # Use local-name() to avoid namespace issues with LIFT XML
             db_name = dict_service.db_connector.database if hasattr(dict_service.db_connector, 'database') else 'dictionary'
             query = f"""
+                <results>{{
                 for $entry in collection('{db_name}')//*[local-name()='entry']
                 where $entry/*[local-name()='relation'][@ref='{self.id}']/*[local-name()='trait'][@name='variant-type' and @value!='']
                 return $entry
+                }}</results>
             """
 
             logger.debug("[get_reverse_variant_relations] XQuery: %s", query)
@@ -1084,21 +1088,17 @@ class Entry(BaseModel):
             logger.debug("[get_reverse_variant_relations] XQuery result length: %d", len(result) if result else 0)
 
             if result:
-                # Parse the result to extract entry data
-                # We need to parse each entry individually
-                import re
                 from app.parsers.lift_parser import LIFTParser
+                import xml.etree.ElementTree as ET
 
                 logger.debug("[get_reverse_variant_relations] Raw XQuery result: %s...", result[:500])
 
                 parser = LIFTParser()
+                root = ET.fromstring(result)
+                entry_elements = list(root) if root.tag == 'results' else [root]
 
-                # Find individual entry elements in the result
-                # Handle both namespace-prefixed (lift:entry) and non-prefixed (entry) elements
-                entry_matches = re.findall(r'(?:<|\<)(?:lift:)?entry[^>]*>.*?</(?:lift:)?entry>', result, re.DOTALL)
-                logger.debug("[get_reverse_variant_relations] Found %d entry matches via regex", len(entry_matches))
-
-                for entry_xml in entry_matches:
+                for entry_elem in entry_elements:
+                    entry_xml = ET.tostring(entry_elem, encoding="unicode")
                     try:
                         entry = parser.parse_entry(entry_xml)
                         logger.debug("[get_reverse] Parsed entry: %s", entry.id)
@@ -1480,12 +1480,14 @@ class RelationGroups:
         # All unknown types go to 'related' for backward compatibility
         self.related = self._other_relations
 
-    def enrich_with_display_text(self, dict_service) -> None:
+    def enrich_with_display_text(self, dict_service,
+                                  headword_cache: Optional[Dict[str, str]] = None) -> None:
         """
         Enrich all relations with display text from target entries.
 
         Args:
             dict_service: DictionaryService instance for looking up entries
+            headword_cache: Optional pre-resolved map of ref_id -> headword to skip queries.
         """
         if not dict_service:
             return
@@ -1493,24 +1495,31 @@ class RelationGroups:
         # Enrich relations by type
         for rel_list in self._relations_by_type.values():
             for rel in rel_list:
-                self._enrich_relation(rel, dict_service)
+                self._enrich_relation(rel, dict_service, headword_cache)
 
         # Enrich other relations
         for rel in self._other_relations:
-            self._enrich_relation(rel, dict_service)
+            self._enrich_relation(rel, dict_service, headword_cache)
 
         # Update backward compatibility attributes
         self.synonyms = self._relations_by_type.get('synonym', [])
         self.antonyms = self._relations_by_type.get('antonym', [])
         self.related = self._other_relations
 
-    def _enrich_relation(self, rel: Dict[str, str], dict_service) -> None:
+    def _enrich_relation(self, rel: Dict[str, str], dict_service,
+                          headword_cache: Optional[Dict[str, str]] = None) -> None:
         """Enrich a single relation with display text from target entry."""
         ref = rel.get('ref')
         if not ref:
             return
 
         try:
+            # Use pre-resolved headword from cache if available
+            if headword_cache and ref in headword_cache:
+                rel['ref_display_text'] = headword_cache[ref]
+                rel['ref_entry_id'] = ref
+                return
+
             target_entry = dict_service.get_entry(ref)
             if target_entry:
                 # Get lexical unit for display

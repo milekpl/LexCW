@@ -46,7 +46,7 @@ def test_markdown_export_basic(page: Page, app_url: str) -> None:
     page.goto(f"{app_url}/export/markdown?title=Test+Dictionary")
     page.wait_for_load_state("networkidle")
 
-    alert = page.locator('.alert-success')
+    alert = page.locator('.alert-success').first
     expect(alert).to_be_visible()
 
     download_link = page.locator('a.list-group-item-action')
@@ -108,7 +108,7 @@ def test_markdown_profile_driven_export(page: Page, app_url: str) -> None:
         )
         page.wait_for_load_state("networkidle")
 
-        alert = page.locator('.alert-success')
+        alert = page.locator('.alert-success').first
         expect(alert).to_be_visible()
 
         download_link = page.locator('a.list-group-item-action')
@@ -129,6 +129,20 @@ def test_markdown_profile_driven_export(page: Page, app_url: str) -> None:
 def test_markdown_export_with_abbreviation_warnings(page: Page, app_url: str) -> None:
     """Export with a profile that triggers unmapped abbreviation warnings."""
     profile_id = _create_profile_with_warnings(page, app_url)
+    # Create an entry with a grammatical-info value that has no abbreviation in the range
+    page.evaluate(f"""
+        async () => {{
+            await fetch('{app_url}/api/entries', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{
+                    id: 'e2e-warning-test',
+                    lexical_unit: {{'en': 'testword'}},
+                    senses: [{{id: 'ws1', definition: {{'en': 'a test'}}, grammatical_info: 'Interjection'}}]
+                }})
+            }});
+        }}
+    """)
     try:
         page.goto(
             f"{app_url}/export/markdown?title=Warn+Test&profile_id={profile_id}"
@@ -136,7 +150,7 @@ def test_markdown_export_with_abbreviation_warnings(page: Page, app_url: str) ->
         page.wait_for_load_state("networkidle")
 
         # Should show success with warning count
-        alert = page.locator('.alert-success')
+        alert = page.locator('.alert-success').first
         expect(alert).to_be_visible()
 
         # Should have a warning toggle button
@@ -151,6 +165,9 @@ def test_markdown_export_with_abbreviation_warnings(page: Page, app_url: str) ->
         warning_table = page.locator('table.table-warning, .card.border-warning table')
         expect(warning_table).to_be_visible()
     finally:
+        page.evaluate(f"""
+            async () => {{ await fetch('{app_url}/api/entries/e2e-warning-test', {{ method: 'DELETE' }}); }}
+        """)
         _delete_profile(page, app_url, profile_id)
 
 

@@ -107,7 +107,7 @@ class TestGetSubentries:
             return None
 
         mock_dict_service_with_db.get_entry.side_effect = get_entry_side_effect
-        mock_dict_service_with_db.db_connector.execute_query.return_value = '<entry id="subentry-1">test</entry><entry id="subentry-2">test</entry>'
+        mock_dict_service_with_db.db_connector.execute_query.return_value = '<results><entry id="subentry-1">test</entry><entry id="subentry-2">test</entry></results>'
 
         entry = Entry(id_="main-entry", lexical_unit={"en": "run"})
         result = entry.get_subentries(mock_dict_service_with_db)
@@ -186,7 +186,7 @@ class TestGetSubentries:
             return None
 
         mock_dict_service_with_db.get_entry.side_effect = get_entry_side_effect
-        mock_dict_service_with_db.db_connector.execute_query.return_value = '<entry id="subentry-1">test</entry><entry id="subentry-2">test</entry>'
+        mock_dict_service_with_db.db_connector.execute_query.return_value = '<results><entry id="subentry-1">test</entry><entry id="subentry-2">test</entry></results>'
 
         entry = Entry(id_="main-entry", lexical_unit={"en": "run"})
         result = entry.get_subentries(mock_dict_service_with_db)
@@ -262,6 +262,7 @@ class TestGetReverseVariantRelations:
     def test_get_reverse_variant_relations_returns_multiple_variants(self, mock_dict_service_with_db):
         """get_reverse_variant_relations should return all incoming variant entries."""
         xml_with_variants = '''
+        <results>
         <entry id="variant-1">
             <lexical-unit><form lang="en"><text>running</text></form></lexical-unit>
             <relation type="see" ref="main-entry"><trait name="variant-type" value="inflected"/></relation>
@@ -270,6 +271,7 @@ class TestGetReverseVariantRelations:
             <lexical-unit><form lang="en"><text>runner</text></form></lexical-unit>
             <relation type="see" ref="main-entry"><trait name="variant-type" value="noun"/></relation>
         </entry>
+        </results>
         '''
 
         mock_dict_service_with_db.db_connector.execute_query.return_value = xml_with_variants
@@ -407,8 +409,10 @@ class TestVariantDirectionDetection:
         ]
 
         xml = '''
+        <results>
         <entry id="in1"><lexical-unit><form lang="en"><text>in1</text></form></lexical-unit><relation type="see" ref="main-entry"><trait name="variant-type" value="inflected"/></relation></entry>
         <entry id="in2"><lexical-unit><form lang="en"><text>in2</text></form></lexical-unit><relation type="see" ref="main-entry"><trait name="variant-type" value="inflected"/></relation></entry>
+        </results>
         '''
         mock_dict_service_with_db.db_connector.execute_query.return_value = xml
 

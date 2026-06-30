@@ -777,7 +777,8 @@ class CSSMappingService:
         return ET.tostring(root, encoding="unicode"), handled_elements
 
     def render_entry(
-        self, entry_xml: str, profile: DisplayProfile, dict_service=None
+        self, entry_xml: str, profile: DisplayProfile, dict_service=None,
+        headword_map: Optional[Dict[str, str]] = None
     ) -> str:
         """Render an entry XML with the given display profile.
 
@@ -860,7 +861,7 @@ class CSSMappingService:
 
             # Resolve relation references to show headwords instead of IDs
             entry_xml_with_relations = self._resolve_relation_references(
-                entry_xml_with_abbr, dict_service
+                entry_xml_with_abbr, dict_service, headword_map=headword_map
             )
 
             # CLEANUP internal attributes finally
@@ -1203,7 +1204,8 @@ class CSSMappingService:
             )
             return entry_xml
 
-    def _resolve_relation_references(self, entry_xml: str, dict_service=None) -> str:
+    def _resolve_relation_references(self, entry_xml: str, dict_service=None,
+                                      headword_map: Optional[Dict[str, str]] = None) -> str:
         """Resolve relation references to show headwords instead of IDs.
 
         This replaces the 'ref' attribute in relation elements with a special
@@ -1212,19 +1214,13 @@ class CSSMappingService:
         Args:
             entry_xml: The LIFT entry XML
             dict_service: Optional DictionaryService instance. If not provided, will try to get from current_app.
+            headword_map: Optional pre-resolved map of ref_id -> headword to skip queries.
 
         Returns:
             Modified XML with relation references resolved to headwords
         """
 
         try:
-            # Get dictionary service to look up referenced entries
-            if dict_service is None:
-                from flask import current_app
-                from app.services.dictionary_service import DictionaryService
-
-                dict_service = current_app.injector.get(DictionaryService)
-
             from app.utils.namespace_manager import LIFTNamespaceManager
 
             clean_xml = LIFTNamespaceManager.normalize_lift_xml(
@@ -1235,32 +1231,89 @@ class CSSMappingService:
             # Find all relation elements
             for relation in root.findall(".//relation"):
                 ref_id = relation.attrib.get("ref", "")
-                if ref_id:
-                    try:
-                        db_name = dict_service.db_connector.database
-                        has_ns = dict_service._detect_namespace_usage()
+                if not ref_id:
+                    continue
 
-                        # First try to find it as an entry ID
-                        query = dict_service._query_builder.build_entry_by_id_query(
-                            ref_id, db_name, has_ns
+                # Skip if already has a resolved headword attribute
+                if 'data-headword' in relation.attrib:
+                    continue
+
+                # Use pre-resolved headword from map if available
+                if headword_map and ref_id in headword_map:
+                    relation.attrib["data-headword"] = headword_map[ref_id]
+                    self._logger.debug(
+                        f"Resolved {ref_id} from headword_map: {headword_map[ref_id]}"
+                    )
+                    continue
+
+                try:
+                    # Get dictionary service to look up referenced entries
+                    if dict_service is None:
+                        from flask import current_app
+                        from app.services.dictionary_service import DictionaryService
+                        dict_service = current_app.injector.get(DictionaryService)
+
+                    db_name = dict_service.db_connector.database
+                    has_ns = dict_service._detect_namespace_usage()
+
+                    # First try to find it as an entry ID
+                    query = dict_service._query_builder.build_entry_by_id_query(
+                        ref_id, db_name, has_ns
+                    )
+                    self._logger.debug(
+                        f"Resolving relation ref {ref_id} as entry in database {db_name}"
+                    )
+                    ref_entry_xml = dict_service.db_connector.execute_query(query)
+
+                    headword = None
+                    sense_number = None
+
+                    if ref_entry_xml:
+                        # Found as entry - extract lexical unit
+                        ref_clean_xml = LIFTNamespaceManager.normalize_lift_xml(
+                            ref_entry_xml, target_namespace=None
                         )
+                        ref_root = ET.fromstring(ref_clean_xml)
+
+                        lexical_unit = ref_root.find(".//lexical-unit")
+                        if lexical_unit is not None:
+                            for form in lexical_unit.findall(".//form"):
+                                text_elem = form.find("./text")
+                                if text_elem is not None and text_elem.text:
+                                    headword = text_elem.text.strip()
+                                    break
+                    else:
+                        # Not found as entry - try as sense ID
                         self._logger.debug(
-                            f"Resolving relation ref {ref_id} as entry in database {db_name}"
+                            f"Not found as entry, trying as sense ID: {ref_id}"
                         )
-                        ref_entry_xml = dict_service.db_connector.execute_query(query)
 
-                        headword = None
-                        sense_number = None
+                        # Query for sense by ID - search all entries
+                        if has_ns:
+                            sense_query = f"""
+                            declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
+                            for $sense in collection('{db_name}')//lift:sense[@id="{ref_id}"]
+                            let $entry := $sense/ancestor::lift:entry
+                            return $entry
+                            """
+                        else:
+                            sense_query = f"""
+                            for $sense in collection('{db_name}')//sense[@id="{ref_id}"]
+                            let $entry := $sense/ancestor::entry
+                            return $entry
+                            """
+
+                        ref_entry_xml = dict_service.db_connector.execute_query(
+                            sense_query
+                        )
 
                         if ref_entry_xml:
-                            # Found as entry - extract lexical unit
-                            from app.utils.namespace_manager import LIFTNamespaceManager
-
                             ref_clean_xml = LIFTNamespaceManager.normalize_lift_xml(
                                 ref_entry_xml, target_namespace=None
                             )
                             ref_root = ET.fromstring(ref_clean_xml)
 
+                            # Get headword from lexical unit
                             lexical_unit = ref_root.find(".//lexical-unit")
                             if lexical_unit is not None:
                                 for form in lexical_unit.findall(".//form"):
@@ -1268,76 +1321,32 @@ class CSSMappingService:
                                     if text_elem is not None and text_elem.text:
                                         headword = text_elem.text.strip()
                                         break
+
+                            # Find the sense number (1-based index)
+                            all_senses = ref_root.findall(".//sense")
+                            for idx, sense in enumerate(all_senses, 1):
+                                if sense.attrib.get("id") == ref_id:
+                                    sense_number = idx
+                                    break
+
+                    # Store the resolved reference
+                    if headword:
+                        if sense_number:
+                            relation.attrib["data-headword"] = (
+                                f"{headword} ({sense_number})"
+                            )
                         else:
-                            # Not found as entry - try as sense ID
-                            self._logger.debug(
-                                f"Not found as entry, trying as sense ID: {ref_id}"
-                            )
-
-                            # Query for sense by ID - search all entries
-                            if has_ns:
-                                sense_query = f"""
-                                declare namespace lift = "http://fieldworks.sil.org/schemas/lift/0.13";
-                                for $sense in collection('{db_name}')//lift:sense[@id="{ref_id}"]
-                                let $entry := $sense/ancestor::lift:entry
-                                return $entry
-                                """
-                            else:
-                                sense_query = f"""
-                                for $sense in collection('{db_name}')//sense[@id="{ref_id}"]
-                                let $entry := $sense/ancestor::entry
-                                return $entry
-                                """
-
-                            ref_entry_xml = dict_service.db_connector.execute_query(
-                                sense_query
-                            )
-
-                            if ref_entry_xml:
-                                # Found the entry containing the sense
-                                from app.utils.namespace_manager import (
-                                    LIFTNamespaceManager,
-                                )
-
-                                ref_clean_xml = LIFTNamespaceManager.normalize_lift_xml(
-                                    ref_entry_xml, target_namespace=None
-                                )
-                                ref_root = ET.fromstring(ref_clean_xml)
-
-                                # Get headword from lexical unit
-                                lexical_unit = ref_root.find(".//lexical-unit")
-                                if lexical_unit is not None:
-                                    for form in lexical_unit.findall(".//form"):
-                                        text_elem = form.find("./text")
-                                        if text_elem is not None and text_elem.text:
-                                            headword = text_elem.text.strip()
-                                            break
-
-                                # Find the sense number (1-based index)
-                                all_senses = ref_root.findall(".//sense")
-                                for idx, sense in enumerate(all_senses, 1):
-                                    if sense.attrib.get("id") == ref_id:
-                                        sense_number = idx
-                                        break
-
-                        # Store the resolved reference
-                        if headword:
-                            if sense_number:
-                                relation.attrib["data-headword"] = (
-                                    f"{headword} ({sense_number})"
-                                )
-                            else:
-                                relation.attrib["data-headword"] = headword
-                            self._logger.debug(
-                                f"Resolved {ref_id} to: {relation.attrib['data-headword']}"
-                            )
-
-                    except Exception as e:
-                        # If we can't find the entry, just leave the ref as-is
+                            relation.attrib["data-headword"] = headword
                         self._logger.debug(
-                            f"Could not resolve relation reference {ref_id}: {e}"
+                            f"Resolved {ref_id} to: {relation.attrib['data-headword']}"
                         )
-                        pass
+
+                except Exception as e:
+                    # If we can't find the entry, just leave the ref as-is
+                    self._logger.debug(
+                        f"Could not resolve relation reference {ref_id}: {e}"
+                    )
+                    pass
 
             # Convert back to string
             return ET.tostring(root, encoding="unicode")
