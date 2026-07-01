@@ -46,18 +46,18 @@ services:
 
   # BaseX XML Database
   basex:
-    image: basex/basex:10.7
+    image: quodatum/basexhttp:basex-12.4
     container_name: dictionary_basex
     environment:
       - BASEX_JVM=-Xmx2g
     ports:
       - "1984:1984"
-      - "8080:8080"
+      - "8984:8984"
     volumes:
       - basex_data:/srv/basex/data
       - basex_repo:/srv/basex/repo
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8984 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
