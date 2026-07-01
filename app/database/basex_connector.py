@@ -70,8 +70,8 @@ class BaseXConnector:
 
         self._pool: queue.Queue = queue.Queue()
         self._max_pool = pool_size
+        self._semaphore = threading.BoundedSemaphore(pool_size)
         self._created = 0
-        self._pool_lock = threading.Lock()
 
     # ---- Database name resolution ----
 
@@ -118,28 +118,25 @@ class BaseXConnector:
 
     def _acquire(self, timeout: float = 30) -> _BaseXConnection:
         """Get a connection from the pool. Creates a new one if under max."""
+        self._semaphore.acquire()
+
         try:
             conn = self._pool.get_nowait()
             return conn
         except queue.Empty:
             pass
 
-        with self._pool_lock:
-            if self._created < self._max_pool:
-                conn = self._make_connection()
-                self._created += 1
-                return conn
-
-        conn = self._pool.get(timeout=timeout)
+        conn = self._make_connection()
+        self._created += 1
         return conn
 
     def _release(self, conn: _BaseXConnection) -> None:
         self._pool.put(conn)
+        self._semaphore.release()
 
     def _discard(self, conn: _BaseXConnection) -> None:
         conn.close()
-        with self._pool_lock:
-            self._created -= 1
+        self._semaphore.release()
 
     # ---- Compat shim: connect/disconnect for legacy callers ----
 
@@ -154,22 +151,28 @@ class BaseXConnector:
             raise DatabaseError(f"Connection failed: {e}")
 
     def disconnect(self) -> None:
-        """Close all pooled connections."""
+        """Close all pooled connections and release semaphore slots."""
+        n = 0
         while True:
             try:
                 conn = self._pool.get_nowait()
                 conn.close()
+                n += 1
             except queue.Empty:
                 break
-        with self._pool_lock:
-            self._created = 0
+        for _ in range(n):
+            try:
+                self._semaphore.release()
+            except ValueError:
+                break
+        self._created = 0
 
     def is_connected(self) -> bool:
         """Check if we have a live connection WITHOUT creating a new one."""
         try:
             conn = self._pool.get_nowait()
             alive = conn.session is not None
-            self._release(conn)
+            self._pool.put(conn)
             return alive
         except queue.Empty:
             return False
@@ -452,13 +455,12 @@ class BaseXConnector:
     # ---- Diagnostics ----
 
     def get_status(self) -> Dict[str, Any]:
-        with self._pool_lock:
-            return {
-                'connected': self._created > 0,
-                'pool_size': self._created,
-                'max_pool': self._max_pool,
-                'configured_database': self.database,
-            }
+        return {
+            'connected': self._created > 0,
+            'pool_size': self._created,
+            'max_pool': self._max_pool,
+            'configured_database': self.database,
+        }
 
     # ---- Safety checks (test mode) ----
 

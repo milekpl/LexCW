@@ -10,6 +10,7 @@ import secrets
 import re
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 from app.models.project_settings import User
 from app.models.user_models import ActivityLog
 
@@ -216,7 +217,7 @@ class AuthenticationService:
         )
 
         db.session.add(user)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Log the registration
         log = ActivityLog(
@@ -227,7 +228,7 @@ class AuthenticationService:
             description=f"User {username} registered",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         return user, None
 
@@ -261,7 +262,7 @@ class AuthenticationService:
 
         # Update last login
         user.last_login = datetime.now(timezone.utc)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Log the login
         log = ActivityLog(
@@ -272,7 +273,7 @@ class AuthenticationService:
             description=f"User {user.username} logged in",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         return user, None
 
@@ -302,7 +303,7 @@ class AuthenticationService:
 
         # Update password
         user.password_hash = AuthenticationService.hash_password(new_password)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Log the password change
         log = ActivityLog(
@@ -313,7 +314,7 @@ class AuthenticationService:
             description=f"User {user.username} changed password",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         return True, None
 
@@ -341,7 +342,7 @@ class AuthenticationService:
         reset_token = secrets.token_urlsafe(32)
         user.reset_token = reset_token
         user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Log the password reset request
         log = ActivityLog(
@@ -352,7 +353,7 @@ class AuthenticationService:
             description=f"Password reset requested for {user.email} (token expires in 1h)",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Generate the reset URL with the token embedded
         reset_url = AuthenticationService._generate_reset_url(reset_token)
@@ -433,7 +434,7 @@ class AuthenticationService:
             user.reset_token = None
             user.reset_token_expires = None
             user.reset_token_used = False
-            db.session.commit()
+            safe_commit(db, "auth_service")
             return False, "Reset token has expired. Please request a new password reset."
 
         # Validate new password
@@ -444,14 +445,14 @@ class AuthenticationService:
         # Mark token as used immediately (single-use enforcement)
         # This prevents race conditions where the same token is used twice
         user.reset_token_used = True
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Update password and clear token
         user.password_hash = AuthenticationService.hash_password(new_password)
         user.reset_token = None
         user.reset_token_expires = None
         user.reset_token_used = False  # Reset for future use
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Log the password reset completion
         log = ActivityLog(
@@ -462,7 +463,7 @@ class AuthenticationService:
             description=f"User {user.username} completed password reset",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         return True, None
 
@@ -499,7 +500,7 @@ class AuthenticationService:
         if avatar_url is not None:
             user.avatar_url = avatar_url
 
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         # Log the profile update
         log = ActivityLog(
@@ -510,6 +511,6 @@ class AuthenticationService:
             description=f"User {user.username} updated profile",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "auth_service")
 
         return True, None

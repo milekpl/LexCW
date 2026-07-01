@@ -90,8 +90,9 @@ def require_api_key(scope: Optional[str] = None) -> Callable:
 
                 key_record.last_used_at = datetime.now(timezone.utc)
                 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 
-                db.session.commit()
+                safe_commit(db, 'api_key_auth')
 
                 g.api_key = key_record
                 g.current_user = None  # No session user when using API key

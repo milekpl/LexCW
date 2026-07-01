@@ -31,51 +31,46 @@ logger = logging.getLogger(__name__)
 class TestSearchPagination(unittest.TestCase):
     """Test the search pagination functionality of DictionaryService."""
 
+    TEST_IDS: list = []
+
     @classmethod
     def setUpClass(cls):
         """Set up the test environment once before all tests."""
-        # BaseX connection parameters - use the same as the live app
         cls.basex_host = 'localhost'
         cls.basex_port = 1984
         cls.basex_username = 'admin'
         cls.basex_password = 'admin'
-        cls.basex_database = 'dictionary'  # This is what's used in the app
+        cls.basex_database = 'dictionary'
         
-        # Create a BaseX connector without connection pooling for tests
         cls.connector = BaseXConnector(
             host=cls.basex_host,
             port=cls.basex_port,
             username=cls.basex_username,
             password=cls.basex_password,
             database=cls.basex_database,
-            
         )
         
-        # Connect to BaseX server
         try:
             cls.connector.connect()
-            # Create a dictionary service
             cls.service = DictionaryService(cls.connector)
-            # Log setup information
-            logger.info("Test setup complete with database: %s", cls.basex_database)
-            
-            # Check that the database exists and has entries
-            try:
-                entry_count = cls.service.count_entries()
-                logger.info("Database has %d entries", entry_count)
-                cls.test_enabled = entry_count > 0
-            except Exception as e:
-                logger.error("Error checking entry count: %s", str(e))
-                cls.test_enabled = False
-                
+            logger.info("Test setup complete with database: %s", cls.connector.database)
+            cls.test_enabled = True
         except Exception as e:
             logger.error("Error setting up test: %s", str(e))
             cls.test_enabled = False
 
     @classmethod
     def tearDownClass(cls):
-        """Clean up after all tests."""
-        # Disconnect from BaseX server
+        """Clean up test entries and disconnect."""
+        if hasattr(cls, 'connector') and hasattr(cls, 'service'):
+            try:
+                for eid in cls.TEST_IDS:
+                    try:
+                        cls.service.delete_entry(eid)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         if hasattr(cls, 'connector'):
             try:
                 cls.connector.disconnect()
@@ -84,9 +79,46 @@ class TestSearchPagination(unittest.TestCase):
                 logger.error("Error during teardown: %s", str(e))
 
     def setUp(self):
-        """Skip tests if database is not available."""
+        """Skip tests if database is not available, and seed test entries."""
         if not getattr(self.__class__, 'test_enabled', False):
-            self.skipTest("BaseX database not available or empty")
+            self.skipTest("BaseX database not available")
+        self.__class__._seed_entries(15)
+
+    @classmethod
+    def _make_entry_xml(cls, eid: str, headword: str) -> str:
+        return f'''<entry id="{eid}">
+  <lexical-unit>
+    <form>
+      <text>{headword}</text>
+    </form>
+  </lexical-unit>
+</entry>'''
+
+    @classmethod
+    def _seed_entries(cls, count: int = 15):
+        """Insert test entries wrapped in a LIFT namespace document."""
+        import uuid
+        entries = []
+        for i in range(count):
+            eid = str(uuid.uuid4())
+            headword = f"alpha_{i:03d}"
+            entries.append(cls._make_entry_xml(eid, headword))
+            cls.TEST_IDS.append(eid)
+
+        lift_doc = f'''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+{chr(10).join(entries)}
+</lift>'''
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False)
+        tmp.write(lift_doc)
+        tmp.close()
+        try:
+            db = cls.connector.database
+            cls.connector.execute_command(f"OPEN {db}")
+            cls.connector.execute_command(f'ADD "{tmp.name}"')
+        finally:
+            os.unlink(tmp.name)
 
     @pytest.mark.integration
     def test_search_with_limit_only(self):

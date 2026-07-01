@@ -1,6 +1,7 @@
 
 from typing import Any, Dict, Optional, List
 from app.models.project_settings import ProjectSettings, db
+from app.utils.db_utils import safe_commit
 from flask import current_app
 import json
 import uuid
@@ -48,7 +49,7 @@ class ConfigManager:
             target_languages=target_languages
         )
         db.session.add(settings)
-        db.session.commit()
+        safe_commit(db, "config_manager")
         return settings
 
     def update_settings(self, project_name: str, new_values: Dict[str, Any]) -> Optional[ProjectSettings]:
@@ -69,7 +70,7 @@ class ConfigManager:
         if 'basex_db_name' in new_values:
             settings.basex_db_name = new_values.pop('basex_db_name')
             
-        db.session.commit()
+        safe_commit(db, "config_manager")
         return settings
 
     def update_current_settings(self, new_values: Dict[str, Any]) -> Optional[ProjectSettings]:
@@ -184,7 +185,7 @@ class ConfigManager:
 
         # Attempt commit with error handling and logging
         try:
-            db.session.commit()
+            safe_commit(db, "config_manager")
             # Refresh from DB to ensure persisted state is accurate
             try:
                 db.session.refresh(settings)
@@ -205,7 +206,7 @@ class ConfigManager:
         if not settings:
             return False
         db.session.delete(settings)
-        db.session.commit()
+        safe_commit(db, "config_manager")
         return True
 
     def get_all_settings(self) -> list[ProjectSettings]:

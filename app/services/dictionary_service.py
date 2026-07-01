@@ -30,6 +30,7 @@ from app.utils.exceptions import (
 )
 from app.utils.constants import DB_NAME_NOT_CONFIGURED
 from app.utils.data_copier import DataCopier
+from app.utils.db_utils import safe_commit, escape_xquery_string
 from app.utils.xquery_builder import XQueryBuilder
 from app.utils.namespace_manager import LIFTNamespaceManager
 
@@ -629,9 +630,11 @@ class DictionaryService:
                     from app.models.custom_ranges import CustomRange, CustomRangeValue, db as custom_db
                     
                     # Delete all custom ranges and their values
-                    CustomRangeValue.query.delete()
-                    CustomRange.query.delete()
-                    custom_db.session.commit()
+                    for value in CustomRangeValue.query.all():
+                        custom_db.session.delete(value)
+                    for cr in CustomRange.query.all():
+                        custom_db.session.delete(cr)
+                    safe_commit(custom_db, "dictionary_service")
                     self.logger.info("Successfully cleaned up custom ranges from SQL database")
                 except Exception as sql_error:
                     self.logger.warning("Could not clean up custom ranges from SQL database: %s", sql_error)
@@ -1041,9 +1044,9 @@ class DictionaryService:
         # Each clause: find the target entry, check reverse relation doesn't exist, insert
         clauses = []
         for target_id, rev_type in all_inserts:
-            escaped_ref = entry.id.replace("'", "''")
-            escaped_type = rev_type.replace("'", "''")
-            escaped_target = str(target_id).replace("'", "''")
+            escaped_ref = escape_xquery_string(entry.id)
+            escaped_type = escape_xquery_string(rev_type)
+            escaped_target = escape_xquery_string(str(target_id))
             clauses.append(
                 f"let $e := collection('{db_name}')//entry[@id='{escaped_target}']\n"
                 f"return insert node <relation type='{escaped_type}' ref='{escaped_ref}'/> into $e"
@@ -1105,7 +1108,7 @@ class DictionaryService:
 
         # Fallback: direct XQuery instead of loading all entries into memory
         db_name = self._resolve_db_name(project_id)
-        escaped_id = sense_id.replace("'", "''")
+        escaped_id = escape_xquery_string(sense_id)
         query = (
             f"collection('{db_name}')//entry"
             f"[.//sense[@id='{escaped_id}' or @id_='{escaped_id}']]"
@@ -1834,7 +1837,8 @@ class DictionaryService:
                     return [], 0
             elif pos:
                 grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
-                pos_condition = f"($entry/{grammatical_info_path}[@value = '{pos}'] or $entry//sense/{grammatical_info_path}[@value = '{pos}'])"
+                escaped_pos = escape_xquery_string(pos)
+                pos_condition = f"($entry/{grammatical_info_path}[@value = '{escaped_pos}'] or $entry//sense/{grammatical_info_path}[@value = '{escaped_pos}'])"
                 search_condition = f"({' or '.join(conditions)}) and {pos_condition}"
             else:
                 search_condition = " or ".join(conditions)
@@ -1865,8 +1869,8 @@ class DictionaryService:
                                    then 1
                                    else 2"""
 
-            # Order by score, then by the lexical unit, then by entry id for consistent/deterministic sorting.
-            order_by_expr = f"order by $score, $entry/{lexical_unit_path_order}/{form_path_order}[1]/{text_path_order}[1]/string(), $entry/@id"
+            # Order by score, then by the lexical unit, then by entry id, then by document order for consistent/deterministic sorting.
+            order_by_expr = f"order by $score, $entry/{lexical_unit_path_order}/{form_path_order}[1]/{text_path_order}[1]/string(), string($entry/@id), $entry"
 
             query_str = f"""
             {prologue}

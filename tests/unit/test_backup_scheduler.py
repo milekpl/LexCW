@@ -214,7 +214,7 @@ class TestBackupScheduler:
     def test_dirty_flag_initial_true(self):
         """Test that _dirty flag is True initially for first backup."""
         scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
-        assert scheduler._dirty is True
+        assert scheduler._dirty_event.is_set() is True
 
     def test_skips_backup_when_no_changes(self, monkeypatch):
         """Backup should not run if _dirty flag is False."""
@@ -228,7 +228,7 @@ class TestBackupScheduler:
 
         scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
         # Set dirty to False
-        scheduler._dirty = False
+        scheduler._dirty_event.clear()
 
         # Execute the scheduled backup
         scheduler._execute_scheduled_backup(scheduled_backup)
@@ -245,7 +245,7 @@ class TestBackupScheduler:
         handler = mock_event_bus.on.call_args_list[0][0][1]
         handler({'entry_id': 'test'})
 
-        assert scheduler._dirty is True
+        assert scheduler._dirty_event.is_set() is True
 
     def test_resets_dirty_after_successful_backup(self):
         """_dirty flag should be reset to False after successful backup."""
@@ -269,13 +269,13 @@ class TestBackupScheduler:
 
         scheduler = BackupScheduler(backup_manager=self.mock_backup_manager)
         # Ensure dirty is True before backup
-        scheduler._dirty = True
+        scheduler._dirty_event.set()
 
         with patch('flask.current_app', mock_app):
             scheduler._execute_scheduled_backup(scheduled_backup)
 
         # Verify dirty flag is reset after backup
-        assert scheduler._dirty is False
+        assert scheduler._dirty_event.is_set() is False
 
     def test_sync_backup_schedule_respects_disabled_values(self):
         """sync_backup_schedule should not schedule when schedule is 'none'."""

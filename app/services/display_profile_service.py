@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 from app.models.display_profile import DisplayProfile, ProfileElement
 from app.services.lift_element_registry import LIFTElementRegistry
 
@@ -86,7 +87,7 @@ class DisplayProfileService:
         if elements:
             profile.elements = [self._create_element_instance(elem_config) for elem_config in elements]
         
-        db.session.commit()
+        safe_commit(db, "display_profile_service")
         return profile
     
     def get_profile(self, profile_id: int) -> Optional[DisplayProfile]:
@@ -224,7 +225,7 @@ class DisplayProfileService:
             profile.elements = [self._create_element_instance(elem_config) for elem_config in elements]
         
         profile.updated_at = datetime.now(timezone.utc)
-        db.session.commit()
+        safe_commit(db, "display_profile_service")
         return profile
     
     def delete_profile(self, profile_id: int) -> bool:
@@ -244,7 +245,7 @@ class DisplayProfileService:
             raise ValueError("Cannot delete system profiles")
         
         db.session.delete(profile)
-        db.session.commit()
+        safe_commit(db, "display_profile_service")
         return True
     
     def set_default_profile(self, profile_id: int) -> DisplayProfile:
@@ -270,7 +271,7 @@ class DisplayProfileService:
         ).update({'is_default': False})
         
         profile.is_default = True
-        db.session.commit()
+        safe_commit(db, "display_profile_service")
         return profile
     
     def create_from_registry_default(
@@ -360,7 +361,7 @@ class DisplayProfileService:
         if language:
             element.set_display_language(language)
             
-        db.session.commit()
+        safe_commit(db, "display_profile_service")
         return element
 
     def get_element_display_aspect(

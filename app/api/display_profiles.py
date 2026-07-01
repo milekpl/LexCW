@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request, current_app
 from typing import Dict, Any
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 from app.services.display_profile_service import DisplayProfileService
 from app.services.lift_element_registry import LIFTElementRegistry
 from app.utils.api_response_handler import api_response_handler, get_service
@@ -188,7 +189,7 @@ def create_profile():
         # Set export config if provided
         if 'export_config' in data:
             profile.export_config = data['export_config']
-            db.session.commit()
+            safe_commit(db, 'display_profiles')
         
         return jsonify(profile.to_dict()), 201
     

@@ -14,6 +14,7 @@ from app.services.ranges_dedup import dedupe_exact_duplicates, summarize_duplica
 from app.services.dictionary_service import DictionaryService
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
 from app.utils.api_response_handler import api_response_handler, get_service
+from app.utils.db_utils import safe_commit
 from flasgger import swag_from
 
 
@@ -1180,7 +1181,7 @@ def create_custom_range() -> Union[Response, Tuple[Response, int]]:
             )
             db.session.add(value)
 
-        db.session.commit()
+        safe_commit(db, "ranges_editor")
         return jsonify({
             'success': True,
             'data': custom_range.to_dict()

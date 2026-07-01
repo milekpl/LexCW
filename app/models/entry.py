@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from app.models.base import BaseModel
 from app.models.serializable import SerializableMixin
 from app.utils.exceptions import ValidationError
+from app.utils.db_utils import escape_xquery_string
 
 logger = logging.getLogger(__name__)
 
@@ -759,10 +760,12 @@ class Entry(BaseModel):
         
         try:
             # Query BaseX for entries that have a _component-lexeme relation pointing to this entry
+            db_name = dict_service.db_connector.database if hasattr(dict_service.db_connector, 'database') else 'dictionary'
+            escaped_id = escape_xquery_string(self.id)
             query = f"""
                 <results>{{
-                for $entry in collection('dictionary')//entry
-                where $entry/relation[@type='_component-lexeme' and @ref='{self.id}']
+                for $entry in collection('{db_name}')//entry
+                where $entry/relation[@type='_component-lexeme' and @ref='{escaped_id}']
                 return $entry
                 }}</results>
             """
@@ -1075,10 +1078,11 @@ class Entry(BaseModel):
             # Use the current database from dict_service
             # Use local-name() to avoid namespace issues with LIFT XML
             db_name = dict_service.db_connector.database if hasattr(dict_service.db_connector, 'database') else 'dictionary'
+            escaped_id = escape_xquery_string(self.id)
             query = f"""
                 <results>{{
                 for $entry in collection('{db_name}')//*[local-name()='entry']
-                where $entry/*[local-name()='relation'][@ref='{self.id}']/*[local-name()='trait'][@name='variant-type' and @value!='']
+                where $entry/*[local-name()='relation'][@ref='{escaped_id}']/*[local-name()='trait'][@name='variant-type' and @value!='']
                 return $entry
                 }}</results>
             """

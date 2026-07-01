@@ -21,6 +21,7 @@ from app.validators.base import Validator, ValidationResult
 from app.validators.hunspell_validator import HunspellValidator
 from app.validators.languagetool_validator import LanguageToolValidator
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 
 
 class ValidationCacheService:
@@ -347,7 +348,7 @@ class ValidationCacheService:
             from flask import current_app
             with current_app.app_context():
                 count = ValidationResultCache.query.delete()
-                db.session.commit()
+                safe_commit(db, "validation_cache_service")
                 total += count
         except Exception as e:
             self.logger.warning(f"DB clear error: {e}")

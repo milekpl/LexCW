@@ -19,6 +19,7 @@ from app.services.auth_service import AuthenticationService
 from app.services.user_service import UserManagementService
 from app.utils.auth_decorators import login_required, get_current_user
 from app.models.project_settings import db
+from app.utils.db_utils import safe_commit
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -61,7 +62,7 @@ def login():
                 ip_address=request.remote_addr,
             )
             db.session.add(log)
-            db.session.commit()
+            safe_commit(db, "auth_routes")
 
             flash(f"Welcome back, {user.first_name or user.username}!", "success")
 
@@ -138,7 +139,7 @@ def logout():
             details={"ip_address": request.remote_addr},
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "auth_routes")
 
     # Clear session
     session.clear()

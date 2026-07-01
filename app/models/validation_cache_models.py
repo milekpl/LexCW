@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 
 
 class ValidationResultCache(db.Model):
@@ -199,7 +200,7 @@ class ValidationResultCache(db.Model):
             existing.hunspell_misspellings = misspellings
             existing.content_hash = content_hash
             existing.expires_at = expires_at
-            db.session.commit()
+            safe_commit(db, "validation_cache_models")
             return existing
 
         cache_entry = cls(
@@ -213,7 +214,7 @@ class ValidationResultCache(db.Model):
             expires_at=expires_at
         )
         db.session.add(cache_entry)
-        db.session.commit()
+        safe_commit(db, "validation_cache_models")
         return cache_entry
 
     @classmethod
@@ -259,7 +260,7 @@ class ValidationResultCache(db.Model):
             existing.lt_errors = errors
             existing.content_hash = content_hash
             existing.expires_at = expires_at
-            db.session.commit()
+            safe_commit(db, "validation_cache_models")
             return existing
 
         cache_entry = cls(
@@ -274,7 +275,7 @@ class ValidationResultCache(db.Model):
             expires_at=expires_at
         )
         db.session.add(cache_entry)
-        db.session.commit()
+        safe_commit(db, "validation_cache_models")
         return cache_entry
 
     @classmethod
@@ -288,11 +289,14 @@ class ValidationResultCache(db.Model):
         Returns:
             Number of deleted entries
         """
-        deleted = cls.query.filter(
+        results = cls.query.filter(
             cls.entry_id == entry_id
-        ).delete()
-        db.session.commit()
-        return deleted
+        ).all()
+        count = len(results)
+        for result in results:
+            db.session.delete(result)
+        safe_commit(db, "validation_cache_models")
+        return count
 
     @classmethod
     def cleanup_expired(cls) -> int:
@@ -302,11 +306,14 @@ class ValidationResultCache(db.Model):
         Returns:
             Number of deleted entries
         """
-        deleted = cls.query.filter(
+        results = cls.query.filter(
             cls.expires_at < datetime.utcnow()
-        ).delete()
-        db.session.commit()
-        return deleted
+        ).all()
+        count = len(results)
+        for result in results:
+            db.session.delete(result)
+        safe_commit(db, "validation_cache_models")
+        return count
 
     @classmethod
     def get_entries_needing_validation(

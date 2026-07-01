@@ -6,6 +6,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 from app.models.project_settings import User, ProjectSettings
 from app.models.user_models import ProjectRole, UserRole, ActivityLog, Notification
 
@@ -53,7 +54,7 @@ class UserManagementService:
             return False, "User not found"
 
         user.is_active = False
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         # Log the deactivation
         log = ActivityLog(
@@ -64,7 +65,7 @@ class UserManagementService:
             description=f"User {user.username} deactivated",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         return True, None
 
@@ -85,7 +86,7 @@ class UserManagementService:
             return False, "User not found"
 
         user.is_active = True
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         # Log the reactivation
         log = ActivityLog(
@@ -96,7 +97,7 @@ class UserManagementService:
             description=f"User {user.username} reactivated",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         return True, None
 
@@ -142,7 +143,7 @@ class UserManagementService:
             granted_by_user_id=granted_by_user_id,
         )
         db.session.add(project_role)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         # Log the addition
         log = ActivityLog(
@@ -155,7 +156,7 @@ class UserManagementService:
             description=f"Added {user.username} to project with role {role.value}",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         # Create notification for the user
         notification = Notification(
@@ -166,7 +167,7 @@ class UserManagementService:
             link_url=f"/projects/{project_id}",
         )
         db.session.add(notification)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         return True, None
 
@@ -198,7 +199,7 @@ class UserManagementService:
 
         # Remove the role
         db.session.delete(project_role)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         # Log the removal
         log = ActivityLog(
@@ -211,7 +212,7 @@ class UserManagementService:
             description=f"Removed {user.username if user else user_id} from project",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         return True, None
 
@@ -241,7 +242,7 @@ class UserManagementService:
 
         old_role = project_role.role
         project_role.role = new_role
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         # Get user for logging
         user = User.query.get(user_id)
@@ -261,7 +262,7 @@ class UserManagementService:
             description=f"Updated {user.username if user else user_id} role from {old_role.value} to {new_role.value}",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "user_service")
 
         return True, None
 

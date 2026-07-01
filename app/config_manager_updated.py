@@ -3,6 +3,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 from app.models.project_settings import ProjectSettings, db
+from app.utils.db_utils import safe_commit
 
 class ConfigManager:
     """
@@ -28,7 +29,7 @@ class ConfigManager:
                 target_languages=[{"code": "fr", "name": "French"}],
             )
             db.session.add(default_settings)
-            db.session.commit()
+            safe_commit(db, "config_manager_updated")
 
     def get_all_settings(self):
         """Get all settings objects."""
@@ -76,7 +77,7 @@ class ConfigManager:
             settings.project_name = project_name
             settings.source_language = source_language
             settings.target_languages = target_languages
-        db.session.commit()
+        safe_commit(db, "config_manager_updated")
 
         # Update app config
         if self.app:

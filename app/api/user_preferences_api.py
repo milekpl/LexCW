@@ -263,7 +263,7 @@ def save_preferences(user_id):
 
     # Merge new preferences
     user.preferences.update(data)
-    db.session.commit()
+    safe_commit(db, "user_preferences_api")
 
     return jsonify({
         "message": "Preferences saved successfully",
@@ -395,10 +395,11 @@ def clear_project_defaults(project_id):
         return jsonify({"error": "Project not found"}), 404
 
     project.field_visibility_defaults = None
-    db.session.commit()
+    safe_commit(db, "user_preferences_api")
 
     return jsonify({"message": "Project defaults cleared"}), 200
 
 
 # Import db for commit in save_preferences
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit

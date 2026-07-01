@@ -4,6 +4,7 @@ User preferences service for managing user-specific settings like field visibili
 
 from typing import Optional, Dict, Any
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 from app.models.project_settings import User, ProjectSettings
 
 
@@ -168,7 +169,7 @@ class UserPreferencesService:
         current["updated_at"] = db.func.now()
 
         user.preferences["fieldVisibility"] = current
-        db.session.commit()
+        safe_commit(db, "user_preferences_service")
 
         return True, None
 
@@ -198,7 +199,7 @@ class UserPreferencesService:
         # Remove fieldVisibility to fall back to defaults
         if "fieldVisibility" in user.preferences:
             del user.preferences["fieldVisibility"]
-            db.session.commit()
+            safe_commit(db, "user_preferences_service")
 
         return True, None
 
@@ -253,7 +254,7 @@ class UserPreferencesService:
             current["fields"] = settings["fields"]
 
         project.field_visibility_defaults = current
-        db.session.commit()
+        safe_commit(db, "user_preferences_service")
 
         return True, None
 
@@ -275,6 +276,6 @@ class UserPreferencesService:
 
         if user.preferences and key in user.preferences:
             del user.preferences[key]
-            db.session.commit()
+            safe_commit(db, "user_preferences_service")
 
         return True, None

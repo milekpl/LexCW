@@ -39,7 +39,7 @@ def test_autosave_triggers_history_and_marks_backup_dirty():
         backup_scheduler = BackupScheduler(backup_manager=mock_backup_manager, event_bus=event_bus)
 
         # Verify initial state - dirty should be True (first run)
-        assert backup_scheduler._dirty == True
+        assert backup_scheduler._dirty_event.is_set() == True
 
         # Simulate entry update from autosave
         event_bus.emit('entry_updated', {
@@ -49,7 +49,7 @@ def test_autosave_triggers_history_and_marks_backup_dirty():
         })
 
         # Verify backup is marked dirty
-        assert backup_scheduler._dirty == True
+        assert backup_scheduler._dirty_event.is_set() == True
 
         # Verify operation was recorded in history
         history = history_service.get_operation_history()

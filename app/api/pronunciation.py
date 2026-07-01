@@ -12,6 +12,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 import mimetypes
 
 from app.utils.validators import validate_audio_file
+from app.utils.db_utils import safe_commit
 
 pronunciation_bp = Blueprint('pronunciation', __name__, url_prefix='/api/pronunciation')
 
@@ -298,7 +299,7 @@ def _check_api_key_auth(required_scope: str) -> bool:
             return False
 
         key_record.last_used_at = datetime.now(timezone.utc)
-        _db.session.commit()
+        safe_commit(_db, "pronunciation")
         g.api_key = key_record
         g.current_user = None
         return True

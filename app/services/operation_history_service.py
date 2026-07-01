@@ -5,6 +5,8 @@ Service for persisting and retrieving comprehensive operation history for undo/r
 import json
 import logging
 import os
+import threading
+import tempfile
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from app.models.merge_split_operations import MergeSplitOperation, SenseTransfer
@@ -25,22 +27,40 @@ class OperationHistoryService:
         self.max_history = max_history
         self.event_bus = event_bus
         self._history_cache = None
+        self._file_lock = threading.RLock()
         self._ensure_history_file_exists()
 
         if event_bus:
             event_bus.on('entry_updated', self._on_entry_updated)
 
     def _ensure_history_file_exists(self):
-        if not os.path.exists(os.path.dirname(self.history_file_path)):
-            os.makedirs(os.path.dirname(self.history_file_path))
+        dir_path = os.path.dirname(self.history_file_path)
+        if dir_path and not os.path.isdir(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
         if not os.path.exists(self.history_file_path):
-            with open(self.history_file_path, 'w') as f:
-                json.dump({
-                    'operations': [],
-                    'transfers': [],
-                    'undo_stack': [],
-                    'redo_stack': []
-                }, f)
+            self._atomic_write({
+                'operations': [],
+                'transfers': [],
+                'undo_stack': [],
+                'redo_stack': []
+            })
+
+    def _atomic_write(self, data: dict) -> None:
+        """Write JSON data atomically via temp file + rename."""
+        dir_path = os.path.dirname(self.history_file_path) or '.'
+        fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w') as tmp:
+                json.dump(data, tmp, indent=4)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+            os.replace(tmp_path, self.history_file_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def _on_entry_updated(self, data: Dict[str, Any]) -> None:
         """Handle entry_updated events from EventBus."""
@@ -75,13 +95,14 @@ class OperationHistoryService:
 
     def _read_history(self):
         if self._history_cache is None:
-            self._load_from_disk()
+            with self._file_lock:
+                if self._history_cache is None:
+                    self._load_from_disk()
         return self._history_cache
 
     def _write_history(self, data):
         self._history_cache = data
-        with open(self.history_file_path, 'w') as f:
-            json.dump(data, f, indent=4)
+        self._atomic_write(data)
 
     def record_operation(self, operation_type: str, data: Dict[str, Any], entry_id: Optional[str] = None, user_id: Optional[str] = None, db_name: Optional[str] = None):
         """
@@ -94,31 +115,32 @@ class OperationHistoryService:
             user_id: ID of the user who performed the operation
             db_name: Name of the database where operation was performed
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
 
-        # Create an OperationHistory model instance
-        operation = OperationHistoryModel(
-            type_=operation_type,
-            data=json.dumps(data),
-            entry_id=entry_id,
-            user_id=user_id,
-            db_name=db_name
-        )
+            # Create an OperationHistory model instance
+            operation = OperationHistoryModel(
+                type_=operation_type,
+                data=json.dumps(data),
+                entry_id=entry_id,
+                user_id=user_id,
+                db_name=db_name
+            )
 
-        # Add to operations list
-        history['operations'].append(operation.to_dict())
+            # Add to operations list
+            history['operations'].append(operation.to_dict())
 
-        # Maintain history size limit
-        if len(history['operations']) > self.max_history:
-            history['operations'] = history['operations'][-self.max_history:]
+            # Maintain history size limit
+            if len(history['operations']) > self.max_history:
+                history['operations'] = history['operations'][-self.max_history:]
 
-        # Add to undo stack
-        history['undo_stack'].append(operation.to_dict())
+            # Add to undo stack
+            history['undo_stack'].append(operation.to_dict())
 
-        # Clear redo stack since we're adding a new operation
-        history['redo_stack'] = []
+            # Clear redo stack since we're adding a new operation
+            history['redo_stack'] = []
 
-        self._write_history(history)
+            self._write_history(history)
 
         # Return the recorded operation
         return operation
@@ -127,12 +149,13 @@ class OperationHistoryService:
         """
         Record a merge/split operation in the history (maintaining backward compatibility).
         """
-        history = self._read_history()
-        history['operations'].append({
-            **operation.to_dict(),
-            'type': f'merge_split_{operation.operation_type}'  # Add type for classification
-        })
-        self._write_history(history)
+        with self._file_lock:
+            history = self._read_history()
+            history['operations'].append({
+                **operation.to_dict(),
+                'type': f'merge_split_{operation.operation_type}'  # Add type for classification
+            })
+            self._write_history(history)
 
     # Backwards-compatible aliases for older callers/tests
     def save_operation(self, operation: MergeSplitOperation):
@@ -143,9 +166,10 @@ class OperationHistoryService:
         """
         Record a sense transfer in the history (maintaining backward compatibility).
         """
-        history = self._read_history()
-        history['transfers'].append(transfer.to_dict())
-        self._write_history(history)
+        with self._file_lock:
+            history = self._read_history()
+            history['transfers'].append(transfer.to_dict())
+            self._write_history(history)
 
     def save_transfer(self, transfer: SenseTransfer):
         """Alias for recording a sense transfer (backwards compatibility)."""
@@ -158,27 +182,28 @@ class OperationHistoryService:
         Returns:
             Dictionary containing undo information or None if no operations to undo
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
 
-        if not history['undo_stack']:
-            return None
+            if not history['undo_stack']:
+                return None
 
-        # Move last operation from undo to redo stack
-        last_operation = history['undo_stack'].pop()
+            # Move last operation from undo to redo stack
+            last_operation = history['undo_stack'].pop()
 
-        # Mark the operation as undone in the main operations list
-        for op in history['operations']:
-            if op['id'] == last_operation['id']:
-                op['status'] = 'undone'
-                op['timestamp_undone'] = datetime.utcnow().isoformat()
+            # Mark the operation as undone in the main operations list
+            for op in history['operations']:
+                if op['id'] == last_operation['id']:
+                    op['status'] = 'undone'
+                    op['timestamp_undone'] = datetime.utcnow().isoformat()
 
-        history['redo_stack'].append(last_operation)
+            history['redo_stack'].append(last_operation)
 
-        # Update the status of the operation to indicate it was undone
-        last_operation['status'] = 'undone'
-        last_operation['timestamp_undone'] = datetime.utcnow().isoformat()
+            # Update the status of the operation to indicate it was undone
+            last_operation['status'] = 'undone'
+            last_operation['timestamp_undone'] = datetime.utcnow().isoformat()
 
-        self._write_history(history)
+            self._write_history(history)
 
         return last_operation
 
@@ -189,28 +214,29 @@ class OperationHistoryService:
         Returns:
             Dictionary containing redo information or None if no operations to redo
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
 
-        if not history['redo_stack']:
-            return None
+            if not history['redo_stack']:
+                return None
 
-        # Move last operation from redo to undo stack
-        last_operation = history['redo_stack'].pop()
+            # Move last operation from redo to undo stack
+            last_operation = history['redo_stack'].pop()
 
-        # Mark the operation as redone in the main operations list
-        for op in history['operations']:
-            if op['id'] == last_operation['id']:
-                op['status'] = 'completed'  # Back to completed
-                if 'timestamp_undone' in op:
-                    del op['timestamp_undone']
+            # Mark the operation as redone in the main operations list
+            for op in history['operations']:
+                if op['id'] == last_operation['id']:
+                    op['status'] = 'completed'  # Back to completed
+                    if 'timestamp_undone' in op:
+                        del op['timestamp_undone']
 
-        history['undo_stack'].append(last_operation)
+            history['undo_stack'].append(last_operation)
 
-        # Update the status of the operation to indicate it was redone
-        last_operation['status'] = 'completed'
-        last_operation['timestamp_redone'] = datetime.utcnow().isoformat()
+            # Update the status of the operation to indicate it was redone
+            last_operation['status'] = 'completed'
+            last_operation['timestamp_redone'] = datetime.utcnow().isoformat()
 
-        self._write_history(history)
+            self._write_history(history)
 
         return last_operation
 
@@ -224,7 +250,8 @@ class OperationHistoryService:
         Returns:
             List of operation history entries
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
 
         operations = history['operations']
 
@@ -243,7 +270,8 @@ class OperationHistoryService:
         Returns:
             List of operations in the undo stack
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
         return history['undo_stack']
 
     def get_redo_stack(self) -> List[Dict[str, Any]]:
@@ -253,27 +281,29 @@ class OperationHistoryService:
         Returns:
             List of operations in the redo stack
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
         return history['redo_stack']
 
     def clear_history(self):
         """
         Clear all operation history and reset stacks.
         """
-        self._history_cache = {
-            'operations': [],
-            'transfers': [],
-            'undo_stack': [],
-            'redo_stack': []
-        }
-        with open(self.history_file_path, 'w') as f:
-            json.dump(self._history_cache, f, indent=4)
+        with self._file_lock:
+            self._history_cache = {
+                'operations': [],
+                'transfers': [],
+                'undo_stack': [],
+                'redo_stack': []
+            }
+            self._atomic_write(self._history_cache)
 
     def get_all_merge_split_operations(self) -> List[MergeSplitOperation]:
         """
         Get all merge/split operations (maintaining backward compatibility).
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
         merge_split_ops = []
         for op in history['operations']:
             if op.get('type', '').startswith('merge_split_'):
@@ -304,5 +334,6 @@ class OperationHistoryService:
         """
         Get all sense transfers (maintaining backward compatibility).
         """
-        history = self._read_history()
+        with self._file_lock:
+            history = self._read_history()
         return [SenseTransfer.from_dict(t) for t in history['transfers']]

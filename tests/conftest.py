@@ -33,11 +33,6 @@ if os.environ.get('TEST_DB_NAME') is None:
         # If BaseX isn't available now, continue; the fixtures will skip tests that require it
         pass
 
-from app.models.entry import Entry
-from app.models.sense import Sense
-from app.models.example import Example
-from app.database.basex_connector import BaseXConnector
-from app.services.dictionary_service import DictionaryService
 import logging
 import subprocess
 import socket
@@ -50,6 +45,7 @@ logger = logging.getLogger(__name__)
 def basex_available() -> bool:
     """Check if BaseX server is available."""
     try:
+        from app.database.basex_connector import BaseXConnector
         connector = BaseXConnector(
             host=os.getenv('BASEX_HOST', 'localhost'),
             port=int(os.getenv('BASEX_PORT', '1984')),
@@ -122,6 +118,8 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
     """
     if not basex_available:
         pytest.skip("BaseX server not available")
+
+    from app.database.basex_connector import BaseXConnector
 
     # Check if we should use a shared database (set by session-scoped fixture for integration tests)
     shared_db_name = os.environ.get('TEST_DB_NAME')
@@ -330,7 +328,7 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
 
 
 @pytest.fixture(scope="function")
-def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, request) -> Generator[BaseXConnector, None, None]:
+def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, request):
     """
     Create a completely isolated BaseX connector with safe cleanup.
     
@@ -343,7 +341,9 @@ def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, requ
     """
     if not basex_available:
         pytest.skip("BaseX server not available")
-    
+
+    from app.database.basex_connector import BaseXConnector
+
     # Store original environment variables for restoration
     original_test_db = os.environ.get('TEST_DB_NAME')
     original_basex_db = os.environ.get('BASEX_DATABASE')
@@ -511,13 +511,15 @@ def isolated_basex_connector(safe_test_db_name: str, basex_available: bool, requ
 
 
 @pytest.fixture(scope="function")
-def dict_service_with_db(basex_test_connector: BaseXConnector) -> DictionaryService:
+def dict_service_with_db(basex_test_connector) -> 'DictionaryService':
     """Create dictionary service with real test database.
 
     For integration tests using a shared session-scoped database (via TEST_DB_NAME),
     this fixture correctly uses the shared database. For unit tests, it creates
     an isolated database per test function.
     """
+    from app.database.basex_connector import BaseXConnector
+    from app.services.dictionary_service import DictionaryService
     return DictionaryService(db_connector=basex_test_connector)
 
 
@@ -671,8 +673,12 @@ def flask_test_server_info(flask_test_server) -> tuple:
 
 
 @pytest.fixture
-def sample_entry() -> Entry:
+def sample_entry():
     """Create a sample Entry object for testing."""
+    from app.models.entry import Entry
+    from app.models.sense import Sense
+    from app.models.example import Example
+
     entry = Entry(
         id_="test_entry",
         lexical_unit={"en": "test"},
@@ -701,8 +707,9 @@ def sample_entry() -> Entry:
 
 
 @pytest.fixture
-def sample_entry_with_pronunciation() -> Entry:
+def sample_entry_with_pronunciation():
     """Create a sample Entry object with a specific pronunciation for testing."""
+    from app.models.entry import Entry
     entry = Entry(
         id_="test_pronunciation_entry",
         lexical_unit={"en": "pronunciation test"},
@@ -713,8 +720,11 @@ def sample_entry_with_pronunciation() -> Entry:
 
 
 @pytest.fixture
-def sample_entries() -> list[Entry]:
+def sample_entries():
     """Create a list of sample Entry objects for testing."""
+    from app.models.entry import Entry
+    from app.models.sense import Sense
+
     entries = []
     
     # Create 10 sample entries
@@ -842,7 +852,7 @@ def temp_lift_file() -> Generator[str, None, None]:
 
 
 @pytest.fixture
-def populated_dict_service(dict_service_with_db: DictionaryService, sample_entry: Entry) -> DictionaryService:
+def populated_dict_service(dict_service_with_db, sample_entry):
     """Dictionary service with sample data."""
     try:
         dict_service_with_db.create_entry(sample_entry)

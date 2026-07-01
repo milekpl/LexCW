@@ -14,6 +14,7 @@ from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 from app.models.api_key import ApiKey
 from app.utils.auth_decorators import login_required
 
@@ -103,7 +104,7 @@ def create_key():
         is_active=True,
     )
     db.session.add(key)
-    db.session.commit()
+    safe_commit(db, "api_keys")
 
     result = key.to_dict()
     result["raw_key"] = raw_key  # Shown once!
@@ -131,7 +132,7 @@ def revoke_key(key_id: int):
         return jsonify({"error": "Not authorized to revoke this key"}), 403
 
     key.is_active = False
-    db.session.commit()
+    safe_commit(db, "api_keys")
 
     return jsonify({"message": "API key revoked"}), 200
 
@@ -154,6 +155,6 @@ def reactivate_key(key_id: int):
         return jsonify({"error": "Not authorized"}), 403
 
     key.is_active = True
-    db.session.commit()
+    safe_commit(db, "api_keys")
 
     return jsonify({"message": "API key reactivated"}), 200

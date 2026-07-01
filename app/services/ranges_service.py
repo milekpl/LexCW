@@ -13,6 +13,7 @@ from app.utils.data_copier import DataCopier
 from app.database.basex_connector import BaseXConnector
 from app.parsers.lift_parser import LIFTRangesParser
 from app.utils.exceptions import NotFoundError, ValidationError, DatabaseError
+from app.utils.db_utils import safe_commit
 
 # Human-friendly labels and descriptions for well-known standard ranges.
 # These are used in the Ranges Editor to present readable labels for
@@ -824,7 +825,7 @@ class RangesService:
 
             deleted = CustomRange.query.filter_by(range_name=range_id).delete(synchronize_session=False)
             if deleted:
-                custom_db.session.commit()
+                safe_commit(custom_db, "ranges_service")
                 self.logger.info(f"Deleted {deleted} custom range rows for '{range_id}' from SQL DB")
         except Exception as e:
             # Log but do not fail deletion if SQL DB not available or table missing

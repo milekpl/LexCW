@@ -2,6 +2,7 @@
 Service for handling merge and split operations on dictionary entries.
 """
 
+import logging
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import uuid
@@ -32,6 +33,7 @@ class MergeSplitService:
         """
         self.dictionary_service = dictionary_service
         self.history_service = history_service or OperationHistoryService()
+        self.logger = logging.getLogger(__name__)
 
     def split_entry(
         self,
@@ -84,8 +86,24 @@ class MergeSplitService:
             self._remove_senses_from_entry(modified_source_entry, sense_ids)
 
             # Save changes to database
-            self.dictionary_service.create_entry(new_entry)
-            self.dictionary_service.update_entry(modified_source_entry)
+            new_entry_id = new_entry.id
+            try:
+                self.dictionary_service.create_entry(new_entry)
+            except Exception:
+                raise
+
+            try:
+                self.dictionary_service.update_entry(modified_source_entry)
+            except Exception:
+                # Compensation: undo the partial create by deleting the new entry
+                try:
+                    self.dictionary_service.delete_entry(new_entry_id)
+                except Exception as comp_e:
+                    self.logger.error(
+                        "Compensation failed: could not delete partially-created entry %s: %s",
+                        new_entry_id, comp_e,
+                    )
+                raise
 
             # Record sense transfers
             for sense_id in sense_ids:
@@ -201,13 +219,26 @@ class MergeSplitService:
             # Remove senses from source entry
             self._remove_senses_from_entry(modified_source_entry, sense_ids)
 
-            # Save changes to database
+            # Save original target data for compensation
+            original_target_data = DataCopier().copy(original_target_entry)
+
             self.dictionary_service.update_entry(modified_target_entry)
 
-            if modified_source_entry.senses:
-                self.dictionary_service.update_entry(modified_source_entry)
-            else:
-                self.dictionary_service.delete_entry(modified_source_entry.id)
+            try:
+                if modified_source_entry.senses:
+                    self.dictionary_service.update_entry(modified_source_entry)
+                else:
+                    self.dictionary_service.delete_entry(modified_source_entry.id)
+            except Exception:
+                # Compensation: restore the original target entry
+                try:
+                    self.dictionary_service.update_entry(original_target_data)
+                except Exception as comp_e:
+                    self.logger.error(
+                        "Compensation failed: could not restore target entry %s: %s",
+                        target_entry_id, comp_e,
+                    )
+                raise
 
             # Record sense transfers
             for sense_id in sense_ids:

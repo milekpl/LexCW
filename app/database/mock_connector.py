@@ -101,13 +101,14 @@ class MockDatabaseConnector:
         
         return ""
     
-    def execute_lift_query(self, query: str, has_namespace: bool = False) -> str:
+    def execute_lift_query(self, query: str, has_namespace: bool = False, db_name: str = None) -> str:
         """
         Execute a LIFT-specific query with namespace handling.
         
         Args:
             query: XQuery query string (without namespace prologue)
             has_namespace: Whether the database contains namespaced LIFT elements
+            db_name: Optional database name
             
         Returns:
             Query result as string
@@ -119,7 +120,7 @@ class MockDatabaseConnector:
         # Execute the query as-is for mock
         return self.execute_query(query)
     
-    def execute_update(self, query: str) -> bool:
+    def execute_update(self, query: str, db_name: str = None) -> None:
         """Execute a mock update query."""
         self.logger.debug("Mock update: %s", query)
         
@@ -221,3 +222,19 @@ class MockDatabaseConnector:
         else:
             # For any other command, just return empty string
             return ""
+
+    def close_database(self) -> None:
+        """Mock close database."""
+        self.logger.debug("Mock: Closed database")
+        self.database = None
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.disconnect()
+
+    def __del__(self):
+        if hasattr(self, '_connected'):
+            self.disconnect()

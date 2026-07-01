@@ -43,9 +43,11 @@ class BackupScheduler:
         self.scheduler = None
         self.logger = logging.getLogger(__name__)
         self._scheduled_backup_jobs: Dict[str, Job] = {}
+        self._lock = threading.Lock()
         self._running = False
         # First run always performs a backup
-        self._dirty = True
+        self._dirty_event = threading.Event()
+        self._dirty_event.set()
 
         # Subscribe to entry_updated events if event_bus is provided
         if event_bus:
@@ -53,21 +55,22 @@ class BackupScheduler:
 
     def start(self):
         """Start the backup scheduler."""
-        if not self._running:
-            # Initialize scheduler lazily to allow test patches
-            if self.scheduler is None:
-                self.scheduler = BackgroundScheduler()
-            self.scheduler.start()
-            self._running = True
-            self.logger.info("Backup scheduler started")
+        with self._lock:
+            if not self._running:
+                if self.scheduler is None:
+                    self.scheduler = BackgroundScheduler()
+                self.scheduler.start()
+                self._running = True
+                self.logger.info("Backup scheduler started")
 
     def stop(self):
         """Stop the backup scheduler."""
-        if self._running and self.scheduler is not None:
-            self.scheduler.shutdown()
-            self.scheduler = None
-            self._running = False
-            self.logger.info("Backup scheduler stopped")
+        with self._lock:
+            if self._running and self.scheduler is not None:
+                self.scheduler.shutdown()
+                self.scheduler = None
+                self._running = False
+                self.logger.info("Backup scheduler stopped")
 
     def schedule_backup(self, scheduled_backup: ScheduledBackup) -> bool:
         """
@@ -164,13 +167,13 @@ class BackupScheduler:
             scheduled_backup: ScheduledBackup model instance to execute
         """
         # Check if any changes occurred since last backup
-        if not getattr(self, '_dirty', True):
+        if not self._dirty_event.is_set():
             self.logger.info(f"No changes since last backup for {scheduled_backup.db_name}, skipping")
             return
 
         try:
             # Reset dirty flag after checking
-            self._dirty = False
+            self._dirty_event.clear()
 
             # Update last run time
             scheduled_backup.last_run = datetime.utcnow()
@@ -210,7 +213,7 @@ class BackupScheduler:
         Args:
             data: Event data containing entry_id
         """
-        self._dirty = True
+        self._dirty_event.set()
         self.logger.debug(f"Entry {data.get('entry_id')} updated, backup needed")
 
     def cancel_backup(self, schedule_id: str) -> bool:

@@ -6,6 +6,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 from app.models.project_settings import User
 from app.models.user_models import Message, Notification, ActivityLog
 
@@ -50,7 +51,7 @@ class MessageService:
         )
 
         db.session.add(message)
-        db.session.commit()
+        safe_commit(db, "message_service")
 
         # Create notification for recipient if specified
         if recipient_user_id:
@@ -65,7 +66,7 @@ class MessageService:
                 related_entry_id=entry_id,
             )
             db.session.add(notification)
-            db.session.commit()
+            safe_commit(db, "message_service")
 
         # Log the message creation
         log = ActivityLog(
@@ -76,7 +77,7 @@ class MessageService:
             description=f"Created message on entry {entry_id}",
         )
         db.session.add(log)
-        db.session.commit()
+        safe_commit(db, "message_service")
 
         return message, None
 
@@ -153,7 +154,7 @@ class MessageService:
             return False, "Not authorized to mark this message as read"
 
         message.is_read = True
-        db.session.commit()
+        safe_commit(db, "message_service")
 
         return True, None
 
@@ -192,7 +193,7 @@ class MessageService:
         db.session.add(log)
 
         db.session.delete(message)
-        db.session.commit()
+        safe_commit(db, "message_service")
 
         return True, None
 
@@ -238,7 +239,7 @@ class MessageService:
         )
 
         db.session.add(notification)
-        db.session.commit()
+        safe_commit(db, "message_service")
 
         return notification
 
@@ -287,7 +288,7 @@ class MessageService:
 
         notification.is_read = True
         notification.read_at = datetime.now(timezone.utc)
-        db.session.commit()
+        safe_commit(db, "message_service")
 
         return True, None
 
@@ -306,7 +307,7 @@ class MessageService:
             {"is_read": True, "read_at": datetime.now(timezone.utc)}
         )
 
-        db.session.commit()
+        safe_commit(db, "message_service")
 
         return count
 

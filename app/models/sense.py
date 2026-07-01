@@ -5,6 +5,7 @@ Sense model representing a sense in a dictionary entry.
 from typing import Dict, List, Any, Optional, Union
 from app.models.base import BaseModel
 from app.utils.exceptions import ValidationError
+from app.utils.db_utils import escape_xquery_string
 
 
 class Sense(BaseModel):
@@ -335,9 +336,11 @@ class Sense(BaseModel):
                 db = dict_service.db_connector
                 if db:
                     # XQuery to find entry containing a sense with the given ID
+                    db_name = db.database if hasattr(db, 'database') else 'dictionary'
+                    escaped_ref = escape_xquery_string(ref)
                     query = f"""
-                        for $entry in collection('dictionary')//entry
-                        where $entry//sense[@id='{ref}']
+                        for $entry in collection('{db_name}')//entry
+                        where $entry//sense[@id='{escaped_ref}']
                         return $entry
                     """
                     result = db.execute_query(query)

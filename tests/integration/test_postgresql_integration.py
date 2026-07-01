@@ -33,14 +33,16 @@ class TestPostgreSQLConnector:
     def mock_connector(self, mock_config):
         """Mock PostgreSQL connector for testing."""
         with patch('app.database.postgresql_connector.psycopg2') as mock_psycopg2:
+            mock_pool = Mock()
             mock_connection = Mock()
             mock_cursor = Mock()
             mock_connection.cursor.return_value = mock_cursor
-            mock_psycopg2.connect.return_value = mock_connection
+            mock_pool.getconn.return_value = mock_connection
+            mock_psycopg2.pool.ThreadedConnectionPool.return_value = mock_pool
             
             connector = PostgreSQLConnector(mock_config)
-            connector._connection = mock_connection
-            yield connector, mock_connection, mock_cursor
+            connector._pool = mock_pool
+            yield connector, mock_connection, mock_cursor, mock_pool
     
     def test_config_from_env(self):
         """Test loading configuration from environment variables."""
@@ -63,33 +65,27 @@ class TestPostgreSQLConnector:
     
     def test_connection_success(self, mock_connector):
         """Test successful database connection."""
-        connector, mock_connection, mock_cursor = mock_connector
+        connector, mock_connection, mock_cursor, mock_pool = mock_connector
         
-        # Set up autocommit attribute
-        mock_connection.autocommit = True
-        
-        # Test basic connection
-        assert connector._connection is not None
-        assert mock_connection.autocommit is True
+        assert connector._pool is not None
     
     def test_connection_failure(self, mock_config):
         """Test database connection failure."""
-        # Create a proper exception class for mocking
         class MockPsycopg2Error(Exception):
             pass
         
         with patch('app.database.postgresql_connector.psycopg2') as mock_psycopg2:
-            mock_psycopg2.connect.side_effect = MockPsycopg2Error("Connection failed")
+            mock_psycopg2.pool.ThreadedConnectionPool.side_effect = MockPsycopg2Error("Pool creation failed")
             mock_psycopg2.Error = MockPsycopg2Error
             
             connector = PostgreSQLConnector(mock_config)
-            # Connection failure should happen when we try to use the connection
+            connector._pool = None
             with pytest.raises(DatabaseConnectionError):
-                connector._initialize_connection()
+                connector._ensure_pool()
     
     def test_execute_query_success(self, mock_connector):
         """Test successful query execution."""
-        connector, mock_connection, mock_cursor = mock_connector
+        connector, mock_connection, mock_cursor, mock_pool = mock_connector
         
         query = "INSERT INTO test_table (name) VALUES (%(name)s)"
         parameters = {"name": "test"}
@@ -100,7 +96,7 @@ class TestPostgreSQLConnector:
     
     def test_execute_query_failure(self, mock_connector):
         """Test query execution failure."""
-        connector, mock_connection, mock_cursor = mock_connector
+        connector, mock_connection, mock_cursor, mock_pool = mock_connector
         
         # Create a proper exception class for mocking
         class MockPsycopg2Error(Exception):
@@ -116,7 +112,7 @@ class TestPostgreSQLConnector:
     
     def test_fetch_all_success(self, mock_connector):
         """Test successful data fetching."""
-        connector, mock_connection, mock_cursor = mock_connector
+        connector, mock_connection, mock_cursor, mock_pool = mock_connector
         
         # Mock return data
         mock_cursor.fetchall.return_value = [
@@ -133,7 +129,7 @@ class TestPostgreSQLConnector:
     
     def test_fetch_all_failure(self, mock_connector):
         """Test data fetching failure."""
-        connector, mock_connection, mock_cursor = mock_connector
+        connector, mock_connection, mock_cursor, mock_pool = mock_connector
         
         # Create a proper exception class for mocking
         class MockPsycopg2Error(Exception):
@@ -149,12 +145,14 @@ class TestPostgreSQLConnector:
     
     def test_context_manager(self, mock_connector):
         """Test context manager functionality."""
-        connector, mock_connection, mock_cursor = mock_connector
+        connector, mock_connection, mock_cursor, mock_pool = mock_connector
         
         with connector.get_cursor() as cursor:
             assert cursor is mock_cursor
         
+        mock_connection.commit.assert_called_once()
         mock_cursor.close.assert_called_once()
+        mock_pool.putconn.assert_called_once_with(mock_connection)
 
 
 class TestPostgreSQLSetup:

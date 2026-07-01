@@ -2,6 +2,7 @@
 Simple event bus with signal/slot pattern for service coordination.
 """
 import logging
+import threading
 from typing import Dict, List, Callable, Any
 
 logger = logging.getLogger(__name__)
@@ -18,22 +19,27 @@ class EventBus:
 
     def __init__(self) -> None:
         self._subscribers: Dict[str, List[Callable]] = {}
+        self._lock = threading.Lock()
 
     def on(self, event: str, callback: Callable[[Any], None]) -> None:
         """Subscribe to an event."""
-        if event not in self._subscribers:
-            self._subscribers[event] = []
-        if callback not in self._subscribers[event]:
-            self._subscribers[event].append(callback)
+        with self._lock:
+            if event not in self._subscribers:
+                self._subscribers[event] = []
+            if callback not in self._subscribers[event]:
+                self._subscribers[event].append(callback)
 
     def off(self, event: str, callback: Callable[[Any], None]) -> None:
         """Unsubscribe from an event."""
-        if event in self._subscribers:
-            self._subscribers[event] = [c for c in self._subscribers[event] if c != callback]
+        with self._lock:
+            if event in self._subscribers:
+                self._subscribers[event] = [c for c in self._subscribers[event] if c != callback]
 
     def emit(self, event: str, data: Any) -> None:
         """Emit an event to all subscribers."""
-        for callback in self._subscribers.get(event, []):
+        with self._lock:
+            callbacks = list(self._subscribers.get(event, []))
+        for callback in callbacks:
             try:
                 callback(data)
             except Exception as e:

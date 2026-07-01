@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from typing import Any, Optional, List, ClassVar
 
 import redis
@@ -16,13 +17,17 @@ class CacheService:
     
     # Class-level cache of the instance to avoid repeated Redis connection attempts
     _instance: Optional['CacheService'] = None
+    _singleton_lock: ClassVar[threading.Lock] = threading.Lock()
     _connection_attempted: ClassVar[bool] = False
     _last_redis_enabled: ClassVar[Optional[str]] = None  # Track env changes
     
     def __new__(cls) -> 'CacheService':
         """Singleton pattern to avoid repeated Redis connection attempts."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
+        if cls._instance is not None:
+            return cls._instance
+        with cls._singleton_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
         return cls._instance
     
     @classmethod

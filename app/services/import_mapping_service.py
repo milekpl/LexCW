@@ -12,6 +12,7 @@ from app.models.import_mapping import (
     ImportLanguageMapping,
 )
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class ImportMappingService:
         if mapping is None:
             return False
         db.session.delete(mapping)
-        db.session.commit()
+        safe_commit(db, "import_mapping_service")
         return True
 
     def create(
@@ -74,7 +75,7 @@ class ImportMappingService:
                     target_lang=lm["target_lang"],
                 ))
 
-        db.session.commit()
+        safe_commit(db, "import_mapping_service")
         return mapping
 
     def update(
@@ -113,7 +114,7 @@ class ImportMappingService:
                     target_lang=lm["target_lang"],
                 ))
 
-        db.session.commit()
+        safe_commit(db, "import_mapping_service")
         return mapping
 
     def to_field_map_dict(self, mapping: ImportMapping) -> dict[str, dict]:

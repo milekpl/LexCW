@@ -20,6 +20,7 @@ from app.models.project_settings import ProjectSettings
 from app.services.dictionary_storage_service import get_storage_service
 from app.services.dictionary_loader import get_dictionary_loader
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 
 # Create blueprint
 dictionary_bp = Blueprint('dictionaries', __name__)
@@ -106,7 +107,7 @@ def upload_project_dictionary(project_id: int):
 
         # Save to database
         db.session.add(dictionary)
-        db.session.commit()
+        safe_commit(db, "dictionary_api")
 
         # Invalidate dictionary cache
         loader = get_dictionary_loader()
@@ -150,7 +151,7 @@ def delete_project_dictionary(project_id: int, dict_id: str):
 
     # Soft delete
     dictionary.is_active = False
-    db.session.commit()
+    safe_commit(db, "dictionary_api")
 
     # Delete files
     storage = get_storage_service()
@@ -195,7 +196,7 @@ def set_default_dictionary(project_id: int, dict_id: str):
 
     # Set new default
     dictionary.is_default = True
-    db.session.commit()
+    safe_commit(db, "dictionary_api")
 
     # Update project settings
     project = ProjectSettings.query.get(project_id)
@@ -203,7 +204,7 @@ def set_default_dictionary(project_id: int, dict_id: str):
         if 'spell_check' not in project.settings_json:
             project.settings_json['spell_check'] = {}
         project.settings_json['spell_check']['default_dictionary_id'] = dict_id
-        db.session.commit()
+        safe_commit(db, "dictionary_api")
 
     return jsonify({'success': True})
 
@@ -238,7 +239,7 @@ def set_ipa_dictionary(project_id: int, dict_id: str):
         if 'spell_check' not in project.settings_json:
             project.settings_json['spell_check'] = {}
         project.settings_json['spell_check']['ipa_dictionary_id'] = dict_id
-        db.session.commit()
+        safe_commit(db, "dictionary_api")
 
     return jsonify({'success': True})
 
@@ -328,7 +329,7 @@ def add_custom_words():
         )
 
         db.session.add(dictionary)
-        db.session.commit()
+        safe_commit(db, "dictionary_api")
 
         # Invalidate cache
         loader = get_dictionary_loader()
@@ -371,7 +372,7 @@ def delete_user_dictionary(dict_id: str):
         return jsonify({'error': 'Dictionary not found'}), 404
 
     dictionary.is_active = False
-    db.session.commit()
+    safe_commit(db, "dictionary_api")
 
     # Invalidate cache
     loader = get_dictionary_loader()

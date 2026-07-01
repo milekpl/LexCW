@@ -59,6 +59,7 @@ class LIFTImportService:
         """
         from app.models.custom_ranges import CustomRange, CustomRangeValue
         from app.models.custom_ranges import db as custom_db
+        from app.utils.db_utils import safe_commit
         if not undefined_relations and not undefined_traits:
             return
 
@@ -152,7 +153,7 @@ class LIFTImportService:
                     )
                     custom_db.session.add(range_value)
 
-            custom_db.session.commit()
+            safe_commit(custom_db, "lift_import_service")
         except Exception as e:
             self.logger.error(f"Failed to create custom ranges: {e}")
             try:

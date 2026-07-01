@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from app.models.workset_models import db
+from app.utils.db_utils import safe_commit
 
 
 class ProjectValidationRule(db.Model):
@@ -150,7 +151,7 @@ class ProjectValidationRule(db.Model):
             if rule_id not in incoming_ids:
                 rule.is_active = False
 
-        db.session.commit()
+        safe_commit(db, "validation_models")
         return saved_count
 
     @staticmethod
@@ -203,7 +204,7 @@ class ProjectValidationRule(db.Model):
             added_count += 1
 
         if added_count > 0:
-            db.session.commit()
+            safe_commit(db, "validation_models")
 
         return added_count
 
@@ -218,11 +219,14 @@ class ProjectValidationRule(db.Model):
         Returns:
             Number of rules deleted
         """
-        count = db.session.query(ProjectValidationRule).filter(
+        rules = db.session.query(ProjectValidationRule).filter(
             ProjectValidationRule.project_id == project_id
-        ).delete()
+        ).all()
+        count = len(rules)
+        for rule in rules:
+            db.session.delete(rule)
 
-        db.session.commit()
+        safe_commit(db, "validation_models")
         return count
 
     @staticmethod
@@ -321,5 +325,5 @@ class ValidationRuleTemplate(db.Model):
             is_system=is_system
         )
         db.session.add(template)
-        db.session.commit()
+        safe_commit(db, "validation_models")
         return template
