@@ -30,6 +30,9 @@ class LIFTImportService:
             return {}
 
         try:
+            # Fail closed for common XXE/entity-expansion vectors.
+            from app.utils.xml_security import reject_xxe
+            reject_xxe(list_xml)
             root = ET.fromstring(list_xml)
         except ET.ParseError:
             return {}

@@ -524,7 +524,8 @@ def ensure_clean_basex_db(app: Flask) -> None:
     Uses the same delete-and-add logic from tests/basex_test_utils to keep the
     behavior DRY and safe (avoids DROP/CREATE races).
     """
-    from tests.basex_test_utils import delete_all_lift_entries
+    from tests.basex_test_utils import delete_all_lift_entries, LIFT_RANGES_CONTENT
+    import tempfile
 
     # CRITICAL: Disconnect ALL database connections to release locks
     # before attempting cleanup from a different connector.
@@ -551,6 +552,103 @@ def ensure_clean_basex_db(app: Flask) -> None:
         # Log but don't fail the test setup
         import logging
         logging.getLogger(__name__).warning(f"Error during database cleanup: {e}")
+
+    # Re-seed minimal BaseX dataset expected by some integration tests.
+    #
+    # Many tests rely on specific fixture entries existing in the shared TEST_DB_NAME.
+    # `delete_all_lift_entries()` purges the dataset; after purge we add back:
+    # - test_entry_1 (used broadly)
+    # - entry_1 and entry_2 (used by pronunciation dedupe/apply integration tests)
+    db_name = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
+    if db_name:
+        try:
+            from app.database.basex_connector import BaseXConnector
+
+            connector = BaseXConnector(
+                host=os.getenv('BASEX_HOST', 'localhost'),
+                port=int(os.getenv('BASEX_PORT', '1984')),
+                username=os.getenv('BASEX_USERNAME', 'admin'),
+                password=os.getenv('BASEX_PASSWORD', 'admin'),
+                database=db_name,
+            )
+            connector.connect()
+
+            # Add ranges doc first so ranges-based services can start.
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f_ranges:
+                f_ranges.write(LIFT_RANGES_CONTENT)
+                temp_ranges = f_ranges.name
+            try:
+                connector.execute_command(f'ADD "{temp_ranges}"')
+            finally:
+                try:
+                    os.unlink(temp_ranges)
+                except OSError:
+                    pass
+
+            # Seed entries required by pronunciation dedupe tests.
+            sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+<lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
+    <entry id="test_entry_1">
+        <lexical-unit>
+            <form lang="en"><text>test</text></form>
+        </lexical-unit>
+        <sense id="test_sense_1">
+            <definition>
+                <form lang="en"><text>A test entry</text></form>
+            </definition>
+            <gloss lang="pl"><text>test</text></gloss>
+        </sense>
+    </entry>
+
+    <entry id="entry_1">
+        <lexical-unit>
+            <form lang="en"><text>record</text></form>
+        </lexical-unit>
+        <pronunciation>
+            <form lang="seh-fonipa"><text>ˈrekɔːd</text></form>
+        </pronunciation>
+        <sense id="sense_1">
+            <definition>
+                <form lang="en"><text>A test sense</text></form>
+            </definition>
+        </sense>
+    </entry>
+
+    <entry id="entry_2">
+        <lexical-unit>
+            <form lang="en"><text>lactation</text></form>
+        </lexical-unit>
+        <pronunciation>
+            <form lang="seh-fonipa"><text>ˈskɒtɪˌsɪz(ə)m</text></form>
+        </pronunciation>
+        <sense id="sense_2">
+            <definition>
+                <form lang="en"><text>Another test sense</text></form>
+            </definition>
+        </sense>
+    </entry>
+</lift>'''
+
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f_lift:
+                f_lift.write(sample_lift)
+                temp_lift = f_lift.name
+            try:
+                connector.execute_command(f'ADD "{temp_lift}"')
+            finally:
+                try:
+                    os.unlink(temp_lift)
+                except OSError:
+                    pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                'Failed to re-seed BaseX dataset in ensure_clean_basex_db: %s', e
+            )
+        finally:
+            try:
+                connector.disconnect()
+            except Exception:
+                pass
 
 
 @pytest.fixture(scope="function", autouse=True)

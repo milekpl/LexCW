@@ -1922,22 +1922,19 @@ class SchematronValidator:
     def _ensure_iso_svrl_xslt2(self, xsl_path: str) -> None:
         """Ensure the ISO SVRL XSLT2 stylesheet exists locally.
 
-        If it's not present, attempt to download it from the canonical Schematron repository.
+        For security reasons we do NOT download runtime assets.
+        If the file is missing, validation will fail closed.
         """
-        from urllib.request import urlretrieve
-
         xsl_file = Path(xsl_path)
         if xsl_file.exists():
             return
 
-        # Ensure parent dir exists
+        # Ensure parent dir exists for clearer error messages, but do not populate it.
         xsl_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Canonical remote URL (raw content of iso_svrl_for_xslt2.xsl)
-        url = os.getenv('SCHEMATRON_ISO_XSL_URL', 'https://raw.githubusercontent.com/Schematron/schematron/master/trunk/iso-schematron-xslt2/iso_svrl_for_xslt2.xsl')
-        urlretrieve(url, str(xsl_file))
-        if not xsl_file.exists():
-            raise RuntimeError('Failed to download iso_svrl_for_xslt2.xsl')
+        raise RuntimeError(
+            'Missing tools/schematron/iso_svrl_for_xslt2.xsl (runtime download disabled). '
+            'Vendor the file into the repo/image or ensure the path is correct.'
+        )
     
     def validate_xml(self, xml_content: str) -> ValidationResult:
         """
@@ -1950,6 +1947,25 @@ class SchematronValidator:
             ValidationResult with any Schematron violations
         """
         try:
+            def _xml_has_unsafe_doctype_or_entity(xml: str) -> bool:
+                # Fail closed against XXE/entity expansion payloads.
+                # We intentionally reject any XML that declares a DOCTYPE
+                # and/or entities; Schematron validation should not require DTDs.
+                lowered = xml.lower()
+                return "<!doctype" in lowered or "<!entity" in lowered
+
+            if _xml_has_unsafe_doctype_or_entity(xml_content or ""):
+                return ValidationResult(False, [
+                    ValidationError(
+                        rule_id="XML_SECURITY_ERROR",
+                        rule_name="xml_security",
+                        message="Rejected XML containing DOCTYPE/ENTITY declarations.",
+                        path="",
+                        priority=ValidationPriority.CRITICAL,
+                        category=ValidationCategory.ENTRY_LEVEL,
+                    )
+                ], [], [])
+
             from lxml import etree
 
             if self._validator is None:
@@ -2048,7 +2064,9 @@ class SchematronValidator:
                         self.logger.debug(f"Caught exception: {e}")
 
             # lxml-based validator
-            xml_doc = etree.fromstring(xml_content.encode('utf-8'))
+            # Harden XML parsing: no DTD, no external entity resolution, no network.
+            parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)
+            xml_doc = etree.fromstring(xml_content.encode('utf-8'), parser=parser)
             is_valid = self._validator.validate(xml_doc)
             if not is_valid:
                 error_log = self._validator.error_log

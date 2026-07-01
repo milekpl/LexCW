@@ -79,6 +79,9 @@ class FieldWorksListParser:
         return ranges
 
     def parse_string(self, xml_string: str) -> Dict[str, Dict[str, Any]]:
+        # Fail closed for common XXE/entity-expansion vectors.
+        from app.utils.xml_security import reject_xxe
+        reject_xxe(xml_string)
         root = ET.fromstring(xml_string)
         return self._parse_lists(root)
 

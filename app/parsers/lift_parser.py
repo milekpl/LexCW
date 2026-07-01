@@ -13,6 +13,7 @@ from app.models.sense import Sense
 from app.models.example import Example
 from app.utils.exceptions import ValidationError
 from app.utils.normalization_service import normalize_multilingual_dict
+from app.utils.xml_security import reject_xxe
 
 class LIFTParser:
     """Parser for LIFT format dictionary files."""
@@ -141,6 +142,8 @@ class LIFTParser:
         return self._parse_entries(ET.parse(file_path).getroot())
 
     def parse_string(self, xml_string: str) -> List[Entry]:
+        # Fail closed for common XXE/entity-expansion vectors.
+        reject_xxe(xml_string)
         xml_string = self._normalize_xml(xml_string)
         return self._parse_entries(ET.fromstring(xml_string))
 

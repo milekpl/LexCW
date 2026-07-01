@@ -873,6 +873,9 @@ class LIFTToHTMLTransformer:
 
     def _parse_lift_xml(self, lift_xml: str) -> ET.Element:
         """Parse LIFT XML, handling namespaces."""
+        # Fail closed for common XXE/entity-expansion vectors.
+        from app.utils.xml_security import reject_xxe
+        reject_xxe(lift_xml)
         # Remove namespace declarations to simplify parsing
         clean_xml = self._remove_namespaces(lift_xml)
 

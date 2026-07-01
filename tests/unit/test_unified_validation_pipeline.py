@@ -18,6 +18,13 @@ from app.services.unified_validation_pipeline import (
 )
 
 
+def _clear_default_plugins(pipeline: UnifiedValidationPipeline) -> None:
+    """Clear auto-registered default plugins to keep unit tests deterministic."""
+    for vtype in ValidationType:
+        pipeline._plugins[vtype].clear()
+    pipeline._plugin_instances.clear()
+
+
 class TestValidationTypeEnum:
     """Test ValidationType enum"""
 
@@ -369,6 +376,10 @@ class TestUnifiedValidationPipelineInitialization:
         """Should start with empty plugin registry."""
         pipeline = UnifiedValidationPipeline()
 
+        # Pipeline now auto-registers default validators; unit tests need a
+        # deterministic empty starting state.
+        _clear_default_plugins(pipeline)
+
         for vtype in ValidationType:
             assert pipeline._plugins[vtype] == []
 
@@ -541,6 +552,7 @@ class TestValidateEntry:
     def test_validate_empty_entry(self):
         """Should validate empty dictionary."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING, issues=[])
         pipeline.register_plugin(plugin)
 
@@ -553,6 +565,7 @@ class TestValidateEntry:
     def test_validate_with_no_plugins(self):
         """Should return valid result with no plugins registered."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
 
         result = pipeline.validate_entry({'id': 'test', 'lexical_unit': {'en': 'test'}})
 
@@ -562,6 +575,7 @@ class TestValidateEntry:
     def test_validate_with_single_issue(self):
         """Should aggregate single plugin issue."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         issue = ValidationIssue(
             type=ValidationType.SPELLING,
             severity=ValidationSeverity.ERROR,
@@ -582,6 +596,7 @@ class TestValidateEntry:
     def test_validate_with_critical_issue(self):
         """Should mark invalid if critical issue present."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         issue = ValidationIssue(
             type=ValidationType.STRUCTURAL,
             severity=ValidationSeverity.CRITICAL,
@@ -601,6 +616,7 @@ class TestValidateEntry:
     def test_validate_multiple_plugins(self):
         """Should aggregate issues from multiple plugins."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
 
         spelling_issue = ValidationIssue(
             type=ValidationType.SPELLING,
@@ -633,6 +649,7 @@ class TestValidateEntry:
     def test_validate_with_options(self):
         """Should pass options to plugins."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -649,6 +666,7 @@ class TestValidateEntry:
     def test_validate_with_options_types_filter(self):
         """Should respect types filter in options."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         spelling_plugin = MockValidatorPlugin(ValidationType.SPELLING)
         rules_plugin = MockValidatorPlugin(ValidationType.RULES)
         structural_plugin = MockValidatorPlugin(ValidationType.STRUCTURAL)
@@ -669,6 +687,7 @@ class TestValidateEntry:
     def test_validate_with_min_severity_filter(self):
         """Should filter issues by minimum severity."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
 
         info_issue = ValidationIssue(
             type=ValidationType.RULES,
@@ -701,6 +720,7 @@ class TestValidateEntry:
     def test_validate_with_object_input(self):
         """Should handle Entry objects with to_dict()."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -728,6 +748,7 @@ class TestValidateEntry:
     def test_validate_plugin_error_handling(self):
         """Should handle plugin errors gracefully."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         failing_plugin = MockValidatorPlugin(ValidationType.SPELLING, should_fail=True)
         pipeline.register_plugin(failing_plugin)
 
@@ -741,6 +762,7 @@ class TestValidateEntry:
     def test_validate_updates_stats(self):
         """Should update validation statistics."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -753,6 +775,7 @@ class TestValidateEntry:
     def test_validate_tracks_timing(self):
         """Should track validation time."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
 
         result = pipeline.validate_entry({'id': 'test'})
 
@@ -766,6 +789,7 @@ class TestValidateXML:
     def test_validate_xml_success(self):
         """Should parse and validate XML entry."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -839,6 +863,7 @@ class TestValidateBatch:
     def test_validate_empty_batch(self):
         """Should handle empty batch."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
 
         results = pipeline.validate_batch([])
 
@@ -847,6 +872,7 @@ class TestValidateBatch:
     def test_validate_single_entry_batch(self):
         """Should validate single entry in batch."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -858,6 +884,7 @@ class TestValidateBatch:
     def test_validate_multiple_entries_batch(self):
         """Should validate multiple entries."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -875,6 +902,7 @@ class TestValidateBatch:
     def test_validate_batch_with_mixed_input_types(self):
         """Should handle mix of dicts and objects."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -903,6 +931,7 @@ class TestCacheInvalidation:
     def test_invalidate_entry(self):
         """Should invalidate cache for all plugins."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin1 = MockValidatorPlugin(ValidationType.SPELLING)
         plugin2 = MockValidatorPlugin(ValidationType.RULES)
 
@@ -916,6 +945,7 @@ class TestCacheInvalidation:
     def test_invalidate_with_no_plugins(self):
         """Should return 0 when no plugins."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
 
         count = pipeline.invalidate_entry('entry123')
 
@@ -928,6 +958,7 @@ class TestStatistics:
     def test_get_stats_initial(self):
         """Should return initial stats."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
 
         stats = pipeline.get_stats()
 
@@ -941,6 +972,7 @@ class TestStatistics:
     def test_get_stats_after_validations(self):
         """Should track stats after validations."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 
@@ -958,6 +990,7 @@ class TestStatistics:
     def test_reset_stats(self):
         """Should reset statistics to zero."""
         pipeline = UnifiedValidationPipeline()
+        _clear_default_plugins(pipeline)
         plugin = MockValidatorPlugin(ValidationType.SPELLING)
         pipeline.register_plugin(plugin)
 

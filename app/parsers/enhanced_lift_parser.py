@@ -15,6 +15,7 @@ from app.models import Entry, Sense, Example
 from app.utils.exceptions import ValidationError
 from app.utils.namespace_manager import LIFTNamespaceManager, XPathBuilder
 from app.utils.xquery_builder import XQueryBuilder
+from app.utils.xml_security import reject_xxe
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,9 @@ class EnhancedLiftParser:
         Raises:
             ValidationError: If validation is enabled and an entry fails validation
         """
+        # Fail closed for common XXE/entity-expansion vectors.
+        reject_xxe(xml_content)
+
         try:
             # Detect namespace usage
             self._has_lift_namespace, self._namespace_map = LIFTNamespaceManager.get_namespace_info(xml_content)

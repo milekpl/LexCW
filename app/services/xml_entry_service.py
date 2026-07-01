@@ -26,6 +26,7 @@ from xml.etree import ElementTree as ET
 from BaseXClient import BaseXClient
 from app.utils.xquery_builder import XQueryBuilder
 from app.utils.namespace_manager import LIFTNamespaceManager
+from app.utils.xml_security import reject_xxe
 
 # LIFT XML namespace
 LIFT_NS = "http://fieldworks.sil.org/schemas/lift/0.13"
@@ -218,6 +219,13 @@ class XMLEntryService:
         Raises:
             InvalidXMLError: If XML is malformed or missing required elements
         """
+        # Fail closed for common XXE/entity-expansion vectors.
+        # We reject DOCTYPE/ENTITY early before ElementTree parses.
+        try:
+            reject_xxe(xml_string)
+        except ValueError as e:
+            raise InvalidXMLError(str(e)) from e
+
         try:
             root = ET.fromstring(xml_string)
         except ET.ParseError as e:

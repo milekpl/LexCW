@@ -7,6 +7,7 @@ including CRUD operations for entries, searching, and other dictionary-related o
 
 import logging
 import os
+import json
 import sys
 import re
 import random

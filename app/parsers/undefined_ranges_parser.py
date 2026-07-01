@@ -14,7 +14,7 @@ class UndefinedRangesParser:
         self.logger = logging.getLogger(__name__)
     
     def identify_undefined_ranges(self, lift_xml: str, ranges_xml: Optional[str] = None, 
-                                 list_xml: Optional[str] = None) -> Tuple[Set[str], Dict[str, Set[str]]]:
+                                  list_xml: Optional[str] = None) -> Tuple[Set[str], Dict[str, Set[str]]]:
         """
         Identify relation types and traits not defined in ranges.
         
@@ -30,6 +30,15 @@ class UndefinedRangesParser:
         """
         undefined_relations = set()
         undefined_traits = defaultdict(set)
+
+        # Fail closed for common XXE/entity-expansion vectors.
+        # User-controlled values can reach this code via uploaded LIFT/ranges/list XML.
+        from app.utils.xml_security import reject_xxe
+        reject_xxe(lift_xml)
+        if ranges_xml:
+            reject_xxe(ranges_xml)
+        if list_xml:
+            reject_xxe(list_xml)
         
         # Parse LIFT for used relations and traits
         lift_tree = ET.fromstring(lift_xml)

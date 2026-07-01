@@ -45,21 +45,12 @@ def test_xslt2_schema_without_saxon_sets_reason(tmp_path: Path, monkeypatch: Any
 
 
 def test_ensure_iso_xslt2_download(monkeypatch: Any, tmp_path: Path) -> None:
-    # Simulate urlretrieve by creating the target file
     target = tmp_path / 'iso_svrl_for_xslt2.xsl'
 
-    def fake_urlretrieve(url, filename):
-        Path(filename).write_text('<!-- fake iso svrl xsl -->')
-        return (filename, None)
-
-    monkeypatch.setattr('urllib.request.urlretrieve', fake_urlretrieve)
-
-    # Call the helper via SchematronValidator instance
+    # Runtime download is disabled; helper should fail closed
     validator = SchematronValidator()
-    validator._ensure_iso_svrl_xslt2(str(target))
-
-    assert target.exists()
-    assert '<!-- fake iso svrl xsl -->' in target.read_text()
+    with pytest.raises(RuntimeError):
+        validator._ensure_iso_svrl_xslt2(str(target))
 
 
 def test_xslt2_schema_with_saxon_and_xmlresolver(monkeypatch: Any, tmp_path: Path) -> None:
@@ -74,16 +65,14 @@ def test_xslt2_schema_with_saxon_and_xmlresolver(monkeypatch: Any, tmp_path: Pat
     monkeypatch.setenv('SAXON_JAR', str(saxon_jar))
     monkeypatch.setenv('XMLRESOLVER_JAR', str(xmlresolver_jar))
 
+    # Vendor requirement: ensure the iso_svrl xslt2 stylesheet exists locally.
+    xslt2_path = tmp_path / 'iso_svrl_for_xslt2.xsl'
+    xslt2_path.write_text('<!-- vendored iso svrl xsl -->')
+    monkeypatch.setenv('SCHEMATRON_XSL', str(xslt2_path))
+
     # Write a minimal xslt2 schema
     schema_file = tmp_path / 'schema_xslt2.sch'
     _write_minimal_xslt2_schema(schema_file)
-
-    # Ensure iso_svrl xslt2 XSL is available by faking urlretrieve
-    def fake_urlretrieve(url, filename):
-        Path(filename).write_text('<!-- fake iso svrl xsl -->')
-        return (filename, None)
-
-    monkeypatch.setattr('urllib.request.urlretrieve', fake_urlretrieve)
 
     # Fake subprocess.run to simulate successful compilation
     def fake_run(cmd, check=True, timeout=None):

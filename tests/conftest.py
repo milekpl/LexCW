@@ -161,9 +161,17 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         connector.disconnect()
         connector.connect()  # Reconnect with the database
 
-        # Check if test_entry_1 already exists to avoid duplicates
+        # Check if required seed entries already exist to avoid duplicates.
+        # Some integration tests expect `entry_1` and `entry_2` to be present
+        # in the shared BaseX test DB.
         try:
-            check_query = "xquery exists(collection('" + db_name + "')//*:entry[@id='test_entry_1'])"
+            check_query = (
+                "xquery ("
+                "exists(collection('" + db_name + "')//*:entry[@id='test_entry_1']) "
+                "and exists(collection('" + db_name + "')//*:entry[@id='entry_1']) "
+                "and exists(collection('" + db_name + "')//*:entry[@id='entry_2'])"
+                ")"
+            )
             entry_exists = connector.execute_query(check_query)
             if entry_exists and entry_exists.strip().lower() == 'true':
                 logger.info("test_entry_1 already exists, skipping ADD")
@@ -190,6 +198,36 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         <relation type="_component-lexeme" ref="other">
             <trait name="variant-type" value="dialectal"/>
         </relation>
+    </entry>
+
+    <entry id="entry_1">
+        <lexical-unit>
+            <form lang="en"><text>record</text></form>
+        </lexical-unit>
+        <pronunciation>
+            <form lang="seh-fonipa"><text>ˈrekɔːd</text></form>
+            <trait name="written-variant" value="original"/>
+        </pronunciation>
+        <sense id="sense_1">
+            <definition>
+                <form lang="en"><text>A test sense</text></form>
+            </definition>
+        </sense>
+    </entry>
+
+    <entry id="entry_2">
+        <lexical-unit>
+            <form lang="en"><text>lactation</text></form>
+        </lexical-unit>
+        <pronunciation>
+            <form lang="seh-fonipa"><text>lækˈteɪʃən</text></form>
+            <trait name="written-variant" value="original"/>
+        </pronunciation>
+        <sense id="sense_2">
+            <definition>
+                <form lang="en"><text>Another test sense</text></form>
+            </definition>
+        </sense>
     </entry>
 </lift>'''
                     f.write(sample_lift)

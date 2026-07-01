@@ -483,9 +483,13 @@ class XQueryBuilder:
         sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
         gi_path = XQueryBuilder.get_element_path("grammatical-info", has_namespace)
 
+        # IMPORTANT: this builder interpolates user-controlled values into XQuery.
+        # Escape to avoid breaking out of string/attribute predicates.
+        safe_grammatical_info = XQueryBuilder.escape_xquery_string(grammatical_info)
+
         query = f"""
         for $entry in collection('{db_name}')//{entry_path}
-        where $entry/{sense_path}/{gi_path}[@value="{grammatical_info}"]
+        where $entry/{sense_path}/{gi_path}[@value="{safe_grammatical_info}"]
         """
 
         if offset:
@@ -521,14 +525,24 @@ class XQueryBuilder:
         Returns:
             Complete XQuery string
         """
+        # IMPORTANT: escape interpolated values to avoid XQuery injection.
+        safe_entry_id = XQueryBuilder.escape_xquery_string(entry_id)
+        safe_relation_type = (
+            XQueryBuilder.escape_xquery_string(relation_type)
+            if relation_type is not None
+            else None
+        )
+
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
         relation_path = XQueryBuilder.get_element_path("relation", has_namespace)
         
-        relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
+        relation_condition = (
+            f'[@type="{safe_relation_type}"]' if safe_relation_type else ''
+        )
 
         query = f"""
-        let $related_ids := collection('{db_name}')//{entry_path}[@id="{entry_id}"]/{relation_path}{relation_condition}/@ref
+        let $related_ids := collection('{db_name}')//{entry_path}[@id="{safe_entry_id}"]/{relation_path}{relation_condition}/@ref
         for $entry in collection('{db_name}')//{entry_path}[@id = $related_ids]
         return $entry
         """
@@ -564,14 +578,24 @@ class XQueryBuilder:
         Returns:
             Complete XQuery string
         """
+        # IMPORTANT: escape interpolated values to avoid XQuery injection.
+        safe_entry_id = XQueryBuilder.escape_xquery_string(entry_id)
+        safe_relation_type = (
+            XQueryBuilder.escape_xquery_string(relation_type)
+            if relation_type is not None
+            else None
+        )
+
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
         relation_path = XQueryBuilder.get_element_path("relation", has_namespace)
         
-        relation_condition = f'[@type="{relation_type}"]' if relation_type else ''
+        relation_condition = (
+            f'[@type="{safe_relation_type}"]' if safe_relation_type else ''
+        )
 
         query = f"""
-        for $entry in collection('{db_name}')//{entry_path}[.//{relation_path}{relation_condition}/@ref=\"{entry_id}\"]
+        for $entry in collection('{db_name}')//{entry_path}[.//{relation_path}{relation_condition}/@ref=\"{safe_entry_id}\"]
         """
 
         if offset:
