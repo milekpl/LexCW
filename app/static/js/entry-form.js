@@ -1144,8 +1144,32 @@ async function submitForm() {
     progressBar.style.width = "100%";
     progressBar.textContent = "Complete!";
 
+    // Save revision snapshot (XHR with CSRF headers — completes before redirect)
+    const idForRevision = responseData.entry_id || entryId;
+    if (idForRevision) {
+      try {
+        var snapshot = window.MergeHarness ? window.MergeHarness.buildSerializerInput(form) : null;
+        if (!snapshot || Object.keys(snapshot).length === 0) snapshot = formData;
+        if (snapshot) {
+          snapshot.id = idForRevision;
+          var revHeaders = (typeof getCsrfHeaders === 'function')
+            ? getCsrfHeaders({ 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+          // Fallback: read from meta tag if getCsrfHeaders is unavailable
+          if (!revHeaders['X-CSRF-TOKEN'] && !revHeaders['X-CSRFToken']) {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta) revHeaders['X-CSRF-TOKEN'] = meta.getAttribute('content');
+          }
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/entries/' + encodeURIComponent(idForRevision) + '/revisions', false);
+          Object.keys(revHeaders).forEach(function (k) { xhr.setRequestHeader(k, revHeaders[k]); });
+          xhr.send(JSON.stringify({ snapshot: snapshot }));
+        }
+      } catch (e) { /* best-effort */ }
+    }
+
     // Redirect after successful save
-    const idForRedirect = responseData.entry_id || entryId;
+    const idForRedirect = idForRevision;
     if (idForRedirect) {
       window.location.href = `/entries/${idForRedirect}?status=saved`;
     } else {

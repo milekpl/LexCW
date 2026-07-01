@@ -216,6 +216,172 @@
                 </div>
             </div>
 
+            <!-- Revision History (collapsible; only on existing entries) -->
+            {% if entry.id %}
+            <div id="revision-history-wrapper" style="display:none;"
+                 data-entry-id="{{ entry.id }}">
+            </div>
+            <div class="card mt-4 mb-2" id="revision-history-panel">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center"
+                     onclick="toggleRevisionPanel()" style="cursor: pointer">
+                    <h6 class="mb-0"><i class="fas fa-history"></i> Revision History</h6>
+                    <span id="rev-toggle-icon">▼</span>
+                </div>
+                <div id="rev-body" class="card-body p-2" style="display:none; max-height: 400px; overflow-y: auto;">
+                    <div id="rev-loading" class="text-center text-muted py-3" style="display:none;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading revisions…
+                    </div>
+                    <div id="rev-error" class="alert alert-danger py-1 small" style="display:none;"></div>
+                    <div id="rev-list"></div>
+                    <div id="rev-empty" class="text-muted small">No revisions yet.</div>
+                    <button id="rev-load-more" class="btn btn-sm btn-outline-secondary w-100 mt-1" onclick="loadMoreRevisions()" style="display:none;"></button>
+                </div>
+            </div>
+            <script>
+            var _revEntryId = {{ entry.id | tojson }};
+            var _revPage = 1, _revPerPage = 10, _revTotal = 0, _revExpanded = null;
+            var _revLoading = false, _revPanelVisible = false;
+
+            function toggleRevisionPanel() {
+                _revPanelVisible = !_revPanelVisible;
+                document.getElementById('rev-body').style.display = _revPanelVisible ? 'block' : 'none';
+                document.getElementById('rev-toggle-icon').textContent = _revPanelVisible ? '▲' : '▼';
+                if (_revPanelVisible && document.getElementById('rev-list').children.length === 0) loadRevisions();
+            }
+
+            function loadRevisions() {
+                if (_revLoading) return;
+                _revLoading = true;
+                document.getElementById('rev-loading').style.display = 'block';
+                document.getElementById('rev-error').style.display = 'none';
+                fetch('/api/entries/' + encodeURIComponent(_revEntryId) + '/revisions?page=' + _revPage + '&per_page=' + _revPerPage)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        _revLoading = false;
+                        document.getElementById('rev-loading').style.display = 'none';
+                        _revTotal = data.total || 0;
+                        var list = document.getElementById('rev-list');
+                        (data.revisions || []).forEach(function (rev) { list.appendChild(renderRevision(rev)); });
+                        document.getElementById('rev-empty').style.display = list.children.length > 0 ? 'none' : '';
+                        var lm = document.getElementById('rev-load-more');
+                        lm.style.display = list.children.length >= _revTotal ? 'none' : '';
+                        lm.textContent = 'Load more (' + (_revTotal - list.children.length) + ' remaining)';
+                    })
+                    .catch(function () { _revLoading = false; document.getElementById('rev-loading').style.display = 'none'; });
+            }
+
+            function loadMoreRevisions() {
+                _revPage++;
+                loadRevisions();
+            }
+
+            function renderRevision(rev) {
+                var div = document.createElement('div');
+                div.className = 'mb-2 border-bottom pb-2';
+                var detailId = 'rev-detail-' + rev.revision_number;
+                var isExpanded = _revExpanded === rev.revision_number;
+                div.innerHTML = [
+                    '<div class="d-flex justify-content-between align-items-center">',
+                    '<small class="fw-bold">#' + rev.revision_number + ' — ' + formatDate(rev.timestamp_utc),
+                    rev.created_by ? ' <span class="text-muted">by ' + rev.created_by + '</span>' : '',
+                    '</small>',
+                    '<button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" ',
+                    'onclick="toggleDetail(' + rev.revision_number + ')">',
+                    isExpanded ? '▲ less' : '▼ more',
+                    '</button></div>',
+                    '<div class="small">',
+                    rev.change_count > 0 ? '<span class="badge bg-info">' + rev.change_count + ' change(s)</span>' : '<span class="text-muted">Initial version</span>',
+                    '</div>',
+                    '<div id="' + detailId + '" class="rev-detail" style="display:' + (isExpanded ? 'block' : 'none') + '"></div>'
+                ].join('');
+                if (isExpanded) loadDetail(rev.revision_number, detailId);
+                return div;
+            }
+
+            function toggleDetail(revNum) {
+                var isSame = _revExpanded === revNum;
+                // Collapse all
+                var details = document.querySelectorAll('.rev-detail');
+                details.forEach(function (d) { d.style.display = 'none'; });
+                var btns = document.querySelectorAll('#rev-list button');
+                btns.forEach(function (b) { b.textContent = '▼ more'; });
+                if (!isSame) {
+                    // Expand this one
+                    var el = document.getElementById('rev-detail-' + revNum);
+                    if (el) {
+                        el.style.display = 'block';
+                        _revExpanded = revNum;
+                        // Highlight the button
+                        var revItem = el.closest('div.mb-2');
+                        if (revItem) {
+                            var btn = revItem.querySelector('button');
+                            if (btn) btn.textContent = '▲ less';
+                        }
+                        if (el.children.length === 0) loadDetail(revNum, 'rev-detail-' + revNum);
+                    }
+                } else {
+                    _revExpanded = null;
+                }
+            }
+
+            function loadDetail(revNum, detailId) {
+                var el = document.getElementById(detailId);
+                if (!el) return;
+                el.innerHTML = '<div class="small text-muted">Loading detail…</div>';
+                fetch('/api/entries/' + encodeURIComponent(_revEntryId) + '/revisions/' + revNum)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        var rev = data.revision;
+                        if (!rev || !rev.change_report) {
+                            el.innerHTML = '<div class="small text-muted">Initial version</div>';
+                            return;
+                        }
+                        var html = '<div class="bg-light p-1 rounded small">';
+                        rev.change_report.forEach(function (chg) {
+                            var cls = chg.kind === 'added' ? 'text-success' : chg.kind === 'removed' ? 'text-danger' : 'text-warning';
+                            html += '<div class="mb-1" style="font-size:0.8rem;">';
+                            html += '<span class="fw-bold ' + cls + '">' + chg.kind.toUpperCase() + '</span>';
+                            html += ' <span>' + chg.field_path + '</span><br>';
+                            html += ' <span class="text-muted">' + (chg.summary || '') + '</span>';
+                            html += '</div>';
+                        });
+                        html += '</div>';
+                        el.innerHTML = html;
+                    })
+                    .catch(function () { el.innerHTML = '<div class="small text-danger">Failed to load detail.</div>'; });
+            }
+
+            function loadDetail(revNum, detailId) {
+                var el = document.getElementById(detailId);
+                if (!el) return;
+                el.innerHTML = '<div class="small text-muted">Loading detail…</div>';
+                fetch('/api/entries/' + encodeURIComponent(_revEntryId) + '/revisions/' + revNum)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        var rev = data.revision;
+                        if (!rev || !rev.change_report) { el.innerHTML = '<div class="small text-muted">Initial version</div>'; return; }
+                        var html = '<div class="bg-light p-1 rounded small">';
+                        rev.change_report.forEach(function (chg) {
+                            var cls = chg.kind === 'added' ? 'text-success' : chg.kind === 'removed' ? 'text-danger' : 'text-warning';
+                            html += '<div class="mb-1" style="font-size:0.8rem;">';
+                            html += '<span class="fw-bold ' + cls + '">' + chg.kind.toUpperCase() + '</span>';
+                            html += ' <span>' + chg.field_path + '</span><br>';
+                            html += ' <span class="text-muted">' + (chg.summary || '') + '</span>';
+                            html += '</div>';
+                        });
+                        html += '</div>';
+                        el.innerHTML = html;
+                    })
+                    .catch(function () { el.innerHTML = '<div class="small text-danger">Failed to load detail.</div>'; });
+            }
+
+            function formatDate(iso) {
+                if (!iso) return '';
+                return new Date(iso).toLocaleString(undefined, {year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+            }
+            </script>
+            {% endif %}
+
             <!-- XML Preview Toggle (Moved to bottom) -->
             <div class="text-center mb-2">
                 <button type="button" class="btn btn-sm btn-link text-muted text-decoration-none" id="toggle-xml-preview-btn">

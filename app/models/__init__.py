@@ -14,6 +14,7 @@ from app.models.custom_ranges import CustomRange, CustomRangeValue
 from app.models.validation_models import ProjectValidationRule, ValidationRuleTemplate
 from app.models.dictionary_models import ProjectDictionary, UserDictionary, SystemDictionary
 from app.models.import_mapping import ImportMapping, ImportFieldMapping, ImportLanguageMapping
+from app.models.entry_revision import EntryRevision
 
 
 __all__ = [
@@ -38,4 +39,5 @@ __all__ = [
     'ImportMapping',
     'ImportFieldMapping',
     'ImportLanguageMapping',
+    'EntryRevision',
 ]

@@ -2151,6 +2151,10 @@ def worksets():
         ), 500
 
 
+@workbench_bp.route("/analytics")
+def change_analytics():
+    return render_template("workbench/change_analytics.html")
+
 @workbench_bp.route("/worksets/<int:workset_id>/curation")
 @workbench_bp.route("/worksets/<int:workset_id>/curate")
 def workset_curate(workset_id: int):

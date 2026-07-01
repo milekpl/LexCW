@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Change Analytics — Dictionary Workbench{% endblock %}
+
+{% block content %}
+<div class="container-fluid" x-data="changeAnalytics()">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h4 class="mb-0"><i class="fas fa-chart-line"></i> Change Analytics</h4>
+                    <p class="text-muted small mb-0">Entry edit history across the dictionary</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date range picker -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">From</label>
+                    <input type="date" class="form-control" x-model="fromDate" @change="loadStats()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">To</label>
+                    <input type="date" class="form-control" x-model="toDate" @change="loadStats()">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Granularity</label>
+                    <select class="form-select" x-model="granularity" @change="loadStats()">
+                        <option value="day">Daily</option>
+                        <option value="week">Weekly</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button class="btn btn-outline-primary" @click="setPreset('7d')">7 days</button>
+                    <button class="btn btn-outline-secondary" @click="setPreset('30d')">30 days</button>
+                    <button class="btn btn-outline-info" @click="setPreset('90d')">90 days</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-primary mb-0" x-text="stats.total_revisions || 0"></h2>
+                    <small class="text-muted">Total Revisions</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-success mb-0" x-text="stats.unique_entries_touched || 0"></h2>
+                    <small class="text-muted">Entries Edited</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h2 class="text-info mb-0" x-text="stats.unique_users || 0"></h2>
+                    <small class="text-muted">Active Editors</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Timeline chart -->
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-calendar-alt"></i> Timeline</h6></div>
+                <div class="card-body" style="min-height: 200px;">
+                    <div x-show="stats.timeline && stats.timeline.length > 0" class="d-flex align-items-end gap-1"
+                         style="height: 180px; overflow-x: auto;">
+                        <template x-for="pt in stats.timeline" :key="pt.date">
+                            <div class="d-flex flex-column align-items-center flex-shrink-0"
+                                 style="width: 40px;"
+                                 :title="pt.date + ': ' + pt.count + ' revisions'">
+                                <div :style="'height:' + Math.max(4, (pt.count / maxCount) * 160) + 'px'"
+                                     class="bg-primary rounded-1 w-100"
+                                     style="min-height: 4px;"></div>
+                                <small class="text-muted" style="font-size: 0.6rem;"
+                                       x-text="pt.date.slice(-5)"></small>
+                            </div>
+                        </template>
+                    </div>
+                    <div x-show="!stats.timeline || stats.timeline.length === 0" class="text-muted text-center py-4">
+                        No revisions in this period.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top editors -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-users"></i> Top Editors</h6></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Editor</th><th class="text-end">Revisions</th></tr></thead>
+                        <tbody>
+                            <template x-for="ed in stats.top_editors || []" :key="ed.user_id">
+                                <tr>
+                                    <td x-text="ed.user_id"></td>
+                                    <td class="text-end"><span class="badge bg-info" x-text="ed.revisions"></span></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    <div x-show="!stats.top_editors || stats.top_editors.length === 0" class="text-muted text-center py-2">
+                        No editors yet.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- By-field breakdown -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-tag"></i> Changes by Field</h6></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Field</th><th class="text-end">Added</th><th class="text-end">Modified</th><th class="text-end">Removed</th></tr></thead>
+                        <tbody>
+                            <template x-for="(counts, field) in Object.entries(stats.by_field || {}).sort((a,b) => {
+                                const ta = (a[1].added || 0) + (a[1].modified || 0) + (a[1].removed || 0);
+                                const tb = (b[1].added || 0) + (b[1].modified || 0) + (b[1].removed || 0);
+                                return tb - ta;
+                            })" :key="field[0]">
+                                <tr>
+                                    <td x-text="field[0]"></td>
+                                    <td class="text-end"><span class="text-success" x-text="field[1].added || 0"></span></td>
+                                    <td class="text-end"><span class="text-warning" x-text="field[1].modified || 0"></span></td>
+                                    <td class="text-end"><span class="text-danger" x-text="field[1].removed || 0"></span></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    <div x-show="!stats.by_field || Object.keys(stats.by_field).length === 0" class="text-muted text-center py-2">
+                        No field changes recorded.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top entries -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-book"></i> Most Edited Entries</h6></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Entry ID</th><th class="text-end">Revisions</th></tr></thead>
+                        <tbody>
+                            <template x-for="ent in stats.top_edited_entries || []" :key="ent.entry_id">
+                                <tr>
+                                    <td><a :href="'/entries/' + encodeURIComponent(ent.entry_id) + '/edit'"
+                                           class="text-decoration-none" x-text="ent.entry_id"></a></td>
+                                    <td class="text-end"><span class="badge bg-primary" x-text="ent.revisions"></span></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    <div x-show="!stats.top_edited_entries || stats.top_edited_entries.length === 0" class="text-muted text-center py-2">
+                        No entries edited yet.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', function () {
+    Alpine.data('changeAnalytics', function () {
+        return {
+            fromDate: new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
+            toDate: new Date().toISOString().slice(0, 10),
+            granularity: 'day',
+            stats: {},
+            loading: false,
+
+            init: function () {
+                this.loadStats();
+            },
+
+            loadStats: function () {
+                if (this.loading) return;
+                this.loading = true;
+                var self = this;
+                var url = '/api/revisions/stats?from=' + encodeURIComponent(this.fromDate)
+                        + '&to=' + encodeURIComponent(this.toDate)
+                        + '&granularity=' + encodeURIComponent(this.granularity);
+                fetch(url)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        self.stats = data;
+                        self.loading = false;
+                    })
+                    .catch(function () { self.loading = false; });
+            },
+
+            setPreset: function (period) {
+                var d = new Date();
+                if (period === '7d') d.setDate(d.getDate() - 7);
+                else if (period === '30d') d.setDate(d.getDate() - 30);
+                else if (period === '90d') d.setDate(d.getDate() - 90);
+                this.fromDate = d.toISOString().slice(0, 10);
+                this.toDate = new Date().toISOString().slice(0, 10);
+                this.loadStats();
+            },
+
+            get maxCount() {
+                if (!this.stats.timeline || this.stats.timeline.length === 0) return 1;
+                return Math.max(1, Math.max.apply(null, this.stats.timeline.map(function (p) { return p.count; })));
+            },
+
+            // Object.entries wrapper for Alpine 3 template
+            fieldEntries: function () {
+                var byField = this.stats.by_field || {};
+                return Object.keys(byField)
+                    .map(function (k) {
+                        var v = byField[k];
+                        var total = (v.added || 0) + (v.modified || 0) + (v.removed || 0);
+                        return { key: k, value: v, total: total };
+                    })
+                    .sort(function (a, b) { return b.total - a.total; });
+            }
+        };
+    });
+});
+</script>
+{% endblock %}

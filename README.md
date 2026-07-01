@@ -14,6 +14,7 @@ A professional tool for creating and managing comprehensive dictionaries using t
 - **Lexical Relations**: Create semantic networks connecting related entries (synonyms, antonyms, hypernyms, etc.)
 - **Reversals**: Essential for bilingual dictionaries — create L2→L1 lookup capability
 - **Annotations & Messages**: Editorial workflow and quality control with per-entry discussion threads
+- **Edit History & Change Tracking**: Every entry save automatically records a revision with a full JSON snapshot of the entry state. Field-level diffs are computed against the previous revision, showing exactly what changed (added, removed, or modified fields). Per-entry revision timelines are displayed directly on the edit page. The **Change Analytics** dashboard at `/workbench/analytics` aggregates edit activity across the dictionary with date-range filtering, by-field breakdowns, top editors, and a revision timeline chart — giving editors visibility into *what changed, when, and by whom*.
 
 ### Editing & Curation
 - **Entry Form**: Rich multilingual editing with POS inheritance, variant relations, component relations, and subentries

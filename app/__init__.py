@@ -304,6 +304,14 @@ def create_app(config_name=None):
 
     app.register_blueprint(ai_bp)
 
+    # Register revision history API
+    from app.api.revisions_api import revisions_bp, stats_bp
+    app.register_blueprint(revisions_bp)
+    app.register_blueprint(stats_bp)
+    # Revisions endpoint is CSRF-exempt so the save hook works during page navigation
+    csrf.exempt(revisions_bp)
+    csrf.exempt(stats_bp)
+
     # Register word sketch browser page
     from app.routes.word_sketch_routes import word_sketch_browser_bp
     app.register_blueprint(word_sketch_browser_bp)
