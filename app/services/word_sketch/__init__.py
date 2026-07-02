@@ -45,7 +45,7 @@ class WordSketchClient:
     - GET /health - Health check
     - GET /api/relations - List grammatical relations
     - GET /api/sketch/{lemma} - Get word sketch
-    - POST /api/sketch/query - Custom CQL pattern query
+    - POST /api/bcql - Custom BCQL pattern query
     """
 
     # Default base URL - can be overridden via config
@@ -157,7 +157,12 @@ class WordSketchClient:
                 logger.warning(f"Cache clear failed: {e}")
         return 0
 
-    def _transform_response(self, data: Dict[str, Any]) -> WordSketchResult:
+    def _transform_response(
+        self,
+        data: Dict[str, Any],
+        min_logdice: float = 0,
+        limit: int = 10
+    ) -> WordSketchResult:
         """Transform API response to WordSketchResult."""
         collocations = []
         pos_group = ""  # Default value
@@ -168,7 +173,17 @@ class WordSketchClient:
                 pattern_name = pattern_data.get("name", relation_id)
                 pos_group = pattern_data.get("pos_group", "")
 
-                for coll in pattern_data.get("collocations", []):
+                collocations_data = pattern_data.get("collocations", [])
+                filtered_collocations = [
+                    coll for coll in sorted(
+                        collocations_data,
+                        key=lambda item: item.get("logDice", 0.0),
+                        reverse=True,
+                    )
+                    if coll.get("logDice", 0.0) >= min_logdice
+                ][:limit]
+
+                for coll in filtered_collocations:
                     collocations.append(CollocationResult(
                         collocate=coll.get("lemma", ""),
                         lemma=coll.get("lemma", ""),
@@ -248,7 +263,7 @@ class WordSketchClient:
             data = response.json()
 
             # Transform to our model
-            result = self._transform_response(data)
+            result = self._transform_response(data, min_logdice=min_logdice, limit=limit)
 
             # Cache the result
             self._set_cache(cache_key, {
@@ -325,7 +340,8 @@ class WordSketchClient:
         Returns:
             WordSketchResult with collocations matching the pattern
         """
-        # This endpoint returns a flat list of collocations
+        # This endpoint returns concordance-like BCQL hits; aggregate them into
+        # collocate buckets so the browser can render the same result shape.
         cache_key = f"ws:query:{lemma}:{pattern}:{min_logdice}"
         cached = self._get_from_cache(cache_key)
         if cached:
@@ -336,30 +352,39 @@ class WordSketchClient:
 
         try:
             response = self._session.post(
-                f"{self.base_url}/api/sketch/query",
-                json={
-                    "lemma": lemma,
-                    "pattern": pattern,
-                    "min_logdice": min_logdice,
-                    "limit": limit
-                },
+                f"{self.base_url}/api/bcql",
+                json={"query": pattern, "top": limit, "offset": 0},
                 timeout=30
             )
             response.raise_for_status()
             data = response.json()
 
-            # Transform flat collocations to WordSketchResult
-            collocations = []
-            for coll in data.get("collocations", []):
-                collocations.append(CollocationResult(
-                    collocate=coll.get("lemma", ""),
-                    lemma=coll.get("lemma", ""),
+            bucketed: Dict[str, Dict[str, Any]] = {}
+            for item in data.get("results", []):
+                collocate = item.get("collocateLemma", "")
+                if not collocate:
+                    continue
+                bucket = bucketed.setdefault(collocate, {
+                    "frequency": 0,
+                    "examples": [],
+                })
+                bucket["frequency"] += 1
+                sentence = item.get("sentence", "")
+                if sentence and len(bucket["examples"]) < 3:
+                    bucket["examples"].append(sentence)
+
+            collocations = [
+                CollocationResult(
+                    collocate=collocate,
+                    lemma=collocate,
                     relation="custom",
                     relation_name=pattern,
-                    logdice=coll.get("logDice", 0.0),
-                    frequency=coll.get("frequency", 0),
-                    examples=coll.get("examples", [])
-                ))
+                    logdice=0.0,
+                    frequency=bucket["frequency"],
+                    examples=bucket["examples"],
+                )
+                for collocate, bucket in bucketed.items()
+            ]
 
             result = WordSketchResult(
                 lemma=data.get("lemma", lemma),

@@ -93,7 +93,7 @@ class WordSketchBrowser {
 
     async checkServiceStatus() {
         try {
-            const response = await fetch(`${this.apiBase}/health`);
+            const response = await fetch(`${this.apiBase}/status`);
             if (response.ok) {
                 this.updateServiceStatus('available', 'Service Available');
             } else {
@@ -190,12 +190,16 @@ class WordSketchBrowser {
         this.showLoading();
 
         try {
+            const minLogdice = parseFloat(this.minLogdiceSlider.value);
+            const limit = parseInt(this.limitSelect.value, 10);
             const response = await fetch(`${this.apiBase}/query`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     lemma: lemma,
-                    pattern: pattern
+                    pattern: pattern,
+                    min_logdice: minLogdice,
+                    limit: limit
                 })
             });
 
@@ -222,13 +226,14 @@ class WordSketchBrowser {
         this.resultPos.textContent = pos ? `(${pos})` : '';
 
         // Update stats
-        const totalRelations = Object.keys(data.relations || {}).length;
-        const totalCollocations = Object.values(data.relations || {})
+        const relations = Array.isArray(data.relations) ? data.relations : Object.values(data.relations || {});
+        const totalRelations = relations.length;
+        const totalCollocations = relations
             .reduce((sum, rel) => sum + (rel.collocations?.length || 0), 0);
         this.resultStats.textContent = `${totalRelations} relations, ${totalCollocations} collocations found`;
 
         // Render tabs
-        this.renderRelationTabs(data.relations);
+        this.renderRelationTabs(relations);
 
         // Show results
         this.resultsContainer.style.display = 'block';
@@ -279,24 +284,26 @@ class WordSketchBrowser {
     }
 
     renderRelationTabs(relations) {
-        if (!relations || Object.keys(relations).length === 0) {
+        const relationList = Array.isArray(relations)
+            ? relations
+            : Object.entries(relations || {}).map(([key, value]) => ({ id: key, ...value }));
+
+        if (!relationList || relationList.length === 0) {
             this.relationsTabs.innerHTML = '<li class="nav-item"><span class="nav-link">No relations found</span></li>';
             this.relationsContent.innerHTML = '';
             return;
         }
 
-        const relationNames = Object.keys(relations);
         let tabsHtml = '';
         let contentHtml = '';
 
-        relationNames.forEach((relationKey, index) => {
-            const relation = relations[relationKey];
+        relationList.forEach((relation, index) => {
+            const relationKey = relation.id || relation.relation || `relation-${index}`;
             const collocations = relation.collocations || [];
             const isActive = index === 0 ? 'active' : '';
             const show = index === 0 ? 'show active' : '';
 
-            // Format relation name for display
-            const displayName = this.formatRelationName(relationKey);
+            const displayName = relation.name || this.formatRelationName(relationKey);
 
             tabsHtml += `
                 <li class="nav-item" role="presentation">
@@ -336,13 +343,14 @@ class WordSketchBrowser {
             const logdice = c.logdice || c.score || 0;
             const logdicePercent = (logdice / 14) * 100;
             const examples = c.examples || [];
+            const lemma = c.lemma || c.word || c.value || '';
 
             return `
                 <div class="collocation-item" data-idx="${idx}">
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="collocation-main">
                             <div class="d-flex align-items-center gap-2 mb-1">
-                                <strong class="collocation-word">${this.escapeHtml(c.word || c.value)}</strong>
+                                <strong class="collocation-word">${this.escapeHtml(lemma)}</strong>
                                 <span class="badge bg-light text-dark">${c.pos || ''}</span>
                                 <span class="logdice-badge badge ${this.getLogdiceBadgeClass(logdice)}">
                                     logDice: ${logdice.toFixed(2)}
@@ -352,7 +360,7 @@ class WordSketchBrowser {
                         </div>
                         <div class="collocation-actions">
                             <button class="btn btn-sm btn-outline-primary view-examples-btn"
-                                    data-word="${this.escapeHtml(c.word || c.value)}"
+                                    data-word="${this.escapeHtml(lemma)}"
                                     data-relation="${relationKey || this.escapeHtml(c.relation || '')}"
                                     title="View examples">
                                 <i class="bi bi-quote"></i>
@@ -721,7 +729,7 @@ class WordSketchBrowser {
 
             for (const collocation of (relation.collocations || [])) {
                 const logdice = collocation.logdice || collocation.score || 0;
-                text += `  ${collocation.word || collocation.value} (logDice: ${logdice.toFixed(2)})\n`;
+                text += `  ${collocation.lemma || collocation.word || collocation.value || ''} (logDice: ${logdice.toFixed(2)})\n`;
             }
             text += '\n';
         }

@@ -204,3 +204,44 @@ class TestWorksetEntryAdditionPersistence:
         query_dict = query.to_dict()
         assert 'filters' in query_dict
         assert len(query_dict['filters']) == 0
+
+
+class TestWorksetMissingEntryTolerance:
+    """Workset service should tolerate stale references to missing entries."""
+
+    def test_get_workset_skips_missing_entries(self):
+        service = WorksetService()
+        import app.services.workset_service as workset_service_module
+
+        mock_dictionary_service = Mock()
+        present_entry = Mock()
+        present_entry.to_dict.return_value = {'id': 'entry-1', 'lexical_unit': {'en': 'house'}}
+
+        mock_dictionary_service.get_entry.side_effect = [present_entry, None]
+
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.fetchone.side_effect = [
+            (1, 'test-workset', {'filters': []}, 2, datetime.now(), datetime.now(), {}),
+        ]
+        mock_cursor.fetchall.return_value = [('entry-1',), ('missing-entry',)]
+
+        cursor_context = MagicMock()
+        cursor_context.__enter__.return_value = mock_cursor
+        cursor_context.__exit__.return_value = False
+        mock_conn.cursor.return_value = cursor_context
+
+        mock_pool = Mock()
+        mock_pool.getconn.return_value = mock_conn
+        mock_pool.putconn.return_value = None
+
+        mock_current_app = Mock()
+        mock_current_app.pg_pool = mock_pool
+
+        with patch.object(workset_service_module, 'current_app', mock_current_app):
+            with patch('app.services.workset_service.get_dictionary_service', return_value=mock_dictionary_service):
+                workset = service.get_workset(1)
+
+        assert workset is not None
+        assert len(workset.entries) == 1
+        assert workset.entries[0]['id'] == 'entry-1'

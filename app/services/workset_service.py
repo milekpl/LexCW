@@ -144,7 +144,22 @@ class WorksetService:
                     entry_ids = [row[0] for row in cur.fetchall()]
 
                     dictionary_service = get_dictionary_service()
-                    entries = [dictionary_service.get_entry(entry_id).to_dict() for entry_id in entry_ids]
+                    entries = []
+                    missing_entry_ids = []
+                    for entry_id in entry_ids:
+                        entry = dictionary_service.get_entry(entry_id)
+                        if entry is None:
+                            missing_entry_ids.append(entry_id)
+                            continue
+                        entries.append(entry.to_dict())
+
+                    if missing_entry_ids:
+                        logger.warning(
+                            "Workset %s references missing entry IDs: %s",
+                            workset_id,
+                            ", ".join(str(entry_id) for entry_id in missing_entry_ids),
+                        )
+
                     workset.entries = entries
 
                     return workset

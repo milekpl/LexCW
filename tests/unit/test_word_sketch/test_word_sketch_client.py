@@ -287,6 +287,41 @@ class TestWordSketchClient:
         result = client.word_sketch('test', min_logdice=8.0)
 
         assert result is not None
+        assert all(coll.logdice >= 8.0 for coll in result.collocations)
+
+    def test_word_sketch_applies_limit_per_relation(self):
+        """Test word_sketch limits results per relation when the upstream service ignores limit."""
+        import requests
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'lemma': 'house',
+            'patterns': {
+                'noun_modifiers': {
+                    'name': 'Adjectives modifying',
+                    'pos_group': 'noun',
+                    'collocations': [
+                        {'lemma': 'large', 'logDice': 11.0, 'frequency': 30, 'examples': []},
+                        {'lemma': 'big', 'logDice': 10.5, 'frequency': 20, 'examples': []},
+                        {'lemma': 'small', 'logDice': 9.0, 'frequency': 10, 'examples': []},
+                    ]
+                }
+            }
+        }
+
+        mock_session = Mock(spec=requests.Session)
+        mock_session.get.return_value = mock_response
+        mock_session.timeout = 30
+
+        client = WordSketchClient(session=mock_session)
+        client._available = True
+
+        result = client.word_sketch('house', limit=2)
+
+        assert result is not None
+        assert len(result.collocations) == 2
+        assert [coll.collocate for coll in result.collocations] == ['large', 'big']
 
     def test_custom_query(self):
         """Test custom CQL pattern query."""
@@ -295,13 +330,20 @@ class TestWordSketchClient:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'lemma': 'house',
-            'collocations': [
+            'status': 'ok',
+            'query': '[tag=jj.*]~{0,3}',
+            'results': [
                 {
-                    'lemma': 'beautiful',
-                    'logDice': 9.5,
-                    'frequency': 100,
-                    'examples': ['beautiful house']
+                    'sentence': 'beautiful house',
+                    'collocateLemma': 'beautiful',
+                    'frequency': 0,
+                    'logDice': 0.0
+                },
+                {
+                    'sentence': 'beautiful house',
+                    'collocateLemma': 'beautiful',
+                    'frequency': 0,
+                    'logDice': 0.0
                 }
             ]
         }
@@ -319,6 +361,29 @@ class TestWordSketchClient:
         assert result.lemma == 'house'
         assert len(result.collocations) == 1
         assert result.collocations[0].collocate == 'beautiful'
+        assert result.collocations[0].frequency == 2
+
+    def test_custom_query_hits_bcql_endpoint(self):
+        """Test custom query posts to the ConceptSketch BCQL endpoint."""
+        import requests
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'status': 'ok', 'results': []}
+
+        mock_session = Mock(spec=requests.Session)
+        mock_session.post.return_value = mock_response
+        mock_session.timeout = 30
+
+        client = WordSketchClient(session=mock_session)
+        client._available = True
+
+        client.custom_query('house', '[tag=jj.*]~{0,3}', limit=7)
+
+        mock_session.post.assert_called_once()
+        called_url = mock_session.post.call_args.args[0]
+        assert called_url.endswith('/api/bcql')
+        assert mock_session.post.call_args.kwargs['json'] == {'query': '[tag=jj.*]~{0,3}', 'top': 7, 'offset': 0}
 
     def test_clear_cache(self):
         """Test cache clearing."""

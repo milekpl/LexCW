@@ -381,7 +381,7 @@ class EnrichmentService:
                 proposal = EnrichmentProposal(
                     proposal_type='example',
                     value=example,
-                    confidence=0.7,  # Good confidence for corpus examples
+                    confidence=0.25,  # Keep examples below collocations so corpus evidence leads
                     examples=[example],
                     metadata={
                         'source': 'parallel_corpus',
