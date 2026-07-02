@@ -197,6 +197,54 @@ def get_quality_metrics():
         }), 500
 
 
+@dashboard_bp.route('/composition', methods=['GET'])
+def get_composition_stats():
+    """
+    Get data-composition statistics: POS distribution, field coverage,
+    senses-per-entry histogram, examples-per-sense.
+    ---
+    tags:
+      - Dashboard
+    responses:
+      200:
+        description: Composition statistics
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            data:
+              type: object
+              properties:
+                total_entries:
+                  type: integer
+                pos_distribution:
+                  type: object
+                field_coverage:
+                  type: object
+                senses_per_entry:
+                  type: array
+                examples_per_sense:
+                  type: array
+      500:
+        description: Internal server error
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        stats = dict_service.get_composition_stats()
+        return jsonify({
+            'success': True,
+            'data': stats,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error getting composition stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @dashboard_bp.route('/clear-cache', methods=['POST'])
 @swag_from({
     'tags': ['Dashboard'],

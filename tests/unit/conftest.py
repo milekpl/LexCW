@@ -89,6 +89,34 @@ def mock_dict_service(mock_basex_connector: Mock) -> Mock:
             'Verb': {'label': 'Verb', 'abbrev': 'v'}
         }
     }
+    service.get_composition_stats.return_value = {
+        'total_entries': 153421,
+        'pos_distribution': {'Noun': 57560, 'Verb': 8995, 'Adjective': 17907},
+        'field_coverage': {
+            'headword': {'count': 153421, 'pct': 100.0},
+            'citation_form': {'count': 0, 'pct': 0.0},
+            'sense': {'count': 146477, 'pct': 95.5},
+            'definition': {'count': 141145, 'pct': 92.0},
+            'gloss': {'count': 10463, 'pct': 6.8},
+            'example': {'count': 3463, 'pct': 2.3},
+            'pronunciation': {'count': 90689, 'pct': 59.1},
+            'note': {'count': 6875, 'pct': 4.5},
+        },
+        'senses_per_entry': [
+            {'bucket': '0', 'count': 6944},
+            {'bucket': '1', 'count': 116208},
+            {'bucket': '2', 'count': 17157},
+            {'bucket': '3', 'count': 6287},
+            {'bucket': '4', 'count': 2925},
+            {'bucket': '5+', 'count': 3900},
+        ],
+        'examples_per_sense': [
+            {'bucket': '0', 'count': 204595},
+            {'bucket': '1', 'count': 3327},
+            {'bucket': '2', 'count': 329},
+            {'bucket': '3+', 'count': 193},
+        ],
+    }
     
     return service
 
@@ -145,6 +173,8 @@ def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     def _injector_get(cls):
         if cls == CSSMappingService:
             return CSSMappingService()
+        if cls == DictionaryService:
+            return mock_dict_service
         return Mock()
 
     mock_injector.get.side_effect = _injector_get

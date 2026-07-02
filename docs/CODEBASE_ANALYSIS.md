@@ -34,6 +34,8 @@
 - ✅ IPA dictionary upload verification (integration-tested upload + set IPA flow)
 - ✅ Dictionary upload validator Unicode fix for IPA symbols (removed ASCII-only gate)
 - ✅ Dictionary storage upload-path bugfix (`'str' object has no attribute 'mkdir'`)
+- ✅ **Advanced search overhaul**: faceted search (sidebar, filter, remove), search-within-results, result export (CSV/JSON), save/load search queries, regex search, 14 E2E + 12 unit tests
+- ✅ **Data composition dashboard**: POS distribution, field coverage, senses/entry histogram, examples/sense histogram — added to data quality dashboard, 7 unit tests
 
 ---
 
@@ -42,7 +44,7 @@
 ### Unit Tests — ✅ ALL PASSING
 
 ```
-1364 passed, 9 skipped (~2m25s)
+1383 passed, 9 skipped (~2m25s)
 ```
 
 All unit tests pass, including 36 new AI service tests (`test_ai_service.py`) and 19 new AI API endpoint tests (`test_ai_api.py`). The 9 skips are for optional features (Redis-dependent caching, specific DBs).
@@ -60,8 +62,8 @@ The relation-based variant type tests are passing; the old tracking document has
 
 ### E2E Tests (Playwright) — ✅ PASSING (with BaseX + PG via localhost)
 
-| Test File | Result |
-|-----------|--------|
+| E2E Test File | Result |
+|---------------|--------|
 | `test_workset_management_e2e.py` | 8 passed, 7 skipped |
 | `test_backup_e2e_playwright.py` | All passed |
 | `test_dictionary_management_playwright.py` | All passed |
@@ -71,8 +73,9 @@ The relation-based variant type tests are passing; the old tracking document has
 | `test_settings_page_playwright.py` | All passed |
 | `test_pos_ui.py` | All passed |
 | `test_delete_entry.py` | All passed |
+| `test_advanced_search_e2e.py` | 14 passed — faceted search, search-within-results, result export, save/load |
 
-**Aggregate (from sampled batches):** 71 passed, 8 skipped, 0 failed.  
+**Aggregate (from sampled batches):** 85 passed, 8 skipped, 0 failed.  
 Skips are for features requiring populated test data.
 
 ---
@@ -143,7 +146,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | **entry_list** | 3/3 done | ✅ All complete (column sorting, cache invalidation, configurable columns) |
 | **dynamic_range_management** | 9/13 done | Project language settings union, E2E UI tests |
 | **css_mapping_system** | 2/8 done | Style templates added; admin interface + full dictionary-style/in-place entry display still needed |
-| **advanced_search** | 0/6 done | Faceted search, semantic similarity, result export, duplicate detection, analysis dashboard |
+| **advanced_search** | 4/7 done | ✅ Faceted search, ✅ result export, ✅ regex search, ✅ search-within-results, ✅ save/load, ✅ composition stats dashboard. Remaining: semantic similarity, duplicate detection, anomaly detection |
 | **ai_integration** | 4/10 done | ✅ LLM framework, content generation, proofread/draft workbench. Remaining: ML models (POS tagging, IPA generation), quality control automation, advanced linguistic analysis |
 | **bulk_processing** | 1/4 done | Architecture, atomic transactions, rollback/recovery |
 | **advanced_entry_management** | 3/4 done | Validation pipelines implemented; bulk CRUD enhancements still needed |

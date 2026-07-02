@@ -22,6 +22,11 @@
     .sample-list { font-size: 0.85rem; }
     .sample-list a { text-decoration: none; }
     .sample-list a:hover { text-decoration: underline; }
+    .progress-field { height: 1.2rem; font-size: 0.75rem; }
+    .histogram-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+    .histogram-bar .bar { height: 1.2rem; background: #0d6efd; border-radius: 0.25rem; min-width: 2px; }
+    .histogram-bar .label { min-width: 2.5rem; font-size: 0.85rem; }
+    .histogram-bar .count { font-size: 0.85rem; color: #6c757d; }
 </style>
 {% endblock %}
 
@@ -138,6 +143,38 @@
                             </div>
                         </div>
                         {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ---- Data Composition (loaded via API) ---- #}
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card quality-card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-pie-chart me-1"></i>Data Composition</h6>
+                    <span id="composition-loading" class="small text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</span>
+                </div>
+                <div class="card-body" id="composition-content">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="fw-semibold mb-2">Part of Speech</h6>
+                            <div id="pos-chart" class="small"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-semibold mb-2">Field Coverage</h6>
+                            <div id="field-coverage" class="small"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-semibold mb-2">Senses per Entry</h6>
+                            <div id="senses-histogram" class="small"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-semibold mb-2">Examples per Sense</h6>
+                            <div id="examples-histogram" class="small"></div>
+                        </div>
                     </div>
                 </div>
             </div>

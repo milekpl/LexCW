@@ -2423,6 +2423,161 @@ class DictionaryService:
             self.logger.error("Error computing quality metrics: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to compute quality metrics: {e}") from e
 
+    def get_composition_stats(self, project_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Compute data-composition statistics: POS distribution, field coverage,
+        senses-per-entry histogram, examples-per-sense, semantic domain coverage.
+
+        Args:
+            project_id: Optional project ID to determine database.
+
+        Returns:
+            Dict with composition stats.
+        """
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
+
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            citation_path = self._query_builder.get_element_path("citation", has_ns)
+            pronunciation_path = self._query_builder.get_element_path("pronunciation", has_ns)
+            definition_path = self._query_builder.get_element_path("definition", has_ns)
+            gloss_path = self._query_builder.get_element_path("gloss", has_ns)
+            example_path = self._query_builder.get_element_path("example", has_ns)
+            note_path = self._query_builder.get_element_path("note", has_ns)
+            grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+
+            C = f"collection('{db_name}')"
+
+            def pct(part, total):
+                return round((part / total) * 100, 1) if total > 0 else 0.0
+
+            # --- POS distribution ---
+            pos_query = (
+                f"{prologue} let $entries := {C}//{entry_path} "
+                f"let $pos-vals := "
+                f"  for $e in $entries "
+                f"  let $gi := ($e/{grammatical_info_path}/@value | "
+                f"              $e//{sense_path}/{grammatical_info_path}/@value)[1] "
+                f"  return string(($gi, 'UNSPECIFIED')[1]) "
+                f"let $distinct := distinct-values($pos-vals) "
+                f"return string-join("
+                f"  for $v in $distinct "
+                f"  let $c := count($pos-vals[. = $v]) "
+                f"  order by $c descending "
+                f"  return concat($v, '=', $c), '|')"
+            )
+            pos_raw = self.db_connector.execute_query(pos_query)
+            pos_distribution = {}
+            if pos_raw:
+                for pair in pos_raw.strip().split('|'):
+                    pair = pair.strip()
+                    if '=' in pair:
+                        val, count = pair.split('=', 1)
+                        pos_distribution[val] = int(count)
+
+            # --- Field coverage ---
+            field_query = (
+                f"{prologue} let $entries := {C}//{entry_path} "
+                f"let $total := count($entries) "
+                f"return string-join(("
+                f"  $total, "
+                f"  count($entries[{lexical_unit_path}/{form_path}/{text_path}]), "
+                f"  count($entries[{citation_path}/{form_path}/{text_path}]), "
+                f"  count($entries[.//{sense_path}]), "
+                f"  count($entries[.//{definition_path}]), "
+                f"  count($entries[.//{gloss_path}]), "
+                f"  count($entries[.//{example_path}]), "
+                f"  count($entries[.//{pronunciation_path}]), "
+                f"  count($entries[.//{note_path}])"
+                f"), '|')"
+            )
+            field_raw = self.db_connector.execute_query(field_query)
+            field_parts = field_raw.strip().split('|') if field_raw else ['0'] * 9
+            total = int(field_parts[0]) if len(field_parts) > 0 else 0
+            field_coverage = {}
+            field_names = ['headword', 'citation_form', 'sense', 'definition', 'gloss', 'example', 'pronunciation', 'note']
+            for i, name in enumerate(field_names):
+                count = int(field_parts[i + 1]) if len(field_parts) > i + 1 else 0
+                field_coverage[name] = {
+                    'count': count,
+                    'pct': pct(count, total),
+                }
+
+            # --- Senses-per-entry histogram ---
+            sense_hist_query = (
+                f"{prologue} let $entries := {C}//{entry_path} "
+                f"return string-join("
+                f"  (count($entries[count(.//{sense_path}) = 0]), "
+                f"   count($entries[count(.//{sense_path}) = 1]), "
+                f"   count($entries[count(.//{sense_path}) = 2]), "
+                f"   count($entries[count(.//{sense_path}) = 3]), "
+                f"   count($entries[count(.//{sense_path}) = 4]), "
+                f"   count($entries[count(.//{sense_path}) >= 5])"
+                f"), '|')"
+            )
+            sense_hist_raw = self.db_connector.execute_query(sense_hist_query)
+            sense_hist_parts = sense_hist_raw.strip().split('|') if sense_hist_raw else ['0'] * 6
+            senses_per_entry = [
+                {'bucket': '0', 'count': int(sense_hist_parts[0])},
+                {'bucket': '1', 'count': int(sense_hist_parts[1])},
+                {'bucket': '2', 'count': int(sense_hist_parts[2])},
+                {'bucket': '3', 'count': int(sense_hist_parts[3])},
+                {'bucket': '4', 'count': int(sense_hist_parts[4])},
+                {'bucket': '5+', 'count': int(sense_hist_parts[5])},
+            ]
+
+            # --- Examples-per-sense histogram ---
+            ex_hist_query = (
+                f"{prologue} let $senses := {C}//{sense_path} "
+                f"return string-join("
+                f"  (count($senses[count(.//{example_path}) = 0]), "
+                f"   count($senses[count(.//{example_path}) = 1]), "
+                f"   count($senses[count(.//{example_path}) = 2]), "
+                f"   count($senses[count(.//{example_path}) >= 3])"
+                f"), '|')"
+            )
+            ex_hist_raw = self.db_connector.execute_query(ex_hist_query)
+            ex_hist_parts = ex_hist_raw.strip().split('|') if ex_hist_raw else ['0'] * 4
+            examples_per_sense = [
+                {'bucket': '0', 'count': int(ex_hist_parts[0])},
+                {'bucket': '1', 'count': int(ex_hist_parts[1])},
+                {'bucket': '2', 'count': int(ex_hist_parts[2])},
+                {'bucket': '3+', 'count': int(ex_hist_parts[3])},
+            ]
+
+            return {
+                "total_entries": total,
+                "pos_distribution": pos_distribution,
+                "field_coverage": field_coverage,
+                "senses_per_entry": senses_per_entry,
+                "examples_per_sense": examples_per_sense,
+            }
+
+        except Exception as e:
+            self.logger.error("Error computing composition stats: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to compute composition stats: {e}") from e
+
     def import_lift(self, lift_path: str, mode: str = "merge", ranges_path: Optional[str] = None, project_id: Optional[int] = None) -> int:
         """
         Import entries from a LIFT file into the database.
