@@ -43,6 +43,8 @@ class DictionaryService:
     as well as more complex operations like searching and batch processing.
     """
 
+    _MINIMAL_RANGES_RELATIVE_PATH = '../../config/minimal.lift-ranges'
+
     def __init__(self,
                  db_connector: Union[BaseXConnector, MockDatabaseConnector],
                  history_service: Optional['OperationHistoryService'] = None):
@@ -3265,20 +3267,14 @@ class DictionaryService:
                     "LIFT ranges not found in database. Using empty ranges."
                 )
 
-            # Fallback: if DB didn't contain lift-ranges, try loading the bundled minimal file
+            # Fallback: if DB didn't contain lift-ranges, load bundled minimal template
+            # and attempt to seed it into the database so empty dictionaries become usable.
             if not parsed_ranges:
-                try:
-                    minimal_ranges_path = os.path.join(os.path.dirname(__file__), '../../config/minimal.lift-ranges')
-                    minimal_ranges_path = os.path.abspath(minimal_ranges_path)
-                    if os.path.exists(minimal_ranges_path):
-                        with open(minimal_ranges_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                        parsed = self.ranges_parser.parse_string(content)
-                        if parsed:
-                            parsed_ranges.update(parsed)
-                            self.logger.info("Loaded minimal ranges from local file as fallback")
-                except Exception as e:
-                    self.logger.debug(f"Failed to load minimal.lift-ranges fallback: {e}")
+                fallback_ranges = self._load_minimal_ranges_template()
+                if fallback_ranges:
+                    parsed_ranges.update(fallback_ranges)
+                    self.logger.info("Loaded minimal ranges from local file as fallback")
+                    self._seed_minimal_ranges_template_into_db()
 
             # Load and merge custom ranges
             ranges_service = RangesService(self.db_connector)
@@ -3398,6 +3394,43 @@ class DictionaryService:
             self.ranges = {}
             return self.ranges
 
+    def _load_minimal_ranges_template(self) -> Dict[str, Any]:
+        """Load fallback ranges from config/minimal.lift-ranges."""
+        try:
+            minimal_ranges_path = os.path.join(
+                os.path.dirname(__file__), self._MINIMAL_RANGES_RELATIVE_PATH
+            )
+            minimal_ranges_path = os.path.abspath(minimal_ranges_path)
+            if not os.path.exists(minimal_ranges_path):
+                return {}
+
+            with open(minimal_ranges_path, 'r', encoding='utf-8') as file_handle:
+                content = file_handle.read()
+
+            parsed = self.ranges_parser.parse_string(content)
+            return parsed if parsed else {}
+        except Exception as e:
+            self.logger.debug(f"Failed to load minimal.lift-ranges fallback: {e}")
+            return {}
+
+    def _seed_minimal_ranges_template_into_db(self) -> None:
+        """Best-effort seed of minimal ranges template into BaseX for empty dictionaries."""
+        try:
+            minimal_ranges_path = os.path.join(
+                os.path.dirname(__file__), self._MINIMAL_RANGES_RELATIVE_PATH
+            )
+            minimal_ranges_path = os.path.abspath(minimal_ranges_path).replace('\\', '/')
+            if not os.path.exists(minimal_ranges_path):
+                return
+
+            self.db_connector.execute_command(
+                f'ADD TO ranges.lift-ranges "{minimal_ranges_path}"'
+            )
+            self.logger.info("Seeded minimal ranges template into database")
+        except Exception as e:
+            # Seeding is best-effort: API should still work with in-memory fallback.
+            self.logger.debug(f"Could not seed minimal ranges template into database: {e}")
+
     def scan_and_create_custom_ranges(self, project_id: int = 1) -> None:
         """Scan LIFT data in the BaseX database for undefined relations/traits and create custom ranges.
 
@@ -3470,7 +3503,9 @@ class DictionaryService:
             # return them (idempotent call). If some required ranges are missing or empty,
             # proceed to seed the minimal ranges file.
             # Load minimal.lift-ranges path early so we can inspect which ranges are required.
-            minimal_ranges_path = os.path.join(os.path.dirname(__file__), '../../config/minimal.lift-ranges')
+            minimal_ranges_path = os.path.join(
+                os.path.dirname(__file__), self._MINIMAL_RANGES_RELATIVE_PATH
+            )
             minimal_ranges_path = os.path.abspath(minimal_ranges_path)
             required_range_ids: list[str] = []
             if os.path.exists(minimal_ranges_path):

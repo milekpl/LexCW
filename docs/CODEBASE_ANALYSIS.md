@@ -141,7 +141,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 |------|------|---------------|
 | **enhanced_entry_editing_ui** | 10/10 done ✅ | ✅ All complete, including etymology IPA real-time validation with explicit language selector |
 | **entry_list** | 3/3 done | ✅ All complete (column sorting, cache invalidation, configurable columns) |
-| **dynamic_range_management** | 8/13 done | Fallback ranges, project language settings union, E2E UI tests |
+| **dynamic_range_management** | 9/13 done | Project language settings union, E2E UI tests |
 | **css_mapping_system** | 2/8 done | Style templates added; admin interface + full dictionary-style/in-place entry display still needed |
 | **advanced_search** | 0/6 done | Faceted search, semantic similarity, result export, duplicate detection, analysis dashboard |
 | **ai_integration** | 4/10 done | ✅ LLM framework, content generation, proofread/draft workbench. Remaining: ML models (POS tagging, IPA generation), quality control automation, advanced linguistic analysis |
@@ -176,13 +176,13 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | `app/services/dictionary_storage_service.py:133` | Dictionary upload crash: `'str' object has no attribute 'mkdir'` | ✅ **FIXED** — project storage path converted to `Path(...)` before `mkdir` |
 | `tests/integration/test_ipa_dictionary_upload.py` | No integration proof for IPA upload + set-as-IPA flow | ✅ **FIXED** — added integration test using bundled resource files |
 | `tests/unit/test_dictionary_storage.py:167` | Cleanup test was permanently skipped | ✅ **FIXED** — replaced skip with executable DB-backed test |
+| `app/services/dictionary_service.py:3188+` | Dynamic range fallback for empty dictionaries | ✅ **FIXED** — `get_ranges()` now loads `config/minimal.lift-ranges` when DB ranges are missing/parsing fails and attempts best-effort `ADD TO ranges.lift-ranges`; covered by unit + integration tests |
 
 ### 4.4 Remaining Issues (not yet addressed)
 
 | Priority | What | Where | Notes |
 |----------|------|-------|-------|
-| 1 | Dynamic range fallback | `specs/dynamic_range_management` | Default ranges for empty dictionaries still need to be finished |
-| 2 | IPA dictionary selection source-of-truth | `app/services/validation_engine.py` | Upload + set-as-IPA flow is verified; remaining hardening is to ensure runtime IPA character validation always honors selected `spell_check.ipa_dictionary_id` before fallbacks |
+| 1 | IPA dictionary selection source-of-truth | `app/services/validation_engine.py` | Upload + set-as-IPA flow is verified; remaining hardening is to ensure runtime IPA character validation always honors selected `spell_check.ipa_dictionary_id` before fallbacks |
 
 ---
 

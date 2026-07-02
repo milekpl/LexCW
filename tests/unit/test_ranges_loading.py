@@ -143,6 +143,24 @@ class TestRangesLoading:
         # ensure that it's present when no ranges are found in DB
         assert 'lexical-relation' in ranges
 
+    def test_get_ranges_seeds_minimal_template_when_ranges_missing(self):
+        """When ranges are missing, service should load minimal template and attempt DB seed."""
+        mock_connector = Mock()
+        mock_connector.database = "test_db"
+        mock_connector.execute_command.return_value = ""
+        mock_connector.execute_query.return_value = None
+
+        service = DictionaryService(mock_connector)
+
+        ranges = service.get_ranges(force_reload=True)
+
+        assert isinstance(ranges, dict)
+        assert 'grammatical-info' in ranges
+        seed_calls = [str(call) for call in mock_connector.execute_command.call_args_list]
+        assert any('ADD TO ranges.lift-ranges' in call for call in seed_calls), (
+            f"Expected minimal ranges seed command, got calls: {seed_calls}"
+        )
+
     def test_get_ranges_handles_malformed_xml(self):
         """Test that get_ranges() handles malformed XML gracefully."""
         mock_connector = Mock()

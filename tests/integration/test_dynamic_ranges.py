@@ -13,6 +13,8 @@ from __future__ import annotations
 import pytest
 from flask.testing import FlaskClient
 
+from app.services.dictionary_service import DictionaryService
+
 
 @pytest.mark.integration
 def test_ranges_api_endpoint(client: FlaskClient) -> None:
@@ -141,6 +143,36 @@ def test_ranges_fallback_functionality() -> None:
     
     # Should have populateAllRangeSelects method
     assert 'populateAllRangeSelects' in content
+
+
+@pytest.mark.integration
+def test_ranges_api_fallback_uses_minimal_template_and_seeds_db(
+    client: FlaskClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If DB ranges are unavailable, API should still return minimal fallback ranges."""
+    dict_service: DictionaryService = client.application.injector.get(DictionaryService)
+    dict_service.ranges = {}
+
+    executed_commands: list[str] = []
+
+    def fake_execute_query(_query: str) -> None:
+        return None
+
+    def fake_execute_command(command: str) -> str:
+        executed_commands.append(command)
+        return ""
+
+    monkeypatch.setattr(dict_service.db_connector, 'execute_query', fake_execute_query)
+    monkeypatch.setattr(dict_service.db_connector, 'execute_command', fake_execute_command)
+
+    response = client.get('/api/ranges')
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'grammatical-info' in data['data']
+    assert any('ADD TO ranges.lift-ranges' in cmd for cmd in executed_commands)
 
 
 if __name__ == '__main__':
