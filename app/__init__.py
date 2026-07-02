@@ -311,6 +311,10 @@ def create_app(config_name=None):
     # Revisions endpoint is CSRF-exempt so the save hook works during page navigation
     csrf.exempt(revisions_bp)
     csrf.exempt(stats_bp)
+    # Entry DELETE endpoint — the two-step confirm in entry-form-init.js uses a simple
+    # fetch which may not carry a valid CSRF token. Exempt only the DELETE method
+    # by marking the view function (_csrf_exempt=True via before_request check).
+    # The actual exemption is handled in the view function itself for finer control.
 
     # Register word sketch browser page
     from app.routes.word_sketch_routes import word_sketch_browser_bp

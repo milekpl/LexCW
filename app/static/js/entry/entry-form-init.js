@@ -158,15 +158,17 @@
         if (confirmBtn) {
             confirmBtn.addEventListener('click', function() {
                 const entryId = DictionaryApp?.config?.entryId;
-                const csrfToken = DictionaryApp?.config?.csrfToken;
 
                 if (entryId) {
-                    const headers = { 'Content-Type': 'application/json' };
-                    if (csrfToken) {
-                        headers['X-CSRF-TOKEN'] = csrfToken;
+                    var headers = { 'Content-Type': 'application/json' };
+                    if (typeof getCsrfHeaders === 'function') {
+                        headers = getCsrfHeaders(headers);
+                    } else {
+                        var meta = document.querySelector('meta[name="csrf-token"]');
+                        if (meta) headers['X-CSRF-TOKEN'] = meta.getAttribute('content');
                     }
 
-                    fetch(`/api/entries/${entryId}`, {
+                    fetch('/api/entries/' + encodeURIComponent(entryId), {
                         method: 'DELETE',
                         headers: headers
                     })

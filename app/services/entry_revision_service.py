@@ -330,8 +330,10 @@ class EntryRevisionService:
             dt_from = datetime.fromisoformat(from_date)
             q = q.filter(EntryRevision.timestamp_utc >= dt_from)
         if to_date:
+            from datetime import timedelta
             dt_to = datetime.fromisoformat(to_date)
-            q = q.filter(EntryRevision.timestamp_utc <= dt_to)
+            # End-of-day inclusive: timestamp_utc < dt_to + 1 day
+            q = q.filter(EntryRevision.timestamp_utc < dt_to + timedelta(days=1))
         if user_id:
             q = q.filter(EntryRevision.user_id == user_id)
         if entry_id:

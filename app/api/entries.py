@@ -682,56 +682,87 @@ def update_entry(entry_id: str) -> Any:
     }
 )
 def delete_entry(entry_id: str) -> Any:
-    """Delete a dictionary entry."""
+    """Delete a dictionary entry. Tries both xml_service and dict_service."""
+    errors = []
+
+    # Try xml_entry_service
     try:
-        # Try xml_entry_service first (for entries created via XML API)
-        try:
-            from app.api.xml_entries import get_xml_entry_service
+        from app.api.xml_entries import get_xml_entry_service
+        xml_service = get_xml_entry_service()
+        xml_service.delete_entry(entry_id)
+        logger.info(f"Deleted entry {entry_id} via xml_service")
+        return jsonify({"success": True})
+    except XMLEntryNotFoundError:
+        pass  # Not in xml service; try dict service
+    except Exception as e:
+        errors.append(f"xml: {e}")
+        logger.warning(f"xml_service delete_entry failed for {entry_id}: {e}")
 
-            xml_service = get_xml_entry_service()
-            xml_service.delete_entry(entry_id)
-            return jsonify({"success": True})
-        except XMLEntryNotFoundError:
-            # Fall through to dict_service for entries not in xml service
-            pass
-        except Exception as e:
-            logger.warning(
-                f"xml_service delete failed, falling back to dict_service: {e}"
-            )
-
-        # Get dictionary service
+    # Try dictionary service
+    try:
         dict_service = get_dictionary_service()
-
-        # Delete entry
         dict_service.delete_entry(entry_id)
-
-        # Invalidate entries cache (version bump — avoids stampede)
-        cache = CacheService()
-        if cache.is_available():
-            db_name = dict_service.db_connector.database or 'default'
-            cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
-            logger.info(f"Invalidated entries cache (version bump) after deleting entry {entry_id}")
-
-        # Invalidate validation cache for this entry
+        logger.info(f"Deleted entry {entry_id} via dict_service")
+        # Invalidate caches
+        try:
+            cache = CacheService()
+            if cache.is_available():
+                db_name = dict_service.db_connector.database or 'default'
+                cache.increment(f"entries:version:{db_name}", 1, ttl=86400)
+        except Exception as ce:
+            logger.warning(f"Cache invalidation error: {ce}")
         try:
             from app.services.validation_cache_service import invalidate_entry_cache
-
-            invalidated = invalidate_entry_cache(entry_id)
-            if invalidated > 0:
-                logger.info(
-                    f"Invalidated {invalidated} validation cache entries for entry {entry_id}"
-                )
-        except Exception as cache_err:
-            logger.warning(f"Failed to invalidate validation cache: {cache_err}")
-
-        # Return response
+            invalidate_entry_cache(entry_id)
+        except Exception as ve:
+            logger.warning(f"Validation cache error: {ve}")
         return jsonify({"success": True})
-
     except NotFoundError as e:
-        return jsonify({"error": str(e)}), 404
+        errors.append(f"dict: {e}")
     except Exception as e:
-        logger.error("Error deleting entry %s: %s", entry_id, str(e))
-        return jsonify({"error": str(e)}), 500
+        errors.append(f"dict: {e}")
+        logger.error(f"dict_service delete_entry failed for {entry_id}: {e}")
+
+    # Last resort: try a raw BaseX delete
+    try:
+        from app.services.dictionary_service import get_dictionary_service
+        ds = get_dictionary_service()
+        connector = ds.db_connector
+        test_db = os.environ.get('TEST_DB_NAME') or current_app.config.get('BASEX_DATABASE', 'dictionary')
+        check = connector.execute_query(
+            f"exists(collection('{test_db}')//*[local-name()='entry'][@id='{entry_id}'])"
+        )
+        if 'true' in check.strip().lower():
+            connector.execute_update(
+                f"delete node collection('{test_db}')//*[local-name()='entry'][@id='{entry_id}']"
+            )
+            logger.info(f"Deleted entry {entry_id} via raw BaseX")
+            return jsonify({"success": True})
+        errors.append("raw BaseX: not in database")
+    except Exception as e:
+        errors.append(f"raw BaseX: {e}")
+        logger.debug(f"Raw BaseX delete failed for {entry_id}: {e}")
+
+    # Clean up orphaned revision records (entry exists only in revision table)
+    try:
+        from app.models.entry_revision import EntryRevision
+        from app.models.workset_models import db
+        deleted = EntryRevision.query.filter_by(entry_id=entry_id).delete()
+        db.session.commit()
+        if deleted:
+            logger.info(f"Cleaned up {deleted} orphan revision(s) for {entry_id}")
+            return jsonify({"success": True, "note": "orphan revisions cleaned"})
+        errors.append("no orphan revisions")
+    except Exception as e:
+        errors.append(f"revision cleanup: {e}")
+        logger.debug(f"Revision cleanup failed for {entry_id}: {e}")
+    except Exception as e:
+        errors.append(f"raw BaseX: {e}")
+        logger.warning(f"Raw BaseX delete failed for {entry_id}: {e}")
+
+    msg = f"Entry with ID '{entry_id}' not found in any service"
+    logger.warning(f"Delete failed for {entry_id}: {'; '.join(errors)}")
+    return jsonify({"error": msg}), 404
 
 
 @entries_bp.route("/<string:entry_id>/related", methods=["GET"])
