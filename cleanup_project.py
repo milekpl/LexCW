@@ -49,13 +49,8 @@ def get_files_to_cleanup():
     # Documentation files to keep in docs/ if they exist in root
     docs_files = [
         'CENTRALIZED_VALIDATION_REQUIREMENTS.md',
-        'CENTRALIZED_VALIDATION_STATUS.md', 
-        'ENTRY_FORM_REFACTORING_PLAN.md',
-        'FORM_SERIALIZATION_ANALYSIS.md',
+        'CENTRALIZED_VALIDATION_STATUS.md',
         'FORM_SERIALIZER_COMPLETION_SUMMARY.md',
-        'MULTILINGUAL_NOTES_IMPLEMENTATION.md',
-        'PRONUNCIATION_IMPLEMENTATION_SUMMARY.md',
-        'VALIDATION_IMPLEMENTATION_SUMMARY.md',
         'VALIDATION_REQUIREMENTS_SUMMARY.md',
         'validation_rules.md',
     ]

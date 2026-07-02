@@ -149,6 +149,5 @@ curl http://admin:admin@localhost:8984/rest
 
 ## Related Documentation
 
-- [`testing_improvements_summary.md`](./testing_improvements_summary.md) - Comprehensive testing strategy
 - [`real_integration_testing_strategy.md`](./real_integration_testing_strategy.md) - Integration testing approach
-- [`dashboard_debug_removal.md`](./dashboard_debug_removal.md) - Dashboard security improvements
+- Testing strategy is now tracked in `specs/test_coverage_enhancement/tasks.md`

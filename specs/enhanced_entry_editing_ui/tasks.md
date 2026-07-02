@@ -2,16 +2,18 @@
 
 This document outlines the implementation tasks for enhancing the entry editing UI, based on the requirements in `specification.md` and `TODO.md`.
 
-1.  [ ] **Rebuild Etymology Editor**
+1.  [x] **Rebuild Etymology Editor**
     *   This epic covers the work required to rebuild the etymology editor with proper Form/Gloss LIFT objects.
 
-    1.1. [ ] **Rebuild Etymology Editor with Form/Gloss Objects**
+    1.1. [x] **Rebuild Etymology Editor with Form/Gloss Objects**
         *   Rebuild the etymology editor to use Form/Gloss LIFT objects.
         *   This will allow for more structured and consistent etymology data.
+        *   **Implemented**: Alpine.js `etymology` component in `app/static/js/alpine/etymology.js` and `app/templates/entry_form_partials/_etymology.html`. Form and gloss are stored as multilingual `{lang: text}` dicts and serialized to LIFT `<form>`/`<gloss>` elements.
         *   **Requirements**: `7.2.2`, `18.2`, `TODO.md #6`
 
-    1.2. [ ] **Fix Etymology Type Population**
+    1.2. [x] **Fix Etymology Type Population**
         *   Ensure that the etymology type dropdown is populated from the LIFT ranges.
+        *   **Implemented**: Component loads the `etymology` range via `ranges-loader.js`; `config/minimal.lift-ranges` expanded to 7 etymology types.
         *   **Requirements**: `7.2.2`, `18.2`, `TODO.md #7`
 
 2.  [x] **Add Multilingual Editing Support**

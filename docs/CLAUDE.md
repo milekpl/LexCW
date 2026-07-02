@@ -131,8 +131,10 @@ Lexicographic Curation Workbench - A Flask-based dictionary management system fo
 ### Exporters (`app/exporters/`)
 - `base_exporter.py` — Abstract base exporter
 - `html_exporter.py` — HTML export
-- `kindle_exporter.py` — Kindle/MOBI export
-- `sqlite_exporter.py` — SQLite export (for Flutter mobile apps)
+- `markdown_exporter.py` — Pandoc Markdown export
+- `profile_markdown_renderer.py` — Profile-aware Markdown renderer
+
+> Note: Specialized publishing formats (Kindle/MOBI, Flutter SQLite) are handled by external scripts in `tools/scripts/` and `scripts/` that consume the LCW API, not by core exporters.
 
 ### Forms (`app/forms/`)
 - `entry_form.py` — Main entry editing form

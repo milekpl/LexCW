@@ -1,7 +1,7 @@
 # CSS Display API Implementation - Completion Summary
 
 **Date:** December 8, 2025  
-**Feature:** CSS-based Display Profile API (Phase 1 of CSS_BASED_EDITOR_IMPLEMENTATION_PLAN.md)
+**Feature:** CSS-based Display Profile API (Phase 1 of the CSS mapping system)
 
 ## ✅ Completed Implementation
 
@@ -187,7 +187,7 @@ curl "http://localhost:5000/api/display-profiles/entries/{entry_id}/preview?prof
 
 ## 🚀 Next Steps (Phase 2)
 
-Per `CSS_EDITOR_SUBTASKS.md`:
+Per `specs/css_mapping_system/tasks.md`:
 
 1. **LIFT Element Registry** (`app/data/lift_elements.json`)
    - Document all 56 LIFT elements

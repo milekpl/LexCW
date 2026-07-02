@@ -14,8 +14,9 @@ This document outlines the implementation tasks for the Advanced Entry Managemen
         *   Implemented: `OperationHistoryService` in `app/services/operation_history_service.py` records create/update/delete/merge/split/autosave/bulk operations with undo/redo stacks.
         *   **Requirements**: `3.2.1`, `5.3.2`, `18.2`
 
-    1.3. [ ] **Implement Validation Pipelines**
+    1.3. [x] **Implement Validation Pipelines**
         *   Implement validation pipelines to ensure that all entries are valid before they are saved to the database.
+        *   **Implemented**: `UnifiedValidationPipeline` in `app/services/unified_validation_pipeline.py` orchestrates plugin-based validators (spell, rules, structural, reference, semantic). `ValidationEngine` in `app/services/validation_engine.py` implements 100+ validation rules. Validation is non-blocking so invalid entries remain editable.
         *   **Requirements**: `3.2.1`, `3.5.3`, `18.2`
 
     1.4. [x] **Add Conflict Resolution for Concurrent Edits**

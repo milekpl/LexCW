@@ -138,15 +138,6 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/export/kindle`
-
-- **Endpoint Name:** `api.export_api.export_kindle`
-- **HTTP Methods:** `POST`
-- **Handler Function:** `export_kindle`
-- **Defined at:** `app/api/export.py:113-177`
-
----
-
 ### `/api/export/lift`
 
 - **Endpoint Name:** `api.export_api.export_lift`
@@ -250,9 +241,6 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 - **Handler Function:** `get_all_ranges`
 - **Defined at:** `app/api/ranges.py:19-91`
 
-**Notes:**
-- The API returns only ranges defined in your project's LIFT data or custom ranges persisted in the SQL DB. There are no hardcoded fallback lists returned by default. If a range has no values, the UI will show a hint and administrators should add values via the Ranges Editor (Settings → Ranges). Recommended default ranges can be installed explicitly during project setup via the `install_recommended_ranges` action.
-
 ---
 
 ### `/api/ranges/<range_id>`
@@ -264,11 +252,11 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/api/ranges/etymology-types`
+### `/api/ranges/etymology`
 
-- **Endpoint Name:** `ranges.get_etymology_types_range`
+- **Endpoint Name:** `ranges.get_etymology_range`
 - **HTTP Methods:** `GET`
-- **Handler Function:** `get_etymology_types_range`
+- **Handler Function:** `get_etymology_range`
 - **Defined at:** `app/api/ranges.py:396-450`
 
 ---
@@ -436,68 +424,6 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 - **HTTP Methods:** `GET`
 - **Handler Function:** `get_validation_schema`
 - **Defined at:** `app/api/validation.py:221-255`
-
----
-
-## File: `app/api/validation_service.py`
-
-### `/api/validation/entry`
-
-- **Endpoint Name:** `validation_service.validate_entry`
-- **HTTP Methods:** `POST`
-- **Handler Function:** `validate_entry`
-- **Defined at:** `app/api/validation_service.py:19-176`
-- **Description:** Validates JSON entry data using the centralized validation engine. Returns validation results with errors, warnings, and info.
-- **Request Body:** JSON entry data with structure: `{id, lexical_unit, senses, pronunciations, notes, relations}`
-- **Response:** `{valid, errors[], warnings[], info[], error_count, has_critical_errors}`
-
----
-
-### `/api/validation/xml`
-
-- **Endpoint Name:** `validation_service.validate_xml_entry`
-- **HTTP Methods:** `POST`
-- **Handler Function:** `validate_xml_entry`
-- **Defined at:** `app/api/validation_service.py:179-305`
-- **Description:** Validates LIFT XML entry data using the centralized validation engine. Parses XML to Entry object and applies same validation rules as JSON endpoint.
-- **Request Body:** LIFT XML string for a single entry (Content-Type: application/xml or text/xml)
-- **Response:** `{valid, errors[], warnings[], info[], error_count, has_critical_errors}`
-- **Example Request:**
-  ```xml
-  <?xml version="1.0" encoding="UTF-8"?>
-  <entry id="test-1">
-    <lexical-unit>
-      <form lang="en"><text>test</text></form>
-    </lexical-unit>
-    <sense id="s1">
-      <definition>
-        <form lang="en"><text>A procedure for critical evaluation</text></form>
-      </definition>
-    </sense>
-  </entry>
-  ```
-
----
-
-### `/api/validation/rules`
-
-- **Endpoint Name:** `validation_service.get_validation_rules`
-- **HTTP Methods:** `GET`
-- **Handler Function:** `get_validation_rules`
-- **Defined at:** `app/api/validation_service.py:308-350`
-- **Description:** Returns all available validation rules with their metadata, categories, and priorities
-- **Response:** `{rules, categories[], priorities[]}`
-
----
-
-### `/api/validation/rules/<rule_id>`
-
-- **Endpoint Name:** `validation_service.get_validation_rule`
-- **HTTP Methods:** `GET`
-- **Handler Function:** `get_validation_rule`
-- **Defined at:** `app/api/validation_service.py:353-410`
-- **Description:** Returns details for a specific validation rule by ID
-- **Response:** Rule details including rule_id, name, description, category, priority, path, validation criteria
 
 ---
 
@@ -898,15 +824,6 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/export/kindle`
-
-- **Endpoint Name:** `main.export_kindle`
-- **HTTP Methods:** `GET`
-- **Handler Function:** `export_kindle`
-- **Defined at:** `app/views.py:597-653`
-
----
-
 ### `/export/lift`
 
 - **Endpoint Name:** `main.export_lift`
@@ -961,13 +878,12 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 
 ---
 
-### `/tools/bulk-edit` (and `/tools/batch-edit` for backward compatibility)
+### `/tools/bulk-edit`
 
 - **Endpoint Name:** `main.batch_edit`
 - **HTTP Methods:** `GET`
 - **Handler Function:** `batch_edit`
-- **Defined at:** `app/views.py:760-767`
-- **Description:** Bulk editing interface for dictionary entries (currently not implemented)
+- **Defined at:** `app/views.py:760-771`
 
 ---
 
@@ -1066,3 +982,4 @@ This document lists all the API endpoints, their HTTP methods, and where they ar
 - **Defined at:** `/home/jules/.pyenv/versions/3.12.11/lib/python3.12/site-packages/flask/views.py:105-109`
 
 ---
+

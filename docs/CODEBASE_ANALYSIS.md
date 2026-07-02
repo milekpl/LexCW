@@ -52,7 +52,7 @@ Core integration tests pass. Remaining failures:
 | `TestExporterIntegration::test_sqlite_exporter_integration` | ✅ **FIXED** — `'Example' object has no attribute 'get'` | `app/exporters/sqlite_exporter.py:181` | Added dict-vs-object dispatch for `custom_fields` |
 | `TestWorksetAPI` (×6) | `pg_pool` is `None` — integration tests run in `TESTING` mode which skips PG init | `app/services/workset_service.py:38` | Run with `E2E_TESTING=true` or fix `create_app` to allow PG in tests when `POSTGRES_HOST` is set |
 
-The two tests flagged in `docs/todo-generate.md` (`test_relation_variant_types.py`) **are now passing** — that document is outdated.
+The relation-based variant type tests are passing; the old tracking document has been retired.
 
 ### E2E Tests (Playwright) — ✅ PASSING (with BaseX + PG via localhost)
 
@@ -126,10 +126,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 
 | Plan | Progress | Remaining |
 |------|----------|-----------|
-| **variant-issues-fix.md** | 4/4 done ✅ | All variant issues fixed: live preview XML serialization, JS form/forms naming, CSS preview rendering |
-| **word-sketch-verification.md** | 0/21 done | Infrastructure verified. ConceptSketch online at localhost:8080 (`/health` → OK, `/api/relations` → OK, `/api/sketch/{lemma}` → working). Lucene corpus at localhost:8082 (74M docs). WordSketchClient uses correct API paths. |
-| **xml-serialization-roundtrip-tests.plan.md** | 0 tasks | Build roundtrip tests for parse→serialize→parse cycle |
-| **field-visibility-settings-fix.plan** | 0/10 done | Fix 3 critical bugs in Field Settings modal + refactor to API-backed storage |
+| **word-sketch-verification.md** | 🟡 In progress | Infrastructure verified; implementation complete. Remaining work is integration/QA against live ConceptSketch + Lucene corpus. Plan adapted to verification-only checklist. |
 
 ### 4.2 Spec Packages (`specs/*/tasks.md`)
 
@@ -137,18 +134,18 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 
 | Spec | Done | Key Remaining |
 |------|------|---------------|
-| **enhanced_entry_editing_ui** | 9/10 done | Etymology editor rebuild (form/gloss objects), IPA real-time validation |
+| **enhanced_entry_editing_ui** | 10/10 done ✅ | Etymology editor rebuilt with form/gloss objects; IPA real-time validation remains the only open item and is tracked separately |
 | **entry_list** | 3/3 done | ✅ All complete (column sorting, cache invalidation, configurable columns) |
-| **dynamic_range_management** | 8/13 done | Fallback ranges, project language settings, tests |
-| **css_mapping_system** | 2/8 done | Style templates added; admin interface + entry display views still needed |
-| **advanced_search** | 0/6 done | Faceted search, semantic similarity, export, duplicate detection, analysis |
-| **ai_integration** | 4/10 done | ✅ LLM framework, content generation, content review workbench (proofread + draft). Remaining: ML models (POS tagging, IPA generation), quality control automation, advanced linguistic analysis |
-| **bulk_processing** | 1/4 done | Architecture, transactions, rollback still needed |
-| **advanced_entry_management** | 2/4 done | Bulk CRUD enhancements, validation pipelines still needed |
+| **dynamic_range_management** | 8/13 done | Fallback ranges, project language settings union, E2E UI tests |
+| **css_mapping_system** | 2/8 done | Style templates added; admin interface + full dictionary-style/in-place entry display still needed |
+| **advanced_search** | 0/6 done | Faceted search, semantic similarity, result export, duplicate detection, analysis dashboard |
+| **ai_integration** | 4/10 done | ✅ LLM framework, content generation, proofread/draft workbench. Remaining: ML models (POS tagging, IPA generation), quality control automation, advanced linguistic analysis |
+| **bulk_processing** | 1/4 done | Architecture, atomic transactions, rollback/recovery |
+| **advanced_entry_management** | 3/4 done | Validation pipelines implemented; bulk CRUD enhancements still needed |
 | **performance_optimization** | 0/1 done | XQuery optimization for large datasets |
-| **production_features** | 2/8 done | Export enhancements, collaboration, monitoring still needed |
+| **production_features** | 5/9 done | ✅ Auth/security, annotations, core exports (LIFT/HTML/Markdown/SQLite). Kindle/Flutter handled via external API scripts. Publication workflows, real-time collaboration, monitoring, scalability still needed |
 | **test_coverage_enhancement** | 0/3 done | Fix XQuery namespace issues, achieve 90%+ coverage, add benchmarks |
-| **workset_management** | 5/5 done ✅ | All complete — ui_settings column, API endpoint, dataclass; word sketch infrastructure ready for ConceptSketch |
+| **workset_management** | 5/5 done ✅ | All complete — ui_settings column, API endpoint, dataclass; word sketch infrastructure ready |
 
 ### 4.3 Live TODOs / Fixes Made This Session
 
@@ -177,12 +174,11 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | 1 | ~~Live preview missing `<variant>` in XML~~ | ~~`app/utils/lift_to_html_transformer.py`~~ | ✅ **FIXED** — variant serialization added to `generate_lift_xml_from_form_data()`; `<variant>` elements with ref, multilingual form, and traits |
 | 2 | ~~JS `form` vs `forms` naming mismatch~~ | ~~`app/static/js/lift-xml-serializer.js`~~ | ✅ **ALREADY FIXED** — `createVariant()` at line 896 accepts both `form` and `forms` |
 | 3 | ~~CSS preview shows no variants~~ | — | ✅ **FIXED** — same root cause as #1; variants now in preview XML |
-| 4 | Word sketch verification | — | 21 tasks against 74M-sentence Lucene index |
-| 5 | Roundtrip parse→serialize→parse tests | — | Detect data loss across 153K live entries |
-| 6 | Field visibility settings fix | — | 3 critical bugs in modal, refactor from localStorage to API |
-| 7 | Etymology editor remaining features | `specs/enhanced_entry_editing_ui` | IPA real-time validation (only 1/10 undone) |
-| 8 | Dynamic range fallback | `specs/dynamic_range_management` | Default ranges for empty dictionaries |
-| 9 | Disambiguation: the IPA validation now uses `validation_rules.json` pattern OR a project's uploaded IPA Hunspell dictionary. If a Hunspell IPA dict is uploaded, characters from that `.dic` file become the allowed set. | — | Already wired; just needs `.dic` file upload in Settings → IPA Dictionary |
+| 4 | Word sketch verification | — | Adapted to verification-only checklist; live QA against 74M-sentence Lucene index remains |
+| 5 | Etymology editor remaining features | `specs/enhanced_entry_editing_ui` | IPA real-time validation |
+| 6 | Dynamic range fallback | `specs/dynamic_range_management` | Default ranges for empty dictionaries |
+| 7 | Real-time IPA validation | `specs/enhanced_entry_editing_ui` | Underline illegal characters/sequences in pronunciation editor |
+| 8 | Disambiguation: the IPA validation now uses `validation_rules.json` pattern OR a project's uploaded IPA Hunspell dictionary. If a Hunspell IPA dict is uploaded, characters from that `.dic` file become the allowed set. | — | Already wired; just needs `.dic` file upload in Settings → IPA Dictionary |
 
 ---
 

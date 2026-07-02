@@ -408,5 +408,5 @@ Element coverage: **27/56** (48% - display-oriented elements only)
 ## See Also
 
 - [LIFT Specification](https://github.com/sillsdev/lift-standard)
-- [Display Profile Editor](CSS_EDITOR_SUBTASKS.md)
+- [CSS Mapping System spec](../specs/css_mapping_system/tasks.md)
 - [API Documentation (Swagger)](http://localhost:5000/apidocs/)

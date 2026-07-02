@@ -282,27 +282,16 @@ The LCW v2.0 employs a sophisticated hybrid database architecture optimized for 
 
 #### 3.3.2 Export Capabilities
 
-- **Kindle Dictionary Export**:
-  - Generation of Kindle-compatible dictionary format (.opf, .mobi)
-  - Utilization of the customizable CSS mapping (simplified for Kindle) to ensure consistent styling between the UI and the export.
-  - Support for Kindle indexing features (inflection forms)
-  - Custom formatting and styling options
-  - Automatic generation of front and back matter
-  - Pronunciation guides using IPA notation
-  - Cover image and metadata customization
-
-- **Flutter Mobile App Export**:
-  - SQLite database generation optimized for mobile performance
-  - Compression of data for smaller app footprint
-  - Indexing structure for fast mobile search
-  - Support for offline usage and incremental updates
-  - Schema designed for Flutter application compatibility
-
 - **Standard Export Formats**:
   - Export to LIFT format for interoperability
-  - Export to custom formats (YAML, JSON, TSV)
+  - Export to custom formats (YAML, JSON, TSV, Markdown)
   - Selective export based on criteria
   - Export templates for different purposes
+
+- **External Publishing Scripts**:
+  - The core application exposes dictionary data via the REST API and LIFT export.
+  - Specialized publishing formats (Kindle `.mobi`/`.opf`, Flutter SQLite, etc.) are intentionally handled outside the core codebase through user-maintained scripts in `tools/scripts/` and `scripts/` that consume the API.
+  - This keeps the core repository free of format-specific tooling and licensing dependencies.
 
 #### 3.3.3 Batch Processing
 
@@ -788,7 +777,7 @@ To ensure a consistent and customizable presentation of dictionary entries, the 
 
 - **Mapping Configuration**: A dedicated configuration interface will allow administrators to define rules that map specific LIFT elements (e.g., `lexical-unit`, `sense`, `definition`) and their attributes (e.g., `lang`) to CSS classes or inline styles.
 - **UI Rendering**: The entry editor will use this mapping to render the dictionary-style view, transforming the underlying LIFT XML into formatted HTML for display.
-- **Export Styling**: The same mapping will be applied during export to HTML, ensuring that the exported dictionary is visually consistent with the application's view. For Kindle export, a simplified version of the CSS will be used to comply with Kindle's formatting constraints while maintaining a clean, readable layout.
+- **Export Styling**: The same mapping is applied during export to HTML and Markdown, ensuring that the exported dictionary is visually consistent with the application's view. Specialized format converters live outside the core repository as API-consuming scripts.
 
 ## 8. Workbench-Oriented API Design
 
@@ -982,8 +971,8 @@ To ensure a consistent and customizable presentation of dictionary entries, the 
 ### 12.1 Collaboration Features
 
 - Multi-user editing
-- Commenting and discussion
-- Workflow management
+- ✅ Entry and sense annotations (editorial comments/status) — implemented in entry form and view
+- 🔄 Threaded commenting and discussion — future enhancement built on annotation infrastructure
 
 ### 12.2 Advanced Analytics
 
@@ -993,9 +982,9 @@ To ensure a consistent and customizable presentation of dictionary entries, the 
 
 ### 12.3 Publishing
 
-- Additional publishing formats beyond Kindle and Flutter
+- Web dictionary generation via HTML/CSS mapping
 - Print-ready PDF output
-- Web dictionary generation
+- Additional publishing formats via external API-consuming scripts (not core plugins)
 - Integration with third-party publishing platforms
 
 ## 13. TDD-Driven Implementation Roadmap
@@ -1216,8 +1205,7 @@ The following defines the admissible IPA characters and sequences for pronunciat
 
 - **Import/Export**:
   - Test LIFT import with various file sizes
-  - Test Kindle dictionary export
-  - Test Flutter SQLite export
+  - Test LIFT and Markdown export
   - Test custom format exports
   - Test incremental import/export
 
@@ -1503,9 +1491,9 @@ Based on the existing codebase analysis, the following features have been implem
 - ✅ Basic responsive design framework
 
 **Export Capabilities**:
-- ✅ Kindle dictionary export (.opf/.mobi format)
-- ✅ SQLite export for Flutter mobile apps
 - ✅ LIFT format export for interoperability
+- ✅ Markdown export
+- ✅ API for external publishing scripts (Kindle, Flutter, etc. handled outside core)
 
 **Testing Framework**:
 - ✅ Unit tests for core models and services
@@ -1819,8 +1807,8 @@ Based on the existing codebase analysis, the following features have been implem
 **Week 23-24: Enhanced Export System**
 - 🔄 **Export Enhancement** - Basic exporters exist
   - Implement HTML export with CSS mapping
-  - Enhance Kindle export with advanced formatting
   - Create export templates and customization
+  - Maintain API surface for external publishing scripts
 
 - 🔴 **Publication Workflows** - Not implemented
   - Build automated publication pipelines
@@ -1829,9 +1817,11 @@ Based on the existing codebase analysis, the following features have been implem
   - Create distribution automation
 
 **Week 25-26: Collaboration Features**
+- � **Annotations & Comments** - Partially implemented
+  - Entry and sense annotations are editable and persisted
+  - Threaded discussion and real-time collaboration remain future work
 - 🔴 **Multi-user Editing** - Not implemented
   - Implement real-time collaboration
-  - Add commenting and discussion system
   - Create workflow management
   - Build notification system
 

@@ -154,17 +154,6 @@
     "end_line": 110
   },
   {
-    "endpoint": "api.export_api.export_kindle",
-    "url": "/api/export/kindle",
-    "methods": [
-      "POST"
-    ],
-    "function_name": "export_kindle",
-    "source_file": "app/api/export.py",
-    "start_line": 113,
-    "end_line": 177
-  },
-  {
     "endpoint": "api.export_api.export_sqlite",
     "url": "/api/export/sqlite",
     "methods": [
@@ -551,17 +540,6 @@
     "source_file": "app/views.py",
     "start_line": 561,
     "end_line": 594
-  },
-  {
-    "endpoint": "main.export_kindle",
-    "url": "/export/kindle",
-    "methods": [
-      "GET"
-    ],
-    "function_name": "export_kindle",
-    "source_file": "app/views.py",
-    "start_line": 597,
-    "end_line": 653
   },
   {
     "endpoint": "main.export_sqlite",
