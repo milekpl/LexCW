@@ -1,0 +1,8 @@
+SET UTF-8
+
+# Allow all IPA units to compound freely
+COMPOUNDFLAG X
+COMPOUNDMIN 1
+COMPOUNDWORDMAX 100
+
+# No affix rules needed - we're just validating phoneme sequences

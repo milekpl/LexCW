@@ -226,3 +226,63 @@ class TestEtymologyRoundtrip:
         # to confirm the data round-tripped correctly.)
 
         print("✅ Etymology round-trip: type/ source/ form/ gloss persisted correctly")
+
+
+@pytest.mark.e2e
+class TestEtymologyIpaValidation:
+    """Test real-time IPA validation in etymology form rows."""
+
+    def test_etymology_form_ipa_row_shows_validation_error(self, page, app_url):
+        """
+        Verify that etymology form text gets IPA validation feedback when
+        the row language is an IPA code (e.g., seh-fonipa).
+        """
+        page.goto(f"{app_url}/entries/add")
+        page.wait_for_load_state("networkidle")
+
+        page.fill("input.lexical-unit-text", "etymology-ipa-validation")
+
+        page.wait_for_selector("#add-etymology-btn", state="visible")
+        page.click("#add-etymology-btn")
+        page.wait_for_selector(".etymology-form-item", state="visible")
+
+        # Add a form language row and inspect its language code.
+        page.locator(".etymology-form-section .add-etymology-lang-btn").first.click()
+        page.wait_for_selector(".etymology-form-lang-row", state="visible")
+
+        row = page.locator(".etymology-form-lang-row").first
+        lang_select = row.locator(".etymology-form-lang-select")
+        options = lang_select.locator("option").all_text_contents()
+        ipa_option = None
+        for opt in options:
+            normalized = opt.strip().lower()
+            if "fonipa" in normalized or "ipa" in normalized:
+                ipa_option = opt.strip()
+                break
+
+        if not ipa_option:
+            pytest.skip(
+                "Project languages do not expose an IPA code option in etymology language selector"
+            )
+
+        lang_select.select_option(label=ipa_option)
+
+        form_input = row.locator(".etymology-form-text-input")
+
+        # Enter an invalid IPA value (digits are invalid in current validator).
+        form_input.fill("bad123")
+        form_input.blur()
+        page.wait_for_timeout(500)
+
+        classes = form_input.evaluate("el => el.className")
+        assert "is-invalid" in classes, f"Expected is-invalid class for invalid IPA, got: {classes}"
+
+        # Correct it and verify the error state clears.
+        form_input.fill("/ˈbad/")
+        form_input.blur()
+        page.wait_for_timeout(500)
+
+        classes_after_fix = form_input.evaluate("el => el.className")
+        assert "is-invalid" not in classes_after_fix, (
+            f"Expected validation error to clear after valid IPA, got: {classes_after_fix}"
+        )

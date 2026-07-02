@@ -91,6 +91,18 @@ word2
         # Should not raise (comments and numbers are OK)
         self.storage._validate_dic_format(content)
 
+    def test_validate_dic_format_accepts_ipa_unicode_entries(self):
+        """Test validation accepts IPA Unicode symbols used in Hunspell dictionaries."""
+        content = """5
+iː/X
+ɪ/X
+tʃ/X
+ˈ/X
+,/X
+"""
+        # Should not raise for IPA symbols and separators
+        self.storage._validate_dic_format(content)
+
     def test_validate_aff_format_valid(self):
         """Test validation of valid .aff file."""
         valid_content = """SET UTF-8
@@ -153,10 +165,55 @@ word2
         self.assertEqual(stats['total_size'], 0)
 
     def test_cleanup_orphaned_files(self):
-        """Test cleanup of orphaned files - integration test, skip in unit mode."""
-        # This test requires Flask app context and database
-        # Run it as an integration test instead
-        self.skipTest("Requires Flask app context and database")
+        """Test cleanup of orphaned dictionary directories with real DB context."""
+        from app import create_app
+        from app.models.workset_models import db
+        from app.models.project_settings import ProjectSettings
+        from app.models.dictionary_models import ProjectDictionary
+
+        app = create_app('testing')
+        project_name = "Dictionary Cleanup Test Project"
+
+        with app.app_context():
+            db.create_all()
+
+            # Ensure no prior test project with the same name remains.
+            existing = ProjectSettings.query.filter_by(project_name=project_name).first()
+            if existing:
+                db.session.delete(existing)
+                db.session.commit()
+
+            project = ProjectSettings(
+                project_name=project_name,
+                basex_db_name='test_cleanup_dict_storage',
+                source_language={'code': 'en', 'name': 'English'},
+                target_languages=[],
+                settings_json={}
+            )
+            db.session.add(project)
+            db.session.commit()
+
+            tracked_dict = ProjectDictionary.create_new(
+                project_id=project.id,
+                name='Tracked Dictionary',
+                lang_code='en_US',
+                dic_file='en_US.dic',
+                aff_file='en_US.aff'
+            )
+            db.session.add(tracked_dict)
+            db.session.commit()
+
+            # Create one tracked directory and one orphan directory on disk.
+            tracked_path = self.storage.get_project_storage_path(project.id, tracked_dict.id)
+            orphan_path = self.storage.get_project_storage_path(project.id, 'orphan-dict-id')
+            os.makedirs(tracked_path, exist_ok=True)
+            os.makedirs(orphan_path, exist_ok=True)
+
+            removed = self.storage.cleanup_orphaned_files(project.id)
+
+            self.assertEqual(removed, 1)
+            self.assertTrue(os.path.exists(tracked_path))
+            self.assertFalse(os.path.exists(orphan_path))
 
 
 class TestDictionaryMetadata(unittest.TestCase):

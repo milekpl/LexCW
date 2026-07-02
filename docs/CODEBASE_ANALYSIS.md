@@ -30,6 +30,10 @@
 - ✅ Word sketch integration verified (ConceptSketch ↔ Flask API)
 - ✅ CLAUDE.md updated with full architecture
 - ✅ Help page updated with AI + Word Sketch sections
+- ✅ IPA dictionary resource packaging (`app/data/dictionaries/ipa/ipa.dic` + `.aff`)
+- ✅ IPA dictionary upload verification (integration-tested upload + set IPA flow)
+- ✅ Dictionary upload validator Unicode fix for IPA symbols (removed ASCII-only gate)
+- ✅ Dictionary storage upload-path bugfix (`'str' object has no attribute 'mkdir'`)
 
 ---
 
@@ -109,6 +113,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | JS model | `app/static/js/etymology-forms.js` | ✅ Form/gloss stored as `{lang: text}` dicts matching Python model; multilingual language variants; initial data loaded from server on edit |
 | Data wiring | `app/templates/entry_form.html`, `entry-form-init.js` | ✅ Existing etymologies passed to JS manager on form initialization |
 | Range expansion | `config/minimal.lift-ranges` | ✅ Etymology types expanded from 2 to 7 (inheritance, borrowing, compound, derivation, calque, semantic, onomatopoeia) |
+| IPA live validation + explicit selector | `app/templates/entry_form_partials/_etymology.html`, `app/static/js/alpine/etymology.js` | ✅ Etymology form/gloss rows now use explicit language selectors; selecting `seh-fonipa` enables real-time IPA validation in etymological form input |
 
 ### New: CSS Style Templates
 
@@ -134,7 +139,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 
 | Spec | Done | Key Remaining |
 |------|------|---------------|
-| **enhanced_entry_editing_ui** | 10/10 done ✅ | Etymology editor rebuilt with form/gloss objects; IPA real-time validation remains the only open item and is tracked separately |
+| **enhanced_entry_editing_ui** | 10/10 done ✅ | ✅ All complete, including etymology IPA real-time validation with explicit language selector |
 | **entry_list** | 3/3 done | ✅ All complete (column sorting, cache invalidation, configurable columns) |
 | **dynamic_range_management** | 8/13 done | Fallback ranges, project language settings union, E2E UI tests |
 | **css_mapping_system** | 2/8 done | Style templates added; admin interface + full dictionary-style/in-place entry display still needed |
@@ -166,19 +171,18 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | `validation_rules.json:223` | IPA pattern had wrong chars | ✅ **FIXED** — removed `g`, added `ɡ`, added `,`, narrowed to exact Hunspell inventory |
 | `app/utils/lift_to_html_transformer.py:978` | `is_default` boolean rendered as "true" in IPA preview | ✅ **FIXED** — removed trait serialization for form metadata in live preview |
 | `app/parsers/lift_parser.py:607,624` | `domain_type` stored in both dedicated field AND `traits` dict, causing 3× repetition | ✅ **FIXED** — changed `get` to `pop` in both entry and sense parsing |
+| `tmp/ipa.dic` | Hunspell entry count mismatch (header 78 vs actual 53) | ✅ **FIXED** — corrected header to `53` |
+| `app/services/dictionary_storage_service.py` | IPA dictionary uploads rejected by ASCII-only `.dic` validator | ✅ **FIXED** — Unicode-aware IPA block validation added (IPA Extensions + modifiers/diacritics/phonetic extensions) |
+| `app/services/dictionary_storage_service.py:133` | Dictionary upload crash: `'str' object has no attribute 'mkdir'` | ✅ **FIXED** — project storage path converted to `Path(...)` before `mkdir` |
+| `tests/integration/test_ipa_dictionary_upload.py` | No integration proof for IPA upload + set-as-IPA flow | ✅ **FIXED** — added integration test using bundled resource files |
+| `tests/unit/test_dictionary_storage.py:167` | Cleanup test was permanently skipped | ✅ **FIXED** — replaced skip with executable DB-backed test |
 
 ### 4.4 Remaining Issues (not yet addressed)
 
 | Priority | What | Where | Notes |
 |----------|------|-------|-------|
-| 1 | ~~Live preview missing `<variant>` in XML~~ | ~~`app/utils/lift_to_html_transformer.py`~~ | ✅ **FIXED** — variant serialization added to `generate_lift_xml_from_form_data()`; `<variant>` elements with ref, multilingual form, and traits |
-| 2 | ~~JS `form` vs `forms` naming mismatch~~ | ~~`app/static/js/lift-xml-serializer.js`~~ | ✅ **ALREADY FIXED** — `createVariant()` at line 896 accepts both `form` and `forms` |
-| 3 | ~~CSS preview shows no variants~~ | — | ✅ **FIXED** — same root cause as #1; variants now in preview XML |
-| 4 | Word sketch verification | — | Adapted to verification-only checklist; live QA against 74M-sentence Lucene index remains |
-| 5 | Etymology editor remaining features | `specs/enhanced_entry_editing_ui` | IPA real-time validation |
-| 6 | Dynamic range fallback | `specs/dynamic_range_management` | Default ranges for empty dictionaries |
-| 7 | Real-time IPA validation | `specs/enhanced_entry_editing_ui` | Underline illegal characters/sequences in pronunciation editor |
-| 8 | Disambiguation: the IPA validation now uses `validation_rules.json` pattern OR a project's uploaded IPA Hunspell dictionary. If a Hunspell IPA dict is uploaded, characters from that `.dic` file become the allowed set. | — | Already wired; just needs `.dic` file upload in Settings → IPA Dictionary |
+| 1 | Dynamic range fallback | `specs/dynamic_range_management` | Default ranges for empty dictionaries still need to be finished |
+| 2 | IPA dictionary selection source-of-truth | `app/services/validation_engine.py` | Upload + set-as-IPA flow is verified; remaining hardening is to ensure runtime IPA character validation always honors selected `spell_check.ipa_dictionary_id` before fallbacks |
 
 ---
 
@@ -211,6 +215,7 @@ E2E_TESTING=true .venv/bin/python -m pytest tests/integration/test_workset_api.p
 | ✅ Prompt template editor | Settings page HTML+JS | — |
 | ✅ AI actions in entry form | `ai-service.js`, `_ai_actions.html` | — |
 | ✅ Etymology editor rebuild | `etymology-forms.js` (rewrite) | — |
+| ✅ Etymology IPA live validation + explicit language selector | `app/templates/entry_form_partials/_etymology.html`, `app/static/js/alpine/etymology.js` | ✅ `tests/e2e/test_etymology.py -k ipa` |
 | ✅ CSS style templates (4 themes) | `css_mapping_service.py`, `display_profiles.py` | — |
 | ✅ SQLite exporter bug fix | `sqlite_exporter.py:181` | ✅ verified |
 | ✅ Password reset wiring | `auth_service.py`, `project_settings.py` | ✅ 1364 pass |
@@ -220,6 +225,10 @@ E2E_TESTING=true .venv/bin/python -m pytest tests/integration/test_workset_api.p
 | ✅ IPA validation fixes | `validation_engine.py`, `validation_rules.json` | ✅ |
 | ✅ IPA comma fix | `validation_engine.py:1530` | ✅ |
 | ✅ IPA Hunspell dictionary wiring | `validation_engine.py` | ✅ |
+| ✅ IPA dictionary resources bundled with app | `app/data/dictionaries/ipa/ipa.dic`, `app/data/dictionaries/ipa/ipa.aff` | ✅ used by integration test |
+| ✅ IPA dictionary upload accepts Unicode IPA symbols | `app/services/dictionary_storage_service.py` | ✅ `tests/unit/test_dictionary_storage.py` |
+| ✅ IPA upload + set-as-IPA integration coverage | `tests/integration/test_ipa_dictionary_upload.py` | ✅ pass |
+| ✅ Dictionary storage cleanup test now executable | `tests/unit/test_dictionary_storage.py:167` | ✅ pass |
 | ✅ Domain-type deduplication | `lift_parser.py:607,624,892-905` | ✅ |
 | ✅ "true" in IPA preview fix | `lift_to_html_transformer.py:978` | ✅ |
 | ✅ CLAUDE.md update | `docs/CLAUDE.md` | — |

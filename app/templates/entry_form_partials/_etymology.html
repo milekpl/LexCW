@@ -75,10 +75,20 @@
                             <div class="etymology-form-langs">
                                 <template x-for="f in etym.formForms" :key="f.id">
                                     <div class="input-group mb-2 etymology-form-lang-row">
-                                        <span class="input-group-text etymology-form-lang-input"
-                                              style="max-width: 90px;" x-text="f.lang"></span>
+                                        <select class="form-select etymology-form-lang-select"
+                                                style="max-width: 180px;"
+                                                x-model="f.lang"
+                                                @change="onFormLanguageChange($event.target, f.lang)">
+                                            <option value="">Select language...</option>
+                                            <template x-for="opt in getLanguageSelectOptions(f.lang)" :key="opt.code">
+                                                <option :value="opt.code" x-text="opt.label + ' (' + opt.code + ')' "></option>
+                                            </template>
+                                        </select>
                                         <input type="text" class="form-control etymology-form-text-input"
                                                x-model="f.text"
+                                                 :class="{ 'ipa-input': isIpaLanguage(f.lang) }"
+                                                 @input="validateFormIpa($event.target, f.lang)"
+                                                 @blur="validateFormIpa($event.target, f.lang)"
                                                placeholder="Etymological form">
                                         <button type="button" class="btn btn-outline-danger remove-etymology-lang-btn"
                                                 @click.prevent="removeRow(etym.formForms, f.id)"
@@ -105,8 +115,14 @@
                             <div class="etymology-gloss-langs">
                                 <template x-for="g in etym.glossForms" :key="g.id">
                                     <div class="input-group mb-2 etymology-gloss-lang-row">
-                                        <span class="input-group-text etymology-gloss-lang-input"
-                                              style="max-width: 90px;" x-text="g.lang"></span>
+                                        <select class="form-select etymology-gloss-lang-select"
+                                                style="max-width: 180px;"
+                                                x-model="g.lang">
+                                            <option value="">Select language...</option>
+                                            <template x-for="opt in getLanguageSelectOptions(g.lang)" :key="opt.code">
+                                                <option :value="opt.code" x-text="opt.label + ' (' + opt.code + ')' "></option>
+                                            </template>
+                                        </select>
                                         <input type="text" class="form-control etymology-gloss-text-input"
                                                x-model="g.text"
                                                placeholder="Meaning/gloss">

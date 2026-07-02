@@ -130,7 +130,7 @@ class DictionaryStorageService:
 
         # Create dictionary record
         dict_id = str(uuid.uuid4())
-        storage_path = self.get_project_storage_path(project_id, dict_id)
+        storage_path = Path(self.get_project_storage_path(project_id, dict_id))
         storage_path.mkdir(parents=True, exist_ok=True)
 
         # Save .dic file
@@ -296,12 +296,48 @@ class DictionaryStorageService:
             # Skip comments and numeric entries
             if line.startswith('#') or line.isdigit():
                 continue
-            # Check for valid word characters
-            if not re.match(r"^[\w'\-/]+$", line):
+            # Accept standard dictionary words and IPA symbol dictionaries.
+            if not self._is_valid_dic_entry_line(line):
                 non_word_lines += 1
 
         if non_word_lines > len(lines) * 0.1:  # More than 10% invalid
             raise ValueError("Invalid .dic file format: contains non-word characters")
+
+    def _is_valid_dic_entry_line(self, line: str) -> bool:
+        """Check whether a .dic entry line is structurally valid.
+
+        Supports both standard word dictionaries and IPA symbol dictionaries.
+        """
+        entry = line.split('/', 1)[0].strip()
+        if not entry:
+            return False
+
+        # Standard dictionaries: ASCII/Unicode letters, digits and common separators.
+        if all(ch.isalnum() or ch in "'-. _" for ch in entry):
+            return True
+
+        # IPA dictionaries: allow IPA Unicode blocks + limited separators.
+        ipa_separators = {' ', '.', ',', '(', ')'}
+        for ch in entry:
+            if ch in ipa_separators or ch.isalpha() or ch.isdigit():
+                continue
+            if self._is_ipa_unicode_char(ch):
+                continue
+            return False
+        return True
+
+    @staticmethod
+    def _is_ipa_unicode_char(ch: str) -> bool:
+        """Return True if a character belongs to common IPA-related Unicode blocks."""
+        code_point = ord(ch)
+        ipa_ranges = (
+            (0x0250, 0x02AF),  # IPA Extensions
+            (0x02B0, 0x02FF),  # Spacing Modifier Letters (e.g., ː ˈ ˌ)
+            (0x0300, 0x036F),  # Combining Diacritical Marks
+            (0x1D00, 0x1D7F),  # Phonetic Extensions
+            (0x1D80, 0x1DBF),  # Phonetic Extensions Supplement
+        )
+        return any(start <= code_point <= end for start, end in ipa_ranges)
 
     def _validate_aff_format(self, content: str) -> None:
         """Validate .aff file format."""

@@ -48,13 +48,26 @@
         },
 
         get languageOptions() {
+          var options = [];
           if (window.DictionaryApp && window.DictionaryApp.data && window.DictionaryApp.data.projectLanguages) {
-            return window.DictionaryApp.data.projectLanguages.map(function (pair) {
+            options = window.DictionaryApp.data.projectLanguages.map(function (pair) {
               var label = String(pair[1]).replace(/<[^>]*>/g, '');
               return { code: pair[0], label: label };
             });
           }
-          return [];
+          // Always expose a standard IPA writing-system option for etymology forms.
+          if (!options.some(function (opt) { return opt.code === 'seh-fonipa'; })) {
+            options.push({ code: 'seh-fonipa', label: 'IPA' });
+          }
+          return options;
+        },
+
+        getLanguageSelectOptions: function (currentLang) {
+          var options = this.languageOptions.slice();
+          if (currentLang && !options.some(function (opt) { return opt.code === currentLang; })) {
+            options.unshift({ code: currentLang, label: currentLang });
+          }
+          return options;
         },
 
         /**
@@ -145,6 +158,37 @@
             if (list[i].id === id) { idx = i; break; }
           }
           if (idx !== -1) list.splice(idx, 1);
+        },
+
+        /**
+         * Return true when a language code represents an IPA writing system.
+         */
+        isIpaLanguage: function (langCode) {
+          if (!langCode) return false;
+          var normalized = String(langCode).toLowerCase();
+          return normalized.indexOf('fonipa') !== -1 || normalized.indexOf('ipa') !== -1;
+        },
+
+        /**
+         * Validate an etymology form value as IPA only for IPA language rows.
+         */
+        validateFormIpa: function (el, langCode) {
+          if (!el) return;
+          if (!this.isIpaLanguage(langCode)) {
+            el.classList.remove('is-invalid', 'is-valid');
+            return;
+          }
+          if (typeof validateIpaField === 'function') {
+            validateIpaField(el);
+          }
+        },
+
+        onFormLanguageChange: function (selectEl, langCode) {
+          if (!selectEl || !selectEl.closest) return;
+          var row = selectEl.closest('.etymology-form-lang-row');
+          if (!row) return;
+          var input = row.querySelector('.etymology-form-text-input');
+          this.validateFormIpa(input, langCode);
         }
       };
     });
