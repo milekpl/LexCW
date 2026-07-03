@@ -305,6 +305,10 @@ def create_app(config_name=None):
     app.register_blueprint(ai_bp)
 
     # Register revision history API
+    from app.api.dashboard import dashboard_bp
+    csrf.exempt(dashboard_bp)
+    from app.api.discovery import discovery_bp
+    csrf.exempt(discovery_bp)
     from app.api.revisions_api import revisions_bp, stats_bp
     app.register_blueprint(revisions_bp)
     app.register_blueprint(stats_bp)

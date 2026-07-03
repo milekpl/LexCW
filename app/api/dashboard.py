@@ -4,16 +4,49 @@ API endpoints for dashboard statistics and system information.
 
 import json
 import logging
+import os
+import threading
+import uuid
 from datetime import datetime
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify, request, current_app, url_for
+from werkzeug.routing import BuildError
 from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.services.cache_service import CacheService
+from app.models.dismissed_duplicate import DismissedDuplicate
+from app.models.workset_models import db
+from app.utils.exceptions import JobCancelled
 
 # Create blueprint
 dashboard_bp = Blueprint('dashboard_api', __name__, url_prefix='/dashboard')
 logger = logging.getLogger(__name__)
+
+# File-based scan job storage (survives reloads, works across workers)
+SCAN_JOBS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'instance', 'scan_jobs')
+
+
+def _job_path(job_id: str) -> str:
+    return os.path.join(SCAN_JOBS_DIR, f'{job_id}.json')
+
+
+def _read_job(job_id: str):
+    try:
+        with open(_job_path(job_id)) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _write_job(job_id: str, data: dict) -> None:
+    os.makedirs(SCAN_JOBS_DIR, exist_ok=True)
+    tmp = _job_path(job_id) + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(data, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, _job_path(job_id))
+
 
 # Unified cache key for dashboard stats
 DASHBOARD_CACHE_KEY = 'dashboard_stats_v2'
@@ -303,3 +336,350 @@ def clear_dashboard_cache():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@dashboard_bp.route('/duplicates/count', methods=['GET'])
+def get_duplicate_entry_count():
+    """Quick count of non-variant entries for progress estimation."""
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        project_id = request.args.get('project_id', type=int)
+        if not project_id:
+            try:
+                from flask import session as s
+                project_id = s.get('project_id')
+            except Exception:
+                pass
+        count = dict_service.count_entries(project_id=project_id)
+        return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _run_scan_job(app, base_url, job_id, project_id, mode, pos, threshold, min_confidence, sample_size):
+    """Background job: run duplicate detection, persist progress to file."""
+    def _check_cancelled():
+        data = _read_job(job_id)
+        if data and data.get('cancelled'):
+            raise JobCancelled('Job cancelled by user')
+
+    def _progress(total, processed, phase, groups=None):
+        _check_cancelled()
+        data = _read_job(job_id) or {}
+        data.update({'total': total, 'processed': processed, 'phase': phase})
+        if groups is not None:
+            data['groups'] = groups
+        _write_job(job_id, data)
+
+    try:
+        _progress(0, 0, 'Starting')
+        with app.app_context():
+            dict_service = app.injector.get(DictionaryService)
+            result = dict_service.get_duplicate_candidates(
+                mode=mode, pos=pos, threshold=threshold,
+                min_confidence=min_confidence, project_id=project_id,
+                sample_size=sample_size, progress_callback=_progress,
+            )
+            # Add entry URLs
+            for group in result.get('groups', []):
+                for entry in group.get('entries', []):
+                    entry_id = entry.get('entry_id')
+                    if entry_id:
+                        entry['entry_url'] = f'{base_url}/entries/{entry_id}'
+            # Filter dismissed
+            if project_id:
+                dismissed = DismissedDuplicate.query.filter_by(project_id=project_id).all()
+                dismissed_ids = {d.group_id for d in dismissed}
+                result['groups'] = [g for g in result['groups'] if g['id'] not in dismissed_ids]
+                result['total_candidates'] = len(result['groups'])
+
+            final = {
+                'done': True, 'phase': 'Complete',
+                'total': result.get('scanned_entries', 0),
+                'processed': result.get('scanned_entries', 0),
+                'groups': result.get('groups', []),
+                'total_candidates': result.get('total_candidates', 0),
+                'scanned_entries': result.get('scanned_entries', 0),
+                'sample_size': result.get('sample_size'),
+            }
+            _write_job(job_id, final)
+    except JobCancelled:
+        _write_job(job_id, {'done': True, 'phase': 'Cancelled', 'error': 'Cancelled'})
+    except Exception as e:
+        logger.error("Scan job %s failed: %s", job_id, e, exc_info=True)
+        _write_job(job_id, {'done': True, 'phase': 'Error', 'error': str(e)})
+
+
+@dashboard_bp.route('/duplicates/scan', methods=['POST'])
+def start_duplicate_scan():
+    """Start a background duplicate-detection scan. Returns job_id for polling."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        job_id = str(uuid.uuid4())
+
+        project_id = request.args.get('project_id', type=int)
+        if not project_id:
+            raw_pid = data.get('project_id')
+            if raw_pid is not None:
+                project_id = int(raw_pid)
+        if not project_id:
+            from flask import session as s
+            project_id = s.get('project_id')
+
+        mode = data.get('mode', 'all')
+        pos = data.get('pos')
+        threshold = int(data.get('threshold', 1))
+        min_confidence = float(data.get('min_confidence', 0.5))
+        raw_sample = data.get('sample_size')
+        sample_size = int(raw_sample) if raw_sample else None
+
+        # Write initial state so polling can find it immediately
+        _write_job(job_id, {'done': False, 'phase': 'Queued', 'total': 0, 'processed': 0})
+
+        from flask import current_app
+        app = current_app._get_current_object()
+        base_url = request.host_url.rstrip('/')
+
+        thread = threading.Thread(
+            target=_run_scan_job,
+            args=(app, base_url, job_id, project_id, mode, pos, threshold, min_confidence, sample_size),
+            daemon=True,
+        )
+        thread.start()
+
+        return jsonify({'success': True, 'job_id': job_id}), 202
+    except Exception as e:
+        logger.error("Error starting scan: %s", e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@dashboard_bp.route('/duplicates/progress/<job_id>', methods=['GET'])
+def get_duplicate_scan_progress(job_id):
+    """Poll the progress of a background scan job."""
+    job = _read_job(job_id)
+    if not job:
+        return jsonify({'success': False, 'error': 'Job not found'}), 404
+
+    resp = {
+        'success': True,
+        'done': job.get('done', False),
+        'phase': job.get('phase', ''),
+        'total': job.get('total', 0),
+        'processed': job.get('processed', 0),
+        'error': job.get('error'),
+    }
+    if job.get('done'):
+        resp['data'] = {
+            'groups': job.get('groups', []),
+            'total_candidates': job.get('total_candidates', 0),
+            'scanned_entries': job.get('scanned_entries', 0),
+            'sample_size': job.get('sample_size'),
+        }
+        # Clean up the file — results are delivered
+        try:
+            os.remove(_job_path(job_id))
+        except OSError:
+            pass
+    return jsonify(resp)
+
+
+@dashboard_bp.route('/duplicates/scan/<job_id>/cancel', methods=['POST'])
+def cancel_duplicate_scan(job_id):
+    """Cancel a running scan job."""
+    job = _read_job(job_id)
+    if not job:
+        return jsonify({'success': False, 'error': 'Job not found'}), 404
+    if job.get('done'):
+        return jsonify({'success': True, 'message': 'Job already finished'})
+
+    _write_job(job_id, {**job, 'cancelled': True})
+    return jsonify({'success': True, 'message': 'Cancellation requested'})
+
+
+@dashboard_bp.route('/duplicates', methods=['GET'])
+def get_duplicates():
+    """
+    Run duplicate detection and return candidate groups.
+    ---
+    tags:
+      - Dashboard
+    parameters:
+      - name: mode
+        in: query
+        type: string
+        enum: [all, exact, near, relaxed]
+        default: all
+      - name: pos
+        in: query
+        type: string
+        required: false
+      - name: threshold
+        in: query
+        type: integer
+        default: 1
+      - name: min_confidence
+        in: query
+        type: number
+        default: 0.5
+    responses:
+      200:
+        description: Duplicate candidate groups
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        mode = request.args.get('mode', 'all')
+        pos = request.args.get('pos', None)
+        threshold = request.args.get('threshold', 1, type=int)
+        min_confidence = request.args.get('min_confidence', 0.5, type=float)
+        sample_size = request.args.get('sample_size', type=int)
+
+        # Get project ID from session, with query-param fallback for API/E2E testing
+        project_id = request.args.get('project_id', type=int)
+        if not project_id:
+            try:
+                from flask import session
+                project_id = session.get('project_id')
+            except (ImportError, RuntimeError):
+                pass
+
+        result = dict_service.get_duplicate_candidates(
+            mode=mode,
+            pos=pos,
+            threshold=threshold,
+            min_confidence=min_confidence,
+            project_id=project_id,
+            sample_size=sample_size,
+        )
+
+        # Add view URLs for entry cards so the UI can link to the real entry page.
+        for group in result.get('groups', []):
+            for entry in group.get('entries', []):
+                entry_id = entry.get('entry_id')
+                if entry_id:
+                    try:
+                        entry['entry_url'] = url_for('main.view_entry', entry_id=entry_id)
+                    except BuildError:
+                        entry['entry_url'] = None
+
+        # Filter out dismissed groups
+        if project_id:
+            dismissed = DismissedDuplicate.query.filter_by(project_id=project_id).all()
+            dismissed_ids = {d.group_id for d in dismissed}
+            result['groups'] = [g for g in result['groups'] if g['id'] not in dismissed_ids]
+            result['total_candidates'] = len(result['groups'])
+
+        return jsonify({
+            'success': True,
+            'data': result,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error detecting duplicates: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@dashboard_bp.route('/duplicates/<group_id>/dismiss', methods=['POST'])
+def dismiss_duplicate_group(group_id):
+    """
+    Dismiss a duplicate group (hide from future results).
+    ---
+    tags:
+      - Dashboard
+    parameters:
+      - name: group_id
+        in: path
+        type: string
+        required: true
+      - name: project_id
+        in: query
+        type: integer
+        required: false
+    responses:
+      200:
+        description: Group dismissed
+    """
+    try:
+        from flask import session
+        project_id = session.get('project_id') or request.args.get('project_id', type=int) or (request.get_json(force=True, silent=True) or {}).get('project_id')
+        if not project_id:
+            return jsonify({'success': False, 'error': 'No project selected'}), 400
+
+        existing = DismissedDuplicate.query.filter_by(
+            project_id=project_id, group_id=group_id
+        ).first()
+        if not existing:
+            dismissed = DismissedDuplicate(project_id=project_id, group_id=group_id)
+            db.session.add(dismissed)
+            db.session.commit()
+
+        return jsonify({'success': True, 'message': f'Group {group_id} dismissed'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error dismissing duplicate group: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@dashboard_bp.route('/duplicates/<group_id>/merge', methods=['POST'])
+def merge_duplicate_group(group_id):
+    """
+    Merge entries in a duplicate group. Delegates to the existing merge service.
+    ---
+    tags:
+      - Dashboard
+    parameters:
+      - name: group_id
+        in: path
+        type: string
+        required: true
+      - name: target_entry_id
+        in: body
+        type: string
+        required: true
+        description: Entry to keep (target)
+      - name: source_entry_id
+        in: body
+        type: string
+        required: true
+        description: Entry to merge from (source, will be deleted)
+    responses:
+      200:
+        description: Entries merged
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        from app.services.merge_split_service import MergeSplitService
+        from flask import session
+
+        data = request.get_json(force=True, silent=True) or {}
+        target_entry_id = data.get('target_entry_id')
+        source_entry_id = data.get('source_entry_id')
+
+        if not target_entry_id or not source_entry_id:
+            return jsonify({
+                'success': False,
+                'error': 'Both target_entry_id and source_entry_id are required'
+            }), 400
+
+        project_id = session.get('project_id')
+        merge_service = MergeSplitService(dict_service)
+        result = merge_service.merge_entries(
+            target_entry_id=target_entry_id,
+            source_entry_id=source_entry_id,
+            sense_ids=None,  # merge all senses
+            user_id=None,
+            conflict_resolution={"duplicate_senses": "rename"},
+        )
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'operation_id': result.operation_id if hasattr(result, 'operation_id') else None,
+                'message': f'Merged {source_entry_id} into {target_entry_id}',
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error merging duplicate group: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

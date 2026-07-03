@@ -275,7 +275,12 @@ def flask_app_server(pristine_ranges_data: str):
     # Set ranges database in environment
     os.environ['BASEX_RANGES_DATABASE'] = ranges_db
     app.config['BASEX_RANGES_DATABASE'] = ranges_db
-    
+
+    # Ensure all SQLAlchemy model tables exist (project_settings, dismissed_duplicates, etc.)
+    with app.app_context():
+        from app.models.workset_models import db
+        db.create_all()
+
     # Start Flask server in background thread
     def find_free_port():
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

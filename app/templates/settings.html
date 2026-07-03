@@ -109,6 +109,25 @@
 
                 <fieldset class="mb-4">
                     <legend class="h6">
+                        Duplicate Detection Settings
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Configure placeholder and article markers ignored by duplicate detection."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.duplicate_placeholders, class="form-control", placeholder="sth,sb,sth/sb,sb/sth") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.duplicate_articles, class="form-control", placeholder="a,an,the") }}
+                        </div>
+                    </div>
+                    <p class="small text-muted mb-0 mt-2">These values are stored per project and used by duplicate detection when comparing headwords.</p>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
                         Email / SMTP Settings
                         <i class="fas fa-info-circle text-muted ms-1"
                            data-bs-toggle="tooltip"

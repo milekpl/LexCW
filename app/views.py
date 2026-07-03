@@ -1950,6 +1950,15 @@ def data_quality_dashboard():
     return render_template("data_quality_dashboard.html", metrics=metrics)
 
 
+@main_bp.route("/discovery")
+def relation_discovery():
+    """
+    Render the Relation Discovery dashboard page.
+    """
+    project_id = session.get('project_id')
+    return render_template("discovery_dashboard.html", project_id=project_id)
+
+
 @main_bp.route("/audio/<filename>")
 def audio_file(filename):
     """

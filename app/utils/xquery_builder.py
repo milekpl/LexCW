@@ -535,15 +535,24 @@ class XQueryBuilder:
 
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
         relation_path = XQueryBuilder.get_element_path("relation", has_namespace)
         
         relation_condition = (
             f'[@type="{safe_relation_type}"]' if safe_relation_type else ''
         )
 
+        # Support both:
+        # 1) entry-level relations: <entry>/{relation}/@ref points to target *entry id*
+        # 2) sense-level relations: <entry>//{sense}/{relation}/@ref points to target *sense id*
+        # In case (2), we map sense-refs back to entries by selecting entries that *contain* the referenced senses.
         query = f"""
-        let $related_ids := collection('{db_name}')//{entry_path}[@id="{safe_entry_id}"]/{relation_path}{relation_condition}/@ref
-        for $entry in collection('{db_name}')//{entry_path}[@id = $related_ids]
+        let $entry_rel_refs := collection('{db_name}')//{entry_path}[@id="{safe_entry_id}"]/{relation_path}{relation_condition}/@ref
+        let $sense_rel_refs := collection('{db_name}')//{entry_path}[@id="{safe_entry_id}"]//{sense_path}/{relation_path}{relation_condition}/@ref
+        for $entry in collection('{db_name}')//{entry_path}
+        where
+            @id = $entry_rel_refs
+            or exists(.//{sense_path}[.//{relation_path}{relation_condition}/@ref = $sense_rel_refs])
         return $entry
         """
 
@@ -588,14 +597,22 @@ class XQueryBuilder:
 
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
         relation_path = XQueryBuilder.get_element_path("relation", has_namespace)
         
         relation_condition = (
             f'[@type="{safe_relation_type}"]' if safe_relation_type else ''
         )
 
+        # Support both:
+        # 1) entry-level reverse relations (relation/@ref points to entry id)
+        # 2) sense-level reverse relations (relation/@ref points to sense id)
         query = f"""
-        for $entry in collection('{db_name}')//{entry_path}[.//{relation_path}{relation_condition}/@ref=\"{safe_entry_id}\"]
+        let $target_sense_ids := collection('{db_name}')//{entry_path}[@id="{safe_entry_id}"]//{sense_path}/@id
+        for $entry in collection('{db_name}')//{entry_path}
+        where
+            .//{relation_path}{relation_condition}/@ref="{safe_entry_id}"
+            or .//{relation_path}{relation_condition}/@ref=$target_sense_ids
         """
 
         if offset:

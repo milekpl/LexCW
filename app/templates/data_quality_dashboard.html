@@ -31,7 +31,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3">
+<div class="container-fluid py-3" data-project-id="{{ project_id or '' }}">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Data Quality Dashboard</h2>
         <div>
@@ -175,6 +175,59 @@
                             <h6 class="fw-semibold mb-2">Examples per Sense</h6>
                             <div id="examples-histogram" class="small"></div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ---- Duplicate Detection (loaded via API) ---- #}
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card quality-card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-copy me-1"></i>Duplicate Detection</h6>
+                    <div>
+                        <span id="duplicates-summary" class="small text-muted me-2"></span>
+                        <button type="button" id="run-detection-btn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-search"></i> Run Detection
+                        </button>
+                        <button type="button" id="cancel-scan-btn" class="btn btn-outline-danger btn-sm d-none">
+                            <i class="fas fa-stop-circle"></i> Stop
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-auto">
+                            <label class="small fw-semibold me-1">Mode:</label>
+                            <div class="btn-group btn-group-sm" role="group" id="dup-mode-pills">
+                                <button type="button" class="btn btn-outline-secondary active" data-mode="all">All</button>
+                                <button type="button" class="btn btn-outline-secondary" data-mode="exact">Exact</button>
+                                <button type="button" class="btn btn-outline-secondary" data-mode="near">Relaxed</button>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <label class="small fw-semibold me-1">Threshold:</label>
+                            <input type="range" id="dup-threshold" min="1" max="5" value="2" class="form-range d-inline-block" style="width:6rem;vertical-align:middle;">
+                            <span id="dup-threshold-val" class="small ms-1">2</span>
+                        </div>
+                        <div class="col-auto">
+                            <label class="small fw-semibold me-1">Sample:</label>
+                            <select id="dup-sample-size" class="form-select form-select-sm d-inline-block" style="width:auto;vertical-align:middle;">
+                                <option value="">Full</option>
+                                <option value="100">100</option>
+                                <option value="500">500</option>
+                                <option value="1000">1,000</option>
+                                <option value="5000">5,000</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="duplicates-progress" class="d-none mb-2 small text-muted">
+                        <i class="fas fa-spinner fa-spin me-1"></i>Scanning entries...
+                    </div>
+                    <div id="duplicates-content">
+                        <p class="text-muted small mb-0"><i class="fas fa-info-circle me-1"></i>Click "Run Detection" to scan for potential duplicate entries.</p>
                     </div>
                 </div>
             </div>

@@ -117,6 +117,10 @@ def mock_dict_service(mock_basex_connector: Mock) -> Mock:
             {'bucket': '3+', 'count': 193},
         ],
     }
+    service.get_duplicate_candidates.return_value = {
+        'groups': [],
+        'total_candidates': 0,
+    }
     
     return service
 

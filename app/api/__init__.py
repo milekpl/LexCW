@@ -10,6 +10,7 @@ from app.api.dashboard import dashboard_bp
 from app.api.display import display_bp
 from app.api.validation_rules_api import validation_rules_bp
 from app.api.bulk_operations import bulk_bp
+from app.api.discovery import discovery_bp
 
 # Create the API blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -22,3 +23,4 @@ api_bp.register_blueprint(dashboard_bp)
 api_bp.register_blueprint(display_bp)
 api_bp.register_blueprint(validation_rules_bp)
 api_bp.register_blueprint(bulk_bp, url_prefix='/bulk')
+api_bp.register_blueprint(discovery_bp)

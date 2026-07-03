@@ -305,8 +305,7 @@ def get_search_service(
     if dictionary_service is None:
         try:
             from flask import current_app
-            connector = current_app.injector.get(DictionaryService).db_connector
-            dictionary_service = DictionaryService(connector)
+            dictionary_service = current_app.injector.get(DictionaryService)
         except Exception:
             dictionary_service = None
     

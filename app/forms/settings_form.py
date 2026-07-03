@@ -97,6 +97,18 @@ class SettingsForm(FlaskForm):
         description='Include uploaded media files in backups when enabled'
     )
 
+    duplicate_placeholders = StringField(
+        'Duplicate Placeholders',
+        validators=[Optional(), Length(max=500)],
+        description='Comma-separated placeholder markers to ignore during duplicate detection'
+    )
+
+    duplicate_articles = StringField(
+        'Duplicate Articles',
+        validators=[Optional(), Length(max=200)],
+        description='Comma-separated leading articles to ignore during duplicate detection'
+    )
+
     # Email / SMTP settings
     smtp_host = StringField(
         'SMTP Host',
@@ -263,6 +275,11 @@ class SettingsForm(FlaskForm):
                 self.backup_compression.data = backup_settings.get('compression', True)
                 self.backup_include_media.data = backup_settings.get('include_media', False)
 
+                duplicate_settings = getattr(config, 'settings_json', {}) or {}
+                if isinstance(duplicate_settings, dict):
+                    self.duplicate_placeholders.data = duplicate_settings.get('duplicate_placeholders', '')
+                    self.duplicate_articles.data = duplicate_settings.get('duplicate_articles', '')
+
             # Populate AI & infrastructure settings from ProjectSettings (not stored in config manager)
             try:
                 from app.models.project_settings import ProjectSettings
@@ -310,6 +327,11 @@ class SettingsForm(FlaskForm):
                 self.backup_retention.data = backup_settings.get('retention', 10)
                 self.backup_compression.data = backup_settings.get('compression', True)
                 self.backup_include_media.data = backup_settings.get('include_media', False)
+
+            duplicate_settings = config.get('settings_json', {}) or {}
+            if isinstance(duplicate_settings, dict):
+                self.duplicate_placeholders.data = duplicate_settings.get('duplicate_placeholders', '')
+                self.duplicate_articles.data = duplicate_settings.get('duplicate_articles', '')
 
             # Populate AI settings
             self.openai_api_key.data = config.get('openai_api_key', '') or ''

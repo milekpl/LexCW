@@ -12,7 +12,7 @@ import sys
 import re
 import random
 import tempfile
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Callable, Dict, List, Any, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
@@ -27,12 +27,16 @@ from app.utils.exceptions import (
     ValidationError,
     DatabaseError,
     ExportError,
+    JobCancelled,
 )
 from app.utils.constants import DB_NAME_NOT_CONFIGURED
 from app.utils.data_copier import DataCopier
 from app.utils.db_utils import safe_commit, escape_xquery_string
 from app.utils.xquery_builder import XQueryBuilder
 from app.utils.namespace_manager import LIFTNamespaceManager
+
+# Import levenshtein_distance for duplicate detection
+from app.services.ipa_service import levenshtein_distance
 
 
 class DictionaryService:
@@ -44,6 +48,61 @@ class DictionaryService:
     """
 
     _MINIMAL_RANGES_RELATIVE_PATH = '../../config/minimal.lift-ranges'
+
+    @staticmethod
+    def _normalise_headword(
+        headword: str,
+        placeholders: Optional[list[str]] = None,
+        articles: Optional[list[str]] = None,
+    ) -> str:
+        """Normalise a headword for duplicate comparison.
+
+        Pipeline: strip parenthetical qualifiers → strip placeholders →
+        strip leading articles → collapse whitespace → lowercase.
+
+        Args:
+            headword: Raw headword string.
+            placeholders: Custom list of placeholder tokens (default: sth,sb,sth/sb,sb/sth).
+            articles: Custom list of articles to strip (default: a,an,the).
+
+        Returns:
+            Normalised headword string (may be empty).
+        """
+        if placeholders is None:
+            placeholders = ["sth", "sb", "sth/sb", "sb/sth"]
+        if articles is None:
+            articles = ["a", "an", "the"]
+
+        text = headword
+
+        # 1. Strip last parenthetical qualifier
+        text = re.sub(r'\s*\([^)]*\)\s*$', '', text)
+
+        # 2. Strip placeholders (whole-word, case-insensitive, longest-first)
+        # Sort by length descending so 'sth/sb' matches before 'sth'
+        sorted_placeholders = sorted(placeholders, key=len, reverse=True)
+        escaped = [re.escape(p) for p in sorted_placeholders]
+        placeholder_pattern = (
+            r'(?:\s*\|\s*)?(?:' + '|'.join(escaped) + r')(?:\s*\|\s*)?'
+        )
+        text = re.sub(placeholder_pattern, '', text, flags=re.IGNORECASE)
+
+        # Clean up orphaned brackets, pipes, slashes left after placeholder removal
+        text = re.sub(r'\s*\(\s*\)\s*', '', text)
+        text = re.sub(r'\s*[|/]\s*', ' ', text)
+
+        # 3. Strip leading articles (case-insensitive)
+        for article in articles:
+            pattern = r'^' + re.escape(article) + r'\s+'
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+
+        # 4. Collapse whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        # 5. Lowercase
+        text = text.lower()
+
+        return text
 
     def __init__(self,
                  db_connector: Union[BaseXConnector, MockDatabaseConnector],
@@ -955,12 +1014,12 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
-            # Check if entry exists
-            self.get_entry(entry.id, project_id=project_id)
+            # Check if entry exists and load previous state for bidirectional diff
+            previous_entry = self.get_entry(entry.id, project_id=project_id)
 
             # Handle bidirectional relations before saving (unless explicitly skipped)
             if not skip_bidirectional:
-                self._handle_bidirectional_relations(entry, project_id=project_id)
+                self._handle_bidirectional_relations(entry, previous_entry, project_id=project_id)
 
             entry_xml = self._prepare_entry_xml(entry)
 
@@ -1001,10 +1060,15 @@ class DictionaryService:
                 self.logger.debug("Error getting db_name for project %s: %s", project_id, e)
         return db_name or 'dictionary'
 
-    def _handle_bidirectional_relations(self, entry: 'Entry', project_id: Optional[int] = None) -> None:
+    def _handle_bidirectional_relations(self, entry: 'Entry', previous_entry: Optional['Entry'] = None, project_id: Optional[int] = None) -> None:
         """
-        Handle bidirectional relations by creating reverse relations for target entries.
-        Batched into a single XQuery to avoid N+1 round-trips.
+        Ensure bidirectional relations are consistent.
+
+        For bidirectional relation types:
+        - add missing reverse relations (when the forward relation exists)
+        - remove dangling reverse relations (when the forward relation was removed)
+
+        This supports both entry-level and sense-level relations.
         """
         from app.utils.bidirectional_relations import is_relation_bidirectional, get_reverse_relation_type
 
@@ -1012,78 +1076,220 @@ class DictionaryService:
 
         # Collect all reverse relation inserts needed (entry-level)
         inserts = []
+        new_entry_rels = set()
+        old_entry_rels = set()
         for relation in entry.relations:
             rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
             rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
+            if rel_ref:
+                new_entry_rels.add((rel_type, str(rel_ref)))
+
+        if previous_entry is not None:
+            for relation in previous_entry.relations:
+                rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
+                rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
+                if rel_ref:
+                    old_entry_rels.add((rel_type, str(rel_ref)))
+
+        # additions (forward exists, reverse missing)
+        for rel_type, rel_ref in new_entry_rels:
             if rel_ref and is_relation_bidirectional(rel_type, self):
                 reverse_rel_type = get_reverse_relation_type(rel_type, self)
-                inserts.append((rel_ref, reverse_rel_type))
+                inserts.append((rel_ref, reverse_rel_type, rel_type))
 
-        # Collect all reverse relation inserts needed (sense-level)
-        sense_inserts = []  # (target_entry_id, reverse_rel_type, source_entry_id)
+        # removals (forward was removed, reverse should not exist)
+        removed_entry_rels = old_entry_rels - new_entry_rels
+
+        # Collect all reverse relation inserts/removals needed (sense-level)
+        sense_inserts: list[tuple[str, str, str]] = []  # (target_sense_id, reverse_rel_type, source_sense_id)
+        sense_deletions: list[tuple[str, str, str]] = []  # (target_sense_id, reverse_rel_type, source_sense_id)
+
+        new_sense_rels = set()
+        old_sense_rels = set()
+
         for sense in entry.senses:
+            if not hasattr(sense, 'id'):
+                continue
+            source_sense_id = getattr(sense, 'id', None)
+            if not source_sense_id:
+                continue
             if hasattr(sense, 'relations') and sense.relations:
                 for relation in sense.relations:
                     rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
                     rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
-                    if rel_ref and is_relation_bidirectional(rel_type, self):
-                        try:
-                            target_entry = self._find_entry_by_sense_id(rel_ref, project_id=project_id)
-                            if target_entry:
-                                reverse_rel_type = get_reverse_relation_type(rel_type, self)
-                                sense_inserts.append((target_entry.id, reverse_rel_type, entry.id))
-                        except Exception as e:
-                            self.logger.warning(
-                                "Could not find target entry for sense relation '%s' from '%s': %s",
-                                rel_type, entry.id, e,
-                            )
+                    if rel_ref:
+                        new_sense_rels.add((str(source_sense_id), rel_type, str(rel_ref)))
 
-        all_inserts = inserts + [(sid, rt) for sid, rt, _ in sense_inserts]
-        if not all_inserts:
+        if previous_entry is not None:
+            for sense in previous_entry.senses:
+                if not hasattr(sense, 'id'):
+                    continue
+                source_sense_id = getattr(sense, 'id', None)
+                if not source_sense_id:
+                    continue
+                if hasattr(sense, 'relations') and sense.relations:
+                    for relation in sense.relations:
+                        rel_type = getattr(relation, 'type', relation.get('type', '') if isinstance(relation, dict) else '')
+                        rel_ref = getattr(relation, 'ref', relation.get('ref', '') if isinstance(relation, dict) else '')
+                        if rel_ref:
+                            old_sense_rels.add((str(source_sense_id), rel_type, str(rel_ref)))
+
+        removed_sense_rels = old_sense_rels - new_sense_rels
+
+        for source_sense_id, rel_type, target_sense_id in new_sense_rels:
+            if target_sense_id and is_relation_bidirectional(rel_type, self):
+                reverse_rel_type = get_reverse_relation_type(rel_type, self)
+                sense_inserts.append((target_sense_id, reverse_rel_type, source_sense_id))
+
+        for source_sense_id, rel_type, target_sense_id in removed_sense_rels:
+            if target_sense_id and is_relation_bidirectional(rel_type, self):
+                reverse_rel_type = get_reverse_relation_type(rel_type, self)
+                sense_deletions.append((target_sense_id, reverse_rel_type, source_sense_id))
+
+        if not (inserts or removed_entry_rels or sense_inserts or sense_deletions):
             return
 
-        # Build a single XQuery with one clause per target entry
-        # Each clause: find the target entry, check reverse relation doesn't exist, insert
-        clauses = []
-        for target_id, rev_type in all_inserts:
-            escaped_ref = escape_xquery_string(entry.id)
-            escaped_type = escape_xquery_string(rev_type)
-            escaped_target = escape_xquery_string(str(target_id))
-            clauses.append(
-                f"let $e := collection('{db_name}')//entry[@id='{escaped_target}']\n"
-                f"return insert node <relation type='{escaped_type}' ref='{escaped_ref}'/> into $e"
+        entry_path = self._query_builder.get_element_path("entry", self._detect_namespace_usage())
+        relation_path = self._query_builder.get_element_path("relation", self._detect_namespace_usage())
+        sense_path = self._query_builder.get_element_path("sense", self._detect_namespace_usage())
+        has_ns = self._detect_namespace_usage()
+        prologue = self._query_builder.get_namespace_prologue(has_ns)
+        C = f"collection('{db_name}')"
+
+        # Determine namespace prefix for constructing elements
+        rel_prefix = relation_path.split(':')[0] if ':' in relation_path else ''
+        if rel_prefix:
+            rel_ctor = f"<{rel_prefix}:relation type='{{type}}' ref='{{ref}}'/>"
+        else:
+            rel_ctor = "<relation type='{type}' ref='{ref}'/>"
+
+        # --- 1) Remove dangling reverse relations for deleted forwards ---
+        deletion_clauses: list[str] = []
+        escaped_entry_id = escape_xquery_string(entry.id)
+
+        for rel_type, target_entry_id in removed_entry_rels:
+            reverse_rel_type = get_reverse_relation_type(rel_type, self)
+            escaped_target_entry = escape_xquery_string(str(target_entry_id))
+            escaped_rev_type = escape_xquery_string(reverse_rel_type)
+            if rel_prefix:
+                ctor = rel_ctor.format(type=escaped_rev_type, ref=escaped_entry_id)
+            else:
+                ctor = rel_ctor.format(type=escaped_rev_type, ref=escaped_entry_id)
+
+            # delete nodes: targetEntry/{relation_path}[@type=rev & @ref=sourceEntry]
+            deletion_clauses.append(
+                f"let $t := {C}//{entry_path}[@id='{escaped_target_entry}']\n"
+                f"return delete nodes $t/{relation_path}[@type='{escaped_rev_type}' and @ref='{escaped_entry_id}']"
             )
 
-        query = "(\n" + ",\n".join(clauses) + "\n)"
+        for target_sense_id, reverse_rel_type, source_sense_id in sense_deletions:
+            escaped_target_sid = escape_xquery_string(target_sense_id)
+            escaped_source_sid = escape_xquery_string(source_sense_id)
+            escaped_rev_type = escape_xquery_string(reverse_rel_type)
+            deletion_clauses.append(
+                f"let $t := {C}//{sense_path}[@id='{escaped_target_sid}']\n"
+                f"return delete nodes $t/{relation_path}[@type='{escaped_rev_type}' and @ref='{escaped_source_sid}']"
+            )
+
+        if deletion_clauses:
+            del_query = "(\n" + ",\n".join(deletion_clauses) + "\n)"
+            self.db_connector.execute_update(prologue + " " + del_query)
+
+        # --- 2) Add missing reverse relations for existing forwards ---
+        add_clauses: list[str] = []
+        for target_entry_id, reverse_rel_type, _forward_type in inserts:
+            escaped_target = escape_xquery_string(str(target_entry_id))
+            escaped_type = escape_xquery_string(reverse_rel_type)
+            escaped_source_entry = escaped_entry_id
+            if rel_prefix:
+                insert_node = f"<{rel_prefix}:relation type='{escaped_type}' ref='{escaped_source_entry}'/>"
+            else:
+                insert_node = f"<relation type='{escaped_type}' ref='{escaped_source_entry}'/>"
+            add_clauses.append(
+                f"let $e := {C}//{entry_path}[@id='{escaped_target}']\n"
+                f"let $forward := $e/{relation_path}[@type='{escaped_type}' and @ref='{escaped_source_entry}']\n"
+                f"return ( if (empty($forward)) then insert node {insert_node} into $e else () )"
+            )
+
+        for target_sense_id, reverse_rel_type, source_sense_id in sense_inserts:
+            escaped_target_sid = escape_xquery_string(target_sense_id)
+            escaped_source_sid = escape_xquery_string(source_sense_id)
+            escaped_rev_type = escape_xquery_string(reverse_rel_type)
+            if rel_prefix:
+                insert_node = f"<{rel_prefix}:relation type='{escaped_rev_type}' ref='{escaped_source_sid}'/>"
+            else:
+                insert_node = f"<relation type='{escaped_rev_type}' ref='{escaped_source_sid}'/>"
+            add_clauses.append(
+                f"let $s := {C}//{sense_path}[@id='{escaped_target_sid}']\n"
+                f"let $rel := $s/{relation_path}[@type='{escaped_rev_type}' and @ref='{escaped_source_sid}']\n"
+                f"return ( if (empty($rel)) then insert node {insert_node} into $s else () )"
+            )
+
+        if add_clauses:
+            add_query = "(\n" + ",\n".join(add_clauses) + "\n)"
+            self.db_connector.execute_update(prologue + " " + add_query)
+
+        # Quality check: bidirectional relations should actually be bidirectional.
+        # We do this as best-effort logging (no exceptions) to avoid breaking saves.
         try:
-            self.db_connector.execute_update(query)
-            self.logger.info(
-                "Added %d reverse relations from '%s' in a single XQuery",
-                len(all_inserts), entry.id,
-            )
-        except Exception as e:
-            self.logger.warning(
-                "Batch reverse relation insert failed for '%s': %s. Falling back to per-relation.",
-                entry.id, e,
-            )
-            # Fallback: insert one at a time
-            from app.models.entry import Relation
-            for target_id, rev_type in all_inserts:
-                try:
-                    target_entry = self.get_entry(target_id, project_id=project_id)
-                    reverse_exists = any(
-                        getattr(r, 'type', r.get('type', '') if isinstance(r, dict) else '') == rev_type
-                        and getattr(r, 'ref', r.get('ref', '') if isinstance(r, dict) else '') == entry.id
-                        for r in target_entry.relations
-                    )
-                    if not reverse_exists:
-                        target_entry.relations.append(Relation(type=rev_type, ref=entry.id))
-                        self.update_entry(target_entry, skip_validation=True, skip_bidirectional=True, project_id=project_id)
-                except Exception as e2:
+            max_checks = 20
+            checks_done = 0
+
+            def _exists(q: str) -> bool:
+                res = self.db_connector.execute_query(prologue + " " + q)
+                if res is None:
+                    return False
+                s = str(res).strip().lower()
+                return s in ("true", "1") or (s != "" and s != "false")
+
+            # Entry-level symmetry checks
+            for rel_type, target_entry_id in new_entry_rels:
+                if not target_entry_id or checks_done >= max_checks:
+                    break
+                if not is_relation_bidirectional(rel_type, self):
+                    continue
+                reverse_rel_type = get_reverse_relation_type(rel_type, self)
+                escaped_target_entry = escape_xquery_string(str(target_entry_id))
+                escaped_rev_type = escape_xquery_string(reverse_rel_type)
+                escaped_source_entry = escape_xquery_string(entry.id)
+                q = (
+                    f"let $t := {C}//{entry_path}[@id='{escaped_target_entry}'] "
+                    f"return exists($t/{relation_path}[@type='{escaped_rev_type}' and @ref='{escaped_source_entry}'])"
+                )
+                if not _exists(q):
                     self.logger.warning(
-                        "Could not create reverse relation '%s' for '%s': %s",
-                        rev_type, target_id, e2,
+                        "Bidirectional quality check failed (entry-level): missing reverse %s from %s -> %s",
+                        reverse_rel_type,
+                        target_entry_id,
+                        entry.id,
                     )
+                checks_done += 1
+
+            # Sense-level symmetry checks
+            for source_sense_id, rel_type, target_sense_id in new_sense_rels:
+                if not target_sense_id or checks_done >= max_checks:
+                    break
+                if not is_relation_bidirectional(rel_type, self):
+                    continue
+                reverse_rel_type = get_reverse_relation_type(rel_type, self)
+                escaped_target_sid = escape_xquery_string(str(target_sense_id))
+                escaped_rev_type = escape_xquery_string(reverse_rel_type)
+                escaped_source_sid = escape_xquery_string(str(source_sense_id))
+                q = (
+                    f"let $s := {C}//{entry_path}//{sense_path}[@id='{escaped_target_sid}'] "
+                    f"return exists($s/{relation_path}[@type='{escaped_rev_type}' and @ref='{escaped_source_sid}'])"
+                )
+                if not _exists(q):
+                    self.logger.warning(
+                        "Bidirectional quality check failed (sense-level): missing reverse %s between %s (source) and %s (target)",
+                        reverse_rel_type,
+                        source_sense_id,
+                        target_sense_id,
+                    )
+                checks_done += 1
+        except Exception:
+            # Best-effort only.
+            pass
 
     def _find_entry_by_sense_id(self, sense_id: str, project_id: Optional[int] = None) -> Optional['Entry']:
         """
@@ -2577,6 +2783,797 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Error computing composition stats: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to compute composition stats: {e}") from e
+
+    def count_entries(self, project_id: Optional[int] = None) -> int:
+        """Number of non-variant entries (fast count query)."""
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                from app.config_manager import ConfigManager
+                config = ConfigManager(project_id)
+                db_name = config.get_db_name()
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+            var_filter = f"not(.//{relation_path}[{trait_path}[@name='variant-type']])"
+            C = f"collection('{db_name}')"
+            raw = self.db_connector.execute_query(
+                f"{prologue} count({C}//{entry_path}[{var_filter}])"
+            )
+            return int(raw.strip())
+        except Exception:
+            return 0
+
+    def get_duplicate_candidates(
+        self,
+        mode: str = "all",
+        pos: Optional[str] = None,
+        threshold: int = 2,
+        min_confidence: float = 0.5,
+        project_id: Optional[int] = None,
+        sample_size: Optional[int] = None,
+        progress_callback: Optional[Callable[[int, int, str, list], None]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Detect potential duplicate entries in the dictionary.
+
+        Args:
+            mode: "all", "exact", "near", or "fuzzy"
+            pos: Optional POS filter (only compare entries with this POS;
+                 entries without POS match everything).
+            threshold: Levenshtein threshold for near-headword mode (default 2).
+            min_confidence: Minimum confidence to include (default 0.5).
+            project_id: Optional project ID to determine database.
+            sample_size: Optional cap on the number of entries to scan.
+
+        Returns:
+            Dict with 'groups' (list of DuplicateGroup dicts) and
+            'total_candidates' (int).
+        """
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
+
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            # Fetch placeholders/articles once from project settings
+            placeholders = None
+            articles = None
+            settings = None
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
+                if settings:
+                    raw_p = settings.settings_json.get("duplicate_placeholders", "")
+                    raw_a = settings.settings_json.get("duplicate_articles", "")
+                    if raw_p:
+                        placeholders = [p.strip() for p in raw_p.split(",") if p.strip()]
+                    if raw_a:
+                        articles = [a.strip() for a in raw_a.split(",") if a.strip()]
+
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            citation_path = self._query_builder.get_element_path("citation", has_ns)
+            pronunciation_path = self._query_builder.get_element_path("pronunciation", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            definition_path = self._query_builder.get_element_path("definition", has_ns)
+            gloss_path = self._query_builder.get_element_path("gloss", has_ns)
+            grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
+            example_path = self._query_builder.get_element_path("example", has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+
+            # Exclude variant entries (AmE spelling variants etc.) — they have no
+            # senses of their own and should never be flagged as duplicates.
+            variant_filter = f"not(.//{relation_path}[{trait_path}[@name='variant-type']])"
+
+            C = f"collection('{db_name}')"
+
+            # Fetch headword + ID + POS + citation_form + sense_count + all definitions/glosses
+            entry_iter = f"for $e in {C}//{entry_path}[{variant_filter}]"
+            if sample_size and sample_size > 0:
+                entry_iter = f"for $e at $i in {C}//{entry_path}[{variant_filter}] where $i <= {int(sample_size)}"
+            fetch_query = (
+                f"{prologue} {entry_iter} "
+                f"let $hw := ($e/{lexical_unit_path}/{form_path}/{text_path}/string(), '')[1] "
+                f"let $cf := ($e/{citation_path}/{form_path}/{text_path}/string(), '')[1] "
+                f"let $pos := ($e/{grammatical_info_path}/@value | "
+                f"             $e//{sense_path}/{grammatical_info_path}/@value)[1] "
+                f"let $sc := count($e//{sense_path}) "
+                f"let $defs := string-join("
+                f"  ($e//{sense_path}/{definition_path}/{form_path}/{text_path}/string())[. != ''], ' ') "
+                f"let $glosses := string-join("
+                f"  ($e//{sense_path}/{gloss_path}/{text_path}/string())[. != ''], ' ') "
+                f"return concat($e/@id, '|||', $hw, '|||', $cf, '|||', "
+                f"             string(($pos, '')[1]), '|||', $sc, '|||', $defs, '|||', $glosses)"
+            )
+            raw = self.db_connector.execute_query(fetch_query)
+
+            # Parse the fetched data
+            entries = []
+            for line in raw.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split('|||')
+                if len(parts) < 5:
+                    continue
+                entry_id, headword, citation_form, pos_val, sc_str = parts[:5]
+                defs_raw = parts[5] if len(parts) > 5 else ''
+                glosses_raw = parts[6] if len(parts) > 6 else ''
+                try:
+                    sense_count = int(sc_str)
+                except ValueError:
+                    sense_count = 0
+
+                normalised = self._normalise_headword(headword, placeholders, articles)
+                if not normalised:
+                    continue  # skip placeholder-only entries
+
+                entries.append({
+                    'entry_id': entry_id,
+                    'headword': headword,
+                    'normalised': normalised,
+                    'citation_form': citation_form,
+                    'defs': defs_raw,
+                    'glosses': glosses_raw,
+                    'definition': defs_raw,  # keep for backward compat in response
+                    'gloss': glosses_raw,
+                    'pos': pos_val if pos_val else '',
+                    'pronunciation': '',
+                    'sense_count': sense_count,
+                })
+
+            if sample_size and sample_size > 0:
+                entries = entries[: int(sample_size)]
+
+            total_entries = len(entries)
+            if progress_callback:
+                progress_callback(total_entries, 0, 'Fetched entries')
+
+            def _entry_key(entry: dict) -> tuple[str, str, str]:
+                return (
+                    entry['normalised'],
+                    entry['pos'] or '',
+                    entry['pronunciation'] or '',
+                )
+
+            if pos is None:
+                candidate_entries = entries
+            else:
+                candidate_entries = [e for e in entries if not e['pos'] or e['pos'] == pos]
+
+            def _make_group(entries_list, group_mode, confidence):
+                entry_dicts = [
+                    {
+                        'entry_id': e['entry_id'],
+                        'headword': e['headword'],
+                        'citation_form': e['citation_form'],
+                        'definition': e.get('definition', ''),
+                        'gloss': e.get('gloss', ''),
+                        'pronunciation': e.get('pronunciation', ''),
+                        'sense_count': e.get('sense_count') or e.get('senses_count', 0),
+                        'pos': e['pos'],
+                        'match_fields': ['lexical_unit'],
+                    }
+                    for e in entries_list
+                ]
+                ids = [e['entry_id'] for e in entries_list]
+                return {
+                    'id': f"{group_mode}-{'-'.join(ids)}",
+                    'confidence': confidence,
+                    'mode': group_mode,
+                    'entries': entry_dicts,
+                    'merge_suggestion': 'keep_complete' if group_mode == 'exact' else 'manual',
+                }
+
+            def _find_exact_groups(candidates):
+                """Find exact-headword groups among candidate entries.
+
+                No-POS entries act as wildcards and join every group with matching
+                normalised headword and pronunciation, regardless of POS.
+                """
+                result_groups = []
+                by_norm: dict[tuple[str, str, str], list] = {}
+                wildcards = []
+                for e in candidates:
+                    if not e['pos']:
+                        wildcards.append(e)
+                    else:
+                        by_norm.setdefault(_entry_key(e), []).append(e)
+                # Inject wildcards into every compatible group
+                if wildcards:
+                    for key, group in list(by_norm.items()):
+                        for w in wildcards:
+                            if w['normalised'] == key[0] and (w['pronunciation'] or '') == key[2]:
+                                group.append(w)
+                # Wildcard-only groups
+                if wildcards:
+                    wc_by_norm_pron: dict[tuple[str, str], list] = {}
+                    for w in wildcards:
+                        wc_by_norm_pron.setdefault((w['normalised'], w['pronunciation'] or ''), []).append(w)
+                    for (norm, pron), group in wc_by_norm_pron.items():
+                        if len(group) >= 2:
+                            result_groups.append(_make_group(group, 'exact', 1.0))
+                for key, same in by_norm.items():
+                    if len(same) < 2:
+                        continue
+                    result_groups.append(_make_group(same, 'exact', 1.0))
+                return result_groups
+
+            def _trigram_set(text: str) -> set[str]:
+                """Build a set of lowercase trigrams from text."""
+                t = text.lower()
+                return {t[i:i+3] for i in range(len(t) - 2)}
+
+            def _def_similarity(a: dict, b: dict) -> float:
+                """Trigram Jaccard similarity on combined definition+gloss text."""
+                a_def = a.get('defs') or a.get('definition', '')
+                a_gloss = a.get('glosses') or a.get('gloss', '')
+                b_def = b.get('defs') or b.get('definition', '')
+                b_gloss = b.get('glosses') or b.get('gloss', '')
+                a_text = (a_def + ' ' + a_gloss).strip()
+                b_text = (b_def + ' ' + b_gloss).strip()
+                if not a_text or not b_text:
+                    return 0.0
+                a_tris = _trigram_set(a_text)
+                b_tris = _trigram_set(b_text)
+                inter = a_tris & b_tris
+                union = a_tris | b_tris
+                return len(inter) / len(union) if union else 0.0
+
+            def _sim_threshold(lev_thresh: int) -> float:
+                """Map the 1-5 Levenshtein threshold to a Jaccard cutoff.
+
+                Higher slider = more matches found (lower Jaccard cutoff).
+                """
+                return max(0.1, 0.8 - (lev_thresh - 1) * 0.15)
+
+            groups = []
+
+            exact_mode = mode in ("all", "exact", "near", "relaxed")
+            near_mode = mode in ("all", "near", "relaxed")
+
+            # --- Exact headword pass ---
+            if exact_mode:
+                groups = _find_exact_groups(candidate_entries)
+                if progress_callback:
+                    progress_callback(total_entries, total_entries, f'Exact done ({len(groups)} groups)')
+
+            # --- Relaxed pass (split exact groups by definition similarity) ---
+            if near_mode:
+                cutoff = _sim_threshold(threshold)
+                total_exact = len(groups)
+                relaxed_groups = []
+                for idx, g in enumerate(groups):
+                    if progress_callback and idx % 100 == 0:
+                        progress_callback(total_exact, idx, f'Filtering ({len(relaxed_groups)} groups)')
+                    entries_list = g['entries']
+                    if len(entries_list) < 2:
+                        relaxed_groups.append(g)
+                        continue
+
+                    # Pairwise trigram Jaccard matrix
+                    n = len(entries_list)
+                    sim_matrix = [[0.0] * n for _ in range(n)]
+                    for i in range(n):
+                        for j in range(i + 1, n):
+                            s = _def_similarity(entries_list[i], entries_list[j])
+                            sim_matrix[i][j] = s
+                            sim_matrix[j][i] = s
+
+                    # Transitive closure clustering
+                    visited = [False] * n
+                    for i in range(n):
+                        if visited[i]:
+                            continue
+                        cluster = []
+                        stack = [i]
+                        while stack:
+                            cur = stack.pop()
+                            if visited[cur]:
+                                continue
+                            visited[cur] = True
+                            cluster.append(cur)
+                            for nb in range(n):
+                                if not visited[nb] and sim_matrix[cur][nb] >= cutoff:
+                                    stack.append(nb)
+                        if len(cluster) >= 2:
+                            # Subgroup confidence = min pairwise similarity
+                            sub_entries = [entries_list[c] for c in cluster]
+                            sims = []
+                            for ii in range(len(cluster)):
+                                for jj in range(ii + 1, len(cluster)):
+                                    sims.append(sim_matrix[cluster[ii]][cluster[jj]])
+                            sub_conf = round(min(sims), 2)
+                            if sub_conf >= min_confidence:
+                                relaxed_groups.append(_make_group(sub_entries, 'exact', sub_conf))
+                            # Single-entry clusters fall through → excluded (homographs)
+                groups = relaxed_groups
+                if progress_callback:
+                    progress_callback(total_exact, total_exact, f'Done ({len(groups)} groups)')
+            # Sort groups by confidence descending, filter by min_confidence
+            groups = [g for g in groups if g['confidence'] >= min_confidence]
+            groups.sort(key=lambda g: -g['confidence'])
+
+            return {
+                'groups': groups,
+                'total_candidates': len(groups),
+                'sample_size': sample_size,
+                'scanned_entries': len(entries),
+            }
+
+        except JobCancelled:
+            raise
+        except Exception as e:
+            self.logger.error("Error detecting duplicates: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to detect duplicates: {e}") from e
+
+    def discover_related_entries(
+        self,
+        pos: Optional[str] = None,
+        threshold: int = 1,
+        min_confidence: float = 0.5,
+        sample_size: Optional[int] = None,
+        project_id: Optional[int] = None,
+        relation_type: str = 'synonym',
+        progress_callback: Optional[callable] = None,
+    ) -> dict:
+        """
+        Find pairs of entries with similar definitions but different headwords (relation discovery).
+
+        Used by the standalone Relation Discovery dashboard to suggest synonym-type relations.
+
+        Args:
+            pos: Optional POS filter.
+            threshold: Slider 1-5 mapped to Jaccard cutoff (higher = lower cutoff = more results).
+            min_confidence: Minimum similarity score (0-1) to include a candidate pair.
+            sample_size: If set, limit scan to the first N non-variant entries.
+            project_id: Optional project ID to determine database.
+            relation_type: The XML relation type to check/create (e.g. 'synonym').
+            progress_callback: Optional callable(total, processed, phase).
+
+        Returns:
+            dict with 'candidates' (list of candidate pair dicts), 'total_candidates',
+            'sample_size', 'scanned_entries'.
+        """
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
+
+            placeholders = ["sth", "sb"]
+            articles = ["a", "an", "the"]
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
+                if settings:
+                    raw_p = settings.settings_json.get("duplicate_placeholders", "")
+                    raw_a = settings.settings_json.get("duplicate_articles", "")
+                    if raw_p:
+                        placeholders = [p.strip() for p in raw_p.split(",") if p.strip()]
+                    if raw_a:
+                        articles = [a.strip() for a in raw_a.split(",") if a.strip()]
+
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            citation_path = self._query_builder.get_element_path("citation", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            definition_path = self._query_builder.get_element_path("definition", has_ns)
+            gloss_path = self._query_builder.get_element_path("gloss", has_ns)
+            grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+
+            variant_filter = f"not(.//{relation_path}[{trait_path}[@name='variant-type']])"
+
+            C = f"collection('{db_name}')"
+
+            entry_iter = f"for $e in {C}//{entry_path}[{variant_filter}]"
+            if sample_size and sample_size > 0:
+                entry_iter = f"for $e at $i in {C}//{entry_path}[{variant_filter}] where $i <= {int(sample_size)}"
+            fetch_query = (
+                f"{prologue} {entry_iter} "
+                f"let $hw := ($e/{lexical_unit_path}/{form_path}/{text_path}/string(), '')[1] "
+                f"let $cf := ($e/{citation_path}/{form_path}/{text_path}/string(), '')[1] "
+                f"let $pos := ($e/{grammatical_info_path}/@value | "
+                f"             $e//{sense_path}/{grammatical_info_path}/@value)[1] "
+                f"let $sc := count($e//{sense_path}) "
+                f"let $defs := string-join("
+                f"  ($e//{sense_path}/{definition_path}/{form_path}/{text_path}/string())[. != ''], ' ') "
+                f"let $glosses := string-join("
+                f"  ($e//{sense_path}/{gloss_path}/{text_path}/string())[. != ''], ' ') "
+                f"let $sids := string-join($e//{sense_path}/@id/string(), '~~~') "
+                f"return concat($e/@id, '|||', $hw, '|||', $cf, '|||', "
+                f"             string(($pos, '')[1]), '|||', $sc, '|||', $defs, '|||', $glosses, '|||', $sids)"
+            )
+            raw = self.db_connector.execute_query(fetch_query)
+
+            entries = []
+            for line in raw.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split('|||')
+                if len(parts) < 5:
+                    continue
+                entry_id, headword, citation_form, pos_val, sc_str = parts[:5]
+                defs_raw = parts[5] if len(parts) > 5 else ''
+                glosses_raw = parts[6] if len(parts) > 6 else ''
+                sids_raw = parts[7] if len(parts) > 7 else ''
+                try:
+                    sense_count = int(sc_str)
+                except ValueError:
+                    sense_count = 0
+
+                sense_ids = [s for s in sids_raw.split('~~~') if s] if sids_raw else []
+
+                normalised = self._normalise_headword(headword, placeholders, articles)
+                if not normalised:
+                    continue
+
+                entries.append({
+                    'entry_id': entry_id,
+                    'headword': headword,
+                    'normalised': normalised,
+                    'citation_form': citation_form,
+                    'defs': defs_raw,
+                    'glosses': glosses_raw,
+                    'definition': defs_raw,
+                    'gloss': glosses_raw,
+                    'pos': pos_val if pos_val else '',
+                    'sense_count': sense_count,
+                    'sense_ids': sense_ids,
+                })
+
+            if sample_size and sample_size > 0:
+                entries = entries[: int(sample_size)]
+
+            total_entries = len(entries)
+            if progress_callback:
+                progress_callback(total_entries, 0, 'Fetched entries')
+
+            if pos:
+                entries = [e for e in entries if not e['pos'] or e['pos'] == pos]
+
+            total_entries = len(entries)
+            if total_entries < 2:
+                if progress_callback:
+                    progress_callback(total_entries, total_entries, 'Done')
+                return {'candidates': [], 'total_candidates': 0, 'sample_size': sample_size, 'scanned_entries': total_entries}
+
+            # --- Trigram helpers ---
+            def _trigram_set(text: str) -> set[str]:
+                t = text.lower()
+                return {t[i:i+3] for i in range(len(t) - 2)}
+
+            def _def_similarity(a: dict, b: dict) -> float:
+                a_text = (a.get('defs', '') + ' ' + a.get('glosses', '')).strip()
+                b_text = (b.get('defs', '') + ' ' + b.get('glosses', '')).strip()
+                if not a_text or not b_text:
+                    return 0.0
+                a_tris = _trigram_set(a_text)
+                b_tris = _trigram_set(b_text)
+                inter = a_tris & b_tris
+                union = a_tris | b_tris
+                return len(inter) / len(union) if union else 0.0
+
+            cutoff = max(0.1, 0.8 - (threshold - 1) * 0.15)
+
+            # --- Group entries by POS ---
+            by_pos: dict[str, list] = {}
+            for e in entries:
+                pos_key = e['pos'] or ''
+                by_pos.setdefault(pos_key, []).append(e)
+
+            # --- Batch-fetch existing relations of the configured type ---
+            linked_pairs: set[tuple[str, str]] = set()
+            try:
+                rel_query = (
+                    f"{prologue} "
+                    f"for $rel in {C}//{entry_path}/{relation_path}[@type='{relation_type}'] "
+                    f"return concat($rel/../@id, '|||', $rel/@ref)"
+                )
+                rel_raw = self.db_connector.execute_query(rel_query)
+                for rline in rel_raw.strip().split('\n'):
+                    rline = rline.strip()
+                    if not rline:
+                        continue
+                    rparts = rline.split('|||', 1)
+                    if len(rparts) == 2:
+                        a_id, b_id = rparts[0].strip(), rparts[1].strip()
+                        if a_id and b_id:
+                            pair = tuple(sorted([a_id, b_id]))
+                            linked_pairs.add(pair)
+            except Exception:
+                self.logger.warning("Failed to batch-fetch existing relations for type '%s'", relation_type)
+
+            if progress_callback:
+                progress_callback(total_entries, 0, 'Comparing')
+
+            candidates = []
+            seen_pairs: set[tuple[str, str]] = set()
+
+            for pos_key, pos_entries in by_pos.items():
+                n = len(pos_entries)
+                for i in range(n):
+                    if progress_callback and (i + 1) % 100 == 0:
+                        progress_callback(total_entries, i + 1, f'Comparing ({len(candidates)} candidates)')
+                    a = pos_entries[i]
+                    for j in range(i + 1, n):
+                        b = pos_entries[j]
+
+                        # Only compare different normalised headwords
+                        if a['normalised'] == b['normalised']:
+                            continue
+
+                        pair_key = tuple(sorted([a['entry_id'], b['entry_id']]))
+                        if pair_key in seen_pairs:
+                            continue
+                        seen_pairs.add(pair_key)
+
+                        sim = _def_similarity(a, b)
+                        if sim < cutoff:
+                            continue
+                        if sim < min_confidence:
+                            continue
+
+                        already_linked = pair_key in linked_pairs
+
+                        candidates.append({
+                            'id': f"discovery-{a['entry_id']}-{b['entry_id']}",
+                            'source': {
+                                'entry_id': a['entry_id'],
+                                'headword': a['headword'],
+                                'citation_form': a['citation_form'],
+                                'definition': a.get('definition', ''),
+                                'gloss': a.get('gloss', ''),
+                                'pos': a['pos'],
+                                'sense_count': a['sense_count'],
+                                'sense_ids': a.get('sense_ids', []),
+                            },
+                            'target': {
+                                'entry_id': b['entry_id'],
+                                'headword': b['headword'],
+                                'citation_form': b['citation_form'],
+                                'definition': b.get('definition', ''),
+                                'gloss': b.get('gloss', ''),
+                                'pos': b['pos'],
+                                'sense_count': b['sense_count'],
+                                'sense_ids': b.get('sense_ids', []),
+                            },
+                            'similarity': round(sim, 2),
+                            'relation_type': relation_type,
+                            'already_linked': already_linked,
+                        })
+
+            if progress_callback:
+                progress_callback(total_entries, total_entries, f'Done ({len(candidates)} candidates)')
+
+            candidates.sort(key=lambda c: -c['similarity'])
+            return {
+                'candidates': candidates,
+                'total_candidates': len(candidates),
+                'sample_size': sample_size,
+                'scanned_entries': total_entries,
+            }
+
+        except JobCancelled:
+            raise
+        except Exception as e:
+            self.logger.error("Error discovering related entries: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to discover related entries: {e}") from e
+
+    @staticmethod
+    def _sense_text(sense) -> str:
+        """Get combined definition+gloss text for a sense for similarity comparison."""
+        def_text = ' '.join(sense.definitions.values()) if hasattr(sense, 'definitions') and sense.definitions else ''
+        gloss_text = ' '.join(sense.glosses.values()) if hasattr(sense, 'glosses') and sense.glosses else ''
+        return f"{def_text} {gloss_text}".strip()
+
+    @staticmethod
+    def _trigram_set(text: str) -> set[str]:
+        t = text.lower()
+        return {t[i:i+3] for i in range(len(t) - 2)}
+
+    @staticmethod
+    def _text_similarity(a_text: str, b_text: str) -> float:
+        if not a_text or not b_text:
+            return 0.0
+        a_tris = DictionaryService._trigram_set(a_text)
+        b_tris = DictionaryService._trigram_set(b_text)
+        inter = a_tris & b_tris
+        union = a_tris | b_tris
+        return len(inter) / len(union) if union else 0.0
+
+    def _find_most_similar_senses(self, entry_a, entry_b):
+        """Find the most similar pair of senses between two entries by trigram Jaccard."""
+        best_sim = 0.0
+        best_pair = None
+        for sa in entry_a.senses:
+            a_text = self._sense_text(sa)
+            if not a_text:
+                continue
+            for sb in entry_b.senses:
+                b_text = self._sense_text(sb)
+                if not b_text:
+                    continue
+                sim = self._text_similarity(a_text, b_text)
+                if sim > best_sim:
+                    best_sim = sim
+                    best_pair = (sa.id, sb.id)
+        return best_pair
+
+    def _create_relation(self, source_id: str, target_id: str, relation_type: str,
+                         source_sense_id: Optional[str] = None, target_sense_id: Optional[str] = None,
+                         project_id: Optional[int] = None) -> dict:
+        """
+        Create a bidirectional relation between two senses (resolved from entry IDs).
+
+        Uses targeted XQuery to insert sense-level <relation> elements (no data round-trip).
+        Then records the operation in history service for activity log / undo-redo.
+
+        Args:
+            source_id: ID of the source entry.
+            target_id: ID of the target entry.
+            relation_type: Type of relation (e.g. 'synonym').
+            source_sense_id: Optional specific source sense ID. If not given, the
+                             best-matching sense pair between the two entries is resolved.
+            target_sense_id: Optional specific target sense ID.
+            project_id: Optional project ID.
+
+        Returns:
+            dict with source_sense_id, target_sense_id, source_entry_id, target_entry_id.
+        """
+        source_entry = self.get_entry(source_id, project_id=project_id)
+        target_entry = self.get_entry(target_id, project_id=project_id)
+
+        # Resolve sense IDs if not provided
+        if not source_sense_id or not target_sense_id:
+            best = self._find_most_similar_senses(source_entry, target_entry)
+            if best:
+                source_sense_id, target_sense_id = best
+            else:
+                source_sense_id = source_entry.senses[0].id if source_entry.senses else None
+                target_sense_id = target_entry.senses[0].id if target_entry.senses else None
+            if not source_sense_id or not target_sense_id:
+                raise ValueError("Cannot resolve sense IDs for relation creation")
+
+        # Look up the sense objects for existence check
+        src_sense = source_entry.get_sense_by_id(source_sense_id)
+        if not src_sense:
+            raise ValueError(f"Sense {source_sense_id} not found in entry {source_id}")
+
+        tgt_sense = target_entry.get_sense_by_id(target_sense_id)
+        if not tgt_sense:
+            raise ValueError(f"Sense {target_sense_id} not found in entry {target_id}")
+
+        # Check if relation already exists (in either direction)
+        for rel in src_sense.relations:
+            if rel.get('type') == relation_type and rel.get('ref') == target_sense_id:
+                self.logger.info(
+                    "Relation '%s' from %s to %s already exists, skipping",
+                    relation_type, source_sense_id, target_sense_id,
+                )
+                return {
+                    'source_sense_id': source_sense_id,
+                    'target_sense_id': target_sense_id,
+                    'source_entry_id': source_id,
+                    'target_entry_id': target_id,
+                }
+
+        for rel in tgt_sense.relations:
+            if rel.get('type') == relation_type and rel.get('ref') == source_sense_id:
+                self.logger.info(
+                    "Relation '%s' from %s to %s already exists, skipping",
+                    relation_type, target_sense_id, source_sense_id,
+                )
+                return {
+                    'source_sense_id': source_sense_id,
+                    'target_sense_id': target_sense_id,
+                    'source_entry_id': source_id,
+                    'target_entry_id': target_id,
+                }
+
+        # Use targeted XQuery to insert sense-level relations (safe — no full-entry round-trip)
+        db_name = self._resolve_db_name(project_id)
+        has_ns = self._detect_namespace_usage()
+        entry_path = self._query_builder.get_element_path("entry", has_ns)
+        sense_path = self._query_builder.get_element_path("sense", has_ns)
+        relation_path = self._query_builder.get_element_path("relation", has_ns)
+        prologue = self._query_builder.get_namespace_prologue(has_ns)
+        C = f"collection('{db_name}')"
+
+        esc_src_sid = escape_xquery_string(source_sense_id)
+        esc_tgt_sid = escape_xquery_string(target_sense_id)
+        esc_type = escape_xquery_string(relation_type)
+        esc_src_eid = escape_xquery_string(source_id)
+        esc_tgt_eid = escape_xquery_string(target_id)
+
+        query = (
+            f"{prologue} "
+            f"let $src := {C}//{entry_path}[@id='{esc_src_eid}']//{sense_path}[@id='{esc_src_sid}'] "
+            f"let $tgt := {C}//{entry_path}[@id='{esc_tgt_eid}']//{sense_path}[@id='{esc_tgt_sid}'] "
+            f"let $forward := $src/{relation_path}[@type='{esc_type}' and @ref='{esc_tgt_sid}'] "
+            f"let $backward := $tgt/{relation_path}[@type='{esc_type}' and @ref='{esc_src_sid}'] "
+            f"return ("
+            f"  if (empty($forward)) then "
+            f"    insert node <{relation_path.split(':')[0]}:relation type='{esc_type}' ref='{esc_tgt_sid}'/> into $src "
+            f"  else (),"
+            f"  if (empty($backward)) then "
+            f"    insert node <{relation_path.split(':')[0]}:relation type='{esc_type}' ref='{esc_src_sid}'/> into $tgt "
+            f"  else ()"
+            f")"
+        )
+
+        try:
+            self.db_connector.execute_update(query)
+        except Exception as e:
+            self.logger.error(
+                "Error creating relation '%s' between senses (%s/%s) and (%s/%s): %s",
+                relation_type, source_sense_id, source_id, target_sense_id, target_id, e,
+            )
+            raise DatabaseError(f"Failed to create relation: {e}") from e
+
+        # Record operations in history service for activity log / undo-redo
+        if self.history_service:
+            for eid, lu in [(source_id, source_entry.lexical_unit), (target_id, target_entry.lexical_unit)]:
+                self.history_service.record_operation(
+                    operation_type='update',
+                    data={'id': eid, 'lexical_unit': lu or {}},
+                    entry_id=eid,
+                    db_name=db_name,
+                )
+
+        self.logger.info(
+            "Created sense-level relation '%s': %s (%s) <-> %s (%s)",
+            relation_type, source_sense_id, source_id, target_sense_id, target_id,
+        )
+
+        return {
+            'source_sense_id': source_sense_id,
+            'target_sense_id': target_sense_id,
+            'source_entry_id': source_id,
+            'target_entry_id': target_id,
+        }
 
     def import_lift(self, lift_path: str, mode: str = "merge", ranges_path: Optional[str] = None, project_id: Optional[int] = None) -> int:
         """

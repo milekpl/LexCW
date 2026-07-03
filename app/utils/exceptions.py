@@ -137,6 +137,10 @@ class DatabaseConnectionError(Exception):
         return self.message
 
 
+class JobCancelled(Exception):
+    """Raised inside a background job when the user requests cancellation."""
+
+
 class ProcessingError(Exception):
     """Error during corpus or data processing."""
     
