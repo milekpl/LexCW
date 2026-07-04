@@ -69,6 +69,10 @@ class ProjectSettings(db.Model):
     embedding_last_built = Column(DateTime, nullable=True)
     embedding_sense_count = Column(Integer, nullable=True, default=0)
 
+    # Project-specific admissible language codes (extra codes beyond source/target)
+    # Stored as a JSON list of BCP-47 language tags, e.g. ["en", "pl", "fr"]
+    admissible_languages = Column(JSON, nullable=True, default=list)
+
     owner_id: Optional[int] = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

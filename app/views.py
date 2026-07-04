@@ -403,6 +403,12 @@ def view_entry(entry_id):
 
     except Exception as e:
         logger.error(f"Error viewing entry {entry_id}: {e}")
+        # Rollback any failed PostgreSQL transaction so subsequent queries work.
+        try:
+            from app.models.workset_models import db as _db
+            _db.session.rollback()
+        except Exception:
+            pass
         flash(f"Error loading entry: {str(e)}", "danger")
         return redirect(url_for("main.entries"))
 

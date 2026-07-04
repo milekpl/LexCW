@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 discovery_bp = Blueprint('discovery_api', __name__, url_prefix='/discovery')
 
-SCAN_JOBS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'instance', 'scan_jobs')
+SCAN_JOBS_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'instance', 'scan_jobs')
+)
 
 
 def _job_path(job_id: str) -> str:
@@ -34,12 +36,22 @@ def _read_job(job_id: str):
 
 def _write_job(job_id: str, data: dict) -> None:
     os.makedirs(SCAN_JOBS_DIR, exist_ok=True)
-    tmp = _job_path(job_id) + '.tmp'
-    with open(tmp, 'w') as f:
-        json.dump(data, f)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, _job_path(job_id))
+    dest = _job_path(job_id)
+    tmp = dest + '.tmp'
+    try:
+        with open(tmp, 'w') as f:
+            json.dump(data, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, dest)
+    except OSError:
+        # Atomic rename failed (e.g. cross-device or unresolved path) — write directly.
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        with open(dest, 'w') as f:
+            json.dump(data, f)
 
 
 def _run_discovery_job(app, base_url, job_id, project_id, pos, threshold, min_confidence, sample_size, relation_type, scan_mode='synonym'):

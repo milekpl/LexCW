@@ -3843,6 +3843,9 @@ class DictionaryService:
                 f"             string(($pos, '')[1]), '|||', string(($morph, '')[1]), '|||', "
                 f"             $rel_count, '|||', $sc, '|||', $defs, '|||', $glosses, '|||', $sids)"
             )
+            if progress_callback:
+                _sample_hint = f' (first {sample_size})' if sample_size else ''
+                progress_callback(0, 0, f'Fetching all entries from database{_sample_hint}…')
             raw = self.db_connector.execute_query(fetch_query)
 
             main_entries = []
@@ -3917,23 +3920,59 @@ class DictionaryService:
                 union = a_tris | b_tris
                 return len(inter) / len(union) if union else 0.4
 
-            candidates = []
+            # ---------------------------------------------------------------
+            # Build an inverted index: word -> [phrase_entries containing it]
+            # This turns the O(main × phrase) naive loop into near-linear time:
+            # for each main entry we only look up phrases that actually contain
+            # a token matching the main headword, instead of scanning all phrases.
+            # ---------------------------------------------------------------
+            from collections import defaultdict as _dd
+            _word_to_phrases: dict = _dd(list)
+            _word_splitter = re.compile(r"[\s\-]+")
+            for _p in phrase_entries:
+                _phrase_lc = _p['headword'].lower()
+                for _tok in _word_splitter.split(_phrase_lc):
+                    _tok = _tok.strip("'\".,;:!?()[]")
+                    if _tok:
+                        _word_to_phrases[_tok].append(_p)
 
-            for m in main_entries:
-                main_hw = m['headword'].lower()
-                if len(main_hw) < 2:
+            # Deduplicate per token bucket (same entry can appear under many tokens)
+            _word_to_phrases = {k: list({p['entry_id']: p for p in v}.values())
+                                for k, v in _word_to_phrases.items()}
+
+            seen_pairs: set[tuple] = set()
+            candidates = []
+            total_main = len(main_entries)
+
+            for idx, m in enumerate(main_entries):
+                main_hw = m['headword'].strip()
+                main_hw_lc = main_hw.lower()
+                if len(main_hw_lc) < 2:
                     continue
 
-                pattern = re.compile(rf"\b{re.escape(main_hw)}\b", re.IGNORECASE)
+                # Report progress every 500 main entries
+                if progress_callback and idx % 500 == 0:
+                    progress_callback(total_main, idx,
+                                      f'Matching {idx}/{total_main} main entries ({len(candidates)} found)')
 
-                for p in phrase_entries:
+                # Fast lookup: only phrases that contain this exact word token
+                candidate_phrases = _word_to_phrases.get(main_hw_lc, [])
+                if not candidate_phrases:
+                    continue
+
+                pattern = re.compile(rf"\b{re.escape(main_hw_lc)}\b", re.IGNORECASE)
+
+                for p in candidate_phrases:
+                    pair_key = (p['entry_id'], m['entry_id'])
+                    if pair_key in seen_pairs:
+                        continue
+                    seen_pairs.add(pair_key)
+
                     phrase_hw = p['headword'].lower()
-                    if main_hw == phrase_hw:
+                    if main_hw_lc == phrase_hw:
                         continue
 
-                    # Whole-word boundary match
-                    match_found = bool(pattern.search(phrase_hw))
-                    if not match_found:
+                    if not pattern.search(phrase_hw):
                         continue
 
                     if pos and p['pos'] and p['pos'] != pos:
@@ -3976,7 +4015,7 @@ class DictionaryService:
                     })
 
             if progress_callback:
-                progress_callback(total_scanned, total_scanned, f'Done ({len(candidates)} candidates)')
+                progress_callback(total_main, total_main, f'Done ({len(candidates)} candidates)')
 
             candidates.sort(key=lambda c: -c['similarity'])
             return {

@@ -125,7 +125,8 @@ def create_app(config_name=None):
                 ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(200) DEFAULT 'jinaai/jina-embeddings-v3',
                 ADD COLUMN IF NOT EXISTS embedding_device VARCHAR(20) DEFAULT 'cpu',
                 ADD COLUMN IF NOT EXISTS embedding_last_built TIMESTAMP,
-                ADD COLUMN IF NOT EXISTS embedding_sense_count INTEGER DEFAULT 0;
+                ADD COLUMN IF NOT EXISTS embedding_sense_count INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS admissible_languages JSONB DEFAULT '[]'::jsonb;
             """))
             db.session.commit()
         except Exception:

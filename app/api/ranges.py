@@ -563,7 +563,186 @@ def get_project_languages_api() -> Union[Response, Tuple[Response, int]]:
         }), 500
 
 
-@ranges_bp.route('/import-list-xml', methods=['POST'])
+
+@ranges_bp.route('/languages/used', methods=['GET'])
+def get_languages_used() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get language codes actually used in LIFT data (alias for /language-codes).
+
+    Returns distinct BCP-47 language codes found in <form lang="...">,
+    <gloss lang="...">, <note lang="..."> and other lang attributes in the
+    active database.
+    ---
+    tags:
+      - Ranges
+    summary: Get language codes used in LIFT data
+    responses:
+      200:
+        description: List of language codes found in the LIFT data
+      500:
+        description: Error retrieving language codes
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        codes = dict_service.get_language_codes()
+        return jsonify({'success': True, 'data': codes})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ranges_bp.route('/languages/available', methods=['GET'])
+def get_languages_available() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get the union of language codes available for this project.
+
+    Returns the combined set of:
+    - Language codes found in the LIFT data (``/language-codes``).
+    - The project ``source_language`` code.
+    - All project ``target_languages`` codes.
+    - Any extra ``admissible_languages`` codes stored in project settings.
+
+    The union is sorted alphabetically and de-duplicated.
+    ---
+    tags:
+      - Ranges
+    summary: Get all available language codes for this project
+    description: |
+      Union of LIFT-extracted language codes and project settings language codes
+      (source, target, and admissible languages).
+    responses:
+      200:
+        description: Successfully retrieved available language codes
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            data:
+              type: array
+              items:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    description: BCP-47 language tag (e.g. 'en', 'pl-fonipa')
+                  name:
+                    type: string
+                    description: Human-readable language name if known
+                  source:
+                    type: string
+                    description: Where this code comes from (lift_data|project_settings|admissible)
+      500:
+        description: Error retrieving available language codes
+    """
+    try:
+        from app.utils.language_utils import get_project_languages
+        from flask import session as s
+
+        dict_service = current_app.injector.get(DictionaryService)
+
+        # 1. LIFT-extracted codes
+        lift_codes: list[str] = dict_service.get_language_codes()
+        lift_set: set[str] = {c for c in lift_codes if c}
+
+        # 2. Project settings codes
+        project_lang_tuples = get_project_languages()  # list[(code, name)]
+        settings_set: set[str] = {code for code, _name in project_lang_tuples if code}
+
+        # 3. Admissible languages stored in ProjectSettings
+        admissible_set: set[str] = set()
+        try:
+            from app.models.project_settings import ProjectSettings
+            from app.models.workset_models import db
+            project_id = s.get('project_id')
+            if project_id:
+                ps = db.session.get(ProjectSettings, project_id)
+                if ps and ps.admissible_languages:
+                    admissible_set = {c for c in ps.admissible_languages if c}
+        except Exception:
+            pass  # non-fatal — project settings read failure
+
+        # Build unified list with source tag
+        seen: dict[str, str] = {}  # code -> source
+        for code in sorted(lift_set):
+            seen[code] = 'lift_data'
+        for code in sorted(settings_set):
+            seen.setdefault(code, 'project_settings')
+        for code in sorted(admissible_set):
+            seen.setdefault(code, 'admissible')
+
+        # Build name lookup from project settings
+        name_lookup: dict[str, str] = {}
+        for code, name in project_lang_tuples:
+            if code:
+                clean = str(name)
+                if hasattr(name, '__html__'):
+                    import re
+                    clean = re.sub(r'<[^>]+>', '', str(name)).strip()
+                name_lookup[code] = clean
+
+        result = [
+            {
+                'code': code,
+                'name': name_lookup.get(code, code),
+                'source': source,
+            }
+            for code, source in sorted(seen.items())
+        ]
+
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ranges_bp.route('/languages/admissible', methods=['GET', 'PUT'])
+def manage_admissible_languages() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get or update the project-specific admissible language codes.
+
+    GET  — return the current admissible_languages list.
+    PUT  — replace with the JSON body ``{"codes": ["en","pl",...]}`` and save.
+    ---
+    tags:
+      - Ranges
+    summary: Manage project admissible language codes
+    responses:
+      200:
+        description: Current or updated list of admissible language codes
+      400:
+        description: Invalid request body
+      500:
+        description: Error reading/writing admissible languages
+    """
+    from flask import session as s
+    from app.models.project_settings import ProjectSettings
+    from app.models.workset_models import db
+
+    try:
+        project_id = s.get('project_id')
+        if not project_id:
+            return jsonify({'success': False, 'error': 'No active project'}), 400
+
+        ps = db.session.get(ProjectSettings, project_id)
+        if not ps:
+            return jsonify({'success': False, 'error': 'Project not found'}), 404
+
+        if request.method == 'GET':
+            return jsonify({'success': True, 'data': ps.admissible_languages or []})
+
+        # PUT — update
+        body = request.get_json(silent=True)
+        if not body or 'codes' not in body:
+            return jsonify({'success': False, 'error': 'Body must contain "codes" list'}), 400
+
+        codes = [str(c).strip() for c in body['codes'] if str(c).strip()]
+        ps.admissible_languages = sorted(set(codes))
+        db.session.commit()
+        return jsonify({'success': True, 'data': ps.admissible_languages})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 def import_list_xml() -> Union[Response, Tuple[Response, int]]:
     """
     Import a FieldWorks list.xml file to populate range abbreviations.

@@ -167,7 +167,13 @@
           finishScan();
           return;
         }
-        var progressText = (resp.phase || 'Scanning') + ' - ' + (resp.processed || 0) + ' / ' + (resp.total || 0);
+        var phase = resp.phase || 'Scanning';
+        var progressText;
+        if (!resp.total || resp.total === 0) {
+          progressText = phase;  // just the phase text, no "0 / 0" noise
+        } else {
+          progressText = phase + ' — ' + (resp.processed || 0) + ' / ' + resp.total;
+        }
         contentEl.innerHTML = '<p class="text-muted small"><i class="fas fa-spinner fa-spin"></i> ' + escHtml(progressText) + '</p>';
         setTimeout(function () { pollJob(jobId); }, 1000);
       })
