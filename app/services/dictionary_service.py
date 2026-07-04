@@ -16,6 +16,14 @@ import time
 from typing import Callable, Dict, List, Any, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    retry_if_exception,
+    wait_exponential,
+    wait_fixed,
+    RetryError,
+)
 
 from app.database.basex_connector import BaseXConnector
 from app.database.mock_connector import MockDatabaseConnector
@@ -73,6 +81,11 @@ def _kill_blocking_sessions(connector: Any) -> None:
         pass  # SHOW SESSIONS itself failed — nothing we can do
 
 
+def _is_locked_db_error(exc: Exception) -> bool:
+    """Check if exception is a 'database locked' error (retryable)."""
+    return "opened by another process" in str(exc).lower()
+
+
 def _drop_db_with_retry(
     connector: Any,
     db_name: str,
@@ -83,44 +96,57 @@ def _drop_db_with_retry(
 ) -> None:
     """Drop *db_name*, retrying when another process holds it open.
 
-    On each retryable failure the helper:
-    1. Queries ``SHOW SESSIONS`` and sends ``KILL`` for every user.
-    2. Sleeps (fixed or exponential) before the next attempt.
+    Uses tenacity to handle retries on locked database errors.
+    On each retryable failure, queries SHOW SESSIONS and kills blocking users
+    before retrying.
 
     Args:
         connector: An admin-level :class:`BaseXConnector`.
         db_name:   Name of the database to drop.
         max_retries: Maximum number of DROP attempts.
         sleep_seconds: Base sleep duration between retries.
-        backoff: If True, double *sleep_seconds* after each retry
-                 (capped at 8 seconds).
+        backoff: If True, exponential backoff is used (doubles sleep,
+                 capped at 8 seconds). Otherwise, fixed sleep is used.
 
     Raises:
         The last exception from ``DROP DB`` if all retries fail.
     """
+    # Track sleep duration for exponential backoff
     current_sleep = sleep_seconds
     last_exc: Exception | None = None
 
-    for attempt in range(1, max_retries + 1):
+    @retry(
+        stop=stop_after_attempt(max_retries),
+        retry=retry_if_exception(_is_locked_db_error),
+    )
+    def _attempt_drop_with_session_kill():
+        """Attempt to drop the database and kill sessions if locked."""
+        nonlocal current_sleep, last_exc
+
         try:
             connector.execute_command(f"DROP DB {db_name}")
-            return  # success
         except Exception as exc:
-            last_exc = exc
-            errstr = str(exc).lower()
-            if "opened by another process" not in errstr:
-                raise  # non-retryable error — propagate immediately
-            if attempt < max_retries:
+            # Log and kill sessions on retryable error
+            if _is_locked_db_error(exc):
                 logger.warning(
-                    "DROP DB '%s' failed (attempt %d/%d), killing sessions and retrying...",
-                    db_name, attempt, max_retries,
+                    "DROP DB '%s' locked, killing sessions and retrying...",
+                    db_name,
                 )
+                last_exc = exc
                 _kill_blocking_sessions(connector)
+                # Sleep before retry with optional exponential backoff
                 time.sleep(current_sleep)
                 if backoff:
                     current_sleep = min(current_sleep * 2, 8)
+            raise
 
-    raise last_exc  # type: ignore[misc]
+    try:
+        _attempt_drop_with_session_kill()
+    except RetryError as e:
+        # Re-raise the last database error (wrapped in RetryError by tenacity)
+        if last_exc:
+            raise last_exc
+        raise
 
 
 class DictionaryService:
@@ -3427,12 +3453,12 @@ class DictionaryService:
         sample_size: Optional[int] = None,
         project_id: Optional[int] = None,
         relation_type: str = 'synonym',
+        scan_mode: str = 'synonym',
         progress_callback: Optional[callable] = None,
     ) -> dict:
         """
-        Find pairs of entries with similar definitions but different headwords (relation discovery).
-
-        Used by the standalone Relation Discovery dashboard to suggest synonym-type relations.
+        Find pairs of entries with similar definitions or subentry relationships.
+        Used by the standalone Relation Discovery dashboard.
 
         Args:
             pos: Optional POS filter.
@@ -3441,12 +3467,22 @@ class DictionaryService:
             sample_size: If set, limit scan to the first N non-variant entries.
             project_id: Optional project ID to determine database.
             relation_type: The XML relation type to check/create (e.g. 'synonym').
+            scan_mode: Mode ('synonym' or 'subentry').
             progress_callback: Optional callable(total, processed, phase).
 
         Returns:
             dict with 'candidates' (list of candidate pair dicts), 'total_candidates',
             'sample_size', 'scanned_entries'.
         """
+        if scan_mode == 'subentry' or relation_type == 'subentry':
+            return self.discover_subentries(
+                pos=pos,
+                threshold=threshold,
+                min_confidence=min_confidence,
+                sample_size=sample_size,
+                project_id=project_id,
+                progress_callback=progress_callback,
+            )
         try:
             db_name = self.db_connector.database
             if project_id:
@@ -3690,6 +3726,216 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Error discovering related entries: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to discover related entries: {e}") from e
+
+    def discover_subentries(
+        self,
+        pos: Optional[str] = None,
+        threshold: int = 1,
+        min_confidence: float = 0.1,
+        sample_size: Optional[int] = None,
+        project_id: Optional[int] = None,
+        progress_callback: Optional[callable] = None,
+    ) -> dict:
+        """
+        Scan for candidate subentry relationships where an orphaned phrase entry
+        contains a main entry's headword as a word/substring and is semantically related.
+        """
+        import re
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
+
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            citation_path = self._query_builder.get_element_path("citation", has_ns)
+            sense_path = self._query_builder.get_element_path("sense", has_ns)
+            definition_path = self._query_builder.get_element_path("definition", has_ns)
+            gloss_path = self._query_builder.get_element_path("gloss", has_ns)
+            grammatical_info_path = self._query_builder.get_element_path("grammatical-info", has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+
+            C = f"collection('{db_name}')"
+
+            entry_iter = f"for $e in {C}//{entry_path}"
+            if sample_size and sample_size > 0:
+                entry_iter = f"for $e at $i in {C}//{entry_path} where $i <= {int(sample_size)}"
+
+            fetch_query = (
+                f"{prologue} {entry_iter} "
+                f"let $hw := ($e/{lexical_unit_path}/{form_path}/{text_path}/string(), '')[1] "
+                f"let $cf := ($e/{citation_path}/{form_path}/{text_path}/string(), '')[1] "
+                f"let $pos := ($e/{grammatical_info_path}/@value | "
+                f"             $e//{sense_path}/{grammatical_info_path}/@value)[1] "
+                f"let $morph := ($e/{trait_path}[@name='morph-type']/@value/string(), '')[1] "
+                f"let $rel_count := count($e/{relation_path}) "
+                f"let $sc := count($e//{sense_path}) "
+                f"let $defs := string-join("
+                f"  ($e//{sense_path}/{definition_path}/{form_path}/{text_path}/string())[. != ''], ', ') "
+                f"let $glosses := string-join("
+                f"  ($e//{sense_path}/{gloss_path}/{text_path}/string())[. != ''], ' ') "
+                f"let $sids := string-join($e//{sense_path}/@id/string(), '~~~') "
+                f"return concat($e/@id, '|||', $hw, '|||', $cf, '|||', "
+                f"             string(($pos, '')[1]), '|||', string(($morph, '')[1]), '|||', "
+                f"             $rel_count, '|||', $sc, '|||', $defs, '|||', $glosses, '|||', $sids)"
+            )
+            raw = self.db_connector.execute_query(fetch_query)
+
+            main_entries = []
+            phrase_entries = []
+
+            for line in raw.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split('|||')
+                if len(parts) < 7:
+                    continue
+                entry_id, headword, citation_form, pos_val, morph_type, rel_count_str, sc_str = parts[:7]
+                defs_raw = parts[7] if len(parts) > 7 else ''
+                glosses_raw = parts[8] if len(parts) > 8 else ''
+                sids_raw = parts[9] if len(parts) > 9 else ''
+
+                try:
+                    rel_count = int(rel_count_str)
+                except ValueError:
+                    rel_count = 0
+
+                try:
+                    sense_count = int(sc_str)
+                except ValueError:
+                    sense_count = 0
+
+                sense_ids = [s for s in sids_raw.split('~~~') if s] if sids_raw else []
+
+                hw_clean = (headword or citation_form or '').strip()
+                if not hw_clean:
+                    continue
+
+                item = {
+                    'entry_id': entry_id,
+                    'headword': hw_clean,
+                    'citation_form': citation_form,
+                    'pos': pos_val or '',
+                    'morph_type': morph_type or '',
+                    'rel_count': rel_count,
+                    'sense_count': sense_count,
+                    'sense_ids': sense_ids,
+                    'defs': defs_raw,
+                    'glosses': glosses_raw,
+                    'definition': defs_raw,
+                    'gloss': glosses_raw,
+                }
+
+                # Categorize entry
+                is_phrase = morph_type.lower() == 'phrase' or ' ' in hw_clean
+                if is_phrase and rel_count == 0:
+                    phrase_entries.append(item)
+                elif not is_phrase:
+                    main_entries.append(item)
+
+            total_scanned = len(main_entries) + len(phrase_entries)
+            if progress_callback:
+                progress_callback(total_scanned, 0, f'Found {len(phrase_entries)} orphaned phrases and {len(main_entries)} main entries')
+
+            def _trigram_set(text: str) -> set[str]:
+                t = text.lower()
+                return {t[i:i+3] for i in range(len(t) - 2)}
+
+            def _def_similarity(a: dict, b: dict) -> float:
+                a_text = (a.get('defs', '') + ' ' + a.get('glosses', '')).strip()
+                b_text = (b.get('defs', '') + ' ' + b.get('glosses', '')).strip()
+                if not a_text or not b_text:
+                    return 0.4  # Baseline for headword containment
+                a_tris = _trigram_set(a_text)
+                b_tris = _trigram_set(b_text)
+                inter = a_tris & b_tris
+                union = a_tris | b_tris
+                return len(inter) / len(union) if union else 0.4
+
+            candidates = []
+
+            for m in main_entries:
+                main_hw = m['headword'].lower()
+                if len(main_hw) < 2:
+                    continue
+
+                pattern = re.compile(rf"\b{re.escape(main_hw)}\b", re.IGNORECASE)
+
+                for p in phrase_entries:
+                    phrase_hw = p['headword'].lower()
+                    if main_hw == phrase_hw:
+                        continue
+
+                    # Word boundary or substring containment
+                    match_found = bool(pattern.search(phrase_hw)) or (main_hw in phrase_hw)
+                    if not match_found:
+                        continue
+
+                    if pos and p['pos'] and p['pos'] != pos:
+                        continue
+
+                    sim = _def_similarity(m, p)
+                    if sim < min_confidence:
+                        sim = max(sim, 0.40)
+
+                    candidates.append({
+                        'id': f"subentry-{m['entry_id']}-{p['entry_id']}",
+                        'scan_mode': 'subentry',
+                        'source': {
+                            'entry_id': m['entry_id'],
+                            'headword': m['headword'],
+                            'citation_form': m['citation_form'],
+                            'definition': m.get('definition', ''),
+                            'gloss': m.get('gloss', ''),
+                            'pos': m['pos'],
+                            'sense_count': m['sense_count'],
+                            'sense_ids': m.get('sense_ids', []),
+                        },
+                        'target': {
+                            'entry_id': p['entry_id'],
+                            'headword': p['headword'],
+                            'citation_form': p['citation_form'],
+                            'definition': p.get('definition', ''),
+                            'gloss': p.get('gloss', ''),
+                            'pos': p['pos'],
+                            'sense_count': p['sense_count'],
+                            'sense_ids': p.get('sense_ids', []),
+                        },
+                        'similarity': round(sim, 2),
+                        'relation_type': 'subentry',
+                        'match_reason': f"Main headword '{m['headword']}' found in phrase '{p['headword']}'",
+                        'already_linked': False,
+                    })
+
+            if progress_callback:
+                progress_callback(total_scanned, total_scanned, f'Done ({len(candidates)} candidates)')
+
+            candidates.sort(key=lambda c: -c['similarity'])
+            return {
+                'candidates': candidates,
+                'total_candidates': len(candidates),
+                'sample_size': sample_size,
+                'scanned_entries': total_scanned,
+            }
+        except JobCancelled:
+            raise
+        except Exception as e:
+            self.logger.error("Error discovering subentry candidates: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to discover subentries: {e}") from e
 
     @staticmethod
     def _sense_text(sense) -> str:

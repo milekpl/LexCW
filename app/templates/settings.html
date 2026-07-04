@@ -279,6 +279,9 @@
                                         <button type="button" class="btn btn-sm btn-primary" id="btn-rebuild-embedding-index">
                                             <i class="fas fa-sync-alt me-1"></i> Rebuild Vector Index
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-danger d-none ms-2" id="btn-stop-embedding-index">
+                                            <i class="fas fa-stop-circle me-1"></i> Stop Indexing
+                                        </button>
                                         <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="btn-delete-embedding-index">
                                             <i class="fas fa-trash me-1"></i> Clear Index
                                         </button>
@@ -1168,20 +1171,45 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const btnRebuild = document.getElementById('btn-rebuild-embedding-index');
+    const btnStop = document.getElementById('btn-stop-embedding-index');
     const btnDelete = document.getElementById('btn-delete-embedding-index');
     const progressContainer = document.getElementById('embedding-rebuild-progress-bar-container');
     const progressBar = document.getElementById('embedding-rebuild-progress-bar');
     const statusMsg = document.getElementById('embedding-rebuild-status-msg');
+    let currentJobId = null;
+
+    if (btnStop) {
+        btnStop.addEventListener('click', async function() {
+            if (!currentJobId) return;
+            if (!confirm('Are you sure you want to stop the indexing process?')) return;
+            btnStop.disabled = true;
+            statusMsg.textContent = 'Stopping indexing operation...';
+            try {
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                await fetch('/api/embeddings/rebuild/stop/' + currentJobId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }
+                });
+            } catch(e) {
+                console.error('Error stopping rebuild job:', e);
+            }
+        });
+    }
 
     if (btnRebuild) {
         btnRebuild.addEventListener('click', async function() {
             if (!confirm('Rebuild vector index now? This will encode all dictionary senses in Qdrant.')) return;
             btnRebuild.disabled = true;
             if (btnDelete) btnDelete.disabled = true;
+            if (btnStop) {
+                btnStop.classList.remove('d-none');
+                btnStop.disabled = false;
+            }
 
             progressContainer.classList.remove('d-none');
             statusMsg.classList.remove('d-none');
             statusMsg.textContent = 'Starting index rebuild...';
+            progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
             progressBar.style.width = '0%';
             progressBar.textContent = '0%';
 
@@ -1196,6 +1224,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (resp.ok && data.job_id) {
                     const jobId = data.job_id;
+                    currentJobId = jobId;
                     const pollInterval = setInterval(async () => {
                         try {
                             const pResp = await fetch('/api/embeddings/rebuild/progress/' + jobId);
@@ -1204,9 +1233,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const job = pData.job;
                                 statusMsg.textContent = job.message || 'Processing...';
                                 if (job.total > 0) {
-                                    const pct = Math.round((job.processed / job.total) * 100);
-                                    progressBar.style.width = pct + '%';
-                                    progressBar.textContent = pct + '%';
+                                    const pctRaw = (job.processed / job.total) * 100;
+                                    const pctStr = pctRaw < 1 && pctRaw > 0 ? pctRaw.toFixed(2) : pctRaw.toFixed(1);
+                                    progressBar.style.width = Math.max(pctRaw, 0.5) + '%';
+                                    progressBar.textContent = job.processed.toLocaleString() + ' / ' + job.total.toLocaleString() + ' (' + pctStr + '%)';
                                 }
                                 if (job.status === 'completed') {
                                     clearInterval(pollInterval);
@@ -1214,6 +1244,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                     progressBar.className = 'progress-bar bg-success';
                                     btnRebuild.disabled = false;
                                     if (btnDelete) btnDelete.disabled = false;
+                                    if (btnStop) btnStop.classList.add('d-none');
+                                    checkEmbeddingStatus();
+                                } else if (job.status === 'cancelled') {
+                                    clearInterval(pollInterval);
+                                    statusMsg.textContent = 'Indexing stopped by user.';
+                                    progressBar.className = 'progress-bar bg-warning text-dark';
+                                    btnRebuild.disabled = false;
+                                    if (btnDelete) btnDelete.disabled = false;
+                                    if (btnStop) btnStop.classList.add('d-none');
                                     checkEmbeddingStatus();
                                 } else if (job.status === 'failed') {
                                     clearInterval(pollInterval);
@@ -1221,23 +1260,27 @@ document.addEventListener('DOMContentLoaded', function() {
                                     progressBar.className = 'progress-bar bg-danger';
                                     btnRebuild.disabled = false;
                                     if (btnDelete) btnDelete.disabled = false;
+                                    if (btnStop) btnStop.classList.add('d-none');
                                 }
                             }
                         } catch(e) {
                             clearInterval(pollInterval);
                             btnRebuild.disabled = false;
                             if (btnDelete) btnDelete.disabled = false;
+                            if (btnStop) btnStop.classList.add('d-none');
                         }
                     }, 1000);
                 } else {
                     alert('Failed to start rebuild: ' + (data.error || 'Unknown error'));
                     btnRebuild.disabled = false;
                     if (btnDelete) btnDelete.disabled = false;
+                    if (btnStop) btnStop.classList.add('d-none');
                 }
             } catch(e) {
                 alert('Network error initiating rebuild');
                 btnRebuild.disabled = false;
                 if (btnDelete) btnDelete.disabled = false;
+                if (btnStop) btnStop.classList.add('d-none');
             }
         });
     }

@@ -4,7 +4,10 @@ Utilities for processing multilingual form data.
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 
 def process_multilingual_field_form_data(form_data: Dict[str, str], field_name: str) -> Dict[str, str]:
@@ -81,6 +84,72 @@ def process_multilingual_notes_form_data(form_data: Dict[str, str]) -> Dict[str,
     return notes
 
 
+def _process_lexical_object_format(raw: Dict[str, Any], field_name: str) -> Dict[str, str]:
+    """Normalize a direct JSON multilingual object into ``{lang: text}``.
+
+    Accepts both the newer ``{"en": {"lang": "en", "text": "x"}}`` shape and the
+    older ``{"en": "x"}`` shape, dropping empty values. Invalid per-language
+    entries are logged and skipped.
+    """
+    processed: Dict[str, str] = {}
+    for lang_code, lang_data in raw.items():
+        if isinstance(lang_data, dict) and 'text' in lang_data:
+            # New format from multilingual form fields
+            text = lang_data['text']
+            if text and isinstance(text, str) and text.strip():
+                processed[lang_code] = text.strip()
+        elif isinstance(lang_data, str):
+            # Old format - simple string
+            if lang_data.strip():
+                processed[lang_code] = lang_data.strip()
+        else:
+            logger.warning(f"[MERGE] Invalid {field_name} format for language {lang_code}: {lang_data}")
+    return processed
+
+
+def _replace_relations_by_trait(merged_data: Dict[str, Any], new_relations: List[Dict[str, Any]], trait_key: str) -> None:
+    """Replace existing ``_component-lexeme`` relations carrying ``trait_key`` with
+    ``new_relations`` from the form, preserving all other relations.
+
+    Mutates ``merged_data['relations']`` in place.
+    """
+    existing_relations = merged_data.get('relations', [])
+    if not isinstance(existing_relations, list):
+        existing_relations = []
+
+    # Keep relations that are NOT the kind being replaced by form data.
+    kept = [
+        rel for rel in existing_relations
+        if not (isinstance(rel, dict) and rel.get('type') == '_component-lexeme' and
+                isinstance(rel.get('traits'), dict) and trait_key in rel['traits'])
+    ]
+    merged_data['relations'] = kept + new_relations
+
+
+def _normalize_backcompat_fields(merged_data: Dict[str, Any]) -> None:
+    """Coerce legacy pronunciation/citation form shapes into storage format.
+
+    Mutates ``merged_data`` in place.
+    """
+    # Pronunciations: form sends [{type, value}]; storage wants {type: value}.
+    if 'pronunciations' in merged_data:
+        pronunciations = merged_data['pronunciations']
+        if isinstance(pronunciations, list):
+            pron_dict = {}
+            for pron in pronunciations:
+                if isinstance(pron, dict) and 'type' in pron and 'value' in pron:
+                    pron_value = pron['value']
+                    if pron_value and pron_value.strip():
+                        pron_dict[pron['type']] = pron_value.strip()
+            merged_data['pronunciations'] = pron_dict
+        elif not isinstance(pronunciations, dict):
+            merged_data['pronunciations'] = {}
+
+    # Citations: anything that isn't already a list is reset to an empty list.
+    if 'citations' in merged_data and not isinstance(merged_data['citations'], list):
+        merged_data['citations'] = []
+
+
 def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Merge form data with existing entry data, processing multilingual notes and fields.
@@ -92,165 +161,87 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
     Returns:
         Merged entry data with processed multilingual notes and fields
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    logger.debug(f"[MERGE DEBUG] Input form_data keys: {list(form_data.keys())}")
-
     # entry_data may be None when creating a new entry via the form
     if entry_data is None:
-        logger.debug("[MERGE DEBUG] Input entry_data is None - treating as empty dict")
         entry_data = {}
-    else:
-        logger.debug(f"[MERGE DEBUG] Input entry_data keys: {list(entry_data.keys())}")
 
     # Start with existing entry data
     merged_data = entry_data.copy()
-    
+
     # Process multilingual notes from form data
     notes = process_multilingual_notes_form_data(form_data)
     if notes:
-        logger.debug(f"[MERGE DEBUG] Processed notes: {notes}")
         merged_data['notes'] = notes
-    
-    # Process multilingual lexical_unit
+
+    # Process multilingual lexical_unit (headword)
     lexical_unit = process_multilingual_field_form_data(form_data, 'lexical_unit')
     if lexical_unit:
-        logger.debug(f"[MERGE DEBUG] Processed lexical_unit: {lexical_unit}")
         merged_data['lexical_unit'] = lexical_unit
     elif 'lexical_unit' in form_data and isinstance(form_data['lexical_unit'], dict):
-        # Handle direct JSON object format
-        raw_lu = form_data['lexical_unit']
-        
-        # Check if it's the new format: {"en": {"lang": "en", "text": "test"}}
-        # or old format: {"en": "test"}
-        processed_lu = {}
-        for lang_code, lang_data in raw_lu.items():
-            if isinstance(lang_data, dict) and 'text' in lang_data:
-                # New format from multilingual form fields
-                text = lang_data['text']
-                if text and isinstance(text, str) and text.strip():
-                    processed_lu[lang_code] = text.strip()
-            elif isinstance(lang_data, str):
-                # Old format - simple string
-                if lang_data.strip():
-                    processed_lu[lang_code] = lang_data.strip()
-            else:
-                logger.warning(f"[MERGE] Invalid lexical_unit format for language {lang_code}: {lang_data}")
-        
+        # Direct JSON object format (new or old shape)
+        processed_lu = _process_lexical_object_format(form_data['lexical_unit'], 'lexical_unit')
         if not processed_lu:
             raise ValueError("lexical_unit must have at least one language with non-empty text")
-        
-        logger.debug(f"[MERGE DEBUG] Using processed lexical_unit object: {processed_lu}")
         merged_data['lexical_unit'] = processed_lu
     elif 'lexical_unit' in form_data and isinstance(form_data['lexical_unit'], str):
-        # DEPRECATED: String format is no longer supported
-        # This should not happen with the new form, but keep for transition period
+        # DEPRECATED: string format is no longer supported (kept for a clear error)
         raise ValueError("lexical_unit must be a dict {lang: text}, got string format")
-    
+
     # LIFT 0.13 Custom Fields (Day 28): Process literal_meaning (entry-level)
     literal_meaning = process_multilingual_field_form_data(form_data, 'literal_meaning')
     if literal_meaning:
-        logger.debug(f"[MERGE DEBUG] Processed literal_meaning: {literal_meaning}")
         merged_data['literal_meaning'] = literal_meaning
     elif 'literal_meaning' in form_data and isinstance(form_data['literal_meaning'], dict):
-        # Handle direct JSON object format
-        raw_lm = form_data['literal_meaning']
-        processed_lm = {}
-        for lang_code, lang_data in raw_lm.items():
-            if isinstance(lang_data, dict) and 'text' in lang_data:
-                text = lang_data['text']
-                if text and isinstance(text, str) and text.strip():
-                    processed_lm[lang_code] = text.strip()
-            elif isinstance(lang_data, str):
-                if lang_data.strip():
-                    processed_lm[lang_code] = lang_data.strip()
-        
+        processed_lm = _process_lexical_object_format(form_data['literal_meaning'], 'literal_meaning')
         if processed_lm:
-            logger.debug(f"[MERGE DEBUG] Using processed literal_meaning object: {processed_lm}")
             merged_data['literal_meaning'] = processed_lm
-    
+
     # Special handling for senses to preserve missing/empty fields
     if 'senses' in form_data and 'senses' in entry_data:
         # Direct senses array format - merge with existing
         merged_data['senses'] = _merge_senses_data(form_data['senses'], entry_data['senses'])
     elif 'senses' in form_data and isinstance(form_data['senses'], list):
         # Direct senses array format - new entry (no existing senses)
-        logger.debug(f"[MERGE DEBUG] Using direct senses array for new entry: {form_data['senses']}")
         merged_data['senses'] = form_data['senses']
     else:
         # Check for complex form data structure (senses[0][field])
         form_senses = process_senses_form_data(form_data)
         if form_senses and 'senses' in entry_data:
-            logger.debug(f"[MERGE DEBUG] Processed form_senses: {form_senses}")
             merged_data['senses'] = _merge_senses_data(form_senses, entry_data['senses'])
         elif form_senses:
-            logger.debug(f"[MERGE DEBUG] Using form_senses as new senses: {form_senses}")
             merged_data['senses'] = form_senses
-    
-    # Process new components from form data and add to relations
+
+    # Process new components from form data. Replaces existing complex-form-type
+    # relations, preserving the rest.
     form_components = process_components_form_data(form_data)
     if form_components:
-        logger.debug(f"[MERGE DEBUG] Adding {len(form_components)} new components to relations")
-        # Get existing relations or initialize empty list
-        existing_relations = merged_data.get('relations', [])
-        if not isinstance(existing_relations, list):
-            existing_relations = []
-        
-        # Filter out existing relations that have complex-form-type traits (they will be replaced by form data)
-        non_component_relations = [
-            rel for rel in existing_relations
-            if not (isinstance(rel, dict) and rel.get('type') == '_component-lexeme' and
-                   isinstance(rel.get('traits'), dict) and 'complex-form-type' in rel['traits'])
-        ]
-        
-        # Add new component relations from form data
-        merged_data['relations'] = non_component_relations + form_components
+        _replace_relations_by_trait(merged_data, form_components, 'complex-form-type')
 
     # Process direct variant forms (allomorphs) from form data
     form_variant_forms = process_variant_forms_data(form_data)
     if form_variant_forms:
-        logger.debug(f"[MERGE DEBUG] Adding {len(form_variant_forms)} direct variant forms to entry variants")
-        # Get existing variants or initialize empty list
         existing_variants = merged_data.get('variants', [])
         if not isinstance(existing_variants, list):
             existing_variants = []
-
-        # Add new variant forms from form data
         merged_data['variants'] = existing_variants + form_variant_forms
 
-    # Process variant relations from form data and add to relations
+    # Process variant relations from form data. Replaces existing variant-type
+    # relations, preserving the rest.
     form_variant_relations = process_variant_relations_form_data(form_data)
     if form_variant_relations:
-        logger.debug(f"[MERGE DEBUG] Adding {len(form_variant_relations)} new variant relations to relations")
-        # Get existing relations or initialize empty list
-        existing_relations = merged_data.get('relations', [])
-        if not isinstance(existing_relations, list):
-            existing_relations = []
+        _replace_relations_by_trait(merged_data, form_variant_relations, 'variant-type')
 
-        # Filter out existing relations that have variant-type traits (they will be replaced by form data)
-        non_variant_relations = [
-            rel for rel in existing_relations
-            if not (isinstance(rel, dict) and rel.get('type') == '_component-lexeme' and
-                   isinstance(rel.get('traits'), dict) and 'variant-type' in rel['traits'])
-        ]
-
-        # Add new variant relations from form data
-        merged_data['relations'] = non_variant_relations + form_variant_relations
-    
-    # Process other form fields (excluding notes, multilingual fields, senses, and components)
-    # Handle dot notation fields by converting them to nested structures
-    dot_notation_fields = {}
-    
+    # Process other form fields (excluding notes, multilingual fields, senses, and
+    # components). Dot-notation keys are converted into nested structures.
+    dot_notation_fields: Dict[str, Any] = {}
     for key, value in form_data.items():
-        if (not key.startswith('notes[') and 
-            not key.startswith('lexical_unit[') and 
+        if (not key.startswith('notes[') and
+            not key.startswith('lexical_unit[') and
             not key.startswith('senses[') and
             not key.startswith('components[') and
             key not in ['lexical_unit', 'senses']):
-            
+
             if '.' in key:
-                logger.debug(f"[MERGE DEBUG] Processing dot notation: {key} = {value}")
                 # Handle dot notation (e.g., 'grammatical_info.part_of_speech')
                 parts = key.split('.')
                 current = dot_notation_fields
@@ -260,44 +251,22 @@ def merge_form_data_with_entry_data(form_data: Dict[str, Any], entry_data: Dict[
                     current = current[part]
                 current[parts[-1]] = value
             else:
-                # Regular field
-                logger.debug(f"[MERGE DEBUG] Processing regular field: {key} = {value}")
                 merged_data[key] = value
-    
+
     # Merge dot notation fields into merged_data
     for key, value in dot_notation_fields.items():
         merged_data[key] = value
-    
+
     # Special handling for grammatical_info: flatten nested dict format to string
     if 'grammatical_info' in merged_data and isinstance(merged_data['grammatical_info'], dict):
-        # Extract part_of_speech from nested structure
         pos_value = merged_data['grammatical_info'].get('part_of_speech', '')
         if isinstance(pos_value, str) and pos_value.strip():
             merged_data['grammatical_info'] = pos_value.strip()
         else:
-            # If no valid part_of_speech, remove grammatical_info or set to empty
             merged_data['grammatical_info'] = ''
-    
-    # Backward compatibility: convert empty/invalid pronunciations list to dict
-    if 'pronunciations' in merged_data:
-        if isinstance(merged_data['pronunciations'], list):
-            # Form sends pronunciations as array: [{type: 'seh-fonipa', value: '/test/'}]
-            # Convert to dict format: {'seh-fonipa': '/test/'}
-            pron_dict = {}
-            for pron in merged_data['pronunciations']:
-                if isinstance(pron, dict) and 'type' in pron and 'value' in pron:
-                    pron_type = pron['type']
-                    pron_value = pron['value']
-                    if pron_value and pron_value.strip():
-                        pron_dict[pron_type] = pron_value.strip()
-            merged_data['pronunciations'] = pron_dict
-        elif not isinstance(merged_data['pronunciations'], dict):
-            # Invalid format
-            merged_data['pronunciations'] = {}
-    
-    # Backward compatibility: convert empty/invalid citations list to dict
-    if 'citations' in merged_data and not isinstance(merged_data['citations'], list):
-        merged_data['citations'] = []
+
+    # Backward compatibility: coerce legacy pronunciation/citation shapes
+    _normalize_backcompat_fields(merged_data)
 
     return merged_data
 

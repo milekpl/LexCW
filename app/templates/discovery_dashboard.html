@@ -63,9 +63,17 @@
     <div class="card-body">
       <div class="row g-3 align-items-end">
         <div class="col-md-2">
+          <label class="form-label small">Scan Mode</label>
+          <select id="discovery-scan-mode" class="form-select form-select-sm">
+            <option value="synonym" selected>Synonym Discovery</option>
+            <option value="subentry">Subentry Discovery</option>
+          </select>
+        </div>
+        <div class="col-md-2">
           <label class="form-label small">Relation Type</label>
           <select id="discovery-relation-type" class="form-select form-select-sm">
             <option value="synonym">synonym</option>
+            <option value="subentry">subentry</option>
           </select>
         </div>
         <div class="col-md-3">

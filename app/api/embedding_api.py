@@ -87,15 +87,25 @@ def rebuild_index():
                 result = service.rebuild_index(
                     project_id=project_id,
                     progress_callback=_progress_cb,
+                    cancel_check=lambda: _rebuild_jobs.get(job_id, {}).get("cancelled", False),
                 )
 
-                _update_job(job_id, {
-                    "status": "completed",
-                    "processed": result.get("indexed", 0),
-                    "total": result.get("total", 0),
-                    "message": "Index rebuild complete!",
-                    "result": result,
-                })
+                if result.get("cancelled"):
+                    _update_job(job_id, {
+                        "status": "cancelled",
+                        "processed": result.get("indexed", 0),
+                        "total": result.get("total", 0),
+                        "message": "Indexing stopped by user.",
+                        "result": result,
+                    })
+                else:
+                    _update_job(job_id, {
+                        "status": "completed",
+                        "processed": result.get("indexed", 0),
+                        "total": result.get("total", 0),
+                        "message": "Index rebuild complete!",
+                        "result": result,
+                    })
             except Exception as e:
                 logger.error("Rebuild job %s failed: %s", job_id, e, exc_info=True)
                 _update_job(job_id, {
@@ -112,6 +122,19 @@ def rebuild_index():
         "job_id": job_id,
         "message": "Rebuild started",
     }), 202
+
+
+@embedding_bp.route("/rebuild/stop/<job_id>", methods=["POST"])
+def stop_rebuild_index(job_id: str):
+    """Stop/cancel a running background index rebuild job."""
+    with _jobs_lock:
+        job = _rebuild_jobs.get(job_id)
+        if not job:
+            return jsonify({"success": False, "error": "Job not found"}), 404
+        job["cancelled"] = True
+        job["message"] = "Stopping indexing operation..."
+
+    return jsonify({"success": True, "message": "Stop request sent"})
 
 
 @embedding_bp.route("/rebuild/progress/<job_id>", methods=["GET"])

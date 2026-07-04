@@ -9,6 +9,7 @@ import os
 import queue
 from typing import Any, Optional, Dict, List
 from contextlib import contextmanager
+from tenacity import retry, stop_after_attempt, retry_if_exception_type, RetryError
 
 try:
     from BaseXClient.BaseXClient import Session as BaseXSession
@@ -141,35 +142,53 @@ class BaseXConnector:
     def _run_with_retry(self, operation, error_context: str, max_attempts: int = 3):
         """Run *operation(conn)* with automatic retry on IOError/OSError.
 
-        On transient socket drops the broken connection is discarded and a
-        fresh one is acquired for the next attempt.  After *max_attempts*
-        failures the last exception is wrapped in a DatabaseError.
+        Uses tenacity decorator to handle retries on transient socket drops.
+        On failure, the broken connection is discarded and a fresh one is
+        acquired for the next attempt. Non-retryable exceptions fail immediately.
+
+        Args:
+            operation: Callable that takes a connection and performs an operation
+            error_context: Description of the operation for logging
+            max_attempts: Maximum number of attempts (used for logging, actual retry
+                         controlled by decorator)
+
+        Raises:
+            DatabaseError: If all retry attempts fail
         """
-        last_error: Exception | None = None
-        conn = None
-        for attempt in range(1, max_attempts + 1):
-            conn = self._acquire()
+        @retry(
+            stop=stop_after_attempt(max_attempts),
+            retry=retry_if_exception_type((IOError, OSError)),
+        )
+        def _op_with_retry():
+            conn = None
             try:
+                conn = self._acquire()
                 result = operation(conn)
                 self._release(conn)
                 return result
             except (IOError, OSError) as e:
-                last_error = e
+                # Log the transient error and discard the broken connection
                 self.logger.warning(
-                    "Session lost during %s (attempt %s/%s): %s; discarding...",
-                    error_context, attempt, max_attempts, e,
+                    "Session lost during %s: %s; discarding and retrying...",
+                    error_context, e,
                 )
-                self._discard(conn)
-                conn = None
-                continue
+                if conn is not None:
+                    self._discard(conn)
+                # Re-raise to trigger tenacity retry
+                raise
             except Exception:
-                # Non-retryable failure — release the connection we just acquired.
+                # Non-retryable failure — release the connection
                 if conn is not None:
                     self._release(conn)
                 raise
-        raise DatabaseError(
-            f"{error_context} failed after {max_attempts} attempts: {last_error}"
-        )
+
+        try:
+            return _op_with_retry()
+        except RetryError as e:
+            # Wrap tenacity RetryError in DatabaseError for backwards compatibility
+            raise DatabaseError(
+                f"{error_context} failed after {max_attempts} attempts: {e.last_attempt.exception}"
+            ) from e
 
     # ---- Compat shim: connect/disconnect for legacy callers ----
 

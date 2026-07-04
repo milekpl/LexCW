@@ -115,12 +115,13 @@ class EmbeddingService:
 
                         if "/" in model_name:
                             try:
-                                from huggingface_hub import snapshot_download
-                                model_dir = snapshot_download(repo_id=model_name)
-                                if model_dir and model_dir not in sys.path:
-                                    sys.path.insert(0, model_dir)
+                                import glob
+                                cache_pattern = f"/home/milek/.cache/huggingface/hub/models--{model_name.replace('/', '--')}/snapshots/*"
+                                snapshots = glob.glob(cache_pattern)
+                                if snapshots and snapshots[0] not in sys.path:
+                                    sys.path.insert(0, snapshots[0])
                             except Exception as dl_err:
-                                logger.debug("Snapshot pre-download note for %s: %s", model_name, dl_err)
+                                logger.debug("Cache lookup note for %s: %s", model_name, dl_err)
 
                         from sentence_transformers import SentenceTransformer
                         model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
@@ -230,26 +231,85 @@ class EmbeddingService:
         project_id: Optional[int] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         dictionary_service=None,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> Dict[str, Any]:
         """Rebuild the semantic embedding index for a project."""
+        return self.build_index(
+            dictionary_service=dictionary_service,
+            project_id=project_id,
+            progress_callback=progress_callback,
+            cancel_check=cancel_check,
+        )
+
+    @staticmethod
+    def _resolve_device(device_setting: Optional[str] = None) -> str:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                logger.info("CUDA is available! Selected device: cuda")
+                return "cuda"
+        except Exception as e:
+            logger.debug("CUDA check failed: %s", e)
+        logger.info("Using device: %s", device_setting or "cpu")
+        return device_setting or "cpu"
+
+    def build_index(
+        self,
+        dictionary_service=None,
+        project_id: Optional[int] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
+    ) -> Dict[str, Any]:
+        """Build or rebuild Qdrant vector index for all senses in BaseX database."""
         from app.models.project_settings import ProjectSettings, db
-        from flask import current_app
 
         if dictionary_service is None:
             from app.services.dictionary_service import DictionaryService
             try:
-                dictionary_service = current_app.injector.get(DictionaryService)
+                injector = getattr(current_app, "injector", None)
+                if injector is not None:
+                    dictionary_service = injector.get(DictionaryService)
             except Exception:
-                dictionary_service = DictionaryService()
+                pass
+
+        if dictionary_service is None:
+            from app.services.dictionary_service import DictionaryService
+            from app.database.basex_connector import BaseXConnector
+            connector = None
+            try:
+                injector = getattr(current_app, "injector", None)
+                if injector is not None:
+                    connector = injector.get(BaseXConnector)
+            except Exception:
+                pass
+            if connector is None:
+                host = "localhost"
+                port = 1984
+                username = "admin"
+                password = "admin"
+                database = "dictionary"
+                try:
+                    if current_app:
+                        cfg = current_app.config
+                        host = cfg.get("BASEX_HOST", host)
+                        port = cfg.get("BASEX_PORT", port)
+                        username = cfg.get("BASEX_USERNAME", username)
+                        password = cfg.get("BASEX_PASSWORD", password)
+                        database = os.environ.get("TEST_DB_NAME") or os.environ.get("BASEX_DATABASE") or cfg.get("BASEX_DATABASE", database)
+                except Exception:
+                    pass
+                connector = BaseXConnector(host=host, port=port, username=username, password=password, database=database)
+            dictionary_service = DictionaryService(db_connector=connector)
 
         # Get settings
         pid = project_id or 1
         settings = ProjectSettings.query.filter_by(id=pid).first()
         model_name = settings.embedding_model if settings and settings.embedding_model else "jinaai/jina-embeddings-v3"
-        device = settings.embedding_device if settings and settings.embedding_device else "cpu"
+        device = self._resolve_device(settings.embedding_device if settings else None)
+        logger.info("Building vector index with model=%s on device=%s", model_name, device)
 
         if progress_callback:
-            progress_callback(0, 0, "Loading embedding model...")
+            progress_callback(0, 0, f"Loading embedding model {model_name} on {device}...")
 
         model = self._get_model(model_name, device=device)
         self.ensure_collection(project_id, model_name, force_recreate=True)
@@ -272,19 +332,53 @@ class EmbeddingService:
         from qdrant_client.http import models as rest_models
         import uuid
 
-        batch_size = 64
+        import os
+        import torch
+
+        batch_size = 64  # Safer batch size for GPU transformer memory stability
         processed = 0
 
+        # Enable multi-threading for PyTorch CPU if needed
+        try:
+            if device == "cpu" and hasattr(torch, "set_num_threads"):
+                cores = os.cpu_count() or 4
+                torch.set_num_threads(cores)
+        except Exception:
+            pass
+
         for i in range(0, total_senses, batch_size):
+            if cancel_check and cancel_check():
+                logger.info("Indexing operation cancelled at %d/%d senses for project %s", processed, total_senses, project_id)
+                if device == "cuda" and hasattr(torch, "cuda"):
+                    torch.cuda.empty_cache()
+                return {
+                    "indexed": processed,
+                    "total": total_senses,
+                    "model": model_name,
+                    "collection": collection_name,
+                    "cancelled": True,
+                }
+
             batch = senses_data[i : i + batch_size]
             texts = [item["text"] for item in batch]
 
-            embeddings = model.encode(
-                texts,
-                batch_size=len(texts),
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
+            encode_kwargs = {
+                "batch_size": len(texts),
+                "normalize_embeddings": True,
+                "show_progress_bar": False,
+            }
+            if "jina" in model_name.lower():
+                encode_kwargs["task"] = "text-matching"
+
+            try:
+                # Solution 2: Wrap model.encode in torch.no_grad() to avoid autograd memory build-up
+                with torch.no_grad():
+                    embeddings = model.encode(texts, **encode_kwargs)
+            except TypeError:
+                # Fallback if model.encode does not accept task parameter
+                encode_kwargs.pop("task", None)
+                with torch.no_grad():
+                    embeddings = model.encode(texts, **encode_kwargs)
 
             points = []
             for item, emb in zip(batch, embeddings):
@@ -320,6 +414,12 @@ class EmbeddingService:
             except Exception as e:
                 logger.warning("Could not update project_settings timestamp: %s", e)
 
+        if device == "cuda" and hasattr(torch, "cuda"):
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+
         logger.info("Successfully rebuilt embedding index for project %s: %d senses", project_id, processed)
         return {
             "indexed": processed,
@@ -337,7 +437,7 @@ class EmbeddingService:
     ) -> List[Dict[str, Any]]:
         """Perform semantic similarity search for a text query."""
         model_name = "jinaai/jina-embeddings-v3"
-        device = "cpu"
+        device = self._resolve_device()
         try:
             from app.models.project_settings import ProjectSettings
             pid = project_id or 1
@@ -345,8 +445,7 @@ class EmbeddingService:
             if settings:
                 if settings.embedding_model:
                     model_name = settings.embedding_model
-                if settings.embedding_device:
-                    device = settings.embedding_device
+                device = self._resolve_device(settings.embedding_device)
         except Exception as e:
             logger.debug("Could not query ProjectSettings, using defaults: %s", e)
 
@@ -372,17 +471,18 @@ class EmbeddingService:
         results = []
 
         for hit in search_results:
-            entry_id = hit.payload.get("entry_id")
-            if entry_id in seen_entries:
+            payload = hit.payload or {}
+            entry_id = payload.get("entry_id")
+            if not entry_id or entry_id in seen_entries:
                 continue
             seen_entries.add(entry_id)
 
             results.append({
                 "entry_id": entry_id,
-                "headword": hit.payload.get("headword"),
-                "sense_id": hit.payload.get("sense_id"),
-                "pos": hit.payload.get("pos"),
-                "definition": hit.payload.get("definition"),
+                "headword": payload.get("headword", ""),
+                "sense_id": payload.get("sense_id", ""),
+                "pos": payload.get("pos", ""),
+                "definition": payload.get("definition", ""),
                 "score": round(float(hit.score), 4),
             })
 
@@ -418,8 +518,11 @@ class EmbeddingService:
         for point in scroll_resp:
             if not point.vector:
                 continue
-            entry_id = point.payload.get("entry_id")
-            headword = point.payload.get("headword")
+            pt_payload = point.payload or {}
+            entry_id = pt_payload.get("entry_id")
+            headword = pt_payload.get("headword")
+            if not entry_id:
+                continue
 
             similar = client.search(
                 collection_name=collection_name,
@@ -429,12 +532,13 @@ class EmbeddingService:
             )
 
             for hit in similar:
-                other_id = hit.payload.get("entry_id")
-                other_hw = hit.payload.get("headword")
-                if other_id == entry_id:
+                hit_payload = hit.payload or {}
+                other_id = hit_payload.get("entry_id")
+                other_hw = hit_payload.get("headword")
+                if not other_id or other_id == entry_id:
                     continue
 
-                pair_key = tuple(sorted([entry_id, other_id]))
+                pair_key = tuple(sorted([str(entry_id), str(other_id)]))
                 if pair_key in seen_pairs:
                     continue
                 seen_pairs.add(pair_key)
@@ -447,13 +551,13 @@ class EmbeddingService:
                         {
                             "entry_id": entry_id,
                             "headword": headword,
-                            "pos": point.payload.get("pos"),
+                            "pos": pt_payload.get("pos"),
                             "match_fields": ["sense_embedding"],
                         },
                         {
                             "entry_id": other_id,
                             "headword": other_hw,
-                            "pos": hit.payload.get("pos"),
+                            "pos": hit_payload.get("pos"),
                             "match_fields": ["sense_embedding"],
                         },
                     ],

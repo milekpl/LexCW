@@ -19,11 +19,12 @@ from app.validators.base import (
     Validator,
     ValidationResult,
     CacheableValidator,
-    BatchValidator
+    BatchValidator,
+    BatchValidatorMixin
 )
 
 
-class LanguageToolValidator(CacheableValidator, BatchValidator):
+class LanguageToolValidator(CacheableValidator, BatchValidatorMixin, BatchValidator):
     """
     LanguageTool grammar and bitext validator.
 
@@ -433,45 +434,6 @@ class LanguageToolValidator(CacheableValidator, BatchValidator):
 
         return count
 
-    def validate_batch(
-        self,
-        entries: List[Dict[str, Any]],
-        lang: str = 'en',
-        target_lang: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, ValidationResult]:
-        """
-        Validate multiple entries.
-
-        Note: LanguageTool doesn't have a true batch API, so we
-        make individual requests. Override in subclass if your
-        LT server supports batch endpoints.
-
-        Args:
-            entries: List of {'id': str, 'text': str}
-            lang: Language code
-            target_lang: Target language for bitext
-            **kwargs: Additional options
-
-        Returns:
-            Dict mapping entry_id -> ValidationResult
-        """
-        results = {}
-
-        for entry in entries:
-            entry_id = entry['id']
-            text = entry.get('text', '')
-
-            result = self.validate(
-                text=text,
-                lang=lang,
-                target_lang=target_lang,
-                entry_id=entry_id,
-                **kwargs
-            )
-            results[entry_id] = result
-
-        return results
 
     def check_grammar_only(
         self,

@@ -6,6 +6,9 @@ Provides REST API for CRUD operations on display profiles.
 from __future__ import annotations
 
 import logging
+import re
+
+import cssutils
 
 from flask import Blueprint, jsonify, request, current_app
 from typing import Dict, Any
@@ -598,6 +601,75 @@ def preview_profile():
         return jsonify({"error": str(e)}), 500
 
 
+class _CssLogCapture(logging.Handler):
+    """Collect cssutils log records for conversion into structured findings."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.DEBUG)
+        self.records: list[tuple[str, str]] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append((record.levelname, record.getMessage()))
+
+
+# cssutils embeds positions in its messages, e.g. "... [3:1: .]" or, for invalid
+# tokens, a tuple like "('INVALID', \"'Arial;\", 2, 15)". Pull the line from either.
+_CSS_LINE_RE = re.compile(r"\[(\d+):\d+:")
+_CSS_TUPLE_RE = re.compile(r",\s*(\d+),\s*\d+\)")
+
+
+def _css_message_line(message: str) -> int:
+    """Best-effort extraction of a 1-based line number from a cssutils message."""
+    match = _CSS_LINE_RE.search(message) or _CSS_TUPLE_RE.search(message)
+    return int(match.group(1)) if match else 0
+
+
+def validate_css_string(css: str) -> tuple[list[dict], list[dict]]:
+    """Validate a CSS string with cssutils, returning ``(errors, warnings)``.
+
+    Uses cssutils' real parser with ``validate=False`` so that only structural /
+    syntax problems are reported. Property-level checks are intentionally
+    skipped: cssutils only knows CSS Level 2.1, so with validation on it would
+    reject legitimate modern CSS such as ``display: flex`` or ``var(--x)``.
+
+    Each error/warning is a dict with ``message`` and ``line`` keys. cssutils is
+    driven through a private, per-call logger, so parsing is thread-safe and does
+    not mutate cssutils' global logging state.
+    """
+    capture = _CssLogCapture()
+    # A standalone Logger (not logging.getLogger, which is a shared singleton)
+    # keeps capture isolated to this call.
+    logger = logging.Logger("cssutils_css_validation")
+    logger.addHandler(capture)
+
+    parser = cssutils.CSSParser(
+        log=logger,
+        loglevel=logging.DEBUG,
+        raiseExceptions=False,
+        validate=False,
+    )
+    parser.parseString(css)
+
+    errors: list[dict] = []
+    warnings: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for levelname, message in capture.records:
+        if levelname in ("ERROR", "CRITICAL", "FATAL"):
+            target = errors
+        elif levelname == "WARNING":
+            target = warnings
+        else:
+            continue
+        # cssutils often emits several duplicate lines for one problem.
+        key = (levelname, message)
+        if key in seen:
+            continue
+        seen.add(key)
+        target.append({"message": message, "line": _css_message_line(message)})
+
+    return errors, warnings
+
+
 @profiles_bp.route("/validate-css", methods=["POST"])
 def validate_css():
     """
@@ -661,113 +733,19 @@ def validate_css():
             "warnings": []
         })
 
-    errors = []
-    warnings = []
-
     try:
-        import re
-
-        # Check for basic CSS syntax issues
-        lines = custom_css.split('\n')
-
-        for i, line in enumerate(lines, 1):
-            stripped = line.strip()
-
-            # Skip empty lines and comments
-            if not stripped or stripped.startswith('/*') or stripped.startswith('*'):
-                continue
-
-            # Check for unclosed braces
-            open_braces = stripped.count('{')
-            close_braces = stripped.count('}')
-
-            if stripped.endswith('{') and close_braces == 0:
-                pass  # Opening brace line - will be balanced later
-
-            if stripped.count('{') > stripped.count('}') + 1:
-                errors.append({
-                    "message": "Too many opening braces",
-                    "line": i
-                })
-
-            # Check for unclosed strings
-            single_quotes = stripped.count("'") - stripped.count("\\'")
-            double_quotes = stripped.count('"') - stripped.count('\\"')
-
-            if single_quotes % 2 != 0:
-                errors.append({
-                    "message": "Unclosed single quote",
-                    "line": i
-                })
-            if double_quotes % 2 != 0:
-                errors.append({
-                    "message": "Unclosed double quote",
-                    "line": i
-                })
-
-            # Check for common typos
-            if ':;' in stripped:
-                warnings.append({
-                    "message": "Suspicious ':;' pattern - possible typo",
-                    "line": i
-                })
-
-            # Check for invalid property separators
-            if re.search(r'[^:];', stripped):
-                warnings.append({
-                    "message": "Extra semicolon found - properties may not parse correctly",
-                    "line": i
-                })
-
-        # Final brace balance check
-        total_open = custom_css.count('{')
-        total_close = custom_css.count('}')
-
-        if total_open > total_close:
-            errors.append({
-                "message": f"Unclosed CSS block(s): {total_open - total_close} missing closing brace(s)",
-                "line": len(lines)
-            })
-        elif total_close > total_open:
-            errors.append({
-                "message": f"Extra closing brace(s): {total_close - total_open} without matching opening",
-                "line": len(lines)
-            })
-
-        # Try to use cssutils for more thorough validation if available
-        try:
-            import cssutils
-            # Suppress cssutils logging
-            cssutils.log.setLevel(logging.CRITICAL)
-
-            sheet = cssutils.parseString(custom_css)
-
-            for error in sheet.cssRules:
-                if error.type == cssutils.css.CSSRule.STYLE_RULE:
-                    # Valid rule
-                    pass
-                elif error.type == cssutils.css.CSSRule.IMPORT_RULE:
-                    warnings.append({
-                        "message": "@import rules may not work in all contexts",
-                        "line": error.linenumber if hasattr(error, 'linenumber') else 0
-                    })
-
-        except Exception as e:
-            # cssutils parsing failed - already caught by our basic checks
-            pass
-
+        errors, warnings = validate_css_string(custom_css)
         return jsonify({
             "valid": len(errors) == 0,
             "errors": errors,
-            "warnings": warnings
+            "warnings": warnings,
         })
-
     except Exception as e:
         current_app.logger.error(f"Error validating CSS: {e}", exc_info=True)
         return jsonify({
             "valid": False,
             "errors": [{"message": f"Validation error: {str(e)}", "line": 0}],
-            "warnings": []
+            "warnings": [],
         })
 
 

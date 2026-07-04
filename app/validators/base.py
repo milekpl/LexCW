@@ -269,6 +269,50 @@ class BatchValidator(ABC):
         return ' '.join(text_parts)
 
 
+class BatchValidatorMixin:
+    """
+    Mixin providing a default implementation of batch validation.
+
+    Validators can inherit from this mixin to get a standard
+    batch processing implementation that iterates entries and
+    calls validate() for each one.
+    """
+
+    def validate_batch(
+        self,
+        entries: List[Dict[str, Any]],
+        lang: str,
+        **kwargs
+    ) -> Dict[str, ValidationResult]:
+        """
+        Default batch validation implementation.
+
+        Iterates through entries, validating each one individually.
+
+        Args:
+            entries: List of entry dicts, each with 'id' and 'text' keys
+            lang: Language code
+            **kwargs: Validator-specific options
+
+        Returns:
+            Dict mapping entry_id -> ValidationResult
+        """
+        results = {}
+
+        for entry in entries:
+            entry_id = entry['id']
+            text = entry.get('text', '')
+
+            result = self.validate(
+                text=text,
+                lang=lang,
+                **kwargs
+            )
+            results[entry_id] = result
+
+        return results
+
+
 class CacheableValidator(Validator, ABC):
     """
     Mixin for validators with built-in caching support.

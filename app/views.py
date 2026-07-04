@@ -362,6 +362,7 @@ def view_entry(entry_id):
                 # If show_subentries is enabled, fetch and render all subentries in one query
                 if default_profile.show_subentries and subentries:
                     try:
+                        subentry_html_parts = []
                         ids = [s["id"] for s in subentries if s.get("id")]
                         if ids:
                             preds = " or ".join(f"@id='{i}'" for i in ids)
@@ -404,6 +405,321 @@ def view_entry(entry_id):
         logger.error(f"Error viewing entry {entry_id}: {e}")
         flash(f"Error loading entry: {str(e)}", "danger")
         return redirect(url_for("main.entries"))
+
+
+def _sanitize_submitted_senses(senses):
+    """Drop empty/template senses from a submission.
+
+    Guards against a race where a rapid delete + save includes a just-deleted
+    sense in the POST payload. Keeps only senses carrying a non-empty definition
+    or gloss. On any unexpected error the input is returned unchanged.
+    """
+    try:
+        sanitized_senses = []
+        for s in senses or []:
+            has_definition = False
+            has_gloss = False
+            defs = s.get('definition') or {}
+            # Handle both 'gloss' (singular) and 'glosses' (plural) from form data
+            glosses = s.get('glosses') or s.get('gloss') or {}
+
+            for val in defs.values() if isinstance(defs, dict) else []:
+                if isinstance(val, dict) and val.get('text', '').strip():
+                    has_definition = True
+                    break
+                if isinstance(val, str) and val.strip():
+                    has_definition = True
+                    break
+
+            for val in glosses.values() if isinstance(glosses, dict) else []:
+                if isinstance(val, dict) and val.get('text', '').strip():
+                    has_gloss = True
+                    break
+                if isinstance(val, str) and val.strip():
+                    has_gloss = True
+                    break
+
+            if has_definition or has_gloss:
+                sanitized_senses.append(s)
+            else:
+                logger.info(f"[EDIT_ENTRY] Dropping empty/template sense from submission: id={s.get('id')}")
+
+        return sanitized_senses
+    except Exception as e:
+        logger.warning(f"[EDIT_ENTRY] Failed to sanitize senses: {e}")
+        return senses
+
+
+def _handle_edit_entry_post(dict_service, entry_id):
+    """Handle a POST to the entry edit endpoint: merge form data and persist.
+
+    Returns a Flask JSON response. May raise NotFoundError/ValidationError,
+    which the caller (:func:`edit_entry`) maps to the appropriate HTTP response.
+    """
+    # Handle both JSON and form data
+    data = None
+    try:
+        data = request.get_json()
+    except Exception:
+        # If JSON parsing fails, fallback to form data
+        pass
+
+    if not data:
+        # If no JSON, try to get form data
+        if request.form:
+            data = dict(request.form)
+        else:
+            return jsonify({"error": "No data provided"}), 400
+
+    # Get existing entry data for merging (use non-validating method for editing)
+    project_id = session.get('project_id')
+    existing_entry = None
+    try:
+        existing_entry = dict_service.get_entry_for_editing(entry_id, project_id=project_id)
+    except NotFoundError:
+        # Entry doesn't exist yet - will be created instead of updated
+        pass
+
+    existing_data = existing_entry.to_dict() if existing_entry else {}
+
+    # Merge form data with existing entry data, processing multilingual notes
+    merged_data = merge_form_data_with_entry_data(data, existing_data)
+
+    # SANITIZE: Drop empty/template senses to avoid race conditions where
+    # a rapid delete + save might include a deleted sense in the POST payload
+    merged_data['senses'] = _sanitize_submitted_senses(merged_data.get('senses', []))
+
+    entry = Entry.from_dict(merged_data)
+    entry.id = entry_id
+
+    # Use XMLEntryService directly to avoid database lock issues
+    # This creates fresh sessions and doesn't hold persistent connections
+    from app.services.xml_entry_service import XMLEntryService
+    db_name = dict_service.db_connector.database
+    logger.info(f"[EDIT_ENTRY] Using database: {db_name}")
+    xml_service = XMLEntryService(
+        database=db_name  # Use the same database as DictionaryService!
+    )
+
+    # Prepare the entry XML using DictionaryService's method
+    entry_xml = dict_service._prepare_entry_xml(entry)
+
+    try:
+        # Try to update, fall back to create if entry doesn't exist
+        try:
+            logger.info(f"[EDIT_ENTRY] Calling XMLEntryService.update_entry for {entry_id}")
+            xml_service.update_entry(entry_id, entry_xml)
+            logger.info(f"[EDIT_ENTRY] XMLEntryService.update_entry succeeded for {entry_id}")
+        except Exception as e:
+            if "not found" in str(e).lower() or "does not exist" in str(e).lower():
+                logger.info(f"[EDIT_ENTRY] Entry {entry_id} not found, creating instead")
+                xml_service.create_entry(entry_xml)
+                logger.info(f"[EDIT_ENTRY] XMLEntryService.create_entry succeeded for {entry_id}")
+            else:
+                raise
+
+        return jsonify({"id": entry_id, "message": "Entry updated successfully"})
+    except Exception as update_error:
+        logger.error(f"[EDIT_ENTRY] Update/create failed: {update_error}", exc_info=True)
+        return jsonify({"error": f"Failed to save entry: {str(update_error)}"}), 500
+    finally:
+        # Close the XMLEntryService session to release the database lock,
+        # otherwise subsequent requests hang with "Database opened by another process"
+        try:
+            xml_service.close()
+        except Exception:
+            pass
+
+
+def _handle_edit_entry_get(dict_service, entry_id):
+    """Render the entry edit page (GET).
+
+    Loads the entry (creating an empty one if it does not exist yet), enriches
+    its relations with display text, renders the CSS preview and returns the
+    populated ``entry_form.html`` template.
+    """
+    # Try to load the entry for editing
+    entry = None
+    project_id = session.get('project_id')
+    try:
+        entry = dict_service.get_entry_for_editing(
+            entry_id, project_id=project_id
+        )  # Use non-validating method for editing
+    except NotFoundError:
+        logger.debug("Entry %s not found in database %s", entry_id, dict_service.db_connector.database)
+        try:
+            all_entries, count = dict_service.list_entries(project_id=project_id, limit=100)
+            logger.debug("Available entries (%d): %s", count, [e.id for e in all_entries])
+        except Exception as e:
+            logger.debug("Error listing entries: %s", e)
+        # Entry doesn't exist yet - create a new empty entry with the given ID
+        entry = Entry(id_=entry_id)
+
+    # Apply POS inheritance when loading entry for editing
+    if entry:
+        entry._apply_pos_inheritance()
+
+    ranges = dict_service.get_lift_ranges(project_id=project_id)
+
+    # Get validation results for the entry to show as guidance (not as blockers)
+    validation_result = None
+    if entry:
+        from app.services.validation_engine import ValidationEngine
+
+        validation_engine = ValidationEngine()
+        validation_result = validation_engine.validate_entry(entry)
+
+    # Explicitly extract enriched variant_relations for template (with display text and error markers)
+    variant_relations_data = []
+    component_relations_data = []
+    forward_component_relations_data = []
+    subentries_data = []
+    if entry:
+        logger.debug("========== [DEBUG VIEW EDIT] Entry %s ==========", entry.id)
+        logger.debug("[DEBUG VIEW] Number of entry relations: %d", len(entry.relations))
+        for rel in entry.relations:
+            logger.debug("  Relation: type=%s, ref=%s, traits=%s", rel.type, rel.ref, rel.traits)
+
+        # Batch-resolve all relation ref IDs to headwords in one query
+        all_ref_ids = list(set(
+            str(r.ref) for r in entry.relations
+            if hasattr(r, 'ref') and r.ref
+        ))
+        headword_cache = dict_service.resolve_headwords_batch(all_ref_ids) if all_ref_ids else {}
+
+        variant_relations_data = entry.get_complete_variant_relations(dict_service)
+        logger.debug("[DEBUG VIEW] variant_relations_data returned: %d items", len(variant_relations_data))
+        # Extract enriched component_relations for template (with display text for main entries)
+        component_relations_data = entry.get_component_relations(dict_service, headword_cache=headword_cache)
+        # Extract forward component relations (where this entry HAS components)
+        forward_component_relations_data = entry.get_forward_component_relations(dict_service)
+        # Extract subentries (reverse component relations)
+        subentries_data = entry.get_subentries(dict_service)
+
+        # Create enriched grouped_relations for template (can't set on entry because it's a property)
+        enriched_grouped_relations = RelationGroups(entry.relations, ranges)
+        enriched_grouped_relations.enrich_with_display_text(dict_service, headword_cache=headword_cache)
+
+        # Enrich sense relations with display text
+        for sense in entry.senses:
+            if hasattr(sense, 'relations') and sense.relations:
+                sense.relations = sense.enrich_relations_with_display_text(dict_service)
+
+    # Get project languages for multilingual fields
+    languages = get_project_languages()
+    available_languages = get_language_choices_for_forms()
+
+    # Define note types for the dropdown
+    note_types = [
+        ('general', 'General'),
+        ('usage', 'Usage'),
+        ('semantic', 'Semantic'),
+        ('etymology', 'Etymology'),
+        ('cultural', 'Cultural'),
+        ('anthropology', 'Anthropology'),
+        ('discourse', 'Discourse'),
+        ('phonology', 'Phonology'),
+        ('sociolinguistics', 'Sociolinguistics'),
+        ('bibliography', 'Bibliography')
+    ]
+
+    # Get CSS-rendered HTML for the entry using default profile
+    css_html = None
+    try:
+        from app.services.css_mapping_service import CSSMappingService
+        from app.services.display_profile_service import DisplayProfileService
+
+        css_service = current_app.injector.get(CSSMappingService)
+        profile_service = DisplayProfileService()
+
+        # Get default profile or create one if it doesn't exist
+        default_profile = profile_service.get_default_profile()
+        if not default_profile:
+            # Create a default profile from registry
+            default_profile = profile_service.create_from_registry_default(
+                name="Default Display Profile",
+                description="Auto-created default profile"
+            )
+            profile_service.set_default_profile(default_profile.id)
+
+        # Build a headword map from already resolved relations
+        headword_map = {}
+        if entry:
+            for rel in enriched_grouped_relations.all_relations:
+                ref = rel.get('ref')
+                text = rel.get('ref_display_text')
+                if ref and text:
+                    headword_map[ref] = text
+            for rel in variant_relations_data:
+                ref = rel.get('ref')
+                text = rel.get('ref_display_text')
+                if ref and text:
+                    headword_map[ref] = text
+            for comp in component_relations_data:
+                ref = comp.get('ref')
+                text = comp.get('ref_display_text')
+                if ref and text:
+                    headword_map[ref] = text
+
+        # Render entry with CSS using the raw XML from the parsed entry
+        entry_xml = getattr(entry, '_raw_xml', None) if entry else None
+        if entry_xml:
+            css_html = css_service.render_entry(
+                entry_xml,
+                profile=default_profile,
+                dict_service=dict_service,
+                headword_map=headword_map
+            )
+
+            # If show_subentries is enabled, fetch and render all subentries in one query
+            if default_profile.show_subentries and subentries_data:
+                try:
+                    subentry_html_parts = []
+                    ids = [s["id"] for s in subentries_data if s.get("id")]
+                    if ids:
+                        preds = " or ".join(f"@id='{i}'" for i in ids)
+                        subentries_xml = dict_service.db_connector.execute_query(
+                            f"xquery collection()//entry[{preds}]"
+                        )
+                        if subentries_xml:
+                            wrapped = f"<root>{subentries_xml}</root>"
+                            root = ET.fromstring(wrapped)
+                            for child, sub_id in zip(root, ids):
+                                full_xml = ET.tostring(child, encoding="unicode")
+                                rendered = css_service.render_entry(
+                                    full_xml,
+                                    profile=default_profile,
+                                    dict_service=dict_service,
+                                )
+                                subentry_html_parts.append(
+                                    f'<div class="subentry" data-subentry-id="{sub_id}">{rendered}</div>'
+                                )
+                    if subentry_html_parts:
+                        css_html += "\n".join(subentry_html_parts)
+                except Exception as e:
+                    logger.warning("Error rendering subentries: %s", e)
+
+    except Exception as e:
+        logger.warning("Error rendering entry with CSS: %s", e)
+
+    logger.debug("[DEBUG VIEW] RENDERING with variant_relations=%d items", len(variant_relations_data))
+    logger.debug("[DEBUG VIEW] variant_relations_data: %s", variant_relations_data)
+
+    return render_template(
+        "entry_form.html",
+        entry=entry,
+        ranges=ranges,
+        variant_relations=variant_relations_data,
+        component_relations=component_relations_data,
+        forward_component_relations=forward_component_relations_data,
+        subentries=subentries_data,
+        enriched_grouped_relations=enriched_grouped_relations,
+        validation_result=validation_result,
+        project_languages=languages,
+        available_languages=available_languages,
+        note_types=note_types,
+        css_html=css_html,
+    )
 
 
 @main_bp.route("/entries/<entry_id>/edit", methods=["GET", "POST"])
@@ -490,12 +806,6 @@ def edit_entry(entry_id):
               type: string
               description: Error message
     """
-    """
-    Render the entry edit page.
-
-    Args:
-        entry_id: ID of the entry to edit.
-    """
     logger.debug("="*60)
     logger.debug("EDIT_ENTRY CALLED FOR %s", entry_id)
     logger.debug("="*60)
@@ -504,294 +814,8 @@ def edit_entry(entry_id):
         logger.debug("Flask app database name: %s", dict_service.db_connector.database)
         logger.debug("Environment TEST_DB_NAME: %s", os.environ.get('TEST_DB_NAME'))
         if request.method == "POST":
-            # Handle both JSON and form data
-            data = None
-            try:
-                data = request.get_json()
-            except Exception:
-                # If JSON parsing fails, fallback to form data
-                pass
-
-            if not data:
-                # If no JSON, try to get form data
-                if request.form:
-                    data = dict(request.form)
-                else:
-                    return jsonify({"error": "No data provided"}), 400
-
-            # Get existing entry data for merging (use non-validating method for editing)
-            project_id = session.get('project_id')
-            existing_entry = None
-            try:
-                existing_entry = dict_service.get_entry_for_editing(entry_id, project_id=project_id)
-            except NotFoundError:
-                # Entry doesn't exist yet - will be created instead of updated
-                pass
-            
-            existing_data = existing_entry.to_dict() if existing_entry else {}
-
-            # Merge form data with existing entry data, processing multilingual notes
-            merged_data = merge_form_data_with_entry_data(data, existing_data)
-
-            # SANITIZE: Drop empty/template senses to avoid race conditions where
-            # a rapid delete + save might include a deleted sense in the POST payload
-            try:
-                sanitized_senses = []
-                for s in merged_data.get('senses', []) or []:
-                    has_definition = False
-                    has_gloss = False
-                    defs = s.get('definition') or {}
-                    # Handle both 'gloss' (singular) and 'glosses' (plural) from form data
-                    glosses = s.get('glosses') or s.get('gloss') or {}
-
-                    for val in defs.values() if isinstance(defs, dict) else []:
-                        if isinstance(val, dict) and val.get('text', '').strip():
-                            has_definition = True
-                            break
-                        if isinstance(val, str) and val.strip():
-                            has_definition = True
-                            break
-
-                    for val in glosses.values() if isinstance(glosses, dict) else []:
-                        if isinstance(val, dict) and val.get('text', '').strip():
-                            has_gloss = True
-                            break
-                        if isinstance(val, str) and val.strip():
-                            has_gloss = True
-                            break
-
-                    if has_definition or has_gloss:
-                        sanitized_senses.append(s)
-                    else:
-                        logger.info(f"[EDIT_ENTRY] Dropping empty/template sense from submission: id={s.get('id')}")
-
-                merged_data['senses'] = sanitized_senses
-            except Exception as e:
-                logger.warning(f"[EDIT_ENTRY] Failed to sanitize senses: {e}")
-
-            entry = Entry.from_dict(merged_data)
-            entry.id = entry_id
-            
-            # Use XMLEntryService directly to avoid database lock issues
-            # This creates fresh sessions and doesn't hold persistent connections
-            from app.services.xml_entry_service import XMLEntryService
-            db_name = dict_service.db_connector.database
-            logger.info(f"[EDIT_ENTRY] Using database: {db_name}")
-            xml_service = XMLEntryService(
-                database=db_name  # Use the same database as DictionaryService!
-            )
-            
-            # Prepare the entry XML using DictionaryService's method
-            entry_xml = dict_service._prepare_entry_xml(entry)
-            
-            try:
-                # Try to update, fall back to create if entry doesn't exist
-                try:
-                    logger.info(f"[EDIT_ENTRY] Calling XMLEntryService.update_entry for {entry_id}")
-                    xml_service.update_entry(entry_id, entry_xml)
-                    logger.info(f"[EDIT_ENTRY] XMLEntryService.update_entry succeeded for {entry_id}")
-                except Exception as e:
-                    if "not found" in str(e).lower() or "does not exist" in str(e).lower():
-                        logger.info(f"[EDIT_ENTRY] Entry {entry_id} not found, creating instead")
-                        xml_service.create_entry(entry_xml)
-                        logger.info(f"[EDIT_ENTRY] XMLEntryService.create_entry succeeded for {entry_id}")
-                    else:
-                        raise
-                
-                return jsonify({"id": entry_id, "message": "Entry updated successfully"})
-            except Exception as update_error:
-                logger.error(f"[EDIT_ENTRY] Update/create failed: {update_error}", exc_info=True)
-                return jsonify({"error": f"Failed to save entry: {str(update_error)}"}), 500
-            finally:
-                # Close the XMLEntryService session to release the database lock,
-                # otherwise subsequent requests hang with "Database opened by another process"
-                try:
-                    xml_service.close()
-                except Exception:
-                    pass
-
-
-        # Try to load the entry for editing
-        entry = None
-        project_id = session.get('project_id')
-        try:
-            entry = dict_service.get_entry_for_editing(
-                entry_id, project_id=project_id
-            )  # Use non-validating method for editing
-        except NotFoundError:
-            logger.debug("Entry %s not found in database %s", entry_id, dict_service.db_connector.database)
-            try:
-                all_entries, count = dict_service.list_entries(project_id=project_id, limit=100)
-                logger.debug("Available entries (%d): %s", count, [e.id for e in all_entries])
-            except Exception as e:
-                logger.debug("Error listing entries: %s", e)
-            # Entry doesn't exist yet - create a new empty entry with the given ID
-            entry = Entry(id_=entry_id)
-
-        # Apply POS inheritance when loading entry for editing
-        if entry:
-            entry._apply_pos_inheritance()
-
-        ranges = dict_service.get_lift_ranges(project_id=project_id)
-
-        # Get validation results for the entry to show as guidance (not as blockers)
-        validation_result = None
-        if entry:
-            from app.services.validation_engine import ValidationEngine
-
-            validation_engine = ValidationEngine()
-            validation_result = validation_engine.validate_entry(entry)
-
-        # Explicitly extract enriched variant_relations for template (with display text and error markers)
-        variant_relations_data = []
-        component_relations_data = []
-        forward_component_relations_data = []
-        subentries_data = []
-        if entry:
-            logger.debug("========== [DEBUG VIEW EDIT] Entry %s ==========", entry.id)
-            logger.debug("[DEBUG VIEW] Number of entry relations: %d", len(entry.relations))
-            for rel in entry.relations:
-                logger.debug("  Relation: type=%s, ref=%s, traits=%s", rel.type, rel.ref, rel.traits)
-
-            # Batch-resolve all relation ref IDs to headwords in one query
-            all_ref_ids = list(set(
-                str(r.ref) for r in entry.relations
-                if hasattr(r, 'ref') and r.ref
-            ))
-            headword_cache = dict_service.resolve_headwords_batch(all_ref_ids) if all_ref_ids else {}
-
-            variant_relations_data = entry.get_complete_variant_relations(dict_service)
-            logger.debug("[DEBUG VIEW] variant_relations_data returned: %d items", len(variant_relations_data))
-            # Extract enriched component_relations for template (with display text for main entries)
-            component_relations_data = entry.get_component_relations(dict_service, headword_cache=headword_cache)
-            # Extract forward component relations (where this entry HAS components)
-            forward_component_relations_data = entry.get_forward_component_relations(dict_service)
-            # Extract subentries (reverse component relations)
-            subentries_data = entry.get_subentries(dict_service)
-
-            # Create enriched grouped_relations for template (can't set on entry because it's a property)
-            enriched_grouped_relations = RelationGroups(entry.relations, ranges)
-            enriched_grouped_relations.enrich_with_display_text(dict_service, headword_cache=headword_cache)
-
-            # Enrich sense relations with display text
-            for sense in entry.senses:
-                if hasattr(sense, 'relations') and sense.relations:
-                    sense.relations = sense.enrich_relations_with_display_text(dict_service)
-
-        # Get project languages for multilingual fields
-        languages = get_project_languages()
-        available_languages = get_language_choices_for_forms()
-
-        # Define note types for the dropdown
-        note_types = [
-            ('general', 'General'),
-            ('usage', 'Usage'),
-            ('semantic', 'Semantic'),
-            ('etymology', 'Etymology'),
-            ('cultural', 'Cultural'),
-            ('anthropology', 'Anthropology'),
-            ('discourse', 'Discourse'),
-            ('phonology', 'Phonology'),
-            ('sociolinguistics', 'Sociolinguistics'),
-            ('bibliography', 'Bibliography')
-        ]
-
-        # Get CSS-rendered HTML for the entry using default profile
-        css_html = None
-        try:
-            from app.services.css_mapping_service import CSSMappingService
-            from app.services.display_profile_service import DisplayProfileService
-            
-            css_service = current_app.injector.get(CSSMappingService)
-            profile_service = DisplayProfileService()
-            
-            # Get default profile or create one if it doesn't exist
-            default_profile = profile_service.get_default_profile()
-            if not default_profile:
-                # Create a default profile from registry
-                default_profile = profile_service.create_from_registry_default(
-                    name="Default Display Profile",
-                    description="Auto-created default profile"
-                )
-                profile_service.set_default_profile(default_profile.id)
-            
-            # Build a headword map from already resolved relations
-            headword_map = {}
-            if entry:
-                for rel in enriched_grouped_relations.all_relations:
-                    ref = rel.get('ref')
-                    text = rel.get('ref_display_text')
-                    if ref and text:
-                        headword_map[ref] = text
-                for rel in variant_relations_data:
-                    ref = rel.get('ref')
-                    text = rel.get('ref_display_text')
-                    if ref and text:
-                        headword_map[ref] = text
-                for comp in component_relations_data:
-                    ref = comp.get('ref')
-                    text = comp.get('ref_display_text')
-                    if ref and text:
-                        headword_map[ref] = text
-
-            # Render entry with CSS using the raw XML from the parsed entry
-            entry_xml = getattr(entry, '_raw_xml', None) if entry else None
-            if entry_xml:
-                css_html = css_service.render_entry(
-                    entry_xml,
-                    profile=default_profile,
-                    dict_service=dict_service,
-                    headword_map=headword_map
-                )
-                
-                # If show_subentries is enabled, fetch and render all subentries in one query
-                if default_profile.show_subentries and subentries_data:
-                    try:
-                        ids = [s["id"] for s in subentries_data if s.get("id")]
-                        if ids:
-                            preds = " or ".join(f"@id='{i}'" for i in ids)
-                            subentries_xml = dict_service.db_connector.execute_query(
-                                f"xquery collection()//entry[{preds}]"
-                            )
-                            if subentries_xml:
-                                wrapped = f"<root>{subentries_xml}</root>"
-                                root = ET.fromstring(wrapped)
-                                for child, sub_id in zip(root, ids):
-                                    full_xml = ET.tostring(child, encoding="unicode")
-                                    rendered = css_service.render_entry(
-                                        full_xml,
-                                        profile=default_profile,
-                                        dict_service=dict_service,
-                                    )
-                                    subentry_html_parts.append(
-                                        f'<div class="subentry" data-subentry-id="{sub_id}">{rendered}</div>'
-                                    )
-                        if subentry_html_parts:
-                            css_html += "\n".join(subentry_html_parts)
-                    except Exception as e:
-                        logger.warning("Error rendering subentries: %s", e)
-                        
-        except Exception as e:
-            logger.warning("Error rendering entry with CSS: %s", e)
-
-        logger.debug("[DEBUG VIEW] RENDERING with variant_relations=%d items", len(variant_relations_data))
-        logger.debug("[DEBUG VIEW] variant_relations_data: %s", variant_relations_data)
-
-        return render_template(
-            "entry_form.html",
-            entry=entry,
-            ranges=ranges,
-            variant_relations=variant_relations_data,
-            component_relations=component_relations_data,
-            forward_component_relations=forward_component_relations_data,
-            subentries=subentries_data,
-            enriched_grouped_relations=enriched_grouped_relations,
-            validation_result=validation_result,
-            project_languages=languages,
-            available_languages=available_languages,
-            note_types=note_types,
-            css_html=css_html,
-        )
+            return _handle_edit_entry_post(dict_service, entry_id)
+        return _handle_edit_entry_get(dict_service, entry_id)
     except NotFoundError as e:
         logger.warning(f"Entry with ID {entry_id} not found: {e}")
         flash(f"Entry with ID {entry_id} not found.", "danger")

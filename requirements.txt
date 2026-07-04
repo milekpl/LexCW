@@ -9,6 +9,10 @@ flasgger==0.9.7.1
 # XML and data processing
 lxml==4.9.3
 jsonschema==4.19.0
+# CSS parsing / validation (display profile custom CSS)
+cssutils==2.15.0
+# Hardened stdlib XML parsing (XXE / billion-laughs protection)
+defusedxml==0.7.1
 # Testing
 pytest==7.4.0
 pytest-cov==4.1.0
@@ -17,6 +21,7 @@ pytest-mock==3.11.1
 python-dotenv==1.0.0
 requests==2.31.0
 redis==5.0.4
+tenacity>=8.2.0
 # Development
 black==23.7.0
 flake8==6.1.0

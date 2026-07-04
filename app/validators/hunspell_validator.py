@@ -16,11 +16,12 @@ from app.validators.base import (
     Validator,
     ValidationResult,
     CacheableValidator,
-    BatchValidator
+    BatchValidator,
+    BatchValidatorMixin
 )
 
 
-class HunspellValidator(CacheableValidator, BatchValidator):
+class HunspellValidator(CacheableValidator, BatchValidatorMixin, BatchValidator):
     """
     Hunspell spell-check validator.
 
@@ -471,38 +472,6 @@ class HunspellValidator(CacheableValidator, BatchValidator):
 
         return count
 
-    def validate_batch(
-        self,
-        entries: List[Dict[str, Any]],
-        lang: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, ValidationResult]:
-        """
-        Validate multiple entries.
-
-        Args:
-            entries: List of {'id': str, 'text': str}
-            lang: Language code
-            **kwargs: Additional options
-
-        Returns:
-            Dict mapping entry_id -> ValidationResult
-        """
-        results = {}
-
-        for entry in entries:
-            entry_id = entry['id']
-            text = entry.get('text', '')
-
-            result = self.validate(
-                text=text,
-                lang=lang,
-                entry_id=entry_id,
-                **kwargs
-            )
-            results[entry_id] = result
-
-        return results
 
     def check_words(
         self,

@@ -42,7 +42,7 @@ def _write_job(job_id: str, data: dict) -> None:
     os.replace(tmp, _job_path(job_id))
 
 
-def _run_discovery_job(app, base_url, job_id, project_id, pos, threshold, min_confidence, sample_size, relation_type):
+def _run_discovery_job(app, base_url, job_id, project_id, pos, threshold, min_confidence, sample_size, relation_type, scan_mode='synonym'):
     def _check_cancelled():
         data = _read_job(job_id)
         if data and data.get('cancelled'):
@@ -62,6 +62,7 @@ def _run_discovery_job(app, base_url, job_id, project_id, pos, threshold, min_co
                 pos=pos, threshold=threshold,
                 min_confidence=min_confidence, project_id=project_id,
                 sample_size=sample_size, relation_type=relation_type,
+                scan_mode=scan_mode,
                 progress_callback=_progress,
             )
             # Add entry URLs
@@ -80,6 +81,7 @@ def _run_discovery_job(app, base_url, job_id, project_id, pos, threshold, min_co
                 'total_candidates': result.get('total_candidates', 0),
                 'scanned_entries': result.get('scanned_entries', 0),
                 'sample_size': result.get('sample_size'),
+                'scan_mode': scan_mode,
             }
             _write_job(job_id, final)
     except JobCancelled:
@@ -106,10 +108,11 @@ def start_discovery_scan():
 
         pos = data.get('pos')
         threshold = int(data.get('threshold', 1))
-        min_confidence = float(data.get('min_confidence', 0.3))
+        min_confidence = float(data.get('min_confidence', 0.1 if data.get('scan_mode') == 'subentry' else 0.3))
         raw_sample = data.get('sample_size')
         sample_size = int(raw_sample) if raw_sample else None
         relation_type = data.get('relation_type', 'synonym')
+        scan_mode = data.get('scan_mode', 'synonym')
 
         _write_job(job_id, {'done': False, 'phase': 'Queued', 'total': 0, 'processed': 0})
 
@@ -119,7 +122,7 @@ def start_discovery_scan():
 
         thread = threading.Thread(
             target=_run_discovery_job,
-            args=(app, base_url, job_id, project_id, pos, threshold, min_confidence, sample_size, relation_type),
+            args=(app, base_url, job_id, project_id, pos, threshold, min_confidence, sample_size, relation_type, scan_mode),
             daemon=True,
         )
         thread.start()

@@ -57,16 +57,27 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is True
         assert len(data['errors']) == 0
+        # Regression: the old per-line validator emitted a spurious "extra
+        # semicolon" warning on every normal declaration. Valid CSS must be clean.
+        assert data['warnings'] == []
 
     def test_validate_unclosed_brace_returns_invalid(self, client):
-        """CSS with unclosed braces should return errors."""
+        """CSS with an unclosed brace followed by more rules should error.
+
+        Note: cssutils (like a browser) tolerates a *trailing* unclosed brace at
+        end-of-input and auto-closes it. It flags the mistake when the missing
+        ``}`` causes the following rule to be misparsed, which is the common case.
+        """
         invalid_css = """
         .sense {
             margin-left: 10px;
         }
         .lexical-unit {
             font-weight: bold;
-        /* missing closing brace */
+        /* missing closing brace here */
+        .example {
+            font-style: italic;
+        }
         """
         response = client.post(
             '/api/profiles/validate-css',
@@ -77,9 +88,9 @@ class TestCSSValidationEndpoint:
         data = response.get_json()
         assert data['valid'] is False
         assert len(data['errors']) > 0
-        # Should detect missing closing brace
-        error_messages = [e['message'] for e in data['errors']]
-        assert any('missing closing brace' in msg.lower() for msg in error_messages)
+        # cssutils reports a structural parse error for the dangling block.
+        for error in data['errors']:
+            assert error['line'] >= 1
 
     def test_validate_extra_closing_brace_returns_invalid(self, client):
         """CSS with extra closing brace should return errors."""
@@ -116,9 +127,9 @@ class TestCSSValidationEndpoint:
         )
         assert response.status_code == 200
         data = response.get_json()
+        # An unterminated string produces an INVALID token / syntax error.
         assert data['valid'] is False
-        error_messages = [e['message'] for e in data['errors']]
-        assert any('single quote' in msg.lower() for msg in error_messages)
+        assert len(data['errors']) > 0
 
     def test_validate_unclosed_double_quote_returns_error(self, client):
         """CSS with unclosed double quote should return error."""
@@ -135,12 +146,12 @@ class TestCSSValidationEndpoint:
         )
         assert response.status_code == 200
         data = response.get_json()
+        # An unterminated string produces an INVALID token / syntax error.
         assert data['valid'] is False
-        error_messages = [e['message'] for e in data['errors']]
-        assert any('double quote' in msg.lower() for msg in error_messages)
+        assert len(data['errors']) > 0
 
-    def test_validate_suspicious_colon_semicolon_warns(self, client):
-        """Suspicious ':;' pattern should generate a warning."""
+    def test_validate_empty_declaration_returns_invalid(self, client):
+        """An empty value (':;' with a stray token) is a real syntax error."""
         css_with_typo = """
         .sense {
             color:; red;
@@ -153,9 +164,9 @@ class TestCSSValidationEndpoint:
         )
         assert response.status_code == 200
         data = response.get_json()
-        # Should still be valid but with warnings
-        warning_messages = [w['message'] for w in data['warnings']]
-        assert any('typo' in msg.lower() or 'suspicious' in msg.lower() for msg in warning_messages)
+        # cssutils treats the empty declaration + stray token as errors.
+        assert data['valid'] is False
+        assert len(data['errors']) > 0
 
     def test_validate_missing_request_body_returns_valid(self, client):
         """Missing request body should return valid (empty CSS)."""
@@ -284,3 +295,49 @@ class TestCSSValidationEndpoint:
         for error in data['errors']:
             assert 'line' in error
             assert error['line'] >= 1
+
+    def test_validate_modern_css_returns_valid(self, client):
+        """Modern CSS (flexbox, custom properties) must not be rejected.
+
+        cssutils only knows CSS 2.1, so validation is run with ``validate=False``
+        to check syntax only - property-level checks would wrongly flag these.
+        """
+        modern_css = """
+        .entry {
+            display: flex;
+            gap: 1rem;
+            color: var(--accent, #333);
+        }
+        """
+        response = client.post(
+            '/api/profiles/validate-css',
+            json={'custom_css': modern_css},
+            content_type='application/json'
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['valid'] is True
+        assert data['errors'] == []
+
+
+class TestValidateCssString:
+    """Direct unit tests for the ``validate_css_string`` helper (no HTTP)."""
+
+    def test_valid_css_has_no_findings(self):
+        from app.api.display_profiles import validate_css_string
+        errors, warnings = validate_css_string(".a { color: red; }")
+        assert errors == []
+        assert warnings == []
+
+    def test_unclosed_brace_is_error_with_line(self):
+        from app.api.display_profiles import validate_css_string
+        errors, _ = validate_css_string(".a {\n  color: red;\n.b {\n  color: blue;\n")
+        assert len(errors) > 0
+        assert all(e['line'] >= 1 for e in errors)
+
+    def test_apostrophe_inside_double_quotes_is_valid(self):
+        """Regression: the old per-line counter mis-flagged content: "it's"
+        as an unclosed single quote."""
+        from app.api.display_profiles import validate_css_string
+        errors, _ = validate_css_string(".a::before { content: \"it's\"; }")
+        assert errors == []

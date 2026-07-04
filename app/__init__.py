@@ -9,10 +9,17 @@ import logging
 from pathlib import Path
 
 import click
+import defusedxml
 from flask import Flask, session, g, request, redirect, url_for
 from flasgger import Swagger
 from injector import Injector, singleton
 import psycopg2
+
+# Harden the standard-library XML parsers (ElementTree, minidom, sax, ...) against
+# XXE and entity-expansion ("billion laughs") attacks. This monkeypatches the parse
+# entrypoints to forbid DTDs; serialization (tostring/Element/SubElement) is left
+# untouched. It must run before any XML is parsed, so it lives at import time here.
+defusedxml.defuse_stdlib()
 
 from app.database.basex_connector import BaseXConnector
 from app.database.workset_db import create_workset_tables

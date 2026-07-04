@@ -14,10 +14,20 @@
   var thresholdLabel = document.getElementById('discovery-threshold-label');
   var sampleSizeInput = document.getElementById('discovery-sample-size');
   var posInput = document.getElementById('discovery-pos');
-  var relationTypeInput = document.getElementById('discovery-relation-type');
+  var scanModeInput = document.getElementById('discovery-scan-mode');
   var progressEl = document.getElementById('discovery-progress');
   var summaryEl = document.getElementById('discovery-summary');
   var contentEl = document.getElementById('discovery-content');
+
+  if (scanModeInput && relationTypeInput) {
+    scanModeInput.addEventListener('change', function() {
+      if (this.value === 'subentry') {
+        relationTypeInput.value = 'subentry';
+      } else {
+        relationTypeInput.value = 'synonym';
+      }
+    });
+  }
 
   /* ---- Threshold slider live update ---- */
   if (thresholdInput && thresholdLabel) {
@@ -196,7 +206,8 @@
     var threshold = thresholdInput ? parseInt(thresholdInput.value, 10) : 2;
     var sampleSize = sampleSizeInput ? sampleSizeInput.value : '';
     var pos = posInput ? posInput.value : '';
-    var relationType = relationTypeInput ? relationTypeInput.value : 'synonym';
+    var scanMode = scanModeInput ? scanModeInput.value : 'synonym';
+    var relationType = relationTypeInput ? relationTypeInput.value : scanMode;
     var qs = projectId ? '?project_id=' + encodeURIComponent(projectId) : '';
 
     if (runBtn) {
@@ -221,6 +232,7 @@
         sample_size: sampleSize || null,
         pos: pos || null,
         relation_type: relationType,
+        scan_mode: scanMode,
       }),
     })
       .then(function (r) { return r.json(); })
