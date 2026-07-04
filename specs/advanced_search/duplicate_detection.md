@@ -62,17 +62,25 @@ Output:
 
 #### 3.2.0 Headword Normalisation (applied before all string comparisons)
 
-Before any comparison, headwords pass through a **normalisation pipeline** so that entries differing only in grammatical notation are not flagged as false duplicates.
+Before any comparison, headwords pass through a **normalisation pipeline** that generates one or more normalized variants, ensuring that entries differing only in grammatical notation, punctuation, or compound style are flagged.
 
-**Normalisation steps** (applied in order):
+**Normalisation steps**:
 
-1. **Strip parenthetical qualifiers**: Remove any parenthesised suffix like ` (animal)`, ` (sth)`, ` (somebody)`, including the leading space. Regex: `\s*\([^)]*\)\s*$`. Only the **last** parenthetical group is stripped (to handle "give (sth) (to sb)" → "give (sth)").
-2. **Strip placeholders**: Remove any of the following tokens (case-insensitive, whole-word match) from the headword string, along with any adjoining pipe `|` characters and whitespace:
-   - Default set: `sth`, `sb`, `sth/sb`, `sb/sth`
-   - These are lexicographic shorthand for "something" and "somebody" — they carry no headword identity.
+1. **Parenthetical Expansion**: If the headword contains parentheses, generate **two string variants**:
+   - **Stripped variant**: Remove parentheses and the text inside them (e.g., `a little (bit)` $\rightarrow$ `a little`). Regex: `\s*\([^)]*\)\s*`.
+   - **Retained variant**: Remove the parentheses but keep the text inside them, replacing parentheses with spaces and collapsing extra whitespace (e.g., `a little (bit)` $\rightarrow$ `a little bit`).
+   If no parentheses exist, the single original string is the only variant.
+   
+2. **Strip placeholders**: For each variant, remove any of the following tokens (case-insensitive, whole-word match) from the string, along with any adjoining pipe `|` characters and whitespace:
+   - Default set: `sth`, `sb`, `sth/sb`, `sb/sth` (lexicographic shorthand for "something" and "somebody").
+
 3. **Strip articles**: Remove leading `a `, `an `, `the ` (case-insensitive).
+
 4. **Collapse whitespace**: Trim and reduce internal whitespace runs to a single space.
-5. **Lowercase**: Fold to lower case for comparison (not for display).
+
+5. **Lowercase**: Fold all characters to lower case.
+
+6. **Compound Normalisation (Optional Variant)**: For compound duplicate detection, generate an additional variant by stripping all hyphens and spaces completely (e.g., `log-in` $\rightarrow$ `login`, `log in` $\rightarrow$ `login`). If two entries share this compound-normalised form, they are flagged as compound duplicates.
 
 **Project-level customisation:**
 
@@ -84,22 +92,21 @@ ALTER TABLE project_settings
   ADD COLUMN duplicate_articles TEXT DEFAULT 'a,an,the';
 ```
 
-Admins can edit these in the Settings page to add language-specific placeholders (e.g. `qqch,qqn` for French *quelque chose/quelqu'un*, `jn,jm` for German *jemand*).
+Admins can edit these in the Settings page to add language-specific placeholders.
 
-**Examples:**
+**Examples of Normalised Sets:**
 
-| Raw headword | Normalised | Rationale |
-|-------------|------------|-----------|
-| `sth/sb` | `` (empty — excluded entirely) | Placeholder-only entries are excluded from detection |
-| `sth to do` | `to do` | Leading placeholder stripped |
-| `tell sb sth` | `tell` | Both placeholders stripped |
-| `explain (sth) (to sb)` | `explain` | Two parentheticals stripped, then placeholders removed; parenthetical pipeline strips only the last group per pass, but the placeholders step catches the inner tokens because plain-text parentheticals are removed first |
-| `cat (animal)` | `cat` | Parenthetical qualifier stripped |
-| `run (v)` | `run` | Grammatical qualifier stripped |
-| `a cat` | `cat` | Leading article stripped |
-| `an apple` | `apple` | Leading article stripped |
-| `The United Kingdom` | `united kingdom` | Leading article stripped + lowered |
-| `give sth to sb` | `give to` | Placeholders stripped, "to" retained as real content |
+| Raw headword | Normalised Variant Set | Rationale |
+|-------------|-------------------------|-----------|
+| `sth/sb` | `{""}` (empty — excluded) | Placeholder-only entries are excluded from detection |
+| `sth to do` | `{"to do"}` | Leading placeholder stripped |
+| `tell sb sth` | `{"tell"}` | Both placeholders stripped |
+| `cat (animal)` | `{"cat"}` | Parenthetical stripped |
+| `a little (bit)` | `{"a little", "a little bit"}` | Parenthetical expansion: produces both stripped and retained forms |
+| `log-in` | `{"log-in", "login"}` | Standard normalization keeps hyphen, compound variant strips it |
+| `log in` | `{"log in", "login"}` | Standard normalization keeps space, compound variant strips it |
+| `give sth to sb` | `{"give to"}` | Placeholders stripped, "to" retained |
+
 
 #### 3.2.1 XQuery — Exact headword duplicates (fast path)
 
@@ -130,11 +137,35 @@ Reference implementation pattern: `ipa_service.py:280` already has `levenshtein_
 
 #### 3.2.3 Python — Fuzzy sense overlap
 
-1. Fetch entries where headword matches exactly (already known from 3.2.1) or near-match (from 3.2.2)
+1. Fetch entries where headword matches exactly (already known from 3.2.1) or near-match (from 3.2.2).
 2. For each candidate pair, compare sense definitions/glosses using:
-   - Token overlap (Jaccard similarity) on definition text
-   - Threshold: ≥0.7 Jaccard on any one sense pair
-3. Score boosts confidence
+   - Token overlap (Jaccard similarity) on definition text.
+   - Threshold: ≥0.7 Jaccard on any one sense pair.
+3. Score boosts confidence (confidence $\ge 0.9$ if Jaccard similarity $\ge 0.7$).
+
+#### 3.2.4 Corpus Frequency Integration (Tiebreaking & Canonical Forms)
+
+To make smart merge suggestions (i.e. which form to keep as the canonical target), we integrate the Lucene corpus index.
+1. When presenting duplicate candidates (e.g. `login` vs `log in` vs `log-in`), query the Lucene corpus index API (`/api/corpus/count` or existing client count function) for the occurrence frequency of each headword form in the corpus.
+2. The candidate with the highest corpus frequency is flagged as the recommended canonical target (`merge_suggestion` is set to `"keep_most_frequent"`, pointing to this form).
+3. If corpus service is unavailable, fall back to `"keep_complete"` (the entry with the most populated fields / senses).
+
+#### 3.2.5 Cross-Field Duplication: Examples vs. Subentries
+
+To find redundant example sentences that duplicate separate dictionary subentries (or vice versa):
+1. **Scope**: Compare all lexical entries whose primary morph type is "phrase" (subentries) against all example sentences listed under any sense of any entry.
+2. **Match Metric**: Compare entry headword against example text using:
+   - Length similarity: length difference $\le 4$ characters.
+   - Jaro-Winkler similarity: similarity ratio $\ge 0.95$.
+3. **Action**: Flag these in the Data Quality Dashboard under a "Redundant Examples" section. Editors can choose to convert the example sentence to a cross-reference link to the subentry, or dismiss/delete the redundant example.
+
+#### 3.2.6 Structural/Schema Validation Rules (Intra-entry Hygiene)
+
+To prevent duplication before entries are created, add the following validations to the XML schema and the save-time validator (`validation_rules_v2.json`):
+1. **Redundant Variants/Allomorphs**: Alternate forms (`allomorph`) or entry variants (`variant`) cannot be identical to the main headword form (case-insensitive).
+2. **Duplicate Alternate Forms**: An entry cannot have duplicate `allomorph` entries with the exact same form.
+3. **Duplicate Variant References**: An entry cannot list the same target entry as a variant multiple times.
+4. **Gloss Redundancy**: A sense gloss must be surrounded by parentheses. If the text of the gloss (excluding parentheses) is completely contained within the sense's definition, flag a warning: "Redundant gloss duplicates definition text".
 
 ### 3.3 API Endpoints
 

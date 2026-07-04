@@ -43,22 +43,39 @@
   function renderCandidate(c) {
     var sim = c.similarity || 0;
     var simLabel = (sim * 100).toFixed(0) + '%';
+    var senseSim = c.sense_similarity;
+    var level = c.level || 'entry';
+    var levelLabel = level === 'sense' ? 'sense-level' : 'entry-level';
+    var levelClass = level === 'sense' ? 'sim-high' : 'sim-mid';
     var linkedBadge = c.already_linked
       ? '<span class="linked-badge ms-2"><i class="fas fa-link"></i> Already linked</span>'
       : '';
+
+    var senseInfo = '';
+    if (typeof senseSim === 'number' && senseSim > 0) {
+      senseInfo = '<span class="similarity-badge ' + simClass(senseSim) + ' ms-1" style="font-size:0.75rem;">sense ' + (senseSim * 100).toFixed(0) + '%</span>';
+    }
 
     return (
       '<div class="card candidate-card" data-candidate-id="' + c.id + '">' +
         '<div class="card-header d-flex justify-content-between align-items-center">' +
           '<div>' +
             '<span class="similarity-badge ' + simClass(sim) + '">' + simLabel + '</span>' +
-            '<span class="ms-2 small text-muted">' + c.relation_type + '</span>' +
+            senseInfo +
+            '<span class="ms-2 small text-muted">' + c.relation_type + ' &middot; ' + levelLabel + '</span>' +
             linkedBadge +
           '</div>' +
           '<div>' +
             (c.already_linked
               ? ''
-              : '<button type="button" class="btn btn-outline-success btn-sm create-relation-btn" data-source-id="' + c.source.entry_id + '" data-target-id="' + c.target.entry_id + '" data-relation-type="' + c.relation_type + '"><i class="fas fa-plus-circle"></i> Create Relation</button>'
+              : '<button type="button" class="btn btn-outline-success btn-sm create-relation-btn"' +
+                ' data-source-id="' + c.source.entry_id + '"' +
+                ' data-target-id="' + c.target.entry_id + '"' +
+                ' data-relation-type="' + c.relation_type + '"' +
+                ' data-level="' + level + '"' +
+                ' data-source-sense-id="' + (c.source_sense_id || '') + '"' +
+                ' data-target-sense-id="' + (c.target_sense_id || '') + '"' +
+                '><i class="fas fa-plus-circle"></i> Create Relation</button>'
             ) +
           '</div>' +
         '</div>' +
@@ -226,10 +243,13 @@
     var sourceId = btn.getAttribute('data-source-id');
     var targetId = btn.getAttribute('data-target-id');
     var relationType = btn.getAttribute('data-relation-type') || 'synonym';
+    var level = btn.getAttribute('data-level') || null;
+    var sourceSenseId = btn.getAttribute('data-source-sense-id') || null;
+    var targetSenseId = btn.getAttribute('data-target-sense-id') || null;
     var qs = projectId ? '?project_id=' + encodeURIComponent(projectId) : '';
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating…';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating\u2026';
 
     fetch('/api/discovery/relations' + qs, {
       method: 'POST',
@@ -238,17 +258,20 @@
         source_id: sourceId,
         target_id: targetId,
         relation_type: relationType,
+        level: level,
+        source_sense_id: sourceSenseId,
+        target_sense_id: targetSenseId,
       }),
     })
       .then(function (r) { return r.json(); })
       .then(function (resp) {
         if (resp.success) {
-          // Replace button with "Created" badge
           var parent = btn.closest('.card-header');
           if (parent) {
             var actionsDiv = parent.querySelector('div:last-child');
             if (actionsDiv) {
-              actionsDiv.innerHTML = '<span class="linked-badge"><i class="fas fa-check-circle text-success"></i> Created</span>';
+              var lvlText = resp.level === 'sense' ? 'sense-level' : 'entry-level';
+              actionsDiv.innerHTML = '<span class="linked-badge"><i class="fas fa-check-circle text-success"></i> Created (' + lvlText + ')</span>';
             }
           }
         } else {

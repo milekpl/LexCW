@@ -180,6 +180,7 @@ def create_relation():
         relation_type = data.get('relation_type', 'synonym')
         source_sense_id = data.get('source_sense_id')
         target_sense_id = data.get('target_sense_id')
+        level = data.get('level')  # 'entry' or 'sense' or None for auto-detect
 
         if not source_id or not target_id:
             return jsonify({'success': False, 'error': 'source_id and target_id are required'}), 400
@@ -197,11 +198,18 @@ def create_relation():
             project_id=project_id,
         )
 
+        level_label = result.get('level', 'entry')
+        if level_label == 'sense':
+            msg = f'Relation "{relation_type}" created between senses {result["source_sense_id"]} and {result["target_sense_id"]}'
+        else:
+            msg = f'Entry-level relation "{relation_type}" created between {source_id} and {target_id}'
+
         return jsonify({
             'success': True,
-            'message': f'Relation "{relation_type}" created between senses {result["source_sense_id"]} and {result["target_sense_id"]}',
-            'source_sense_id': result['source_sense_id'],
-            'target_sense_id': result['target_sense_id'],
+            'message': msg,
+            'level': level_label,
+            'source_sense_id': result.get('source_sense_id'),
+            'target_sense_id': result.get('target_sense_id'),
         })
     except Exception as e:
         logger.error("Error creating relation: %s", e, exc_info=True)

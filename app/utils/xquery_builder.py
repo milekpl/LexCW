@@ -442,20 +442,19 @@ class XQueryBuilder:
         """
         Escape special characters in XQuery string literals.
 
+        Delegates to :func:`app.utils.db_utils.escape_xquery_string` which
+        uses the correct XQuery quoting strategy (single quotes doubled
+        in single-quoted strings, double quotes doubled in double-quoted
+        strings) rather than XML entities.
+
         Args:
             text: Text to escape
 
         Returns:
-            Escaped text safe for use in XQuery
+            Escaped text safe for use in XQuery string literals
         """
-        # Replace special characters, handle & first to avoid double-escaping
-        return (
-            text.replace("&", "&amp;")
-            .replace('"', "&quot;")
-            .replace("'", "&apos;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
+        from app.utils.db_utils import escape_xquery_string as _esc
+        return _esc(text)
 
     @staticmethod
     def build_entries_by_grammatical_info_query(
@@ -547,12 +546,12 @@ class XQueryBuilder:
         # 2) sense-level relations: <entry>//{sense}/{relation}/@ref points to target *sense id*
         # In case (2), we map sense-refs back to entries by selecting entries that *contain* the referenced senses.
         query = f"""
-        let $entry_rel_refs := collection('{db_name}')//{entry_path}[@id="{safe_entry_id}"]/{relation_path}{relation_condition}/@ref
-        let $sense_rel_refs := collection('{db_name}')//{entry_path}[@id="{safe_entry_id}"]//{sense_path}/{relation_path}{relation_condition}/@ref
-        for $entry in collection('{db_name}')//{entry_path}
+        let $entry_rel_refs := collection()//{entry_path}[@id="{safe_entry_id}"]/{relation_path}{relation_condition}/@ref
+        let $sense_rel_refs := collection()//{entry_path}[@id="{safe_entry_id}"]//{sense_path}/{relation_path}{relation_condition}/@ref
+        for $entry in collection()//{entry_path}
         where
-            @id = $entry_rel_refs
-            or exists(.//{sense_path}[.//{relation_path}{relation_condition}/@ref = $sense_rel_refs])
+            $entry/@id = $entry_rel_refs
+            or exists($entry//{sense_path}[.//{relation_path}{relation_condition}/@ref = $sense_rel_refs])
         return $entry
         """
 

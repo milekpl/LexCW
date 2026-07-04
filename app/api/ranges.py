@@ -539,8 +539,8 @@ def get_project_languages_api() -> Union[Response, Tuple[Response, int]]:
             # Handle the case where name might be a Markup object (with tooltip)
             if hasattr(name, '__html__'):
                 # Extract just the text part without the tooltip markup
-                import re
-                clean_name = re.sub(r'<.*?>', '', str(name)).strip()
+                from app.utils.normalization_service import _xml_to_text
+                clean_name = _xml_to_text(str(name)).strip()
                 # If the name was marked as vernacular, try to extract the clean name
                 if clean_name.startswith((' ', '\n')):
                     clean_name = clean_name.lstrip()

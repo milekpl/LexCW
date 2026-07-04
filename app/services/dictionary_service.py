@@ -104,6 +104,51 @@ class DictionaryService:
 
         return text
 
+    @staticmethod
+    def _normalise_headword_variants(
+        headword: str,
+        placeholders: Optional[list[str]] = None,
+        articles: Optional[list[str]] = None,
+    ) -> list[str]:
+        """Generate normalisation variants for parentheticals and compounds."""
+        if placeholders is None:
+            placeholders = ["sth", "sb", "sth/sb", "sb/sth"]
+        if articles is None:
+            articles = ["a", "an", "the"]
+
+        def norm_single(text: str) -> str:
+            sorted_placeholders = sorted(placeholders, key=len, reverse=True)
+            escaped = [re.escape(p) for p in sorted_placeholders]
+            placeholder_pattern = r'(?:\s*\|\s*)?(?:' + '|'.join(escaped) + r')(?:\s*\|\s*)?'
+            text = re.sub(placeholder_pattern, '', text, flags=re.IGNORECASE)
+            text = re.sub(r'\s*\(\s*\)\s*', '', text)
+            text = re.sub(r'\s*[|/]\s*', ' ', text)
+
+            for article in articles:
+                text = re.sub(r'^' + re.escape(article) + r'\s+', '', text, flags=re.IGNORECASE)
+
+            return re.sub(r'\s+', ' ', text).strip().lower()
+
+        raw_variants = []
+        if '(' in headword and ')' in headword:
+            stripped = re.sub(r'\s*\([^)]*\)\s*', ' ', headword)
+            raw_variants.append(stripped)
+            expanded = headword.replace('(', ' ').replace(')', ' ')
+            raw_variants.append(expanded)
+        else:
+            raw_variants.append(headword)
+
+        final_variants = set()
+        for var in raw_variants:
+            normed = norm_single(var)
+            if normed:
+                final_variants.add(normed)
+                compound_normed = re.sub(r'[-\s]', '', normed)
+                if compound_normed:
+                    final_variants.add(compound_normed)
+
+        return sorted(list(final_variants))
+
     def __init__(self,
                  db_connector: Union[BaseXConnector, MockDatabaseConnector],
                  history_service: Optional['OperationHistoryService'] = None):
@@ -2868,6 +2913,17 @@ class DictionaryService:
                     if raw_a:
                         articles = [a.strip() for a in raw_a.split(",") if a.strip()]
 
+            # Initialize corpus client if available
+            corpus_client = None
+            try:
+                from flask import current_app
+                corpus_client = getattr(current_app, 'lucene_corpus_client', None)
+                if not corpus_client:
+                    from app.services.lucene_corpus_client import LuceneCorpusClient
+                    corpus_client = LuceneCorpusClient()
+            except Exception:
+                pass
+
             has_ns = self._detect_namespace_usage()
             prologue = self._query_builder.get_namespace_prologue(has_ns)
             entry_path = self._query_builder.get_element_path("entry", has_ns)
@@ -2927,14 +2983,15 @@ class DictionaryService:
                 except ValueError:
                     sense_count = 0
 
-                normalised = self._normalise_headword(headword, placeholders, articles)
-                if not normalised:
+                normalised_variants = self._normalise_headword_variants(headword, placeholders, articles)
+                if not normalised_variants:
                     continue  # skip placeholder-only entries
 
                 entries.append({
                     'entry_id': entry_id,
                     'headword': headword,
-                    'normalised': normalised,
+                    'normalised': normalised_variants[0],
+                    'normalised_variants': normalised_variants,
                     'citation_form': citation_form,
                     'defs': defs_raw,
                     'glosses': glosses_raw,
@@ -2952,17 +3009,12 @@ class DictionaryService:
             if progress_callback:
                 progress_callback(total_entries, 0, 'Fetched entries')
 
-            def _entry_key(entry: dict) -> tuple[str, str, str]:
-                return (
-                    entry['normalised'],
-                    entry['pos'] or '',
-                    entry['pronunciation'] or '',
-                )
-
             if pos is None:
                 candidate_entries = entries
             else:
                 candidate_entries = [e for e in entries if not e['pos'] or e['pos'] == pos]
+
+            corpus_count_cache = {}
 
             def _make_group(entries_list, group_mode, confidence):
                 entry_dicts = [
@@ -2979,48 +3031,93 @@ class DictionaryService:
                     }
                     for e in entries_list
                 ]
-                ids = [e['entry_id'] for e in entries_list]
+
+                # Check corpus frequency if available
+                merge_suggestion = 'keep_complete' if group_mode == 'exact' else 'manual'
+                unique_hws = {e['headword'] for e in entries_list}
+                if corpus_client and len(entries_list) >= 2 and len(unique_hws) > 1:
+                    counts = {}
+                    for e in entries_list:
+                        hw = e['headword']
+                        if hw not in counts:
+                            if hw not in corpus_count_cache:
+                                corpus_count_cache[hw] = corpus_client.count(hw)
+                            counts[hw] = corpus_count_cache[hw]
+                    # Sort entry_dicts highest count first
+                    entry_dicts.sort(key=lambda x: -counts.get(x['headword'], 0))
+                    if sum(counts.values()) > 0:
+                        merge_suggestion = 'keep_most_frequent'
+                    else:
+                        entry_dicts.sort(key=lambda x: -x.get('sense_count', 0))
+                else:
+                    entry_dicts.sort(key=lambda x: -x.get('sense_count', 0))
+
+                ids = [e['entry_id'] for e in entry_dicts]
                 return {
                     'id': f"{group_mode}-{'-'.join(ids)}",
                     'confidence': confidence,
                     'mode': group_mode,
                     'entries': entry_dicts,
-                    'merge_suggestion': 'keep_complete' if group_mode == 'exact' else 'manual',
+                    'merge_suggestion': merge_suggestion,
                 }
 
             def _find_exact_groups(candidates):
-                """Find exact-headword groups among candidate entries.
+                """Find exact-headword groups using variants.
 
                 No-POS entries act as wildcards and join every group with matching
-                normalised headword and pronunciation, regardless of POS.
+                normalised headword, regardless of POS.
                 """
-                result_groups = []
-                by_norm: dict[tuple[str, str, str], list] = {}
-                wildcards = []
+                groups_map = {}
+                from collections import defaultdict
+                by_variant = defaultdict(list)
                 for e in candidates:
-                    if not e['pos']:
-                        wildcards.append(e)
-                    else:
-                        by_norm.setdefault(_entry_key(e), []).append(e)
-                # Inject wildcards into every compatible group
-                if wildcards:
-                    for key, group in list(by_norm.items()):
-                        for w in wildcards:
-                            if w['normalised'] == key[0] and (w['pronunciation'] or '') == key[2]:
-                                group.append(w)
-                # Wildcard-only groups
-                if wildcards:
-                    wc_by_norm_pron: dict[tuple[str, str], list] = {}
-                    for w in wildcards:
-                        wc_by_norm_pron.setdefault((w['normalised'], w['pronunciation'] or ''), []).append(w)
-                    for (norm, pron), group in wc_by_norm_pron.items():
-                        if len(group) >= 2:
-                            result_groups.append(_make_group(group, 'exact', 1.0))
-                for key, same in by_norm.items():
-                    if len(same) < 2:
+                    for v in e.get('normalised_variants', []):
+                        by_variant[v].append(e)
+
+                for v, group_entries in by_variant.items():
+                    if len(group_entries) < 2:
                         continue
-                    result_groups.append(_make_group(same, 'exact', 1.0))
-                return result_groups
+
+                    pos_entries = defaultdict(list)
+                    wildcards = []
+                    for e in group_entries:
+                        if not e['pos']:
+                            wildcards.append(e)
+                        else:
+                            pos_entries[e['pos']].append(e)
+
+                    for p, same_pos in pos_entries.items():
+                        group = same_pos + wildcards
+                        if len(group) >= 2:
+                            seen_ids = set()
+                            unique_group = []
+                            for x in group:
+                                if x['entry_id'] not in seen_ids:
+                                    seen_ids.add(x['entry_id'])
+                                    unique_group.append(x)
+                            if len(unique_group) >= 2:
+                                unique_group.sort(key=lambda x: x['entry_id'])
+                                ids = [x['entry_id'] for x in unique_group]
+                                g_id = f"exact-{'-'.join(ids)}"
+                                if g_id not in groups_map:
+                                    groups_map[g_id] = _make_group(unique_group, 'exact', 1.0)
+
+                    if len(wildcards) >= 2:
+                        seen_ids = set()
+                        unique_wildcards = []
+                        for x in wildcards:
+                            if x['entry_id'] not in seen_ids:
+                                seen_ids.add(x['entry_id'])
+                                unique_wildcards.append(x)
+                        if len(unique_wildcards) >= 2:
+                            unique_wildcards.sort(key=lambda x: x['entry_id'])
+                            ids = [x['entry_id'] for x in unique_wildcards]
+                            g_id = f"exact-{'-'.join(ids)}"
+                            if g_id not in groups_map:
+                                groups_map[g_id] = _make_group(unique_wildcards, 'exact', 1.0)
+
+                return list(groups_map.values())
+
 
             def _trigram_set(text: str) -> set[str]:
                 """Build a set of lowercase trigrams from text."""
@@ -3129,6 +3226,158 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Error detecting duplicates: %s", str(e), exc_info=True)
             raise DatabaseError(f"Failed to detect duplicates: {e}") from e
+
+    def get_redundant_examples(self, project_id: Optional[int] = None) -> list[dict[str, Any]]:
+        """
+        Detect redundant example sentences in the dictionary that duplicate separate subentries (phrases).
+
+        Args:
+            project_id: Optional project ID to determine database.
+
+        Returns:
+            List of dictionaries containing matching phrase subentry and duplicate example info.
+        """
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings:
+                        db_name = settings.basex_db_name
+                except (ImportError, AttributeError, RuntimeError):
+                    pass
+
+            if not db_name:
+                raise DatabaseError(DB_NAME_NOT_CONFIGURED)
+
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            form_path = self._query_builder.get_element_path("form", has_ns)
+            text_path = self._query_builder.get_element_path("text", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
+            example_path = self._query_builder.get_element_path("example", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+
+            # 1. Query all phrase subentries
+            phrase_query = (
+                f"{prologue} for $e in collection('{db_name}')//{entry_path}[.//{trait_path}[@name='morph-type' and @value='phrase']] "
+                f"let $hw := ($e/{lexical_unit_path}/{form_path}/{text_path}/string(), '')[1] "
+                f"where $hw != '' "
+                f"return concat($e/@id, '|||', $hw)"
+            )
+            raw_phrases = self.db_connector.execute_query(phrase_query)
+            phrases = []
+            for line in raw_phrases.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split('|||')
+                if len(parts) >= 2:
+                    phrases.append({
+                        'entry_id': parts[0],
+                        'headword': parts[1]
+                    })
+
+            # 2. Query all example sentences
+            example_query = (
+                f"{prologue} for $e in collection('{db_name}')//{entry_path} "
+                f"for $ex in $e//{example_path} "
+                f"let $ex_text := ($ex/{form_path}/{text_path}/string())[. != ''] "
+                f"where count($ex_text) > 0 "
+                f"return concat($e/@id, '|||', ($e/{lexical_unit_path}/{form_path}/{text_path}/string(), '')[1], '|||', $ex_text[1])"
+            )
+            raw_examples = self.db_connector.execute_query(example_query)
+            examples = []
+            for line in raw_examples.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split('|||')
+                if len(parts) >= 3:
+                    examples.append({
+                        'entry_id': parts[0],
+                        'entry_headword': parts[1],
+                        'example_text': parts[2]
+                    })
+
+            # 3. Jaro-Winkler similarity algorithm helper
+            def _jaro_winkler_similarity(s1: str, s2: str) -> float:
+                if s1 == s2:
+                    return 1.0
+                len1 = len(s1)
+                len2 = len(s2)
+                if len1 == 0 or len2 == 0:
+                    return 0.0
+                match_bound = max(len1, len2) // 2 - 1
+                if match_bound < 0:
+                    match_bound = 0
+                s1_matches = [False] * len1
+                s2_matches = [False] * len2
+                matches = 0
+                transpositions = 0
+                for i in range(len1):
+                    start = max(0, i - match_bound)
+                    end = min(len2, i + match_bound + 1)
+                    for j in range(start, end):
+                        if not s2_matches[j] and s1[i] == s2[j]:
+                            s1_matches[i] = True
+                            s2_matches[j] = True
+                            matches += 1
+                            break
+                if matches == 0:
+                    return 0.0
+                k = 0
+                for i in range(len1):
+                    if s1_matches[i]:
+                        while not s2_matches[k]:
+                            k += 1
+                        if s1[i] != s2[k]:
+                            transpositions += 1
+                        k += 1
+                transpositions = transpositions // 2
+                jaro = (matches / len1 + matches / len2 + (matches - transpositions) / matches) / 3.0
+                prefix_len = 0
+                for i in range(min(4, len1, len2)):
+                    if s1[i] == s2[i]:
+                        prefix_len += 1
+                    else:
+                        break
+                return jaro + prefix_len * 0.1 * (1.0 - jaro)
+
+            # 4. Compare phrases with examples
+            redundant_examples = []
+            for phrase in phrases:
+                p_head = phrase['headword'].strip().lower()
+                p_head_clean = re.sub(r'[^\w\s]', '', p_head)
+                for ex in examples:
+                    ex_text = ex['example_text'].strip().lower()
+                    ex_text_clean = re.sub(r'[^\w\s]', '', ex_text)
+
+                    # Exclude comparisons in the same entry or empty inputs
+                    if phrase['entry_id'] == ex['entry_id'] or not p_head_clean or not ex_text_clean:
+                        continue
+
+                    if abs(len(p_head_clean) - len(ex_text_clean)) <= 4:
+                        sim = _jaro_winkler_similarity(p_head_clean, ex_text_clean)
+                        if sim >= 0.95:
+                            redundant_examples.append({
+                                'phrase_entry_id': phrase['entry_id'],
+                                'phrase_headword': phrase['headword'],
+                                'example_entry_id': ex['entry_id'],
+                                'example_entry_headword': ex['entry_headword'],
+                                'example_text': ex['example_text'],
+                                'similarity': round(sim, 2)
+                            })
+
+            return redundant_examples
+
+        except Exception as e:
+            self.logger.error("Error detecting redundant examples: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to detect redundant examples: {e}") from e
 
     def discover_related_entries(
         self,
@@ -3536,10 +3785,10 @@ class DictionaryService:
             f"let $backward := $tgt/{relation_path}[@type='{esc_type}' and @ref='{esc_src_sid}'] "
             f"return ("
             f"  if (empty($forward)) then "
-            f"    insert node <{relation_path.split(':')[0]}:relation type='{esc_type}' ref='{esc_tgt_sid}'/> into $src "
+            f"    insert node <{relation_path} type='{esc_type}' ref='{esc_tgt_sid}'/> into $src "
             f"  else (),"
             f"  if (empty($backward)) then "
-            f"    insert node <{relation_path.split(':')[0]}:relation type='{esc_type}' ref='{esc_src_sid}'/> into $tgt "
+            f"    insert node <{relation_path} type='{esc_type}' ref='{esc_src_sid}'/> into $tgt "
             f"  else ()"
             f")"
         )

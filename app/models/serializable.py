@@ -1,16 +1,15 @@
 """
 Serializable Mixin for standardized model serialization.
 
-Provides consistent to_dict/from_dict functionality across all models,
-eliminating the 50+ duplicate implementations scattered throughout the codebase.
+Provides consistent ``to_dict``/``from_dict`` functionality across all models,
+eliminating the 50+ duplicate serialization implementations that were scattered
+throughout the codebase.
 
-Features:
-- Works with regular classes and dataclasses
-- Automatic handling of nested serializable objects
-- Proper serialization of dates, UUIDs, and other special types
-- Type-aware deserialization
-- Custom field inclusion/exclusion
-- Configurable depth limiting for nested objects
+The serialization direction (model → dict) uses a clean isinstance dispatch
+without an artificial depth limit (**unlike the old ``_serialize_value``** which
+silently truncated data past ``max_depth=10``).  The deserialization direction
+(dict → model) uses type hints to reconstruct nested ``SerializableMixin``
+instances automatically.
 """
 
 from __future__ import annotations
@@ -26,289 +25,205 @@ from typing import Any, Dict, List, Optional, Set, Type, TypeVar, Union, get_typ
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound="SerializableMixin")
 
-T = TypeVar('T', bound='SerializableMixin')
 
-
-# Types that should be converted to strings in serialization
-STRING_SERIALIZABLE_TYPES = (uuid.UUID, Decimal)
-
-# Types that should be converted to ISO format strings
-DATETIME_SERIALIZABLE_TYPES = (datetime, date)
+# ---------------------------------------------------------------------------
+# Serialization helpers  (no depth-limit bugs — uses stdlib recursion)
+# ---------------------------------------------------------------------------
 
 
 def _is_serializable(obj: Any) -> bool:
-    """Check if object is serializable (has to_dict method)."""
-    return hasattr(obj, 'to_dict') and callable(getattr(obj, 'to_dict'))
+    """Return True if *obj* has a ``to_dict`` method."""
+    return hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict"))
 
 
-def _serialize_value(value: Any, depth: int = 0, max_depth: int = 10) -> Any:
+def serialize_value(value: Any) -> Any:
     """
-    Serialize a single value.
+    Convert a Python value to a JSON-safe Python object.
 
-    Args:
-        value: Value to serialize
-        depth: Current recursion depth
-        max_depth: Maximum recursion depth
+    Unlike the previous ``_serialize_value`` there is **no** artificial
+    recursion-depth limit — nested structures are traversed fully.  The
+    stdlib does not silently truncate data, and neither should we.
 
-    Returns:
-        Serialized value
+    Handles:
+    - Primitives (str, int, float, bool)
+    - ``datetime`` / ``date`` → ISO-8601 string
+    - ``uuid.UUID`` / ``Decimal`` → string
+    - ``Enum`` → ``.value``
+    - Objects with a ``to_dict()`` method (SerializableMixin subclasses)
+    - ``dict``, ``list``, ``tuple``, ``set`` (recursed)
+    - Objects with ``__dict__`` → dict of public attributes
     """
-    if depth > max_depth:
-        return None
-
-    # None handling
     if value is None:
         return None
 
-    # Primitives
     if isinstance(value, (str, int, float, bool)):
         return value
 
-    # String-serializable types (UUID, Decimal)
-    if isinstance(value, STRING_SERIALIZABLE_TYPES):
+    if isinstance(value, (uuid.UUID, Decimal)):
         return str(value)
 
-    # Datetime types
-    if isinstance(value, DATETIME_SERIALIZABLE_TYPES):
-        if isinstance(value, datetime):
-            return value.isoformat()
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, date):
         return str(value)
 
-    # Enum types
     if isinstance(value, Enum):
         return value.value
 
-    # Serializable objects
     if _is_serializable(value):
-        return value.to_dict(depth=depth + 1, max_depth=max_depth)
+        return value.to_dict()
 
-    # Lists
-    if isinstance(value, (list, tuple)):
-        return [
-            _serialize_value(item, depth=depth + 1, max_depth=max_depth)
-            for item in value
-        ]
-
-    # Sets
-    if isinstance(value, set):
-        return [
-            _serialize_value(item, depth=depth + 1, max_depth=max_depth)
-            for item in sorted(value) if isinstance(item, (int, float, str))
-        ] or list(value)
-
-    # Dicts
     if isinstance(value, dict):
-        return {
-            _serialize_value(k, depth=depth + 1, max_depth=max_depth): _serialize_value(v, depth=depth + 1, max_depth=max_depth)
-            for k, v in value.items()
-        }
+        return {serialize_value(k): serialize_value(v) for k, v in value.items()}
 
-    # Fallback: convert to string or dict
-    if hasattr(value, '__dict__'):
+    if isinstance(value, (list, tuple)):
+        return [serialize_value(item) for item in value]
+
+    if isinstance(value, set):
+        return [serialize_value(item) for item in value]
+
+    # Generic object — walk its public __dict__
+    if hasattr(value, "__dict__") and not isinstance(value, type):
         return {
-            k: _serialize_value(v, depth=depth + 1, max_depth=max_depth)
+            k: serialize_value(v)
             for k, v in value.__dict__.items()
-            if not k.startswith('_')
+            if not k.startswith("_")
         }
 
-    return str(value)
-
-
-def _deserialize_value(
-    value: Any,
-    target_type: Optional[Type] = None,
-    depth: int = 0,
-    max_depth: int = 10
-) -> Any:
-    """
-    Deserialize a single value.
-
-    Args:
-        value: Value to deserialize
-        target_type: Target type hint for deserialization
-        depth: Current recursion depth
-        max_depth: Maximum recursion depth
-
-    Returns:
-        Deserialized value
-    """
-    if depth > max_depth:
-        return value
-
-    if value is None:
+    # Last resort — convert to string
+    try:
+        return str(value)
+    except Exception:
         return None
 
-    # If target type is specified and is a SerializableMixin subclass
-    if target_type and isinstance(target_type, type) and issubclass(target_type, SerializableMixin):
-        if isinstance(value, dict):
-            return target_type.from_dict(value)
-        return value
 
-    # Handle datetime types
-    if target_type in DATETIME_SERIALIZABLE_TYPES:
-        if isinstance(value, str):
-            try:
-                if target_type == datetime:
-                    return datetime.fromisoformat(value)
-                elif target_type == date:
-                    return date.fromisoformat(value)
-            except ValueError:
-                pass
-        return value
+def serialize_list(items: List[Any]) -> List[Dict[str, Any]]:
+    """
+    Serialize a list of serializable objects.
 
-    # Handle UUID
-    if target_type == uuid.UUID:
-        if isinstance(value, str):
-            try:
-                return uuid.UUID(value)
-            except ValueError:
-                pass
-        return value
+    Args:
+        items: List of objects.
 
-    # Handle Decimal
-    if target_type == Decimal:
-        if isinstance(value, (int, float, str)):
-            try:
-                return Decimal(str(value))
-            except Exception as e:
-                logger.debug(f"Could not deserialize Decimal: {e}")
-        return value
+    Returns:
+        List of dictionaries.
+    """
+    return [
+        item.to_dict() if _is_serializable(item) else serialize_value(item)
+        for item in items
+    ]
 
-    # Handle lists with type hints
-    if target_type and hasattr(target_type, '__origin__'):
-        origin = getattr(target_type, '__origin__', None)
-        args = getattr(target_type, '__args__', ())
 
-        if origin in (list, List) and isinstance(value, list):
-            item_type = args[0] if args else Any
-            return [
-                _deserialize_value(item, item_type, depth=depth + 1, max_depth=max_depth)
-                for item in value
-            ]
+# ---------------------------------------------------------------------------
+# JSON encoder (used by ``to_json()``)
+# ---------------------------------------------------------------------------
 
-        if origin in (dict, Dict) and isinstance(value, dict):
-            key_type = args[0] if len(args) > 0 else Any
-            val_type = args[1] if len(args) > 1 else Any
-            return {
-                _deserialize_value(k, key_type, depth=depth + 1, max_depth=max_depth): _deserialize_value(v, val_type, depth=depth + 1, max_depth=max_depth)
-                for k, v in value.items()
-            }
 
-        if origin in (set, Set) and isinstance(value, (list, set)):
-            item_type = args[0] if args else Any
-            return {
-                _deserialize_value(item, item_type, depth=depth + 1, max_depth=max_depth)
-                for item in value
-            }
+class ModelJSONEncoder(json.JSONEncoder):
+    """
+    :class:`json.JSONEncoder` subclass that knows about model types.
 
-    # Handle basic list deserialization
-    if isinstance(value, list):
-        return [
-            _deserialize_value(item, None, depth=depth + 1, max_depth=max_depth)
-            for item in value
-        ]
+    This can be used directly with ``json.dumps``::
 
-    # Handle basic dict deserialization
-    if isinstance(value, dict):
-        return {
-            k: _deserialize_value(v, None, depth=depth + 1, max_depth=max_depth)
-            for k, v in value.items()
-        }
+        >>> json.dumps({"created": datetime.now()}, cls=ModelJSONEncoder)
+    """
 
-    return value
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        if isinstance(obj, (uuid.UUID, Decimal)):
+            return str(obj)
+        if isinstance(obj, Enum):
+            return obj.value
+        if isinstance(obj, set):
+            return list(obj)
+        if _is_serializable(obj):
+            return obj.to_dict()
+        try:
+            return str(obj)
+        except Exception:
+            return None
+
+
+# ---------------------------------------------------------------------------
+# SerializableMixin
+# ---------------------------------------------------------------------------
 
 
 class SerializableMixin:
     """
-    Mixin providing standardized serialization/deserialization.
+    Mixin providing standardized serialization / deserialization.
 
-    Supports both regular classes and dataclasses. Automatically handles:
-    - Nested serializable objects
-    - DateTime/Date objects
-    - UUID and Decimal
-    - Enum values
-    - Lists and dicts containing serializable types
+    Supports both regular classes and dataclasses.  Automatically handles
+    nested serializable objects, ``datetime``/``date``, ``UUID``,
+    ``Decimal``, ``Enum`` values, and collection types.
 
-    Usage:
+    Usage::
+
         class MyModel(SerializableMixin):
             def __init__(self, name: str, created_at: datetime):
                 self.name = name
                 self.created_at = created_at
 
-        # Serialization
-        model = MyModel("test", datetime.now())
         data = model.to_dict()
-
-        # Deserialization
         restored = MyModel.from_dict(data)
-
-        # With dataclasses
-        @dataclass
-        class MyDataclass(SerializableMixin):
-            name: str
-            items: List[Item]
-
-        data = instance.to_dict()
-        restored = MyDataclass.from_dict(data)
     """
 
-    # Fields to exclude from serialization
+    #: Fields to exclude from serialization.
     _exclude_fields: Set[str] = set()
 
-    # Fields that should be serialized even if None
+    #: Fields that should be serialized even when ``None``.
     _include_none_fields: Set[str] = set()
+
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
 
     def to_dict(
         self,
         exclude: Optional[Set[str]] = None,
         include: Optional[Set[str]] = None,
-        depth: int = 0,
-        max_depth: int = 10
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """
         Convert object to dictionary.
 
         Args:
-            exclude: Additional fields to exclude (beyond _exclude_fields)
-            include: If specified, only include these fields
-            depth: Current recursion depth
-            max_depth: Maximum recursion depth
+            exclude: Additional fields to exclude (beyond ``_exclude_fields``).
+            include: If specified, **only** these fields are included.
+            **kwargs: Ignored (backward compatibility — previously accepted
+                      ``depth`` and ``max_depth`` which have been removed).
 
         Returns:
-            Dictionary representation of the object
+            Dictionary representation of the object.
         """
-        # Determine fields to process
         exclude_fields = self._exclude_fields | (exclude or set())
 
-        # Get source data
+        # Gather source data
         if is_dataclass(self):
-            # Dataclass - use dataclass fields
             data = {
                 f.name: getattr(self, f.name)
                 for f in dataclass_fields(self)
                 if f.name not in exclude_fields
             }
         else:
-            # Regular class - use __dict__
             data = {
                 k: v
                 for k, v in self.__dict__.items()
-                if not k.startswith('_') and k not in exclude_fields
+                if not k.startswith("_") and k not in exclude_fields
             }
 
-        # Apply include filter if specified
         if include:
             data = {k: v for k, v in data.items() if k in include}
 
         # Serialize each value
-        result = {}
+        result: Dict[str, Any] = {}
         for key, value in data.items():
-            # Skip None values unless explicitly included
             if value is None and key not in self._include_none_fields:
                 continue
-
-            result[key] = _serialize_value(value, depth=depth, max_depth=max_depth)
+            result[key] = serialize_value(value)
 
         return result
 
@@ -317,116 +232,211 @@ class SerializableMixin:
         exclude: Optional[Set[str]] = None,
         include: Optional[Set[str]] = None,
         indent: Optional[int] = None,
-        **kwargs
+        **kwargs: Any,
     ) -> str:
         """
         Convert object to JSON string.
 
         Args:
-            exclude: Fields to exclude
-            include: Fields to include (if specified, only these)
-            indent: JSON indentation
-            **kwargs: Additional arguments for json.dumps
+            exclude: Fields to exclude.
+            include: If specified, only these fields.
+            indent: JSON indentation level.
+            **kwargs: Additional arguments forwarded to ``json.dumps``.
 
         Returns:
-            JSON string representation
+            JSON string.
         """
         return json.dumps(
             self.to_dict(exclude=exclude, include=include),
+            cls=ModelJSONEncoder,
             indent=indent,
-            **kwargs
+            **kwargs,
         )
+
+    # ------------------------------------------------------------------
+    # Deserialization
+    # ------------------------------------------------------------------
 
     @classmethod
     def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
         """
-        Create instance from dictionary.
+        Create an instance from a dictionary.
+
+        Nested ``SerializableMixin`` subclasses are reconstructed
+        automatically via type hints and dataclass field types.
 
         Args:
-            data: Dictionary containing object data
+            data: Dictionary containing object data.
 
         Returns:
-            New instance of the class
+            New instance of the class.
 
         Raises:
-            ValueError: If data is invalid
+            ValueError: If *data* is not a dict or construction fails.
         """
         if not isinstance(data, dict):
             raise ValueError(f"Expected dict, got {type(data).__name__}")
 
-        # Get type hints for proper deserialization
         try:
             type_hints = get_type_hints(cls)
         except Exception:
             type_hints = {}
 
-        # Get dataclass fields if applicable
-        dc_fields = {f.name: f for f in dataclass_fields(cls)} if is_dataclass(cls) else {}
+        dc_fields = (
+            {f.name: f for f in dataclass_fields(cls)} if is_dataclass(cls) else {}
+        )
 
-        # Prepare kwargs for constructor
-        kwargs = {}
+        kwargs: Dict[str, Any] = {}
 
         for key, value in data.items():
-            # Get target type
             target_type = type_hints.get(key)
 
-            # Check if field has a from_dict method (nested serializable)
+            # If the field is typed as a SerializableMixin subclass and
+            # the value is a dict, reconstruct the nested object.
             if key in dc_fields:
                 field_type = dc_fields[key].type
-                if isinstance(field_type, type) and issubclass(field_type, SerializableMixin):
-                    if isinstance(value, dict):
-                        value = field_type.from_dict(value)
-                        kwargs[key] = value
-                        continue
+                if (
+                    isinstance(field_type, type)
+                    and issubclass(field_type, SerializableMixin)
+                    and isinstance(value, dict)
+                ):
+                    kwargs[key] = field_type.from_dict(value)
+                    continue
 
-            # Deserialize value
-            deserialized = _deserialize_value(value, target_type)
-            kwargs[key] = deserialized
+            kwargs[key] = _deserialize_value(value, target_type)
 
-        # Create instance
         try:
             return cls(**kwargs)
         except TypeError as e:
-            # Handle missing required fields
-            raise ValueError(f"Failed to create {cls.__name__} from dict: {e}")
+            raise ValueError(f"Failed to create {cls.__name__} from dict: {e}") from e
 
     @classmethod
-    def from_json(cls: Type[T], json_str: str, **kwargs) -> T:
+    def from_json(cls: Type[T], json_str: str, **kwargs: Any) -> T:
         """
-        Create instance from JSON string.
+        Create an instance from a JSON string.
 
         Args:
-            json_str: JSON string
-            **kwargs: Additional arguments for json.loads
+            json_str: JSON string.
+            **kwargs: Additional arguments for ``json.loads``.
 
         Returns:
-            New instance of the class
+            New instance.
         """
         data = json.loads(json_str, **kwargs)
         return cls.from_dict(data)
 
+    # ------------------------------------------------------------------
+    # Copy / update
+    # ------------------------------------------------------------------
+
     def copy(self: T) -> T:
         """
-        Create a deep copy of the object.
+        Create a deep copy of the object via serialize-deserialize round trip.
 
         Returns:
-            New instance with copied data
+            New instance with copied data.
         """
         return self.__class__.from_dict(self.to_dict())
 
-    def update(self, **kwargs) -> 'SerializableMixin':
+    def update(self, **kwargs: Any) -> SerializableMixin:
         """
         Create a new instance with updated fields.
 
         Args:
-            **kwargs: Fields to update
+            **kwargs: Fields to update.
 
         Returns:
-            New instance with updated fields
+            New instance with updated fields.
         """
         data = self.to_dict()
         data.update(kwargs)
         return self.__class__.from_dict(data)
+
+
+# ---------------------------------------------------------------------------
+# Deserialization helper
+# ---------------------------------------------------------------------------
+
+
+def _deserialize_value(value: Any, target_type: Optional[Type] = None) -> Any:
+    """
+    Deserialize a single value, optionally guided by *target_type*.
+
+    The old ``_deserialize_value`` accepted ``depth`` and ``max_depth``
+    parameters that were never used in practice — they are removed here.
+    """
+    if value is None:
+        return None
+
+    # SerializableMixin subclass
+    if (
+        target_type
+        and isinstance(target_type, type)
+        and issubclass(target_type, SerializableMixin)
+        and isinstance(value, dict)
+    ):
+        return target_type.from_dict(value)
+
+    # Datetime / date
+    if target_type in (datetime, date) and isinstance(value, str):
+        try:
+            if target_type == datetime:
+                return datetime.fromisoformat(value)
+            elif target_type == date:
+                return date.fromisoformat(value)
+        except ValueError:
+            pass
+        return value
+
+    # UUID
+    if target_type == uuid.UUID and isinstance(value, str):
+        try:
+            return uuid.UUID(value)
+        except ValueError:
+            pass
+        return value
+
+    # Decimal
+    if target_type == Decimal:
+        if isinstance(value, (int, float, str)):
+            try:
+                return Decimal(str(value))
+            except Exception as exc:
+                logger.debug("Could not deserialize Decimal: %s", exc)
+        return value
+
+    # Generic type-origin handling (List[X], Dict[K,V], Set[X])
+    if target_type and hasattr(target_type, "__origin__"):
+        origin = getattr(target_type, "__origin__", None)
+        args = getattr(target_type, "__args__", ())
+
+        if origin in (list, List) and isinstance(value, list):
+            item_type = args[0] if args else Any
+            return [_deserialize_value(item, item_type) for item in value]
+
+        if origin in (dict, Dict) and isinstance(value, dict):
+            val_type = args[1] if len(args) > 1 else Any
+            return {
+                k: _deserialize_value(v, val_type) for k, v in value.items()
+            }
+
+        if origin in (set, Set) and isinstance(value, (list, set)):
+            item_type = args[0] if args else Any
+            return {_deserialize_value(item, item_type) for item in value}
+
+    # Plain list / dict (no type info)
+    if isinstance(value, list):
+        return [_deserialize_value(item) for item in value]
+
+    if isinstance(value, dict):
+        return {k: _deserialize_value(v) for k, v in value.items()}
+
+    return value
+
+
+# ---------------------------------------------------------------------------
+# Decorator: turn a dataclass into a serializable dataclass
+# ---------------------------------------------------------------------------
 
 
 def dataclass_serializable(
@@ -434,46 +444,41 @@ def dataclass_serializable(
     *,
     exclude: Optional[Set[str]] = None,
     include_none: Optional[Set[str]] = None,
-    **dataclass_kwargs
+    **dataclass_kwargs: Any,
 ) -> Union[Type[T], callable]:
     """
-    Decorator to make a dataclass serializable.
+    Decorator that makes a dataclass serializable.
 
-    Combines @dataclass with SerializableMixin automatically.
+    Combines ``@dataclass`` with ``SerializableMixin`` automatically::
 
-    Args:
-        _cls: Class to decorate (if used without parentheses)
-        exclude: Fields to exclude from serialization
-        include_none: Fields to include even when None
-        **dataclass_kwargs: Additional arguments for @dataclass decorator
-
-    Returns:
-        Decorated class
-
-    Example:
         @dataclass_serializable
         class MyModel:
             name: str
             items: List[Item]
 
-        # Or with options:
-        @dataclass_serializable(exclude={'internal_field'})
+        # With options:
+        @dataclass_serializable(exclude={"internal_field"})
         class MyModel:
             name: str
             internal_field: str
+
+    Args:
+        _cls: Class to decorate (used without parentheses).
+        exclude: Fields to exclude from serialization.
+        include_none: Fields to include even when ``None``.
+        **dataclass_kwargs: Additional arguments forwarded to ``@dataclass``.
+
+    Returns:
+        Decorated class.
     """
+
     def wrap(cls: Type[T]) -> Type[T]:
-        # First, apply dataclass decorator if not already a dataclass
         if not is_dataclass(cls):
             cls = dataclass(cls, **dataclass_kwargs)
 
-        # Create a new class that mixes in SerializableMixin
-        # Don't add _exclude_fields/_include_none_fields as dataclass fields
-        # because they would require default_factory
-        class SerializableDataclass(cls, SerializableMixin):
+        class SerializableDataclass(cls, SerializableMixin):  # type: ignore[valid-type]
             pass
 
-        # Set class attributes for field exclusion
         SerializableDataclass._exclude_fields = exclude or set()
         SerializableDataclass._include_none_fields = include_none or set()
 
@@ -485,66 +490,35 @@ def dataclass_serializable(
         return SerializableDataclass
 
     if _cls is None:
-        # Used with parentheses: @dataclass_serializable()
         return wrap
-
-    # Used without parentheses: @dataclass_serializable
     return wrap(_cls)
 
 
 def is_serializable_type(cls: Type) -> bool:
     """
-    Check if a class is serializable (has to_dict and from_dict).
+    Return True if *cls* has both ``to_dict`` and ``from_dict`` class methods.
 
     Args:
-        cls: Class to check
-
-    Returns:
-        True if class is serializable
+        cls: Class to check.
     """
     return (
-        hasattr(cls, 'to_dict') and
-        hasattr(cls, 'from_dict') and
-        callable(getattr(cls, 'to_dict')) and
-        callable(getattr(cls, 'from_dict'))
+        hasattr(cls, "to_dict")
+        and hasattr(cls, "from_dict")
+        and callable(getattr(cls, "to_dict"))
+        and callable(getattr(cls, "from_dict"))
     )
 
 
-def serialize_list(
-    items: List[Any],
-    max_depth: int = 10
-) -> List[Dict[str, Any]]:
+def deserialize_list(data: List[Dict[str, Any]], cls: Type[T]) -> List[T]:
     """
-    Serialize a list of serializable objects.
+    Deserialize a list of dictionaries to model instances.
 
     Args:
-        items: List of objects
-        max_depth: Maximum recursion depth
+        data: List of dictionaries.
+        cls: Target class (must be serializable).
 
     Returns:
-        List of dictionaries
-    """
-    return [
-        item.to_dict(max_depth=max_depth) if _is_serializable(item) else _serialize_value(item, max_depth=max_depth)
-        for item in items
-    ]
-
-
-def deserialize_list(
-    data: List[Dict[str, Any]],
-    cls: Type[T],
-    max_depth: int = 10
-) -> List[T]:
-    """
-    Deserialize a list of dictionaries to objects.
-
-    Args:
-        data: List of dictionaries
-        cls: Target class
-        max_depth: Maximum recursion depth
-
-    Returns:
-        List of deserialized objects
+        List of deserialized objects.
     """
     return [
         cls.from_dict(item) if is_serializable_type(cls) else item

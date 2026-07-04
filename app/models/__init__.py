@@ -15,6 +15,7 @@ from app.models.validation_models import ProjectValidationRule, ValidationRuleTe
 from app.models.dictionary_models import ProjectDictionary, UserDictionary, SystemDictionary
 from app.models.import_mapping import ImportMapping, ImportFieldMapping, ImportLanguageMapping
 from app.models.entry_revision import EntryRevision
+from app.models.dismissed_duplicate import DismissedDuplicate
 
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     'ImportFieldMapping',
     'ImportLanguageMapping',
     'EntryRevision',
+    'DismissedDuplicate',
 ]

@@ -17,8 +17,9 @@ import pytest
 
 from app.models.serializable import (
     SerializableMixin,
-    _serialize_value,
+    serialize_value,
     _deserialize_value,
+    ModelJSONEncoder,
     dataclass_serializable,
     is_serializable_type,
     serialize_list,
@@ -107,52 +108,52 @@ class DataclassWithNested(SerializableMixin):
 
 
 # =====================================================================
-# Tests for _serialize_value helper
+# Tests for serialize_value helper (replaces old _serialize_value)
 # =====================================================================
 
 class TestSerializeValue:
-    """Test _serialize_value helper function."""
+    """Test serialize_value helper function."""
 
     def test_serialize_none(self):
         """None should serialize to None."""
-        assert _serialize_value(None) is None
+        assert serialize_value(None) is None
 
     def test_serialize_primitives(self):
         """Primitives should serialize as-is."""
-        assert _serialize_value("string") == "string"
-        assert _serialize_value(123) == 123
-        assert _serialize_value(3.14) == 3.14
-        assert _serialize_value(True) is True
-        assert _serialize_value(False) is False
+        assert serialize_value("string") == "string"
+        assert serialize_value(123) == 123
+        assert serialize_value(3.14) == 3.14
+        assert serialize_value(True) is True
+        assert serialize_value(False) is False
 
     def test_serialize_uuid(self):
         """UUID should serialize to string."""
         uid = uuid.uuid4()
-        assert _serialize_value(uid) == str(uid)
+        assert serialize_value(uid) == str(uid)
 
     def test_serialize_decimal(self):
         """Decimal should serialize to string."""
         dec = Decimal("3.14159")
-        assert _serialize_value(dec) == "3.14159"
+        assert serialize_value(dec) == "3.14159"
 
     def test_serialize_datetime(self):
         """Datetime should serialize to ISO format."""
         dt = datetime(2023, 1, 15, 10, 30, 45)
-        assert _serialize_value(dt) == "2023-01-15T10:30:45"
+        assert serialize_value(dt) == "2023-01-15T10:30:45"
 
     def test_serialize_date(self):
         """Date should serialize to string."""
         d = date(2023, 1, 15)
-        assert _serialize_value(d) == "2023-01-15"
+        assert serialize_value(d) == "2023-01-15"
 
     def test_serialize_enum(self):
         """Enum should serialize to value."""
-        assert _serialize_value(TestEnum.ACTIVE) == "active"
+        assert serialize_value(TestEnum.ACTIVE) == "active"
 
     def test_serialize_list(self):
         """List should serialize recursively."""
         data = [1, "two", 3.0, uuid.uuid4()]
-        result = _serialize_value(data)
+        result = serialize_value(data)
         assert result[0] == 1
         assert result[1] == "two"
         assert result[2] == 3.0
@@ -161,20 +162,20 @@ class TestSerializeValue:
     def test_serialize_dict(self):
         """Dict should serialize recursively."""
         data = {"name": "test", "id": uuid.uuid4()}
-        result = _serialize_value(data)
+        result = serialize_value(data)
         assert result["name"] == "test"
         assert isinstance(result["id"], str)
 
     def test_serialize_set(self):
-        """Set should serialize to sorted list of primitives."""
+        """Set should serialize to list."""
         data = {3, 1, 2}
-        result = _serialize_value(data)
-        assert result == [1, 2, 3]
+        result = serialize_value(data)
+        assert sorted(result) == [1, 2, 3]
 
     def test_serialize_serializable_object(self):
         """Serializable object should call to_dict."""
         model = SimpleModel("test", 42)
-        result = _serialize_value(model)
+        result = serialize_value(model)
         assert result == {"name": "test", "value": 42}
 
     def test_serialize_nested_list(self):
@@ -182,15 +183,36 @@ class TestSerializeValue:
         model1 = SimpleModel("one", 1)
         model2 = SimpleModel("two", 2)
         data = [model1, model2]
-        result = _serialize_value(data)
+        result = serialize_value(data)
         assert result == [{"name": "one", "value": 1}, {"name": "two", "value": 2}]
 
-    def test_serialize_max_depth(self):
-        """Should respect max_depth."""
-        model = SimpleModel("test", 0)
-        result = _serialize_value(model, depth=0, max_depth=0)
-        # At max depth, serializable objects should not be fully serialized
-        assert result is None or isinstance(result, dict)
+
+# =====================================================================
+# Tests for ModelJSONEncoder
+# =====================================================================
+
+class TestModelJSONEncoder:
+    """Test ModelJSONEncoder."""
+
+    def test_encoder_datetime(self):
+        """Should encode datetime."""
+        import json
+        dt = datetime(2023, 1, 15, 10, 30, 45)
+        result = json.dumps({"dt": dt}, cls=ModelJSONEncoder)
+        assert "2023-01-15T10:30:45" in result
+
+    def test_encoder_uuid(self):
+        """Should encode UUID."""
+        import json
+        uid = uuid.uuid4()
+        result = json.dumps({"uid": uid}, cls=ModelJSONEncoder)
+        assert str(uid) in result
+
+    def test_encoder_enum(self):
+        """Should encode Enum."""
+        import json
+        result = json.dumps({"e": TestEnum.ACTIVE}, cls=ModelJSONEncoder)
+        assert "active" in result
 
 
 # =====================================================================
@@ -213,14 +235,12 @@ class TestDeserializeValue:
 
     def test_deserialize_datetime(self):
         """String should deserialize to datetime."""
-        from datetime import datetime
         result = _deserialize_value("2023-01-15T10:30:45", datetime)
         assert isinstance(result, datetime)
         assert result.year == 2023
 
     def test_deserialize_date(self):
         """String should deserialize to date."""
-        from datetime import date
         result = _deserialize_value("2023-01-15", date)
         assert isinstance(result, date)
         assert result.year == 2023
@@ -250,11 +270,6 @@ class TestDeserializeValue:
         result = _deserialize_value(data)
         assert result == {"a": 1, "b": "two"}
 
-    def test_deserialize_max_depth(self):
-        """Should respect max_depth."""
-        result = _deserialize_value([1, 2, 3], None, depth=0, max_depth=0)
-        assert result == [1, 2, 3]  # Primitives pass through
-
 
 # =====================================================================
 # Tests for SerializableMixin with regular classes
@@ -267,7 +282,6 @@ class TestSerializableMixinRegularClasses:
         """Should serialize basic attributes."""
         model = SimpleModel("test", 42)
         result = model.to_dict()
-
         assert result == {"name": "test", "value": 42}
 
     def test_to_dict_excludes_private(self):
@@ -275,7 +289,6 @@ class TestSerializableMixinRegularClasses:
         model = SimpleModel("test", 42)
         model._private = "should not appear"
         result = model.to_dict()
-
         assert "_private" not in result
         assert "name" in result
 
@@ -283,7 +296,6 @@ class TestSerializableMixinRegularClasses:
         """Should exclude specified fields."""
         model = SimpleModel("test", 42)
         result = model.to_dict(exclude={"value"})
-
         assert result == {"name": "test"}
         assert "value" not in result
 
@@ -292,7 +304,6 @@ class TestSerializableMixinRegularClasses:
         model = SimpleModel("test", 42)
         model.extra = "extra field"
         result = model.to_dict(include={"name"})
-
         assert result == {"name": "test"}
         assert "value" not in result
         assert "extra" not in result
@@ -302,7 +313,6 @@ class TestSerializableMixinRegularClasses:
         child = SimpleModel("child", 1)
         parent = NestedModel("parent", child)
         result = parent.to_dict()
-
         assert result["id"] == "parent"
         assert result["child"] == {"name": "child", "value": 1}
 
@@ -363,13 +373,6 @@ class TestSerializableMixinRegularClasses:
         assert model.name == "test"
         assert model.value == 42
 
-    def test_from_dict_with_nested(self):
-        """Should deserialize with nested data."""
-        data = {"id": "parent", "child": {"name": "child", "value": 1}}
-        # Note: This will fail because from_dict can't automatically
-        # determine that child should be deserialized to SimpleModel
-        # This is a known limitation - requires explicit handling
-
     def test_from_json(self):
         """Should deserialize from JSON string."""
         json_str = '{"name": "test", "value": 42}'
@@ -408,7 +411,6 @@ class TestSerializableMixinDataclasses:
         """Should serialize dataclass."""
         model = DataclassModel("test", 42)
         result = model.to_dict()
-
         assert result == {"name": "test", "value": 42}
 
     def test_dataclass_from_dict(self):
@@ -446,7 +448,6 @@ class TestDataclassSerializableDecorator:
 
     def test_decorator_creates_serializable_class(self):
         """Should create serializable dataclass."""
-
         @dataclass_serializable
         class MyModel:
             name: str
@@ -454,13 +455,11 @@ class TestDataclassSerializableDecorator:
 
         model = MyModel("test", 42)
         result = model.to_dict()
-
         assert result == {"name": "test", "value": 42}
         assert hasattr(model, 'from_dict')
 
     def test_decorator_with_exclude(self):
         """Should support exclude parameter."""
-
         @dataclass_serializable(exclude={"secret"})
         class SecureModel:
             name: str
@@ -468,13 +467,11 @@ class TestDataclassSerializableDecorator:
 
         model = SecureModel("public", "hidden")
         result = model.to_dict()
-
         assert "name" in result
         assert "secret" not in result
 
     def test_decorator_with_include_none(self):
         """Should support include_none parameter."""
-
         @dataclass_serializable(include_none={"optional_field"})
         class OptionalModel:
             name: str
@@ -482,7 +479,6 @@ class TestDataclassSerializableDecorator:
 
         model = OptionalModel("test")
         result = model.to_dict()
-
         assert "optional_field" in result
         assert result["optional_field"] is None
 
@@ -517,7 +513,6 @@ class TestHelperFunctions:
     def test_deserialize_list(self):
         """Should deserialize list to objects."""
         data = [{"name": "one", "value": 1}, {"name": "two", "value": 2}]
-        # Note: deserialize_list with explicit class
         result = deserialize_list(data, SimpleModel)
 
         assert len(result) == 2
@@ -571,8 +566,6 @@ class TestSerializationRoundTrip:
         data = original.to_dict()
         restored = ModelWithSpecialTypes.from_dict(data)
 
-        # Note: special types serialize to strings, so they don't restore exactly
-        # This is by design - they need special handling during deserialization
         assert restored.uuid_field == str(original.uuid_field)
         assert restored.decimal_field == str(original.decimal_field)
         assert restored.datetime_field == "2023-01-15T10:30:45"

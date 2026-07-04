@@ -683,3 +683,60 @@ def merge_duplicate_group(group_id):
     except Exception as e:
         logger.error(f"Error merging duplicate group: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@dashboard_bp.route('/redundant-examples', methods=['GET'])
+def get_redundant_examples():
+    """
+    Get redundant example sentences that duplicate separate subentries.
+    """
+    try:
+        dict_service = current_app.injector.get(DictionaryService)
+        # Get project ID from session, with query-param fallback
+        project_id = request.args.get('project_id', type=int)
+        if not project_id:
+            try:
+                from flask import session
+                project_id = session.get('project_id')
+            except (ImportError, RuntimeError):
+                pass
+
+        result = dict_service.get_redundant_examples(project_id=project_id)
+
+        # Add view URLs for linking in UI
+        for item in result:
+            p_id = item.get('phrase_entry_id')
+            ex_e_id = item.get('example_entry_id')
+            if p_id:
+                try:
+                    item['phrase_url'] = url_for('main.view_entry', entry_id=p_id)
+                except BuildError:
+                    item['phrase_url'] = None
+            if ex_e_id:
+                try:
+                    item['example_entry_url'] = url_for('main.view_entry', entry_id=ex_e_id)
+                except BuildError:
+                    item['example_entry_url'] = None
+
+        # Filter out dismissed ones using DismissedDuplicate
+        if project_id:
+            from app.models.models import DismissedDuplicate
+            dismissed = DismissedDuplicate.query.filter_by(project_id=project_id).all()
+            dismissed_ids = {d.group_id for d in dismissed}
+            result = [
+                item for item in result
+                if f"example-{item['phrase_entry_id']}-{item['example_entry_id']}" not in dismissed_ids
+            ]
+
+        return jsonify({
+            'success': True,
+            'data': result,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error detecting redundant examples: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+

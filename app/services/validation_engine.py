@@ -791,8 +791,17 @@ class ValidationEngine:
             errors.extend(self._validate_no_double_length(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_hunspell_spelling':
             errors.extend(self._validate_hunspell_spelling(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_redundant_variants_allomorphs':
+            errors.extend(self._validate_redundant_variants_allomorphs(rule_id, rule_config, data))
+        elif custom_function == 'validate_duplicate_allomorphs':
+            errors.extend(self._validate_duplicate_allomorphs(rule_id, rule_config, data))
+        elif custom_function == 'validate_duplicate_variant_relations':
+            errors.extend(self._validate_duplicate_variant_relations(rule_id, rule_config, data))
+        elif custom_function == 'validate_redundant_gloss':
+            errors.extend(self._validate_redundant_gloss(rule_id, rule_config, data))
 
         return errors
+
     
     def _validate_sense_content_or_variant(self, rule_id: str, rule_config: Dict[str, Any], 
                                          data: Dict[str, Any]) -> List[ValidationError]:
@@ -1800,6 +1809,157 @@ class ValidationEngine:
                         value=word
                     ))
 
+        return errors
+
+    def _validate_redundant_variants_allomorphs(self, rule_id: str, rule_config: Dict[str, Any],
+                                                 data: Dict[str, Any]) -> List[ValidationError]:
+        """Validate that direct variant (allomorph) forms do not duplicate the main headword."""
+        errors: List[ValidationError] = []
+        headwords = [str(val).strip().lower() for val in data.get('lexical_unit', {}).values() if val]
+        
+        if not headwords:
+            return errors
+            
+        variants = data.get('variants', [])
+        for idx, dv in enumerate(variants):
+            form = dv.get('form', {})
+            for lang, val in form.items():
+                if val and str(val).strip().lower() in headwords:
+                    errors.append(
+                        ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config.get('name', ''),
+                            message=rule_config.get('error_message', 'Direct variant form duplicates main headword'),
+                            path=f"$.variants[{idx}].form.{lang}",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=val
+                        )
+                    )
+        return errors
+
+    def _validate_duplicate_allomorphs(self, rule_id: str, rule_config: Dict[str, Any],
+                                        data: Dict[str, Any]) -> List[ValidationError]:
+        """Validate that direct variant (allomorph) forms are unique within the entry."""
+        errors: List[ValidationError] = []
+        seen = {}
+        
+        variants = data.get('variants', [])
+        for idx, dv in enumerate(variants):
+            form = dv.get('form', {})
+            for lang, val in form.items():
+                if not val:
+                    continue
+                val_clean = str(val).strip().lower()
+                if val_clean in seen:
+                    errors.append(
+                        ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config.get('name', ''),
+                            message=rule_config.get('error_message', 'Duplicate direct variant (allomorph) form found'),
+                            path=f"$.variants[{idx}].form.{lang}",
+                            priority=ValidationPriority(rule_config['priority']),
+                            category=ValidationCategory(rule_config['category']),
+                            value=val
+                        )
+                    )
+                else:
+                    seen[val_clean] = (idx, lang)
+        return errors
+
+    def _validate_duplicate_variant_relations(self, rule_id: str, rule_config: Dict[str, Any],
+                                             data: Dict[str, Any]) -> List[ValidationError]:
+        """Validate that target entries are not listed as variants multiple times."""
+        errors: List[ValidationError] = []
+        seen_refs = set()
+        
+        relations = data.get('relations', [])
+        for idx, rel in enumerate(relations):
+            ref = rel.get('ref')
+            rel_type = rel.get('type')
+            if not ref or not rel_type:
+                continue
+            key = (rel_type, ref)
+            if key in seen_refs:
+                errors.append(
+                    ValidationError(
+                        rule_id=rule_id,
+                        rule_name=rule_config.get('name', ''),
+                        message=rule_config.get('error_message', 'Duplicate entry relation found'),
+                        path=f"$.relations[{idx}].ref",
+                        priority=ValidationPriority(rule_config['priority']),
+                        category=ValidationCategory(rule_config['category']),
+                        value=ref
+                    )
+                )
+            else:
+                seen_refs.add(key)
+        return errors
+
+    def _validate_redundant_gloss(self, rule_id: str, rule_config: Dict[str, Any],
+                                  data: Dict[str, Any]) -> List[ValidationError]:
+        """Validate that glosses are parenthesized and do not duplicate definition text."""
+        errors: List[ValidationError] = []
+        senses = data.get('senses', [])
+        
+        for s_idx, sense in enumerate(senses):
+            definition_dict = sense.get('definition', {})
+            gloss_dict = sense.get('gloss', {})
+            if not isinstance(definition_dict, dict) or not isinstance(gloss_dict, dict):
+                continue
+                
+            for lang, gloss_obj in gloss_dict.items():
+                if lang == 'lang':
+                    continue
+                gloss_text = ''
+                if isinstance(gloss_obj, dict):
+                    gloss_text = gloss_obj.get('text', '')
+                elif isinstance(gloss_obj, str):
+                    gloss_text = gloss_obj
+                    
+                gloss_text = gloss_text.strip()
+                if not gloss_text:
+                    continue
+                    
+                if not (gloss_text.startswith('(') and gloss_text.endswith(')')):
+                    errors.append(
+                        ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config.get('name', ''),
+                            message="Gloss must be surrounded by parentheses",
+                            path=f"$.senses[{s_idx}].gloss.{lang}",
+                            priority=ValidationPriority.WARNING,
+                            category=ValidationCategory(rule_config['category']),
+                            value=gloss_text
+                        )
+                    )
+                    continue
+                
+                inner_gloss = gloss_text[1:-1].strip()
+                if not inner_gloss:
+                    continue
+                
+                defn_obj = definition_dict.get(lang, '')
+                defn_text = ''
+                if isinstance(defn_obj, dict):
+                    defn_text = defn_obj.get('text', '')
+                elif isinstance(defn_obj, str):
+                    defn_text = defn_obj
+                    
+                defn_text = defn_text.strip()
+                if defn_text and inner_gloss.lower() in defn_text.lower():
+                    errors.append(
+                        ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config.get('name', ''),
+                            message=rule_config.get('error_message', 'Redundant gloss duplicates definition text'),
+                            path=f"$.senses[{s_idx}].gloss.{lang}",
+                            priority=ValidationPriority.WARNING,
+                            category=ValidationCategory(rule_config['category']),
+                            value=gloss_text
+                        )
+                    )
+                    
         return errors
 
 

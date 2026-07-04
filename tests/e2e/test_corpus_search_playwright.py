@@ -37,10 +37,17 @@ def wait_for_corpus_results(page: Page, timeout: int = 10000) -> None:
     """Poll until corpus results appear or an empty-state message is shown.
 
     This avoids relying on fixed sleeps which can cause flaky tests.
+    The container must also be visible before accepting a match, to avoid
+    returning early when _showLoading has hidden it but the initial HTML
+    still contains 'Enter a search term'.
     """
     deadline = time.time() + (timeout / 1000.0)
     while time.time() < deadline:
         try:
+            container = page.locator('#corpusSearchResults')
+            if not container.is_visible():
+                page.wait_for_timeout(200)
+                continue
             # If a result row is present, we're done
             if page.locator('.corpus-result').count() > 0:
                 return
@@ -48,8 +55,8 @@ def wait_for_corpus_results(page: Page, timeout: int = 10000) -> None:
             if page.locator('#corpusResultsInfo').count() > 0 and page.locator('#corpusResultsInfo').first.is_visible():
                 return
             # Check for common empty state messages
-            html = page.locator('#corpusSearchResults').inner_html() or ''
-            if 'No examples found' in html or 'Enter a search term' in html:
+            html = container.inner_html() or ''
+            if 'No examples found' in html:
                 return
         except Exception:
             # Ignore transient DOM read errors and retry

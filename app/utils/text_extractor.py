@@ -377,25 +377,17 @@ class TextExtractor:
         """
         Extract text from XML string (strips tags).
 
+        Delegates to :func:`app.utils.normalization_service._xml_to_text`
+        which uses proper XML parsing with a regex fallback.
+
         Args:
             xml_string: XML/HTML string
 
         Returns:
             Text content without tags
         """
-        if not xml_string:
-            return ""
-
-        # Remove XML/HTML tags
-        text = re.sub(r'<[^>]+>', ' ', xml_string)
-
-        # Decode HTML entities
-        text = html.unescape(text)
-
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-
-        return text.strip()
+        from app.utils.normalization_service import _xml_to_text
+        return _xml_to_text(xml_string)
 
     def extract_unique_words(self, text: Union[str, Any]) -> Set[str]:
         """

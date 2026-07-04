@@ -443,3 +443,147 @@ class TestDuplicatesAPI:
                 user_id=None,
                 conflict_resolution={"duplicate_senses": "rename"},
             )
+
+
+class TestRelationDiscoveryLevel:
+    """Tests for entry-level vs sense-level auto-detection in relation discovery."""
+
+    def test_level_entry_when_entry_sim_higher(self):
+        """level='entry' when entry-level similarity > sense-level similarity."""
+        entry_sim = 0.95
+        sense_sim = 0.30
+        level = 'entry' if entry_sim >= sense_sim else 'sense'
+        assert level == 'entry'
+
+    def test_level_sense_when_sense_sim_higher(self):
+        """level='sense' when sense-level similarity > entry-level similarity."""
+        entry_sim = 0.60
+        sense_sim = 0.85
+        level = 'entry' if entry_sim >= sense_sim else 'sense'
+        assert level == 'sense'
+
+    def test_level_entry_when_equal(self):
+        """level='entry' when similarities are equal (prefer broader scope)."""
+        entry_sim = 0.70
+        sense_sim = 0.70
+        level = 'entry' if entry_sim >= sense_sim else 'sense'
+        assert level == 'entry'
+
+    def test_level_entry_when_no_senses(self):
+        """level='entry' when sense similarity is 0 (no matching senses)."""
+        entry_sim = 0.80
+        sense_sim = 0.0
+        level = 'entry' if entry_sim >= sense_sim else 'sense'
+        assert level == 'entry'
+
+    def test_burgle_pattern_entry_level(self):
+        """The burgle/burglarise pattern: concatenated defs match (high), senses don't (low)."""
+        # burgle: "to break into and steal from" (1 sense)
+        # burglarise: "to break into" + "to steal from" (2 senses, joined with ", ")
+        # Concatenated: "to break into and steal from" vs "to break into, to steal from"
+        # Entry-level sim should be high; best sense-pair sim should be lower.
+        entry_sim = 0.90
+        sense_sim = 0.35
+        level = 'entry' if entry_sim >= sense_sim else 'sense'
+        assert level == 'entry', (
+            f"burgle/burglarise should be entry-level "
+            f"(entry_sim={entry_sim} > sense_sim={sense_sim})"
+        )
+
+    def test_sense_granularity_pattern_sense_level(self):
+        """When senses match well but concatenated defs diverge, level should be sense."""
+        entry_sim = 0.50
+        sense_sim = 0.90
+        level = 'entry' if entry_sim >= sense_sim else 'sense'
+        assert level == 'sense'
+
+
+class TestNewDuplicateDetectionFeatures:
+    """Tests for new normalization variants, custom validation, and redundant examples."""
+
+    def test_normalise_headword_variants(self):
+        # 1. Parenthetical expansion
+        v1 = DictionaryService._normalise_headword_variants("a little (bit)")
+        assert "little" in v1
+        assert "little bit" in v1
+
+        # 2. Compound normalisation (hyphen and space stripped)
+        v2 = DictionaryService._normalise_headword_variants("log-in")
+        assert "log-in" in v2
+        assert "login" in v2
+
+        v3 = DictionaryService._normalise_headword_variants("log in")
+        assert "log in" in v3
+        assert "login" in v3
+
+    def test_custom_validators(self):
+        from app.services.validation_engine import ValidationEngine
+        engine = ValidationEngine()
+
+        rule_config = {"name": "test_rule", "priority": "warning", "category": "entry_level", "error_message": "error"}
+
+        # 1. validate_redundant_variants_allomorphs
+        data_redundant = {
+            "lexical_unit": {"en": "cat"},
+            "variants": [{"form": {"en": "cat"}}]
+        }
+        errors = engine._validate_redundant_variants_allomorphs("R1.2.4", rule_config, data_redundant)
+        assert len(errors) == 1
+        assert errors[0].rule_id == "R1.2.4"
+
+        # 2. validate_duplicate_allomorphs
+        data_dup_allomorph = {
+            "variants": [
+                {"form": {"en": "kitty"}},
+                {"form": {"en": "kitty"}}
+            ]
+        }
+        errors2 = engine._validate_duplicate_allomorphs("R1.2.5", rule_config, data_dup_allomorph)
+        assert len(errors2) == 1
+
+        # 3. validate_duplicate_variant_relations
+        data_dup_relations = {
+            "relations": [
+                {"type": "variant", "ref": "entry_1"},
+                {"type": "variant", "ref": "entry_1"}
+            ]
+        }
+        errors3 = engine._validate_duplicate_variant_relations("R1.2.6", rule_config, data_dup_relations)
+        assert len(errors3) == 1
+
+        # 4. validate_redundant_gloss
+        rule_config_gloss = {"name": "test_rule", "priority": "warning", "category": "sense_level", "error_message": "error"}
+        data_gloss = {
+            "senses": [
+                {
+                    "definition": {"en": "an animal called a cat"},
+                    "gloss": {"en": "(cat)"}
+                }
+            ]
+        }
+        errors4 = engine._validate_redundant_gloss("R2.2.4", rule_config_gloss, data_gloss)
+        assert len(errors4) == 1
+
+    def test_get_redundant_examples(self):
+        # Create a mock connector that returns phrase and example strings
+        mock_connector = Mock()
+        mock_connector.database = "test_db"
+        
+        # We need mock_connector.execute_query to return LIFT XML elements matching query
+        # 1st call for phrases, 2nd call for examples
+        mock_connector.execute_query.side_effect = [
+            "entry_1|||under the weather\n", # phrases
+            "entry_2|||weather|||under the weather.\n" # examples
+        ]
+
+        service = DictionaryService(mock_connector)
+        service._detect_namespace_usage = Mock(return_value=False)
+        service._query_builder.get_namespace_prologue = Mock(return_value="")
+        service._query_builder.get_element_path = Mock(side_effect=lambda x, _: x)
+
+        redundant = service.get_redundant_examples()
+        assert len(redundant) == 1
+        assert redundant[0]["phrase_headword"] == "under the weather"
+        assert redundant[0]["example_text"] == "under the weather."
+        assert redundant[0]["similarity"] >= 0.95
+

@@ -439,11 +439,16 @@ def configured_flask_app(flask_app_server, test_database: str):
         CacheService.reset_singleton()
         # Reset DictionaryService ranges cache to ensure fresh ranges per test
         try:
-            dict_service = app.injector.get('DictionaryService') if hasattr(app, 'injector') else None
+            from app.services.dictionary_service import DictionaryService
+            dict_service = app.injector.get(DictionaryService)
             if dict_service:
                 # Clear in-memory cached ranges
                 dict_service.ranges = {}
                 dict_service.ranges_parser = dict_service.ranges_parser.__class__()
+                # Reset connector pool so new connections use the per-test database
+                if hasattr(dict_service, 'db_connector') and dict_service.db_connector:
+                    dict_service.db_connector.disconnect()
+                    dict_service.db_connector.connect()
         except Exception:
             pass
         

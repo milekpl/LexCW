@@ -234,6 +234,31 @@
         </div>
     </div>
 
+    {# ---- Redundant Examples (loaded via API) ---- #}
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card quality-card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-quote-left me-1"></i>Redundant Examples</h6>
+                    <div>
+                        <span id="examples-summary" class="small text-muted me-2"></span>
+                        <button type="button" id="run-examples-btn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-search"></i> Scan Examples
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="examples-progress" class="d-none mb-2 small text-muted">
+                        <i class="fas fa-spinner fa-spin me-1"></i>Scanning example sentences...
+                    </div>
+                    <div id="examples-content">
+                        <p class="text-muted small mb-0"><i class="fas fa-info-circle me-1"></i>Click "Scan Examples" to find phrases that duplicate example sentences.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {# ---- Notes ---- #}
     <div class="row">
         <div class="col-12">

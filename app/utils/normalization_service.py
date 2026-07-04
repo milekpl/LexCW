@@ -21,8 +21,52 @@ from __future__ import annotations
 import re
 import html
 import unicodedata
+import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Pattern
 from enum import Enum, auto
+
+
+def _xml_to_text(xml_string: str, separator: str = " ") -> str:
+    """
+    Extract text content from XML/HTML by stripping tags.
+
+    Uses :func:`xml.etree.ElementTree.itertext` for well-formed input.
+    Falls back to regex for malformed XML (e.g. fragments without a root
+    element, stray tags in user content).
+
+    Args:
+        xml_string: XML or HTML string.
+        separator: Glue inserted between adjacent text nodes (default space).
+
+    Returns:
+        Text content with tags removed, entities decoded, whitespace
+        normalized, and leading/trailing whitespace stripped.
+    """
+    if not xml_string:
+        return ""
+
+    # Try proper XML parsing first — handles CDATA, comments, and tags
+    # with special characters in attribute values correctly.
+    try:
+        root = ET.fromstring(
+            f"<root>{xml_string}</root>"
+            if not xml_string.strip().startswith("<")
+            else xml_string
+        )
+        parts = list(root.itertext())
+        if parts:
+            text = separator.join(parts)
+            text = html.unescape(text)
+            text = re.sub(r"\s+", " ", text)
+            return text.strip()
+    except ET.ParseError:
+        pass
+
+    # Fallback: regex for malformed XML (fragments, partial markup, etc.)
+    text = re.sub(r"<[^>]+>", separator, xml_string)
+    text = html.unescape(text)
+    text = re.sub(r"\s+", separator, text)
+    return text.strip()
 
 
 class NormalizationMode(Enum):
@@ -477,7 +521,10 @@ class NormalizationService:
 
     def strip_xml_tags(self, xml_string: str) -> str:
         """
-        Strip all XML tags, leaving only text content.
+        Strip all XML/HTML tags, leaving only text content.
+
+        Uses :func:`xml.etree.ElementTree.itertext` via ``_xml_to_text``
+        for well-formed input, falling back to regex for malformed XML.
 
         Args:
             xml_string: XML string
@@ -485,19 +532,7 @@ class NormalizationService:
         Returns:
             Text content without tags
         """
-        if not xml_string:
-            return ""
-
-        # Remove tags
-        text = re.sub(r'<[^>]+>', ' ', xml_string)
-
-        # Decode entities
-        text = html.unescape(text)
-
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-
-        return text.strip()
+        return _xml_to_text(xml_string)
 
     # =====================================================================
     # Multilingual Dictionary Normalization

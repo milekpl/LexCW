@@ -265,14 +265,23 @@ class TestXQueryBuilder:
     
     @pytest.mark.integration
     def test_escape_xquery_string(self):
-        """Test XQuery string escaping."""
+        """Test XQuery string escaping.
+
+        The correct XQuery escaping uses quote-doubling (not XML entities),
+        because XQuery parsers do not decode XML entities inside string
+        literals — ``&quot;`` would be treated as literal text, not as a
+        quote character.
+        """
         test_string = 'Test "quotes" & <tags>'
         escaped = XQueryBuilder.escape_xquery_string(test_string)
         
-        assert '&quot;' in escaped
-        assert '&amp;' in escaped
-        assert '&lt;' in escaped
-        assert '&gt;' in escaped
+        # Double-quotes are doubled for XQuery string literals
+        assert '""' in escaped
+        # The &, <, > characters are left as-is in XQuery string literals
+        # (they are only significant in XML context, not XQuery)
+        assert '&' in escaped
+        assert '<' in escaped
+        assert '>' in escaped
 
 
 

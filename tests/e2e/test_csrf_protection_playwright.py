@@ -165,15 +165,15 @@ class TestCSRFProtection:
         # Create first context and get token
         context1 = page.context
         page1 = context1.new_page()
-        page1.goto(f'{app_url}/')
-        page1.wait_for_load_state('networkidle')
+        page1.set_default_navigation_timeout(15000)
+        page1.goto(f'{app_url}/', wait_until='domcontentloaded')
         token1 = page1.locator('meta[name="csrf-token"]').get_attribute('content')
 
         # Create second context and get token
         context2 = page1.context.browser.new_context()
         page2 = context2.new_page()
-        page2.goto(f'{app_url}/')
-        page2.wait_for_load_state('networkidle')
+        page2.set_default_navigation_timeout(15000)
+        page2.goto(f'{app_url}/', wait_until='domcontentloaded')
         token2 = page2.locator('meta[name="csrf-token"]').get_attribute('content')
 
         # Both should have tokens (though they might be the same if session-based)

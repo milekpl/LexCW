@@ -240,7 +240,9 @@ class FieldWorksListParser:
 
     @staticmethod
     def _xml_escape(text: str) -> str:
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        """Escape text for XML output.  Uses stdlib :func:`html.escape`."""
+        import html
+        return html.escape(text, quote=True)
 
     def _get_multitext(self, parent: Optional[ET.Element]) -> Dict[str, str]:
         """Extract multilingual text from <name>, <abbr>, <descr> etc.

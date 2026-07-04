@@ -495,6 +495,67 @@
         "minWordLength": 3
       },
       "error_message": "Spelling error in note"
+    },
+    "R1.2.4": {
+      "name": "redundant_variants_allomorphs",
+      "description": "Direct variants (allomorphs) must not duplicate the main headword form",
+      "category": "entry_level",
+      "priority": "warning",
+      "path": "$.variants",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_redundant_variants_allomorphs"
+      },
+      "error_message": "Direct variant form duplicates main headword"
+    },
+    "R1.2.5": {
+      "name": "duplicate_allomorphs",
+      "description": "Direct variant forms (allomorphs) must be unique within the entry",
+      "category": "entry_level",
+      "priority": "warning",
+      "path": "$.variants",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_duplicate_allomorphs"
+      },
+      "error_message": "Duplicate direct variant (allomorph) form found"
+    },
+    "R1.2.6": {
+      "name": "duplicate_variant_relations",
+      "description": "Duplicate variant/entry relations to the same target are not allowed",
+      "category": "relation_validation",
+      "priority": "warning",
+      "path": "$.relations",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_duplicate_variant_relations"
+      },
+      "error_message": "Duplicate entry relation reference found"
+    },
+    "R2.2.4": {
+      "name": "redundant_gloss",
+      "description": "Gloss must be in parentheses and not duplicate definition text",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses",
+      "condition": {
+        "type": "if_present"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_redundant_gloss"
+      },
+      "error_message": "Redundant gloss duplicates definition text"
     }
   }
 }
+

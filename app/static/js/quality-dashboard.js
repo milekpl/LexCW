@@ -343,4 +343,115 @@
 
   runBtn.addEventListener('click', runDetection);
   if (cancelBtn) cancelBtn.addEventListener('click', cancelScan);
+
+  // ----- Redundant Examples -----
+  const runExamplesBtn = document.getElementById('run-examples-btn');
+  const examplesContent = document.getElementById('examples-content');
+  const examplesProgress = document.getElementById('examples-progress');
+  const examplesSummary = document.getElementById('examples-summary');
+
+  if (runExamplesBtn) {
+    function renderRedundantExamples(list) {
+      if (list.length === 0) {
+        examplesSummary.textContent = 'No redundant examples found';
+        examplesContent.innerHTML = '<p class="text-muted small mb-0"><i class="fas fa-check-circle me-1"></i>No redundant examples detected.</p>';
+        return;
+      }
+
+      examplesSummary.textContent = 'Found ' + list.length + ' redundant example(s)';
+
+      var html = '<table class="table table-sm table-striped table-hover mb-0 small">';
+      html += '<thead><tr><th>Phrase Subentry</th><th>Match %</th><th>Redundant Example Text</th><th>Actions</th></tr></thead><tbody>';
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        var dismissId = 'example-' + item.phrase_entry_id + '-' + item.example_entry_id;
+        html += '<tr data-dismiss-id="' + dismissId + '">';
+        
+        // Phrase Subentry
+        html += '<td>';
+        if (item.phrase_url) {
+          html += '<a href="' + item.phrase_url + '" class="text-decoration-none fw-semibold">' + item.phrase_headword + '</a>';
+        } else {
+          html += '<strong>' + item.phrase_headword + '</strong>';
+        }
+        html += ' <span class="badge bg-secondary">Phrase</span>';
+        html += '</td>';
+
+        // Match %
+        html += '<td><span class="badge bg-warning text-dark">' + (item.similarity * 100).toFixed(0) + '%</span></td>';
+
+        // Example Text
+        html += '<td>';
+        html += '<em>"' + item.example_text + '"</em>';
+        html += '<div class="text-muted small mt-1">';
+        html += 'Under entry: ';
+        if (item.example_entry_url) {
+          html += '<a href="' + item.example_entry_url + '" class="text-decoration-none text-muted fw-semibold">' + item.example_entry_headword + '</a>';
+        } else {
+          html += '<strong>' + item.example_entry_headword + '</strong>';
+        }
+        html += '</div>';
+        html += '</td>';
+
+        // Actions
+        html += '<td>';
+        html += '<button type="button" class="btn btn-outline-secondary btn-sm dismiss-example-btn" data-dismiss-id="' + dismissId + '"><i class="fas fa-eye-slash"></i> Dismiss</button>';
+        html += '</td>';
+        
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      examplesContent.innerHTML = html;
+
+      // Wire dismiss buttons
+      examplesContent.querySelectorAll('.dismiss-example-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var dismissId = this.getAttribute('data-dismiss-id');
+          var row = this.closest('tr');
+          var dismissUrl = '/api/dashboard/duplicates/' + encodeURIComponent(dismissId) + '/dismiss' + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
+          fetch(dismissUrl, { method: 'POST', headers: {'X-CSRF-TOKEN': getCsrf()} })
+            .then(function (r) { return r.json(); })
+            .then(function (resp) {
+              if (resp.success && row) {
+                row.remove();
+                if (examplesContent.querySelectorAll('tbody tr').length === 0) {
+                  examplesSummary.textContent = 'No redundant examples found';
+                  examplesContent.innerHTML = '<p class="text-muted small mb-0"><i class="fas fa-check-circle me-1"></i>No redundant examples detected.</p>';
+                }
+              }
+            })
+            .catch(function () {
+              alert('Failed to dismiss redundant example.');
+            });
+        });
+      });
+    }
+
+    runExamplesBtn.addEventListener('click', function () {
+      runExamplesBtn.disabled = true;
+      runExamplesBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+      if (examplesProgress) examplesProgress.classList.remove('d-none');
+      examplesContent.innerHTML = '<p class="text-muted small mb-0"><i class="fas fa-spinner fa-spin"></i> Fetching phrases and examples...</p>';
+
+      var qs = (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
+      fetch('/api/dashboard/redundant-examples' + qs)
+        .then(function (r) { return r.json(); })
+        .then(function (resp) {
+          if (resp.success && resp.data) {
+            renderRedundantExamples(resp.data);
+          } else {
+            examplesContent.innerHTML = '<p class="text-danger small mb-0">' + (resp.error || 'Failed to complete scan') + '</p>';
+          }
+        })
+        .catch(function () {
+          examplesContent.innerHTML = '<p class="text-danger small mb-0">Network error while scanning examples.</p>';
+        })
+        .finally(function () {
+          runExamplesBtn.disabled = false;
+          runExamplesBtn.innerHTML = '<i class="fas fa-search"></i> Scan Examples';
+          if (examplesProgress) examplesProgress.classList.add('d-none');
+        });
+    });
+  }
 })();
+

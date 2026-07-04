@@ -48,75 +48,77 @@ class BaseXBackupManager:
     def _validate_backup_directory(self, backup_dir: str) -> str:
         """
         Validate the backup directory to prevent directory traversal attacks.
-        
-        Rejects any path containing '..' to prevent escaping the app directory.
-        For absolute paths outside the app, defaults to instance/backups.
-        
+
+        Uses :meth:`pathlib.Path.resolve` to collapse ``..`` segments and
+        symlinks before comparing against a trusted base, rather than a
+        fragile ``".." in backup_dir`` string check that can be bypassed
+        with URL-encoded or symlink-based traversal.
+
         Args:
-            backup_dir: The backup directory path to validate
-            
+            backup_dir: The backup directory path to validate.
+
         Returns:
-            Validated backup directory path
-            
+            Validated backup directory path.
+
         Raises:
-            ValidationError: If validation fails
+            ValidationError: If validation fails.
         """
         if not backup_dir:
             return "instance/backups"
-        
-        # Reject any path containing '..' (parent directory traversal)
-        if ".." in backup_dir:
-            self.logger.warning(
-                f"Backup directory rejected due to parent traversal pattern: {backup_dir}. "
-                f"Using default instance/backups instead."
-            )
-            return "instance/backups"
-        
-        # Check for absolute paths
+
         path = Path(backup_dir)
-        if path.is_absolute():
-            # For safety: reject obvious absolute paths (like '/tmp/backups') that could
-            # point to shared locations. Allow absolute paths created by tests (like
-            # '/tmp/tmpabcd123') which normally have a 'tmp' prefix, or accept absolute
-            # paths that are explicitly inside the system temporary directory and look
-            # like mkdtemp-generated dirs.
-            import tempfile
-            tmpdir = Path(tempfile.gettempdir()).resolve()
 
+        # Resolve the path to collapse '..', symlinks, etc.
+        try:
+            resolved = path.resolve()
+        except (OSError, RuntimeError):
+            resolved = path
+
+        # For relative paths: check they don't escape the CWD via '..'
+        if not path.is_absolute():
             try:
-                resolved = path.resolve()
-            except Exception:
-                resolved = path
+                # This raises ValueError if resolved is not under cwd
+                resolved.relative_to(Path.cwd().resolve())
+            except ValueError:
+                self.logger.warning(
+                    f"Backup path rejected — resolves outside working directory: "
+                    f"{backup_dir} -> {resolved}. Using default instance/backups instead."
+                )
+                return "instance/backups"
+            return backup_dir
 
-            # If the path is inside system temp dir, allow it only if it looks like
-            # a pytest-created temp dir (contains a parent starting with 'pytest-')
-            # or is a mkdtemp-like directory (basename startswith 'tmp'). This avoids
-            # allowing shared named directories like '/tmp/backups'.
-            if tmpdir in resolved.parents or resolved == tmpdir:
-                looks_like_pytest = any(p.name.startswith('pytest-') for p in resolved.parents)
-                looks_like_mkdtemp = path.name.startswith("tmp")
-                if looks_like_pytest or looks_like_mkdtemp:
-                    try:
-                        path.mkdir(parents=True, exist_ok=True)
-                        return backup_dir
-                    except Exception:
-                        self.logger.warning(
-                            f"Temporary absolute backup path not usable: {backup_dir}. Using default instance/backups instead."
-                        )
-                        return "instance/backups"
-                else:
+        # ---- Absolute path handling -----------------------------------
+        # Allow absolute paths inside the system temporary directory only
+        # when they look like pytest-created or mkdtemp-like directories.
+        import tempfile
+
+        tmpdir = Path(tempfile.gettempdir()).resolve()
+        try:
+            in_tmp = tmpdir in resolved.parents or resolved == tmpdir
+        except (OSError, RuntimeError):
+            in_tmp = False
+
+        if in_tmp:
+            looks_like_pytest = any(
+                p.name.startswith("pytest-") for p in resolved.parents
+            )
+            looks_like_mkdtemp = path.name.startswith("tmp")
+            if looks_like_pytest or looks_like_mkdtemp:
+                try:
+                    path.mkdir(parents=True, exist_ok=True)
+                    return backup_dir
+                except Exception:
                     self.logger.warning(
-                        f"Absolute backup path not allowed: {backup_dir}. Using default instance/backups instead."
+                        f"Temporary absolute backup path not usable: {backup_dir}. "
+                        f"Using default instance/backups instead."
                     )
                     return "instance/backups"
 
-            # Otherwise reject absolute paths for safety
-            self.logger.warning(
-                f"Absolute backup path not allowed: {backup_dir}. Using default instance/backups instead."
-            )
-            return "instance/backups"
-
-        return backup_dir
+        self.logger.warning(
+            f"Absolute backup path not allowed: {backup_dir} -> {resolved}. "
+            f"Using default instance/backups instead."
+        )
+        return "instance/backups"
 
     def get_backup_directory(self) -> Path:
         """
