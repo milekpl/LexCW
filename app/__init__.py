@@ -112,6 +112,17 @@ def create_app(config_name=None):
         from app import models as _models  # noqa: F401
 
         db.create_all()
+        try:
+            db.session.execute(db.text("""
+                ALTER TABLE project_settings
+                ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(200) DEFAULT 'jinaai/jina-embeddings-v3',
+                ADD COLUMN IF NOT EXISTS embedding_device VARCHAR(20) DEFAULT 'cpu',
+                ADD COLUMN IF NOT EXISTS embedding_last_built TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS embedding_sense_count INTEGER DEFAULT 0;
+            """))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     # Configure logging - write to file for debugging
     log_path = os.path.join(app.instance_path, 'debug.log')
@@ -303,6 +314,11 @@ def create_app(config_name=None):
     from app.api.ai_api import ai_bp
 
     app.register_blueprint(ai_bp)
+
+    # Register Semantic Embeddings API
+    from app.api.embedding_api import embedding_bp
+    app.register_blueprint(embedding_bp)
+    csrf.exempt(embedding_bp)
 
     # Register revision history API
     from app.api.dashboard import dashboard_bp

@@ -149,6 +149,14 @@ class ConfigManager:
             settings.wordsketch_url = new_values.pop('wordsketch_url') or 'http://localhost:8083'
             logger.debug('Updated wordsketch_url to: %s', settings.wordsketch_url)
 
+        if 'embedding_model' in new_values:
+            settings.embedding_model = new_values.pop('embedding_model') or 'jinaai/jina-embeddings-v3'
+            logger.debug('Updated embedding_model to: %s', settings.embedding_model)
+
+        if 'embedding_device' in new_values:
+            settings.embedding_device = new_values.pop('embedding_device') or 'cpu'
+            logger.debug('Updated embedding_device to: %s', settings.embedding_device)
+
         if 'backup_settings' in new_values:
             new_backup = new_values.pop('backup_settings')
             logger.info('Updating backup_settings with: %s (Type: %s)', new_backup, type(new_backup))

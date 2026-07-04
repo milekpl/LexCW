@@ -12,6 +12,7 @@ import sys
 import re
 import random
 import tempfile
+import time
 from typing import Callable, Dict, List, Any, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -37,6 +38,89 @@ from app.utils.namespace_manager import LIFTNamespaceManager
 
 # Import levenshtein_distance for duplicate detection
 from app.services.ipa_service import levenshtein_distance
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for retrying "DROP DB" when another session holds the database open.
+# Extracted from three near-identical inline retry blocks in DictionaryService.
+# ---------------------------------------------------------------------------
+
+_SESSION_USER_RE = re.compile(r'(?:^|-\s+)([a-zA-Z0-9_-]+)\s+(?:\[|\d)')
+_SKIP_USERS = frozenset({'username', 'session', 'sessions'})
+
+
+def _kill_blocking_sessions(connector: Any) -> None:
+    """Parse SHOW SESSIONS output and KILL every listed user.
+
+    Failures are swallowed — this is best-effort cleanup before a DROP.
+    """
+    try:
+        sessions_output = connector.execute_command("SHOW SESSIONS")
+        logger.warning("Found sessions: %s", sessions_output)
+        for line in str(sessions_output).split('\n'):
+            m = _SESSION_USER_RE.search(line)
+            if m:
+                user = m.group(1)
+                if user.lower() in _SKIP_USERS:
+                    continue
+                try:
+                    connector.execute_command(f"KILL {user}")
+                except Exception:
+                    pass  # best-effort
+    except Exception:
+        pass  # SHOW SESSIONS itself failed — nothing we can do
+
+
+def _drop_db_with_retry(
+    connector: Any,
+    db_name: str,
+    *,
+    max_retries: int = 5,
+    sleep_seconds: float = 1.0,
+    backoff: bool = False,
+) -> None:
+    """Drop *db_name*, retrying when another process holds it open.
+
+    On each retryable failure the helper:
+    1. Queries ``SHOW SESSIONS`` and sends ``KILL`` for every user.
+    2. Sleeps (fixed or exponential) before the next attempt.
+
+    Args:
+        connector: An admin-level :class:`BaseXConnector`.
+        db_name:   Name of the database to drop.
+        max_retries: Maximum number of DROP attempts.
+        sleep_seconds: Base sleep duration between retries.
+        backoff: If True, double *sleep_seconds* after each retry
+                 (capped at 8 seconds).
+
+    Raises:
+        The last exception from ``DROP DB`` if all retries fail.
+    """
+    current_sleep = sleep_seconds
+    last_exc: Exception | None = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            connector.execute_command(f"DROP DB {db_name}")
+            return  # success
+        except Exception as exc:
+            last_exc = exc
+            errstr = str(exc).lower()
+            if "opened by another process" not in errstr:
+                raise  # non-retryable error — propagate immediately
+            if attempt < max_retries:
+                logger.warning(
+                    "DROP DB '%s' failed (attempt %d/%d), killing sessions and retrying...",
+                    db_name, attempt, max_retries,
+                )
+                _kill_blocking_sessions(connector)
+                time.sleep(current_sleep)
+                if backoff:
+                    current_sleep = min(current_sleep * 2, 8)
+
+    raise last_exc  # type: ignore[misc]
 
 
 class DictionaryService:
@@ -171,7 +255,7 @@ class DictionaryService:
         # Initialize namespace handling
         self._namespace_manager = LIFTNamespaceManager()
         self._query_builder = XQueryBuilder()
-        self._has_namespace = None  # Will be detected on first use
+        self._namespace_cache: dict[str, bool] = {}  # Per-database namespace cache
 
         # Only connect and open database during non-test environments
         if not (os.getenv("TESTING") == "true" or "pytest" in sys.modules):
@@ -287,49 +371,10 @@ class DictionaryService:
                         pass  # Database might not be open, that's fine
 
                     # Retry DROP if another process has the DB open
-                    import time
-                    max_retries = 5
-                    for attempt in range(1, max_retries + 1):
-                        try:
-                            admin_connector.execute_command(f"DROP DB {db_name}")
-                            break
-                        except Exception as e:
-                            errstr = str(e).lower()
-                            if "opened by another process" in errstr and attempt < max_retries:
-                                self.logger.warning(
-                                    "DROP DB '%s' failed because DB is open in another process (attempt %d/%d), retrying...",
-                                    db_name,
-                                    attempt,
-                                    max_retries,
-                                )
-                                try:
-                                    self.logger.info("Querying sessions before KILL...")
-                                    sessions = admin_connector.execute_command("SHOW SESSIONS")
-                                    self.logger.info("Current sessions: %s", sessions)
-                                    # BaseX 12.0 format: "- admin [127.0.0.1:48156]"
-                                    # Older format: "1 admin 127.0.0.1:48156"
-                                    for line in str(sessions).split('\n'):
-                                        # Match both formats
-                                        m = re.search(r'(?:^|-\s+)([a-zA-Z0-9_-]+)\s+(?:\[|\d)', line)
-                                        if m:
-                                            user = m.group(1)
-                                            # Skip empty lines or headers
-                                            if user.lower() in ('username', 'session', 'sessions'):
-                                                continue
-                                            self.logger.info("Requesting KILL for user %s holding %s", user, db_name)
-                                            try:
-                                                admin_connector.execute_command(f"KILL {user}")
-                                                self.logger.info("KILL command for user %s executed", user)
-                                            except Exception as ke:
-                                                self.logger.debug("Failed to kill sessions for user %s: %s", user, ke)
-                                except Exception as se:
-                                    self.logger.debug("Failed to query/kill sessions: %s", se)
-                                self.logger.info("Waiting 1s before retry...")
-                                time.sleep(1)
-                                self.logger.info("Wait complete, retrying DROP...")
-                                continue
-                            self.logger.error("Failed to DROP DB %s: %s", db_name, e)
-                            raise
+                    _drop_db_with_retry(
+                        admin_connector, db_name,
+                        max_retries=5, sleep_seconds=1.0,
+                    )
 
             finally:
                 admin_connector.disconnect()
@@ -638,70 +683,32 @@ class DictionaryService:
                 # We need to work around the "opened by another process" issue differently
                 
                 # Check if database exists and drop it with retry logic
-                max_retries = 3
-                for attempt in range(max_retries):
+                if db_name in (admin_connector.execute_command("LIST") or ""):
+                    self.logger.info("Dropping database: %s", db_name)
                     try:
-                        if db_name in (admin_connector.execute_command("LIST") or ""):
-                            self.logger.info("Attempt %d: Dropping database: %s", attempt + 1, db_name)
-                            admin_connector.execute_command(f"DROP DB {db_name}")
-                            self.logger.info("Successfully dropped database")
-                            break
-                        else:
-                            self.logger.info("Database does not exist, no need to drop")
-                            break
+                        _drop_db_with_retry(
+                            admin_connector, db_name,
+                            max_retries=3, sleep_seconds=1.0,
+                        )
+                        self.logger.info("Successfully dropped database")
                     except Exception as drop_error:
-                        # If another session has the DB open, try to surface session info and retry
-                        if "opened by another process" in str(drop_error):
-                            try:
-                                self.logger.warning("Database is opened by another process, querying sessions...")
-                                sessions_info = admin_connector.execute_command("SHOW SESSIONS")
-                                self.logger.warning("Found sessions: %s", sessions_info)
-                                
-                                # Identify and kill sessions that might hold this database
-                                lines = str(sessions_info).split('\n')
-                                for line in lines:
-                                    # Extract username (e.g. from "- admin [127.0.0.1:1234]")
-                                    m = re.search(r'(?:^|-\s+)([a-zA-Z0-9_-]+)\s+(?:\[|\d)', line)
-                                    if m:
-                                        user = m.group(1)
-                                        if user.lower() in ('username', 'session', 'sessions'):
-                                            continue
-                                        try:
-                                            self.logger.info("Killing blocking sessions for user %s potentially holding %s", user, db_name)
-                                            admin_connector.execute_command(f"KILL {user}")
-                                        except Exception as kill_err:
-                                            self.logger.debug("Failed to kill sessions for user %s: %s", user, kill_err)
-                            except Exception as sess_err:
-                                self.logger.debug("Failed to process sessions: %s", sess_err)
+                        # On final failure, try alternative approaches
+                        self.logger.warning("Standard drop failed; trying alternative strategies")
 
-                            # If we have more retries left, wait a bit and try again
-                            if attempt < max_retries - 1:
-                                self.logger.warning("Retrying drop after session check (attempt %d)", attempt + 1)
-                                import time
-                                time.sleep(1.0)
-                                continue
+                        # Strategy 1: Fresh session
+                        try:
+                            admin_connector.disconnect()
+                            admin_connector.connect()
+                            if db_name in (admin_connector.execute_command("LIST") or ""):
+                                admin_connector.execute_command(f"DROP DB {db_name}")
+                                self.logger.info("Successfully dropped database with fresh session")
+                            else:
+                                self.logger.info("Database does not exist after reconnect")
+                        except Exception as fresh_session_error:
+                            self.logger.warning("Fresh session approach failed: %s", fresh_session_error)
 
-                        if attempt == max_retries - 1:
-                            # On final attempt, try alternative approaches
-                            self.logger.warning("Final attempt: Trying alternative drop strategies")
-                            
-                            # Strategy 1: Try to create a new admin session
+                            # Strategy 2: New admin connector
                             try:
-                                # Disconnect and reconnect to get a fresh session
-                                admin_connector.disconnect()
-                                admin_connector.connect()
-                                
-                                # Try dropping again with fresh session
-                                if db_name in (admin_connector.execute_command("LIST") or ""):
-                                    admin_connector.execute_command(f"DROP DB {db_name}")
-                                    self.logger.info("Successfully dropped database with fresh session")
-                                    break
-                            except Exception as fresh_session_error:
-                                self.logger.warning("Fresh session approach failed: %s", fresh_session_error)
-                            
-                            # Strategy 2: Try to use a different admin connector
-                            try:
-                                # Create a completely new admin connector
                                 new_admin = BaseXConnector(
                                     host=admin_connector.host,
                                     port=admin_connector.port,
@@ -710,26 +717,26 @@ class DictionaryService:
                                     database=None
                                 )
                                 new_admin.connect()
-                                
                                 try:
                                     if db_name in (new_admin.execute_command("LIST") or ""):
                                         new_admin.execute_command(f"DROP DB {db_name}")
                                         self.logger.info("Successfully dropped database with new connector")
-                                        break
+                                    else:
+                                        self.logger.info("Database does not exist with new connector")
                                 finally:
                                     new_admin.disconnect()
                             except Exception as new_connector_error:
                                 self.logger.error("All drop strategies failed: %s", new_connector_error)
                                 raise drop_error from new_connector_error
-                        else:
-                            raise
+                else:
+                    self.logger.info("Database does not exist, no need to drop")
                 
                 # Create empty database
                 admin_connector.execute_command(f"CREATE DB {db_name}")
                 self.logger.info("Successfully created empty database")
                 
                 # Reset namespace cache
-                self._has_namespace = None
+                self._namespace_cache = {}
                 
                 # Also clean up ranges from SQL database
                 try:
@@ -826,10 +833,9 @@ class DictionaryService:
             if not target_db:
                 return {}
 
-            has_ns = self._detect_namespace_usage()
+            has_ns = self._detect_namespace_usage(project_id=project_id)
             prologue = self._query_builder.get_namespace_prologue(has_ns)
             entry_path = self._query_builder.get_element_path("entry", has_ns)
-            lu_path = self._query_builder.get_element_path("lexical-unit", has_ns)
             form_path = self._query_builder.get_element_path("form", has_ns)
             text_path = self._query_builder.get_element_path("text", has_ns)
             sense_path = self._query_builder.get_element_path("sense", has_ns)
@@ -1834,25 +1840,33 @@ class DictionaryService:
         exact_match: Optional[bool] = False,
         case_sensitive: Optional[bool] = False,
         field_regexes: Optional[Dict[str, str]] = None,
+        semantic: Optional[bool] = False,
     ) -> Tuple[List[Entry], int]:
         """
         Search for entries.
-
-        Args:
-            query: Search query.
-            fields: Fields to search in (default: lexical_unit, glosses, definitions).
-            limit: Maximum number of results to return.
-            offset: Number of results to skip for pagination.
-            pos: Part of speech to filter by (grammatical_info).
-            exact_match: Whether to perform exact match instead of partial match.
-            case_sensitive: Whether the search should be case-sensitive.
-
-        Returns:
-            Tuple of (list of Entry objects, total count).
-
-        Raises:
-            DatabaseError: If there is an error searching entries.
         """
+        if semantic and query and query.strip():
+            try:
+                from app.services.embedding_service import get_embedding_service
+                service = get_embedding_service()
+                semantic_results = service.semantic_search(
+                    query=query.strip(),
+                    project_id=project_id,
+                    top_k=limit or 20,
+                )
+                entry_ids = [r["entry_id"] for r in semantic_results if r.get("entry_id")]
+                if entry_ids:
+                    entries = []
+                    for eid in entry_ids:
+                        try:
+                            if self.entry_exists(eid, project_id=project_id):
+                                entries.append(self.get_entry(eid, project_id=project_id))
+                        except Exception:
+                            pass
+                    return entries, len(entries)
+            except Exception as e:
+                self.logger.warning("Semantic search fallback: %s", e)
+
         if not fields:
             fields = ["lexical_unit", "glosses", "definitions", "note"]
 
@@ -2893,6 +2907,25 @@ class DictionaryService:
             if not db_name:
                 raise DatabaseError(DB_NAME_NOT_CONFIGURED)
 
+            if mode == "semantic":
+                try:
+                    from app.services.embedding_service import get_embedding_service
+                    service = get_embedding_service()
+                    groups = service.find_semantic_duplicates(
+                        project_id=project_id,
+                        threshold=min_confidence,
+                        limit=sample_size or 50,
+                    )
+                    return {
+                        "groups": groups,
+                        "total_candidates": len(groups),
+                        "scanned_entries": len(groups),
+                        "sample_size": sample_size,
+                    }
+                except Exception as e:
+                    logger.error("Semantic duplicate scan failed: %s", e)
+                    return {"groups": [], "total_candidates": 0, "scanned_entries": 0, "sample_size": sample_size}
+
             # Fetch placeholders/articles once from project settings
             placeholders = None
             articles = None
@@ -2958,7 +2991,7 @@ class DictionaryService:
                 f"             $e//{sense_path}/{grammatical_info_path}/@value)[1] "
                 f"let $sc := count($e//{sense_path}) "
                 f"let $defs := string-join("
-                f"  ($e//{sense_path}/{definition_path}/{form_path}/{text_path}/string())[. != ''], ' ') "
+                f"  ($e//{sense_path}/{definition_path}/{form_path}/{text_path}/string())[. != ''], ', ') "
                 f"let $glosses := string-join("
                 f"  ($e//{sense_path}/{gloss_path}/{text_path}/string())[. != ''], ' ') "
                 f"return concat($e/@id, '|||', $hw, '|||', $cf, '|||', "
@@ -3070,11 +3103,17 @@ class DictionaryService:
                 groups_map = {}
                 from collections import defaultdict
                 by_variant = defaultdict(list)
-                for e in candidates:
+                total_cand = len(candidates)
+                for idx, e in enumerate(candidates):
+                    if progress_callback and idx % 10000 == 0:
+                        progress_callback(total_cand, idx, f'Indexing variants ({idx}/{total_cand})')
                     for v in e.get('normalised_variants', []):
                         by_variant[v].append(e)
 
-                for v, group_entries in by_variant.items():
+                total_vars = len(by_variant)
+                for idx, (v, group_entries) in enumerate(by_variant.items()):
+                    if progress_callback and idx % 10000 == 0:
+                        progress_callback(total_cand, int(idx / max(1, total_vars) * total_cand), f'Grouping exact headwords ({idx}/{total_vars})')
                     if len(group_entries) < 2:
                         continue
 
@@ -3152,14 +3191,14 @@ class DictionaryService:
             exact_mode = mode in ("all", "exact", "near", "relaxed")
             near_mode = mode in ("all", "near", "relaxed")
 
-            # --- Exact headword pass ---
+            # --- Pass Execution ---
             if exact_mode:
                 groups = _find_exact_groups(candidate_entries)
                 if progress_callback:
                     progress_callback(total_entries, total_entries, f'Exact done ({len(groups)} groups)')
 
-            # --- Relaxed pass (split exact groups by definition similarity) ---
             if near_mode:
+                # "all", "near", "relaxed" filter exact groups by definition similarity (excluding homographs)
                 cutoff = _sim_threshold(threshold)
                 total_exact = len(groups)
                 relaxed_groups = []
@@ -3206,6 +3245,7 @@ class DictionaryService:
                             sub_conf = round(min(sims), 2)
                             if sub_conf >= min_confidence:
                                 relaxed_groups.append(_make_group(sub_entries, 'exact', sub_conf))
+                groups = relaxed_groups
                             # Single-entry clusters fall through → excluded (homographs)
                 groups = relaxed_groups
                 if progress_callback:
@@ -3467,7 +3507,7 @@ class DictionaryService:
                 f"             $e//{sense_path}/{grammatical_info_path}/@value)[1] "
                 f"let $sc := count($e//{sense_path}) "
                 f"let $defs := string-join("
-                f"  ($e//{sense_path}/{definition_path}/{form_path}/{text_path}/string())[. != ''], ' ') "
+                f"  ($e//{sense_path}/{definition_path}/{form_path}/{text_path}/string())[. != ''], ', ') "
                 f"let $glosses := string-join("
                 f"  ($e//{sense_path}/{gloss_path}/{text_path}/string())[. != ''], ' ') "
                 f"let $sids := string-join($e//{sense_path}/@id/string(), '~~~') "
@@ -3545,7 +3585,7 @@ class DictionaryService:
                 union = a_tris | b_tris
                 return len(inter) / len(union) if union else 0.0
 
-            cutoff = max(0.1, 0.8 - (threshold - 1) * 0.15)
+            cutoff = max(0.1, 0.6 - (threshold - 1) * 0.15)
 
             # --- Group entries by POS ---
             by_pos: dict[str, list] = {}
@@ -3764,7 +3804,7 @@ class DictionaryService:
 
         # Use targeted XQuery to insert sense-level relations (safe — no full-entry round-trip)
         db_name = self._resolve_db_name(project_id)
-        has_ns = self._detect_namespace_usage()
+        has_ns = self._detect_namespace_usage(project_id=project_id)
         entry_path = self._query_builder.get_element_path("entry", has_ns)
         sense_path = self._query_builder.get_element_path("sense", has_ns)
         relation_path = self._query_builder.get_element_path("relation", has_ns)
@@ -3845,9 +3885,17 @@ class DictionaryService:
             raise ValueError("Mode must be 'replace' or 'merge'")
             
         if mode == "replace":
-            return self._import_lift_replace(lift_path, ranges_path=ranges_path)
+            count = self._import_lift_replace(lift_path, ranges_path=ranges_path)
         else:
-            return self._import_lift_merge(lift_path)
+            count = self._import_lift_merge(lift_path)
+
+        try:
+            from app.services.event_bus import event_bus
+            event_bus.emit("import_complete", {"project_id": project_id or 1, "count": count})
+        except Exception as e:
+            logger.warning("Could not emit import_complete event: %s", e)
+
+        return count
 
     def _import_lift_with_ranges(self, lift_path: str, mode: str, ranges_path: Optional[str] = None, project_id: Optional[int] = None) -> int:
         """
@@ -3972,52 +4020,10 @@ class DictionaryService:
                 # Drop the existing database to ensure a clean start. Retry if another process has it open.
                 if db_name in (admin_connector.execute_command("LIST") or ""):
                     self.logger.info("Dropping existing database: %s", db_name)
-                    import time
-
-                    max_retries = 8
-                    backoff = 1.0
-                    for attempt in range(1, max_retries + 1):
-                        try:
-                            admin_connector.execute_command(f"DROP DB {db_name}")
-                            break
-                        except Exception as e:
-                            errstr = str(e).lower()
-                            if "opened by another process" in errstr and attempt < max_retries:
-                                self.logger.warning(
-                                    "DROP DB '%s' failed because DB is open in another process (attempt %d/%d), retrying after %.1fs...",
-                                    db_name,
-                                    attempt,
-                                    max_retries,
-                                    backoff,
-                                )
-
-                                # Attempt to gather session info and kill sessions
-                                try:
-                                    sessions_info = admin_connector.execute_command("SHOW SESSIONS")
-                                    if sessions_info:
-                                        self.logger.warning("Found sessions that may hold DB open: %s", sessions_info)
-                                        # Identify and kill sessions that might hold this database
-                                        lines = str(sessions_info).split('\n')
-                                        for line in lines:
-                                            # Extract username (e.g. from "- admin [127.0.0.1:1234]")
-                                            m = re.search(r'(?:^|-\s+)([a-zA-Z0-9_-]+)\s+(?:\[|\d)', line)
-                                            if m:
-                                                user = m.group(1)
-                                                if user.lower() in ('username', 'session', 'sessions'):
-                                                    continue
-                                                try:
-                                                    self.logger.info("Killing blocking sessions for user %s potentially holding %s", user, db_name)
-                                                    admin_connector.execute_command(f"KILL {user}")
-                                                except Exception as kill_err:
-                                                    self.logger.debug("Failed to kill sessions for user %s: %s", user, kill_err)
-                                except Exception as sess_e:
-                                    self.logger.debug("Failed to process sessions: %s", sess_e)
-
-                                time.sleep(backoff)
-                                backoff = min(backoff * 2, 8)
-                                continue
-                            self.logger.error("Failed to DROP DB %s: %s", db_name, e)
-                            raise
+                    _drop_db_with_retry(
+                        admin_connector, db_name,
+                        max_retries=8, sleep_seconds=1.0, backoff=True,
+                    )
 
                 # Create new database from the LIFT file
                 self.logger.info("Creating new database '%s' from %s", db_name, lift_path_basex)
@@ -5615,15 +5621,18 @@ class DictionaryService:
     def _detect_namespace_usage(self, project_id: Optional[int] = None) -> bool:
         """
         Check if the dictionary database uses namespaces.
+
+        Uses per-database caching so different projects get correct results.
         """
-        # Cache the result to avoid repeated queries
-        if self._has_namespace is not None:
-            return self._has_namespace
+        db_name = self._resolve_db_name(project_id)
+
+        # Per-database cache
+        if db_name in self._namespace_cache:
+            return self._namespace_cache[db_name]
 
         try:
-            db_name = self.db_connector.database
             if not db_name:
-                self._has_namespace = False
+                self._namespace_cache[db_name] = False
                 return False
 
             # Use namespace-aware query to check for root <lift> element with namespace
@@ -5634,11 +5643,12 @@ class DictionaryService:
             if result:
                 result = result.strip()
 
-            self._has_namespace = (result and result.lower() == "true")
-            return self._has_namespace
+            has_ns = (result and result.lower() == "true")
+            self._namespace_cache[db_name] = has_ns
+            return has_ns
         except Exception as e:
             self.logger.warning("Error detecting namespace usage: %s", str(e))
-            self._has_namespace = False
+            self._namespace_cache[db_name] = False
             return False
 
     def _detect_namespace_usage_in_db(self, db_name: str) -> bool:

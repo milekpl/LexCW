@@ -35,7 +35,8 @@ A professional tool for creating and managing comprehensive dictionaries using t
 - **Validation Engine**: Multiple validation backends — Schematron (XSLT), Hunspell spelling, LanguageTool grammar, IPA pronunciation, real-time field validation
 - **Validation Rules**: Project-specific validation rules with admin UI
 - **AI Proofreading**: LLM-powered proofreading and drafting of entries (BYOK — bring your own API key)
-- **Data Quality Dashboard**: Overview of dictionary health and completeness
+- **Data Quality Dashboard**: Overview of dictionary health, completeness, duplicates, and redundant example sentences
+- **Duplicate & Redundant Example Detection**: Advanced duplicate detection using spelling normalization (compounds, parentheticals), POS wildcard grouping, and homograph-definition filtering, along with a redundant example sentence finder.
 
 ### Customization & Workflow
 - **Custom Fields**: Extend LIFT to meet specific project needs with FieldWorks-compatible custom fields

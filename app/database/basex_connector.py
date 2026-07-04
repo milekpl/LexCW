@@ -138,6 +138,39 @@ class BaseXConnector:
         conn.close()
         self._semaphore.release()
 
+    def _run_with_retry(self, operation, error_context: str, max_attempts: int = 3):
+        """Run *operation(conn)* with automatic retry on IOError/OSError.
+
+        On transient socket drops the broken connection is discarded and a
+        fresh one is acquired for the next attempt.  After *max_attempts*
+        failures the last exception is wrapped in a DatabaseError.
+        """
+        last_error: Exception | None = None
+        conn = None
+        for attempt in range(1, max_attempts + 1):
+            conn = self._acquire()
+            try:
+                result = operation(conn)
+                self._release(conn)
+                return result
+            except (IOError, OSError) as e:
+                last_error = e
+                self.logger.warning(
+                    "Session lost during %s (attempt %s/%s): %s; discarding...",
+                    error_context, attempt, max_attempts, e,
+                )
+                self._discard(conn)
+                conn = None
+                continue
+            except Exception:
+                # Non-retryable failure — release the connection we just acquired.
+                if conn is not None:
+                    self._release(conn)
+                raise
+        raise DatabaseError(
+            f"{error_context} failed after {max_attempts} attempts: {last_error}"
+        )
+
     # ---- Compat shim: connect/disconnect for legacy callers ----
 
     def connect(self) -> bool:
@@ -294,117 +327,82 @@ class BaseXConnector:
     def execute_command(self, command: str) -> str:
         # e2e tests can experience transient socket drops.
         # Retry with a fresh connection a few times before failing.
-        last_error: Exception | None = None
-        attempts = 3
-        for attempt in range(1, attempts + 1):
-            conn = self._acquire()
+        def _op(conn):
+            if conn.current_db is None and self.database:
+                conn.ensure_db(self.database)
             try:
-                if conn.current_db is None and self.database:
-                    conn.ensure_db(self.database)
+                result = conn.session.execute(command)
+                self.logger.debug(f"Command executed successfully: {command}")
+                return result
+            except (IOError, OSError):
+                raise  # let _run_with_retry handle retry
+            except Exception as e:
+                raise DatabaseError(f"Command execution failed: {e}")
 
-                try:
-                    result = conn.session.execute(command)
-                    self.logger.debug(f"Command executed successfully: {command}")
-                    return result
-                except (IOError, OSError) as e:
-                    last_error = e
-                    self.logger.warning(
-                        "Session lost during command (attempt %s/%s): %s; discarding...",
-                        attempt,
-                        attempts,
-                        e,
-                    )
-                    self._discard(conn)
-                    # Acquire/discard again next attempt.
-                    conn = None
-                    continue
-                except Exception as e:
-                    raise DatabaseError(f"Command execution failed: {e}")
-            finally:
-                # Only release if we didn't discard.
-                if conn is not None:
-                    self._release(conn)
-
-        raise DatabaseError(f"Command execution failed after {attempts} attempts: {last_error}")
+        return self._run_with_retry(_op, "command")
 
     # ---- XQuery update execution ----
 
     def execute_update(self, query: str, db_name: str = None) -> None:
         # Retry transient socket drops during update execution.
-        last_error: Exception | None = None
-        attempts = 3
-        for attempt in range(1, attempts + 1):
-            conn = self._acquire()
-            try:
-                target_db = db_name
-                if not target_db:
-                    try:
-                        from flask import has_request_context, g
-                        if has_request_context() and hasattr(g, 'project_db_name'):
-                            target_db = g.project_db_name
-                    except ImportError:
-                        pass
-                if not target_db:
-                    target_db = self._extract_collection_db(query)
-                if not target_db:
-                    target_db = self.database
-
-                if target_db:
-                    conn.ensure_db(target_db)
-
-                # Substitute collection DB in test mode
+        def _op(conn):
+            q_text = query  # local copy — avoids closure rebinding issues
+            target_db = db_name
+            if not target_db:
                 try:
-                    ref_db = self._extract_collection_db(query)
-                    if ref_db:
-                        runtime_db = (
-                            os.environ.get('TEST_DB_NAME')
-                            or os.environ.get('BASEX_DATABASE')
-                            or self.database
-                        )
-                        if runtime_db and ref_db != runtime_db:
-                            query = query.replace(
-                                f"collection('{ref_db}')",
-                                f"collection('{runtime_db}')",
-                            )
-                            if conn.current_db != runtime_db:
-                                conn.ensure_db(runtime_db)
-                except Exception:
+                    from flask import has_request_context, g
+                    if has_request_context() and hasattr(g, 'project_db_name'):
+                        target_db = g.project_db_name
+                except ImportError:
                     pass
+            if not target_db:
+                target_db = self._extract_collection_db(q_text)
+            if not target_db:
+                target_db = self.database
 
-                clean_query = query
-                if query.strip().lower().startswith('xquery '):
-                    clean_query = query.strip()[7:].strip()
+            if target_db:
+                conn.ensure_db(target_db)
 
-                q = None
-                try:
-                    q = conn.session.query(clean_query)
-                    q.execute()
-                    self.logger.debug(f"Update executed successfully: {query[:100]}...")
-                    return
-                except (IOError, OSError) as e:
-                    last_error = e
-                    self.logger.warning(
-                        "Session lost during update (attempt %s/%s): %s; discarding...",
-                        attempt,
-                        attempts,
-                        e,
+            # Substitute collection DB in test mode
+            try:
+                ref_db = self._extract_collection_db(q_text)
+                if ref_db:
+                    runtime_db = (
+                        os.environ.get('TEST_DB_NAME')
+                        or os.environ.get('BASEX_DATABASE')
+                        or self.database
                     )
-                    self._discard(conn)
-                    conn = None
-                    continue
-                except Exception as e:
-                    raise DatabaseError(f"Update execution failed: {e}\nQuery:\n{query}")
-                finally:
-                    if q:
-                        try:
-                            q.close()
-                        except Exception:
-                            pass
-            finally:
-                if conn is not None:
-                    self._release(conn)
+                    if runtime_db and ref_db != runtime_db:
+                        q_text = q_text.replace(
+                            f"collection('{ref_db}')",
+                            f"collection('{runtime_db}')",
+                        )
+                        if conn.current_db != runtime_db:
+                            conn.ensure_db(runtime_db)
+            except Exception:
+                pass
 
-        raise DatabaseError(f"Update execution failed after {attempts} attempts: {last_error}")
+            clean_query = q_text
+            if q_text.strip().lower().startswith('xquery '):
+                clean_query = q_text.strip()[7:].strip()
+
+            q = None
+            try:
+                q = conn.session.query(clean_query)
+                q.execute()
+                self.logger.debug(f"Update executed successfully: {q_text[:100]}...")
+            except (IOError, OSError):
+                raise  # let _run_with_retry handle retry
+            except Exception as e:
+                raise DatabaseError(f"Update execution failed: {e}\nQuery:\n{q_text}")
+            finally:
+                if q:
+                    try:
+                        q.close()
+                    except Exception:
+                        pass
+
+        self._run_with_retry(_op, "update")
 
     # ---- Database management ----
 

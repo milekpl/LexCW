@@ -36,3 +36,8 @@ beautifulsoup4==4.12.3
 psycopg2-binary>=2.9.9
 # Scheduling library for backup scheduler
 APScheduler>=3.10.0
+# Semantic embeddings (vector search)
+transformers>=4.44.0,<4.46.0
+sentence-transformers>=3.0.0
+qdrant-client>=1.18.0
+einops>=0.7.0

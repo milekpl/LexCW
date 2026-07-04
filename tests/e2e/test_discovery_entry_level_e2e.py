@@ -30,26 +30,26 @@ def seeded_burgle(app_url, configured_flask_app):
 <lift version="0.13">
   <entry id="e_burgle" dateCreated="2025-01-01T00:00:00Z" dateModified="2025-01-01T00:00:00Z">
     <lexical-unit>
-      <form lang="en"><text>burgle</text></form>
+      <form lang="pl"><text>włamać się</text></form>
     </lexical-unit>
     <sense id="s_burgle_1">
       <definition>
-        <form lang="en"><text>to break into and steal from</text></form>
+        <form lang="pl"><text>włamać się, okraść</text></form>
       </definition>
     </sense>
   </entry>
   <entry id="e_burglarise" dateCreated="2025-01-01T00:00:00Z" dateModified="2025-01-01T00:00:00Z">
     <lexical-unit>
-      <form lang="en"><text>burglarise</text></form>
+      <form lang="pl"><text>włamać się i okraść</text></form>
     </lexical-unit>
     <sense id="s_burglarise_1">
       <definition>
-        <form lang="en"><text>to break into</text></form>
+        <form lang="pl"><text>włamać się</text></form>
       </definition>
     </sense>
     <sense id="s_burglarise_2">
       <definition>
-        <form lang="en"><text>to steal from</text></form>
+        <form lang="pl"><text>okraść</text></form>
       </definition>
     </sense>
   </entry>
@@ -88,7 +88,7 @@ def _poll_scan(app_url, timeout=60):
     """Start a discovery scan and poll until done. Returns the data dict."""
     r = requests.post(
         f"{app_url}/api/discovery/scan?project_id=1",
-        json={"threshold": 2},
+        json={"threshold": 1},
         timeout=30,
     )
     assert r.ok, f"Scan start failed: {r.status_code} {r.text}"
@@ -131,9 +131,9 @@ class TestDiscoveryEntryLevel:
             f"{[(c['source']['entry_id'], c['target']['entry_id']) for c in candidates]}"
         )
 
-        # Entry-level similarity should be reasonably high (concatenated defs match)
-        assert pair["similarity"] >= 0.6, (
-            f"Entry-level similarity too low: {pair['similarity']}"
+        # Entry-level similarity should be 100% (concatenated defs are identical)
+        assert pair["similarity"] == 1.0, (
+            f"Entry-level similarity should be 1.0, got {pair['similarity']}"
         )
 
         # The pair should be tagged as synonym relation type

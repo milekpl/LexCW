@@ -104,6 +104,8 @@ def manage_settings() -> Any:
             current_settings['languagetool_url'] = getattr(project_settings, 'languagetool_url', 'http://localhost:8081') or 'http://localhost:8081'
             current_settings['corpus_url'] = getattr(project_settings, 'corpus_url', 'http://localhost:8082') or 'http://localhost:8082'
             current_settings['wordsketch_url'] = getattr(project_settings, 'wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
+            current_settings['embedding_model'] = getattr(project_settings, 'embedding_model', 'jinaai/jina-embeddings-v3') or 'jinaai/jina-embeddings-v3'
+            current_settings['embedding_device'] = getattr(project_settings, 'embedding_device', 'cpu') or 'cpu'
             project_id = project_settings.id
         else:
             ps = ProjectSettings.query.first()
@@ -116,6 +118,8 @@ def manage_settings() -> Any:
                 'languagetool_url': getattr(ps, 'languagetool_url', 'http://localhost:8081') if ps else 'http://localhost:8081',
                 'corpus_url': getattr(ps, 'corpus_url', 'http://localhost:8082') if ps else 'http://localhost:8082',
                 'wordsketch_url': getattr(ps, 'wordsketch_url', 'http://localhost:8083') if ps else 'http://localhost:8083',
+                'embedding_model': getattr(ps, 'embedding_model', 'jinaai/jina-embeddings-v3') if ps else 'jinaai/jina-embeddings-v3',
+                'embedding_device': getattr(ps, 'embedding_device', 'cpu') if ps else 'cpu',
             }
     else:
         # Read external service URLs from ProjectSettings
@@ -129,6 +133,8 @@ def manage_settings() -> Any:
             'languagetool_url': getattr(ps, 'languagetool_url', 'http://localhost:8081') if ps else 'http://localhost:8081',
             'corpus_url': getattr(ps, 'corpus_url', 'http://localhost:8082') if ps else 'http://localhost:8082',
             'wordsketch_url': getattr(ps, 'wordsketch_url', 'http://localhost:8083') if ps else 'http://localhost:8083',
+            'embedding_model': getattr(ps, 'embedding_model', 'jinaai/jina-embeddings-v3') if ps else 'jinaai/jina-embeddings-v3',
+            'embedding_device': getattr(ps, 'embedding_device', 'cpu') if ps else 'cpu',
         }
         # Get the current project ID from the first project
         first_project = ProjectSettings.query.first()

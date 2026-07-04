@@ -12,8 +12,7 @@ from app.utils.normalization_service import (
     NormalizationService, NormalizationMode, LanguageCodeFormat,
     normalize_ipa, normalize_language_code, normalize_xml,
     normalize_lift_xml, normalize_multilingual_dict,
-    normalize_field_path, normalize_string, normalize_unicode,
-    strip_xml_tags
+    normalize_unicode, strip_xml_tags
 )
 
 
@@ -389,62 +388,6 @@ class TestMultilingualDictNormalization:
         assert result in ["hola", "ciao"]  # One of the available values
 
 
-class TestFieldPathNormalization:
-    """Test field path normalization"""
-
-    def test_normalize_field_path_basic(self):
-        """Should normalize simple paths."""
-        service = NormalizationService()
-
-        assert service.normalize_field_path("lexical_unit") == "lexical_unit"
-        assert service.normalize_field_path("senses.definition") == "senses.definition"
-
-    def test_normalize_field_path_brackets(self):
-        """Should normalize bracket notation to dots."""
-        service = NormalizationService()
-
-        assert service.normalize_field_path("senses[0]") == "senses.0"
-        assert service.normalize_field_path("senses[0].definition") == "senses.0.definition"
-
-    def test_normalize_field_path_arrows(self):
-        """Should normalize arrow notation to dots."""
-        service = NormalizationService()
-
-        assert service.normalize_field_path("senses->definition") == "senses.definition"
-        assert service.normalize_field_path("senses->0->gloss") == "senses.0.gloss"
-
-    def test_normalize_field_path_slashes(self):
-        """Should normalize slash notation to dots."""
-        service = NormalizationService()
-
-        assert service.normalize_field_path("senses/definition") == "senses.definition"
-
-    def test_normalize_field_path_mixed(self):
-        """Should handle mixed separators."""
-        service = NormalizationService()
-
-        result = service.normalize_field_path("senses[0]->definition/gloss")
-        assert result == "senses.0.definition.gloss"
-
-    def test_normalize_field_path_whitespace(self):
-        """Should strip whitespace."""
-        service = NormalizationService()
-
-        assert service.normalize_field_path("  lexical_unit  ") == "lexical_unit"
-
-    def test_normalize_field_path_lowercase(self):
-        """Should convert to lowercase."""
-        service = NormalizationService()
-
-        assert service.normalize_field_path("LEXICAL_UNIT") == "lexical_unit"
-
-    def test_normalize_field_path_empty(self):
-        """Should handle empty string."""
-        service = NormalizationService()
-
-        assert service.normalize_field_path("") == ""
-
-
 class TestUnicodeNormalization:
     """Test Unicode normalization"""
 
@@ -476,53 +419,6 @@ class TestUnicodeNormalization:
         result = service.normalize_unicode("2²", 'NFKC')  # Superscript 2
 
         assert result == "22"  # NFKC normalizes superscript
-
-
-class TestGeneralStringNormalization:
-    """Test general string normalization"""
-
-    def test_normalize_string_standard_mode(self):
-        """Should normalize in standard mode."""
-        service = NormalizationService()
-
-        result = service.normalize_string("  hello   world  ")
-
-        assert result == "hello   world" or result == "hello world"
-
-    def test_normalize_string_strict_mode(self):
-        """Should aggressively normalize in strict mode."""
-        service = NormalizationService()
-
-        result = service.normalize_string("Hello, World!", mode=NormalizationMode.STRICT)
-
-        # Strict mode: lowercase, remove punctuation, normalize whitespace
-        assert result == "hello world"
-        assert ',' not in result
-        assert '!' not in result
-
-    def test_normalize_string_lenient_mode(self):
-        """Should minimally normalize in lenient mode."""
-        service = NormalizationService()
-
-        result = service.normalize_string("  hello   world  ", mode=NormalizationMode.LENIENT)
-
-        # Lenient: just strip ends
-        assert result.startswith("hello")
-        assert result.endswith("world")
-
-    def test_normalize_string_empty(self):
-        """Should handle empty string."""
-        service = NormalizationService()
-
-        assert service.normalize_string("") == ""
-
-    def test_normalize_whitespace(self):
-        """Should normalize whitespace only."""
-        service = NormalizationService()
-
-        result = service.normalize_whitespace("hello\t\n\nworld  test")
-
-        assert result == "hello world test"
 
 
 class TestConvenienceFunctions:
@@ -560,18 +456,6 @@ class TestConvenienceFunctions:
 
         assert "en" in result
 
-    def test_normalize_field_path_function(self):
-        """Should work as convenience function."""
-        result = normalize_field_path("senses[0]->definition")
-
-        assert result == "senses.0.definition"
-
-    def test_normalize_string_function(self):
-        """Should work as convenience function."""
-        result = normalize_string("  Hello World  ")
-
-        assert "Hello World" in result
-
     def test_normalize_unicode_function(self):
         """Should work as convenience function."""
         result = normalize_unicode("caf\u00e9", 'NFD')
@@ -604,24 +488,6 @@ class TestNormalizationServiceEdgeCases:
         assert result["de"] == {"text": "nested"}
         assert result["fr"] == {"text": "123"}  # Converted to string
         # None may be kept or converted depending on implementation
-
-    def test_complex_field_path(self):
-        """Should handle complex field paths."""
-        service = NormalizationService()
-
-        paths = [
-            "senses[0][1].definition",
-            "senses[0]->examples[1].form",
-            "entry.senses[0].relations[0].ref",
-        ]
-
-        for path in paths:
-            result = service.normalize_field_path(path)
-            # Should have dots, no brackets, no arrows
-            assert '.' in result
-            assert '[' not in result
-            assert ']' not in result
-            assert '->' not in result
 
     def test_multilingual_dict_with_nested_text(self):
         """Should preserve deeply nested text structures."""
@@ -702,12 +568,8 @@ class TestNormalizationServiceEdgeCases:
         """Should handle empty and whitespace-only inputs."""
         service = NormalizationService()
 
-        assert service.normalize_string("") == ""
-        assert service.normalize_string("   ") == ""
-        assert service.normalize_whitespace("   ") == ""
         assert service.normalize_xml("") == ""
         assert service.normalize_lift_xml("") == ""
-        assert service.normalize_field_path("") == ""
 
     def test_multilingual_dict_empty(self):
         """Should handle empty multilingual dict."""

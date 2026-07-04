@@ -45,6 +45,10 @@ class Config:
     # Lucene Corpus Service configuration
     LUCENE_CORPUS_URL = os.environ.get('LUCENE_CORPUS_URL') or 'http://localhost:8082'
     
+    # Qdrant vector database (semantic embeddings)
+    QDRANT_HOST = os.environ.get('QDRANT_HOST') or 'localhost'
+    QDRANT_PORT = int(os.environ.get('QDRANT_PORT') or 6333)
+    
     # Application base URL for generating password reset links
     # In production, set this to your public domain (e.g., 'https://example.com')
     BASE_URL = os.environ.get('BASE_URL') or 'http://localhost:5000'

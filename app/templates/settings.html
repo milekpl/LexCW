@@ -237,6 +237,60 @@
 
                 <fieldset class="mb-4">
                     <legend class="h6">
+                        <i class="fas fa-brain text-primary me-1"></i> Semantic Embeddings & Vector Search (Qdrant)
+                        <i class="fas fa-info-circle text-muted ms-1"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="Configure sentence-transformer models for vector similarity search, semantic duplicate detection, and relation discovery."></i>
+                    </legend>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ render_field(form.embedding_model, class="form-select") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ render_field(form.embedding_device, class="form-select") }}
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="card bg-light border-0">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="card-title m-0 fw-bold"><i class="fas fa-database me-1 text-primary"></i> Vector Index Status</h6>
+                                        <span id="embedding-status-badge" class="badge bg-secondary">Checking...</span>
+                                    </div>
+                                    <div class="row text-muted small">
+                                        <div class="col-md-4">
+                                            <strong>Indexed Senses:</strong> <span id="embedding-vectors-count">-</span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <strong>Active Model:</strong> <span id="embedding-active-model">-</span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <strong>Last Built:</strong> <span id="embedding-last-built">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="progress mt-3 d-none" id="embedding-rebuild-progress-bar-container" style="height: 18px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                             id="embedding-rebuild-progress-bar" role="progressbar" style="width: 0%;">0%</div>
+                                    </div>
+                                    <div class="small text-muted mt-1 d-none" id="embedding-rebuild-status-msg"></div>
+                                    <div class="mt-3">
+                                        <button type="button" class="btn btn-sm btn-primary" id="btn-rebuild-embedding-index">
+                                            <i class="fas fa-sync-alt me-1"></i> Rebuild Vector Index
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="btn-delete-embedding-index">
+                                            <i class="fas fa-trash me-1"></i> Clear Index
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mb-4">
+                    <legend class="h6">
                         Prompt Templates
                         <i class="fas fa-info-circle text-muted ms-1"
                            data-bs-toggle="tooltip"
@@ -1083,6 +1137,135 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
         }
     });
+    // Embedding Index status & rebuild management
+    async function checkEmbeddingStatus() {
+        const badge = document.getElementById('embedding-status-badge');
+        const countEl = document.getElementById('embedding-vectors-count');
+        const modelEl = document.getElementById('embedding-active-model');
+        const builtEl = document.getElementById('embedding-last-built');
+        if (!badge) return;
+
+        try {
+            const resp = await fetch('/api/embeddings/status');
+            const data = await resp.json();
+            if (data.success && data.status) {
+                const st = data.status;
+                if (st.collection_exists) {
+                    badge.className = 'badge bg-success';
+                    badge.textContent = 'Active';
+                } else {
+                    badge.className = 'badge bg-warning text-dark';
+                    badge.textContent = 'Not Initialized';
+                }
+                countEl.textContent = (st.vectors_count || 0).toLocaleString();
+                modelEl.textContent = st.model_name || '-';
+                builtEl.textContent = st.last_built ? new Date(st.last_built).toLocaleString() : 'Never';
+            }
+        } catch(e) {
+            badge.className = 'badge bg-danger';
+            badge.textContent = 'Offline';
+        }
+    }
+
+    const btnRebuild = document.getElementById('btn-rebuild-embedding-index');
+    const btnDelete = document.getElementById('btn-delete-embedding-index');
+    const progressContainer = document.getElementById('embedding-rebuild-progress-bar-container');
+    const progressBar = document.getElementById('embedding-rebuild-progress-bar');
+    const statusMsg = document.getElementById('embedding-rebuild-status-msg');
+
+    if (btnRebuild) {
+        btnRebuild.addEventListener('click', async function() {
+            if (!confirm('Rebuild vector index now? This will encode all dictionary senses in Qdrant.')) return;
+            btnRebuild.disabled = true;
+            if (btnDelete) btnDelete.disabled = true;
+
+            progressContainer.classList.remove('d-none');
+            statusMsg.classList.remove('d-none');
+            statusMsg.textContent = 'Starting index rebuild...';
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+
+            try {
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const resp = await fetch('/api/embeddings/rebuild', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({})
+                });
+                const data = await resp.json();
+
+                if (resp.ok && data.job_id) {
+                    const jobId = data.job_id;
+                    const pollInterval = setInterval(async () => {
+                        try {
+                            const pResp = await fetch('/api/embeddings/rebuild/progress/' + jobId);
+                            const pData = await pResp.json();
+                            if (pData.success && pData.job) {
+                                const job = pData.job;
+                                statusMsg.textContent = job.message || 'Processing...';
+                                if (job.total > 0) {
+                                    const pct = Math.round((job.processed / job.total) * 100);
+                                    progressBar.style.width = pct + '%';
+                                    progressBar.textContent = pct + '%';
+                                }
+                                if (job.status === 'completed') {
+                                    clearInterval(pollInterval);
+                                    statusMsg.textContent = 'Rebuild completed successfully!';
+                                    progressBar.className = 'progress-bar bg-success';
+                                    btnRebuild.disabled = false;
+                                    if (btnDelete) btnDelete.disabled = false;
+                                    checkEmbeddingStatus();
+                                } else if (job.status === 'failed') {
+                                    clearInterval(pollInterval);
+                                    statusMsg.textContent = 'Failed: ' + (job.error || 'Unknown error');
+                                    progressBar.className = 'progress-bar bg-danger';
+                                    btnRebuild.disabled = false;
+                                    if (btnDelete) btnDelete.disabled = false;
+                                }
+                            }
+                        } catch(e) {
+                            clearInterval(pollInterval);
+                            btnRebuild.disabled = false;
+                            if (btnDelete) btnDelete.disabled = false;
+                        }
+                    }, 1000);
+                } else {
+                    alert('Failed to start rebuild: ' + (data.error || 'Unknown error'));
+                    btnRebuild.disabled = false;
+                    if (btnDelete) btnDelete.disabled = false;
+                }
+            } catch(e) {
+                alert('Network error initiating rebuild');
+                btnRebuild.disabled = false;
+                if (btnDelete) btnDelete.disabled = false;
+            }
+        });
+    }
+
+    if (btnDelete) {
+        btnDelete.addEventListener('click', async function() {
+            if (!confirm('Clear vector index collection? Semantic search will be unavailable until rebuilt.')) return;
+            try {
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const resp = await fetch('/api/embeddings/', {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': csrf }
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    alert('Index cleared.');
+                    checkEmbeddingStatus();
+                } else {
+                    alert('Could not delete index: ' + (data.error || 'Unknown error'));
+                }
+            } catch(e) {
+                alert('Network error');
+            }
+        });
+    }
+
+    checkEmbeddingStatus();
 });
 </script>
 {% endblock %}
+

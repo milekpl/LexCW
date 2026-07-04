@@ -1000,12 +1000,14 @@ def search():
     entries = []
     total = 0
 
+    semantic = request.args.get("semantic", "0") in ("1", "true", "True")
+
     if query:
         try:
             dict_service = current_app.injector.get(DictionaryService)
             offset = (page - 1) * per_page
             entries, total = dict_service.search_entries(
-                query=query, limit=per_page, offset=offset
+                query=query, limit=per_page, offset=offset, semantic=semantic
             )
         except Exception as e:
             logger.error(f"Error searching entries: {e}", exc_info=True)

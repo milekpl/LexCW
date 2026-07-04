@@ -183,6 +183,30 @@ class SettingsForm(FlaskForm):
         description='Word sketch / collocation analysis service URL'
     )
 
+    # Semantic Embeddings settings
+    embedding_model = SelectField(
+        'Embedding Model',
+        choices=[
+            ('jinaai/jina-embeddings-v3', 'Jina v3 (Multilingual - Recommended)'),
+            ('intfloat/multilingual-e5-large', 'Multilingual E5 Large'),
+            ('sentence-transformers/paraphrase-multilingual-mpnet-base-v2', 'MPNet Multilingual Base'),
+            ('sentence-transformers/all-MiniLM-L6-v2', 'MiniLM L6 (Lightweight - English)'),
+            ('BAAI/bge-m3', 'BGE-M3 (Multilingual)'),
+        ],
+        default='jinaai/jina-embeddings-v3',
+        description='Sentence-transformer model used for vector similarity and semantic search'
+    )
+
+    embedding_device = SelectField(
+        'Embedding Device',
+        choices=[
+            ('cpu', 'CPU'),
+            ('cuda', 'GPU (CUDA)'),
+        ],
+        default='cpu',
+        description='Device for running local model inference'
+    )
+
     # Submit button
     submit = SubmitField('Update Settings')
 
@@ -297,6 +321,8 @@ class SettingsForm(FlaskForm):
                     self.languagetool_url.data = getattr(ps, 'languagetool_url', 'http://localhost:8081') or 'http://localhost:8081'
                     self.corpus_url.data = getattr(ps, 'corpus_url', 'http://localhost:8082') or 'http://localhost:8082'
                     self.wordsketch_url.data = getattr(ps, 'wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
+                    self.embedding_model.data = getattr(ps, 'embedding_model', 'jinaai/jina-embeddings-v3') or 'jinaai/jina-embeddings-v3'
+                    self.embedding_device.data = getattr(ps, 'embedding_device', 'cpu') or 'cpu'
             except Exception:
                 pass
         
@@ -350,6 +376,8 @@ class SettingsForm(FlaskForm):
             self.languagetool_url.data = config.get('languagetool_url', 'http://localhost:8081') or 'http://localhost:8081'
             self.corpus_url.data = config.get('corpus_url', 'http://localhost:8082') or 'http://localhost:8082'
             self.wordsketch_url.data = config.get('wordsketch_url', 'http://localhost:8083') or 'http://localhost:8083'
+            self.embedding_model.data = config.get('embedding_model', 'jinaai/jina-embeddings-v3') or 'jinaai/jina-embeddings-v3'
+            self.embedding_device.data = config.get('embedding_device', 'cpu') or 'cpu'
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -415,6 +443,8 @@ class SettingsForm(FlaskForm):
             'languagetool_url': self.languagetool_url.data or 'http://localhost:8081',
             'corpus_url': self.corpus_url.data or 'http://localhost:8082',
             'wordsketch_url': self.wordsketch_url.data or 'http://localhost:8083',
+            'embedding_model': self.embedding_model.data or 'jinaai/jina-embeddings-v3',
+            'embedding_device': self.embedding_device.data or 'cpu',
         }
         
     def get_language_statistics(self) -> Dict[str, Any]:

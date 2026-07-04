@@ -123,6 +123,7 @@
                     <a class="nav-link" href="#bulk-operations">Bulk Operations</a>
                 </nav>
                 <a class="nav-link" href="#validation-tool">Validation Tool</a>
+                <a class="nav-link" href="#duplicate-detection">Duplicate Detection</a>
                 <a class="nav-link" href="#corpus-management">Corpus Management</a>
                 <a class="nav-link" href="#activity-log">Activity Log</a>
                 <a class="nav-link" href="#workflow">Workflow Features</a>
@@ -863,6 +864,27 @@ for entry in entries:
             </p>
             <p>
                 <strong>Access:</strong> <em>Tools → Validation</em> or <em>Tools → Batch Validation</em>
+            </p>
+
+            <h2 id="duplicate-detection"><i class="fas fa-clone"></i> Duplicate Detection &amp; Data Quality <span class="feature-badge badge-professional">Professional</span></h2>
+            <p>
+                The Data Quality Dashboard offers advanced tools to analyze dictionary health, identify redundant data, 
+                and deduplicate headwords and example sentences.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Exact &amp; Near Duplicate Detection</strong>: Scan headwords using advanced normalization:
+                    <ul>
+                        <li><em>Parenthetical Normalization</em>: Normalizes headwords with parentheses (e.g., matching <code>"a little (bit)"</code> with <code>"little"</code> or <code>"little bit"</code>).</li>
+                        <li><em>Compound Normalization</em>: Normalizes compounds by ignoring spaces and hyphens (e.g., matching <code>"log-in"</code> with <code>"log in"</code>).</li>
+                        <li><em>POS Wildcard Matching</em>: Entries with no part of speech can group with matching headwords of any POS.</li>
+                        <li><em>Homograph Filtering</em>: Filters candidate groups by definition similarity using character-trigram Jaccard scores to separate homographs from true duplicate entries.</li>
+                    </ul>
+                </li>
+                <li><strong>Redundant Examples Finder</strong>: Identifies identical or highly similar example sentences and phrase subentries across the dictionary (using Jaro-Winkler similarity with a 95% threshold) to clean up repetitive translations.</li>
+                <li><strong>One-Click Curation</strong>: Dynamic grouping view that allows you to compare entries side-by-side, suggest which duplicate to keep (e.g. prioritizing metadata completeness), dismiss false positives, or merge entries directly.</li>
+            </ul>
+            <p>
+                <strong>Access:</strong> <em>Tools → Data Quality</em> or <em>Dashboard → Data Quality</em>
             </p>
 
             <h2 id="corpus-management"><i class="fas fa-database"></i> Corpus Management <span class="feature-badge badge-advanced">Advanced</span></h2>

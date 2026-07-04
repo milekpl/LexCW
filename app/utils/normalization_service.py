@@ -189,7 +189,6 @@ class NormalizationService:
     _XML_DECLARATION_PATTERN: Pattern = re.compile(r'<\?xml[^>]*\?>')
     _XML_WHITESPACE_PATTERN: Pattern = re.compile(r'>\s+<')
     _XML_NAMESPACED_LIFT_PATTERN: Pattern = re.compile(r'^<(\w+:)?lift(\s|>)')
-    _FIELD_PATH_PATTERN: Pattern = re.compile(r'[.\[\]]')
 
     def __init__(
         self,
@@ -631,43 +630,6 @@ class NormalizationService:
         return ""
 
     # =====================================================================
-    # Field Path Normalization
-    # =====================================================================
-
-    def normalize_field_path(self, path: str) -> str:
-        """
-        Normalize field path to standard dot notation.
-
-        Args:
-            path: Field path (may use various separators)
-
-        Returns:
-            Normalized dot-notation path
-        """
-        if not path:
-            return ""
-
-        # Normalize separators
-        result = path.strip()
-        result = result.replace('->', '.')
-        result = result.replace('/', '.')
-        result = result.replace('\\', '.')
-
-        # Remove array brackets (normalize to simple dot)
-        result = re.sub(r'\[(\d+)\]', r'.\1', result)
-        result = result.replace('[]', '')
-        result = result.replace('[', '.')
-        result = result.replace(']', '')
-
-        # Collapse multiple dots
-        result = re.sub(r'\.+', '.', result)
-
-        # Remove leading/trailing dots
-        result = result.strip('.')
-
-        return result.lower()
-
-    # =====================================================================
     # Unicode Normalization
     # =====================================================================
 
@@ -687,62 +649,6 @@ class NormalizationService:
 
         form = form or self.unicode_normalization
         return unicodedata.normalize(form, text)
-
-    # =====================================================================
-    # General String Normalization
-    # =====================================================================
-
-    def normalize_string(self, text: str, mode: Optional[NormalizationMode] = None) -> str:
-        """
-        General string normalization.
-
-        Args:
-            text: String to normalize
-            mode: Normalization mode
-
-        Returns:
-            Normalized string
-        """
-        if not text:
-            return ""
-
-        mode = mode or self.mode
-        result = text.strip()
-
-        if mode == NormalizationMode.STRICT:
-            # Aggressive normalization
-            result = result.lower()
-            result = re.sub(r'[^\w\s]', '', result)
-            result = re.sub(r'\s+', ' ', result)
-        elif mode == NormalizationMode.STANDARD:
-            # Standard normalization
-            result = result.strip()
-            result = re.sub(r'\s+', ' ', result)
-        elif mode == NormalizationMode.LENIENT:
-            # Minimal normalization
-            result = result.strip()
-
-        # Always apply Unicode normalization
-        result = unicodedata.normalize(self.unicode_normalization, result)
-
-        return result
-
-    def normalize_whitespace(self, text: str) -> str:
-        """
-        Normalize whitespace in string.
-
-        Args:
-            text: Input string
-
-        Returns:
-            String with normalized whitespace
-        """
-        if not text:
-            return ""
-
-        # Replace all whitespace with single space
-        result = re.sub(r'\s+', ' ', text)
-        return result.strip()
 
     # =====================================================================
     # Private helper methods
@@ -799,16 +705,6 @@ def normalize_lift_xml(
 def normalize_multilingual_dict(data: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize multilingual dictionary using default settings."""
     return _default_service.normalize_multilingual_dict(data)
-
-
-def normalize_field_path(path: str) -> str:
-    """Normalize field path using default settings."""
-    return _default_service.normalize_field_path(path)
-
-
-def normalize_string(text: str) -> str:
-    """Normalize general string using default settings."""
-    return _default_service.normalize_string(text)
 
 
 def normalize_unicode(text: str, form: str = 'NFC') -> str:

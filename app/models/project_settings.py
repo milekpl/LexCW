@@ -63,6 +63,12 @@ class ProjectSettings(db.Model):
     corpus_url = Column(String(500), nullable=True, default="http://localhost:8082")
     wordsketch_url = Column(String(500), nullable=True, default="http://localhost:8083")
 
+    # Embedding / semantic search settings
+    embedding_model = Column(String(200), nullable=True, default='jinaai/jina-embeddings-v3')
+    embedding_device = Column(String(20), nullable=True, default='cpu')
+    embedding_last_built = Column(DateTime, nullable=True)
+    embedding_sense_count = Column(Integer, nullable=True, default=0)
+
     owner_id: Optional[int] = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -85,6 +91,10 @@ class ProjectSettings(db.Model):
             "languagetool_url": self.languagetool_url or 'http://localhost:8081',
             "corpus_url": self.corpus_url or 'http://localhost:8082',
             "wordsketch_url": self.wordsketch_url or 'http://localhost:8083',
+            "embedding_model": self.embedding_model or 'jinaai/jina-embeddings-v3',
+            "embedding_device": self.embedding_device or 'cpu',
+            "embedding_last_built": self.embedding_last_built.isoformat() if self.embedding_last_built else None,
+            "embedding_sense_count": self.embedding_sense_count or 0,
         }
 
 
