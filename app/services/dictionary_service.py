@@ -859,9 +859,10 @@ class DictionaryService:
             if not target_db:
                 return {}
 
-            has_ns = self._detect_namespace_usage(project_id=project_id)
+            has_ns = self._detect_namespace_usage()
             prologue = self._query_builder.get_namespace_prologue(has_ns)
             entry_path = self._query_builder.get_element_path("entry", has_ns)
+            lexical_unit_path = self._query_builder.get_element_path("lexical-unit", has_ns)
             form_path = self._query_builder.get_element_path("form", has_ns)
             text_path = self._query_builder.get_element_path("text", has_ns)
             sense_path = self._query_builder.get_element_path("sense", has_ns)
@@ -872,7 +873,7 @@ class DictionaryService:
             query = f"""{prologue}
             <results>{{
               for $entry in collection('{target_db}')//{entry_path}[@id = ({ids_quoted})]
-              let $hw := string($entry/{lu_path}/{form_path}/{text_path}[1])
+              let $hw := string($entry/{lexical_unit_path}/{form_path}/{text_path}[1])
               return
                 <item id="{{string($entry/@id)}}" headword="{{$hw}}"/>
             }}</results>
@@ -979,6 +980,56 @@ class DictionaryService:
         except Exception as e:
             self.logger.error("Error retrieving entry %s: %s", entry_id, str(e))
             raise DatabaseError(f"Failed to retrieve entry: {str(e)}") from e
+
+    def get_entries_by_ids(self, entry_ids: List[str], project_id: Optional[int] = None) -> List[Entry]:
+        """
+        Retrieve a list of Entry objects by their IDs in batch.
+
+        Args:
+            entry_ids: List of entry IDs to retrieve.
+            project_id: Optional project ID to determine database.
+
+        Returns:
+            List of matching Entry objects.
+        """
+        if not entry_ids:
+            return []
+
+        try:
+            db_name = self.db_connector.database
+            if project_id:
+                try:
+                    from app.config_manager import ConfigManager
+                    from flask import current_app
+                    cm = current_app.injector.get(ConfigManager)
+                    settings = cm.get_settings_by_id(project_id)
+                    if settings and settings.basex_db_name:
+                        db_name = settings.basex_db_name
+                except Exception as e:
+                    self.logger.debug(f"Error getting db_name for project {project_id}: {e}")
+
+            if not db_name:
+                return []
+
+            # Escape IDs for XQuery sequence
+            escaped_ids = [f"'{str(i).replace(chr(39), '''''')}'" for i in entry_ids]
+            id_seq = ", ".join(escaped_ids)
+            query = f"""
+            for $id in ({id_seq})
+            let $e := collection('{db_name}')//entry[@id = $id]
+            where exists($e)
+            return $e[1]
+            """
+            result_xml = self.db_connector.execute_query(query)
+            if not result_xml:
+                return []
+
+            wrapped_xml = f"<lift>{result_xml}</lift>"
+            parsed = self.lift_parser.parse_string(wrapped_xml)
+            return parsed or []
+        except Exception as e:
+            self.logger.error("Error in get_entries_by_ids: %s", e)
+            return []
 
     def create_entry(self, entry: Entry, draft: bool = False, skip_validation: bool = False, project_id: Optional[int] = None) -> str:
         """
@@ -3880,8 +3931,8 @@ class DictionaryService:
                     if main_hw == phrase_hw:
                         continue
 
-                    # Word boundary or substring containment
-                    match_found = bool(pattern.search(phrase_hw)) or (main_hw in phrase_hw)
+                    # Whole-word boundary match
+                    match_found = bool(pattern.search(phrase_hw))
                     if not match_found:
                         continue
 
@@ -3892,20 +3943,14 @@ class DictionaryService:
                     if sim < min_confidence:
                         sim = max(sim, 0.40)
 
+                    cft = 'Phrase' if ' ' in p['headword'].strip() else 'Compound'
                     candidates.append({
-                        'id': f"subentry-{m['entry_id']}-{p['entry_id']}",
+                        'id': f"subentry-{p['entry_id']}-{m['entry_id']}",
                         'scan_mode': 'subentry',
+                        'level': 'entry',
+                        'relation_type': '_component-lexeme',
+                        'complex_form_type': cft,
                         'source': {
-                            'entry_id': m['entry_id'],
-                            'headword': m['headword'],
-                            'citation_form': m['citation_form'],
-                            'definition': m.get('definition', ''),
-                            'gloss': m.get('gloss', ''),
-                            'pos': m['pos'],
-                            'sense_count': m['sense_count'],
-                            'sense_ids': m.get('sense_ids', []),
-                        },
-                        'target': {
                             'entry_id': p['entry_id'],
                             'headword': p['headword'],
                             'citation_form': p['citation_form'],
@@ -3915,8 +3960,17 @@ class DictionaryService:
                             'sense_count': p['sense_count'],
                             'sense_ids': p.get('sense_ids', []),
                         },
+                        'target': {
+                            'entry_id': m['entry_id'],
+                            'headword': m['headword'],
+                            'citation_form': m['citation_form'],
+                            'definition': m.get('definition', ''),
+                            'gloss': m.get('gloss', ''),
+                            'pos': m['pos'],
+                            'sense_count': m['sense_count'],
+                            'sense_ids': m.get('sense_ids', []),
+                        },
                         'similarity': round(sim, 2),
-                        'relation_type': 'subentry',
                         'match_reason': f"Main headword '{m['headword']}' found in phrase '{p['headword']}'",
                         'already_linked': False,
                     })
@@ -3977,31 +4031,93 @@ class DictionaryService:
                     best_pair = (sa.id, sb.id)
         return best_pair
 
-    def _create_relation(self, source_id: str, target_id: str, relation_type: str,
-                         source_sense_id: Optional[str] = None, target_sense_id: Optional[str] = None,
-                         project_id: Optional[int] = None) -> dict:
+    def _create_relation(
+        self,
+        source_id: str,
+        target_id: str,
+        relation_type: str,
+        source_sense_id: Optional[str] = None,
+        target_sense_id: Optional[str] = None,
+        level: Optional[str] = None,
+        complex_form_type: Optional[str] = None,
+        project_id: Optional[int] = None,
+    ) -> dict:
         """
-        Create a bidirectional relation between two senses (resolved from entry IDs).
+        Create a relation between entries or senses.
 
-        Uses targeted XQuery to insert sense-level <relation> elements (no data round-trip).
-        Then records the operation in history service for activity log / undo-redo.
-
-        Args:
-            source_id: ID of the source entry.
-            target_id: ID of the target entry.
-            relation_type: Type of relation (e.g. 'synonym').
-            source_sense_id: Optional specific source sense ID. If not given, the
-                             best-matching sense pair between the two entries is resolved.
-            target_sense_id: Optional specific target sense ID.
-            project_id: Optional project ID.
-
-        Returns:
-            dict with source_sense_id, target_sense_id, source_entry_id, target_entry_id.
+        Entry-level _component-lexeme relations (subentries) insert <relation type="_component-lexeme" ref="...">
+        directly into <entry id="..."> with complex-form-type traits.
+        Sense-level relations insert <relation> into <sense>.
         """
         source_entry = self.get_entry(source_id, project_id=project_id)
         target_entry = self.get_entry(target_id, project_id=project_id)
 
-        # Resolve sense IDs if not provided
+        if not source_entry or not target_entry:
+            raise ValueError(f"Entry {source_id} or {target_id} not found")
+
+        is_subentry_rel = relation_type in ('_component-lexeme', 'subentry') or level == 'entry'
+
+        if is_subentry_rel:
+            real_rel_type = '_component-lexeme' if relation_type in ('_component-lexeme', 'subentry') else relation_type
+            src_hw = getattr(source_entry, 'headword', '') or ''
+            cft = complex_form_type or ('Phrase' if ' ' in str(src_hw).strip() else 'Compound')
+
+            # Check if entry-level relation already exists on source_entry
+            for rel in getattr(source_entry, 'relations', []) or []:
+                rel_t = getattr(rel, 'type', '') if hasattr(rel, 'type') else (rel.get('type', '') if isinstance(rel, dict) else '')
+                rel_r = getattr(rel, 'ref', '') if hasattr(rel, 'ref') else (rel.get('ref', '') if isinstance(rel, dict) else '')
+                if rel_t == real_rel_type and rel_r == target_id:
+                    self.logger.info("Entry-level relation '%s' from %s to %s already exists", real_rel_type, source_id, target_id)
+                    return {
+                        'level': 'entry',
+                        'source_entry_id': source_id,
+                        'target_entry_id': target_id,
+                        'relation_type': real_rel_type,
+                        'complex_form_type': cft,
+                    }
+
+            db_name = self._resolve_db_name(project_id)
+            has_ns = self._detect_namespace_usage(project_id=project_id)
+            entry_path = self._query_builder.get_element_path("entry", has_ns)
+            relation_path = self._query_builder.get_element_path("relation", has_ns)
+            trait_path = self._query_builder.get_element_path("trait", has_ns)
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            C = f"collection('{db_name}')"
+
+            esc_src_eid = escape_xquery_string(source_id)
+            esc_tgt_eid = escape_xquery_string(target_id)
+            esc_type = escape_xquery_string(real_rel_type)
+            esc_cft = escape_xquery_string(cft)
+
+            rel_tag = relation_path.split(':')[0] + ':relation' if ':' in relation_path else 'relation'
+            trait_tag = trait_path.split(':')[0] + ':trait' if ':' in trait_path else 'trait'
+
+            query = (
+                f"{prologue} "
+                f"let $src := {C}//{entry_path}[@id='{esc_src_eid}'] "
+                f"let $forward := $src/{relation_path}[@type='{esc_type}' and @ref='{esc_tgt_eid}'] "
+                f"return ("
+                f"  if (empty($forward)) then "
+                f"    insert node <{rel_tag} type='{esc_type}' ref='{esc_tgt_eid}'><{trait_tag} name='complex-form-type' value='{esc_cft}'/><{trait_tag} name='is-primary' value='true'/></{rel_tag}> into $src "
+                f"  else ()"
+                f")"
+            )
+
+            try:
+                self.db_connector.execute_update(query)
+            except Exception as e:
+                self.logger.error("Error creating entry-level relation '%s' from %s to %s: %s", real_rel_type, source_id, target_id, e)
+                raise DatabaseError(f"Failed to create entry-level relation: {e}") from e
+
+            return {
+                'level': 'entry',
+                'source_entry_id': source_id,
+                'target_entry_id': target_id,
+                'relation_type': real_rel_type,
+                'complex_form_type': cft,
+            }
+
+        # Sense-level relation resolution logic
         if not source_sense_id or not target_sense_id:
             best = self._find_most_similar_senses(source_entry, target_entry)
             if best:
@@ -4195,45 +4311,6 @@ class DictionaryService:
         This is a wrapper that calls the unified import method.
         """
         return self._import_lift_with_ranges(lift_path, "replace", ranges_path)
-    
-    # [Original implementation removed - now using unified _import_lift_with_ranges method]
-        """
-        Unified method to handle LIFT import with ranges file support for both merge and replace modes.
-        
-        Args:
-            lift_path: Path to the LIFT file.
-            mode: Import mode - 'replace' or 'merge'.
-            ranges_path: Optional path to an accompanying .lift-ranges file provided by the user.
-            
-        Returns:
-            Number of entries imported/updated.
-            
-        Raises:
-            FileNotFoundError: If the LIFT file does not exist.
-            DatabaseError: If there is an error importing the data.
-        """
-        if not os.path.exists(lift_path):
-            raise FileNotFoundError(f"LIFT file not found: {lift_path}")
-            
-        # Use absolute path and forward slashes for BaseX commands
-        lift_path_basex = os.path.abspath(lift_path).replace("\\", "/")
-        self.logger.info("Importing LIFT file (%s mode): %s", mode, lift_path_basex)
-        
-        # Handle ranges file - prefer explicitly provided ranges_path over auto-detection
-        final_ranges_path = None
-        if ranges_path and os.path.exists(ranges_path):
-            self.logger.debug("Using user-provided ranges file: %s", ranges_path)
-            final_ranges_path = ranges_path
-        else:
-            # Auto-detect ranges file if not explicitly provided
-            final_ranges_path = self.find_ranges_file(lift_path)
-            if final_ranges_path:
-                self.logger.debug("Auto-detected ranges file: %s", final_ranges_path)
-        
-        if mode == "replace":
-            return self._import_lift_replace_with_ranges(lift_path, lift_path_basex, final_ranges_path)
-        else:  # merge
-            return self._import_lift_merge_with_ranges(lift_path, lift_path_basex, final_ranges_path)
 
     def _import_lift_replace_with_ranges(self, lift_path: str, lift_path_basex: str, ranges_path: Optional[str]) -> int:
         """
@@ -4478,131 +4555,6 @@ class DictionaryService:
                 os.unlink(temp_entries_path)
             except OSError:
                 pass
-        try:
-            if not os.path.exists(lift_path):
-                raise FileNotFoundError(f"LIFT file not found: {lift_path}")
-
-            # Use absolute path and forward slashes for BaseX commands
-            lift_path_basex = os.path.abspath(lift_path).replace("\\", "/")
-            self.logger.info("Merging LIFT file: %s", lift_path_basex)
-            
-            # Create temp database from LIFT file
-            temp_db_name = f"import_{random.randint(100000, 999999)}"
-            
-            try:
-                self.logger.info("Creating temp database: %s", temp_db_name)
-                self.db_connector.execute_command(f'CREATE DB {temp_db_name} "{lift_path_basex}"')
-                
-                # Check for and add associated .lift-ranges file if it exists
-                ranges_path = lift_path.replace('.lift', '.lift-ranges')
-                if os.path.exists(ranges_path):
-                    ranges_path_basex = os.path.abspath(ranges_path).replace("\\", "/")
-                    try:
-                        size = os.path.getsize(ranges_path)
-                    except Exception:
-                        size = None
-                    self.logger.info("Adding ranges file to temp database: %s (size=%s bytes)", ranges_path_basex, size)
-                    self.db_connector.execute_command(f'OPEN {temp_db_name}')
-                    ranges_filename = os.path.basename(ranges_path)
-                    if not ranges_filename.lower().endswith('.lift-ranges'):
-                        ranges_filename = ranges_filename + '.lift-ranges'
-                    self.db_connector.execute_command(f'ADD TO {ranges_filename} "{ranges_path_basex}"')
-
-                    # Verify ranges added to temp DB
-                    try:
-                        if self._verify_ranges_in_db(self.db_connector, temp_db_name):
-                            self.logger.info("Verified ranges document present in temp DB after ADD")
-                        else:
-                            self.logger.warning("Ranges document not detected in temp DB after ADD")
-                    except Exception as verify_e:
-                        self.logger.warning("Failed to verify ranges in temp DB after ADD: %s", verify_e)
-                
-                # Detect namespace usage in both databases
-                temp_has_ns = self._detect_namespace_usage_in_db(temp_db_name)
-                main_has_ns = self._detect_namespace_usage()
-                
-                temp_entry_path = self._query_builder.get_element_path("entry", temp_has_ns)
-                main_entry_path = self._query_builder.get_element_path("entry", main_has_ns)
-                
-                # Use combined prologue for both namespaces
-                prologue = self._query_builder.get_namespace_prologue(temp_has_ns or main_has_ns)
-                
-                # Count entries in temp database
-                count_query = f"{prologue} count(collection('{temp_db_name}')//{temp_entry_path})"
-                total_count = int(self.db_connector.execute_query(count_query) or 0)
-                self.logger.info("Found %d entries in LIFT file", total_count)
-                
-                if total_count == 0:
-                    self.logger.warning("No entries found in LIFT file")
-                    return 0
-                
-                # Perform bulk merge operation using a safer approach
-                # Instead of inserting nodes, we'll use a two-step process:
-                # 1. Delete existing entries that match
-                # 2. Add all entries from the temp database
-                
-                # Step 1: Delete entries that exist in both databases (will be replaced)
-                delete_query = f"""
-                {prologue}
-                let $source_entries := collection('{temp_db_name}')//{temp_entry_path}
-                for $source_entry in $source_entries
-                let $entry_id := $source_entry/@id/string()
-                let $target_entry := collection('{self.db_connector.database}')//{main_entry_path}[@id = $entry_id]
-                where exists($target_entry)
-                return delete node $target_entry
-                """
-                self.db_connector.execute_query(delete_query)
-                
-                # Step 2: Get all entries from temp database and add them to main database
-                # Use BaseX's db:add operation instead of XQuery insert nodes
-                # This is safer and avoids recursion issues
-                
-                # Export temp database entries to a string
-                export_query = f"{prologue} serialize(collection('{temp_db_name}')//{temp_entry_path}, map {{ 'method': 'xml', 'indent': true() }})"
-                entries_xml = self.db_connector.execute_query(export_query)
-                
-                # Add the entries to the main database using BaseX's ADD command
-                # First, create a temporary file with the entries
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as temp_file:
-                    temp_file.write(f'<entries>{entries_xml}</entries>')
-                    temp_entries_path = temp_file.name
-                
-                try:
-                    # Add the entries to the main database
-                    temp_entries_path_basex = os.path.abspath(temp_entries_path).replace("\\", "/")
-                    self.db_connector.execute_command(f'OPEN {self.db_connector.database}')
-                    self.db_connector.execute_command(f'ADD "{temp_entries_path_basex}"')
-
-                    # CRITICAL FIX: Add ranges file to the MAIN database after successful merge
-                    # Previously, ranges were only added to temp DB which then got dropped
-                    ranges_path = lift_path.replace('.lift', '.lift-ranges')
-                    if os.path.exists(ranges_path):
-                        self.logger.info("Adding ranges file to main database after merge: %s", ranges_path)
-                        self._add_ranges_file_to_database(self.db_connector, self.db_connector.database, ranges_path)
-
-                    self.logger.info("Merged %d entries from LIFT file", total_count)
-                    return total_count
-
-                finally:
-                    # Clean up temporary file
-                    try:
-                        os.unlink(temp_entries_path)
-                    except OSError:
-                        pass
-
-            finally:
-                # Clean up temp database
-                try:
-                    if temp_db_name in (self.db_connector.execute_command("LIST") or ""):
-                        self.db_connector.execute_command("CLOSE")
-                        self.db_connector.execute_command(f"DROP DB {temp_db_name}")
-                        self.logger.info("Temp database cleaned up: %s", temp_db_name)
-                except Exception as e:
-                    self.logger.warning("Error cleaning up temp database %s: %s", temp_db_name, e)
-
-        except Exception as e:
-            self.logger.error("Error merging LIFT file: %s", str(e), exc_info=True)
-            raise DatabaseError(f"Failed to merge LIFT file: {e}") from e
 
     def export_lift(self, project_id: Optional[int] = None, dual_file: bool = False) -> str:
         """
@@ -4651,7 +4603,7 @@ class DictionaryService:
                     export_service.export_ranges_file(project_id, temp_ranges_path)
 
                     # Determine the filename to store ranges under in DB (prefer existing filename from DB)
-                    sources = self._get_ranges_source_documents(self.db_connector, db_name, has_ns)
+                    sources = self._get_ranges_source_documents(self.db_connector, db_name, self._detect_namespace_usage())
                     ranges_filename = sources[0] if sources else 'ranges.lift-ranges'
 
                     # If ranges file does not appear to exist or is different, add/replace it
@@ -5095,32 +5047,25 @@ class DictionaryService:
                 self.logger.warning("No BaseX database configured; skipping undefined-range scan")
                 return
 
-            # Get entries and lists XML for scanning
-            lift_entries_xml = self.db_connector.execute_query(
-                f"string-join((for $entry in collection('{db_name}')//entry return serialize($entry)), '')"
-            )
+            rel_query = f"distinct-values(collection('{db_name}')//relation/@type/string())"
+            trait_query = f"distinct-values(collection('{db_name}')//trait/@name/string())"
+            raw_rels = self.db_connector.execute_query(rel_query) or ""
+            raw_traits = self.db_connector.execute_query(trait_query) or ""
+
+            found_relations = set(r.strip() for r in raw_rels.split('\n') if r.strip())
+            found_traits = set(t.strip() for t in raw_traits.split('\n') if t.strip())
+
+            if not found_relations and not found_traits:
+                return
+
             lists_xml = self.db_connector.execute_query(f"collection('{db_name}')//lists")
             ranges_xml = self.db_connector.execute_query(f"collection('{db_name}')//lift-ranges")
-
-            if not lift_entries_xml or not lift_entries_xml.strip():
-                self.logger.debug("No LIFT entries found to scan for undefined ranges")
-                return
 
             from app.parsers.undefined_ranges_parser import UndefinedRangesParser
             parser = UndefinedRangesParser()
 
-            # The BaseX query above returns a concatenation of serialized <entry/>
-            # fragments which is not a single XML document. Wrap entries in a
-            # synthetic <lift> root and strip any XML declarations so that
-            # ElementTree can parse the combined content.
-            sanitized = lift_entries_xml
-            # Remove XML prolog fragments that may occur between serialized entries
-            import re
-            sanitized = re.sub(r'<\?xml[^>]*\?>', '', sanitized)
-            sanitized = f"<lift>{sanitized}</lift>"
-
-            undefined_relations, undefined_traits = parser.identify_undefined_ranges(
-                sanitized, ranges_xml or None, lists_xml or None
+            undefined_relations, undefined_traits = parser.identify_undefined_ranges_from_sets(
+                found_relations, found_traits, ranges_xml or None
             )
 
             if not undefined_relations and not undefined_traits:

@@ -10,9 +10,10 @@ This document outlines the implementation tasks for the Advanced Search feature,
         *   **Requirements**: `7.3`, `18.2`
         *   **Status**: ✅ Done — sidebar with grammatical-info facets, click to filter, remove filter.
 
-    1.2. [ ] **Create Semantic Similarity Search**
+    1.2. [x] **Create Semantic Similarity Search**
         *   Create a semantic similarity search that allows users to find entries that are semantically similar to a given query.
         *   **Requirements**: `3.2.2`, `8.1.2`, `18.2`
+        *   **Status**: ✅ Done — `EmbeddingService` with Qdrant vector backend, GPU CUDA acceleration, multiple transformer models (`jinaai/jina-embeddings-v3`, `paraphrase-multilingual-mpnet-base-v2`, `all-MiniLM-L6-v2`), `/api/embeddings/search`, background rebuild job with live decimal progress and Stop Indexing control.
 
     1.3. [x] **Add Search Result Export Capabilities**
         *   Add the ability to export search results to different formats, such as CSV and JSON.
@@ -22,17 +23,20 @@ This document outlines the implementation tasks for the Advanced Search feature,
 2.  [ ] **Analysis Tools**
     *   This epic covers the implementation of analysis tools.
 
-    2.1. [ ] **Build Duplicate Detection Algorithms**
+    2.1. [x] **Build Duplicate Detection Algorithms**
         *   Build algorithms for detecting duplicate entries.
         *   **Requirements**: `3.4.1`, `18.2`
+        *   **Status**: ✅ Done — Exact/Near headword Levenshtein duplicate detection, Qdrant semantic duplicate detection via cosine similarity (`EmbeddingService.find_semantic_duplicates`), and orphaned phrase Subentry Discovery scan mode (`discover_subentries`).
 
-    2.2. [ ] **Implement Statistical Analysis Dashboard**
+    2.2. [x] **Implement Statistical Analysis Dashboard**
         *   Implement a dashboard for displaying statistical analysis of the dictionary data.
         *   **Requirements**: `3.4.2`, `18.2`
+        *   **Status**: ✅ Done — `app/api/dashboard.py` `/stats` endpoint & `dashboard.html` displaying headword composition charts, PoS distribution, and sense statistics.
 
-    2.3. [ ] **Add Data Completeness Assessment**
+    2.3. [x] **Add Data Completeness Assessment**
         *   Add a tool for assessing the completeness of the dictionary data.
         *   **Requirements**: `3.4.2`, `18.2`
+        *   **Status**: ✅ Done — `app/api/dashboard.py` `/quality` metrics endpoint calculating completeness scores for missing definitions, missing glosses, missing pronunciations, and incomplete entries.
 
     2.4. [ ] **Create Anomaly Detection System**
         *   Create a system for detecting anomalies in the dictionary data.

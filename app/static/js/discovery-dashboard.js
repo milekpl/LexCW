@@ -15,6 +15,7 @@
   var sampleSizeInput = document.getElementById('discovery-sample-size');
   var posInput = document.getElementById('discovery-pos');
   var scanModeInput = document.getElementById('discovery-scan-mode');
+  var relationTypeInput = document.getElementById('discovery-relation-type');
   var progressEl = document.getElementById('discovery-progress');
   var summaryEl = document.getElementById('discovery-summary');
   var contentEl = document.getElementById('discovery-content');
@@ -83,6 +84,7 @@
                 ' data-target-id="' + c.target.entry_id + '"' +
                 ' data-relation-type="' + c.relation_type + '"' +
                 ' data-level="' + level + '"' +
+                ' data-complex-form-type="' + (c.complex_form_type || '') + '"' +
                 ' data-source-sense-id="' + (c.source_sense_id || '') + '"' +
                 ' data-target-sense-id="' + (c.target_sense_id || '') + '"' +
                 '><i class="fas fa-plus-circle"></i> Create Relation</button>'
@@ -256,6 +258,7 @@
     var targetId = btn.getAttribute('data-target-id');
     var relationType = btn.getAttribute('data-relation-type') || 'synonym';
     var level = btn.getAttribute('data-level') || null;
+    var complexFormType = btn.getAttribute('data-complex-form-type') || null;
     var sourceSenseId = btn.getAttribute('data-source-sense-id') || null;
     var targetSenseId = btn.getAttribute('data-target-sense-id') || null;
     var qs = projectId ? '?project_id=' + encodeURIComponent(projectId) : '';
@@ -271,6 +274,7 @@
         target_id: targetId,
         relation_type: relationType,
         level: level,
+        complex_form_type: complexFormType,
         source_sense_id: sourceSenseId,
         target_sense_id: targetSenseId,
       }),

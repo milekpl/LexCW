@@ -140,11 +140,12 @@ function performSearch(page = 1) {
     const exactMatch = document.getElementById('check-exact-match').checked ? 1 : 0;
     const caseSensitive = document.getElementById('check-case-sensitive').checked ? 1 : 0;
     const useRegex = document.getElementById('check-use-regex').checked ? 1 : 0;
+    const useSemantic = (document.getElementById('check-semantic-search')?.checked || document.getElementById('check-use-semantic')?.checked) ? 1 : 0;
 
     const limit = 20;
     const offset = (page - 1) * limit;
 
-    _currentSearchParams = { query, fields, pos: posFilter, exactMatch, caseSensitive, useRegex };
+    _currentSearchParams = { query, fields, pos: posFilter, exactMatch, caseSensitive, useRegex, useSemantic };
 
     let url = `/api/search/?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
     if (fields) url += `&fields=${fields}`;
@@ -152,6 +153,7 @@ function performSearch(page = 1) {
     if (exactMatch) url += `&exact_match=${exactMatch}`;
     if (caseSensitive) url += `&case_sensitive=${caseSensitive}`;
     if (useRegex) url += `&use_regex=${useRegex}`;
+    if (useSemantic) url += `&use_semantic=${useSemantic}`;
 
     fetch(url)
         .then(response => {
@@ -175,8 +177,13 @@ function performSearch(page = 1) {
             document.getElementById('results-count').textContent = `${data.total} results found`;
             document.getElementById('results-pagination').style.display = 'block';
 
-            document.getElementById('search-results-header').textContent =
-                `Search Results for "${query}" (${data.total} results)`;
+            if (data.is_semantic) {
+                document.getElementById('search-results-header').innerHTML =
+                    `Search Results for "${query}" (${data.total} vector matches) <span class="badge bg-primary ms-2"><i class="fas fa-brain me-1"></i> Semantic AI Search</span>`;
+            } else {
+                document.getElementById('search-results-header').textContent =
+                    `Search Results for "${query}" (${data.total} results)`;
+            }
 
             addRecentSearch(query);
             showActionButtons();

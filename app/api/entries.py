@@ -4,6 +4,7 @@ API endpoints for managing dictionary entries.
 
 import json
 import logging
+import os
 from typing import Any
 from flask import Blueprint, request, jsonify, current_app, session
 from flasgger import swag_from

@@ -121,3 +121,38 @@ class UndefinedRangesParser:
             self.logger.error(f"Error parsing ranges XML: {e}")
         
         return defined_elements
+
+    def identify_undefined_ranges_from_sets(
+        self,
+        found_relations: Set[str],
+        found_traits: Set[str],
+        ranges_xml: Optional[str] = None,
+    ) -> Tuple[Set[str], Dict[str, Set[str]]]:
+        """
+        Identify relation types and traits from pre-extracted sets that are not defined in ranges.
+        """
+        undefined_relations = set()
+        undefined_traits = defaultdict(set)
+
+        if ranges_xml:
+            from app.utils.xml_security import reject_xxe
+            try:
+                reject_xxe(ranges_xml)
+                defined_elements = self._parse_defined_elements(ranges_xml)
+                for rel in found_relations:
+                    if rel not in defined_elements:
+                        undefined_relations.add(rel)
+                for trait in found_traits:
+                    if trait not in defined_elements:
+                        undefined_traits[trait] = set()
+            except Exception as e:
+                self.logger.warning("Error parsing ranges XML in identify_undefined_ranges_from_sets: %s", e)
+                undefined_relations = set(found_relations)
+                for trait in found_traits:
+                    undefined_traits[trait] = set()
+        else:
+            undefined_relations = set(found_relations)
+            for trait in found_traits:
+                undefined_traits[trait] = set()
+
+        return undefined_relations, dict(undefined_traits)

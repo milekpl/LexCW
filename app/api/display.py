@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from app.services.display_profile_service import DisplayProfileService
 from app.services.dictionary_service import DictionaryService
+from app.services.css_mapping_service import CSSMappingService
 
 def require_authentication(f):
     """Decorator to require authentication for API endpoints."""

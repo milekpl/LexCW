@@ -124,7 +124,10 @@ class EmbeddingService:
                                 logger.debug("Cache lookup note for %s: %s", model_name, dl_err)
 
                         from sentence_transformers import SentenceTransformer
-                        model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
+                        try:
+                            model = SentenceTransformer(model_name, device=device, trust_remote_code=True, local_files_only=True)
+                        except Exception:
+                            model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
                         self._model_cache[cache_key] = model
                     except Exception as e:
                         logger.error("Failed to load model %s: %s", model_name, e)
@@ -428,6 +431,49 @@ class EmbeddingService:
             "collection": collection_name,
         }
 
+    def _qdrant_search(
+        self,
+        client,
+        collection_name: str,
+        query_vector: list,
+        limit: int = 20,
+        score_threshold: Optional[float] = None,
+    ) -> list:
+        """Execute vector search across QdrantClient versions (query_points vs search)."""
+        try:
+            if hasattr(client, "query_points"):
+                kwargs = {
+                    "collection_name": collection_name,
+                    "query": query_vector,
+                    "limit": limit,
+                }
+                if score_threshold is not None and score_threshold > 0:
+                    kwargs["score_threshold"] = score_threshold
+                res = client.query_points(**kwargs)
+                if hasattr(res, "points") and isinstance(res.points, list):
+                    return res.points
+                if isinstance(res, list):
+                    return res
+
+            if hasattr(client, "search"):
+                kwargs = {
+                    "collection_name": collection_name,
+                    "query_vector": query_vector,
+                    "limit": limit,
+                }
+                if score_threshold is not None and score_threshold > 0:
+                    kwargs["score_threshold"] = score_threshold
+                res = client.search(**kwargs)
+                if isinstance(res, list):
+                    return res
+                if hasattr(res, "points") and isinstance(res.points, list):
+                    return res.points
+
+            return []
+        except Exception as e:
+            logger.warning("Qdrant vector query failed: %s", e)
+            return []
+
     def semantic_search(
         self,
         query: str,
@@ -459,7 +505,8 @@ class EmbeddingService:
         else:
             query_vector = list(encoded)
 
-        search_results = client.search(
+        search_results = self._qdrant_search(
+            client=client,
             collection_name=collection_name,
             query_vector=query_vector,
             limit=top_k * 2,
@@ -524,7 +571,8 @@ class EmbeddingService:
             if not entry_id:
                 continue
 
-            similar = client.search(
+            similar = self._qdrant_search(
+                client=client,
                 collection_name=collection_name,
                 query_vector=point.vector,
                 limit=5,
@@ -610,7 +658,8 @@ class EmbeddingService:
             if not point.vector:
                 continue
 
-            search_results = client.search(
+            search_results = self._qdrant_search(
+                client=client,
                 collection_name=collection_name,
                 query_vector=point.vector,
                 limit=top_k * 2,

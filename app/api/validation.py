@@ -2,6 +2,8 @@
 API endpoints for entry and dictionary validation.
 """
 
+import json
+
 from flask import Blueprint, jsonify, request, current_app
 from flasgger import swag_from
 from app.models.entry import Entry

@@ -6,7 +6,7 @@ reducing code duplication across API endpoints.
 """
 
 from functools import wraps
-from flask import jsonify, current_app
+from flask import jsonify, current_app, request
 from typing import Callable, Any, Union, Tuple
 from werkzeug.wrappers.response import Response
 

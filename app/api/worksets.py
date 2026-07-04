@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Union, Tuple
 from datetime import datetime
 
 from app.services.workset_service import WorksetService
+from app.api.entries import get_dictionary_service
 from app.models.workset import Workset, WorksetQuery
 
 logger = logging.getLogger(__name__)

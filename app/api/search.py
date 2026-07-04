@@ -100,6 +100,42 @@ def search_entries():
         dict_service = get_dictionary_service()
         project_id = session.get('project_id')
 
+        use_semantic = parse_bool(request.args.get('use_semantic', request.args.get('semantic', 'false')))
+        search_type = request.args.get('search_type', 'xquery').lower()
+
+        if use_semantic or search_type == 'semantic':
+            try:
+                from app.services.embedding_service import get_embedding_service
+                embedding_svc = get_embedding_service()
+                vector_hits = embedding_svc.semantic_search(
+                    query=query,
+                    project_id=project_id,
+                    top_k=limit + offset + 50,
+                    threshold=0.20,
+                )
+                if vector_hits:
+                    vec_ids = [hit['entry_id'] for hit in vector_hits if hit.get('entry_id')]
+                    semantic_entries = dict_service.get_entries_by_ids(vec_ids, project_id=project_id)
+                    if pos:
+                        semantic_entries = [e for e in semantic_entries if (
+                            getattr(e, 'grammatical_info', '') == pos or
+                            any(getattr(s, 'grammatical_info', '') == pos for s in getattr(e, 'senses', []))
+                        )]
+                    total_count = len(semantic_entries)
+                    paginated_entries = semantic_entries[offset : offset + limit]
+                    return jsonify({
+                        'query': query,
+                        'fields': fields,
+                        'entries': [entry.to_dict() for entry in paginated_entries],
+                        'total': total_count,
+                        'limit': limit,
+                        'offset': offset,
+                        'pos': pos,
+                        'is_semantic': True,
+                    })
+            except Exception as sem_err:
+                logger.warning("Semantic vector search failed, falling back to XQuery: %s", sem_err)
+
         field_regexes = None
         if use_regex:
             field_regexes = {field: query for field in fields}

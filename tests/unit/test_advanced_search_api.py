@@ -10,7 +10,7 @@ Tests the new endpoints:
 
 import json
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from flask.testing import FlaskClient
 from app.models.entry import Entry
 from app.models.sense import Sense
@@ -168,3 +168,33 @@ class TestSaveLoadSearch:
         names = [s['name'] for s in data['searches']]
         assert 'Search 1' in names
         assert 'Search 2' in names
+
+
+@pytest.mark.unit
+class TestSemanticSearchEndpoint:
+    """Test semantic vector search handling in /api/search/ endpoint."""
+
+    @patch("app.api.search.get_dictionary_service")
+    @patch("app.services.embedding_service.get_embedding_service")
+    def test_semantic_search_invoked(self, mock_get_emb_svc, mock_get_dict_svc, client):
+        """Passing use_semantic=1 should invoke EmbeddingService.semantic_search."""
+        mock_emb_svc = Mock()
+        mock_emb_svc.semantic_search.return_value = [
+            {"entry_id": "entry1", "score": 0.95}
+        ]
+        mock_get_emb_svc.return_value = mock_emb_svc
+
+        mock_dict_inst = Mock()
+        entry1 = Entry(id_="entry1", lexical_unit={"en": "feline"})
+        mock_dict_inst.get_entries_by_ids.return_value = [entry1]
+        mock_get_dict_svc.return_value = mock_dict_inst
+
+        response = client.get('/api/search/?q=cat&use_semantic=1')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+
+        assert data.get("is_semantic") is True
+        assert len(data.get("entries", [])) == 1
+        assert data["entries"][0]["id"] == "entry1"
+        mock_emb_svc.semantic_search.assert_called_once()
+        mock_dict_inst.get_entries_by_ids.assert_called_once_with(["entry1"], project_id=None)

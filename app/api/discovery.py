@@ -110,7 +110,10 @@ def start_discovery_scan():
         threshold = int(data.get('threshold', 1))
         min_confidence = float(data.get('min_confidence', 0.1 if data.get('scan_mode') == 'subentry' else 0.3))
         raw_sample = data.get('sample_size')
-        sample_size = int(raw_sample) if raw_sample else None
+        if raw_sample and str(raw_sample).strip().lower() not in ('', '0', 'all', 'none'):
+            sample_size = int(raw_sample)
+        else:
+            sample_size = None
         relation_type = data.get('relation_type', 'synonym')
         scan_mode = data.get('scan_mode', 'synonym')
 
@@ -184,6 +187,7 @@ def create_relation():
         source_sense_id = data.get('source_sense_id')
         target_sense_id = data.get('target_sense_id')
         level = data.get('level')  # 'entry' or 'sense' or None for auto-detect
+        complex_form_type = data.get('complex_form_type')
 
         if not source_id or not target_id:
             return jsonify({'success': False, 'error': 'source_id and target_id are required'}), 400
@@ -198,6 +202,8 @@ def create_relation():
             source_id, target_id, relation_type,
             source_sense_id=source_sense_id,
             target_sense_id=target_sense_id,
+            level=level,
+            complex_form_type=complex_form_type,
             project_id=project_id,
         )
 

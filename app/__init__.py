@@ -10,7 +10,7 @@ from pathlib import Path
 
 import click
 import defusedxml
-from flask import Flask, session, g, request, redirect, url_for
+from flask import Flask, session, g, request, redirect, url_for, current_app
 from flasgger import Swagger
 from injector import Injector, singleton
 import psycopg2
@@ -331,6 +331,7 @@ def create_app(config_name=None):
     from app.api.dashboard import dashboard_bp
     csrf.exempt(dashboard_bp)
     from app.api.discovery import discovery_bp
+    app.register_blueprint(discovery_bp)
     csrf.exempt(discovery_bp)
     from app.api.revisions_api import revisions_bp, stats_bp
     app.register_blueprint(revisions_bp)

@@ -804,7 +804,7 @@ def apply_style_template(profile_id: str):
             return jsonify({"error": "template_id is required"}), 400
 
         template_id = data["template_id"]
-        service = get_display_profile_service()
+        service = get_service()
         profile = service.apply_template(profile_id, template_id)
 
         if not profile:
