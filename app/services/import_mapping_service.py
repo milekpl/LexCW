@@ -10,6 +10,7 @@ from app.models.import_mapping import (
     ImportMapping,
     ImportFieldMapping,
     ImportLanguageMapping,
+    ImportPOSMapping,
 )
 from app.models.workset_models import db
 from app.utils.db_utils import safe_commit
@@ -75,6 +76,15 @@ class ImportMappingService:
                     target_lang=lm["target_lang"],
                 ))
 
+        if "pos_mappings" in kwargs:
+            for pm in kwargs["pos_mappings"]:
+                mapping.pos_mappings.append(ImportPOSMapping(
+                    mapping_id=mapping.id,
+                    source_value=pm["source_value"],
+                    target_value=pm["target_value"],
+                    note=pm.get("note"),
+                ))
+
         safe_commit(db, "import_mapping_service")
         return mapping
 
@@ -114,6 +124,17 @@ class ImportMappingService:
                     target_lang=lm["target_lang"],
                 ))
 
+        if "pos_mappings" in kwargs:
+            # Bulk replace all POS mappings for this profile
+            ImportPOSMapping.query.filter_by(mapping_id=mapping.id).delete()
+            for pm in kwargs["pos_mappings"]:
+                db.session.add(ImportPOSMapping(
+                    mapping_id=mapping.id,
+                    source_value=pm["source_value"],
+                    target_value=pm["target_value"],
+                    note=pm.get("note"),
+                ))
+
         safe_commit(db, "import_mapping_service")
         return mapping
 
@@ -140,6 +161,101 @@ class ImportMappingService:
             lm.source_lang: lm.target_lang
             for lm in mapping.language_mappings
         }
+
+    def to_pos_map_dict(self, mapping: ImportMapping) -> dict[str, str]:
+        """Return user-defined POS mappings as {source_value: target_value}.
+
+        Pass this to ``import_converter.import_parsed_document`` as
+        ``user_pos_map`` so user definitions take precedence over built-in hints.
+        Returns an empty dict when no POS mappings are configured, which
+        means the built-in SHOEBOX_POS_MAP hints will be used as fallback.
+        """
+        return {
+            pm.source_value: pm.target_value
+            for pm in mapping.pos_mappings
+        }
+
+    # ------------------------------------------------------------------
+    # POS mapping CRUD helpers
+    # ------------------------------------------------------------------
+
+    def set_pos_mapping(
+        self,
+        mapping_id: int,
+        source_value: str,
+        target_value: str,
+        note: Optional[str] = None,
+    ) -> ImportPOSMapping:
+        """Upsert a single POS mapping row (source_value is the unique key)."""
+        mapping = ImportMapping.query.get(mapping_id)
+        if mapping is None:
+            raise ValueError(f"ImportMapping {mapping_id} not found")
+        existing = ImportPOSMapping.query.filter_by(
+            mapping_id=mapping_id, source_value=source_value
+        ).first()
+        if existing:
+            existing.target_value = target_value
+            existing.note = note
+            pm = existing
+        else:
+            pm = ImportPOSMapping(
+                mapping_id=mapping_id,
+                source_value=source_value,
+                target_value=target_value,
+                note=note,
+            )
+            db.session.add(pm)
+        safe_commit(db, "import_mapping_service")
+        return pm
+
+    def delete_pos_mapping(self, pos_mapping_id: int) -> bool:
+        """Delete a single ImportPOSMapping row by its own PK."""
+        pm = ImportPOSMapping.query.get(pos_mapping_id)
+        if pm is None:
+            return False
+        db.session.delete(pm)
+        safe_commit(db, "import_mapping_service")
+        return True
+
+    def get_pos_mappings(self, mapping_id: int) -> list[ImportPOSMapping]:
+        """Return all POS mappings for a given ImportMapping."""
+        return ImportPOSMapping.query.filter_by(mapping_id=mapping_id).all()
+
+    def detect_unmapped_pos_values(
+        self,
+        mapping_id: int,
+        sfm_text: str,
+        pos_marker: str = "ps",
+    ) -> list[dict]:
+        """Scan SFM text for \\ps values not yet covered by user mappings.
+
+        Returns a list of {source_value, suggested, count} dicts sorted by
+        count descending, for use in the POS mapping UI.
+        """
+        from app.services.sfm_parser import _parse_marker_line
+        from app.services.import_converter import SHOEBOX_POS_MAP
+        from collections import Counter
+
+        user_map = self.to_pos_map_dict(
+            ImportMapping.query.get(mapping_id) or ImportMapping()
+        )
+        counts: Counter = Counter()
+        for line in sfm_text.split("\n"):
+            marker, _, value = _parse_marker_line(line)
+            if marker == pos_marker and value:
+                counts[value.strip()] += 1
+
+        result = []
+        for val, count in counts.most_common():
+            if val in user_map:
+                continue  # already mapped
+            suggested = SHOEBOX_POS_MAP.get(val.lower())
+            result.append({
+                "source_value": val,
+                "suggested": suggested,
+                "count": count,
+            })
+        return result
 
     def auto_detect_mapping_from_sfm(
         self,

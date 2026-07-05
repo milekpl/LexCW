@@ -1,6 +1,16 @@
 (function () {
   'use strict';
 
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   // ----- Refresh button -----
   const refreshBtn = document.getElementById('refresh-quality-btn');
   if (refreshBtn) {
@@ -452,6 +462,76 @@
           if (examplesProgress) examplesProgress.classList.add('d-none');
         });
     });
+  }
+
+  // ----- Data Anomalies & ML POS Coherence -----
+  var anomaliesLoading = document.getElementById('anomalies-loading');
+  if (anomaliesLoading) {
+    fetch('/api/dashboard/anomalies')
+      .then(function (r) { return r.json(); })
+      .then(function (resp) {
+        anomaliesLoading.style.display = 'none';
+        if (!resp.success || !resp.anomalies) {
+          var ncList = document.getElementById('non-canon-list');
+          if (ncList) ncList.innerHTML = '<p class="text-danger small mb-0">Failed to load anomaly data.</p>';
+          return;
+        }
+
+        var a = resp.anomalies;
+        var s = resp.summary || {};
+
+        // Non-canonical POS
+        var ncCount = document.getElementById('non-canon-count');
+        if (ncCount) ncCount.textContent = s.non_canonical_pos_count || 0;
+        var ncList = document.getElementById('non-canon-list');
+        if (ncList) {
+          if (a.non_canonical_pos && a.non_canonical_pos.length > 0) {
+            var ncHtml = '<ul class="list-unstyled mt-1 mb-0">';
+            a.non_canonical_pos.slice(0, 10).forEach(function (item) {
+              var eid = String(item.entry_id || '');
+              var label = eid.length > 12 ? eid.substring(0, 12) + '…' : eid;
+              ncHtml += '<li><a href="/entries/' + encodeURIComponent(eid) + '"><i class="fas fa-external-link-alt fa-xs me-1"></i>Entry ' + esc(label) + '</a>';
+              ncHtml += ' <span class="badge bg-warning text-dark">' + esc(item.pos_value || '') + '</span>';
+              if (item.suggested) {
+                ncHtml += ' <i class="fas fa-arrow-right text-muted mx-1"></i><span class="badge bg-success">' + esc(item.suggested) + '</span>';
+              }
+              ncHtml += '</li>';
+            });
+            ncHtml += '</ul>';
+            ncList.innerHTML = ncHtml;
+          } else {
+            ncList.innerHTML = '<p class="text-success small mb-0"><i class="fas fa-check-circle me-1"></i>All POS values are canonical.</p>';
+          }
+        }
+
+        // ML POS Coherence Mismatches
+        var misCount = document.getElementById('mismatch-count');
+        if (misCount) misCount.textContent = s.pos_coherence_mismatch_count || 0;
+        var misList = document.getElementById('mismatch-list');
+        if (misList) {
+          if (a.pos_coherence_mismatches && a.pos_coherence_mismatches.length > 0) {
+            var mHtml = '<ul class="list-unstyled mt-1 mb-0">';
+            a.pos_coherence_mismatches.slice(0, 10).forEach(function (item) {
+              var eid = String(item.entry_id || '');
+              var hw = String(item.headword || eid || 'entry');
+              mHtml += '<li><a href="/entries/' + encodeURIComponent(eid) + '"><i class="fas fa-external-link-alt fa-xs me-1"></i>' + esc(hw) + '</a>';
+              mHtml += ' <span class="badge bg-secondary">' + esc(item.actual_pos || '') + '</span>';
+              mHtml += ' <i class="fas fa-arrow-right text-muted mx-1"></i><span class="badge bg-danger">' + esc(item.predicted_pos || '') + ' (' + Math.round((item.confidence || 0) * 100) + '%)</span>';
+              mHtml += '</li>';
+            });
+            mHtml += '</ul>';
+            misList.innerHTML = mHtml;
+          } else {
+            misList.innerHTML = '<p class="text-success small mb-0"><i class="fas fa-check-circle me-1"></i>No ML POS definition mismatches detected.</p>';
+          }
+        }
+      })
+      .catch(function (err) {
+        console.error('Error loading anomalies:', err);
+        if (anomaliesLoading) anomaliesLoading.style.display = 'none';
+        var ncList = document.getElementById('non-canon-list');
+        if (ncList) ncList.innerHTML = '<p class="text-danger small mb-0">Error loading anomaly data.</p>';
+      });
   }
 })();
 

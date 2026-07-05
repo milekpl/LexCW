@@ -23,7 +23,9 @@ dashboard_bp = Blueprint('dashboard_api', __name__, url_prefix='/dashboard')
 logger = logging.getLogger(__name__)
 
 # File-based scan job storage (survives reloads, works across workers)
-SCAN_JOBS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'instance', 'scan_jobs')
+SCAN_JOBS_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'instance', 'scan_jobs')
+)
 
 
 def _job_path(job_id: str) -> str:
@@ -278,7 +280,167 @@ def get_composition_stats():
         }), 500
 
 
-@dashboard_bp.route('/clear-cache', methods=['POST'])
+@dashboard_bp.route('/anomalies', methods=['GET'])
+def get_anomalies():
+    """
+    Detect data anomalies in the dictionary.
+
+    Checks performed:
+    - Non-canonical POS abbreviations (e.g. 'n', 'v', 'adj' instead of 'Noun', 'Verb', 'Adjective')
+    - Duplicate headwords (same text, different entry IDs)
+    - Entries with an empty or missing headword
+    - Senses with neither a definition nor a gloss
+    - ML POS-Definition Coherence Mismatches
+    ---
+    tags:
+      - Dashboard
+    responses:
+      200:
+        description: Anomaly report
+      500:
+        description: Internal server error
+    """
+    try:
+        cache = CacheService()
+        cache_key = "dashboard:anomalies:v1"
+        if cache.is_available():
+            cached = cache.get(cache_key)
+            if cached and isinstance(cached, dict):
+                return jsonify(cached)
+
+        from app.services.import_converter import SHOEBOX_POS_MAP
+        dict_service = current_app.injector.get(DictionaryService)
+        project_id = request.args.get('project_id', type=int)
+        if not project_id:
+            from flask import session as _s
+            project_id = _s.get('project_id')
+
+        has_ns = dict_service._detect_namespace_usage()
+        prologue = dict_service._query_builder.get_namespace_prologue(has_ns)
+        entry_path = dict_service._query_builder.get_element_path('entry', has_ns)
+        lu_path = dict_service._query_builder.get_element_path('lexical-unit', has_ns)
+        form_path = dict_service._query_builder.get_element_path('form', has_ns)
+        text_path = dict_service._query_builder.get_element_path('text', has_ns)
+        sense_path = dict_service._query_builder.get_element_path('sense', has_ns)
+        gi_path = dict_service._query_builder.get_element_path('grammatical-info', has_ns)
+        def_path = dict_service._query_builder.get_element_path('definition', has_ns)
+        gloss_path = dict_service._query_builder.get_element_path('gloss', has_ns)
+
+        db_name = dict_service.db_connector.database
+        C = f"collection('{db_name}')"
+
+        canonical_pos = set(SHOEBOX_POS_MAP.values())
+
+        anomalies = {
+            'non_canonical_pos': [],
+            'duplicate_headwords': [],
+            'missing_headwords': [],
+            'empty_senses': [],
+            'pos_coherence_mismatches': [],
+        }
+
+        # Unified single-pass XQuery to fetch entry, headword, POS, sense ID, and definition text
+        unified_q = (
+            f"{prologue} "
+            f"for $e in {C}//{entry_path} "
+            f"let $eid := string($e/@id) "
+            f"let $hw := normalize-space(($e/{lu_path}/{form_path}/{text_path}/string(), '')[1]) "
+            f"for $s in $e//{sense_path} "
+            f"let $sid := string(($s/@id, '')[1]) "
+            f"let $gi := string(($s/{gi_path}/@value/string(), $e/{gi_path}/@value/string())[1]) "
+            f"let $dtext := string-join(($s/{def_path}//{text_path}/string(), $s/{gloss_path}//{text_path}/string()), ' ') "
+            f"return concat($eid, '|||', $hw, '|||', $gi, '|||', $sid, '|||', normalize-space($dtext))"
+        )
+        raw = dict_service.db_connector.execute_query(unified_q)
+
+        seen_noncanon: set = set()
+        hw_map: dict[str, set[str]] = {}
+        missing_hw_entries: set[str] = set()
+        ml_data: list[tuple[str, str, str, str]] = []
+
+        for line in (raw or "").strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("|||")
+            if len(parts) < 5:
+                continue
+            eid, hw, gi, sid, dtext = parts[0], parts[1], parts[2], parts[3], parts[4]
+
+            # 1. Non-canonical POS
+            if gi and gi not in canonical_pos:
+                key = (eid, gi)
+                if key not in seen_noncanon:
+                    seen_noncanon.add(key)
+                    suggested = SHOEBOX_POS_MAP.get(gi.lower())
+                    anomalies['non_canonical_pos'].append({
+                        'entry_id': eid,
+                        'pos_value': gi,
+                        'suggested': suggested,
+                    })
+
+            # 2. Missing headwords
+            if not hw:
+                missing_hw_entries.add(eid)
+            else:
+                hw_map.setdefault(hw, set()).add(eid)
+
+            # 4. Empty senses
+            if not dtext:
+                anomalies['empty_senses'].append({'entry_id': eid, 'sense_id': sid})
+
+            # Data for ML POS Coherence model
+            if gi and dtext:
+                norm_p = SHOEBOX_POS_MAP.get(gi.lower(), gi)
+                ml_data.append((eid, hw, norm_p, dtext))
+
+        # 2. Missing headwords list
+        for eid in missing_hw_entries:
+            anomalies['missing_headwords'].append({'entry_id': eid})
+
+        # 3. Duplicate headwords list
+        for hw, ids in hw_map.items():
+            if len(ids) > 1:
+                anomalies['duplicate_headwords'].append({
+                    'headword': hw,
+                    'entry_ids': list(ids),
+                    'count': len(ids),
+                })
+
+        # 5. ML POS-Definition Coherence Mismatches
+        try:
+            from app.services.pos_coherence_service import get_pos_coherence_service
+            coherence_svc = get_pos_coherence_service()
+            anomalies['pos_coherence_mismatches'] = coherence_svc.detect_anomalies_from_data(
+                ml_data, min_confidence=0.80, limit=50
+            )
+        except Exception as e:
+            logger.warning("Anomaly check (POS coherence) failed: %s", e)
+
+        summary = {
+            'non_canonical_pos_count': len(anomalies['non_canonical_pos']),
+            'duplicate_headword_groups': len(anomalies['duplicate_headwords']),
+            'missing_headword_count': len(anomalies['missing_headwords']),
+            'empty_sense_count': len(anomalies['empty_senses']),
+            'pos_coherence_mismatch_count': len(anomalies['pos_coherence_mismatches']),
+        }
+
+        payload = {
+            'success': True,
+            'summary': summary,
+            'anomalies': anomalies,
+            'timestamp': datetime.now().isoformat(),
+        }
+        if cache.is_available():
+            cache.set(cache_key, payload, ttl=300)
+
+        return jsonify(payload)
+
+    except Exception as e:
+        logger.error(f"Error detecting anomalies: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @swag_from({
     'tags': ['Dashboard'],
     'summary': 'Clear dashboard cache',

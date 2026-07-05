@@ -13,6 +13,11 @@ from sqlalchemy.orm import relationship
 
 from app.models.workset_models import db
 
+try:
+    from sqlalchemy import JSON as SAJSON
+except ImportError:
+    from sqlalchemy import Text as SAJSON  # fallback
+
 
 FIELD_TYPES = (
     "normal",
@@ -54,6 +59,11 @@ class ImportMapping(db.Model):
         back_populates="mapping",
         cascade="all, delete-orphan",
     )
+    pos_mappings: List["ImportPOSMapping"] = relationship(
+        "ImportPOSMapping",
+        back_populates="mapping",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<ImportMapping id={self.id} name={self.name} type={self.file_type}>"
@@ -68,6 +78,7 @@ class ImportMapping(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "field_mappings": [fm.to_dict() for fm in self.field_mappings],
             "language_mappings": [lm.to_dict() for lm in self.language_mappings],
+            "pos_mappings": [pm.to_dict() for pm in self.pos_mappings],
         }
 
 
@@ -146,4 +157,53 @@ class ImportLanguageMapping(db.Model):
             "mapping_id": self.mapping_id,
             "source_lang": self.source_lang,
             "target_lang": self.target_lang,
+        }
+
+
+class ImportPOSMapping(db.Model):
+    """User-defined POS value mapping: source abbreviation → canonical LIFT value.
+
+    Shoebox files can carry arbitrary strings as \\ps values (e.g. 'n', 'vt',
+    'num', or language-specific abbreviations). This table lets the user define
+    the exact mapping for each import profile.
+
+    Built-in hints in ``import_converter.SHOEBOX_POS_MAP`` act as a fallback
+    when no explicit user mapping is present.
+    """
+
+    __tablename__ = "import_pos_mappings"
+    __allow_unmapped__ = True
+
+    id: int = Column(Integer, primary_key=True)
+    mapping_id: int = Column(
+        Integer,
+        ForeignKey("import_mappings.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # The raw value as it appears in the SFM file (case-sensitive).
+    source_value: str = Column(String(200), nullable=False)
+    # The canonical LIFT/FieldWorks value to substitute (e.g. 'Noun', 'Verb').
+    target_value: str = Column(String(200), nullable=False)
+    # Optional note for the lexicographer (e.g. 'abbreviation for intransitive verb').
+    note: Optional[str] = Column(Text, nullable=True)
+
+    mapping: ImportMapping = relationship(
+        "ImportMapping", back_populates="pos_mappings"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ImportPOSMapping id={self.id}"
+            f" {self.source_value!r} → {self.target_value!r}>"
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "mapping_id": self.mapping_id,
+            "source_value": self.source_value,
+            "target_value": self.target_value,
+            "note": self.note,
         }

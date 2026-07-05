@@ -147,7 +147,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | **dynamic_range_management** | 9/13 done | Project language settings union, E2E UI tests |
 | **css_mapping_system** | 2/8 done | Style templates added; admin interface + full dictionary-style/in-place entry display still needed |
 | **advanced_search** | 7/7 done ✅ | ✅ All complete — Faceted search, result export, regex search, search-within-results, save/load, composition stats dashboard (`/api/dashboard/stats`), data completeness assessment (`/api/dashboard/quality`), semantic similarity search (Qdrant + GPU CUDA), duplicate detection & subentry discovery. |
-| **ai_integration** | 4/10 done | ✅ LLM framework, content generation, proofread/draft workbench. Remaining: ML models (POS tagging, IPA generation), quality control automation, advanced linguistic analysis |
+| **ai_integration** | 6/10 done | ✅ LLM framework, content generation, proofread/draft workbench, POS/Definition ML anomaly detector (`POSCoherenceService` + `/api/dashboard/anomalies`). Remaining: ML models (POS tagger/IPA), quality control automation, advanced linguistic analysis |
 | **bulk_processing** | 1/4 done | Architecture, atomic transactions, rollback/recovery |
 | **advanced_entry_management** | 3/4 done | Validation pipelines implemented; bulk CRUD enhancements still needed |
 | **performance_optimization** | 0/1 done | XQuery optimization for large datasets |

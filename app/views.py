@@ -1431,7 +1431,19 @@ def import_shoebox_execute():
         doc = parser.parse(text)
 
         dict_service = current_app.injector.get(DictionaryService)
-        result = import_parsed_document(doc, field_map, {}, dict_service, mode=mode)
+
+        # Build user POS mapping from saved profile (if one was selected)
+        user_pos_map: dict = {}
+        mapping_id = request.form.get("mapping_id", type=int)
+        if mapping_id:
+            from app.services.import_mapping_service import ImportMappingService
+            _msvc = ImportMappingService()
+            _im = _msvc.get_by_id(mapping_id)
+            if _im:
+                user_pos_map = _msvc.to_pos_map_dict(_im)
+
+        result = import_parsed_document(doc, field_map, {}, dict_service, mode=mode,
+                                        user_pos_map=user_pos_map or None)
 
         # Optionally save the mapping
         save_name = request.form.get("save_mapping_name", "").strip()
@@ -1726,6 +1738,92 @@ def api_import_mappings_auto_detect():
         return jsonify(mapping.to_dict()), 201
     except Exception as e:
         logger.exception("Auto-detect error")
+        return jsonify({"error": str(e)}), 500
+
+
+# -- API: POS value mappings -----------------------------------------------
+
+
+@main_bp.route("/api/import-mappings/<int:mapping_id>/pos-mappings", methods=["GET"])
+def api_pos_mappings_list(mapping_id):
+    """List all user-defined POS value mappings for a given ImportMapping."""
+    from app.services.import_mapping_service import ImportMappingService
+    svc = ImportMappingService()
+    pms = svc.get_pos_mappings(mapping_id)
+    return jsonify([pm.to_dict() for pm in pms])
+
+
+@main_bp.route("/api/import-mappings/<int:mapping_id>/pos-mappings", methods=["POST"])
+def api_pos_mappings_set(mapping_id):
+    """Upsert a POS mapping row.
+
+    Body: {source_value, target_value, note?}
+    If a row with that source_value already exists it is updated in-place.
+    """
+    from app.services.import_mapping_service import ImportMappingService
+    svc = ImportMappingService()
+    data = request.get_json(silent=True) or {}
+    source = (data.get("source_value") or "").strip()
+    target = (data.get("target_value") or "").strip()
+    if not source or not target:
+        return jsonify({"error": "source_value and target_value are required"}), 400
+    try:
+        pm = svc.set_pos_mapping(mapping_id, source, target, note=data.get("note"))
+        return jsonify(pm.to_dict()), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        logger.exception("POS mapping upsert error")
+        return jsonify({"error": str(e)}), 500
+
+
+@main_bp.route("/api/import-mappings/pos-mappings/<int:pos_mapping_id>", methods=["DELETE"])
+def api_pos_mappings_delete(pos_mapping_id):
+    """Delete a single POS mapping row by its own PK."""
+    from app.services.import_mapping_service import ImportMappingService
+    svc = ImportMappingService()
+    if svc.delete_pos_mapping(pos_mapping_id):
+        return jsonify({"success": True})
+    return jsonify({"error": "Not found"}), 404
+
+
+@main_bp.route("/api/import-mappings/<int:mapping_id>/pos-mappings/bulk", methods=["PUT"])
+def api_pos_mappings_bulk(mapping_id):
+    """Replace ALL POS mappings for a profile in one call.
+
+    Body: {mappings: [{source_value, target_value, note?}, ...]}
+    """
+    from app.services.import_mapping_service import ImportMappingService
+    svc = ImportMappingService()
+    data = request.get_json(silent=True) or {}
+    rows = data.get("mappings", [])
+    try:
+        svc.update(mapping_id=mapping_id, pos_mappings=rows)
+        return jsonify({"success": True, "count": len(rows)})
+    except Exception as e:
+        logger.exception("POS mapping bulk update error")
+        return jsonify({"error": str(e)}), 500
+
+
+@main_bp.route("/api/import-mappings/<int:mapping_id>/pos-mappings/detect", methods=["POST"])
+def api_pos_mappings_detect(mapping_id):
+    """Scan SFM text for \\ps values not yet in the user's POS mapping.
+
+    Body: {text: "<sfm content>", pos_marker?: "ps"}
+    Returns [{source_value, suggested, count}] sorted by count desc.
+    """
+    from app.services.import_mapping_service import ImportMappingService
+    svc = ImportMappingService()
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "")
+    pos_marker = data.get("pos_marker", "ps")
+    if not text:
+        return jsonify({"error": "Missing 'text'"}), 400
+    try:
+        unmapped = svc.detect_unmapped_pos_values(mapping_id, text, pos_marker=pos_marker)
+        return jsonify({"unmapped": unmapped, "count": len(unmapped)})
+    except Exception as e:
+        logger.exception("POS detect error")
         return jsonify({"error": str(e)}), 500
 
 

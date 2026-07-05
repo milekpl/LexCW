@@ -92,6 +92,120 @@ FORM_ELEMENTS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Shoebox / MDF POS abbreviation → canonical FieldWorks LIFT POS name
+# ---------------------------------------------------------------------------
+# These are BUILT-IN HINTS ONLY. They act as a last-resort fallback when no
+# user-configured mapping exists in the ImportMapping.pos_mappings table.
+# User mappings always take precedence; this table is never consulted when a
+# matching ImportPOSMapping row is present.
+#
+# Keys are lowercased for case-insensitive lookup.
+SHOEBOX_POS_MAP: dict[str, str] = {
+    # Nouns
+    "n":          "Noun",
+    "noun":       "Noun",
+    "n.":         "Noun",
+    "cn":         "Noun",          # common noun
+    "pn":         "Noun",          # proper noun
+    "propn":      "Noun",
+    "c":          "Countable",
+    "count":      "Countable",
+    "u":          "Uncountable",
+    "uncount":    "Uncountable",
+    "mass":       "Uncountable",
+    # Verbs
+    "v":          "Verb",
+    "verb":       "Verb",
+    "v.":         "Verb",
+    "vt":         "Verb",          # transitive (no separate canonical; use Verb)
+    "vi":         "Verb",          # intransitive
+    "vtr":        "Verb",
+    "vintr":      "Verb",
+    "aux":        "Verb",          # auxiliary
+    # Adjectives
+    "adj":        "Adjective",
+    "adjective":  "Adjective",
+    "a":          "Adjective",
+    # Adverbs
+    "adv":        "Adverb",
+    "adverb":     "Adverb",
+    # Prepositions
+    "prep":       "Preposition",
+    "pre":        "Preposition",
+    "p":          "Preposition",
+    # Pronouns
+    "pron":       "Pronoun",
+    "pronoun":    "Pronoun",
+    "pro":        "Pronoun",
+    "pro-form":   "Pronoun",
+    # Conjunctions / connectives
+    "conj":       "Connective",
+    "con":        "Connective",
+    "or":         "Connective",
+    # Interjections
+    "interj":     "Interjection",
+    "int":        "Interjection",
+    "ij":         "Interjection",
+    # Articles / determiners
+    "art":        "Article",
+    "det":        "Determiner",
+    # Numerals
+    "num":        "Cardinal",
+    "numeral":    "Cardinal",
+    "card":       "Cardinal",
+    "ord":        "Ordinal",
+    # Affixes
+    "pref":       "Prefix",
+    "pfx":        "Prefix",
+    "suf":        "Suffix",
+    "sfx":        "Suffix",
+    "su":         "Suffix",
+    # Abbreviations / acronyms
+    "abbr":       "Abbreviation",
+    "acr":        "Acronym",
+    # Phrases / idioms
+    "phr":        "Phrasal",
+    "idiom":      "Idiom",
+}
+
+
+def normalize_pos(raw: str, user_pos_map: dict[str, str] | None = None) -> str:
+    """Map a POS value to its canonical LIFT name.
+
+    Resolution order:
+    1. ``user_pos_map`` — exact (case-sensitive) lookup from the user's
+       ImportPOSMapping rows for this import profile.
+    2. ``user_pos_map`` — case-insensitive fallback within user mappings.
+    3. ``SHOEBOX_POS_MAP`` — built-in hints (case-insensitive).
+    4. Return *raw* unchanged if nothing matches.
+
+    Args:
+        raw: The POS string as it appears in the source file.
+        user_pos_map: Optional dict of {source_value: target_value} built
+            from the active ImportMapping's pos_mappings rows.  Keys should
+            be the original strings (case-sensitive).
+    """
+    stripped = raw.strip()
+    if not stripped:
+        return stripped
+    # 1. User mapping exact match
+    if user_pos_map and stripped in user_pos_map:
+        return user_pos_map[stripped]
+    # 2. User mapping case-insensitive
+    if user_pos_map:
+        lower = stripped.lower()
+        for k, v in user_pos_map.items():
+            if k.lower() == lower:
+                return v
+    # 3. Built-in hints (case-insensitive)
+    builtin = SHOEBOX_POS_MAP.get(stripped.lower())
+    if builtin:
+        return builtin
+    # 4. Pass through unchanged
+    return stripped
+
+
 def _make_form_element(
     parent: ET.Element,
     tag: str,
@@ -200,24 +314,24 @@ def _convert_sfm_entry(
         if cfg is None:
             continue
         has_content = True
-        _apply_field(entry_el, f, cfg, language_map)
+        _apply_field(entry_el, f, cfg, language_map, user_pos_map=user_pos_map)
 
     # Process pronunciations
     for pron in entry.pronunciations:
-        pron_el = _convert_pronunciation(pron, field_map, language_map)
+        pron_el = _convert_pronunciation(pron, field_map, language_map, user_pos_map=user_pos_map)
         if pron_el is not None:
             entry_el.append(pron_el)
 
     # Process variants (inline allomorphs/variants)
     for var in entry.variants:
-        var_el = _convert_sfm_variant(var, field_map, language_map)
+        var_el = _convert_sfm_variant(var, field_map, language_map, user_pos_map=user_pos_map)
         if var_el is not None:
             entry_el.append(var_el)
 
     # Process senses
     for sense in entry.senses:
         sense_el = _convert_sfm_sense(
-            sense, entry, field_map, language_map, cross_refs_raw
+            sense, entry, field_map, language_map, cross_refs_raw, user_pos_map=user_pos_map
         )
         if sense_el is not None:
             entry_el.append(sense_el)
@@ -239,6 +353,7 @@ def _convert_pronunciation(
     pron: ParsedPronunciation,
     field_map: dict[str, dict],
     language_map: dict[str, str],
+    user_pos_map: dict[str, str] | None = None,
 ) -> Optional[ET.Element]:
     pron_el = ET.Element(_lift_tag("pronunciation"))
     has = False
@@ -247,7 +362,7 @@ def _convert_pronunciation(
         if cfg is None:
             continue
         has = True
-        _apply_field(pron_el, f, cfg, language_map)
+        _apply_field(pron_el, f, cfg, language_map, user_pos_map=user_pos_map)
     return pron_el if has else None
 
 
@@ -255,6 +370,7 @@ def _convert_sfm_variant(
     var: ParsedVariant,
     field_map: dict[str, dict],
     language_map: dict[str, str],
+    user_pos_map: dict[str, str] | None = None,
 ) -> Optional[ET.Element]:
     var_el = ET.Element(_lift_tag("variant"))
     has = False
@@ -263,7 +379,7 @@ def _convert_sfm_variant(
         if cfg is None:
             continue
         has = True
-        _apply_field(var_el, f, cfg, language_map)
+        _apply_field(var_el, f, cfg, language_map, user_pos_map=user_pos_map)
     return var_el if has else None
 
 
@@ -273,6 +389,7 @@ def _convert_sfm_sense(
     field_map: dict[str, dict],
     language_map: dict[str, str],
     cross_refs_raw: list[str],
+    user_pos_map: dict[str, str] | None = None,
 ) -> Optional[ET.Element]:
     import uuid
     sense_el = ET.Element(_lift_tag("sense"))
@@ -284,10 +401,10 @@ def _convert_sfm_sense(
         if cfg is None:
             continue
         has = True
-        _apply_field(sense_el, f, cfg, language_map)
+        _apply_field(sense_el, f, cfg, language_map, user_pos_map=user_pos_map)
 
     for ex in sense.examples:
-        ex_el = _convert_example(ex, field_map, language_map)
+        ex_el = _convert_example(ex, field_map, language_map, user_pos_map=user_pos_map)
         if ex_el is not None:
             sense_el.append(ex_el)
             has = True
@@ -299,6 +416,7 @@ def _convert_example(
     example: ParsedExample,
     field_map: dict[str, dict],
     language_map: dict[str, str],
+    user_pos_map: dict[str, str] | None = None,
 ) -> Optional[ET.Element]:
     ex_el = ET.Element(_lift_tag("example"))
     has = False
@@ -307,7 +425,7 @@ def _convert_example(
         if cfg is None:
             continue
         has = True
-        _apply_field(ex_el, f, cfg, language_map)
+        _apply_field(ex_el, f, cfg, language_map, user_pos_map=user_pos_map)
     return ex_el if has else None
 
 
@@ -487,6 +605,7 @@ def _apply_field(
     field: ParsedField,
     cfg: dict,
     language_map: dict[str, str],
+    user_pos_map: dict[str, str] | None = None,
 ) -> None:
     """Apply a parsed field to a LIFT XML parent element."""
     lift_element: str = cfg.get("lift_element", "")
@@ -533,7 +652,7 @@ def _apply_field(
         _make_trait(parent, field.value, field.value)
     elif lift_element == "grammatical_info":
         gi = ET.SubElement(parent, _lift_tag("grammatical-info"))
-        gi.set("value", field.value)
+        gi.set("value", normalize_pos(field.value, user_pos_map=user_pos_map))
         if resolved_lang:
             gi.set("lang", resolved_lang)
     elif lift_element in ("note", "entry_note", "sense_note", "example_note", "variant_note"):
@@ -652,6 +771,7 @@ def import_parsed_document(
     project_id: Optional[int] = None,
     mode: str = "merge",
     file_type: str = "sfm",
+    user_pos_map: dict[str, str] | None = None,
 ) -> dict:
     """Import a parsed document (SFM or CSV) into the dictionary.
 
@@ -663,6 +783,9 @@ def import_parsed_document(
         project_id: Optional project ID.
         mode: "merge" or "replace".
         file_type: "sfm" or "csv".
+        user_pos_map: Optional {source: target} POS value mapping from the
+            active ImportMapping's pos_mappings rows.  Takes precedence over
+            the built-in SHOEBOX_POS_MAP hints.
 
     Returns:
         Dict with {imported: int, resolved_cross_refs: int, unresolved_cross_refs: list}.
