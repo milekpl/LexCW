@@ -28,6 +28,9 @@
             <button type="button" class="btn btn-sm btn-outline-primary" data-view-mode="annotations">Annotate</button>
             <button type="button" class="btn btn-sm btn-outline-primary" data-view-mode="all">All</button>
         </div>
+        <a href="{{ url_for('main.word_sketch_browser') }}?q={% if entry.lexical_unit is mapping %}{{ entry.lexical_unit.values()|first }}{% else %}{{ entry.lexical_unit }}{% endif %}" class="btn btn-outline-info btn-sm" title="Explore Word Sketch collocations">
+            <i class="fas fa-chart-bar"></i> Word Sketch
+        </a>
         <a href="{{ url_for('main.edit_entry', entry_id=entry.id) }}" class="btn btn-primary btn-sm">
             <i class="fas fa-edit"></i> Edit
         </a>

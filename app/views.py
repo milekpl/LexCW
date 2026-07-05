@@ -2609,3 +2609,9 @@ def live_preview():
             "error": f"Failed to generate preview: {str(e)}",
             "details": str(e)
         }), 500
+
+
+@main_bp.route("/browser")
+def word_sketch_browser():
+    """Display the standalone word sketch browser page."""
+    return render_template("word_sketch/browser.html")

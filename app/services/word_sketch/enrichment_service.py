@@ -252,7 +252,7 @@ class EnrichmentService:
         examples = []
 
         try:
-            # Use the Lucene corpus client for parallel examples
+            # 1. Primary: Try Lucene corpus client for parallel corpus concordances
             query = lemma
             if collocate:
                 query = f'"{lemma}" AND "{collocate}"'
@@ -261,15 +261,54 @@ class EnrichmentService:
 
             for hit in hits:
                 examples.append({
-                    'source': f"{hit.left} {hit.match} {hit.right}",
-                    'match': hit.match,
-                    'left': hit.left,
-                    'right': hit.right,
-                    'translation': None  # Translation would come from parallel field
+                    'source': f"{hit.left} {hit.match} {hit.right}".strip(),
+                    'match': getattr(hit, 'match', lemma),
+                    'left': getattr(hit, 'left', ''),
+                    'right': getattr(hit, 'right', ''),
+                    'translation': getattr(hit, 'translation', None),
+                    'corpus': getattr(hit, 'corpus', 'Parallel Corpus')
                 })
 
         except Exception as e:
-            self.logger.warning(f"Failed to fetch examples for {lemma}: {e}")
+            self.logger.warning(f"Corpus client concordance search failed for {lemma}: {e}")
+
+        # 2. Secondary: Fall back to WordSketchClient collocations if corpus search yielded no results
+        if not examples and self.ws_client:
+            try:
+                sketch = self.ws_client.word_sketch(lemma)
+                relations = sketch.get('relations', {}) if isinstance(sketch, dict) else {}
+                
+                for rel_key, rel_val in relations.items():
+                    collocations = rel_val.get('collocations', []) if isinstance(rel_val, dict) else []
+                    for col in collocations:
+                        col_word = col.get('lemma') or col.get('word') or col.get('value') or ''
+                        if not collocate or (col_word and collocate.lower() in col_word.lower()):
+                            for ex in col.get('examples', []):
+                                if hasattr(ex, 'source'):
+                                    source_txt = ex.source
+                                    target_txt = getattr(ex, 'target', None)
+                                elif isinstance(ex, dict):
+                                    source_txt = ex.get('source') or ex.get('example') or str(ex)
+                                    target_txt = ex.get('target') or ex.get('translation')
+                                else:
+                                    source_txt = str(ex)
+                                    target_txt = None
+
+                                examples.append({
+                                    'source': source_txt,
+                                    'match': col_word or lemma,
+                                    'translation': target_txt,
+                                    'corpus': 'ConceptSketch'
+                                })
+                                if len(examples) >= limit:
+                                    break
+                        if len(examples) >= limit:
+                            break
+                    if len(examples) >= limit:
+                        break
+
+            except Exception as e:
+                self.logger.warning(f"Word sketch fallback example search failed for {lemma}: {e}")
 
         return examples
 

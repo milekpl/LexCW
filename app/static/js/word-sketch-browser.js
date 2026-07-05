@@ -89,6 +89,30 @@ class WordSketchBrowser {
         document.getElementById('btn-copy-results')?.addEventListener('click', () => {
             this.copyResults();
         });
+
+        // View all examples button
+        document.getElementById('btn-view-all-examples')?.addEventListener('click', () => {
+            this.showExamples(this.currentLemma, '');
+        });
+
+        // Event delegation for collocation view-examples buttons
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.view-examples-btn');
+            if (btn) {
+                e.preventDefault();
+                const word = btn.dataset.word;
+                const relation = btn.dataset.relation;
+                this.showExamples(word, relation);
+            }
+        });
+
+        // Auto search if q or lemma parameter is passed in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const qParam = urlParams.get('q') || urlParams.get('lemma');
+        if (qParam && this.lemmaInput) {
+            this.lemmaInput.value = qParam;
+            setTimeout(() => this.handleSearch(), 100);
+        }
     }
 
     async checkServiceStatus() {
@@ -404,34 +428,59 @@ class WordSketchBrowser {
     }
 
     async showExamples(word, relation) {
-        const modal = new bootstrap.Modal(document.getElementById('examples-modal'));
+        const modalEl = document.getElementById('examples-modal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         const modalBody = document.getElementById('examples-modal-body');
         const modalCollocate = document.getElementById('modal-collocate');
 
-        modalCollocate.textContent = word;
-        modalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div></div>';
+        const collocateTerm = word || this.currentLemma || 'Lemma';
+        if (modalCollocate) modalCollocate.textContent = collocateTerm;
+        if (modalBody) modalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
 
         modal.show();
 
         try {
+            const lemma = this.currentLemma || word;
+            if (!lemma) {
+                if (modalBody) modalBody.innerHTML = '<p class="text-muted text-center py-4">No lemma specified</p>';
+                return;
+            }
+
+            const params = new URLSearchParams();
+            if (word && word !== lemma) {
+                params.append('collocate', word);
+            }
+            params.append('limit', '20');
+
             const response = await fetch(
-                `${this.apiBase}/enrich/${this.currentLemma}/examples?collocate=${encodeURIComponent(word)}&limit=10`
+                `${this.apiBase}/enrich/${encodeURIComponent(lemma)}/examples?${params.toString()}`
             );
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
             const data = await response.json();
 
             if (data.examples && data.examples.length > 0) {
-                modalBody.innerHTML = data.examples.map(e => `
-                    <div class="example-item">
-                        <p class="mb-1">"${this.escapeHtml(e.source)}"</p>
-                        ${e.translation ? `<p class="text-muted small mb-1"><em>${this.escapeHtml(e.translation)}</em></p>` : ''}
-                        <small class="text-muted">${e.corpus || ''}</small>
-                    </div>
-                `).join('<hr class="my-3">');
+                modalBody.innerHTML = data.examples.map(e => {
+                    const text = typeof e === 'string' ? e : (e.source || e.example || e.text || '');
+                    const translation = typeof e === 'object' ? e.translation : null;
+                    const corpus = typeof e === 'object' ? e.corpus : null;
+
+                    return `
+                        <div class="example-item py-2">
+                            <p class="mb-1 fw-semibold">"${this.escapeHtml(text)}"</p>
+                            ${translation ? `<p class="text-muted small mb-1"><em>${this.escapeHtml(translation)}</em></p>` : ''}
+                            ${corpus ? `<small class="badge bg-light text-dark border">${this.escapeHtml(corpus)}</small>` : ''}
+                        </div>
+                    `;
+                }).join('<hr class="my-2">');
             } else {
-                modalBody.innerHTML = '<p class="text-muted text-center py-4">No examples found</p>';
+                modalBody.innerHTML = '<p class="text-muted text-center py-4">No example sentences found for this term</p>';
             }
         } catch (error) {
-            modalBody.innerHTML = `<p class="text-danger text-center py-4">Error loading examples: ${this.escapeHtml(error.message)}</p>`;
+            console.error('Error fetching examples:', error);
+            if (modalBody) modalBody.innerHTML = `<p class="text-danger text-center py-4">Error loading examples: ${this.escapeHtml(error.message)}</p>`;
         }
     }
 
