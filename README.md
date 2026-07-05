@@ -18,8 +18,9 @@ A professional tool for creating and managing comprehensive dictionaries using t
 
 ### Editing & Curation
 - **Entry Form**: Rich multilingual editing with POS inheritance, variant relations, component relations, and subentries
+- **Spreadsheet View & Grid Editor**: Interactive spreadsheet workbench at `/workbench/spreadsheet` featuring double-click inline cell editing, automatic POS range normalization (SIL FLEx codes to full labels), full hierarchical POS selection dropdowns, customizable column visibility (Lexical Unit, Homograph #, Citation Form, POS, Pronunciation, Gloss EN/PL, Definition EN/PL, Notes, Etymology), smart auto-hiding of systematically empty columns, atomic batch update API, and sliding-window pagination across massive dictionaries
 - **Worksets**: Query-based dynamic collections of entries with curation metadata (status, favorites, notes)
-- **Bulk Operations**: Batch update traits, POS tags, and other fields across multiple entries with preview mode
+- **Bulk Operations**: Batch update traits, POS tags, and other fields across multiple entries with preview mode and atomic batch updates (`POST /api/bulk/batch-update`)
 - **Merge & Split**: Merge multiple entries into one or split an entry into multiple, with full undo/redo history
 - **Auto-Save**: Automatic form state persistence with undo/redo for entry edits
 - **Keyboard Shortcuts**: Full keyboard navigation and editing workflow
@@ -190,6 +191,14 @@ The application will be available at `http://localhost:5000`
 1. Click on **Entries** to view your lexicon
 2. Click on any entry to open the full editor
 3. Use the comprehensive editing interface to modify or add new entries
+
+### High-Density Spreadsheet Curation
+Access **Workbench → Spreadsheet View** (`/workbench/spreadsheet`) for batch editing:
+- Double-click any cell to edit inline (Lexical Unit, Homograph #, Citation Form, POS, Pronunciation, Gloss EN/PL, Definition EN/PL, Notes, Etymology)
+- Edit Parts of Speech via full hierarchical range selection dropdowns with SIL FLEx range-ID normalizer
+- Toggle column visibility or let smart auto-detection hide systematically empty columns
+- Select multiple entries to perform batch actions or set POS in bulk
+- Click **Save Changes** to send atomic batch updates to BaseX
 
 ### Use the Ranges Editor
 Access the **Tools → Ranges Editor** to manage controlled vocabularies:

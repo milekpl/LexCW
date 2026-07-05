@@ -121,6 +121,7 @@
                     <a class="nav-link" href="#worksets">Worksets</a>
                     <a class="nav-link" href="#curation">Entry Curation</a>
                     <a class="nav-link" href="#bulk-operations">Bulk Operations</a>
+                    <a class="nav-link" href="#spreadsheet-view">Spreadsheet View &amp; Grid Editor</a>
                 </nav>
                 <a class="nav-link" href="#validation-tool">Validation Tool</a>
                 <a class="nav-link" href="#duplicate-detection">Duplicate Detection</a>
@@ -840,6 +841,24 @@ for entry in entries:
             </p>
             <p>
                 <strong>Access:</strong> <em>Workbench → Bulk Operations</em>
+            </p>
+
+            <h3 id="spreadsheet-view"><i class="fas fa-table"></i> Spreadsheet View &amp; Grid Editor <a href="{{ url_for('main.spreadsheet_view') }}" class="btn btn-sm btn-outline-primary" title="Open Spreadsheet View"><i class="fas fa-external-link-alt"></i> Open View</a></h3>
+            <p>
+                The Spreadsheet View provides a high-density tabular grid interface at <code>/workbench/spreadsheet</code> for viewing, sorting, filtering, and editing dictionary entries in bulk.
+            </p>
+            <ul class="feature-list">
+                <li><strong>Inline Double-Click Editing</strong>: Double-click any cell (Lexical Unit, Homograph #, Citation Form, POS, Pronunciation, Gloss EN/PL, Definition EN/PL, Notes, Etymology) to edit directly in the table.</li>
+                <li><strong>Hierarchical Range Dropdowns</strong>: Edit Parts of Speech via full hierarchical range selection dropdowns (e.g., <em>Affix &gt; Suffix</em>, <em>Verb &gt; Phrasal Verb</em>) backed by the LIFT ranges API.</li>
+                <li><strong>POS Range-ID Normalization</strong>: SIL FLEx range IDs (like <code>su</code>, <code>pre</code>, <code>n</code>, <code>v</code>) are automatically normalized to human-readable labels (<em>Suffix</em>, <em>Preposition</em>, <em>Noun</em>, <em>Verb</em>).</li>
+                <li><strong>Customizable Column Visibility</strong>: Hide or show specific columns via the <strong>Columns</strong> menu.</li>
+                <li><strong>Smart Auto-Hiding</strong>: Systematically empty columns across your dataset (such as unused glosses, notes, or etymologies) are automatically hidden on initial load.</li>
+                <li><strong>Batch Operations</strong>: Select multiple entry rows using checkboxes and click <strong>Batch Actions</strong> to apply Parts of Speech to multiple entries at once.</li>
+                <li><strong>Atomic Batch Updates</strong>: All edits are tracked as dirty cells and sent to the server in a single atomic transaction when clicking <strong>Save Changes</strong>.</li>
+                <li><strong>Sliding-Window Pagination</strong>: Smoothly navigate through large dictionaries with page size controls and sliding window page links.</li>
+            </ul>
+            <p>
+                <strong>Access:</strong> <em>Workbench → Spreadsheet View</em>
             </p>
 
             <h2 id="validation-tool"><i class="fas fa-clipboard-check"></i> Validation Tool <span class="feature-badge badge-professional">Professional</span></h2>
