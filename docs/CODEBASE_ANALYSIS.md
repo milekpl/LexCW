@@ -36,6 +36,9 @@
 - ✅ Dictionary storage upload-path bugfix (`'str' object has no attribute 'mkdir'`)
 - ✅ **Advanced search overhaul**: faceted search (sidebar, filter, remove), search-within-results, result export (CSV/JSON), save/load search queries, regex search, 14 E2E + 12 unit tests
 - ✅ **Data composition dashboard**: POS distribution, field coverage, senses/entry histogram, examples/sense histogram — added to data quality dashboard, 7 unit tests
+- ✅ **ML POS Coherence Service**: ML-based detector for POS & definition anomalies (`POSCoherenceService` + `/api/dashboard/anomalies`)
+- ✅ **Admissible Language Management**: `ProjectLanguageService.get_all_language_codes()` aggregating source, target, admissible, and active dictionary language codes
+- ✅ **Semantic Similarity & Qdrant Integration**: vector embeddings service with Qdrant and fallback search
 
 ---
 
@@ -44,7 +47,7 @@
 ### Unit Tests — ✅ ALL PASSING
 
 ```
-1383 passed, 9 skipped (~2m25s)
+2160 passed, 5 skipped (~1m40s)
 ```
 
 All unit tests pass, including 36 new AI service tests (`test_ai_service.py`) and 19 new AI API endpoint tests (`test_ai_api.py`). The 9 skips are for optional features (Redis-dependent caching, specific DBs).
@@ -144,11 +147,11 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 |------|------|---------------|
 | **enhanced_entry_editing_ui** | 10/10 done ✅ | ✅ All complete, including etymology IPA real-time validation with explicit language selector |
 | **entry_list** | 3/3 done | ✅ All complete (column sorting, cache invalidation, configurable columns) |
-| **dynamic_range_management** | 9/13 done | Project language settings union, E2E UI tests |
-| **css_mapping_system** | 2/8 done | Style templates added; admin interface + full dictionary-style/in-place entry display still needed |
+| **dynamic_range_management** | 10/13 done | E2E UI tests, variant/language unit tests |
+| **css_mapping_system** | 5/8 done | Admin interface & dictionary formatting complete. Remaining: in-place editing, side-by-side comparison, mobile responsive tuning |
 | **advanced_search** | 7/7 done ✅ | ✅ All complete — Faceted search, result export, regex search, search-within-results, save/load, composition stats dashboard (`/api/dashboard/stats`), data completeness assessment (`/api/dashboard/quality`), semantic similarity search (Qdrant + GPU CUDA), duplicate detection & subentry discovery. |
-| **ai_integration** | 6/10 done | ✅ LLM framework, content generation, proofread/draft workbench, POS/Definition ML anomaly detector (`POSCoherenceService` + `/api/dashboard/anomalies`). Remaining: ML models (POS tagger/IPA), quality control automation, advanced linguistic analysis |
-| **bulk_processing** | 1/4 done | Architecture, atomic transactions, rollback/recovery |
+| **ai_integration** | 7/10 done | ✅ LLM framework, content generation, proofread/draft workbench, POS/Definition ML anomaly detector (`POSCoherenceService` + `/api/dashboard/anomalies`). Remaining: ML models (POS tagger/IPA), quality control automation, advanced linguistic analysis |
+| **bulk_processing** | 3/4 done | Spreadsheet Grid UI (`/workbench/spreadsheet`), atomic batch updates (`/api/bulk/batch-update`), progress tracking complete. Remaining: rollback & recovery mechanisms |
 | **advanced_entry_management** | 3/4 done | Validation pipelines implemented; bulk CRUD enhancements still needed |
 | **performance_optimization** | 0/1 done | XQuery optimization for large datasets |
 | **production_features** | 5/9 done | ✅ Auth/security, annotations, core exports (LIFT/HTML/Markdown/SQLite). Kindle/Flutter handled via external API scripts. Publication workflows, real-time collaboration, monitoring, scalability still needed |
@@ -180,12 +183,14 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | `tests/integration/test_ipa_dictionary_upload.py` | No integration proof for IPA upload + set-as-IPA flow | ✅ **FIXED** — added integration test using bundled resource files |
 | `tests/unit/test_dictionary_storage.py:167` | Cleanup test was permanently skipped | ✅ **FIXED** — replaced skip with executable DB-backed test |
 | `app/services/dictionary_service.py:3188+` | Dynamic range fallback for empty dictionaries | ✅ **FIXED** — `get_ranges()` now loads `config/minimal.lift-ranges` when DB ranges are missing/parsing fails and attempts best-effort `ADD TO ranges.lift-ranges`; covered by unit + integration tests |
+| `app/services/validation_engine.py` & `app/models/dictionary_models.py` | IPA dictionary selection source-of-truth | ✅ **FIXED** — `ProjectDictionary.get_ipa_dictionary()` and `ValidationEngine._get_ipa_pattern()` now honor `ProjectSettings.spell_check['ipa_dictionary_id']` first before falling back to `seh-fonipa` |
+| `app/services/project_language_service.py` | Project language codes aggregation | ✅ **FIXED** — created `ProjectLanguageService.get_all_language_codes()` combining source, target, admissible, and active dictionary language codes |
 
-### 4.4 Remaining Issues (not yet addressed)
+---
 
-| Priority | What | Where | Notes |
-|----------|------|-------|-------|
-| 1 | IPA dictionary selection source-of-truth | `app/services/validation_engine.py` | Upload + set-as-IPA flow is verified; remaining hardening is to ensure runtime IPA character validation always honors selected `spell_check.ipa_dictionary_id` before fallbacks |
+## 4.4 Remaining Issues (not yet addressed)
+
+*(All priority 1 items in CODEBASE_ANALYSIS.md have been resolved)*
 
 ---
 

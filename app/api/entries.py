@@ -39,7 +39,7 @@ def _entries_cache_version(cache: CacheService, db_name: str) -> str:
 
 def _entries_cache_key(db_name: str, version: str, limit: int, offset: int, sort_by: str, sort_order: str, filter_text: str) -> str:
     """Build a versioned entries cache key so we can invalidate by bumping the version."""
-    return f"entries:v{version}:{db_name}:{limit}:{offset}:{sort_by}:{sort_order}:{filter_text}"
+    return f"entries:v2_{version}:{db_name}:{limit}:{offset}:{sort_by}:{sort_order}:{filter_text}"
 
 
 def _invalidate_entries_cache(cache: CacheService, db_name: str) -> None:
@@ -122,9 +122,9 @@ def list_entries() -> Any:
         offset = request.args.get("offset", None, type=int)
         page = request.args.get("page", None, type=int)
         per_page = request.args.get("per_page", None, type=int)
-        sort_by = request.args.get("sort_by", "lexical_unit")
-        sort_order = request.args.get("sort_order", "asc")
-        filter_text = request.args.get("filter_text", "")
+        sort_by = request.args.get("sort_by") or request.args.get("sort") or "lexical_unit"
+        sort_order = request.args.get("sort_order") or request.args.get("order") or "asc"
+        filter_text = request.args.get("filter_text") or request.args.get("search") or ""
 
         # Validate individual parameters first
         if page is not None and page < 1:
@@ -138,15 +138,16 @@ def list_entries() -> Any:
         if offset is not None and offset < 0:
             return jsonify({"error": "Offset parameter must be non-negative"}), 400
 
-        # If page/per_page are provided, convert to offset/limit
-        if page is not None and per_page is not None:
-            limit = per_page
-            offset = (page - 1) * per_page
+        # Convert page/per_page or limit/offset
+        if page is not None or per_page is not None:
+            effective_per_page = per_page if per_page is not None else (limit if limit is not None else 50)
+            effective_page = page if page is not None else 1
+            limit = effective_per_page
+            offset = (effective_page - 1) * effective_per_page
         else:
-            if limit is None:
-                limit = 100
-            if offset is None:
-                offset = 0
+            limit = limit if limit is not None else 100
+            offset = offset if offset is not None else 0
+
         # Cache miss - query dictionary service
         dict_service = get_dictionary_service()
 
@@ -180,18 +181,20 @@ def list_entries() -> Any:
                 )
                 raise e
 
+        curr_limit = limit if limit > 0 else 50
+        curr_page = (offset // curr_limit) + 1
+        total_pages = (total_count + curr_limit - 1) // curr_limit if curr_limit > 0 else 1
+
         response = {
             "entries": response_entries,
             "total_count": total_count,
             "total": total_count,
-            "limit": limit,
+            "limit": curr_limit,
             "offset": offset,
+            "page": curr_page,
+            "per_page": curr_limit,
+            "pages": total_pages,
         }
-
-        # Add page/per_page if provided
-        if page is not None and per_page is not None:
-            response["page"] = page
-            response["per_page"] = per_page
 
         # Cache the response for 3 minutes
         if cache.is_available():

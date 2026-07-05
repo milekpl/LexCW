@@ -1187,9 +1187,7 @@
                 }
                 showSuccess(`Template "${select.options[select.selectedIndex].text}" applied!`);
                 // Refresh preview if available
-                if (typeof refreshPreview === 'function') {
-                    refreshPreview();
-                }
+                updatePreview();
             } else {
                 const err = await response.json();
                 showError(err.error || 'Failed to apply template');
@@ -1197,6 +1195,65 @@
         } catch (e) {
             console.error('Error applying template:', e);
             showError('Network error applying template');
+        }
+    }
+
+    // ========================================================================
+    // Live CSS Validation
+    // ========================================================================
+
+    let cssValidateTimeout = null;
+
+    function initCSSValidation() {
+        const cssInput = document.getElementById('profileCustomCSS');
+        if (!cssInput) return;
+
+        cssInput.addEventListener('input', () => {
+            clearTimeout(cssValidateTimeout);
+            cssValidateTimeout = setTimeout(validateCurrentCSS, 400);
+            updatePreview();
+        });
+    }
+
+    async function validateCurrentCSS() {
+        const cssInput = document.getElementById('profileCustomCSS');
+        const feedbackEl = document.getElementById('cssValidationFeedback');
+        if (!cssInput || !feedbackEl) return;
+
+        const cssText = cssInput.value;
+        if (!cssText.strip ? !cssText.trim() : !cssText) {
+            feedbackEl.style.display = 'none';
+            feedbackEl.innerHTML = '';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/profiles/validate-css', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ custom_css: cssText })
+            });
+
+            if (!response.ok) return;
+            const data = await response.json();
+
+            feedbackEl.style.display = 'block';
+            if (data.valid) {
+                if (data.warnings && data.warnings.length > 0) {
+                    const warnMsgs = data.warnings.map(w => w.line ? `Line ${w.line}: ${w.message}` : w.message).join('<br>');
+                    feedbackEl.className = 'mt-1 small text-warning';
+                    feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> CSS Warnings:<br>${warnMsgs}`;
+                } else {
+                    feedbackEl.className = 'mt-1 small text-success';
+                    feedbackEl.innerHTML = '<i class="fas fa-check-circle"></i> Valid CSS syntax';
+                }
+            } else {
+                const errMsgs = (data.errors || []).map(e => e.line ? `Line ${e.line}: ${e.message}` : e.message).join('<br>');
+                feedbackEl.className = 'mt-1 small text-danger';
+                feedbackEl.innerHTML = `<i class="fas fa-times-circle"></i> CSS Errors:<br>${errMsgs}`;
+            }
+        } catch (e) {
+            console.error('Error validating CSS:', e);
         }
     }
 
@@ -1221,6 +1278,8 @@
         if (profileModal) {
             profileModal.addEventListener('shown.bs.modal', loadStyleTemplates);
         }
+
+        initCSSValidation();
     }
 
     // Initialize on page load
@@ -1228,5 +1287,6 @@
         init();
         initTemplateUI();
     });
+
 
 })();

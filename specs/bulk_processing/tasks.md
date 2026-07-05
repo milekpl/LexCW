@@ -5,13 +5,15 @@ This document outlines the implementation tasks for the Bulk Processing feature,
 1.  [ ] **Bulk Processing Framework**
     *   This epic covers the design and implementation of a framework for performing bulk operations on entries.
 
-    1.1. [ ] **Design Bulk Operation Architecture**
+    1.1. [x] **Design Bulk Operation Architecture**
         *   Design a flexible and scalable architecture for performing bulk operations on entries.
         *   The UI will use a table metaphor (spreadsheet-like view on a database) with sortable and filtrable (through search and maybe otherwise) columns, hidden/shown, reordered.
+        *   Implemented: High-density interactive Spreadsheet Grid view (`/workbench/spreadsheet`, `spreadsheet_view.html` + `spreadsheet-editor.js`) with column visibility toggles, dynamic sorting/filtering, inline double-click editing, and batch actions.
         *   **Requirements**: `3.2`, `8.1.1`, `18.2`
 
-    1.2. [ ] **Implement Atomic Transaction Support**
+    1.2. [x] **Implement Atomic Transaction Support**
         *   Implement support for atomic transactions to ensure data consistency during bulk operations.
+        *   Implemented: `POST /api/bulk/batch-update` endpoint executing atomic batch edits with dirty-cell tracking and validation.
         *   **Requirements**: `3.2.1`, `5.4.2`, `18.2`
 
     1.3. [x] **Add Progress Tracking for Long Operations**

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Spreadsheet View - Dictionary Workbench{% endblock %}
+
+{% block extra_css %}
+<style>
+    .spreadsheet-container {
+        position: relative;
+        overflow-x: auto;
+        max-height: calc(100vh - 250px);
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        background: #ffffff;
+    }
+    .spreadsheet-table {
+        margin-bottom: 0;
+        font-size: 0.9rem;
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+    }
+    .spreadsheet-table th {
+        position: sticky;
+        top: 0;
+        background: #f1f5f9;
+        color: #334155;
+        z-index: 10;
+        font-weight: 600;
+        border-bottom: 2px solid #cbd5e1;
+        border-right: 1px solid #cbd5e1;
+        padding: 8px 12px;
+        user-select: none;
+        white-space: nowrap;
+    }
+    .spreadsheet-table td {
+        border-bottom: 1px solid #e2e8f0;
+        border-right: 1px solid #e2e8f0;
+        padding: 6px 10px;
+        vertical-align: middle;
+        position: relative;
+        white-space: nowrap;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .spreadsheet-table tr:hover td {
+        background-color: #f8fafc;
+    }
+    .cell-editable {
+        cursor: pointer;
+    }
+    .cell-editable:hover {
+        background-color: #f1f5f9 !important;
+        outline: 1px dashed #0284c7;
+    }
+    .cell-editing {
+        padding: 0 !important;
+        background-color: #ffffff !important;
+        outline: 2px solid #0284c7 !important;
+        z-index: 5;
+    }
+    .cell-editing input, .cell-editing select {
+        width: 100%;
+        height: 100%;
+        border: none;
+        outline: none;
+        padding: 6px 10px;
+        font-size: 0.9rem;
+        background: transparent;
+    }
+    .cell-dirty {
+        background-color: #fef08a !important;
+    }
+    .cell-dirty::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 0 7px 7px 0;
+        border-color: transparent #d97706 transparent transparent;
+    }
+    .cell-focused {
+        outline: 2px solid #0284c7 !important;
+        outline-offset: -2px;
+    }
+    .badge-pos {
+        font-weight: 500;
+        font-size: 0.8em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h3 class="mb-0"><i class="fas fa-table text-primary me-2"></i> Spreadsheet Grid View</h3>
+                    <p class="text-muted small mb-0">High-density grid view with inline editing and keyboard navigation</p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button id="btn-save-batch" class="btn btn-success" disabled>
+                        <i class="fas fa-save me-1"></i> Save Changes
+                        <span id="unsaved-badge" class="badge bg-white text-dark ms-1">0</span>
+                    </button>
+                    <div class="btn-group">
+                        <a href="{{ url_for('main.entries') }}" class="btn btn-outline-secondary" title="Standard Table View">
+                            <i class="fas fa-list me-1"></i> Table View
+                        </a>
+                        <a href="{{ url_for('workbench.bulk_operations') }}" class="btn btn-outline-secondary" title="Bulk Pipeline Operations">
+                            <i class="fas fa-bolt me-1"></i> Pipeline Editor
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toolbar controls -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="row align-items-center g-2">
+                <div class="col-md-4">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" id="grid-search" class="form-control" placeholder="Search entries (lexeme, definition, POS)...">
+                    </div>
+                </div>
+                <div class="col-md-8 d-flex justify-content-end align-items-center gap-2 flex-wrap">
+                    <!-- Column Selector -->
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownColumns" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-columns me-1"></i> Columns
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end p-2" id="column-visibility-menu" style="min-width: 200px;">
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="lexical_unit" checked> Lexical Unit</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="homograph_number" checked> Homograph #</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="citation_form" checked> Citation Form</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="pos" checked> Part of Speech</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="pronunciation" checked> Pronunciation</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="gloss_en" checked> Gloss (EN)</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="gloss_pl" checked> Gloss (PL)</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="definition_en" checked> Definition (EN)</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="definition_pl" checked> Definition (PL)</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="notes" checked> Notes</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="etymology" checked> Etymology</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="senses_count" checked> Senses Count</label></li>
+                            <li><label class="dropdown-item small"><input type="checkbox" data-col="examples_count" checked> Examples Count</label></li>
+                        </ul>
+                    </div>
+
+                    <!-- Batch Operations Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="dropdownBatch" data-bs-toggle="dropdown" aria-expanded="false" disabled>
+                            <i class="fas fa-edit me-1"></i> Batch Actions (<span id="selected-count">0</span>)
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" id="batch-set-pos"><i class="fas fa-tag me-2"></i> Set Part of Speech...</a></li>
+                            <li><a class="dropdown-item" href="#" id="batch-clear-selection"><i class="fas fa-times me-2"></i> Clear Selection</a></li>
+                        </ul>
+                    </div>
+
+                    <button id="btn-refresh-grid" class="btn btn-sm btn-outline-secondary" title="Refresh Grid">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spreadsheet Container -->
+    <div class="spreadsheet-container shadow-sm">
+        <table class="spreadsheet-table" id="spreadsheet-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;">
+                        <input type="checkbox" id="select-all-rows" class="form-check-input">
+                    </th>
+                    <th data-field="lexical_unit" style="width: 180px;">Lexical Unit <i class="fas fa-sort text-muted small"></i></th>
+                    <th data-field="homograph_number" style="width: 115px; text-align: center;">Homograph # <i class="fas fa-sort text-muted small"></i></th>
+                    <th data-field="citation_form" style="width: 140px;">Citation Form <i class="fas fa-sort text-muted small"></i></th>
+                    <th data-field="pos" style="width: 130px;">POS <i class="fas fa-sort text-muted small"></i></th>
+                    <th data-field="pronunciation" style="width: 140px;">Pronunciation <i class="fas fa-sort text-muted small"></i></th>
+                    <th data-field="gloss_en" style="width: 200px;">Gloss (EN)</th>
+                    <th data-field="gloss_pl" style="width: 200px;">Gloss (PL)</th>
+                    <th data-field="definition_en" style="width: 260px;">Definition (EN)</th>
+                    <th data-field="definition_pl" style="width: 260px;">Definition (PL)</th>
+                    <th data-field="notes" style="width: 200px;">Notes</th>
+                    <th data-field="etymology" style="width: 160px;">Etymology</th>
+                    <th data-field="senses_count" style="width: 100px; text-align: center;">Senses</th>
+                    <th data-field="examples_count" style="width: 100px; text-align: center;">Examples</th>
+                    <th style="width: 80px; text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="spreadsheet-body">
+                <tr>
+                    <td colspan="10" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading entries...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading grid data...</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Status Bar & Pagination -->
+    <div class="d-flex justify-content-between align-items-center mt-3 small text-muted">
+        <div>
+            <span id="grid-status-info">Loading entries...</span>
+            <span class="ms-3 text-info"><i class="fas fa-keyboard me-1"></i> Double-click to edit | Tab / Shift+Tab to navigate | Enter to commit | Esc to cancel</span>
+        </div>
+        <nav aria-label="Grid navigation">
+            <ul class="pagination pagination-sm mb-0" id="grid-pagination">
+                <!-- Dynamic pagination links -->
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Modal: Batch Set POS -->
+<div class="modal fade" id="modalBatchPOS" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fs-6">Batch Set Part of Speech</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label for="batch-pos-select" class="form-label small">New Part of Speech:</label>
+                <select id="batch-pos-select" class="form-select form-select-sm">
+                    <option value="noun">noun</option>
+                    <option value="verb">verb</option>
+                    <option value="adjective">adjective</option>
+                    <option value="adverb">adverb</option>
+                    <option value="pronoun">pronoun</option>
+                    <option value="preposition">preposition</option>
+                    <option value="conjunction">conjunction</option>
+                    <option value="interjection">interjection</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-apply-batch-pos">Apply to Selected</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/ranges-loader.js') }}"></script>
+<script src="{{ url_for('static', filename='js/spreadsheet-editor.js') }}"></script>
+{% endblock %}

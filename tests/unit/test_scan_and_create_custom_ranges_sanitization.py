@@ -5,20 +5,24 @@ from app.services.dictionary_service import DictionaryService
 
 
 def test_scan_handles_concatenated_entries_and_calls_importer(monkeypatch):
-    # Prepare a mock DB connector that returns concatenated serialized entries
+    # Prepare a mock DB connector that returns distinct relation and trait values
     mock_connector = Mock()
     mock_connector.database = 'test_db'
-    # Simulate two serialized entry fragments with XML prolog and namespace
-    frag1 = '<?xml version="1.0" encoding="UTF-8"?><entry id="e1"><lexical-unit></lexical-unit></entry>'
-    frag2 = '<?xml version="1.0" encoding="UTF-8"?><entry id="e2"><lexical-unit></lexical-unit></entry>'
-    mock_connector.execute_query.side_effect = lambda q: frag1 + frag2 if "string-join" in q else None
+
+    def mock_query(q):
+        if "relation" in q:
+            return "custom-rel"
+        if "trait" in q:
+            return "custom-trait"
+        return ""
+
+    mock_connector.execute_query.side_effect = mock_query
 
     service = DictionaryService(db_connector=mock_connector)
 
     # Patch the parser to return some undefined ranges
     class DummyParser:
-        def identify_undefined_ranges(self, lift_xml, ranges_xml=None, list_xml=None):
-            assert '<lift>' in lift_xml and '</lift>' in lift_xml
+        def identify_undefined_ranges_from_sets(self, found_relations, found_traits, ranges_xml=None):
             return ({'custom-rel'}, {'custom-trait': {'a'}})
 
     # Patch the parser in its module path and the import service

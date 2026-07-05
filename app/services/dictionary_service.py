@@ -1854,6 +1854,8 @@ class DictionaryService:
                                     )[1]
                     return lower-case(string($def_text))
                 """
+            elif sort_by in ["homograph_number", "order"]:
+                sort_expr = "xs:integer(($entry/@order, 0)[1])"
             else: # Default to lexical_unit if sort_by is unrecognized
                 sort_expr = f"lower-case(($entry/{lexical_unit_path}/{form_path}/{text_path})[1])"
 

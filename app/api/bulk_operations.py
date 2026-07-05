@@ -433,3 +433,177 @@ def bulk_preview() -> Any:
     except Exception as e:
         logger.error("Error in bulk_preview: %s", str(e))
         return jsonify({'error': str(e)}), 500
+
+
+@bulk_bp.route('/batch-update', methods=['POST'])
+def batch_update_entries() -> Any:
+    """
+    Execute atomic batch updates for spreadsheet/grid cell edits.
+
+    Request body:
+        {
+            "updates": [
+                {
+                    "id": "entry-123",
+                    "changes": {
+                        "lexical_unit": "new headword",
+                        "pos": "noun",
+                        "citation_form": "cf",
+                        "pronunciation": "ipa",
+                        "definition": "definition string",
+                        "definition_pl": "polski opis"
+                    }
+                }
+            ]
+        }
+
+    Returns:
+        {
+            "operation_id": "op-YYYYMMDD-batch",
+            "summary": { "requested": 5, "success": 5, "failed": 0 },
+            "results": [ {"id": "entry-123", "status": "success"}, ... ]
+        }
+    """
+    data = request.get_json()
+    if not data or 'updates' not in data:
+        return jsonify({'error': 'Missing required updates payload'}), 400
+
+    updates = data.get('updates', [])
+    if not isinstance(updates, list) or len(updates) == 0:
+        return jsonify({'error': 'Updates list cannot be empty'}), 400
+
+    try:
+        from app.services.dictionary_service import DictionaryService
+        dict_service = current_app.injector.get(DictionaryService)
+
+        results = []
+        success_count = 0
+        failed_count = 0
+
+        for item in updates:
+            entry_id = item.get('id') or item.get('entry_id')
+            changes = item.get('changes', {})
+            if not entry_id or not changes:
+                results.append({'id': entry_id, 'status': 'error', 'error': 'Invalid entry_id or empty changes'})
+                failed_count += 1
+                continue
+
+            try:
+                entry = dict_service.get_entry(entry_id)
+                if not entry:
+                    results.append({'id': entry_id, 'status': 'error', 'error': 'Entry not found'})
+                    failed_count += 1
+                    continue
+
+                # Apply changes
+                if 'lexical_unit' in changes:
+                    val = changes['lexical_unit']
+                    if isinstance(val, dict):
+                        entry.lexical_unit = val
+                    elif isinstance(entry.lexical_unit, dict):
+                        lang = next(iter(entry.lexical_unit.keys()), 'en')
+                        entry.lexical_unit[lang] = str(val)
+                    else:
+                        entry.lexical_unit = {'en': str(val)}
+
+                if 'citation_form' in changes:
+                    entry.citation_form = str(changes['citation_form'])
+
+                if 'pos' in changes or 'part_of_speech' in changes:
+                    new_pos = str(changes.get('pos') or changes.get('part_of_speech'))
+                    if hasattr(entry, 'grammatical_info') and entry.grammatical_info:
+                        if isinstance(entry.grammatical_info, dict):
+                            entry.grammatical_info['part_of_speech'] = new_pos
+                        else:
+                            setattr(entry.grammatical_info, 'part_of_speech', new_pos)
+                    else:
+                        entry.grammatical_info = {'part_of_speech': new_pos}
+
+                if 'pronunciation' in changes:
+                    new_pron = str(changes['pronunciation'])
+                    if hasattr(entry, 'pronunciations') and isinstance(entry.pronunciations, dict):
+                        lang = next(iter(entry.pronunciations.keys()), 'seh-fonipa')
+                        entry.pronunciations[lang] = new_pron
+                    else:
+                        entry.pronunciations = {'seh-fonipa': new_pron}
+
+                if 'definition' in changes or 'definition_en' in changes or 'definition_pl' in changes:
+                    def_str = changes.get('definition') or changes.get('definition_en')
+                    def_pl = changes.get('definition_pl')
+
+                    if entry.senses and len(entry.senses) > 0:
+                        first_sense = entry.senses[0]
+                        if not hasattr(first_sense, 'definitions') or not isinstance(first_sense.definitions, dict):
+                            first_sense.definitions = {}
+                        if def_str is not None:
+                            first_sense.definitions['en'] = str(def_str)
+                        if def_pl is not None:
+                            first_sense.definitions['pl'] = str(def_pl)
+                    else:
+                        from app.models.dictionary_models import Sense
+                        defs = {}
+                        if def_str is not None:
+                            defs['en'] = str(def_str)
+                        if def_pl is not None:
+                            defs['pl'] = str(def_pl)
+                        entry.senses = [Sense(id=f"{entry_id}-s1", definitions=defs)]
+
+                if 'gloss' in changes or 'gloss_en' in changes or 'gloss_pl' in changes:
+                    gloss_en = changes.get('gloss') or changes.get('gloss_en')
+                    gloss_pl = changes.get('gloss_pl')
+                    if entry.senses and len(entry.senses) > 0:
+                        first_sense = entry.senses[0]
+                        if not hasattr(first_sense, 'glosses') or not isinstance(first_sense.glosses, dict):
+                            first_sense.glosses = {}
+                        if gloss_en is not None:
+                            first_sense.glosses['en'] = str(gloss_en)
+                        if gloss_pl is not None:
+                            first_sense.glosses['pl'] = str(gloss_pl)
+
+                if 'notes' in changes or 'note' in changes:
+                    note_val = str(changes.get('notes') if 'notes' in changes else changes.get('note'))
+                    if hasattr(entry, 'notes'):
+                        entry.notes = [note_val] if note_val else []
+
+                if 'etymology' in changes:
+                    etym_val = str(changes['etymology'])
+                    if hasattr(entry, 'etymologies'):
+                        entry.etymologies = [etym_val] if etym_val else []
+
+                if 'homograph_number' in changes or 'order' in changes:
+                    hn_val = changes.get('homograph_number') if 'homograph_number' in changes else changes.get('order')
+                    try:
+                        parsed_val = int(hn_val) if (hn_val is not None and str(hn_val).strip() != '') else None
+                    except (ValueError, TypeError):
+                        parsed_val = None
+                    if hasattr(entry, 'homograph_number'):
+                        entry.homograph_number = parsed_val
+                    if hasattr(entry, 'order'):
+                        entry.order = parsed_val
+
+                dict_service.update_entry(entry)
+                results.append({'id': entry_id, 'status': 'success'})
+                success_count += 1
+
+            except Exception as e:
+                logger.error("Failed to update entry %s: %s", entry_id, str(e))
+                results.append({'id': entry_id, 'status': 'error', 'error': str(e)})
+                failed_count += 1
+
+        from datetime import datetime
+        operation_id = f'op-{datetime.utcnow().strftime("%Y%m%d")}-batch-{len(updates)}'
+
+        return jsonify({
+            'operation_id': operation_id,
+            'summary': {
+                'requested': len(updates),
+                'success': success_count,
+                'failed': failed_count
+            },
+            'results': results
+        }), 200
+
+    except Exception as e:
+        logger.error("Error in batch_update_entries: %s", str(e))
+        return jsonify({'error': str(e)}), 500
+

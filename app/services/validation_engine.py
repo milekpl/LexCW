@@ -1570,13 +1570,28 @@ class ValidationEngine:
     def _get_ipa_pattern(self, rule_config: Dict[str, Any]):
         """Get the IPA character validation pattern.
 
-        Checks for a project-specific IPA Hunspell dictionary first,
-        then falls back to the pattern in validation_rules.json.
+        Checks for a project-specific IPA Hunspell dictionary first (from project settings
+        or fallback lang_code 'seh-fonipa'), then falls back to validation_rules.json.
         """
         import re
 
-        # 1. Try project's IPA Hunspell dictionary (seh-fonipa)
+        # 1. Try project's IPA Hunspell dictionary
         try:
+            ipa_dict = None
+            if self.project_id:
+                try:
+                    from app.models.dictionary_models import ProjectDictionary
+                    ipa_dict = ProjectDictionary.get_ipa_dictionary(self.project_id)
+                except Exception:
+                    pass
+
+            if ipa_dict and ipa_dict.files_exist():
+                chars = self._extract_chars_from_hunspell(ipa_dict)
+                if chars:
+                    escaped = re.escape(''.join(sorted(chars)))
+                    return re.compile(f'^[{escaped}]+$')
+
+            # Fallback to system/bundled seh-fonipa dictionary loader
             hunspell = self._get_hunspell_for_language('seh-fonipa')
             if hunspell:
                 chars = self._extract_chars_from_hunspell(hunspell)
@@ -1584,7 +1599,7 @@ class ValidationEngine:
                     escaped = re.escape(''.join(sorted(chars)))
                     return re.compile(f'^[{escaped}]+$')
         except Exception as e:
-            self.logger.debug(f"Caught exception: {e}")
+            self.logger.debug(f"Caught exception in _get_ipa_pattern: {e}")
 
         # 2. Use compiled pattern from validation_rules.json
         validation_cfg = rule_config.get('validation', {}) or {}
@@ -1599,18 +1614,21 @@ class ValidationEngine:
         )
 
     @staticmethod
-    def _extract_chars_from_hunspell(hunspell) -> set:
+    def _extract_chars_from_hunspell(hunspell_or_path_or_dict) -> set:
         """Extract unique characters from a Hunspell IPA dictionary.
 
-        Hunspell IPA dictionaries use single characters or sequences as
-        dictionary entries (e.g. 'iː', 'ɪ', 'k', 'tʃ'). We collect every
-        unique character across all entries.
+        Accepts a Hunspell instance, ProjectDictionary model, or string dic_path.
         """
         chars = set()
-        # Hunspell's Python binding exposes the dictionary path;
-        # read the .dic file directly for character extraction
         try:
-            dic_path = getattr(hunspell, '_dic_path', None) or getattr(hunspell, 'dic_path', None)
+            dic_path = None
+            if isinstance(hunspell_or_path_or_dict, str):
+                dic_path = hunspell_or_path_or_dict
+            elif hasattr(hunspell_or_path_or_dict, 'dic_path'):
+                dic_path = getattr(hunspell_or_path_or_dict, 'dic_path')
+            elif hasattr(hunspell_or_path_or_dict, '_dic_path'):
+                dic_path = getattr(hunspell_or_path_or_dict, '_dic_path')
+
             if dic_path and os.path.isfile(dic_path):
                 with open(dic_path, 'r', encoding='utf-8') as f:
                     next(f)  # Skip word count line

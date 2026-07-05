@@ -154,7 +154,29 @@ class ProjectDictionary(db.Model):
 
     @classmethod
     def get_ipa_dictionary(cls, project_id: str) -> Optional['ProjectDictionary']:
-        """Get the IPA dictionary (seh-fonipa) for a project."""
+        """Get the IPA dictionary for a project.
+
+        First checks ProjectSettings spell_check.ipa_dictionary_id.
+        If set, looks up that active dictionary ID.
+        Otherwise falls back to language code 'seh-fonipa'.
+        """
+        try:
+            from app.models.project_settings import ProjectSettings
+            project = ProjectSettings.query.get(project_id)
+            if project and project.settings_json and isinstance(project.settings_json, dict):
+                spell_check = project.settings_json.get('spell_check', {})
+                ipa_dict_id = spell_check.get('ipa_dictionary_id')
+                if ipa_dict_id:
+                    dict_obj = cls.query.filter(
+                        cls.id == ipa_dict_id,
+                        cls.project_id == project_id,
+                        cls.is_active == True
+                    ).first()
+                    if dict_obj:
+                        return dict_obj
+        except Exception:
+            pass
+
         return cls.get_by_lang_code(project_id, 'seh-fonipa')
 
     @classmethod

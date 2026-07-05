@@ -41,11 +41,10 @@ class CSSMappingService:
         Returns:
             The created DisplayProfile instance
         """
-        profile_id = str(uuid.uuid4())
         profile_data_copy = profile_data.copy()
-        profile_data_copy["profile_id"] = profile_id
-
+        profile_id = profile_data_copy.pop("profile_id", None) or str(uuid.uuid4())
         profile = DisplayProfile(**profile_data_copy)
+        setattr(profile, "profile_id", profile_id)
         self._profiles[profile_id] = profile
         self._save_profiles()
         return profile

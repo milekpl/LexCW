@@ -433,3 +433,68 @@ def preview_entry(entry_id: str):
 
     except Exception as e:
         return jsonify({"error": f"Failed to preview entry: {str(e)}"}), 500
+
+
+@display_bp.route("/templates", methods=["GET"])
+def list_style_templates():
+    """List available CSS style templates."""
+    try:
+        templates = CSSMappingService.get_style_templates()
+        return jsonify({"templates": templates})
+    except Exception as e:
+        current_app.logger.error(f"Error listing style templates: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@display_bp.route("/<string:profile_id>/apply-template", methods=["POST"])
+def apply_style_template(profile_id: str):
+    """Apply a style template to a display profile."""
+    try:
+        data = request.get_json()
+        if not data or "template_id" not in data:
+            return jsonify({"error": "template_id is required"}), 400
+
+        template_id = data["template_id"]
+        service = DisplayProfileService()
+        profile = service.apply_template(profile_id, template_id)
+
+        if not profile:
+            return jsonify({"error": "Profile or template not found"}), 404
+
+        return jsonify(profile.to_dict())
+    except Exception as e:
+        current_app.logger.error(f"Error applying style template: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@display_bp.route("/validate-css", methods=["POST"])
+def validate_css():
+    """Validate custom CSS syntax before saving a profile."""
+    from app.api.display_profiles import validate_css_string
+    data = request.get_json(silent=True) or {}
+    custom_css = data.get("custom_css", "")
+
+    if not custom_css or not custom_css.strip():
+        return jsonify({"valid": True, "errors": [], "warnings": []})
+
+    try:
+        errors, warnings = validate_css_string(custom_css)
+        return jsonify({
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings,
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error validating CSS: {e}", exc_info=True)
+        return jsonify({
+            "valid": False,
+            "errors": [{"message": f"Validation error: {str(e)}", "line": 0}],
+            "warnings": [],
+        })
+
+
+@display_bp.route("/preview", methods=["POST"])
+def preview_profile():
+    """Preview a profile configuration with a sample entry."""
+    from app.api.display_profiles import preview_profile as _preview_profile
+    return _preview_profile()

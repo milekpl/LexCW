@@ -598,8 +598,12 @@ class Entry(BaseModel):
         result['date_modified'] = self.date_modified if hasattr(self, 'date_modified') else None
         result['date_deleted'] = self.date_deleted if hasattr(self, 'date_deleted') else None
         
-        # LIFT 0.13: Include order attribute (manual entry ordering)
-        result['order'] = self.order if hasattr(self, 'order') else None
+        # LIFT 0.13: Include order attribute and homograph_number
+        ord_val = getattr(self, 'order', None)
+        hn_val = getattr(self, 'homograph_number', None)
+        effective_hn = hn_val if hn_val is not None else ord_val
+        result['order'] = ord_val
+        result['homograph_number'] = effective_hn
 
         # Note: headword is a computed property and should not be included in dict
 

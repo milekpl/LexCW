@@ -49,9 +49,10 @@ This document outlines the implementation tasks for the Dynamic Range Management
         *   Expose this list via a new API endpoint, e.g., `GET /api/languages/used`.
         *   **Requirements**: `3.1.3`
 
-    2.3. [ ] **Develop Project Settings Service for Language Codes**
+    2.3. [x] **Develop Project Settings Service for Language Codes**
         *   Implement a mechanism to define project-specific admissible language codes (e.g., in a `project_settings.yaml` file or a database table).
         *   The API (`GET /api/languages/available`) must return the *union* of language codes found in the LIFT data and those defined in the project settings.
+        *   Implemented: `ProjectLanguageService.get_all_language_codes()` in `app/services/project_language_service.py` aggregates source, target, admissible, and active dictionary codes.
         *   **Requirements**: `3.1.3`
 
     2.4. [ ] **Write Tests for Variant and Language Services**

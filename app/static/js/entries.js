@@ -671,10 +671,15 @@ function renderTableBody(entries) {
                         td.textContent = citationText || '—';
                         break;
                     case 'part_of_speech':
-                        let pos = entry.grammatical_info || (entry.senses && entry.senses.length > 0 ? entry.senses[0].grammatical_info : '');
+                        let rawPos = entry.grammatical_info || (entry.senses && entry.senses.length > 0 ? entry.senses[0].grammatical_info : '');
+                        let posLabel = rawPos;
+                        if (rawPos) {
+                            const posFallbacks = { 'su': 'Suffix', 'pre': 'Preposition', 'pref': 'Prefix', 'n': 'Noun', 'v': 'Verb', 'adj': 'Adjective', 'adv': 'Adverb', 'c': 'Connective', 'conj': 'Conjunction', 'int': 'Interjection', 'art': 'Article', 'det': 'Determiner' };
+                            posLabel = posFallbacks[String(rawPos).toLowerCase()] || rawPos;
+                        }
                         const badge = document.createElement('span');
                         badge.className = 'badge bg-secondary';
-                        badge.textContent = pos || '—';
+                        badge.textContent = posLabel || '—';
                         td.appendChild(badge);
                         break;
                     case 'gloss':

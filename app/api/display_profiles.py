@@ -537,43 +537,55 @@ def preview_profile():
             temp_profile.elements.append(elem)
 
         # Get a sample entry or specified entry
-        dict_service = current_app.injector.get(DictionaryService)
+        dict_service = None
+        try:
+            dict_service = current_app.injector.get(DictionaryService)
+        except Exception:
+            dict_service = None
+
         entry_id = data.get('entry_id')
+        entry_xml = None
 
-        if not entry_id:
-            # Get a clean, simple entry (skip test entries)
-            query = """
-                for $entry in collection('dictionary')//entry
-                where not(contains($entry/@id, 'test'))
-                  and $entry/sense
-                  and count($entry/sense) <= 3
-                order by string-length(serialize($entry))
-                return $entry
-            """
-            result = dict_service.db_connector.execute_query(query)
-
-            # Take just the first entry from the result
-            if result and '<entry' in result:
-                # Extract first complete entry element
-                import re
-                match = re.search(r'<entry[^>]*>.*?</entry>', result, re.DOTALL)
-                if match:
-                    entry_xml = match.group(0)
+        if dict_service and hasattr(dict_service, 'db_connector') and dict_service.db_connector:
+            try:
+                if not entry_id:
+                    query = """
+                        for $entry in collection('dictionary')//entry
+                        where not(contains($entry/@id, 'test'))
+                          and $entry/sense
+                          and count($entry/sense) <= 3
+                        order by string-length(serialize($entry))
+                        return $entry
+                    """
+                    result = dict_service.db_connector.execute_query(query)
+                    if result and '<entry' in result:
+                        import re
+                        match = re.search(r'<entry[^>]*>.*?</entry>', result, re.DOTALL)
+                        entry_xml = match.group(0) if match else result
+                    else:
+                        entry_xml = result
                 else:
-                    entry_xml = result
-            else:
-                entry_xml = result
-        else:
-            # Get specific entry
-            db_name = dict_service.db_connector.database
-            has_ns = dict_service._detect_namespace_usage()
-            query = dict_service._query_builder.build_entry_by_id_query(
-                entry_id, db_name, has_ns
-            )
-            entry_xml = dict_service.db_connector.execute_query(query)
+                    db_name = getattr(dict_service.db_connector, 'database', 'dictionary')
+                    has_ns = dict_service._detect_namespace_usage() if hasattr(dict_service, '_detect_namespace_usage') else False
+                    query = dict_service._query_builder.build_entry_by_id_query(entry_id, db_name, has_ns)
+                    entry_xml = dict_service.db_connector.execute_query(query)
+            except Exception as e:
+                current_app.logger.debug(f"Preview DB query failed, using fallback sample: {e}")
 
-        if not entry_xml or not entry_xml.strip():
-            return jsonify({"error": "No entry found for preview"}), 404
+        # Fallback sample entry if DB query returned nothing or connector unavailable
+        if not entry_xml or not isinstance(entry_xml, str) or not entry_xml.strip():
+            entry_xml = (
+                '<entry id="sample-preview">'
+                '  <lexical-unit><form lang="en"><text>example</text></form></lexical-unit>'
+                '  <pronunciation><form lang="seh-fonipa"><text>ɪɡˈzæmpəl</text></form></pronunciation>'
+                '  <sense id="s1">'
+                '    <grammatical-info value="noun"/>'
+                '    <definition><form lang="en"><text>A representative form or pattern</text></form></definition>'
+                '    <example><form lang="en"><text>This is a sample sentence.</text></form></example>'
+                '  </sense>'
+                '</entry>'
+            )
+
 
         # Ensure entry_xml is wrapped in a root element if it's not already valid XML
         # BaseX might return just the entry element without a root wrapper
@@ -749,6 +761,7 @@ def validate_css():
         })
 
 
+@profiles_bp.route("/display-profiles/templates", methods=["GET"])
 @profiles_bp.route("/templates", methods=["GET"])
 def list_style_templates():
     """
@@ -769,6 +782,7 @@ def list_style_templates():
         return jsonify({"error": "Internal server error"}), 500
 
 
+@profiles_bp.route("/display-profiles/<string:profile_id>/apply-template", methods=["POST"])
 @profiles_bp.route("/<string:profile_id>/apply-template", methods=["POST"])
 def apply_style_template(profile_id: str):
     """
@@ -795,8 +809,8 @@ def apply_style_template(profile_id: str):
     responses:
       200:
         description: Template applied successfully
-      404:
-        description: Profile or template not found
+        404:
+          description: Profile or template not found
     """
     try:
         data = request.get_json()
@@ -814,3 +828,4 @@ def apply_style_template(profile_id: str):
     except Exception as e:
         current_app.logger.error(f"Error applying style template: {e}")
         return jsonify({"error": "Internal server error"}), 500
+

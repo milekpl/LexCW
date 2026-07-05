@@ -65,10 +65,15 @@
                 </div>
                 
                 <h4 class="mt-4 fw-semibold">Quick Actions</h4>
-                <div class="row mt-3">
+                <div class="row mt-3 g-3">
                     <div class="col-md-4">
                         <a href="{{ url_for('main.add_entry') }}" class="btn btn-lg w-100 text-start d-flex align-items-center gap-3 px-4" style="background: #1557b0; color: white; border: none; padding-top: 16px; padding-bottom: 16px;">
                             <i class="fas fa-plus fs-4"></i> New Entry
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('main.display_profiles') }}" class="btn btn-lg w-100 text-start d-flex align-items-center gap-3 px-4" style="background: #08bdba; color: white; border: none; padding-top: 16px; padding-bottom: 16px;">
+                            <i class="fas fa-palette fs-4"></i> Display Profiles
                         </a>
                     </div>
                 </div>

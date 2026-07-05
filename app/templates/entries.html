@@ -26,7 +26,10 @@
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="d-flex justify-content-end">
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="{{ url_for('workbench.spreadsheet_view') }}" class="btn btn-outline-primary" title="Switch to Spreadsheet Grid View">
+                        <i class="fas fa-table"></i> Spreadsheet Grid
+                    </a>
                     <button type="button" class="btn btn-outline-secondary" id="btn-sort-lexeme">
                         <i class="fas fa-sort-alpha-down"></i> Lexeme
                     </button>

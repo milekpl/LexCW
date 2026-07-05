@@ -511,3 +511,37 @@ class DisplayProfileService:
                 number_senses=data.get('number_senses', True),
                 number_senses_if_multiple=data.get('number_senses_if_multiple', False)
             )
+
+    def apply_template(self, profile_id: int | str, template_id: str) -> Optional[DisplayProfile]:
+        """Apply a style template to a display profile's custom CSS.
+
+        Args:
+            profile_id: Profile ID to update
+            template_id: Template ID to apply
+
+        Returns:
+            Updated DisplayProfile instance or None
+        """
+        from app.services.css_mapping_service import CSSMappingService
+        templates = {t["id"]: t for t in CSSMappingService.get_style_templates()}
+        if template_id not in templates:
+            return None
+
+        try:
+            pid = int(profile_id)
+        except (ValueError, TypeError):
+            return None
+
+        profile = self.get_profile(pid)
+        if not profile:
+            return None
+
+        template = templates[template_id]
+        existing_css = profile.custom_css or ""
+        if existing_css.strip():
+            new_css = existing_css.rstrip() + "\n\n/* Template: " + template["name"] + " */\n" + template["css"]
+        else:
+            new_css = "/* Template: " + template["name"] + " */\n" + template["css"]
+
+        return self.update_profile(pid, custom_css=new_css)
+

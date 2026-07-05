@@ -2294,6 +2294,19 @@ def worksets():
 def change_analytics():
     return render_template("workbench/change_analytics.html")
 
+
+@workbench_bp.route("/spreadsheet")
+def spreadsheet_view():
+    """Render the spreadsheet grid view interface."""
+    try:
+        return render_template("workbench/spreadsheet_view.html")
+    except Exception as e:
+        logger.error(f"Error rendering spreadsheet view: {e}")
+        return render_template(
+            "error.html", error_message="Failed to load spreadsheet view"
+        ), 500
+
+
 @workbench_bp.route("/worksets/<int:workset_id>/curation")
 @workbench_bp.route("/worksets/<int:workset_id>/curate")
 def workset_curate(workset_id: int):
