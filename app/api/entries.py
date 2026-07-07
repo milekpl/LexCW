@@ -1380,3 +1380,65 @@ def _remove_variant_relation_from_xml(xml_string: str, target_id: str) -> tuple:
 
     # Convert back to string
     return ET.tostring(root, encoding="unicode"), was_modified
+
+
+@entries_bp.route("/<entry_id>/modify", methods=["POST", "PATCH"])
+def modify_entry(entry_id: str) -> Any:
+    """Directly modify fields of an entry (e.g. for external scripts like IPA generator)."""
+    data = request.get_json(silent=True) or {}
+    if not data:
+        return jsonify({"error": "No modification data provided"}), 400
+
+    try:
+        dict_service = get_dictionary_service()
+        entry = dict_service.get_entry(entry_id)
+        if not entry:
+            return jsonify({"error": f"Entry {entry_id} not found"}), 404
+
+        entry_dict = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
+        modified_fields = []
+
+        if "pronunciation" in data or "ipa" in data:
+            ipa_val = data.get("ipa") or (data.get("pronunciation", {}).get("ipa") if isinstance(data.get("pronunciation"), dict) else data.get("pronunciation"))
+            lang_val = data.get("lang") or (data.get("pronunciation", {}).get("lang") if isinstance(data.get("pronunciation"), dict) else "seh-fonipa")
+            if ipa_val:
+                entry_dict["pronunciation"] = {"ipa": str(ipa_val), "lang": str(lang_val)}
+                modified_fields.append("pronunciation")
+
+        if "grammatical_info" in data or "pos" in data:
+            pos_val = data.get("grammatical_info") or data.get("pos")
+            if pos_val:
+                entry_dict["grammatical_info"] = str(pos_val)
+                modified_fields.append("grammatical_info")
+
+        for key in ["etymology", "senses", "custom_fields", "notes"]:
+            if key in data:
+                entry_dict[key] = data[key]
+                modified_fields.append(key)
+
+        updated_entry = dict_service.update_entry(entry_id, entry_dict)
+
+        from app.services.entry_revision_service import EntryRevisionService
+        try:
+            revision = EntryRevisionService.save_revision(
+                entry_id=entry_id,
+                snapshot=entry_dict,
+                user_id=data.get("user_id", "external_script"),
+                created_by=data.get("source_script", "external_script_modify"),
+            )
+            rev_dict = revision.to_dict()
+        except Exception as e:
+            logger.warning(f"Revision save warning in modify_entry: {e}")
+            rev_dict = {}
+
+        return jsonify({
+            "success": True,
+            "entry_id": entry_id,
+            "modified_fields": modified_fields,
+            "revision": rev_dict,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error modifying entry {entry_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+

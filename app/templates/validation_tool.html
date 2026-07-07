@@ -267,12 +267,12 @@
     </div>
 
     <!-- Project Selection -->
-    <div class="row mb-4">
-        <div class="col-md-6">
+    <div class="row mb-4 align-items-center g-2">
+        <div class="col-md-2">
             <div class="input-group">
                 <label class="input-group-text" for="project-selector">Project</label>
                 <select class="form-select" id="project-selector">
-                    <option value="">Select a project...</option>
+                    <option value="">Select...</option>
                     {% for project in projects %}
                     <option value="{{ project.id }}" {% if project.id == selected_project_id %}selected{% endif %}>
                         {{ project.name }}
@@ -281,26 +281,61 @@
                 </select>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="btn-group float-end" role="group">
-                <button type="button" class="btn btn-outline-primary" id="refresh-btn">
-                    <i class="fas fa-sync-alt"></i> Refresh
+        <div class="col-md-2">
+            <div class="input-group">
+                <label class="input-group-text" for="limit-selector">Scope</label>
+                <select class="form-select" id="limit-selector">
+                    <option value="500" selected>500</option>
+                    <option value="1000">1,000</option>
+                    <option value="2500">2,500</option>
+                    <option value="5000">5,000</option>
+                    <option value="10000">10,000</option>
+                    <option value="all">All</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="input-group">
+                <label class="input-group-text" for="run-rule-selector"><i class="fas fa-cog me-1"></i> Rule</label>
+                <select class="form-select" id="run-rule-selector">
+                    <option value="all" selected>All Rules</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3" id="batch-nav-container">
+            <div class="input-group">
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="prev-batch-btn" title="Previous Page">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span class="input-group-text flex-grow-1 text-center small" id="batch-page-label" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">Range: 1–500</span>
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="next-batch-btn" title="Next Page">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="btn-group float-end w-100" role="group">
+                <button type="button" class="btn btn-outline-primary" id="refresh-btn" title="Reload entries">
+                    <i class="fas fa-sync-alt"></i>
                 </button>
                 <button type="button" class="btn btn-primary" id="run-validation-btn">
-                    <i class="fas fa-play"></i> Run Validation
+                    <i class="fas fa-play me-1"></i> Validate
                 </button>
             </div>
         </div>
     </div>
+
 
     <!-- Statistics Cards -->
     <div class="row mb-4" id="stats-row" style="display: none;">
         <div class="col-md-3">
             <div class="stats-card total">
                 <div class="stat-value" id="total-count">0</div>
-                <div class="stat-label">Total Entries</div>
+                <div class="stat-label">Total Dictionary Entries</div>
+                <small class="text-muted d-block mt-1" id="batch-scope-info">Validated: 0 entries</small>
             </div>
         </div>
+
         <div class="col-md-3">
             <div class="stats-card valid">
                 <div class="stat-value" id="valid-count">0</div>
@@ -342,7 +377,7 @@
     <!-- Filters -->
     <div class="filter-section" id="filter-section" style="display: none;">
         <div class="row align-items-end">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Status</label>
                 <select class="form-select" id="status-filter">
                     <option value="all">All Entries</option>
@@ -350,7 +385,7 @@
                     <option value="invalid">Invalid Only</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Priority</label>
                 <select class="form-select" id="priority-filter">
                     <option value="all">All Priorities</option>
@@ -359,9 +394,15 @@
                     <option value="informational">Informational Only</option>
                 </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <label class="form-label">Rule Filter</label>
+                <select class="form-select" id="rule-filter">
+                    <option value="all">All Rules</option>
+                </select>
+            </div>
+            <div class="col-md-3">
                 <label class="form-label">Search</label>
-                <input type="text" class="form-control" id="search-filter" placeholder="Search by entry ID or issue...">
+                <input type="text" class="form-control" id="search-filter" placeholder="Search by headword or issue...">
             </div>
             <div class="col-md-2">
                 <button class="btn btn-secondary w-100" id="clear-filters-btn">
@@ -377,9 +418,14 @@
             <table class="table table-hover results-table" id="results-table">
                 <thead>
                     <tr>
-                        <th style="width: 80px;">Status</th>
-                        <th style="width: 150px;">Entry ID</th>
-                        <th style="width: 100px;">Issues</th>
+                        <th style="width: 100px;">Status</th>
+                        <th style="width: 250px;">Headword (click to edit)</th>
+                        <th>
+                            Validation Issues
+                            <select class="form-select form-select-sm d-inline-block ms-2" id="header-rule-filter" style="width: 200px; font-size: 0.8rem; padding: 0.15rem 0.5rem; display: inline-block; vertical-align: middle;">
+                                <option value="all">All Rules</option>
+                            </select>
+                        </th>
                         <th style="width: 120px;">Actions</th>
                     </tr>
                 </thead>
@@ -445,6 +491,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let projectId = null;
     let entryCache = new Map(); // Cache entry data by ID
 
+    // Batch pagination state
+    let currentBatchOffset = 0;
+    let totalDictEntriesCount = 0;
+
     // Elements
     const projectSelector = document.getElementById('project-selector');
     const runValidationBtn = document.getElementById('run-validation-btn');
@@ -461,15 +511,57 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchFilter = document.getElementById('search-filter');
     const clearFiltersBtn = document.getElementById('clear-filters-btn');
 
+    const ruleFilter = document.getElementById('rule-filter');
+    const headerRuleFilter = document.getElementById('header-rule-filter');
+    const runRuleSelector = document.getElementById('run-rule-selector');
+
+    const limitSelector = document.getElementById('limit-selector');
+    const batchScopeInfo = document.getElementById('batch-scope-info');
+    const prevBatchBtn = document.getElementById('prev-batch-btn');
+    const nextBatchBtn = document.getElementById('next-batch-btn');
+    const batchPageLabel = document.getElementById('batch-page-label');
+    const batchNavContainer = document.getElementById('batch-nav-container');
+
     // Event Listeners
-    projectSelector.addEventListener('change', function() {
+    projectSelector.addEventListener('change', async function() {
         projectId = this.value;
+        currentBatchOffset = 0;
         if (projectId) {
-            loadProjectEntries(projectId);
+            await loadProjectRules(projectId);
+            await loadProjectEntries(projectId);
         }
     });
 
-    runValidationBtn.addEventListener('click', runValidation);
+    if (limitSelector) {
+        limitSelector.addEventListener('change', function() {
+            currentBatchOffset = 0;
+            if (projectId) {
+                loadProjectEntries(projectId);
+            }
+        });
+    }
+
+    if (prevBatchBtn) {
+        prevBatchBtn.addEventListener('click', function() {
+            const limit = parseInt(limitSelector.value, 10) || 500;
+            currentBatchOffset = Math.max(0, currentBatchOffset - limit);
+            if (projectId) {
+                loadProjectEntries(projectId);
+            }
+        });
+    }
+
+    if (nextBatchBtn) {
+        nextBatchBtn.addEventListener('click', function() {
+            const limit = parseInt(limitSelector.value, 10) || 500;
+            currentBatchOffset = currentBatchOffset + limit;
+            if (projectId) {
+                loadProjectEntries(projectId);
+            }
+        });
+    }
+
+    runValidationBtn.addEventListener('click', () => runValidation());
     refreshBtn.addEventListener('click', function() {
         if (projectId) {
             loadProjectEntries(projectId);
@@ -481,26 +573,67 @@ document.addEventListener('DOMContentLoaded', function() {
     searchFilter.addEventListener('input', debounce(applyFilters, 300));
     clearFiltersBtn.addEventListener('click', clearFilters);
 
+    if (ruleFilter) {
+        ruleFilter.addEventListener('change', function() {
+            if (headerRuleFilter) headerRuleFilter.value = this.value;
+            applyFilters();
+        });
+    }
+
+    if (headerRuleFilter) {
+        headerRuleFilter.addEventListener('change', function() {
+            if (ruleFilter) ruleFilter.value = this.value;
+            applyFilters();
+        });
+    }
+
+
     // Initialize
     checkProjectSelection();
 
-    function checkProjectSelection() {
+    async function checkProjectSelection() {
         const selectedProject = projectSelector.value;
         if (selectedProject) {
             projectId = selectedProject;
-            loadProjectEntries(projectId);
+            await loadProjectRules(projectId);
+            await loadProjectEntries(projectId);
         }
     }
 
     async function loadProjectEntries(projectId) {
-        showLoading('Loading entries...');
+        const selectedLimit = limitSelector ? limitSelector.value : '500';
+        
+        if (selectedLimit === 'all') {
+            if (batchNavContainer) batchNavContainer.style.display = 'none';
+            validationResults = [];
+            filteredResults = [];
+            entryCache.clear();
+            hideLoading();
+            // Don't auto-validate; full audit is triggered by the Validate button
+            statsRow.style.display = 'none';
+            summaryRow.style.display = 'none';
+            filterSection.style.display = 'none';
+            resultsContainer.style.display = 'none';
+            noEntriesMessage.style.display = 'block';
+            noEntriesMessage.innerHTML = `
+                <i class="fas fa-database"></i>
+                <h4>Full Dictionary Scope Selected</h4>
+                <p>Click <strong>Validate</strong> to run a full audit across the entire dictionary database.</p>
+            `;
+            return;
+        }
+
+        if (batchNavContainer) batchNavContainer.style.display = 'flex';
+
+        const fetchLimit = parseInt(selectedLimit, 10) || 500;
+        showLoading(`Loading entries ${(currentBatchOffset + 1).toLocaleString()} to ${(currentBatchOffset + fetchLimit).toLocaleString()}...`);
         entryCache.clear();
         validationResults = [];
         filteredResults = [];
 
         try {
-            // Fetch entries from the entries API
-            const response = await fetch(`/api/entries?project_id=${projectId}&limit=500`);
+            // Fetch entries from the entries API with offset
+            const response = await fetch(`/api/entries?project_id=${projectId}&limit=${fetchLimit}&offset=${currentBatchOffset}`);
 
             // Check content type to handle HTML error pages
             const contentType = response.headers.get('content-type');
@@ -515,11 +648,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const data = await response.json();
-            const entries = data.entries || [];
+            const rawEntries = Array.isArray(data) ? data : (data.entries || data.items || []);
+            const entries = rawEntries.filter(e => e && typeof e === 'object');
 
-            // Cache entries by ID for quick lookup
+            // Total entries in full dictionary vs batch sample
+            totalDictEntriesCount = (data && (data.total_count || data.total)) ? (data.total_count || data.total) : entries.length;
+            const totalCountElem = document.getElementById('total-count');
+            if (totalCountElem) {
+                totalCountElem.textContent = Number(totalDictEntriesCount).toLocaleString();
+            }
+            if (batchScopeInfo) {
+                batchScopeInfo.textContent = `Loaded: ${entries.length.toLocaleString()} of ${Number(totalDictEntriesCount).toLocaleString()} entries`;
+            }
+
+            // Update range label and pagination buttons state
+            if (batchPageLabel) {
+                const startRange = entries.length > 0 ? (currentBatchOffset + 1).toLocaleString() : '0';
+                const endRange = (currentBatchOffset + entries.length).toLocaleString();
+                batchPageLabel.textContent = `Range: ${startRange}–${endRange}`;
+            }
+            if (prevBatchBtn) prevBatchBtn.disabled = currentBatchOffset <= 0;
+            if (nextBatchBtn) nextBatchBtn.disabled = (currentBatchOffset + entries.length) >= totalDictEntriesCount;
+
+            // Cache entries by ID/guid for quick lookup
             entries.forEach(entry => {
-                entryCache.set(entry.id, entry);
+                const eid = entry.id || entry.guid || entry._id;
+                if (eid) {
+                    entryCache.set(eid, entry);
+                }
             });
 
             if (entries.length === 0) {
@@ -528,8 +684,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Run validation on all entries
-            await runValidation(entries);
+            // Entries loaded; validation requires clicking the Validate button
+            hideLoading();
+            statsRow.style.display = 'flex';
+            summaryRow.style.display = 'none';
+            filterSection.style.display = 'none';
+            resultsContainer.style.display = 'none';
+            noEntriesMessage.style.display = 'block';
+            noEntriesMessage.innerHTML = `
+                <i class="fas fa-clipboard-list"></i>
+                <h4>${entries.length.toLocaleString()} Entries Loaded</h4>
+                <p>Click <strong>Validate</strong> to check these entries against validation rules.</p>
+            `;
+
         } catch (error) {
             Logger.error('Error loading entries:', error);
             hideLoading();
@@ -538,25 +705,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function runValidation(entries = null) {
+    async function runValidation(entries = null, isValidateAll = false) {
         if (!projectId) {
             flashMessage('Please select a project first', 'warning');
             return;
         }
 
+        const scopeVal = limitSelector ? limitSelector.value : '500';
+        const isAll = isValidateAll || scopeVal === 'all';
+
         let entriesToValidate = entries;
 
-        // If no entries provided, get from cache
-        if (!entriesToValidate) {
-            entriesToValidate = Array.from(entryCache.values());
+        if (!isAll) {
+            if (!entriesToValidate) {
+                entriesToValidate = Array.from(entryCache.values());
+            }
+
+            entriesToValidate = (entriesToValidate || []).filter(e => e && typeof e === 'object');
+
+            if (entriesToValidate.length === 0) {
+                hideLoading();
+                showEmptyState();
+                flashMessage('No entries to validate', 'info');
+                return;
+            }
+
+            showLoading('Running validation on ' + entriesToValidate.length.toLocaleString() + ' entries...');
+        } else {
+            showLoading('Auditing entire dictionary database...');
+            entriesToValidate = [];
         }
 
-        if (entriesToValidate.length === 0) {
-            flashMessage('No entries to validate', 'info');
-            return;
-        }
+        const selectedRuleId = (runRuleSelector && runRuleSelector.value !== 'all') ? runRuleSelector.value : null;
 
-        showLoading('Running validation on ' + entriesToValidate.length + ' entries...');
         const csrfToken = getCsrfToken();
 
         try {
@@ -564,14 +745,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-CSRF-Token': csrfToken,
                     'X-CSRF-TOKEN': csrfToken
                 },
                 body: JSON.stringify({
                     entries: entriesToValidate,
                     priority_filter: 'all',
-                    project_id: projectId
+                    project_id: projectId,
+                    validate_all: isAll,
+                    rule_id: selectedRuleId
                 })
             });
+
+
 
             // Check content type to handle HTML error pages
             const contentType = response.headers.get('content-type');
@@ -608,14 +795,36 @@ document.addEventListener('DOMContentLoaded', function() {
             validationResults = result.results || [];
             filteredResults = [...validationResults];
 
+            populateRuleFilters();
             hideLoading();
             updateStats(result);
             applyFilters();
 
+            // Update scope label to reflect validated state
+            if (batchScopeInfo) {
+                const validatedCount = Number(result.total_entries || filteredResults.length || 0);
+                batchScopeInfo.textContent = `Validated: ${validatedCount.toLocaleString()} of ${Number(totalDictEntriesCount).toLocaleString()} entries`;
+            }
+
+            // Always display stats and summary rows after validation completes
+            statsRow.style.display = 'flex';
+            summaryRow.style.display = 'flex';
+
             if (validationResults.length > 0) {
-                showResults();
+                filterSection.style.display = 'block';
+                resultsContainer.style.display = 'block';
+                noEntriesMessage.style.display = 'none';
             } else {
-                showEmptyState();
+                filterSection.style.display = 'none';
+                resultsContainer.style.display = 'none';
+                noEntriesMessage.style.display = 'block';
+                noEntriesMessage.innerHTML = `
+                    <div class="alert alert-success p-4 shadow-sm text-center my-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h4 class="text-success">Validation Passed Cleanly!</h4>
+                        <p class="mb-0">All <strong>${Number(result.total_entries || 0).toLocaleString()}</strong> checked entries passed validation with <strong>0 errors or warnings</strong>.</p>
+                    </div>
+                `;
             }
         } catch (error) {
             Logger.error('Validation error:', error);
@@ -624,73 +833,100 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+
     function updateStats(result) {
-        document.getElementById('total-count').textContent = result.total_entries || 0;
-        document.getElementById('valid-count').textContent = result.valid_entries || 0;
-        document.getElementById('invalid-count').textContent = result.invalid_entries || 0;
+        const total = Number(result.total_entries || 0);
+        const valid = Number(result.valid_entries || 0);
+        const invalid = Number(result.invalid_entries || 0);
+
+        document.getElementById('total-count').textContent = total.toLocaleString();
+        document.getElementById('valid-count').textContent = valid.toLocaleString();
+        document.getElementById('invalid-count').textContent = invalid.toLocaleString();
 
         // Count total issues
-        let totalIssues = 0;
-        if (result.results && Array.isArray(result.results)) {
+        let totalIssues = result.total_issues !== undefined ? Number(result.total_issues) : 0;
+        if (!totalIssues && result.results && Array.isArray(result.results)) {
             result.results.forEach(r => {
                 totalIssues += (r.errors?.length || 0) + (r.warnings?.length || 0) + (r.info?.length || 0);
             });
         }
-        document.getElementById('issues-count').textContent = totalIssues;
+        document.getElementById('issues-count').textContent = totalIssues.toLocaleString();
 
         // Update progress bar
-        const validPercent = result.total_entries > 0
-            ? Math.round((result.valid_entries / result.total_entries) * 100)
+        const validPercent = total > 0
+            ? (valid / total * 100).toFixed(1)
             : 0;
-        const invalidPercent = 100 - validPercent;
+        const invalidPercent = (100 - validPercent).toFixed(1);
 
         const validProgress = document.getElementById('valid-progress');
         const invalidProgress = document.getElementById('invalid-progress');
 
         validProgress.style.width = validPercent + '%';
-        validProgress.textContent = validPercent > 10 ? validPercent + '%' : '';
+        validProgress.textContent = validPercent > 5 ? validPercent + '%' : '';
 
         invalidProgress.style.width = invalidPercent + '%';
-        invalidProgress.textContent = invalidPercent > 10 ? invalidPercent + '%' : '';
+        invalidProgress.textContent = invalidPercent > 5 ? invalidPercent + '%' : '';
 
         document.getElementById('summary-text').textContent =
-            `${result.valid_entries} valid / ${result.invalid_entries} invalid out of ${result.total_entries} entries`;
+            `${valid.toLocaleString()} valid / ${invalid.toLocaleString()} invalid out of ${total.toLocaleString()} entries`;
     }
+
 
     function applyFilters() {
         const status = statusFilter.value;
         const priority = priorityFilter.value;
-        const search = searchFilter.value.toLowerCase();
+        const search = searchFilter.value.toLowerCase().trim();
+        const ruleVal = ruleFilter ? ruleFilter.value : 'all';
 
         filteredResults = validationResults.filter(result => {
             // Status filter
             if (status === 'valid' && !result.valid) return false;
             if (status === 'invalid' && result.valid) return false;
 
+            // Gather all issues for priority & rule checking
+            const allIssues = [
+                ...result.errors,
+                ...result.warnings,
+                ...result.info
+            ];
+
             // Priority filter
             if (priority !== 'all') {
-                const hasPriority = result.errors.some(e => e.priority === priority) ||
-                                   result.warnings.some(e => e.priority === priority) ||
-                                   result.info.some(e => e.priority === priority);
+                const hasPriority = allIssues.some(issue => issue.priority === priority);
                 if (!hasPriority) return false;
+            }
+
+            // Rule filter
+            if (ruleVal !== 'all') {
+                const hasRule = allIssues.some(issue => issue.rule_id === ruleVal);
+                if (!hasRule) return false;
             }
 
             // Search filter
             if (search) {
-                const matchesId = result.entry_id.toLowerCase().includes(search);
-                const matchesErrors = result.errors.some(e =>
-                    e.message.toLowerCase().includes(search) ||
-                    e.path?.toLowerCase().includes(search)
+                const matchesId = result.entry_id && result.entry_id.toLowerCase().includes(search);
+                const matchesHeadword = result.headword && result.headword.toLowerCase().includes(search);
+                const matchesIssues = allIssues.some(issue =>
+                    (issue.message && issue.message.toLowerCase().includes(search)) ||
+                    (issue.path && issue.path.toLowerCase().includes(search)) ||
+                    (issue.rule_id && issue.rule_id.toLowerCase().includes(search))
                 );
-                const matchesWarnings = result.warnings.some(e =>
-                    e.message.toLowerCase().includes(search) ||
-                    e.path?.toLowerCase().includes(search)
-                );
-                if (!matchesId && !matchesErrors && !matchesWarnings) return false;
+                if (!matchesId && !matchesHeadword && !matchesIssues) return false;
             }
 
             return true;
         });
+
+        // If rule filter is active, sort the results to prioritize those with more rule matches
+        if (ruleVal !== 'all') {
+            filteredResults.sort((a, b) => {
+                const aIssues = [...a.errors, ...a.warnings, ...a.info];
+                const bIssues = [...b.errors, ...b.warnings, ...b.info];
+                const aCount = aIssues.filter(issue => issue.rule_id === ruleVal).length;
+                const bCount = bIssues.filter(issue => issue.rule_id === ruleVal).length;
+                return bCount - aCount; // descending order
+            });
+        }
 
         currentPage = 1;
         renderResults();
@@ -699,10 +935,116 @@ document.addEventListener('DOMContentLoaded', function() {
     function clearFilters() {
         statusFilter.value = 'all';
         priorityFilter.value = 'all';
+        if (ruleFilter) ruleFilter.value = 'all';
+        if (headerRuleFilter) headerRuleFilter.value = 'all';
         searchFilter.value = '';
-        filteredResults = [...validationResults];
-        currentPage = 1;
-        renderResults();
+        applyFilters();
+    }
+
+    async function loadProjectRules(projectId) {
+        if (!projectId) return;
+        
+        // Reset selectors
+        if (runRuleSelector) runRuleSelector.innerHTML = '<option value="all" selected>All Rules</option>';
+        if (ruleFilter) ruleFilter.innerHTML = '<option value="all" selected>All Rules</option>';
+        if (headerRuleFilter) headerRuleFilter.innerHTML = '<option value="all" selected>All Rules</option>';
+        
+        try {
+            const response = await fetch(`/api/projects/${projectId}/validation-rules?include_defaults=true`);
+            if (response.ok) {
+                const data = await response.json();
+                
+                // rules is a List/Array of rule configurations
+                const rulesList = data.rules || [];
+                
+                // Sort rules alphabetically by rule_id
+                rulesList.sort((a, b) => (a.rule_id || '').localeCompare(b.rule_id || ''));
+                
+                rulesList.forEach(rule => {
+                    const id = rule.rule_id;
+                    const name = rule.name || rule.description || id;
+                    if (!id) return;
+                    
+                    const optText = `${id} - ${name}`;
+                    
+                    // Add to Run Rule dropdown
+                    if (runRuleSelector) {
+                        const opt = document.createElement('option');
+                        opt.value = id;
+                        opt.textContent = optText;
+                        runRuleSelector.appendChild(opt);
+                    }
+                    
+                    // Add to Filter dropdown
+                    if (ruleFilter) {
+                        const opt = document.createElement('option');
+                        opt.value = id;
+                        opt.textContent = optText;
+                        ruleFilter.appendChild(opt);
+                    }
+                    
+                    // Add to Header Filter dropdown
+                    if (headerRuleFilter) {
+                        const opt = document.createElement('option');
+                        opt.value = id;
+                        opt.textContent = optText;
+                        headerRuleFilter.appendChild(opt);
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Error loading project validation rules:", e);
+        }
+    }
+
+    function populateRuleFilters() {
+        if (!ruleFilter && !headerRuleFilter) return;
+        
+        // Count issues per rule_id in the validation results
+        const issuesCountMap = new Map(); // rule_id -> count
+        validationResults.forEach(result => {
+            const allIssues = [
+                ...result.errors,
+                ...result.warnings,
+                ...result.info
+            ];
+            allIssues.forEach(issue => {
+                if (issue.rule_id) {
+                    issuesCountMap.set(issue.rule_id, (issuesCountMap.get(issue.rule_id) || 0) + 1);
+                }
+            });
+        });
+        
+        // Update each option in the select dropdowns
+        const updateSelectOptions = (selectElem) => {
+            if (!selectElem) return;
+            const currentVal = selectElem.value;
+            
+            Array.from(selectElem.options).forEach(opt => {
+                const ruleId = opt.value;
+                if (ruleId === 'all') return;
+                
+                // Extract rule base name (remove any previous count suffix)
+                let baseText = opt.textContent;
+                if (baseText.includes(' (')) {
+                    baseText = baseText.substring(0, baseText.indexOf(' ('));
+                }
+                
+                const count = issuesCountMap.get(ruleId) || 0;
+                if (count > 0) {
+                    opt.textContent = `${baseText} (${count})`;
+                    opt.style.fontWeight = 'bold';
+                } else {
+                    opt.textContent = baseText;
+                    opt.style.fontWeight = 'normal';
+                }
+            });
+            
+            selectElem.value = currentVal;
+        };
+        
+        updateSelectOptions(ruleFilter);
+        updateSelectOptions(headerRuleFilter);
     }
 
     function renderResults() {
@@ -721,17 +1063,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 ...result.errors.map(e => ({...e, type: 'error'})),
                 ...result.warnings.map(e => ({...e, type: 'warning'})),
                 ...result.info.map(e => ({...e, type: 'info'}))
-            ].slice(0, 3);
+            ];
 
             const issuesHtml = allIssues.map(issue => `
-                <li class="issue-item">
+                <li class="issue-item" style="margin-bottom: 0.4rem;">
                     <span class="priority-badge ${issue.priority}">${issue.priority}</span>
+                    <span class="badge bg-secondary text-uppercase ms-1 me-1 font-monospace" style="font-size: 0.7rem;" title="${escapeHtml(issue.rule_name || '')}">${escapeHtml(issue.rule_id || 'unknown')}</span>
                     <span class="issue-message">${escapeHtml(issue.message)}</span>
-                    ${issue.path ? `<div class="issue-path">${escapeHtml(issue.path)}</div>` : ''}
+                    ${issue.path ? `<div class="issue-path text-muted small ms-1" style="font-family: monospace; font-size: 0.75rem;">${escapeHtml(issue.path)}</div>` : ''}
                 </li>
             `).join('');
 
-            const moreCount = (result.errors.length + result.warnings.length + result.info.length) - 3;
+            const moreCount = (result.errors.length + result.warnings.length + result.info.length) - allIssues.length;
             const moreHtml = moreCount > 0 ? `<li class="issue-item text-muted">+${moreCount} more...</li>` : '';
 
             tr.innerHTML = `
@@ -741,17 +1084,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${result.valid ? 'Valid' : 'Invalid'}
                     </span>
                 </td>
-                <td><code>${escapeHtml(result.entry_id)}</code></td>
                 <td>
-                    <span class="badge bg-${result.valid ? 'success' : 'danger'}">${result.error_count + result.warnings.length + result.info.length}</span>
+                    <a href="/entries/${escapeHtml(result.entry_id)}/edit" class="fw-bold text-decoration-none" target="_blank" title="Click to edit entry">
+                        ${escapeHtml(result.headword || result.entry_id)}
+                    </a>
+                </td>
+                <td>
+                    <ul class="issue-list list-unstyled mb-0">
+                        ${issuesHtml}
+                        ${moreHtml}
+                    </ul>
                 </td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary view-details-btn" data-entry-id="${escapeHtml(result.entry_id)}">
-                        <i class="fas fa-eye"></i> View
+                        <i class="fas fa-eye"></i> View Issues
                     </button>
-                    <a href="/entries/${escapeHtml(result.entry_id)}/edit" class="btn btn-sm btn-outline-primary" target="_blank">
-                        <i class="fas fa-edit"></i> Edit
-                    </a>
                 </td>
             `;
 
@@ -820,17 +1167,41 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function showEntryDetails(entryId) {
-        const entry = entryCache.get(entryId);
+    async function showEntryDetails(entryId) {
+        let entry = entryCache.get(entryId);
         const result = validationResults.find(r => r.entry_id === entryId);
 
-        if (!entry || !result) {
-            flashMessage('Entry details not found', 'warning');
+        if (!result) {
+            flashMessage('Validation result not found', 'warning');
             return;
+        }
+
+        if (!entry) {
+            try {
+                showLoading('Loading entry details...');
+                const response = await fetch(`/api/entries/${encodeURIComponent(entryId)}`);
+                hideLoading();
+                if (response.ok) {
+                    const data = await response.json();
+                    entry = data.entry || data;
+                    if (entry) {
+                        entryCache.set(entryId, entry);
+                    }
+                }
+            } catch (e) {
+                hideLoading();
+                Logger.error('Error fetching entry details:', e);
+            }
+        }
+
+        if (!entry) {
+            // Fallback object if entry fetch fails
+            entry = { id: entryId, lexical_unit: {}, senses: [] };
         }
 
         const modal = new bootstrap.Modal(document.getElementById('entry-detail-modal'));
         const modalBody = document.getElementById('entry-detail-body');
+
 
         // Build issues HTML
         const allIssues = [

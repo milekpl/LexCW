@@ -41,12 +41,15 @@ function getCsrfHeaders(additionalHeaders = {}) {
     if (csrfToken) {
         return {
             ...additionalHeaders,
+            'X-CSRFToken': csrfToken,
+            'X-CSRF-Token': csrfToken,
             'X-CSRF-TOKEN': csrfToken
         };
     }
 
     return additionalHeaders;
 }
+
 
 /**
  * Check if CSRF token is available

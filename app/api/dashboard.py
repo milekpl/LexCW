@@ -441,6 +441,7 @@ def get_anomalies():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@dashboard_bp.route('/clear-cache', methods=['POST'])
 @swag_from({
     'tags': ['Dashboard'],
     'summary': 'Clear dashboard cache',

@@ -27,7 +27,14 @@ class AIServiceUI {
         if (draftBtn) {
             draftBtn.addEventListener('click', () => this.showDraftModal());
         }
+
+        // POS Tagger button
+        const posBtn = document.getElementById('btn-pos-tagger');
+        if (posBtn) {
+            posBtn.addEventListener('click', () => this.predictPosCurrentEntry());
+        }
     }
+
 
     /**
      * Gather current entry data from the form (via EtymologyFormsManager, etc.)
@@ -91,6 +98,48 @@ class AIServiceUI {
 
         return data;
     }
+
+    async predictPosCurrentEntry() {
+        const entryData = this.gatherEntryData();
+        const resultsPanel = document.getElementById('ai-results-panel');
+        if (!resultsPanel) return;
+
+        resultsPanel.innerHTML = '<div class="spinner-border spinner-border-sm text-success" role="status"></div> Predicting POS...';
+
+        try {
+            const resp = await fetch('/api/pos/tag-entry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entry: entryData })
+            });
+            const data = await resp.json();
+            if (data.success && data.prediction) {
+                const pred = data.prediction;
+                const posVal = pred.predicted_pos;
+                const confPct = Math.round((pred.confidence || 0.8) * 100);
+                resultsPanel.innerHTML = `
+                    <div class="alert alert-success mt-2 py-2 mb-0 d-flex align-items-center justify-content-between">
+                        <div>
+                            <strong>Predicted POS:</strong> <span class="badge bg-success">${posVal}</span> (${confPct}% confidence via ${pred.method || 'smart tagger'})
+                        </div>
+                        <button type="button" class="btn btn-sm btn-success py-0" id="btn-apply-predicted-pos">Apply</button>
+                    </div>
+                `;
+                document.getElementById('btn-apply-predicted-pos')?.addEventListener('click', () => {
+                    const posSelect = document.querySelector('[name="grammatical_info"]') || document.querySelector('[name="pos"]');
+                    if (posSelect) {
+                        posSelect.value = posVal;
+                        posSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                });
+            } else {
+                resultsPanel.innerHTML = `<div class="alert alert-warning mt-2 py-1 mb-0">${data.error || 'Could not predict POS'}</div>`;
+            }
+        } catch (err) {
+            resultsPanel.innerHTML = `<div class="alert alert-danger mt-2 py-1 mb-0">POS prediction error: ${err.message}</div>`;
+        }
+    }
+
 
     /**
      * Proofread the current entry in the form.

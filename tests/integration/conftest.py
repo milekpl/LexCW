@@ -558,7 +558,7 @@ def ensure_clean_basex_db(app: Flask) -> None:
     # Many tests rely on specific fixture entries existing in the shared TEST_DB_NAME.
     # `delete_all_lift_entries()` purges the dataset; after purge we add back:
     # - test_entry_1 (used broadly)
-    # - entry_1 and entry_2 (used by pronunciation dedupe/apply integration tests)
+    # - pron_entry_1 and pron_entry_2 (used by pronunciation dedupe/apply integration tests)
     db_name = os.environ.get('TEST_DB_NAME') or os.environ.get('BASEX_DATABASE')
     if db_name:
         try:
@@ -600,28 +600,28 @@ def ensure_clean_basex_db(app: Flask) -> None:
         </sense>
     </entry>
 
-    <entry id="entry_1">
+    <entry id="pron_entry_1">
         <lexical-unit>
             <form lang="en"><text>record</text></form>
         </lexical-unit>
         <pronunciation>
             <form lang="seh-fonipa"><text>ˈrekɔːd</text></form>
         </pronunciation>
-        <sense id="sense_1">
+        <sense id="pron_sense_1">
             <definition>
                 <form lang="en"><text>A test sense</text></form>
             </definition>
         </sense>
     </entry>
 
-    <entry id="entry_2">
+    <entry id="pron_entry_2">
         <lexical-unit>
             <form lang="en"><text>lactation</text></form>
         </lexical-unit>
         <pronunciation>
             <form lang="seh-fonipa"><text>ˈskɒtɪˌsɪz(ə)m</text></form>
         </pronunciation>
-        <sense id="sense_2">
+        <sense id="pron_sense_2">
             <definition>
                 <form lang="en"><text>Another test sense</text></form>
             </definition>

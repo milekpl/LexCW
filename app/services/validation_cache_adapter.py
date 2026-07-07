@@ -276,11 +276,20 @@ class ValidationCacheServiceAdapter:
             Dict mapping entry_id -> validator_type -> ValidationResult
         """
         results: Dict[str, Dict[str, ValidationResult]] = {}
+        seen_ids: set = set()
 
-        for entry in entries:
-            entry_id = entry.get('id')
-            if not entry_id:
-                continue
+        for idx, entry in enumerate(entries):
+            raw_id = entry.get('id')
+            # Do not silently drop entries lacking an id; fall back to a stable
+            # synthetic key. Disambiguate duplicate ids so results aren't
+            # overwritten.
+            entry_id = raw_id or f"__missing_id_{idx}__"
+            if entry_id in seen_ids:
+                n = 1
+                while f"{entry_id}#{n}" in seen_ids:
+                    n += 1
+                entry_id = f"{entry_id}#{n}"
+            seen_ids.add(entry_id)
 
             entry_results = self.validate_entry(
                 entry_id=entry_id,

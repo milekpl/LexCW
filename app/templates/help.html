@@ -665,6 +665,26 @@ for entry in entries:
                 <li><strong>Drill down</strong>: Click any issue to open the problematic entry for editing</li>
             </ul>
 
+            <h3 id="ipa-anomaly"><i class="fas fa-robot"></i> IPA Pronunciation Anomaly Detection <span class="feature-badge badge-professional">Professional</span></h3>
+            <p>
+                Rule <strong>R4.3.1</strong> uses a trained grapheme-to-phoneme model to flag IPA
+                pronunciations that diverge sharply from the pronunciation predicted for the headword.
+                Parenthetical IPA (e.g. <code>ˈskɒtɪˌsɪz(ə)m</code>) is decompressed automatically before
+                comparison. The rule is a <strong>warning</strong>, so it assists editors without blocking saves.
+            </p>
+            <p>
+                The model is <strong>not shipped with the application</strong>. An administrator trains it on the
+                project's own dictionary (see <code>scripts/ipa_training/</code>) and places the resulting
+                <code>ipa_anomaly_*.pt</code> + <code>.json</code> bundle in the server's
+                <code>instance/ipa_models/</code> directory. Users cannot choose the model or its location — discovery
+                is entirely server-side and safe.
+            </p>
+            <p>
+                <a href="/docs/IPA_ANOMALY_DETECTION.md" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-book"></i> Read the IPA anomaly detection tutorial
+                </a>
+            </p>
+
             <h3><i class="fas fa-code"></i> Built-in Rule Templates</h3>
             <p>
                 Start quickly with pre-configured templates. Available templates include:

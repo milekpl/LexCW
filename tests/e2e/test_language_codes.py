@@ -23,7 +23,7 @@ class TestLanguageCodesInXML:
         return xml
 
     def test_definition_language_selector_exists(self, page, app_url):
-        page.goto(f"{app_url}/entries/add")
+        page.goto(f"{app_url}/entries/add", timeout=30000)
         page.wait_for_load_state('networkidle')
 
         page.locator('#add-sense-btn').click()
@@ -34,7 +34,7 @@ class TestLanguageCodesInXML:
         expect(lang_select).to_be_visible()
 
     def test_example_sentence_has_language_selector(self, page, app_url):
-        page.goto(f"{app_url}/entries/add")
+        page.goto(f"{app_url}/entries/add", timeout=30000)
         page.wait_for_load_state('networkidle')
 
         page.locator('#add-sense-btn').click()
@@ -48,7 +48,7 @@ class TestLanguageCodesInXML:
         expect(lang_select).to_be_visible()
 
     def test_translation_has_language_selector(self, page, app_url):
-        page.goto(f"{app_url}/entries/add")
+        page.goto(f"{app_url}/entries/add", timeout=30000)
         page.wait_for_load_state('networkidle')
 
         page.locator('#add-sense-btn').click()
@@ -62,7 +62,7 @@ class TestLanguageCodesInXML:
         expect(lang_select).to_be_visible()
 
     def test_add_gloss_language_button_works(self, page, app_url):
-        page.goto(f"{app_url}/entries/add")
+        page.goto(f"{app_url}/entries/add", timeout=30000)
         page.wait_for_load_state('networkidle')
 
         page.locator('#add-sense-btn').click()
@@ -83,7 +83,7 @@ class TestLanguageCodesInXML:
         assert after > before
 
     def test_generated_xml_contains_correct_languages(self, page, app_url):
-        page.goto(f"{app_url}/entries/add")
+        page.goto(f"{app_url}/entries/add", timeout=30000)
         page.wait_for_load_state('networkidle')
 
         page.locator('input.lexical-unit-text').first.fill('lang-test-word')

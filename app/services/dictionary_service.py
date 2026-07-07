@@ -5089,14 +5089,20 @@ class DictionaryService:
                 return
 
             rel_query = f"distinct-values(collection('{db_name}')//relation/@type/string())"
-            trait_query = f"distinct-values(collection('{db_name}')//trait/@name/string())"
+            trait_query = f"for $t in collection('{db_name}')//trait[@value] return concat($t/@name, '=', $t/@value)"
             raw_rels = self.db_connector.execute_query(rel_query) or ""
             raw_traits = self.db_connector.execute_query(trait_query) or ""
 
             found_relations = set(r.strip() for r in raw_rels.split('\n') if r.strip())
-            found_traits = set(t.strip() for t in raw_traits.split('\n') if t.strip())
+            # Build trait_name -> set of values from name=value pairs
+            found_trait_dict: Dict[str, Set[str]] = {}
+            for pair in raw_traits.split('\n'):
+                pair = pair.strip()
+                if '=' in pair:
+                    name, value = pair.split('=', 1)
+                    found_trait_dict.setdefault(name, set()).add(value)
 
-            if not found_relations and not found_traits:
+            if not found_relations and not found_trait_dict:
                 return
 
             lists_xml = self.db_connector.execute_query(f"collection('{db_name}')//lists")
@@ -5106,8 +5112,14 @@ class DictionaryService:
             parser = UndefinedRangesParser()
 
             undefined_relations, undefined_traits = parser.identify_undefined_ranges_from_sets(
-                found_relations, found_traits, ranges_xml or None
+                found_relations, set(found_trait_dict.keys()), ranges_xml or None
             )
+
+            # Merge trait values into the undefined trait dict so create_custom_ranges
+            # can seed CustomRangeValue rows alongside the CustomRange rows.
+            for name in list(undefined_traits):
+                if name in found_trait_dict:
+                    undefined_traits[name] = found_trait_dict[name]
 
             if not undefined_relations and not undefined_traits:
                 self.logger.debug("No undefined ranges detected during scan")

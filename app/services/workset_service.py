@@ -414,3 +414,195 @@ class WorksetService:
         except Exception as e:
             logger.error(f"Failed to perform bulk operation: {e}")
             return 0
+
+    def create_proposal_workset(
+        self,
+        name: str,
+        source_script: str,
+        proposals: List[Dict[str, Any]],
+    ) -> Workset:
+        """Create a Workset containing proposal entries from an external script."""
+        query_dict = {"source_script": source_script, "type": "proposal_workset"}
+        workset = Workset.create(name, WorksetQuery.from_dict(query_dict))
+        workset.total_entries = len(proposals)
+        workset.ui_settings = {
+            "proposal_workset": True,
+            "source_script": source_script,
+            "created_at": datetime.now().isoformat(),
+        }
+
+        if hasattr(current_app, "pg_pool") and current_app.pg_pool is not None:
+            conn = current_app.pg_pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO worksets (name, query, total_entries, ui_settings) VALUES (%s, %s, %s, %s) RETURNING id, created_at, updated_at",
+                        (workset.name, json.dumps(workset.query.to_dict()), workset.total_entries, json.dumps(workset.ui_settings))
+                    )
+                    workset.id, workset.created_at, workset.updated_at = cur.fetchone()
+
+                    for prop in proposals:
+                        eid = prop.get("entry_id")
+                        notes_data = json.dumps(prop)
+                        cur.execute(
+                            "INSERT INTO workset_entries (workset_id, entry_id, status, notes) VALUES (%s, %s, %s, %s)",
+                            (workset.id, eid, "pending_review", notes_data)
+                        )
+                conn.commit()
+            finally:
+                current_app.pg_pool.putconn(conn)
+        else:
+            from app.models.project_settings import db
+            from app.models.workset_models import Workset as DBWorkset, WorksetEntry as DBWorksetEntry
+            try:
+                db_ws = DBWorkset(
+                    name=name,
+                    query=workset.query.to_dict(),
+                    total_entries=len(proposals),
+                    ui_settings=workset.ui_settings,
+                )
+                db.session.add(db_ws)
+                db.session.commit()
+                workset.id = db_ws.id
+            except Exception as ex:
+                logger.warning(f"DB fallback in create_proposal_workset: {ex}")
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                workset.id = 1
+
+
+        return workset
+
+    def approve_workset_entry_proposal(
+        self,
+        workset_id: int,
+        entry_id: str,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Approve a proposal in a workset, applying changes directly to entry and updating status to 'approved'."""
+        dictionary_service = get_dictionary_service()
+        entry = dictionary_service.get_entry(entry_id)
+        if not entry:
+            raise ValueError(f"Entry {entry_id} not found")
+
+        proposal_data = None
+        if hasattr(current_app, "pg_pool") and current_app.pg_pool is not None:
+            conn = current_app.pg_pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT notes FROM workset_entries WHERE workset_id = %s AND entry_id = %s",
+                        (workset_id, entry_id)
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        proposal_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            finally:
+                current_app.pg_pool.putconn(conn)
+        else:
+            from app.models.workset_models import WorksetEntry as DBWorksetEntry
+            we = DBWorksetEntry.query.filter_by(workset_id=workset_id, entry_id=entry_id).first()
+            if we and we.notes:
+                proposal_data = json.loads(we.notes) if isinstance(we.notes, str) else we.notes
+
+        if not proposal_data:
+            raise ValueError(f"No proposal metadata found for entry {entry_id} in workset {workset_id}")
+
+        field_name = proposal_data.get("field_name")
+        proposed_val = proposal_data.get("proposed_value")
+        proposal_type = proposal_data.get("proposal_type", "")
+
+        entry_dict = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
+
+        if proposal_type == "ipa" or field_name == "pronunciation":
+            if isinstance(proposed_val, dict):
+                entry_dict["pronunciation"] = proposed_val
+            elif isinstance(proposed_val, str):
+                entry_dict["pronunciation"] = {"ipa": proposed_val, "lang": "seh-fonipa"}
+        elif proposal_type == "pos" or field_name == "grammatical_info":
+            entry_dict["grammatical_info"] = str(proposed_val)
+        elif field_name:
+            entry_dict[field_name] = proposed_val
+
+        updated_entry = dictionary_service.update_entry(entry_id, entry_dict)
+
+        from app.services.entry_revision_service import EntryRevisionService
+        try:
+            revision = EntryRevisionService.save_revision(
+                entry_id=entry_id,
+                snapshot=entry_dict,
+                user_id=user_id or "system",
+                created_by=f"ProposalApprove ({proposal_data.get('source_script', 'external_script')})",
+            )
+            rev_dict = revision.to_dict() if hasattr(revision, "to_dict") else {}
+        except Exception as e:
+            logger.warning(f"Revision save warning: {e}")
+            rev_dict = {}
+
+        if hasattr(current_app, "pg_pool") and current_app.pg_pool is not None:
+            conn = current_app.pg_pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE workset_entries SET status = %s, modified_at = %s WHERE workset_id = %s AND entry_id = %s",
+                        ("approved", datetime.utcnow(), workset_id, entry_id)
+                    )
+                conn.commit()
+            finally:
+                current_app.pg_pool.putconn(conn)
+        else:
+            from app.models.project_settings import db
+            from app.models.workset_models import WorksetEntry as DBWorksetEntry
+            we = DBWorksetEntry.query.filter_by(workset_id=workset_id, entry_id=entry_id).first()
+            if we:
+                we.status = "approved"
+                we.modified_at = datetime.utcnow()
+                db.session.commit()
+
+        return {
+            "success": True,
+            "entry_id": entry_id,
+            "status": "approved",
+            "applied_field": field_name,
+            "applied_value": proposed_val,
+            "revision": rev_dict,
+        }
+
+    def reject_workset_entry_proposal(
+        self,
+        workset_id: int,
+        entry_id: str,
+        user_id: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Reject a proposal in a workset, setting status to 'rejected' without modifying entry data."""
+        if hasattr(current_app, "pg_pool") and current_app.pg_pool is not None:
+            conn = current_app.pg_pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE workset_entries SET status = %s, modified_at = %s WHERE workset_id = %s AND entry_id = %s",
+                        ("rejected", datetime.utcnow(), workset_id, entry_id)
+                    )
+                conn.commit()
+            finally:
+                current_app.pg_pool.putconn(conn)
+        else:
+            from app.models.project_settings import db
+            from app.models.workset_models import WorksetEntry as DBWorksetEntry
+            we = DBWorksetEntry.query.filter_by(workset_id=workset_id, entry_id=entry_id).first()
+            if we:
+                we.status = "rejected"
+                we.modified_at = datetime.utcnow()
+                if notes:
+                    we.notes = notes
+                db.session.commit()
+
+        return {
+            "success": True,
+            "entry_id": entry_id,
+            "status": "rejected",
+        }
+

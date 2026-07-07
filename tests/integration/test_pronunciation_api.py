@@ -153,10 +153,10 @@ class TestDeduplicateApplyEndpoint:
             "/api/pronunciation/deduplicate/apply",
             json={
                 "actions": [
-                    {"type": "remove", "entry_id": "entry_1", "ipa": "ˈrekɔːd"},
+                    {"type": "remove", "entry_id": "pron_entry_1", "ipa": "ˈrekɔːd"},
                     {
                         "type": "merge_to_compressed",
-                        "entry_id": "entry_2",
+                        "entry_id": "pron_entry_2",
                         "ipa": "ˈskɒtɪˌsɪz(ə)m",
                     },
                 ]

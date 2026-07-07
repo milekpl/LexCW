@@ -59,10 +59,10 @@ class XQueryBuilder:
         entry_id: str, db_name: str, has_namespace: bool = True
     ) -> str:
         """
-        Build query to retrieve entry by ID.
+        Build query to retrieve entry by ID, GUID, GUID suffix, or sense ID/GUID.
 
         Args:
-            entry_id: ID of the entry to retrieve
+            entry_id: ID or GUID of the entry to retrieve
             db_name: Name of the database
             has_namespace: Whether XML uses namespaces
 
@@ -71,12 +71,13 @@ class XQueryBuilder:
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
 
-        # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        for $entry in (collection()//{entry_path}[@id="{entry_id}"])[1]
+        for $entry in (collection()//{entry_path}[@id="{entry_id}" or @guid="{entry_id}" or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" or {sense_path}/@guid="{entry_id}"])[1]
         return $entry
         """
+
 
     @staticmethod
     def build_all_entries_query(
@@ -248,10 +249,10 @@ class XQueryBuilder:
         entry_id: str, db_name: str, has_namespace: bool = True
     ) -> str:
         """
-        Build query to delete entry.
+        Build query to delete entry by ID, GUID, or suffix.
 
         Args:
-            entry_id: ID of the entry to delete
+            entry_id: ID or GUID of the entry to delete
             db_name: Name of the database
             has_namespace: Whether XML uses namespaces
 
@@ -260,10 +261,10 @@ class XQueryBuilder:
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
 
-        # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        delete node collection()//{entry_path}[@id="{entry_id}"]
+        delete node collection()//{entry_path}[@id="{entry_id}" or @guid="{entry_id}" or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" or {sense_path}/@guid="{entry_id}"]
         """
 
     @staticmethod
@@ -271,10 +272,10 @@ class XQueryBuilder:
         entry_id: str, db_name: str, has_namespace: bool = True
     ) -> str:
         """
-        Build query to check if an entry exists.
+        Build query to check if an entry exists by ID, GUID, or suffix.
 
         Args:
-            entry_id: ID of the entry to check
+            entry_id: ID or GUID of the entry to check
             db_name: Name of the database
             has_namespace: Whether XML uses namespaces
 
@@ -283,11 +284,12 @@ class XQueryBuilder:
         """
         prologue = XQueryBuilder.get_namespace_prologue(has_namespace)
         entry_path = XQueryBuilder.get_element_path("entry", has_namespace)
+        sense_path = XQueryBuilder.get_element_path("sense", has_namespace)
 
-        # Use descendant axis to find entry anywhere in document
         return f"""{prologue}
-        exists(collection()//{entry_path}[@id="{entry_id}"])
+        exists(collection()//{entry_path}[@id="{entry_id}" or @guid="{entry_id}" or ends-with(@id, "_{entry_id}") or {sense_path}/@id="{entry_id}" or {sense_path}/@guid="{entry_id}"])
         """
+
 
     @staticmethod
     def build_statistics_query(db_name: str, has_namespace: bool = True) -> str:

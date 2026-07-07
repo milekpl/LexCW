@@ -78,10 +78,12 @@ class MockDatabaseConnector:
         self.logger.debug("Executing query: %s", query)
         
         # Handle common query patterns
-        if "collection(" in query and "entry[@id=" in query:
+        if "collection(" in query and "entry[@id=" in query or "entry[@id=" in query and "@guid=" in query:
             # Extract entry ID from query
+            # Handles both simple (entry[@id="x"]) and compound conditions
+            # (entry[@id="x" or @guid="x" or ...])
             import re
-            match = re.search(r'entry\[@id="([^"]+)"\]', query)
+            match = re.search(r'entry\[@id="([^"]+)"', query)
             if match:
                 entry_id = match.group(1)
                 return self._entries.get(entry_id, "")

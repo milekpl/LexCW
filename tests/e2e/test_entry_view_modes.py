@@ -156,9 +156,12 @@ def test_annotation_view_mode(page: Page, app_url: str) -> None:
     page.wait_for_load_state('networkidle')
     assert entry_id in page.url
 
-    # Clear sessionStorage to start in default mode
+    # Clear sessionStorage and navigate cleanly to the entry view page.
+    # Navigate to a neutral page first to avoid frame-detachment race
+    # when re-navigating to the same URL the save-redirect just landed on.
     page.evaluate("sessionStorage.removeItem('entryViewMode')")
-    page.reload()
+    page.goto(f"{app_url}/", wait_until="domcontentloaded")
+    page.goto(f"{app_url}/entries/{entry_id}", wait_until="domcontentloaded")
     page.wait_for_load_state("networkidle")
 
     # === Step 4: Verify default mode hides annotations ===

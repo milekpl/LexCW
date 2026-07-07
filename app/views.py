@@ -19,6 +19,7 @@ from flask import (
     send_from_directory,
     Response,
     g,
+    abort,
 )
 
 from app.services.dictionary_service import DictionaryService
@@ -2380,6 +2381,28 @@ def clear_cache():
 def help_page():
     """Render the comprehensive help page about LIFT and application features."""
     return render_template("help.html")
+
+
+@main_bp.route("/docs/<path:name>")
+def docs_page(name: str):
+    """Serve a markdown file from the project's ``docs/`` directory.
+
+    Only ``.md`` files directly inside ``docs/`` are served (no subdirectories,
+    no path traversal). This is used for tutorial-style documentation such as
+    the IPA anomaly detection guide.
+    """
+    if not name.endswith(".md"):
+        abort(404)
+    docs_root = os.path.abspath(os.path.join(current_app.root_path, "..", "docs"))
+    candidate = os.path.abspath(os.path.join(docs_root, name))
+    # Refuse anything that escapes the docs directory.
+    if candidate != docs_root and not candidate.startswith(docs_root + os.sep):
+        abort(404)
+    if not os.path.isfile(candidate):
+        abort(404)
+    with open(candidate, "r", encoding="utf-8") as fh:
+        content = fh.read()
+    return Response(content, mimetype="text/markdown; charset=utf-8")
 
 
 @main_bp.route("/api/live-preview", methods=["POST"])

@@ -161,10 +161,13 @@ def create_app(config_name=None):
     from app.api import api_bp
 
     app.register_blueprint(api_bp)
+    csrf.exempt(api_bp)
 
     from app.api.validation import validation_bp
 
     app.register_blueprint(validation_bp)
+    csrf.exempt(validation_bp)
+
 
     from app.api.ranges import ranges_bp
 
@@ -227,16 +230,20 @@ def create_app(config_name=None):
     from app.api.validation_endpoints import validation_api
 
     app.register_blueprint(validation_api, url_prefix="/api/validation")
+    csrf.exempt(validation_api)
 
     # Register validation service API (includes /api/validation/xml endpoint)
     from app.api.validation_service import validation_service_bp
 
     app.register_blueprint(validation_service_bp)
+    csrf.exempt(validation_service_bp)
 
     # Register validation rules API for project-specific rules
     from app.api.validation_rules_api import validation_rules_bp
 
     app.register_blueprint(validation_rules_bp)
+    csrf.exempt(validation_rules_bp)
+
 
     # Register entries API
     from app.api.entries import entries_bp

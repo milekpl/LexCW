@@ -1413,3 +1413,74 @@ def get_ai_review_results(workset_id: int):
     except Exception as e:
         logger.error(f"Error getting AI review results for workset {workset_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@worksets_bp.route('/api/worksets/proposals', methods=['POST'])
+def create_proposal_workset():
+    """Create a Workset containing proposal entries submitted by an external script."""
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "External Script Proposals")
+    source_script = data.get("source_script", "external_script")
+    proposals = data.get("proposals", [])
+
+    if not isinstance(proposals, list) or not proposals:
+        return jsonify({"error": "proposals list is required"}), 400
+
+    try:
+        service = WorksetService()
+        workset = service.create_proposal_workset(
+            name=name,
+            source_script=source_script,
+            proposals=proposals,
+        )
+        return jsonify({
+            "success": True,
+            "workset_id": workset.id,
+            "name": workset.name,
+            "total_entries": workset.total_entries,
+            "source_script": source_script,
+        }), 201
+    except Exception as e:
+        logger.error(f"Error creating proposal workset: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@worksets_bp.route('/api/worksets/<int:workset_id>/entries/<entry_id>/approve-proposal', methods=['POST'])
+def approve_proposal(workset_id: int, entry_id: str):
+    """Approve a proposal in a proposal workset and apply changes to dictionary entry."""
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+
+    try:
+        service = WorksetService()
+        result = service.approve_workset_entry_proposal(
+            workset_id=workset_id,
+            entry_id=entry_id,
+            user_id=user_id,
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error approving proposal for workset {workset_id}, entry {entry_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@worksets_bp.route('/api/worksets/<int:workset_id>/entries/<entry_id>/reject-proposal', methods=['POST'])
+def reject_proposal(workset_id: int, entry_id: str):
+    """Reject a proposal in a proposal workset without modifying entry data."""
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    notes = data.get("notes")
+
+    try:
+        service = WorksetService()
+        result = service.reject_workset_entry_proposal(
+            workset_id=workset_id,
+            entry_id=entry_id,
+            user_id=user_id,
+            notes=notes,
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error rejecting proposal for workset {workset_id}, entry {entry_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+

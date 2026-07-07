@@ -239,7 +239,25 @@
       },
       "error_message": "Invalid IPA character in pronunciation"
     },
+    "R3.2.2": {
+      "name": "definition_phrase_coherence",
+
+      "description": "Validates phrase-category coherence across definition segments split by configurable delimiter (e.g. a comma). Each segment is classified as a phrase (Noun Phrase, Verb Phrase, Adjective Phrase, ...) and segments whose phrase category differs from the dominant phrase category of the definition are flagged. The entry/headword POS is not used as a reference.",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_definition_phrase_coherence",
+        "delimiter": ","
+      },
+      "error_message": "Definition segments have inconsistent phrase categories"
+    },
     "R4.2.1": {
+
       "name": "no_double_stress_markers",
       "description": "Double stress markers (ˈˈ or ˌˌ) are not allowed",
       "category": "pronunciation",
@@ -268,6 +286,23 @@
         "custom_function": "validate_no_double_length"
       },
       "error_message": "Double length markers not allowed"
+    },
+    "R4.3.1": {
+      "name": "ipa_anomaly_detection",
+      "description": "Machine-learned pronunciation anomaly detection: flags IPA pronunciations whose stored form diverges sharply from the pronunciation predicted from the headword by the trained G2P model. Parenthetical IPA notation is decompressed (optional segments expanded) before comparison. Only runs when a trained model is available; otherwise it is a no-op.",
+      "category": "pronunciation",
+      "priority": "warning",
+      "path": "$.pronunciations",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_ipa_anomaly_detection",
+        "ipa_ws": "seh-fonipa",
+        "confidence_threshold": 0.5
+      },
+      "error_message": "Pronunciation anomaly: stored IPA diverges from the model-predicted pronunciation."
     },
     "R5.1.1": {
       "name": "synonym_antonym_exclusion",
@@ -347,6 +382,21 @@
         "custom_function": "validate_conflicting_pos"
       },
       "error_message": "Entry must have grammatical_info when senses have conflicting POS"
+    },
+    "R6.1.3": {
+      "name": "sense_pos_matches_entry_pos",
+      "description": "When the entry has a grammatical_info (POS), each sense that also has a POS must match it",
+      "category": "general",
+      "priority": "warning",
+      "path": "$.senses[*]",
+      "condition": {
+        "type": "custom"
+      },
+      "validation": {
+        "type": "custom",
+        "custom_function": "validate_pos_consistency"
+      },
+      "error_message": "Sense POS differs from the entry-level POS"
     },
     "R7.1.1": {
       "name": "date_fields_format",

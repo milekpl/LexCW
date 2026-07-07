@@ -23,7 +23,7 @@ class ProjectValidationRule(db.Model):
     __tablename__ = 'project_validation_rules'
 
     id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.String(255), nullable=False, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project_settings.id'), nullable=False, index=True)
     rule_id = db.Column(db.String(50), nullable=False, index=True)
     rule_config = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -55,17 +55,31 @@ class ProjectValidationRule(db.Model):
         """Return just the rule configuration (without metadata)."""
         return self.rule_config
 
+    @staticmethod
+    def _coerce_project_id(project_id: Any) -> int:
+        """Coerce a project_id (int or numeric string) to int.
+
+        Route parameters arrive as strings; the column is Integer, so a
+        non-coerced string would raise a type-mismatch on Postgres.
+        """
+        if isinstance(project_id, bool):
+            raise ValueError(f"Invalid project_id: {project_id!r}")
+        try:
+            return int(project_id)
+        except (TypeError, ValueError):
+            raise ValueError(f"Invalid project_id: {project_id!r}")
+
     @classmethod
     def create_from_config(
         cls,
-        project_id: str,
+        project_id: int,
         rule_id: str,
         config: Dict[str, Any],
         created_by: Optional[str] = None
     ) -> 'ProjectValidationRule':
         """Create a new validation rule from configuration dict."""
         rule = cls(
-            project_id=project_id,
+            project_id=cls._coerce_project_id(project_id),
             rule_id=rule_id,
             rule_config=config,
             created_by=created_by
@@ -73,7 +87,7 @@ class ProjectValidationRule(db.Model):
         return rule
 
     @staticmethod
-    def get_rules_for_project(project_id: str, include_inactive: bool = False) -> List[Dict[str, Any]]:
+    def get_rules_for_project(project_id: int, include_inactive: bool = False) -> List[Dict[str, Any]]:
         """
         Get all active rules for a project.
 
@@ -84,8 +98,9 @@ class ProjectValidationRule(db.Model):
         Returns:
             List of rule configurations
         """
+        pid = ProjectValidationRule._coerce_project_id(project_id)
         query = db.session.query(ProjectValidationRule).filter(
-            ProjectValidationRule.project_id == project_id
+            ProjectValidationRule.project_id == pid
         )
 
         if not include_inactive:
@@ -96,7 +111,7 @@ class ProjectValidationRule(db.Model):
 
     @staticmethod
     def save_rules_for_project(
-        project_id: str,
+        project_id: int,
         rules: List[Dict[str, Any]],
         created_by: Optional[str] = None
     ) -> int:
@@ -114,8 +129,9 @@ class ProjectValidationRule(db.Model):
         Returns:
             Number of rules saved
         """
+        pid = ProjectValidationRule._coerce_project_id(project_id)
         existing_rules = db.session.query(ProjectValidationRule).filter(
-            ProjectValidationRule.project_id == project_id
+            ProjectValidationRule.project_id == pid
         ).all()
 
         existing_by_id = {r.rule_id: r for r in existing_rules}
@@ -156,7 +172,7 @@ class ProjectValidationRule(db.Model):
 
     @staticmethod
     def add_rules_for_project(
-        project_id: str,
+        project_id: int,
         rules: List[Dict[str, Any]],
         created_by: Optional[str] = None
     ) -> int:
@@ -175,8 +191,9 @@ class ProjectValidationRule(db.Model):
         Returns:
             Number of rules added
         """
+        pid = ProjectValidationRule._coerce_project_id(project_id)
         existing_rules = db.session.query(ProjectValidationRule).filter(
-            ProjectValidationRule.project_id == project_id
+            ProjectValidationRule.project_id == pid
         ).all()
 
         existing_by_id = {r.rule_id: r for r in existing_rules}
@@ -209,7 +226,7 @@ class ProjectValidationRule(db.Model):
         return added_count
 
     @staticmethod
-    def delete_rules_for_project(project_id: str) -> int:
+    def delete_rules_for_project(project_id: int) -> int:
         """
         Delete all rules for a project.
 
@@ -219,8 +236,9 @@ class ProjectValidationRule(db.Model):
         Returns:
             Number of rules deleted
         """
+        pid = ProjectValidationRule._coerce_project_id(project_id)
         rules = db.session.query(ProjectValidationRule).filter(
-            ProjectValidationRule.project_id == project_id
+            ProjectValidationRule.project_id == pid
         ).all()
         count = len(rules)
         for rule in rules:
@@ -230,7 +248,7 @@ class ProjectValidationRule(db.Model):
         return count
 
     @staticmethod
-    def get_rule_by_id(project_id: str, rule_id: str) -> Optional[Dict[str, Any]]:
+    def get_rule_by_id(project_id: int, rule_id: str) -> Optional[Dict[str, Any]]:
         """
         Get a specific rule by ID for a project.
 
@@ -241,8 +259,9 @@ class ProjectValidationRule(db.Model):
         Returns:
             Rule configuration or None
         """
+        pid = ProjectValidationRule._coerce_project_id(project_id)
         rule = db.session.query(ProjectValidationRule).filter(
-            ProjectValidationRule.project_id == project_id,
+            ProjectValidationRule.project_id == pid,
             ProjectValidationRule.rule_id == rule_id,
             ProjectValidationRule.is_active == True
         ).first()

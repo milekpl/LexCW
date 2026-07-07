@@ -31,8 +31,10 @@ def list_entries():
         filter_text = request.args.get('filter_text', None, type=str)
         
         # Validate parameters
-        if limit <= 0 or limit > 1000:
-            limit = 10
+        if limit <= 0:
+            limit = 100
+        elif limit > 25000:
+            limit = 25000
         if offset < 0:
             offset = 0
         if sort_order.lower() not in ['asc', 'desc']:

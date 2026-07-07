@@ -168,8 +168,11 @@ class TestXQueryBuilder:
         )
         
         assert "declare namespace lift" in query
-        assert "lift:entry[@id=\"test_entry\"]" in query
-        # Accept explicit database name or generic collection() form
+        assert "lift:entry[" in query
+        assert "@id=\"test_entry\"" in query
+        # The query now uses compound predicates (id, GUID, suffix, sense ID)
+        assert "@guid" in query
+        # Accept either explicit database name or generic collection() form
         assert ("collection('test_db')" in query) or ("collection()" in query)
     
     @pytest.mark.integration
@@ -180,7 +183,8 @@ class TestXQueryBuilder:
         )
         
         assert "declare namespace" not in query
-        assert "entry[@id=\"test_entry\"]" in query
+        assert "entry[" in query
+        assert "@id=\"test_entry\"" in query
         assert "lift:" not in query
     
     @pytest.mark.integration
@@ -232,7 +236,8 @@ class TestXQueryBuilder:
         query = XQueryBuilder.build_delete_entry_query("test", "test_db", has_namespace=True)
         
         assert "delete node" in query
-        assert "lift:entry[@id=\"test\"]" in query
+        assert "lift:entry[" in query
+        assert "@id=\"test\"" in query
     
     @pytest.mark.integration
     def test_statistics_query(self):

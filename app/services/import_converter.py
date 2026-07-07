@@ -249,6 +249,7 @@ def build_lift_tree(
     field_map: dict[str, dict],
     language_map: dict[str, str],
     file_type: str = "sfm",
+    user_pos_map: dict[str, str] | None = None,
 ) -> tuple[ET.Element, list[str]]:
     """Build a LIFT XML tree from parsed SFM or CSV data.
 
@@ -258,6 +259,7 @@ def build_lift_tree(
             lift_element, level, lang, is_key, field_type.
         language_map: Dict mapping source language → target ISO code.
         file_type: "sfm" or "csv".
+        user_pos_map: Optional {source: target} POS value mapping.
 
     Returns:
         (lxml root Element, list of cross-ref dicts as repr strings).
@@ -269,7 +271,7 @@ def build_lift_tree(
     cross_refs_raw: list[str] = []
 
     if file_type == "sfm":
-        _build_from_sfm(root, parsed, field_map, language_map, cross_refs_raw)
+        _build_from_sfm(root, parsed, field_map, language_map, cross_refs_raw, user_pos_map=user_pos_map)
     else:
         _build_from_csv(root, parsed, field_map, language_map, cross_refs_raw)
 
@@ -282,11 +284,12 @@ def _build_from_sfm(
     field_map: dict[str, dict],
     language_map: dict[str, str],
     cross_refs_raw: list[str],
+    user_pos_map: dict[str, str] | None = None,
 ) -> None:
     """Populate LIFT tree from ParsedDocument."""
     for entry in doc.entries:
         entry_el = _convert_sfm_entry(
-            entry, field_map, language_map, cross_refs_raw
+            entry, field_map, language_map, cross_refs_raw, user_pos_map=user_pos_map
         )
         if entry_el is not None:
             root.append(entry_el)
@@ -297,6 +300,7 @@ def _convert_sfm_entry(
     field_map: dict[str, dict],
     language_map: dict[str, str],
     cross_refs_raw: list[str],
+    user_pos_map: dict[str, str] | None = None,
 ) -> Optional[ET.Element]:
     """Convert one SFM entry to a LIFT <entry> element."""
     import uuid
@@ -791,7 +795,7 @@ def import_parsed_document(
         Dict with {imported: int, resolved_cross_refs: int, unresolved_cross_refs: list}.
     """
     root, cross_refs_raw = build_lift_tree(
-        doc, field_map, language_map, file_type=file_type
+        doc, field_map, language_map, file_type=file_type, user_pos_map=user_pos_map
     )
 
     with tempfile.NamedTemporaryFile(

@@ -41,8 +41,8 @@ def get_service():
     return get_validation_rules_service()
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules", methods=["GET"])
-def get_project_validation_rules(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules", methods=["GET"])
+def get_project_validation_rules(project_id: int):
     """
     Get validation rules for a project.
 
@@ -73,13 +73,21 @@ def get_project_validation_rules(project_id: str):
 
         rules = service.get_project_rules(project_id)
 
-        # If no project-specific rules, fall back to defaults
-        use_defaults = len(rules) == 0 and include_defaults
-        if use_defaults:
-            rules = service.get_default_rules()
+        # When requested, merge default rules with project-specific rules so that
+        # default rules (e.g. R3.2.2 definition_phrase_coherence) still appear even
+        # when the project has its own stored rule set. Project rules override
+        # defaults with the same rule_id.
+        if include_defaults:
+            merged: Dict[str, Dict[str, Any]] = {
+                r.get("rule_id"): dict(r, origin="default")
+                for r in service.get_default_rules()
+            }
+            for r in rules:
+                merged[r.get("rule_id")] = dict(r, origin="project")
+            rules = list(merged.values())
             return jsonify({
                 "rules": rules,
-                "source": "defaults",
+                "source": "merged",
                 "count": len(rules)
             })
 
@@ -94,8 +102,8 @@ def get_project_validation_rules(project_id: str):
         return jsonify({"error": str(e)}), 500
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules", methods=["PUT"])
-def update_project_validation_rules(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules", methods=["PUT"])
+def update_project_validation_rules(project_id: int):
     """
     Update validation rules for a project.
 
@@ -151,8 +159,8 @@ def update_project_validation_rules(project_id: str):
         return jsonify({"error": str(e)}), 500
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules", methods=["DELETE"])
-def delete_project_validation_rules(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules", methods=["DELETE"])
+def delete_project_validation_rules(project_id: int):
     """
     Delete all validation rules for a project.
 
@@ -186,8 +194,8 @@ def delete_project_validation_rules(project_id: str):
         return jsonify({"error": str(e)}), 500
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules/export", methods=["GET"])
-def export_project_validation_rules(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules/export", methods=["GET"])
+def export_project_validation_rules(project_id: int):
     """
     Export validation rules for a project as JSON file.
 
@@ -233,8 +241,8 @@ def export_project_validation_rules(project_id: str):
         return jsonify({"error": str(e)}), 500
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules/import", methods=["POST"])
-def import_project_validation_rules(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules/import", methods=["POST"])
+def import_project_validation_rules(project_id: int):
     """
     Import validation rules for a project from JSON file.
 
@@ -292,8 +300,8 @@ def import_project_validation_rules(project_id: str):
         return jsonify({"error": str(e)}), 500
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules/initialize", methods=["POST"])
-def initialize_project_validation_rules(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules/initialize", methods=["POST"])
+def initialize_project_validation_rules(project_id: int):
     """
     Initialize validation rules for a new project.
 
@@ -344,8 +352,8 @@ def initialize_project_validation_rules(project_id: str):
         return jsonify({"error": str(e)}), 500
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules/add-from-template", methods=["POST"])
-def add_project_validation_rules_from_template(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules/add-from-template", methods=["POST"])
+def add_project_validation_rules_from_template(project_id: int):
     """
     Add validation rules from a template to existing project rules.
 
@@ -523,8 +531,8 @@ def test_validation_rule():
         return jsonify({"error": str(e)}), 500
 
 
-@validation_rules_bp.route("/<project_id>/validation-rules/effective", methods=["GET"])
-def get_effective_validation_rules(project_id: str):
+@validation_rules_bp.route("/<int:project_id>/validation-rules/effective", methods=["GET"])
+def get_effective_validation_rules(project_id: int):
     """
     Get effective validation rules for a project.
 

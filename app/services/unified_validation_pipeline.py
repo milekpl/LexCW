@@ -534,10 +534,21 @@ class UnifiedValidationPipeline:
         Returns:
             Dict mapping entry_id -> PipelineValidationResult
         """
-        results = {}
-        for entry in entries:
+        results: Dict[str, PipelineValidationResult] = {}
+        seen_ids: set[str] = set()
+        for idx, entry in enumerate(entries):
             data = self._normalize_entry_data(entry)
-            entry_id = data.get('id') if data else 'unknown'
+            raw_id = data.get('id') if data else None
+            # Never silently drop an entry for lacking an id; use a stable
+            # synthetic key instead. Also disambiguate duplicate ids so no
+            # result is overwritten.
+            entry_id = raw_id or f"__missing_id_{idx}__"
+            if entry_id in seen_ids:
+                n = 1
+                while f"{entry_id}#{n}" in seen_ids:
+                    n += 1
+                entry_id = f"{entry_id}#{n}"
+            seen_ids.add(entry_id)
             results[entry_id] = self.validate_entry(entry, options)
         return results
 

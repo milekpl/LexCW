@@ -209,7 +209,23 @@
       "error_message": "Pronunciation language must be 'seh-fonipa', got '{value}'",
       "client_side": true
     },
+    "R3.2.2": {
+      "name": "definition_phrase_coherence",
+
+      "description": "Validates phrase-category coherence across definition segments split by configurable delimiter (e.g. a comma). Each segment is classified as a phrase (Noun Phrase, Verb Phrase, Adjective Phrase, ...) and segments whose phrase category differs from the dominant phrase category of the definition are flagged. The entry/headword POS is not used as a reference.",
+      "category": "sense_level",
+      "priority": "warning",
+      "path": "$.senses[*]",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_definition_phrase_coherence",
+        "delimiter": ","
+      },
+      "error_message": "Definition segments have inconsistent phrase categories",
+      "client_side": true
+    },
     "R4.1.2": {
+
       "name": "ipa_character_validation",
       "description": "IPA characters must be from approved character set",
       "category": "pronunciation",
@@ -249,6 +265,21 @@
         "not_pattern": "ːː"
       },
       "error_message": "Double length markers not allowed in IPA pronunciation",
+      "client_side": true
+    },
+    "R4.3.1": {
+      "name": "ipa_anomaly_detection",
+      "description": "Machine-learned pronunciation anomaly detection: flags IPA pronunciations whose stored form diverges sharply from the pronunciation predicted from the headword by the trained G2P model. Parenthetical IPA notation is decompressed (optional segments expanded) before comparison. Only runs when a trained model is available; otherwise it is a no-op.",
+      "category": "pronunciation",
+      "priority": "warning",
+      "path": "$.pronunciations",
+      "condition": "custom",
+      "validation": {
+        "custom_function": "validate_ipa_anomaly_detection",
+        "ipa_ws": "seh-fonipa",
+        "confidence_threshold": 0.5
+      },
+      "error_message": "Pronunciation anomaly: stored IPA diverges from the model-predicted pronunciation.",
       "client_side": true
     },
     "R8.1.1": {

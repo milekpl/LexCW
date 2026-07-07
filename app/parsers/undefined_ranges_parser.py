@@ -95,9 +95,18 @@ class UndefinedRangesParser:
             Dict mapping range names to sets of defined element values
         """
         defined_elements = {}
-        
+
         try:
-            ranges_tree = ET.fromstring(ranges_xml)
+            # The ranges XML may contain multiple root-level elements (from
+            # multiple documents matched by collection()//lift-ranges).
+            # Strip any XML declarations, then wrap in a synthetic root so
+            # ET.fromstring can parse the concatenated fragments.
+            if not ranges_xml.strip().startswith("<"):
+                return defined_elements
+            import re
+            clean = re.sub(r'<\?xml[^>]*\?>', '', ranges_xml)
+            wrapped = f"<root>{clean}</root>"
+            ranges_tree = ET.fromstring(wrapped)
             
             for range_elem in ranges_tree.iter():
                 if range_elem.tag.endswith('range'):

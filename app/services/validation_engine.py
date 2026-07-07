@@ -10,9 +10,11 @@ Following TDD approach and project specification requirements.
 
 from __future__ import annotations
 
+import copy
 import json
-import re
 import os
+import re
+import threading
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set, Union
 from dataclasses import dataclass
@@ -95,6 +97,9 @@ class ValidationEngine:
     # Project-specific rules cache: {project_id: {rule_id: rule_config}}
     _project_rules_cache: dict[str, dict[str, Dict[str, Any]]] = {}
 
+    # Guards mutation of the shared class-level caches below.
+    _rules_lock = threading.Lock()
+
     def __init__(
         self,
         rules_file: Optional[str] = None,
@@ -123,8 +128,8 @@ class ValidationEngine:
         # Always reload rules to ensure validation_mode changes are picked up
         self._load_rules(project_rules=project_rules)
         ValidationEngine._rules_file_loaded = self.rules_file
-        self.rules: Dict[str, Dict[str, Any]] = ValidationEngine._rules_cache
-        self.custom_functions: Dict[str, Any] = ValidationEngine._custom_functions_cache
+        # self.rules / self.custom_functions are set by _load_rules (per-instance,
+        # so project-specific rule sets never leak into the shared class cache).
 
     def _load_rules(
         self,
@@ -145,70 +150,82 @@ class ValidationEngine:
             and ValidationEngine._rules_file_loaded == effective_file
             and ValidationEngine._rules_cache
         ):
+            self.rules = ValidationEngine._rules_cache
+            self.custom_functions = ValidationEngine._custom_functions_cache
             return  # class-level cache already populated for this file
 
-        # Priority order:
-        # 1. Explicitly passed project_rules
-        # 2. Project rules from cache (if project_id set)
-        # 3. Load from database if project_id available
-        # 4. Fall back to default rules from file
+        # The class-level caches are shared mutable state. Guard all reads/writes
+        # with a lock so concurrent requests for different projects can't clobber
+        # each other's rule sets.
+        with ValidationEngine._rules_lock:
+            default_rules: Dict[str, Dict[str, Any]] = {}
+            custom_functions: Dict[str, Any] = {}
+            try:
+                rules_path = Path(self.rules_file)
+                if not rules_path.is_absolute():
+                    base_path = Path(__file__).parent.parent.parent
+                    v2_path = base_path / "validation_rules_v2.json"
+                    if v2_path.exists():
+                        rules_path = v2_path
+                    else:
+                        rules_path = base_path / self.rules_file
 
-        if project_rules:
-            # Use explicitly provided project rules
-            self._compile_and_cache_rules(project_rules)
-            ValidationEngine._rules_cache = project_rules
-            return
+                with open(rules_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    # Deep-copy so per-instance compilation (compiled_pattern) never
+                    # mutates the shared default-rule objects.
+                    default_rules = copy.deepcopy(config.get('rules', {}))
+                    custom_functions = config.get('custom_functions', {})
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Validation rules file not found: {self.rules_file}")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in validation rules file: {e}")
 
-        # Try to load project-specific rules from database
-        if self.project_id:
-            db_rules = self._load_project_rules_from_db()
-            if db_rules:
-                self._compile_and_cache_rules(db_rules)
-                ValidationEngine._rules_cache = db_rules
-                ValidationEngine._project_rules_cache[self.project_id] = db_rules
-                return
+            # The class-level cache holds ONLY the default rules, never a
+            # project-specific merge. This prevents a project engine from
+            # overwriting the "default" rules used by other projects.
+            ValidationEngine._rules_cache = default_rules
+            ValidationEngine._custom_functions_cache = custom_functions
+            ValidationEngine._rules_file_loaded = effective_file
 
-        # Load default rules from file
-        try:
-            rules_path = Path(self.rules_file if rules_file else self.rules_file)
-            if not rules_path.is_absolute():
-                # Look for rules file relative to this module
-                base_path = Path(__file__).parent.parent.parent
-                # Also check for validation_rules_v2.json
-                v2_path = base_path / "validation_rules_v2.json"
-                if v2_path.exists():
-                    rules_path = v2_path
-                else:
-                    rules_path = base_path / self.rules_file
+            # Build the per-instance rule set (defaults + optional project rules).
+            rules = default_rules.copy()
 
-            with open(rules_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                rules = config.get('rules', {})
-                custom_functions = config.get('custom_functions', {})
+            # Merge in explicitly passed project rules
+            if project_rules:
+                rules.update(project_rules)
+            # Or load project-specific rules from database and merge
+            elif self.project_id:
+                db_rules = self._load_project_rules_from_db()
+                if db_rules:
+                    for r_id, r_config in db_rules.items():
+                        # Handle soft-deleted or inactive rules
+                        if r_config.get('active') is False or r_config.get('status') == 'deleted':
+                            if r_id in rules:
+                                del rules[r_id]
+                        else:
+                            rules[r_id] = r_config
+                    ValidationEngine._project_rules_cache[self.project_id] = db_rules
 
-                # Compile regex patterns
-                for rule_id, rule_config in rules.items():
-                    validation = rule_config.get('validation', {})
-                    pattern = validation.get('pattern')
-                    if pattern:
-                        try:
-                            validation['compiled_pattern'] = re.compile(pattern)
-                        except re.error as e:
-                            raise ValueError(f"Invalid regex '{pattern}' in rule {rule_id}: {e}")
+            # Compile regex patterns (per-instance; does not touch the shared cache)
+            for rule_id, rule_config in rules.items():
+                validation = rule_config.get('validation', {})
+                pattern = validation.get('pattern')
+                if pattern:
+                    try:
+                        validation['compiled_pattern'] = re.compile(pattern)
+                    except re.error as e:
+                        raise ValueError(f"Invalid regex '{pattern}' in rule {rule_id}: {e}")
 
-                    not_pattern = validation.get('not_pattern')
-                    if not_pattern:
-                        try:
-                            validation['compiled_not_pattern'] = re.compile(not_pattern)
-                        except re.error as e:
-                            raise ValueError(f"Invalid regex '{not_pattern}' in rule {rule_id}: {e}")
+                not_pattern = validation.get('not_pattern')
+                if not_pattern:
+                    try:
+                        validation['compiled_not_pattern'] = re.compile(not_pattern)
+                    except re.error as e:
+                        raise ValueError(f"Invalid regex '{not_pattern}' in rule {rule_id}: {e}")
 
-                ValidationEngine._rules_cache = rules
-                ValidationEngine._custom_functions_cache = custom_functions
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Validation rules file not found: {self.rules_file}")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in validation rules file: {e}")
+            self.rules = rules
+            self.custom_functions = custom_functions
 
     def _load_project_rules_from_db(self) -> Optional[Dict[str, Dict[str, Any]]]:
         """Load project-specific rules from database.
@@ -253,33 +270,6 @@ class ValidationEngine:
             )
             return None
 
-    def _compile_and_cache_rules(self, rules: Dict[str, Dict[str, Any]]) -> None:
-        """Compile regex patterns and cache rules.
-
-        Args:
-            rules: Dictionary of rule_id -> rule_config
-        """
-        for rule_id, rule_config in rules.items():
-            validation = rule_config.get('validation', {})
-
-            # Skip if already compiled
-            if 'compiled_pattern' in validation:
-                continue
-
-            pattern = validation.get('pattern')
-            if pattern:
-                try:
-                    validation['compiled_pattern'] = re.compile(pattern)
-                except re.error as e:
-                    raise ValueError(f"Invalid regex '{pattern}' in rule {rule_id}: {e}")
-
-            not_pattern = validation.get('not_pattern')
-            if not_pattern:
-                try:
-                    validation['compiled_not_pattern'] = re.compile(not_pattern)
-                except re.error as e:
-                    raise ValueError(f"Invalid regex '{not_pattern}' in rule {rule_id}: {e}")
-
     @classmethod
     def clear_project_cache(cls, project_id: Optional[str] = None) -> None:
         """Clear the project rules cache.
@@ -304,13 +294,14 @@ class ValidationEngine:
         """
         cls._project_rules_cache[project_id] = rules
 
-    def validate_json(self, data: Dict[str, Any], validation_mode: str = "save") -> ValidationResult:
+    def validate_json(self, data: Dict[str, Any], validation_mode: str = "save", rule_id_filter: Optional[str] = None) -> ValidationResult:
         """
         Validate JSON data against all applicable rules.
         
         Args:
             data: Dictionary representing entry data from form
             validation_mode: Validation mode - "save", "delete", "draft", or "all"
+            rule_id_filter: Optional rule ID to run only that specific rule
             
         Returns:
             ValidationResult containing all validation issues
@@ -320,6 +311,9 @@ class ValidationEngine:
         info: List[ValidationError] = []
         
         for rule_id, rule_config in self.rules.items():
+            if rule_id_filter and rule_id != rule_id_filter:
+                continue
+                
             # Skip server-side only rules if this is client-side validation
             if not rule_config.get('client_side', True):
                 continue
@@ -773,7 +767,10 @@ class ValidationEngine:
             errors.extend(self._validate_multilingual_note_structure(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_pos_consistency':
             errors.extend(self._validate_pos_consistency(rule_id, rule_config, data, matches))
+        elif custom_function == 'validate_definition_phrase_coherence':
+            errors.extend(self._validate_definition_phrase_coherence(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_conflicting_pos':
+
             errors.extend(self._validate_conflicting_pos(rule_id, rule_config, data, matches))
         elif custom_function == 'validate_no_circular_components':
             errors.extend(self._validate_no_circular_components(rule_id, rule_config, data, matches))
@@ -799,6 +796,8 @@ class ValidationEngine:
             errors.extend(self._validate_duplicate_variant_relations(rule_id, rule_config, data))
         elif custom_function == 'validate_redundant_gloss':
             errors.extend(self._validate_redundant_gloss(rule_id, rule_config, data))
+        elif custom_function == 'validate_ipa_anomaly_detection':
+            errors.extend(self._validate_ipa_anomaly_detection(rule_id, rule_config, data, matches))
 
         return errors
 
@@ -1502,7 +1501,7 @@ class ValidationEngine:
                 continue
 
             target = relation.get('ref') or relation.get('target')
-            if target and target not in existing_ids:
+            if target and not self._is_relation_target_valid(target, existing_ids):
                 errors.append(
                     self._create_error(rule_id, rule_config, f"$.relations[{idx}].ref", target)
                 )
@@ -1519,12 +1518,24 @@ class ValidationEngine:
                     continue
 
                 target = relation.get('ref') or relation.get('target')
-                if target and target not in existing_ids:
+                if target and not self._is_relation_target_valid(target, existing_ids):
                     errors.append(
                         self._create_error(rule_id, rule_config, f"$.senses[{sense_idx}].relations[{rel_idx}].ref", target)
                     )
 
         return errors
+
+    def _is_relation_target_valid(self, target: str, existing_ids: Set[str]) -> bool:
+        """Check if target matches entry ID, GUID, sense ID, or suffix."""
+        if not target:
+            return True
+        if target in existing_ids:
+            return True
+        for eid in existing_ids:
+            if eid.endswith(target) or target.endswith(eid):
+                return True
+        return False
+
 
     def _validate_ipa_characters(self, rule_id: str, rule_config: Dict[str, Any],
                                   data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
@@ -1702,6 +1713,148 @@ class ValidationEngine:
 
         return errors
 
+    def _validate_ipa_anomaly_detection(self, rule_id: str, rule_config: Dict[str, Any],
+                                        data: Dict[str, Any], matches: List[Any]) -> List[ValidationError]:
+        """R4.3.1: Flag IPA pronunciations that diverge from the model-predicted
+        pronunciation (machine-learned anomaly detection).
+
+        Uses the trained G2P model (see ``scripts/ipa_training``). Parenthetical
+        IPA notation is decompressed before comparison. If no trained model is
+        available the rule is a no-op (it never blocks validation).
+        """
+        errors: List[ValidationError] = []
+
+        validation = rule_config.get('validation', {}) or {}
+        ipa_ws = validation.get('ipa_ws') or 'seh-fonipa'
+        threshold = validation.get('confidence_threshold')
+        if threshold is None:
+            threshold = 0.5
+        else:
+            try:
+                threshold = float(threshold)
+            except (TypeError, ValueError):
+                threshold = 0.5
+
+        try:
+            from app.services.ipa_anomaly_service import IPAAnomalyService
+        except Exception as exc:  # pragma: no cover - import edge cases
+            self.logger.debug("IPA anomaly service import failed: %s", exc)
+            return errors
+
+        service = IPAAnomalyService.get_instance(
+            ipa_ws=ipa_ws, confidence_threshold=threshold
+        )
+        if not service.is_available():
+            return errors
+
+        # Resolve the headword (grapheme) used to predict the pronunciation.
+        lexical_unit = data.get('lexical_unit') or {}
+        headword = ''
+        if isinstance(lexical_unit, dict):
+            headword = lexical_unit.get('en') or next(
+                iter(lexical_unit.values()), ''
+            )
+        elif isinstance(lexical_unit, str):
+            headword = lexical_unit
+        if not headword:
+            return errors
+
+        pronunciations = data.get('pronunciations') or {}
+        if not isinstance(pronunciations, dict):
+            return errors
+
+        for lang_code, pron_value in pronunciations.items():
+            if lang_code != ipa_ws:
+                continue
+            if not isinstance(pron_value, str) or not pron_value.strip():
+                continue
+
+            result = service.detect(headword, pron_value)
+            if result is None or not result['is_anomaly']:
+                continue
+
+            message = (
+                f"Pronunciation anomaly: stored IPA '{pron_value}' diverges from "
+                f"the model-predicted pronunciation "
+                f"'{result['predicted_ipa']}' "
+                f"(confidence {result['confidence_score']:.2f}, "
+                f"type {result['anomaly_type']})."
+            )
+            errors.append(ValidationError(
+                rule_id=rule_id,
+                rule_name=rule_config['name'],
+                message=message,
+                path=f"$.pronunciations.{lang_code}",
+                priority=ValidationPriority(rule_config['priority']),
+                category=ValidationCategory(rule_config['category']),
+                value=pron_value
+            ))
+
+        return errors
+
+    def _validate_definition_phrase_coherence(
+        self,
+        rule_id: str,
+        rule_config: Dict[str, Any],
+        data: Dict[str, Any],
+        matches: List[Any],
+    ) -> List[ValidationError]:
+        """Validate phrase-category coherence across definition segments split by a delimiter.
+
+        Each comma (or configured delimiter) separated segment is classified as a
+        phrase (Noun Phrase, Verb Phrase, Adjective Phrase, ...). Segments whose
+        phrase category differs from the dominant phrase category of the definition
+        are flagged. The entry/headword POS is intentionally NOT used as a reference.
+        """
+        errors: List[ValidationError] = []
+        validation = rule_config.get("validation", {})
+        delimiter = validation.get("delimiter", ",")
+
+        from app.services.pos_tagger_service import get_pos_tagger_service
+        tagger = get_pos_tagger_service()
+
+        for i, match in enumerate(matches):
+            sense = match.value if hasattr(match, "value") else match
+            if not isinstance(sense, dict):
+                continue
+
+            definitions = sense.get("definition") or sense.get("gloss") or {}
+            def_texts = []
+            if isinstance(definitions, dict):
+                def_texts = [str(v) for v in definitions.values() if v]
+            elif isinstance(definitions, str):
+                def_texts = [definitions]
+
+            for def_str in def_texts:
+                analysis = tagger.analyze_definition_phrases(
+                    def_str,
+                    delimiter=delimiter,
+                )
+
+                for contra in analysis.get("contradictions", []):
+                    seg = contra.get("segment_text")
+                    found = contra.get("found_pos")
+                    expected = contra.get("expected_pos")
+                    msg = (
+                        f"Definition segment '{seg}' is a {found}, which is inconsistent "
+                        f"with the dominant phrase category {expected} of this definition "
+                        f"(delimiter: '{delimiter}')"
+                    )
+                    errors.append(
+                        ValidationError(
+                            rule_id=rule_id,
+                            rule_name=rule_config.get("name", "definition_phrase_coherence"),
+                            message=msg,
+                            path=f"$.senses[{i}].definition",
+                            priority=ValidationPriority(rule_config.get("priority", "warning")),
+                            category=ValidationCategory(rule_config.get("category", "sense_level")),
+                            value=def_str,
+                        )
+                    )
+
+        return errors
+
+
     def _get_hunspell_for_language(self, lang_code: str) -> Optional[Any]:
         """Get hunspell dictionary for a language code with fallback logic.
 
@@ -1778,16 +1931,21 @@ class ValidationEngine:
                 # Extract language code from the match path (e.g., "lexical_unit.en" -> "en")
                 path_str = str(match.full_path)
                 path_parts = path_str.split('.')
-                # Try to find a language code pattern (e.g., "en", "en_US", "pl", "seh")
+                # Try to find a language code pattern (e.g., "en", "en_US", "pl", "seh-fonipa")
                 detected_lang = None
                 for part in reversed(path_parts):
                     # Check if it looks like a language code
-                    if part and (len(part) in (2, 5) or '-' in part):
-                        # Simple heuristic: language codes are 2 chars (en, pl) or 5 chars (en_US)
-                        # or contain hyphen (seh-fonipa)
+                    if part and (len(part) in (2, 3, 5) or '-' in part):
+                        # 2-char ISO 639-1 (en, pl), 3-char ISO 639-2/3 (pol, eng),
+                        # 5-char locale (en_US), or hyphenated (seh-fonipa)
                         detected_lang = part
                         break
-                target_lang = detected_lang if detected_lang else lang_code
+                if not detected_lang:
+                    # No language code in path; skip rather than fall back to the default
+                    # lang_code, which would check non-English text against an English
+                    # dictionary and produce false positives.
+                    continue
+                target_lang = detected_lang
             else:
                 target_lang = lang_code
 
@@ -1799,8 +1957,9 @@ class ValidationEngine:
                 # This is intentional - we don't want to flag errors for languages without dictionaries
                 continue
 
-            # Extract words
-            words = re.findall(r"\b[a-zA-Z]+(?:'[a-zA-Z]+)?\b", value)
+            # Extract words (Unicode-aware so non-ASCII scripts like Polish are not
+            # shattered into ASCII shards that then fail an English spell-check)
+            words = re.findall(r"[^\W\d_]+(?:'[^\W\d_]+)?", value)
 
             for word in words:
                 word_lower = word.lower()

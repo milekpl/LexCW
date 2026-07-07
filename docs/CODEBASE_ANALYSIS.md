@@ -137,7 +137,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 
 | Plan | Progress | Remaining |
 |------|----------|-----------|
-| **word-sketch-verification.md** | 🟡 In progress | Infrastructure verified; implementation complete. Remaining work is integration/QA against live ConceptSketch + Lucene corpus. Plan adapted to verification-only checklist. |
+| **word-sketch-verification.md** | ✅ Complete | Browser (`/browser`), navbar/tools links, entry view button, example concordance modal with ConceptSketch fallback, and 88 unit tests passing. |
 
 ### 4.2 Spec Packages (`specs/*/tasks.md`)
 
@@ -151,7 +151,7 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | **css_mapping_system** | 5/8 done | Admin interface & dictionary formatting complete. Remaining: in-place editing, side-by-side comparison, mobile responsive tuning |
 | **advanced_search** | 7/7 done ✅ | ✅ All complete — Faceted search, result export, regex search, search-within-results, save/load, composition stats dashboard (`/api/dashboard/stats`), data completeness assessment (`/api/dashboard/quality`), semantic similarity search (Qdrant + GPU CUDA), duplicate detection & subentry discovery. |
 | **ai_integration** | 7/10 done | ✅ LLM framework, content generation, proofread/draft workbench, POS/Definition ML anomaly detector (`POSCoherenceService` + `/api/dashboard/anomalies`). Remaining: ML models (POS tagger/IPA), quality control automation, advanced linguistic analysis |
-| **bulk_processing** | 3/4 done | Spreadsheet Grid UI (`/workbench/spreadsheet`), atomic batch updates (`/api/bulk/batch-update`), progress tracking complete. Remaining: rollback & recovery mechanisms |
+| **bulk_processing** | 4/4 done ✅ | ✅ Spreadsheet Grid UI (`/workbench/spreadsheet`), atomic batch updates (`/api/bulk/batch-update`), POS range-ID normalizer, hierarchical dropdowns, homograph # extraction & sorting, sliding-window pagination, empty column auto-hiding complete. |
 | **advanced_entry_management** | 3/4 done | Validation pipelines implemented; bulk CRUD enhancements still needed |
 | **performance_optimization** | 0/1 done | XQuery optimization for large datasets |
 | **production_features** | 5/9 done | ✅ Auth/security, annotations, core exports (LIFT/HTML/Markdown/SQLite). Kindle/Flutter handled via external API scripts. Publication workflows, real-time collaboration, monitoring, scalability still needed |
@@ -171,6 +171,9 @@ CLAUDE.md has been updated with all missing layers (routes, validators, exporter
 | `app/static/js/etymology-forms.js` | Form/gloss model mismatch with Python | ✅ **FIXED** — rewrote to store `{lang: text}` dicts, added multilingual support, initial data loading |
 | `app/templates/entry_form_partials/_ai_actions.html` | "Powered by OpenAI" branding | ✅ **FIXED** — removed |
 | `app/forms/settings_form.py` | Model dropdown, no API base URL | ✅ **FIXED** — replaced model dropdown with text input, added API Base URL field |
+| `app/api/entries.py` & `spreadsheet-editor.js` | Spreadsheet grid pagination broken & missing `page`/`pages` from API payload | ✅ **FIXED** — harmonized API parameter conversion, added `page`/`pages` JSON response keys, implemented sliding-window pagination |
+| `app/models/entry.py` & `dictionary_service.py` | Homograph # (`homograph_number`/`order`) missing from API dict serialization & BaseX sort | ✅ **FIXED** — serialized `homograph_number` in `Entry.to_dict()`, added `xs:integer(($entry/@order, 0)[1])` to BaseX query builder |
+| `app/services/word_sketch/enrichment_service.py` & `word-sketch-browser.js` | Word Sketch concordances empty when Lucene corpus is offline; click handlers missing | ✅ **FIXED** — added ConceptSketch fallback to `get_examples_with_translations`, bound modal event listeners, added navbar/tools/entry_view UI links |
 | `app/api/ai_api.py` | `None` template_id breaks resolution | ✅ **FIXED** — defaults `or "proofreading-default"` / `or "drafting-default"` |
 | `app/services/ai_service.py` | Template ID mismatch (proofread-default vs proofreading-default) | ✅ **FIXED** — standardized to `proofreading-default` / `drafting-default`, cleared stale instance file |
 | `app/services/validation_engine.py:1511` | IPA validation regex missing comma | ✅ **FIXED** — added `,`, removed `a-zA-Z` (too lax), now uses `validation_rules.json` pattern first, falls back to project Hunspell IPA dictionary if uploaded |

@@ -186,8 +186,9 @@ class BaseXConnector:
             return _op_with_retry()
         except RetryError as e:
             # Wrap tenacity RetryError in DatabaseError for backwards compatibility
+            last_exc = e.last_attempt.exception()
             raise DatabaseError(
-                f"{error_context} failed after {max_attempts} attempts: {e.last_attempt.exception}"
+                f"{error_context} failed after {max_attempts} attempts: {last_exc}"
             ) from e
 
     # ---- Compat shim: connect/disconnect for legacy callers ----

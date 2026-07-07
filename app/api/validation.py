@@ -126,17 +126,19 @@ def validate_batch():
         priority_filter = entries_data.get('priority_filter', 'all')
         project_id = entries_data.get('project_id')
         validate_all = entries_data.get('validate_all', False)
+        rule_id_filter = entries_data.get('rule_id') or entries_data.get('rule_id_filter')
 
         # First pass: collect all entry IDs for relation target validation
         existing_entry_ids: set = set()
         parsed_entries: list = []
 
-        # If validate_all is True or entries list seems partial, fetch all entry IDs from database
-        # This ensures R5.3.1 relation validation works correctly
-        if validate_all or len(entries) < 500:
+        # For a full-dictionary audit (validate_all) we need the complete set of
+        # valid targets for relation-target validation (R5.3.1). For a normal
+        # batch of supplied entries this full collection scan is skipped and
+        # targets are derived from the provided entries instead (see fallback below).
+        if validate_all:
+            from app.database.basex_connector import BaseXConnector
             try:
-                from app.database.basex_connector import BaseXConnector
-                from flask import current_app
                 db = BaseXConnector(
                     host=current_app.config.get('BASEX_HOST', 'localhost'),
                     port=current_app.config.get('BASEX_PORT', 1984),
@@ -144,16 +146,116 @@ def validate_batch():
                     password=current_app.config.get('BASEX_PASSWORD', 'admin'),
                     database=current_app.config.get('BASEX_DB', 'dictionary')
                 )
-                db.connect()
-                result = db.execute_query('XQUERY collection("dictionary")//entry/@id')
-                if result:
-                    # Parse all entry IDs from the result
-                    import re
-                    all_ids = re.findall(r'id="([^"]+)"', result)
-                    existing_entry_ids = set(all_ids)
-                    current_app.logger.info(f"Loaded {len(existing_entry_ids)} entry IDs from database for validation")
+                db_name = db.database or current_app.config.get('BASEX_DB', 'dictionary')
+
+                res_entry_ids = db.execute_query(f'XQUERY collection("{db_name}")//entry/@id/string()') or ""
+                res_entry_guids = db.execute_query(f'XQUERY collection("{db_name}")//sense/@guid/string()') or ""
+                res_sense_ids = db.execute_query(f'XQUERY collection("{db_name}")//sense/@id/string()') or ""
+                res_sense_guids = db.execute_query(f'XQUERY collection("{db_name}")//sense/@guid/string()') or ""
+
+                all_targets = set(
+                    [line.strip() for line in res_entry_ids.splitlines() if line.strip()]
+                    + [line.strip() for line in res_entry_guids.splitlines() if line.strip()]
+                    + [line.strip() for line in res_sense_ids.splitlines() if line.strip()]
+                    + [line.strip() for line in res_sense_guids.splitlines() if line.strip()]
+                )
+                for eid in list(all_targets):
+                    if "_" in eid:
+                        all_targets.add(eid.rsplit("_", 1)[-1])
+
+                existing_entry_ids = all_targets
+                current_app.logger.info(f"Loaded {len(existing_entry_ids)} valid entry/sense IDs & GUIDs from database for validation")
             except Exception as e:
                 current_app.logger.warning(f"Failed to load all entry IDs from database: {e}")
+
+        # If validate_all is requested with an empty entries list, perform a full server-side database audit
+        if validate_all and not entries:
+            try:
+                db = BaseXConnector(
+                    host=current_app.config.get('BASEX_HOST', 'localhost'),
+                    port=current_app.config.get('BASEX_PORT', 1984),
+                    username=current_app.config.get('BASEX_USER', 'admin'),
+                    password=current_app.config.get('BASEX_PASSWORD', 'admin'),
+                    database=current_app.config.get('BASEX_DB', 'dictionary')
+                )
+                db_name = db.database or current_app.config.get('BASEX_DB', 'dictionary')
+
+                total_db_count_str = db.execute_query(f'XQUERY count(collection("{db_name}")//entry)') or "0"
+                total_db_entries = int(total_db_count_str.strip()) if total_db_count_str.strip().isdigit() else 0
+
+                from app.services.dictionary_service import DictionaryService
+                dictionary_service = current_app.injector.get(DictionaryService)
+                engine = ValidationEngine(existing_entry_ids=existing_entry_ids, project_id=project_id)
+
+                invalid_results = []
+                total_issues = 0
+                total_invalid = 0
+                all_errors = []
+                all_warnings = []
+                all_info = []
+
+                # Run validation in chunks across the entire dictionary database
+                chunk_size = 5000
+                for offset in range(0, total_db_entries, chunk_size):
+                    chunk_res = dictionary_service.list_entries(limit=chunk_size, offset=offset)
+
+                    # Correctly unpack tuple (entries_list, total_count) returned by list_entries
+                    if isinstance(chunk_res, tuple):
+                        entries_list = chunk_res[0]
+                    elif isinstance(chunk_res, dict):
+                        entries_list = chunk_res.get('entries', [])
+                    else:
+                        entries_list = chunk_res
+
+                    for e in entries_list:
+                        e_dict = e.to_dict() if hasattr(e, 'to_dict') else (e if isinstance(e, dict) else {})
+                        res = engine.validate_json(e_dict, rule_id_filter=rule_id_filter)
+                        if res.errors or res.warnings or res.info:
+                            total_invalid += 1
+                            total_issues += len(res.errors) + len(res.warnings) + len(res.info)
+
+                            # Capped limit to prevent massive JSON response sizes that could lock/hang the UI client
+                            if len(invalid_results) < 2000:
+                                headword = e.headword if hasattr(e, 'headword') else e_dict.get('id')
+                                entry_errors = [{'rule_id': err.rule_id, 'rule_name': err.rule_name, 'message': err.message, 'path': err.path, 'priority': err.priority.value if hasattr(err.priority, 'value') else str(err.priority)} for err in res.errors]
+                                entry_warnings = [{'rule_id': w.rule_id, 'rule_name': w.rule_name, 'message': w.message, 'path': w.path, 'priority': w.priority.value if hasattr(w.priority, 'value') else str(w.priority)} for w in res.warnings]
+                                entry_info = [{'rule_id': i.rule_id, 'rule_name': i.rule_name, 'message': i.message, 'path': i.path, 'priority': i.priority.value if hasattr(i.priority, 'value') else str(i.priority)} for i in res.info]
+                                invalid_results.append({
+                                    'entry_id': e_dict.get('id'),
+                                    'headword': headword,
+                                    'valid': res.is_valid,
+                                    'error_count': len(res.errors),
+                                    'has_critical_errors': res.has_critical_errors,
+                                    'errors': entry_errors,
+                                    'warnings': entry_warnings,
+                                    'info': entry_info
+                                })
+                                # Mirror the top-level flat lists (capped like results).
+                                if len(all_errors) < 2000:
+                                    all_errors.extend(entry_errors)
+                                    all_warnings.extend(entry_warnings)
+                                    all_info.extend(entry_info)
+
+                total_valid = max(0, total_db_entries - total_invalid)
+                return jsonify({
+                    'valid': total_invalid == 0,
+                    'errors': all_errors,
+                    'warnings': all_warnings,
+                    'info': all_info,
+                    'total_entries': total_db_entries,
+                    'valid_entries': total_valid,
+                    'invalid_entries': total_invalid,
+                    'total_issues': total_issues,
+                    'results': invalid_results
+                })
+            except Exception as e:
+                current_app.logger.error(f"Error during validate_all full audit: {e}", exc_info=True)
+                return jsonify({'valid': False, 'errors': [f'Full audit error: {str(e)}'], 'total_entries': 0, 'valid_entries': 0, 'invalid_entries': 0, 'results': []}), 500
+
+
+
+
+
 
         # If we couldn't load from DB, collect from batch
         if not existing_entry_ids:
@@ -187,6 +289,9 @@ def validate_batch():
         results = []
         valid_count = 0
         invalid_count = 0
+        all_errors = []
+        all_warnings = []
+        all_info = []
 
         for i, (entry_data, entry) in enumerate(parsed_entries):
             # Skip entries that are not dictionaries or strings
@@ -223,7 +328,7 @@ def validate_batch():
                 entry_id = entry.get('id', f'entry_{i}')
 
             try:
-                result = engine.validate_json(entry)
+                result = engine.validate_json(entry, rule_id_filter=rule_id_filter)
             except Exception as e:
                 result = type('ValidationResult', (), {'is_valid': False, 'errors': [type('ValidationError', (), {'message': str(e), 'priority': 'critical', 'category': 'general'})()], 'warnings': [], 'info': [], 'has_critical_errors': True, 'error_count': 1})()
 
@@ -244,15 +349,35 @@ def validate_batch():
                     'value': str(getattr(error, 'value', None)) if hasattr(error, 'value') else None
                 }
 
-            results.append({
+            # Get headword
+            headword = None
+            if isinstance(entry, dict):
+                lu = entry.get('lexical_unit') or {}
+                if isinstance(lu, dict):
+                    if 'en' in lu:
+                        headword = lu['en']
+                    elif lu:
+                        headword = next(iter(lu.values()))
+            if not headword:
+                headword = entry_id
+
+            entry_result = {
                 'entry_id': entry_id,
+                'headword': headword,
                 'valid': result.is_valid,
                 'error_count': result.error_count,
                 'has_critical_errors': result.has_critical_errors,
                 'errors': [error_to_dict(e) for e in result.errors],
                 'warnings': [error_to_dict(w) for w in result.warnings],
                 'info': [error_to_dict(i) for i in result.info]
-            })
+            }
+            results.append(entry_result)
+
+            # Aggregate flat lists for the top-level response shape (consistent
+            # with the single-entry /validate/check endpoint).
+            all_errors.extend(entry_result['errors'])
+            all_warnings.extend(entry_result['warnings'])
+            all_info.extend(entry_result['info'])
 
             if result.is_valid:
                 valid_count += 1
@@ -261,7 +386,9 @@ def validate_batch():
 
         response = {
             'valid': invalid_count == 0,
-            'errors': [],
+            'errors': all_errors,
+            'warnings': all_warnings,
+            'info': all_info,
             'total_entries': len(entries),
             'valid_entries': valid_count,
             'invalid_entries': invalid_count,
@@ -343,9 +470,30 @@ def validation_check():
         return jsonify({'error': 'Invalid JSON. "entry" field is required.'}), 400
 
     try:
-        dictionary_service = current_app.injector.get(DictionaryService)
-        validation_result = dictionary_service.validate_entry(data['entry'])
-        return jsonify(validation_result)
+        from app.services.validation_engine import ValidationEngine
+
+        entry = data['entry']
+        engine = ValidationEngine(project_id=data.get('project_id'))
+        result = engine.validate_json(entry)
+
+        def _to_dict(error):
+            return {
+                'rule_id': error.rule_id,
+                'rule_name': error.rule_name,
+                'message': error.message,
+                'path': error.path,
+                'priority': error.priority.value,
+                'category': error.category.value,
+            }
+
+        return jsonify({
+            'valid': result.is_valid,
+            'has_critical_errors': result.has_critical_errors,
+            'error_count': result.error_count,
+            'errors': [_to_dict(e) for e in result.errors],
+            'warnings': [_to_dict(w) for w in result.warnings],
+            'info': [_to_dict(i) for i in result.info],
+        })
     except ValidationError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
@@ -354,17 +502,8 @@ def validation_check():
 @validation_bp.route('/validation/batch', methods=['POST'])
 @swag_from({'tags': ['Validation'], 'summary': 'Validate a batch of dictionary entries'})
 def validation_batch():
-    """Validates a batch of dictionary entries."""
-    data = request.get_json()
-    if not data or 'entries' not in data:
-        return jsonify({'error': 'Invalid JSON. "entries" field is required.'}), 400
-
-    try:
-        dictionary_service = current_app.injector.get(DictionaryService)
-        results = dictionary_service.validate_batch(data['entries'])
-        return jsonify(results)
-    except Exception as e:
-        return jsonify({'error': f'An unexpected error occurred: {e}'}), 500
+    """Validates a batch of dictionary entries (delegates to the canonical batch handler)."""
+    return validate_batch()
 
 @validation_bp.route('/validation/schema', methods=['GET'])
 @swag_from({'tags': ['Validation'], 'summary': 'Return the validation schema for dictionary entries'})
