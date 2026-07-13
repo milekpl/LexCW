@@ -64,11 +64,13 @@ Two consequences drive the design:
         *   Make the `sw_` marker part of the raw key so the stored hash covers exactly the string clients send as `Authorization: Bearer <raw_key>`, and the prefix is a literal slice of it.
         *   Implemented: `app/api/api_keys.py::_generate_api_key`, `ApiKey.key_prefix` widened to `String(16)`, `migrations/widen_api_key_prefix.py`. Verified: create → 201; session-less Bearer call → 200; bogus key → 401; read-scoped key on a `:write` endpoint → rejected.
 
-    1.3. [ ] **Schema drift guard**
-        *   Add a test that reflects every table with SQLAlchemy's `inspect()` and asserts each mapped model's columns exist in the database (name and type), failing on drift.
-        *   This single test would have caught bugs 1 and 2 before they shipped.
-        *   Audit the remaining 23 models in `app/models/` for the same drift and write migrations for whatever it finds.
-        *   Suggested: `tests/integration/test_schema_matches_models.py`.
+    1.3. [x] **Schema drift guard**
+        *   Implemented: `tests/integration/test_schema_matches_models.py`. Four checks — mapped table exists; no model column missing from the DB (bug 1); no string column narrower in the DB than in the model (bug 2); no unmapped `NOT NULL` column without a default (which would break model inserts).
+        *   Checks the **development** database on purpose: the integration `app` fixture builds its schema with `db.create_all()`, so models and tables match there by construction and the check would be vacuous. Drift only exists in the hand-migrated database the app actually runs against.
+        *   Walks `app/models/` with `pkgutil` rather than trusting `app/models/__init__.py`, which does not import every model module — `ApiKey` is absent from it, so an `__init__`-based check would have missed bug 2 entirely.
+        *   Verified by mutation, not just by passing: re-introducing the `VARCHAR(8)` prefix reproduced the exact failure, and a synthetic model-only column reproduced bug 1's failure.
+        *   **Found a third instance of the same bug class**: `workset_entries.status` was `VARCHAR(20)` against a `String(50)` model. Latent (all current statuses fit), but the first longer status would have failed in production only. Fixed: `migrations/widen_workset_entry_status.py`.
+        *   Audit result: with that fixed, all 25 models are clean against the live schema.
 
     1.4. [ ] **Admin bootstrap CLI**
         *   Add a `flask create-admin` / `flask reset-password` command so an unrecoverable admin account is never again a dead end.
