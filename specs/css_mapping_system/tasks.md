@@ -33,14 +33,14 @@ This document outlines the implementation tasks for the CSS Mapping System featu
         *   Implemented: `LIFTToHTMLTransformer` & `CSSMappingService` render headwords, IPA pronunciations in `/.../`, range-resolved POS tags/abbreviations, sense hierarchy numbering, language-tagged definitions, example blocks with translation quotes, etymologies, and cross-reference relation headwords. Integrated into `entry_view.html`.
         *   **Requirements**: `7.2`, `18.2`
 
-    2.2. [ ] **Add In-Place Editing Capabilities**
+    2.2. [x] **Add In-Place Editing Capabilities**
         *   Add in-place editing capabilities to the entry display.
         *   **Requirements**: `7.2`, `18.2`
 
-    2.3. [ ] **Create Side-by-Side Comparison Views**
+    2.3. [x] **Create Side-by-Side Comparison Views**
         *   Create side-by-side comparison views for comparing different versions of an entry.
         *   **Requirements**: `7.2`, `18.2`
 
-    2.4. [ ] **Enhance Responsive Design for Mobile**
+    2.4. [x] **Enhance Responsive Design for Mobile**
         *   Enhance the responsive design of the entry display for mobile devices.
         *   **Requirements**: `2.3.1`, `18.2`

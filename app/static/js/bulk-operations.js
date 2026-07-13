@@ -264,8 +264,66 @@ class BulkOperationsHub {
 
         showNotification(message, changed > 0 ? 'success' : 'warning');
 
-        // Could show a modal with execution summary - for now just log
-        console.log('[BulkOperationsHub] Execution results:', data);
+        // Show rollback button if operation_id is available
+        const opId = data.operation_id;
+        if (opId) {
+            this._showRollbackButton(opId);
+        }
+    }
+
+    _showRollbackButton(operationId) {
+        const existing = document.getElementById('rollback-btn-container');
+        if (existing) existing.remove();
+
+        const container = document.createElement('div');
+        container.id = 'rollback-btn-container';
+        container.className = 'alert alert-warning d-flex align-items-center justify-content-between mt-3';
+        container.innerHTML = `
+            <span><strong>Bulk operation completed:</strong> <code>${operationId}</code></span>
+            <button class="btn btn-warning btn-sm" id="rollback-bulk-btn">
+                <i class="fas fa-undo"></i> Rollback
+            </button>
+        `;
+
+        const card = document.querySelector('.card-footer');
+        if (card) {
+            card.parentElement.appendChild(container);
+        } else {
+            document.querySelector('.container-fluid')?.prepend(container);
+        }
+
+        document.getElementById('rollback-bulk-btn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('rollback-bulk-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Rolling back...';
+
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const resp = await fetch('/api/bulk/rollback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    },
+                    body: JSON.stringify({ operation_id: operationId })
+                });
+                const result = await resp.json();
+
+                if (resp.ok) {
+                    showNotification(result.message, 'success');
+                    btn.textContent = '\u2713 Rolled back';
+                    btn.className = 'btn btn-success btn-sm';
+                } else {
+                    showNotification(result.error || 'Rollback failed', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-undo"></i> Rollback';
+                }
+            } catch (err) {
+                showNotification('Rollback request failed', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-undo"></i> Rollback';
+            }
+        });
     }
 
     // ============ PIPELINE TEMPLATES ============

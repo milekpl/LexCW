@@ -131,16 +131,29 @@ class Session:
         # send username and hashed password/timestamp
         hfun = hashlib.md5()
 
-        if len(response) > 1:
+        # BaseX 12 sends "BaseX:{nonce}" — supports Digest or Basic auth.
+        if len(response) > 1 and response[0] == "BaseX":
+            # BaseX 12+ Digest: MD5(MD5(user:BaseX:password).hexdigest() + nonce).hexdigest()
+            code = "%s:%s:%s" % (user, response[0], password)
+            raw_nonce = response[1]
+            # Strip any trailing null that slipped through
+            nonce = raw_nonce.rstrip('\x00')
+            hfun.update(hashlib.md5(code.encode('us-ascii')).hexdigest().encode('us-ascii'))
+            hfun.update(nonce.encode('us-ascii'))
+            auth_data = user + chr(0) + hfun.hexdigest()
+            self.send(auth_data)
+        elif len(response) > 1:
             code = "%s:%s:%s" % (user, response[0], password)
             nonce = response[1]
+            hfun.update(hashlib.md5(code.encode('us-ascii')).hexdigest().encode('us-ascii'))
+            hfun.update(nonce.encode('us-ascii'))
+            self.send(user + chr(0) + hfun.hexdigest())
         else:
             code = password
             nonce = response[0]
-
-        hfun.update(hashlib.md5(code.encode('us-ascii')).hexdigest().encode('us-ascii'))
-        hfun.update(nonce.encode('us-ascii'))
-        self.send(user + chr(0) + hfun.hexdigest())
+            hfun.update(hashlib.md5(code.encode('us-ascii')).hexdigest().encode('us-ascii'))
+            hfun.update(nonce.encode('us-ascii'))
+            self.send(user + chr(0) + hfun.hexdigest())
 
         # evaluate success flag
         if not self.server_response_success():

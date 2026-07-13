@@ -1,24 +1,30 @@
 <!-- AI Actions for Entry Form -->
-<div class="card mb-4 border-info">
-    <div class="card-header bg-info bg-opacity-10">
-        <h6 class="mb-0"><i class="fas fa-robot"></i> AI Assistant</h6>
+<div class="card mb-4 border">
+    <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-2">
+        <span class="d-inline-flex align-items-center justify-content-center rounded"
+              style="width:26px;height:26px;background:#e9ecef">
+            <i class="fas fa-robot" style="font-size:13px;color:#495057"></i>
+        </span>
+        <span class="fw-semibold small">AI Assistant</span>
     </div>
-    <div class="card-body py-2">
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-info btn-sm" id="btn-ai-proofread"
+    <div class="card-body py-3">
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-ai-proofread"
+                    data-shortcut="ctrl+p"
                     title="AI will review this entry for errors, missing fields, and inconsistencies">
-                <i class="fas fa-robot"></i> AI Proofread
+                <i class="fas fa-robot"></i> Proofread
             </button>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-ai-draft"
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-ai-draft"
+                    data-shortcut="ctrl+alt+d"
                     title="AI will draft a new entry from a description">
-                <i class="fas fa-magic"></i> AI Draft
+                <i class="fas fa-magic"></i> Draft
             </button>
-            <button type="button" class="btn btn-outline-success btn-sm" id="btn-pos-tagger"
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-pos-tagger"
+                    data-shortcut="ctrl+shift+p"
                     title="Run POS tagger to predict and suggest part of speech for this entry">
                 <i class="fas fa-tags"></i> Predict POS
             </button>
-
         </div>
-        <div id="ai-results-panel"></div>
+        <div id="ai-results-panel" class="mt-2"></div>
     </div>
 </div>

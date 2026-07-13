@@ -410,6 +410,60 @@ def deduplicate_pronunciations():
     ), 200
 
 
+@pronunciation_bp.route("/draft", methods=["POST"])
+@_require_auth("pronunciation:read")
+def draft_ipa():
+    """Draft IPA pronunciation(s) for a headword using the deployed ByT5 model.
+
+    Expects JSON body::
+
+        {"headword": "...", "writing_system": "seh-fonipa", "num_candidates": 1}
+
+    Returns::
+
+        {"available": true, "writing_system": "...", "candidates": ["ˈkæt", ...]}
+
+    If no ByT5 model is deployed for the requested writing system, ``available``
+    is ``false`` and ``candidates`` is empty (this is not an error).
+    """
+    data = request.get_json(silent=True) or {}
+    headword = (data.get("headword") or "").strip()
+    if not headword:
+        return jsonify({"error": "Request body must contain a non-empty 'headword'"}), 400
+
+    ws = data.get("writing_system") or "seh-fonipa"
+    try:
+        num_candidates = int(data.get("num_candidates", 1) or 1)
+    except (TypeError, ValueError):
+        num_candidates = 1
+    num_candidates = max(1, min(num_candidates, 5))
+
+    from app.services.ipa_byt5_service import IPAByT5Service
+
+    svc = IPAByT5Service.get_instance(ipa_ws=ws)
+    if not svc.is_available():
+        return jsonify(
+            {
+                "available": False,
+                "writing_system": ws,
+                "candidates": [],
+                "message": "No ByT5 IPA model is deployed for this writing system.",
+            }
+        ), 200
+
+    candidates = svc.draft_ipa(headword, num_return_sequences=num_candidates)
+    return (
+        jsonify(
+            {
+                "available": True,
+                "writing_system": ws,
+                "candidates": candidates,
+            }
+        ),
+        200,
+    )
+
+
 @pronunciation_bp.route("/deduplicate/apply", methods=["POST"])
 @_require_auth("pronunciation:write")
 def apply_deduplication():

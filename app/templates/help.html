@@ -115,6 +115,10 @@
                 <a class="nav-link" href="#external-scripts">External Scripts &amp; API</a>
                 <a class="nav-link" href="#ranges-editor">Ranges Editor</a>
                 <a class="nav-link" href="#validation-rules">Validation Rules</a>
+                <nav class="nav flex-column ms-3">
+                    <a class="nav-link" href="#ipa-anomaly">IPA Anomaly Detection</a>
+                    <a class="nav-link" href="#ipa-drafting">IPA Drafting (ByT5)</a>
+                </nav>
                 <a class="nav-link" href="#workbench">Workbench</a>
                 <nav class="nav flex-column ms-3">
                     <a class="nav-link" href="#query-builder">Query Builder</a>
@@ -681,7 +685,32 @@ for entry in entries:
             </p>
             <p>
                 <a href="/docs/IPA_ANOMALY_DETECTION.md" class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-book"></i> Read the IPA anomaly detection tutorial
+                    <i class="fas fa-book"></i> Read the IPA models tutorial
+                </a>
+            </p>
+
+            <h3 id="ipa-drafting"><i class="fas fa-pen-fancy"></i> IPA Drafting (ByT5) <span class="feature-badge badge-professional">Professional</span></h3>
+            <p>
+                A fine-tuned <strong>ByT5</strong> (HuggingFace byte-level seq2seq) model can <strong>propose</strong>
+                high-quality IPA pronunciations for a headword — not just flag suspicious ones, but actually draft
+                candidates an editor can accept. This complements the anomaly detection model above:
+                one flags problems, the other proposes solutions.
+            </p>
+            <p>
+                Use <strong>POST /api/pronunciation/draft</strong> with
+                <code>{"headword": "scotsism", "writing_system": "seh-fonipa", "num_candidates": 3}</code>
+                to get candidates like <code>["ˈskɒtɪˌsɪzm", "ˈskɒtɪˌsɪzəm"]</code>.
+            </p>
+            <p>
+                The model directory (<code>ipa_byt5_&lt;ws&gt;/</code>) lives in the same server-side
+                <code>instance/ipa_models/</code> directory as the anomaly model. Training requires a GPU
+                (use the provided Colab notebook at <code>ipa_byt5_training.ipynb</code>).
+                Exactly like the anomaly model, discovery is server-side only, and if no model is deployed
+                the endpoint returns <code>{"available": false}</code> — it never errors.
+            </p>
+            <p>
+                <a href="/docs/IPA_ANOMALY_DETECTION.md#byt5-ipa-drafting" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-book"></i> Read the ByT5 drafting guide
                 </a>
             </p>
 

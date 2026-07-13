@@ -121,6 +121,24 @@ All discovery is server-side:
 > has. A full tutorial is available in
 > [`docs/IPA_ANOMALY_DETECTION.md`](../docs/IPA_ANOMALY_DETECTION.md).
 
+## High-quality IPA with ByT5 (drafting)
+
+For much better IPA than the tiny CPU model, fine-tune a pretrained
+**ByT5** sequence-to-sequence model with
+[`train_byt5_g2p.py`](train_byt5_g2p.py). This is the GPU/offline path; the
+resulting HuggingFace model is deployed on the server and used to **draft**
+high-quality IPA for a headword (not just flag anomalies).
+
+The script saves a model directory named `ipa_byt5_<ws>/` (containing the
+HuggingFace weights, tokenizer, and a `metadata.json`). Copy that whole
+directory into `instance/ipa_models/` on the server, and the application's
+`IPAByT5Service` discovers it automatically and exposes drafting via
+`POST /api/pronunciation/draft`.
+
+See [`docs/IPA_ANOMALY_DETECTION.md`](../docs/IPA_ANOMALY_DETECTION.md) for the
+deployment and security model (discovery is server-side only; models load with
+`local_files_only=True` and `trust_remote_code=False`).
+
 ## Loading a trained model elsewhere
 
 ```python

@@ -16,6 +16,7 @@ from app.models.dictionary_models import ProjectDictionary, UserDictionary, Syst
 from app.models.import_mapping import ImportMapping, ImportFieldMapping, ImportLanguageMapping
 from app.models.entry_revision import EntryRevision
 from app.models.dismissed_duplicate import DismissedDuplicate
+from app.models.bulk_snapshot import BulkOperationSnapshot
 
 
 __all__ = [

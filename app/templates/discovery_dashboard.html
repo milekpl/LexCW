@@ -65,16 +65,15 @@
         <div class="col-md-2">
           <label class="form-label small">Scan Mode</label>
           <select id="discovery-scan-mode" class="form-select form-select-sm">
-            <option value="synonym" selected>Synonym Discovery</option>
-            <option value="subentry">Subentry Discovery</option>
+            <option value="synonym" selected>Synonym (Trigram)</option>
+            <option value="semantic">Semantic</option>
+            <option value="subentry">Subentry (Lexical)</option>
+            <option value="semantic_subentry">Subentry (Semantic)</option>
           </select>
         </div>
         <div class="col-md-2">
           <label class="form-label small">Relation Type</label>
-          <select id="discovery-relation-type" class="form-select form-select-sm">
-            <option value="synonym">synonym</option>
-            <option value="subentry">subentry</option>
-          </select>
+          <select id="discovery-relation-type" class="form-select form-select-sm"></select>
         </div>
         <div class="col-md-3">
           <label class="form-label small">Threshold</label>

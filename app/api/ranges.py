@@ -743,6 +743,7 @@ def manage_admissible_languages() -> Union[Response, Tuple[Response, int]]:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@ranges_bp.route('/import-list-xml', methods=['POST'])
 def import_list_xml() -> Union[Response, Tuple[Response, int]]:
     """
     Import a FieldWorks list.xml file to populate range abbreviations.

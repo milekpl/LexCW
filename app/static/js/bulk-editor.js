@@ -950,7 +950,7 @@ class BulkEditor {
             if (this.pipelineEditor && this.pipelineEditor.steps.length > 0) {
                 // Use pipeline
                 const pipeline = this.pipelineEditor.getPipeline();
-                response = await fetch('/bulk/pipeline', {
+                response = await fetch('/api/bulk/pipeline', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -969,7 +969,7 @@ class BulkEditor {
                 const actionField = document.getElementById('quick-action-field')?.value || 'lexical_unit';
                 const actionValue = document.getElementById('quick-action-value')?.value || '';
 
-                response = await fetch('/bulk/execute', {
+                response = await fetch('/api/bulk/execute', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

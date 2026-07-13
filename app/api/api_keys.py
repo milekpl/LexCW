@@ -24,11 +24,15 @@ api_keys_bp = Blueprint("api_keys", __name__, url_prefix="/api/keys")
 def _generate_api_key() -> tuple[str, str, str]:
     """Generate a new API key.
 
+    The ``sw_`` marker is part of the raw key itself, so that the hash covers
+    exactly the string a client sends as ``Authorization: Bearer <raw_key>``
+    and the prefix is a literal slice of it (see ``_check_api_key_auth``).
+
     Returns:
         Tuple of (raw_key, key_hash, key_prefix).
     """
-    raw = secrets.token_urlsafe(32)
-    prefix = "sw_" + raw[:8]
+    raw = "sw_" + secrets.token_urlsafe(32)
+    prefix = raw[:11]
     hashed = generate_password_hash(raw, method="pbkdf2:sha256")
     return raw, hashed, prefix
 

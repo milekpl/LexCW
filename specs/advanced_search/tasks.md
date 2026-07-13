@@ -38,9 +38,10 @@ This document outlines the implementation tasks for the Advanced Search feature,
         *   **Requirements**: `3.4.2`, `18.2`
         *   **Status**: ✅ Done — `app/api/dashboard.py` `/quality` metrics endpoint calculating completeness scores for missing definitions, missing glosses, missing pronunciations, and incomplete entries.
 
-    2.4. [ ] **Create Anomaly Detection System**
+    2.4. [x] **Create Anomaly Detection System**
         *   Create a system for detecting anomalies in the dictionary data.
         *   **Requirements**: `3.4.2`, `12.2`, `18.2`
+        *   **Status**: ✅ Done — `POSCoherenceService` (`app/services/pos_coherence_service.py`) with `/api/dashboard/anomalies` endpoint for POS/definition anomalies. `IPAAnomalyService` (`app/services/ipa_anomaly_service.py`) with validation rule R4.3.1. Dual-model G2P anomaly detector in `scripts/ipa_training/g2p/anomaly_detector.py`. Unit tests for both IPA anomaly service and validation rule.
 
 3.  [x] **UI Testing with Playwright**
     *   This epic covers the implementation of a comprehensive UI testing suite for the advanced search page using Playwright.

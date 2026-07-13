@@ -748,6 +748,47 @@
                 description: 'Show keyboard shortcuts',
                 priority: 10
             });
+
+            // AI Proofread
+            this.registerShortcut('ctrl+p', (e) => {
+                e.preventDefault();
+                this._triggerAction('proofread');
+            }, {
+                context: this.defaultContext,
+                description: 'AI Proofread entry',
+                priority: 40,
+                allowInInput: true
+            });
+
+            // AI Draft
+            this.registerShortcut('ctrl+alt+d', (e) => {
+                e.preventDefault();
+                this._triggerAction('draft');
+            }, {
+                context: this.defaultContext,
+                description: 'AI Draft entry',
+                priority: 40
+            });
+
+            // Predict POS
+            this.registerShortcut('ctrl+shift+p', (e) => {
+                e.preventDefault();
+                this._triggerAction('predict-pos');
+            }, {
+                context: this.defaultContext,
+                description: 'Predict POS',
+                priority: 40
+            });
+
+            // Cancel/close
+            this.registerShortcut('esc', (e) => {
+                const cancelBtn = document.querySelector('#cancel-btn');
+                if (cancelBtn) cancelBtn.click();
+            }, {
+                context: this.defaultContext,
+                description: 'Cancel / close',
+                priority: 10
+            });
         }
 
         _isInSenseContainer(element) {
@@ -800,6 +841,18 @@
                     const addSenseBtn = document.querySelector('#add-sense-btn, .add-sense-btn');
                     if (addSenseBtn) addSenseBtn.click();
                     break;
+                case 'proofread':
+                    const proofreadBtn = document.querySelector('#btn-ai-proofread');
+                    if (proofreadBtn) proofreadBtn.click();
+                    break;
+                case 'draft':
+                    const draftBtn = document.querySelector('#btn-ai-draft');
+                    if (draftBtn) draftBtn.click();
+                    break;
+                case 'predict-pos':
+                    const posBtn = document.querySelector('#btn-pos-tagger');
+                    if (posBtn) posBtn.click();
+                    break;
             }
         }
 
@@ -850,9 +903,16 @@
             const shortcuts = [
                 { category: 'Basic Actions', items: [
                     { combo: 'Ctrl+S', desc: 'Save entry' },
+                    { combo: 'Esc', desc: 'Cancel / close' },
                     { combo: 'Ctrl+Enter', desc: 'Validate entry' },
                     { combo: 'Ctrl+Z', desc: 'Undo' },
-                    { combo: 'Ctrl+Y', desc: 'Redo' }
+                    { combo: 'Ctrl+Y', desc: 'Redo' },
+                    { combo: 'Ctrl+/', desc: 'Toggle this help' }
+                ]},
+                { category: 'AI Actions', items: [
+                    { combo: 'Ctrl+P', desc: 'AI Proofread entry' },
+                    { combo: 'Ctrl+Alt+D', desc: 'AI Draft entry' },
+                    { combo: 'Ctrl+Shift+P', desc: 'Predict POS' }
                 ]},
                 { category: 'Field Navigation', items: [
                     { combo: 'Ctrl+Right', desc: 'Next field' },

@@ -28,6 +28,7 @@ from .anomaly_detector import (
     IPAutoencoder,
     AnomalyResult,
     create_anomaly_detector,
+    create_anomaly_detector_from_bundle,
 )
 
 __all__ = [

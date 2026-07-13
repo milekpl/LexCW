@@ -147,16 +147,16 @@
             <!-- Submit Buttons Card -->
             <div class="card mt-4 mb-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-1">
                             <div class="btn-group" role="group" aria-label="Undo/Redo controls">
                                 <button type="button" id="undo-btn" class="btn btn-outline-secondary"
                                         title="Undo last operation" data-shortcut="ctrl+z" disabled>
-                                    <i class="fas fa-undo"></i> Undo
+                                    <i class="fas fa-undo"></i> <span class="d-none d-sm-inline">Undo</span>
                                 </button>
                                 <button type="button" id="redo-btn" class="btn btn-outline-secondary"
                                         title="Redo last undone operation" data-shortcut="ctrl+y" disabled>
-                                    <i class="fas fa-redo"></i> Redo
+                                    <i class="fas fa-redo"></i> <span class="d-none d-sm-inline">Redo</span>
                                 </button>
                                 <div class="dropdown">
                                     <button class="btn btn-outline-secondary dropdown-toggle" type="button"
@@ -170,15 +170,15 @@
                             </div>
                         </div>
                         
-                        <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-outline-secondary" id="cancel-btn">
-                                <i class="fas fa-times"></i> Cancel
+                        <div class="d-flex align-items-center gap-1">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="cancel-btn">
+                                <i class="fas fa-times"></i> <span class="d-none d-sm-inline">Cancel</span>
                             </button>
-                            <button type="button" class="btn btn-primary" id="validate-btn" data-shortcut="ctrl+enter">
-                                <i class="fas fa-check-circle"></i> Validate
+                            <button type="button" class="btn btn-primary btn-sm" id="validate-btn" data-shortcut="ctrl+enter">
+                                <i class="fas fa-check-circle"></i> <span class="d-none d-sm-inline">Validate</span>
                             </button>
-                            <button type="submit" class="btn btn-success" id="save-btn" data-shortcut="ctrl+s">
-                                <i class="fas fa-save"></i> Save Entry
+                            <button type="submit" class="btn btn-success btn-sm" id="save-btn" data-shortcut="ctrl+s">
+                                <i class="fas fa-save"></i> <span class="d-none d-sm-inline">Save</span>
                             </button>
                             <div class="form-check form-check-inline ms-2 mb-0">
                                 <input class="form-check-input" type="checkbox" id="skip-validation-checkbox">
@@ -332,41 +332,21 @@
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         var rev = data.revision;
-                        if (!rev || !rev.change_report) {
-                            el.innerHTML = '<div class="small text-muted">Initial version</div>';
-                            return;
-                        }
-                        var html = '<div class="bg-light p-1 rounded small">';
-                        rev.change_report.forEach(function (chg) {
-                            var cls = chg.kind === 'added' ? 'text-success' : chg.kind === 'removed' ? 'text-danger' : 'text-warning';
-                            html += '<div class="mb-1" style="font-size:0.8rem;">';
-                            html += '<span class="fw-bold ' + cls + '">' + chg.kind.toUpperCase() + '</span>';
-                            html += ' <span>' + chg.field_path + '</span><br>';
-                            html += ' <span class="text-muted">' + (chg.summary || '') + '</span>';
-                            html += '</div>';
-                        });
-                        html += '</div>';
-                        el.innerHTML = html;
-                    })
-                    .catch(function () { el.innerHTML = '<div class="small text-danger">Failed to load detail.</div>'; });
-            }
-
-            function loadDetail(revNum, detailId) {
-                var el = document.getElementById(detailId);
-                if (!el) return;
-                el.innerHTML = '<div class="small text-muted">Loading detail…</div>';
-                fetch('/api/entries/' + encodeURIComponent(_revEntryId) + '/revisions/' + revNum)
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        var rev = data.revision;
                         if (!rev || !rev.change_report) { el.innerHTML = '<div class="small text-muted">Initial version</div>'; return; }
-                        var html = '<div class="bg-light p-1 rounded small">';
+                        var html = '<div class="bg-light p-2 rounded small">';
                         rev.change_report.forEach(function (chg) {
+                            var label = chg.kind[0].toUpperCase() + chg.kind.slice(1);
                             var cls = chg.kind === 'added' ? 'text-success' : chg.kind === 'removed' ? 'text-danger' : 'text-warning';
-                            html += '<div class="mb-1" style="font-size:0.8rem;">';
-                            html += '<span class="fw-bold ' + cls + '">' + chg.kind.toUpperCase() + '</span>';
-                            html += ' <span>' + chg.field_path + '</span><br>';
-                            html += ' <span class="text-muted">' + (chg.summary || '') + '</span>';
+                            html += '<div class="mb-1 pb-1" style="border-bottom:1px solid #eee">';
+                            html += '<span class="fw-bold ' + cls + '">' + label + '</span>';
+                            html += ' <span class="text-muted">' + chg.field_path + '</span><br>';
+                            if (chg.kind === 'modified' && (chg.old_value !== undefined || chg.new_value !== undefined)) {
+                                html += '<span class="font-monospace small"><span class="text-danger text-decoration-line-through">' + (chg.old_value || '') + '</span>';
+                                html += ' → ';
+                                html += '<span class="text-success">' + (chg.new_value || '') + '</span></span>';
+                            } else {
+                                html += '<span class="font-monospace small">' + (chg.summary || '') + '</span>';
+                            }
                             html += '</div>';
                         });
                         html += '</div>';

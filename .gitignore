@@ -103,3 +103,7 @@ tests/e2e/test_sense_deletion.py
 tests/e2e/test_sense_deletion.py
 DUPLICATE_FUNCTIONALITY_REPORT.md
 STUBBED_IMPLEMENTATIONS_REPORT.md
+pairs.json
+
+#Trained models
+byt5_ipa_model/

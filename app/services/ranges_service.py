@@ -1228,10 +1228,18 @@ class RangesService:
     def get_usage_by_element(self, range_id: str) -> Dict[str, Any]:
         """
         Get usage statistics grouped by element value.
-
-        Uses a SINGLE XQuery that returns counts AND sample entries together,
-        avoiding the N+1 query problem of the previous implementation.
+        Results are cached briefly to avoid repeated heavy queries.
         """
+        import time
+
+        # Check cache
+        db_name = self.db_connector.database or 'dictionary'
+        cache_key = ('usage', range_id, db_name)
+        if cache_key in self._ranges_cache:
+            cached, ts = self._ranges_cache[cache_key]
+            if time.time() - ts < self._CACHE_TTL_SECONDS:
+                return cached
+
         range_data = self.get_range(range_id)
         elements = {elem['id']: elem for elem in range_data.get('values', [])}
 
@@ -1251,18 +1259,14 @@ class RangesService:
             )
             """
         elif range_id == 'lexical-relation':
+            # Single-pass: emit one row per (type, entry) and aggregate in Python.
+            # Avoids N+1 distinct-values → re-scan pattern of the original query.
             query = """
-            for $type in distinct-values(//entry//relation/@type)
-            let $entries := //entry[.//relation[@type = $type]]
-            return concat(
-              $type, '|||',
-              count($entries), '|||',
-              string-join(
-                for $e in subsequence($entries, 1, 5)
-                return concat($e/@id, '~|~', string($e/lexical-unit/form[1]/text[1])),
-                '~||~'
-              )
-            )
+            for $entry in //entry[.//relation]
+            let $eid := string($entry/@id)
+            let $hw := string($entry/lexical-unit/form[1]/text[1])
+            for $type in distinct-values($entry//relation/@type)
+            return concat($type, '|||', $eid, '|||', $hw)
             """
         else:
             query = f"""
@@ -1285,51 +1289,86 @@ class RangesService:
         all_entry_ids = set()
 
         if result and result.strip():
-            for line in result.strip().split('\n'):
-                if not line:
-                    continue
-                parts = line.split('|||')
-                if len(parts) >= 2:
-                    element_id = parts[0]
-                    try:
-                        count = int(parts[1])
-
-                        # Parse sample entries from the third pipe-delimited field
-                        sample_entries = []
-                        if len(parts) >= 3 and parts[2].strip():
-                            for entry_str in parts[2].split('~||~'):
-                                if not entry_str:
-                                    continue
-                                entry_parts = entry_str.split('~|~')
-                                if len(entry_parts) >= 2:
-                                    sample_entries.append({
-                                        'entry_id': entry_parts[0],
-                                        'headword': entry_parts[1]
-                                    })
-                                    all_entry_ids.add(entry_parts[0])
-
-                        # Get element label
-                        elem_data = elements.get(element_id, {})
-                        label = ''
-                        if 'description' in elem_data and elem_data['description']:
-                            label = elem_data['description'].get('en', list(elem_data['description'].values())[0] if elem_data['description'] else '')
-                        elif 'abbrev' in elem_data:
-                            label = elem_data['abbrev']
-
-                        usage_by_element[element_id] = {
-                            'count': count,
-                            'label': label or element_id,
-                            'sample_entries': sample_entries
-                        }
-
-                    except (ValueError, IndexError) as e:
-                        self.logger.warning(f"Failed to parse usage stats line: {line}, error: {e}")
+            if range_id == 'lexical-relation':
+                # Flat rows: type|||entry_id|||headword — aggregate in Python
+                type_entries: Dict[str, Dict] = {}
+                for line in result.strip().split('\n'):
+                    line = line.strip()
+                    if not line:
                         continue
+                    parts = line.split('|||')
+                    if len(parts) >= 3:
+                        rtype, eid, hw = parts[0], parts[1], parts[2]
+                        if rtype not in type_entries:
+                            type_entries[rtype] = {'eids': set(), 'samples': []}
+                        if eid not in type_entries[rtype]['eids']:
+                            type_entries[rtype]['eids'].add(eid)
+                            if len(type_entries[rtype]['samples']) < 5:
+                                type_entries[rtype]['samples'].append({'entry_id': eid, 'headword': hw})
+                            all_entry_ids.add(eid)
 
-        return {
+                for rtype, data in type_entries.items():
+                    elem_data = elements.get(rtype, {})
+                    label = ''
+                    if 'description' in elem_data and elem_data['description']:
+                        label = elem_data['description'].get('en', list(elem_data['description'].values())[0] if elem_data['description'] else '')
+                    elif 'abbrev' in elem_data:
+                        label = elem_data['abbrev']
+
+                    usage_by_element[rtype] = {
+                        'count': len(data['eids']),
+                        'label': label or rtype,
+                        'sample_entries': data['samples'],
+                    }
+            else:
+                for line in result.strip().split('\n'):
+                    if not line:
+                        continue
+                    parts = line.split('|||')
+                    if len(parts) >= 2:
+                        element_id = parts[0]
+                        try:
+                            count = int(parts[1])
+
+                            # Parse sample entries from the third pipe-delimited field
+                            sample_entries = []
+                            if len(parts) >= 3 and parts[2].strip():
+                                for entry_str in parts[2].split('~||~'):
+                                    if not entry_str:
+                                        continue
+                                    entry_parts = entry_str.split('~|~')
+                                    if len(entry_parts) >= 2:
+                                        sample_entries.append({
+                                            'entry_id': entry_parts[0],
+                                            'headword': entry_parts[1]
+                                        })
+                                        all_entry_ids.add(entry_parts[0])
+
+                            # Get element label
+                            elem_data = elements.get(element_id, {})
+                            label = ''
+                            if 'description' in elem_data and elem_data['description']:
+                                label = elem_data['description'].get('en', list(elem_data['description'].values())[0] if elem_data['description'] else '')
+                            elif 'abbrev' in elem_data:
+                                label = elem_data['abbrev']
+
+                            usage_by_element[element_id] = {
+                                'count': count,
+                                'label': label or element_id,
+                                'sample_entries': sample_entries
+                            }
+
+                        except (ValueError, IndexError) as e:
+                            self.logger.warning(f"Failed to parse usage stats line: {line}, error: {e}")
+                            continue
+
+        result = {
             'total_entries': len(all_entry_ids),
             'elements': usage_by_element
         }
+        import time
+        self._ranges_cache[cache_key] = (result, time.time())
+        return result
     
     def migrate_range_values(
         self,

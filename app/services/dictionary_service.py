@@ -13,7 +13,7 @@ import re
 import random
 import tempfile
 import time
-from typing import Callable, Dict, List, Any, Optional, Tuple, Union
+from typing import Callable, Dict, List, Any, Optional, Tuple, Union, Set
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from tenacity import (
@@ -3536,6 +3536,162 @@ class DictionaryService:
                 project_id=project_id,
                 progress_callback=progress_callback,
             )
+
+        if scan_mode == 'semantic_subentry':
+            from app.services.embedding_service import EmbeddingService, EmbeddingServiceError
+            emb = EmbeddingService()
+
+            # Semantic modes require a sample size to be practical — default to 1000
+            effective_sample = sample_size if sample_size else 1000
+
+            cosine_threshold = max(0.1, 0.6 - (threshold - 1) * 0.15)
+            effective_threshold = max(cosine_threshold, min_confidence)
+
+            if progress_callback:
+                progress_callback(0, 0, f'Starting semantic subentry scan (sample: {effective_sample})...')
+
+            try:
+                candidates = emb.find_batch_subentry_relations(
+                    project_id=project_id,
+                    threshold=effective_threshold,
+                    top_k=30,
+                    sample_size=effective_sample,
+                    progress_callback=progress_callback,
+                    cancel_check=lambda: False,
+                )
+            except EmbeddingServiceError as e:
+                self.logger.error("Semantic subentry scan failed: %s", e)
+                if progress_callback:
+                    progress_callback(0, 0, f'Error: {e}')
+                return {
+                    'candidates': [],
+                    'total_candidates': 0,
+                    'sample_size': sample_size,
+                    'scanned_entries': 0,
+                    'error': str(e),
+                }
+
+            # Fetch existing _component-lexeme relations
+            linked_pairs = self._batch_fetch_existing_relations('_component-lexeme', project_id)
+
+            result_candidates = []
+            for c in candidates:
+                pair_key = tuple(sorted([c['entry_id_a'], c['entry_id_b']]))
+                already_linked = pair_key in linked_pairs
+                space = ' ' in c['b_headword']
+                cft = 'Phrase' if space else 'Compound'
+
+                result_candidates.append({
+                    'id': f"subentry-{c['entry_id_a']}-{c['entry_id_b']}",
+                    'source': {
+                        'entry_id': c['entry_id_a'],
+                        'headword': c['a_headword'],
+                        'definition': c.get('a_definition', ''),
+                        'pos': c['a_pos'],
+                        'sense_count': c['a_sense_count'],
+                        'sense_ids': c.get('a_sense_ids', []),
+                    },
+                    'target': {
+                        'entry_id': c['entry_id_b'],
+                        'headword': c['b_headword'],
+                        'definition': c.get('b_definition', ''),
+                        'pos': c['b_pos'],
+                        'sense_count': c['b_sense_count'],
+                        'sense_ids': c.get('b_sense_ids', []),
+                    },
+                    'similarity': c['score'],
+                    'relation_type': '_component-lexeme',
+                    'complex_form_type': cft,
+                    'level': 'entry',
+                    'already_linked': already_linked,
+                })
+
+            result_candidates.sort(key=lambda c: -c['similarity'])
+            scanned = len(set(c['entry_id_a'] for c in candidates) |
+                          set(c['entry_id_b'] for c in candidates))
+            return {
+                'candidates': result_candidates,
+                'total_candidates': len(result_candidates),
+                'sample_size': sample_size,
+                'scanned_entries': scanned,
+            }
+
+        if scan_mode == 'semantic':
+            from app.services.embedding_service import EmbeddingService, EmbeddingServiceError
+            emb = EmbeddingService()
+
+            # Semantic modes require a sample size — default to 1000
+            effective_sample = sample_size if sample_size else 1000
+
+            cosine_threshold = max(0.1, 0.6 - (threshold - 1) * 0.15)
+            effective_threshold = max(cosine_threshold, min_confidence)
+
+            if progress_callback:
+                progress_callback(0, 0, f'Starting semantic scan (sample: {effective_sample})...')
+
+            try:
+                candidates = emb.find_batch_relations(
+                    project_id=project_id,
+                    pos=pos,
+                    threshold=effective_threshold,
+                    top_k=20,
+                    sample_size=effective_sample,
+                    progress_callback=progress_callback,
+                    cancel_check=lambda: False,
+                )
+            except EmbeddingServiceError as e:
+                self.logger.error("Semantic scan failed: %s", e)
+                if progress_callback:
+                    progress_callback(0, 0, f'Error: {e}')
+                return {
+                    'candidates': [],
+                    'total_candidates': 0,
+                    'sample_size': sample_size,
+                    'scanned_entries': 0,
+                    'error': str(e),
+                }
+
+            # Fetch existing relations of the configured type
+            linked_pairs = self._batch_fetch_existing_relations(relation_type, project_id)
+
+            result_candidates = []
+            for c in candidates:
+                pair_key = tuple(sorted([c['entry_id_a'], c['entry_id_b']]))
+                already_linked = pair_key in linked_pairs
+
+                result_candidates.append({
+                    'id': f"discovery-{c['entry_id_a']}-{c['entry_id_b']}",
+                    'source': {
+                        'entry_id': c['entry_id_a'],
+                        'headword': c['a_headword'],
+                        'definition': c.get('a_definition', ''),
+                        'pos': c['a_pos'],
+                        'sense_count': c['a_sense_count'],
+                        'sense_ids': c.get('a_sense_ids', []),
+                    },
+                    'target': {
+                        'entry_id': c['entry_id_b'],
+                        'headword': c['b_headword'],
+                        'definition': c.get('b_definition', ''),
+                        'pos': c['b_pos'],
+                        'sense_count': c['b_sense_count'],
+                        'sense_ids': c.get('b_sense_ids', []),
+                    },
+                    'similarity': c['score'],
+                    'relation_type': relation_type,
+                    'already_linked': already_linked,
+                })
+
+            result_candidates.sort(key=lambda c: -c['similarity'])
+            scanned = len(set(c['entry_id_a'] for c in candidates) |
+                          set(c['entry_id_b'] for c in candidates))
+            return {
+                'candidates': result_candidates,
+                'total_candidates': len(result_candidates),
+                'sample_size': sample_size,
+                'scanned_entries': scanned,
+            }
+
         try:
             db_name = self.db_connector.database
             if project_id:
@@ -4071,6 +4227,37 @@ class DictionaryService:
                     best_sim = sim
                     best_pair = (sa.id, sb.id)
         return best_pair
+
+    def _batch_fetch_existing_relations(
+        self, relation_type: str, project_id: Optional[int] = None
+    ) -> Set[Tuple[str, str]]:
+        """Fetch all existing relations of a given type as sorted (source, target) pairs."""
+        linked_pairs: Set[Tuple[str, str]] = set()
+        try:
+            db_name = self._resolve_db_name(project_id)
+            has_ns = self._detect_namespace_usage()
+            prologue = self._query_builder.get_namespace_prologue(has_ns)
+            entry_q = self._query_builder.get_element_path("entry", has_ns)
+            relation_q = self._query_builder.get_element_path("relation", has_ns)
+            C = f"collection('{db_name}')"
+            rel_query = (
+                f"{prologue} "
+                f"for $rel in {C}//{entry_q}/{relation_q}[@type='{relation_type}'] "
+                f"return concat($rel/../@id, '|||', $rel/@ref)"
+            )
+            rel_raw = self.db_connector.execute_query(rel_query)
+            for rline in rel_raw.strip().split('\n'):
+                rline = rline.strip()
+                if not rline:
+                    continue
+                rparts = rline.split('|||', 1)
+                if len(rparts) == 2:
+                    a_id, b_id = rparts[0].strip(), rparts[1].strip()
+                    if a_id and b_id:
+                        linked_pairs.add(tuple(sorted([a_id, b_id])))
+        except Exception:
+            self.logger.warning("Failed to batch-fetch existing relations for type '%s'", relation_type)
+        return linked_pairs
 
     def _create_relation(
         self,

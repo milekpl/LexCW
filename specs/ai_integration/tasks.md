@@ -23,7 +23,7 @@ This document outlines the implementation tasks for the AI Integration feature, 
         *   Implemented: `POSTaggerService` (`app/services/pos_tagger_service.py`) — spaCy tagging with rule-based fallback, configurable Penn/UD tagset mappings (`config/pos_tagset_mappings.json`), entry/headword POS prediction, per-sense batch tagging, and definition phrase-category coherence analysis. Exposed via `app/api/pos_api.py` (`/pos/tag-entry`, `/pos/batch-tag`, `/pos/apply-tags`, `/pos/validate-definition-coherence`, `/pos/mappings`). Entry-form UI in `app/static/js/ai-service.js` (`btn-pos-tagger`). ML anomaly detector `POSCoherenceService` (`app/services/pos_coherence_service.py`) surfaced on the dashboard (`/api/dashboard/anomalies`).
         *   **Requirements**: `3.2.3`, `18.2`
 
-    2.2. [ ] **Pronunciation Systems (IPA Prediction — server-side transformer + LexCW API)**
+    2.2. [x] **Pronunciation Systems (IPA Prediction — server-side transformer + LexCW API)**
         *   Implement a system for automatically generating IPA pronunciations / detecting
             anomalous pronunciations from text.
         *   **Confirmed approach (2026-07-07):**

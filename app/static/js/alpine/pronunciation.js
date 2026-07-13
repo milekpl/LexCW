@@ -40,7 +40,8 @@
             audioPath: '',
             isDefault: this.items.length === 0,
             cvPattern: [],
-            tone: []
+            tone: [],
+            _showExtras: false
           });
           // After Alpine renders the new item, attach IPA validation listeners
           var self = this;
@@ -90,6 +91,84 @@
           if (typeof validateIpaField === 'function') {
             validateIpaField(el);
           }
+        },
+
+        /**
+         * Predict IPA via ByT5 model. Calls /api/pronunciation/draft.
+         */
+        draftIpaBtn: null,
+
+        predictIpa: function (idx) {
+          if (this.draftIpaBtn) return; // already running
+          var item = this.items[idx];
+          if (!item) return;
+
+          var headword = '';
+          if (window.__entryData && window.__entryData.lexical_unit) {
+            var lu = window.__entryData.lexical_unit;
+            headword = lu.en || Object.values(lu)[0] || '';
+          }
+          if (!headword) {
+            if (typeof showToast === 'function') {
+              showToast('No headword available to predict IPA.', 'warning');
+            }
+            return;
+          }
+
+          var self = this;
+          var btn = document.querySelector('[data-predict-ipa="' + idx + '"]');
+          if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            self.draftIpaBtn = btn;
+          }
+
+          fetch('/api/pronunciation/draft', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            body: JSON.stringify({ headword: headword, num_candidates: 1 })
+          })
+          .then(function (r) {
+            if (r.status === 401 || r.status === 403) {
+              throw new Error('Not signed in — log in to draft IPA.');
+            }
+            if (!r.ok) {
+              throw new Error('Draft request failed (HTTP ' + r.status + ').');
+            }
+            return r.json();
+          })
+          .then(function (data) {
+            if (data.available && data.candidates && data.candidates.length > 0) {
+              item.value = data.candidates[0];
+              // Trigger validation on the input
+              var input = document.querySelector('.pronunciation-item[data-index="' + idx + '"] .ipa-input');
+              if (input && typeof validateIpaField === 'function') {
+                validateIpaField(input);
+              }
+              if (typeof showToast === 'function') {
+                showToast('IPA drafted: ' + data.candidates[0], 'success');
+              }
+            } else {
+              if (typeof showToast === 'function') {
+                showToast('ByT5 model not available. Train and deploy one via Colab.', 'warning');
+              }
+            }
+          })
+          .catch(function (err) {
+            if (typeof showToast === 'function') {
+              showToast('Error drafting IPA: ' + err.message, 'error');
+            }
+          })
+          .finally(function () {
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fas fa-magic"></i>';
+              self.draftIpaBtn = null;
+            }
+          });
         }
       };
     });

@@ -24,7 +24,7 @@ class ApiKey(db.Model):
     )
     label = Column(String(100), nullable=False)
     key_hash = Column(String(255), nullable=False)
-    key_prefix = Column(String(8), nullable=False, unique=True, index=True)
+    key_prefix = Column(String(16), nullable=False, unique=True, index=True)
     scopes = Column(JSON, nullable=False, default=list)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

@@ -21,8 +21,9 @@ This document outlines the implementation tasks for the Bulk Processing feature,
         *   Implemented: `WorksetProgress` tracker in `app/services/workset_service.py:37` with status, total_items, completed_items. Exposed via `GET /api/worksets/progress`.
         *   **Requirements**: `3.2.1`, `8.1.1`, `18.2`
 
-    1.4. [ ] **Create Rollback and Recovery Mechanisms**
+    1.4. [x] **Create Rollback and Recovery Mechanisms**
         *   Implement mechanisms for rolling back and recovering from failed bulk operations.
+        *   **Implemented**: `BulkRollbackService` (`app/services/bulk_rollback_service.py`) with pre-op entry snapshots stored in SQLite `bulk_operation_snapshots` table. `POST /api/bulk/rollback` endpoint restores snapshots via compensating writes. All 4 bulk endpoints (traits/convert, pos/update, execute, pipeline) automatically snapshot entries before modifications. `operation_id` is returned and a Rollback button appears in the bulk operations UI after execution. 14 unit tests.
         *   **Requirements**: `3.2.1`, `5.4.3`, `18.2`
 
 

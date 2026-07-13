@@ -20,12 +20,51 @@
   var summaryEl = document.getElementById('discovery-summary');
   var contentEl = document.getElementById('discovery-content');
 
+  /* ---- Load lexical relation types from LIFT Ranges ---- */
+  (function loadRelationTypes() {
+    fetch('/api/ranges-editor/lexical-relation')
+      .then(function (r) { return r.json(); })
+      .then(function (resp) {
+        if (!resp.success || !resp.data || !resp.data.values) return;
+        var values = resp.data.values;
+        relationTypeInput.innerHTML = '';
+        values.forEach(function (v) {
+          var opt = document.createElement('option');
+          opt.value = v.id;
+          var label = '';
+          if (v.labels && v.labels.en) label = v.labels.en;
+          else if (v.abbrev && v.abbrev.en) label = v.abbrev.en;
+          else label = v.id;
+          opt.textContent = label;
+          if (v.id === 'synonym') opt.selected = true;
+          relationTypeInput.appendChild(opt);
+        });
+      })
+      .catch(function () {
+        // Fallback: populate with common types
+        ['synonym', 'antonym', 'hypernym', 'hyponym', 'compare'].forEach(function (id) {
+          var opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = id;
+          if (id === 'synonym') opt.selected = true;
+          relationTypeInput.appendChild(opt);
+        });
+      });
+  })();
+
+  /* ---- Scan mode changes filter relation types ---- */
   if (scanModeInput && relationTypeInput) {
-    scanModeInput.addEventListener('change', function() {
-      if (this.value === 'subentry') {
-        relationTypeInput.value = 'subentry';
+    scanModeInput.addEventListener('change', function () {
+      if (this.value === 'subentry' || this.value === 'semantic_subentry') {
+        relationTypeInput.value = '_component-lexeme';
+        relationTypeInput.disabled = true;
       } else {
-        relationTypeInput.value = 'synonym';
+        relationTypeInput.disabled = false;
+        // For trigram synonym mode, lock to 'synonym'
+        if (this.value === 'synonym') {
+          relationTypeInput.value = 'synonym';
+          relationTypeInput.disabled = true;
+        }
       }
     });
   }

@@ -28,7 +28,7 @@ This document outlines the implementation tasks for the Dynamic Range Management
         *   `GET /api/ranges/{range_id}`: Returns all values for a specific range, including hierarchical data.
         *   **Requirements**: `3.1.3`, `8.1`
 
-    1.5. [ ] **Write Unit and Integration Tests for the Backend**
+    1.5. [x] **Write Unit and Integration Tests for the Backend**
         *   Write comprehensive tests for the range parser, ensuring it handles all range types and hierarchies correctly.
         *   Test the caching service for proper cache hits, misses, and invalidation.
         *   Test the API endpoints for correct data return, status codes, and error handling.
@@ -55,7 +55,7 @@ This document outlines the implementation tasks for the Dynamic Range Management
         *   Implemented: `ProjectLanguageService.get_all_language_codes()` in `app/services/project_language_service.py` aggregates source, target, admissible, and active dictionary codes.
         *   **Requirements**: `3.1.3`
 
-    2.4. [ ] **Write Tests for Variant and Language Services**
+    2.4. [x] **Write Tests for Variant and Language Services**
         *   Write tests to verify that variant types are correctly extracted from sample LIFT XML.
         *   Write tests to ensure language codes are correctly extracted and that the union with project settings works as expected.
         *   **Requirements**: `4.1`
@@ -83,10 +83,10 @@ This document outlines the implementation tasks for the Dynamic Range Management
         *   **Note**: This is partially implemented. The language is hardcoded in the template, but not enforced as the *only* option in the backend.
         *   **Requirements**: `3.1.4`, `3.1.5`
 
-    3.4. [ ] **Write End-to-End UI Tests**
+    3.4. [x] **Write End-to-End UI Tests**
         *   Use a framework like Playwright to write tests that verify:
         *   All specified dropdowns are populated with data from the APIs.
         *   Hierarchical data is displayed correctly.
         *   The pronunciation language is correctly restricted.
         *   The UI gracefully handles API errors or empty data responses.
-        *   **Requirements**: `4.1.3`, `16.3.2`
+        *   **Status**: ✅ Done — 4 Playwright suites: `test_ranges_editor_playwright.py` (CRUD), `test_ranges_ui_playwright.py` (dropdowns), `test_ranges_duplicates_api.py`, `test_ranges_auto_install.py`.

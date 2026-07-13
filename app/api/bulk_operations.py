@@ -8,6 +8,7 @@ Provides endpoints for:
 - /bulk/execute - Execute bulk actions on matching entries
 - /bulk/pipeline - Execute chained operations
 - /bulk/preview - Preview effects without applying
+- /bulk/rollback - Rollback a bulk operation
 """
 import logging
 from flask import Blueprint, request, jsonify, current_app
@@ -25,6 +26,37 @@ def get_bulk_query_service():
 def get_bulk_action_service():
     from app.services.bulk_action_service import BulkActionService
     return current_app.injector.get(BulkActionService)
+
+def get_rollback_service():
+    from app.services.bulk_rollback_service import BulkRollbackService
+    from app.services.dictionary_service import DictionaryService
+    ds = current_app.injector.get(DictionaryService)
+    return BulkRollbackService(dictionary_service=ds)
+
+
+def _snapshot_for_bulk_op(entry_ids: list[str]) -> str | None:
+    """Snapshot entries before a bulk operation.
+
+    Returns a bulk_op_id string, or None if no entries to snapshot
+    or if the injector is not available (e.g. in tests).
+    """
+    if not entry_ids:
+        return None
+    from flask import current_app
+    try:
+        injector = getattr(current_app, 'injector', None)
+        if injector is None:
+            return None
+        from app.services.dictionary_service import DictionaryService
+        from app.services.bulk_rollback_service import BulkRollbackService
+        ds = injector.get(DictionaryService)
+        rs = BulkRollbackService(dictionary_service=ds)
+        op_id = rs.generate_op_id()
+        rs.record_bulk_op_snapshots(op_id, entry_ids)
+        return op_id
+    except Exception as exc:
+        logger.warning('bulk snapshot skipped: %s', exc)
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +107,9 @@ def convert_traits() -> Any:
         return jsonify({'error': 'Missing required field: to_trait'}), 400
 
     try:
+        # Snapshot entries before the operation
+        bulk_op_id = _snapshot_for_bulk_op(entry_ids)
+
         service = get_bulk_operations_service()
         result = service.convert_traits(entry_ids, from_trait, to_trait)
 
@@ -87,7 +122,7 @@ def convert_traits() -> Any:
 
         # Generate operation ID
         from datetime import datetime
-        operation_id = f'op-{datetime.utcnow().strftime("%Y%m%d")}-{result["total"]}'
+        operation_id = bulk_op_id or f'op-{datetime.utcnow().strftime("%Y%m%d")}-{result["total"]}'
 
         return jsonify({
             'operation_id': operation_id,
@@ -139,6 +174,9 @@ def update_pos_bulk() -> Any:
         return jsonify({'error': 'Missing required field: pos_tag'}), 400
 
     try:
+        # Snapshot entries before the operation
+        bulk_op_id = _snapshot_for_bulk_op(entry_ids)
+
         service = get_bulk_operations_service()
         result = service.update_pos_bulk(entry_ids, pos_tag)
 
@@ -151,7 +189,7 @@ def update_pos_bulk() -> Any:
 
         # Generate operation ID
         from datetime import datetime
-        operation_id = f'op-{datetime.utcnow().strftime("%Y%m%d")}-{result["total"]}'
+        operation_id = bulk_op_id or f'op-{datetime.utcnow().strftime("%Y%m%d")}-{result["total"]}'
 
         return jsonify({
             'operation_id': operation_id,
@@ -255,6 +293,9 @@ def bulk_execute() -> Any:
         if not entry_ids:
             return jsonify({'error': 'No entries matched or provided'}), 400
 
+        # Snapshot entries before execution (skip in preview mode)
+        bulk_op_id = None if preview else _snapshot_for_bulk_op(entry_ids)
+
         # Execute action on each entry
         results = []
         for entry_id in entry_ids:
@@ -268,7 +309,7 @@ def bulk_execute() -> Any:
         }
 
         from datetime import datetime
-        operation_id = f'op-{datetime.utcnow().strftime("%Y%m%d")}-{len(entry_ids)}'
+        operation_id = bulk_op_id or f'op-{datetime.utcnow().strftime("%Y%m%d")}-{len(entry_ids)}'
 
         return jsonify({
             'operation_id': operation_id,
@@ -330,6 +371,9 @@ def bulk_pipeline() -> Any:
         if not entry_ids:
             return jsonify({'error': 'No entries matched or provided'}), 400
 
+        # Snapshot entries before pipeline (skip in preview mode)
+        bulk_op_id = None if preview else _snapshot_for_bulk_op(entry_ids)
+
         # Execute each step in pipeline
         steps_results = []
         for i, step in enumerate(steps):
@@ -354,7 +398,7 @@ def bulk_pipeline() -> Any:
         )
 
         from datetime import datetime
-        operation_id = f'op-{datetime.utcnow().strftime("%Y%m%d")}-{len(entry_ids)}'
+        operation_id = bulk_op_id or f'op-{datetime.utcnow().strftime("%Y%m%d")}-{len(entry_ids)}'
 
         return jsonify({
             'operation_id': operation_id,
@@ -473,6 +517,10 @@ def batch_update_entries() -> Any:
         return jsonify({'error': 'Updates list cannot be empty'}), 400
 
     try:
+        # Snapshot all entries before batch updates
+        entry_ids = [u.get('id') or u.get('entry_id') for u in updates if u.get('id') or u.get('entry_id')]
+        bulk_op_id = _snapshot_for_bulk_op(entry_ids)
+
         from app.services.dictionary_service import DictionaryService
         dict_service = current_app.injector.get(DictionaryService)
 
@@ -591,7 +639,7 @@ def batch_update_entries() -> Any:
                 failed_count += 1
 
         from datetime import datetime
-        operation_id = f'op-{datetime.utcnow().strftime("%Y%m%d")}-batch-{len(updates)}'
+        operation_id = bulk_op_id or f'op-{datetime.utcnow().strftime("%Y%m%d")}-batch-{len(updates)}'
 
         return jsonify({
             'operation_id': operation_id,
@@ -605,5 +653,52 @@ def batch_update_entries() -> Any:
 
     except Exception as e:
         logger.error("Error in batch_update_entries: %s", str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+@bulk_bp.route('/rollback', methods=['POST'])
+def bulk_rollback() -> Any:
+    """
+    Roll back a bulk operation by restoring pre-op snapshots.
+
+    Request body:
+        {
+            "operation_id": "op-20260101-10"
+        }
+
+    Returns:
+        {
+            "restored": 3,
+            "failed": 0,
+            "skipped": 0,
+            "total": 3,
+            "message": "Rolled back operation op-20260101-10"
+        }
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No JSON data provided'}), 400
+
+    operation_id = data.get('operation_id')
+    if not operation_id:
+        return jsonify({'error': 'Missing required field: operation_id'}), 400
+
+    try:
+        rollback_service = get_rollback_service()
+        result = rollback_service.rollback(operation_id)
+
+        message = f"Rolled back operation {operation_id}"
+        if result['skipped'] > 0:
+            message += f" ({result['skipped']} entries skipped — no longer exist)"
+        if result['failed'] > 0:
+            message += f" ({result['failed']} entries failed)"
+
+        return jsonify({
+            **result,
+            'message': message,
+        })
+
+    except Exception as e:
+        logger.error("Error in bulk_rollback: %s", str(e))
         return jsonify({'error': str(e)}), 500
 
