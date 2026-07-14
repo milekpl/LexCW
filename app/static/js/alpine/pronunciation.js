@@ -132,9 +132,8 @@
             body: JSON.stringify({ headword: headword, num_candidates: 1 })
           })
           .then(function (r) {
-            if (r.status === 401 || r.status === 403) {
-              throw new Error('Not signed in — log in to draft IPA.');
-            }
+            // 401/403 never arrive here: auth.js rejects them centrally and sends
+            // the user to log in. Anything else non-OK is a genuine draft failure.
             if (!r.ok) {
               throw new Error('Draft request failed (HTTP ' + r.status + ').');
             }

@@ -39,6 +39,28 @@ basex_available = parent_conftest.basex_available
 dict_service_with_db = parent_conftest.dict_service_with_db
 flask_test_server = parent_conftest.flask_test_server
 
+@pytest.fixture(autouse=True)
+def isolate_cache(monkeypatch) -> None:
+    """Keep integration tests off the developer's live Redis, and off each other's.
+
+    CacheService defaults to REDIS_ENABLED=true and REDIS_DB=0 — the same cache the
+    running dev app uses. Tests therefore read and wrote real cache entries, so a
+    result could depend on what a *previous* run had left behind (a homepage
+    assertion tripped on stale cached dashboard stats, and cached POS analyses hid a
+    tagger bug in the unit suite for as long as the key survived).
+
+    Integration tests need a working cache — some assert on caching behaviour — so
+    rather than disabling Redis, point them at a scratch database and reset the
+    process-wide singleton around each test.
+    """
+    from app.services.cache_service import CacheService
+
+    monkeypatch.setenv("REDIS_DB", os.getenv("TEST_REDIS_DB", "15"))
+    CacheService.reset_singleton()
+    yield
+    CacheService.reset_singleton()
+
+
 @pytest.fixture(scope="function")
 def test_db_name() -> str:
     """Return the shared test database name for integration tests."""
@@ -208,7 +230,11 @@ def app() -> Flask:
             except Exception as e:
                 app.logger.warning(f"Failed to initialize PostgreSQL pool for tests: {e}")
                 app.pg_pool = None
-    
+
+    # The app requires authentication; sign this suite's clients in. See
+    # seed_integration_user / authenticate_test_clients below.
+    seed_integration_user(app)
+
     return app
 
 
@@ -249,9 +275,117 @@ def test_project(app: Flask, test_db_name: str):
                 db.session.delete(s)
                 db.session.commit()
 
+# --------------------------------------------------------------------------- #
+# Authentication
+#
+# The app authenticates by default (REQUIRE_AUTH). Rather than teach 128 integration
+# files to log in — and 17 of them build their own test_client(), so fixing the
+# `client` fixture alone would not be enough — every client made from the shared
+# integration app is signed in automatically.
+#
+# Deliberately scoped to *this* app object: several test modules (auth gate, auth
+# contract, CSRF policy, API keys) build their own app and assert on anonymous
+# behaviour. Patching Flask.test_client globally would break exactly the tests that
+# check the door is locked.
+#
+# Use `anonymous_client` to assert unauthenticated behaviour.
+# --------------------------------------------------------------------------- #
+
+INTEGRATION_USERNAME = "integration_tester"
+
+
+def seed_integration_user(app: Flask) -> int:
+    """Create the account integration tests run as, and mark the app as ours.
+
+    The marker (rather than a fixture dependency) is what tells the client patch
+    below which app to sign in to: several modules define their own `app` fixture,
+    which shadows this one, so a fixture-based check hits a ScopeMismatch and — worse
+    — would authenticate apps that are deliberately testing anonymous behaviour.
+    """
+    from app.models.project_settings import User
+    from app.models.workset_models import db
+    from app.services.auth_service import AuthenticationService
+
+    with app.app_context():
+        user = User.query.filter_by(username=INTEGRATION_USERNAME).first()
+        if user is None:
+            user = User(
+                username=INTEGRATION_USERNAME,
+                email="integration@example.test",
+                password_hash=AuthenticationService.hash_password("Integration1pass"),
+                is_active=True,
+                is_admin=True,
+            )
+            db.session.add(user)
+            db.session.commit()
+
+        app._integration_user_id = user.id
+        return user.id
+
+
+@pytest.fixture(scope="session", autouse=True)
+def authenticate_test_clients():
+    """Sign in every test client in the integration suite.
+
+    Session-scoped on purpose: several modules build their client in a *module*-scoped
+    fixture, which pytest instantiates before any function-scoped one. A function-scoped
+    patch would install too late and leave those clients anonymous.
+
+    Authenticated by default, because the app is: 29 of these modules build their own
+    app and client, so signing in only the shared fixture would leave most of the
+    suite anonymous and 401-ing. The user is seeded lazily, per app, on first use.
+
+    Modules that assert on *unauthenticated* behaviour opt out with
+
+        app._tests_anonymous = True
+
+    — the auth gate, the auth contract, the CSRF policy, API keys, and the account
+    lifecycle. They are testing that the door is locked; handing them a key defeats
+    the point.
+    """
+    original_test_client = Flask.test_client
+
+    def test_client(self, *args, **kwargs):
+        client = original_test_client(self, *args, **kwargs)
+
+        if getattr(self, "_tests_anonymous", False):
+            return client
+
+        user_id = getattr(self, "_integration_user_id", None)
+        if user_id is None:
+            try:
+                user_id = seed_integration_user(self)
+            except Exception:  # no user table (a bare app) — leave it anonymous
+                return client
+
+        with client.session_transaction() as session:
+            session["user_id"] = user_id
+        return client
+
+    # Own MonkeyPatch: the `monkeypatch` fixture is function-scoped and cannot be
+    # requested from a session-scoped fixture.
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr(Flask, "test_client", test_client)
+    yield
+    patcher.undo()
+
+
+@pytest.fixture(scope="function")
+def anonymous_client(app: Flask):
+    """A client with no session, for asserting unauthenticated behaviour."""
+    with app.app_context():
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session.clear()
+        yield client
+
+
 @pytest.fixture(scope="function")
 def client(app: Flask, test_project):
-    """Create Flask test client (function-scoped for fresh context per test)."""
+    """Create Flask test client (function-scoped for fresh context per test).
+
+    Authenticated: see authenticate_test_clients above.
+    """
     with app.app_context():
         client = app.test_client()
         with client.session_transaction() as sess:

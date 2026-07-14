@@ -397,6 +397,16 @@ class POSTaggerService:
             doc = nlp_parser(seg)
             roots = [tok for tok in doc if tok.dep_ == "ROOT" or tok.head == tok]
             root_tok = roots[0] if roots else doc[0]
+
+            # A determiner or possessive attaches only to a nominal head, so the
+            # dependency structure identifies a noun phrase even when the tagger
+            # mislabels the head itself. It routinely does on bare fragments: in
+            # "a small domesticated feline mammal" spaCy tags "mammal" as JJ, which
+            # would otherwise make a plain noun phrase read as an Adjective Phrase
+            # and raise a spurious definition-coherence warning.
+            if any(child.dep_ in ("det", "poss") for child in root_tok.children):
+                return "Noun Phrase"
+
             root_raw = root_tok.tag_ or root_tok.pos_
             norm_pos = self.normalize_tag(root_raw, lang=lang) or root_tok.pos_
             return self._phrase_category_for_root_pos(norm_pos)

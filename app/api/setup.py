@@ -7,12 +7,14 @@ from flasgger import swag_from
 
 from app.services.dictionary_service import DictionaryService
 from app.config_manager import ConfigManager
+from app.utils.auth_decorators import admin_required
 from app.utils.exceptions import DatabaseError
 
 setup_bp = Blueprint('setup', __name__, url_prefix='/api/setup')
 
 
 @setup_bp.route('', methods=['POST'])
+@admin_required
 @swag_from({
     'tags': ['Setup'],
     'summary': 'Configure project settings',

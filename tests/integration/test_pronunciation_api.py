@@ -198,16 +198,21 @@ class TestDeduplicateApplyEndpoint:
 
 
 class TestApiKeyEndpoints:
-    """Tests for API key CRUD endpoints — these test auth rejection."""
+    """Tests for API key CRUD endpoints — these test auth rejection.
 
-    def test_list_keys_requires_auth(self, client):
-        resp = client.get("/api/keys/")
+    `anonymous_client`, not `client`: the suite's clients are signed in by default
+    now that the app requires authentication, and a signed-in caller is exactly what
+    these tests must not have.
+    """
+
+    def test_list_keys_requires_auth(self, anonymous_client):
+        resp = anonymous_client.get("/api/keys/")
         assert resp.status_code in (401, 302)
 
-    def test_create_key_requires_auth(self, client):
-        resp = client.post("/api/keys/", json={"project_id": 1, "label": "test key"})
+    def test_create_key_requires_auth(self, anonymous_client):
+        resp = anonymous_client.post("/api/keys/", json={"project_id": 1, "label": "test key"})
         assert resp.status_code in (401, 302)
 
-    def test_revoke_key_requires_auth(self, client):
-        resp = client.delete("/api/keys/1")
+    def test_revoke_key_requires_auth(self, anonymous_client):
+        resp = anonymous_client.delete("/api/keys/1")
         assert resp.status_code in (401, 302)

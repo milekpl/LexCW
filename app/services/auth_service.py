@@ -338,10 +338,16 @@ class AuthenticationService:
             # Don't reveal whether email exists
             return True, "If the email exists, a reset link has been sent"
 
-        # Generate and store reset token with 1-hour expiration
+        # Generate and store reset token with 1-hour expiration.
+        # reset_token_used is cleared here, not just after a successful reset: if a
+        # reset is interrupted between marking the token used and clearing it, the
+        # flag would otherwise stay set forever and every *future* token would be
+        # refused as "already used" — locking the account out of password reset
+        # permanently, with no way back except the database.
         reset_token = secrets.token_urlsafe(32)
         user.reset_token = reset_token
         user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
+        user.reset_token_used = False
         safe_commit(db, "auth_service")
 
         # Log the password reset request

@@ -6,176 +6,262 @@
 <div class="container mt-4">
     <h1><i class="fa fa-key"></i> API Keys</h1>
     <p class="text-muted">
-        API keys allow external scripts and tools to interact with your dictionary
-        programmatically. Treat them like passwords — anyone with a key can access
-        your data within the key's scopes.
+        API keys let external scripts and tools work with your dictionary over HTTP.
+        Treat one like a password: anyone holding it can do anything its scopes allow,
+        from anywhere, until you revoke it.
     </p>
 
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>Your API Keys</span>
-            <button class="btn btn-primary btn-sm" id="createKeyBtn">
+            <button class="btn btn-primary btn-sm" id="newKeyBtn">
                 <i class="fa fa-plus"></i> New Key
             </button>
         </div>
         <div class="card-body">
             <div id="keyList">
-                <p class="text-muted" id="loadingKeys">Loading...</p>
+                <p class="text-muted" id="loadingKeys">Loading…</p>
             </div>
 
             <div id="newKeyResult" class="alert alert-success d-none mt-3">
-                <strong>Key created!</strong> Copy this key now — you won't see it again.
+                <strong>Key created.</strong> Copy it now — it is never shown again.
                 <pre id="newKeyValue" class="mt-2 mb-0"></pre>
-                <button class="btn btn-sm btn-outline-secondary mt-1" onclick="copyKey()">
+                <button class="btn btn-sm btn-outline-secondary mt-1" id="copyKeyBtn">
                     <i class="fa fa-copy"></i> Copy
                 </button>
             </div>
         </div>
     </div>
 
+    <div class="card mb-4 d-none" id="createCard">
+        <div class="card-header">New API Key</div>
+        <div class="card-body">
+            <form id="createKeyForm">
+                <div class="mb-3">
+                    <label class="form-label" for="keyLabel">Label</label>
+                    <input class="form-control" id="keyLabel" required
+                           placeholder="e.g. nightly export script" />
+                    <div class="form-text">What is this key for? You will see it in the list above.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="keyProject">Project</label>
+                    <select class="form-select" id="keyProject" required></select>
+                </div>
+
+                <fieldset class="mb-3">
+                    <legend class="form-label fs-6">Scopes</legend>
+                    <div id="scopeChoices" class="row row-cols-1 row-cols-md-2 g-1"></div>
+                    <div class="form-text">
+                        A key can do only what its scopes allow, and nothing else. Grant the
+                        fewest that will do the job — a key with no scopes can do nothing at all.
+                    </div>
+                    <div class="invalid-feedback d-block d-none" id="scopeError">
+                        Choose at least one scope.
+                    </div>
+                </fieldset>
+
+                <button type="submit" class="btn btn-primary">Create key</button>
+                <button type="button" class="btn btn-link" id="cancelKeyBtn">Cancel</button>
+            </form>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header">Quick Start</div>
         <div class="card-body">
-            <p>Use your API key with any HTTP client:</p>
+            <p>Use the key with any HTTP client:</p>
             <pre><code>curl -H "Authorization: Bearer YOUR_KEY_HERE" \
   {{ url_for('api_keys.list_keys', _external=True) }}</code></pre>
-            <p class="text-muted small">
-                Available scopes: <code>read</code>, <code>export</code>,
-                <code>pronunciation:read</code>, <code>pronunciation:write</code>,
-                <code>pronunciation:validate</code>
+            <p class="text-muted small mb-0">
+                Keys are refused on account and management endpoints — they can work with
+                dictionary data, but never create users or further keys.
             </p>
         </div>
     </div>
 </div>
 
 <script>
-let projects = [];
+(function () {
+  'use strict';
 
-async function loadKeys() {
-    const resp = await fetch('{{ url_for("api_keys.list_keys") }}');
-    const data = await resp.json();
-    const container = document.getElementById('keyList');
+  var LIST_URL = '{{ url_for("api_keys.list_keys") }}';
+  var CREATE_URL = '{{ url_for("api_keys.create_key") }}';
+  var SCOPES_URL = '{{ url_for("api_keys.list_scopes") }}';
 
-    if (data.keys.length === 0) {
-        container.innerHTML = '<p class="text-muted">No API keys yet. Create one to get started.</p>';
-        return;
-    }
-
-    let html = '<table class="table table-sm"><thead><tr><th>Label</th><th>Prefix</th><th>Project</th><th>Scopes</th><th>Created</th><th>Last Used</th><th>Status</th><th></th></tr></thead><tbody>';
-    for (const k of data.keys) {
-        const status = k.is_active
-            ? '<span class="badge bg-success">Active</span>'
-            : '<span class="badge bg-secondary">Revoked</span>';
-        html += `<tr>
-            <td>${escapeHtml(k.label)}</td>
-            <td><code>${escapeHtml(k.key_prefix)}...</code></td>
-            <td>#${k.project_id}</td>
-            <td>${(k.scopes || []).join(', ') || '<em>all</em>'}</td>
-            <td>${k.created_at ? new Date(k.created_at).toLocaleDateString() : '-'}</td>
-            <td>${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'never'}</td>
-            <td>${status}</td>
-            <td>${k.is_active
-                ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeKey(${k.id})">Revoke</button>`
-                : `<button class="btn btn-sm btn-outline-success" onclick="reactivateKey(${k.id})">Reactivate</button>`
-            }</td>
-        </tr>`;
-    }
-    html += '</tbody></table>';
-    container.innerHTML = html;
-}
-
-async function loadProjects() {
-    const resp = await fetch('/api/users/me/projects');
-    if (resp.ok) {
-        const data = await resp.json();
-        projects = data.projects || [];
-    }
-}
-
-document.getElementById('createKeyBtn').addEventListener('click', async function() {
-    const label = prompt('Enter a label for this key (e.g., "my export script"):');
-    if (!label) return;
-
-    let projectId = null;
-    if (projects.length > 0) {
-        // Use first available project
-        projectId = projects[0].id || projects[0].project_id;
-    }
-    if (!projectId) {
-        projectId = prompt('Enter project ID:');
-        if (!projectId) return;
-    }
-
-    const scopes = prompt(
-        'Enter scopes (comma-separated, or leave empty for full access):\n'
-        + 'Available: read, export, pronunciation:read, pronunciation:write, pronunciation:validate'
-    );
-
-    const scopeList = scopes ? scopes.split(',').map(s => s.trim()).filter(Boolean) : [];
-
-    try {
-        const resp = await fetch('{{ url_for("api_keys.create_key") }}', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                project_id: parseInt(projectId),
-                label: label,
-                scopes: scopeList
-            })
-        });
-
-        const data = await resp.json();
-        if (resp.ok) {
-            document.getElementById('newKeyValue').textContent = data.key.raw_key;
-            document.getElementById('newKeyResult').classList.remove('d-none');
-            loadKeys();
-        } else {
-            alert('Error: ' + (data.error || 'Unknown'));
-        }
-    } catch (e) {
-        alert('Network error: ' + e.message);
-    }
-});
-
-async function revokeKey(id) {
-    if (!confirm('Revoke this API key? Any tools using it will stop working.')) return;
-    const resp = await fetch(`{{ url_for('api_keys.revoke_key', key_id=0) }}`.replace('/0', '/' + id), {
-        method: 'DELETE'
-    });
-    if (resp.ok) {
-        loadKeys();
-    } else {
-        const data = await resp.json();
-        alert('Error: ' + (data.error || 'Unknown'));
-    }
-}
-
-async function reactivateKey(id) {
-    const resp = await fetch(`{{ url_for('api_keys.reactivate_key', key_id=0) }}`.replace('/0', '/' + id), {
-        method: 'POST'
-    });
-    if (resp.ok) {
-        loadKeys();
-    } else {
-        const data = await resp.json();
-        alert('Error: ' + (data.error || 'Unknown'));
-    }
-}
-
-function copyKey() {
-    const el = document.getElementById('newKeyValue');
-    navigator.clipboard.writeText(el.textContent).then(() => {
-        alert('Copied!');
-    });
-}
-
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
+  function escapeHtml(value) {
+    var div = document.createElement('div');
+    div.textContent = value == null ? '' : String(value);
     return div.innerHTML;
-}
+  }
 
-loadProjects();
-loadKeys();
+  function notify(message, kind) {
+    if (typeof showToast === 'function') {
+      showToast(message, kind || 'info');
+    }
+  }
+
+  async function loadKeys() {
+    var response = await fetch(LIST_URL);
+    var data = await response.json();
+    var container = document.getElementById('keyList');
+
+    if (!data.keys || data.keys.length === 0) {
+      container.innerHTML = '<p class="text-muted">No API keys yet.</p>';
+      return;
+    }
+
+    var rows = data.keys.map(function (key) {
+      var status = key.is_active
+        ? '<span class="badge bg-success">Active</span>'
+        : '<span class="badge bg-secondary">Revoked</span>';
+      // A key with no scopes grants *nothing*. It used to be displayed as "all",
+      // which was the exact inverse of what the server does.
+      var scopes = (key.scopes && key.scopes.length)
+        ? escapeHtml(key.scopes.join(', '))
+        : '<em class="text-muted">none</em>';
+      var action = key.is_active
+        ? '<button class="btn btn-sm btn-outline-danger" data-revoke="' + key.id + '">Revoke</button>'
+        : '<button class="btn btn-sm btn-outline-success" data-reactivate="' + key.id + '">Reactivate</button>';
+
+      return '<tr>'
+        + '<td>' + escapeHtml(key.label) + '</td>'
+        + '<td><code>' + escapeHtml(key.key_prefix) + '…</code></td>'
+        + '<td>#' + escapeHtml(key.project_id) + '</td>'
+        + '<td>' + scopes + '</td>'
+        + '<td>' + (key.created_at ? new Date(key.created_at).toLocaleDateString() : '—') + '</td>'
+        + '<td>' + (key.last_used_at ? new Date(key.last_used_at).toLocaleDateString() : 'never') + '</td>'
+        + '<td>' + status + '</td>'
+        + '<td>' + action + '</td>'
+        + '</tr>';
+    }).join('');
+
+    container.innerHTML =
+      '<table class="table table-sm align-middle"><thead><tr>'
+      + '<th>Label</th><th>Prefix</th><th>Project</th><th>Scopes</th>'
+      + '<th>Created</th><th>Last used</th><th>Status</th><th></th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  async function loadScopes() {
+    var response = await fetch(SCOPES_URL);
+    var data = await response.json();
+    var container = document.getElementById('scopeChoices');
+
+    if (!data.scopes || data.scopes.length === 0) {
+      container.innerHTML = '<p class="text-muted small mb-0">This app enforces no API scopes yet.</p>';
+      return;
+    }
+
+    container.innerHTML = data.scopes.map(function (scope, index) {
+      var id = 'scope-' + index;
+      return '<div class="col"><div class="form-check">'
+        + '<input class="form-check-input" type="checkbox" value="' + escapeHtml(scope) + '" id="' + id + '">'
+        + '<label class="form-check-label" for="' + id + '"><code>' + escapeHtml(scope) + '</code></label>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  async function loadProjects() {
+    var select = document.getElementById('keyProject');
+    var response = await fetch('/api/users/me/projects');
+    var projects = [];
+    if (response.ok) {
+      var data = await response.json();
+      projects = data.projects || [];
+    }
+    if (projects.length === 0) {
+      select.innerHTML = '<option value="1">Default project (#1)</option>';
+      return;
+    }
+    select.innerHTML = projects.map(function (project) {
+      var id = project.id || project.project_id;
+      return '<option value="' + escapeHtml(id) + '">'
+        + escapeHtml(project.project_name || project.name || ('Project #' + id))
+        + '</option>';
+    }).join('');
+  }
+
+  document.getElementById('newKeyBtn').addEventListener('click', function () {
+    document.getElementById('createCard').classList.remove('d-none');
+    document.getElementById('keyLabel').focus();
+  });
+
+  document.getElementById('cancelKeyBtn').addEventListener('click', function () {
+    document.getElementById('createCard').classList.add('d-none');
+  });
+
+  document.getElementById('createKeyForm').addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    var scopes = Array.prototype.slice
+      .call(document.querySelectorAll('#scopeChoices input:checked'))
+      .map(function (input) { return input.value; });
+
+    var scopeError = document.getElementById('scopeError');
+    if (scopes.length === 0) {
+      scopeError.classList.remove('d-none');
+      return;
+    }
+    scopeError.classList.add('d-none');
+
+    var response = await fetch(CREATE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        label: document.getElementById('keyLabel').value.trim(),
+        project_id: parseInt(document.getElementById('keyProject').value, 10),
+        scopes: scopes
+      })
+    });
+
+    var data = await response.json();
+    if (!response.ok) {
+      notify(data.error || 'Could not create the key.', 'error');
+      return;
+    }
+
+    document.getElementById('newKeyValue').textContent = data.key.raw_key;
+    document.getElementById('newKeyResult').classList.remove('d-none');
+    document.getElementById('createCard').classList.add('d-none');
+    document.getElementById('createKeyForm').reset();
+    notify('API key created. Copy it now — it is not shown again.', 'success');
+    loadKeys();
+  });
+
+  document.getElementById('keyList').addEventListener('click', async function (event) {
+    var revokeId = event.target.getAttribute('data-revoke');
+    var reactivateId = event.target.getAttribute('data-reactivate');
+
+    if (revokeId) {
+      var response = await fetch('/api/keys/' + revokeId, {method: 'DELETE'});
+      if (response.ok) {
+        notify('Key revoked. Anything using it stops working now.', 'info');
+        loadKeys();
+      } else {
+        notify('Could not revoke the key.', 'error');
+      }
+    } else if (reactivateId) {
+      var reactivated = await fetch('/api/keys/' + reactivateId + '/reactivate', {method: 'POST'});
+      if (reactivated.ok) {
+        notify('Key reactivated.', 'info');
+        loadKeys();
+      } else {
+        notify('Could not reactivate the key.', 'error');
+      }
+    }
+  });
+
+  document.getElementById('copyKeyBtn').addEventListener('click', function () {
+    var value = document.getElementById('newKeyValue').textContent;
+    navigator.clipboard.writeText(value).then(function () {
+      notify('Key copied to clipboard.', 'success');
+    });
+  });
+
+  loadProjects();
+  loadScopes();
+  loadKeys();
+})();
 </script>
 {% endblock %}

@@ -114,9 +114,50 @@ def create_app(config_name=None):
 
     csrf = CSRFProtect(app)
 
-    # Create database tables if they don't exist
+    # CSRF policy — one rule, no exemptions. See docs/CSRF_POLICY.md.
+    #
+    #   A state-changing request must carry a CSRF token, unless it authenticates
+    #   with `Authorization: Bearer` (an API key).
+    #
+    # CSRF defends *ambient* credentials: the browser attaches the session cookie to
+    # a cross-site request whether the user meant it or not. A Bearer token is not
+    # ambient — a script must add it deliberately — so the check buys nothing there,
+    # while blocking API-key clients outright (they have no token to send).
+    #
+    # Do NOT reintroduce csrf.exempt(...). Blanket per-blueprint exemptions are how
+    # 29 session-authenticated write routes ended up with no CSRF protection at all.
+    # The browser side is handled once, in static/js/csrf.js, which attaches the
+    # token to every same-origin state-changing request — so no call site has to
+    # remember, and no endpoint needs an exemption.
+    app.config["WTF_CSRF_CHECK_DEFAULT"] = False
+
+    @app.before_request
+    def _csrf_protect():
+        if not app.config.get("WTF_CSRF_ENABLED", True):
+            return
+        if request.method not in app.config["WTF_CSRF_METHODS"]:
+            return
+        if not request.endpoint:
+            return
+        if request.headers.get("Authorization", "").startswith("Bearer "):
+            return
+        csrf.protect()
+
+    # Create database tables if they don't exist.
     with app.app_context():
-        from app import models as _models  # noqa: F401
+        # Import every model module, not just what app/models/__init__.py happens to
+        # re-export: it omits several (ApiKey, ActivityLog, ProjectRole, …), and a
+        # model that is never imported has no table created for it. On a fresh
+        # database that surfaces far from the cause — logging in blew up with
+        # "no such table: project_roles", because authenticate_user writes an
+        # ActivityLog and reads project roles.
+        import importlib
+        import pkgutil
+
+        from app import models as _models
+
+        for _module in pkgutil.iter_modules(_models.__path__):
+            importlib.import_module(f"app.models.{_module.name}")
 
         db.create_all()
         try:
@@ -161,12 +202,14 @@ def create_app(config_name=None):
     from app.api import api_bp
 
     app.register_blueprint(api_bp)
-    csrf.exempt(api_bp)
+    # NB: api_bp is deliberately NOT csrf-exempt. It has no routes of its own, so
+    # exempting it was a no-op (its children report dotted names like "api.entries",
+    # which never matched) — but it would have silently exempted all 59 /api/* routes
+    # the moment anyone flattened the nesting.
 
     from app.api.validation import validation_bp
 
     app.register_blueprint(validation_bp)
-    csrf.exempt(validation_bp)
 
 
     from app.api.ranges import ranges_bp
@@ -230,19 +273,16 @@ def create_app(config_name=None):
     from app.api.validation_endpoints import validation_api
 
     app.register_blueprint(validation_api, url_prefix="/api/validation")
-    csrf.exempt(validation_api)
 
     # Register validation service API (includes /api/validation/xml endpoint)
     from app.api.validation_service import validation_service_bp
 
     app.register_blueprint(validation_service_bp)
-    csrf.exempt(validation_service_bp)
 
     # Register validation rules API for project-specific rules
     from app.api.validation_rules_api import validation_rules_bp
 
     app.register_blueprint(validation_rules_bp)
-    csrf.exempt(validation_rules_bp)
 
 
     # Register entries API
@@ -333,24 +373,15 @@ def create_app(config_name=None):
     # Register Semantic Embeddings API
     from app.api.embedding_api import embedding_bp
     app.register_blueprint(embedding_bp)
-    csrf.exempt(embedding_bp)
 
     # Register revision history API
     from app.api.dashboard import dashboard_bp
-    csrf.exempt(dashboard_bp)
-    from app.api.discovery import discovery_bp
-    app.register_blueprint(discovery_bp)
-    csrf.exempt(discovery_bp)
+    # discovery_bp is registered inside api_bp (serving /api/discovery/*, which is
+    # what the frontend calls). Registering it here as well published a second,
+    # unused copy of every rule at /discovery/*.
     from app.api.revisions_api import revisions_bp, stats_bp
     app.register_blueprint(revisions_bp)
     app.register_blueprint(stats_bp)
-    # Revisions endpoint is CSRF-exempt so the save hook works during page navigation
-    csrf.exempt(revisions_bp)
-    csrf.exempt(stats_bp)
-    # Entry DELETE endpoint — the two-step confirm in entry-form-init.js uses a simple
-    # fetch which may not carry a valid CSRF token. Exempt only the DELETE method
-    # by marking the view function (_csrf_exempt=True via before_request check).
-    # The actual exemption is handled in the view function itself for finer control.
 
     # Register word sketch browser page
     from app.routes.word_sketch_routes import word_sketch_browser_bp
@@ -898,6 +929,31 @@ def create_app(config_name=None):
     app.lucene_corpus_client = LuceneCorpusClient(
         base_url=app.config.get("LUCENE_CORPUS_URL", "http://localhost:8082")
     )
+
+    # Authentication gate. Installed here, after every blueprint is registered, so
+    # it covers the whole URL map. REQUIRE_AUTH is what turns it on; see
+    # app/auth_gate.py and specs/auth_overhaul/tasks.md (3.4) for the rollout.
+    from app.auth_gate import init_auth_gate
+
+    def _flag(name: str, default: bool) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in ("1", "true", "yes", "on")
+
+    # On everywhere. Rehearsed first: the full e2e suite was run with the gate on and
+    # produced no new failures, and the integration suite authenticates at its client
+    # fixture. Set REQUIRE_AUTH=false to open the app up again (and `flask
+    # create-admin` / `flask reset-password` if you cannot get in).
+    app.config.setdefault("REQUIRE_AUTH", _flag("REQUIRE_AUTH", True))
+    app.config.setdefault("ALLOW_REGISTRATION", _flag("ALLOW_REGISTRATION", False))
+    init_auth_gate(app)
+
+    # Account bootstrap: create the first admin, or get back in when the password
+    # is lost. Without this the only recovery path is editing the database by hand.
+    from app.cli import register_cli
+
+    register_cli(app)
 
     # CLI commands
     @app.cli.command("import-list-xml")

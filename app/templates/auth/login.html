@@ -9,6 +9,11 @@ Workbench{% endblock %} {% block content %}
       <div class="card-body">
         <form method="POST" action="{{ url_for('auth.login') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          {# Carry the deep link through the POST. The form posts to a bare
+             /auth/login, so ?next= is not in request.args on submit and would
+             otherwise be silently dropped — landing the user on the home page
+             instead of the page they asked for. #}
+          <input type="hidden" name="next" value="{{ request.args.get('next', '') }}" />
 
           <div class="mb-3">
             <label for="username" class="form-label">Username or Email</label>

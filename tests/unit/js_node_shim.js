@@ -47,6 +47,29 @@
         global.localStorage = { getItem: function () { return null; }, setItem: function () {} };
     }
 
+    // XMLHttpRequest: csrf.js and auth.js wrap it at import time to attach the CSRF
+    // token and to handle 401/403 centrally. Node has no XHR, so without this the
+    // syntax check crashes on require(). A constructor with a patchable prototype is
+    // enough — nothing here is ever called.
+    if (typeof XMLHttpRequest === 'undefined') {
+        global.XMLHttpRequest = function () {};
+        global.XMLHttpRequest.prototype.open = function () {};
+        global.XMLHttpRequest.prototype.send = function () {};
+        global.XMLHttpRequest.prototype.setRequestHeader = function () {};
+        global.XMLHttpRequest.prototype.addEventListener = function () {};
+    }
+
+    // window.location is read by auth.js to build the ?next= redirect.
+    if (typeof global.window === 'object' && !global.window.location) {
+        global.window.location = {
+            href: 'http://localhost/',
+            origin: 'http://localhost',
+            pathname: '/',
+            search: '',
+            assign: function () {}
+        };
+    }
+
     if (typeof self === 'undefined') {
         // For worker scripts
         global.self = { importScripts: function () {}, addEventListener: function () {}, postMessage: function () {} };

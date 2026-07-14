@@ -11,6 +11,26 @@ if __package__ in (None, ""):
     sys.path.insert(0, ".")
 
 
+class _StubUser:
+    """Stands in for a logged-in session user."""
+
+    id = 1
+    username = "tester"
+    is_admin = False
+
+
+def _authenticate(monkeypatch) -> None:
+    """Give the request a session user, so @require_auth("pronunciation:read") passes.
+
+    Patches the real lookup the decorator performs rather than stubbing the auth
+    check itself: these tests are about the draft endpoint, but they should still
+    fail if the endpoint stops being protected.
+    """
+    import app.utils.auth_decorators as auth
+
+    monkeypatch.setattr(auth, "get_current_user", lambda: _StubUser())
+
+
 class _StubService:
     def __init__(self, available: bool, candidates):
         self._available = available
@@ -28,7 +48,7 @@ def test_draft_endpoint_returns_candidates(monkeypatch):
     import app.api.pronunciation as pron
     import app.services.ipa_byt5_service as byt5mod
 
-    monkeypatch.setattr(pron, "_check_api_key_auth", lambda scope: True)
+    _authenticate(monkeypatch)
     monkeypatch.setattr(
         byt5mod.IPAByT5Service,
         "get_instance",
@@ -52,7 +72,7 @@ def test_draft_endpoint_unavailable_is_200_empty(monkeypatch):
     import app.api.pronunciation as pron
     import app.services.ipa_byt5_service as byt5mod
 
-    monkeypatch.setattr(pron, "_check_api_key_auth", lambda scope: True)
+    _authenticate(monkeypatch)
     monkeypatch.setattr(
         byt5mod.IPAByT5Service,
         "get_instance",
@@ -73,7 +93,7 @@ def test_draft_endpoint_requires_headword(monkeypatch):
     import app.api.pronunciation as pron
     import app.services.ipa_byt5_service as byt5mod
 
-    monkeypatch.setattr(pron, "_check_api_key_auth", lambda scope: True)
+    _authenticate(monkeypatch)
     monkeypatch.setattr(
         byt5mod.IPAByT5Service,
         "get_instance",
@@ -84,6 +104,26 @@ def test_draft_endpoint_requires_headword(monkeypatch):
     client = app.test_client()
     resp = client.post("/api/pronunciation/draft", json={"headword": "  "})
     assert resp.status_code == 400
+
+
+def test_draft_endpoint_requires_authentication(monkeypatch):
+    """No session, no key -> 401. The endpoint must stay behind @require_auth."""
+    import app.utils.auth_decorators as auth
+    import app.services.ipa_byt5_service as byt5mod
+    from app import create_app
+
+    monkeypatch.setattr(auth, "get_current_user", lambda: None)
+    monkeypatch.setattr(
+        byt5mod.IPAByT5Service,
+        "get_instance",
+        staticmethod(lambda *a, **k: _StubService(True, ["ˈkæt"])),
+    )
+
+    app = create_app()
+    resp = app.test_client().post("/api/pronunciation/draft", json={"headword": "cat"})
+
+    assert resp.status_code == 401
+    assert resp.get_json()["code"] == "authentication_required"
 
 
 if __name__ == "__main__":

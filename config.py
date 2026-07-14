@@ -3,13 +3,29 @@ Configuration settings for the Lexicographic Curation Workbench.
 """
 
 import os
+from datetime import timedelta
 
 
 class Config:
     """Base configuration class."""
-    
+
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard-to-guess-string'
-    
+
+    # Session cookie hardening. None of these were set, which left the session
+    # cookie readable by JavaScript (so any XSS becomes account takeover), sent
+    # cross-site, and valid forever.
+    #   HTTPONLY: JS cannot read the cookie.
+    #   SAMESITE=Lax: the cookie is not attached to cross-site POSTs — defence in
+    #     depth behind the CSRF token (docs/CSRF_POLICY.md), not a replacement.
+    #   SECURE: HTTPS only. Off in development, where there is no TLS; ProductionConfig
+    #     turns it on.
+    #   PERMANENT_SESSION_LIFETIME: "remember me" sessions expire rather than
+    #     lasting until the heat death of the universe.
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False
+    PERMANENT_SESSION_LIFETIME = timedelta(days=14)
+
     # BaseX configuration
     BASEX_HOST = os.environ.get('BASEX_HOST') or 'localhost'
     BASEX_PORT = int(os.environ.get('BASEX_PORT') or 1984)
@@ -109,10 +125,18 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     """Production configuration."""
-    
+
     DEBUG = False
     TESTING = False
-    
+
+    # The session cookie is a bearer credential: never send it in the clear.
+    SESSION_COOKIE_SECURE = True
+
+    # Stated explicitly rather than inherited, so that disabling CSRF in production
+    # has to be a deliberate act someone writes down. TestingConfig turns it off,
+    # and config classes are easy to copy from.
+    WTF_CSRF_ENABLED = True
+
     # SQLAlchemy configuration
     SQLALCHEMY_DATABASE_URI = (
         f"postgresql://{os.environ.get('POSTGRES_USER') or 'dict_user'}:"

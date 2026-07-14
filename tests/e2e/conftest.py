@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sys
 import os
+import json
 import pytest
 import tempfile
 import logging
@@ -216,10 +217,20 @@ def flask_app_server(pristine_ranges_data: str):
     
     # Load environment variables
     load_dotenv('/mnt/d/Dokumenty/slownik-wielki/flask-app/.env', override=True)
-    
-    # Disable Redis caching for E2E tests
+
+    # Keep E2E off the developer's live cache. Redis is disabled outright (nothing
+    # here asserts on caching), but CacheService is a process-wide singleton, so a
+    # cache built earlier in this process would survive with its old connection —
+    # reset it, and point REDIS_DB at a scratch keyspace so that even if caching is
+    # re-enabled, tests cannot read or write the dev app's cache (DB 0). Same
+    # isolation the unit and integration suites use.
+    from app.services.cache_service import CacheService
+
+    _cache_env_before = {var: os.environ.get(var) for var in ('REDIS_ENABLED', 'REDIS_DB')}
     os.environ['REDIS_ENABLED'] = 'false'
-    
+    os.environ['REDIS_DB'] = os.getenv('TEST_REDIS_DB', '15')
+    CacheService.reset_singleton()
+
     # Create Flask app
     app = create_app(os.getenv('FLASK_CONFIG') or 'testing')
     app.config['TESTING'] = True
@@ -307,10 +318,21 @@ def flask_app_server(pristine_ranges_data: str):
     logger.info(f"Flask server started on {base_url}")
     
     yield app, base_url
-    
+
     # Cleanup
     server.shutdown()
-    
+
+    # Restore the cache environment. These are process-wide, so leaving
+    # REDIS_ENABLED=false behind would silently disable caching for any suite that
+    # runs after E2E in the same process (`pytest tests/`), including integration
+    # tests that assert on caching behaviour.
+    for var, previous in _cache_env_before.items():
+        if previous is None:
+            os.environ.pop(var, None)
+        else:
+            os.environ[var] = previous
+    CacheService.reset_singleton()
+
     # Drop ranges database
     try:
         connector.connect()
@@ -492,10 +514,141 @@ def browser() -> Generator[Browser, None, None]:
         browser.close()
 
 
-@pytest.fixture(scope="function")
-def page(browser: Browser, app_url: str, ensure_project_settings, configured_flask_app) -> Generator[Page, None, None]:
-    """Function-scoped page - fresh browser context per test with project selected."""
+# --------------------------------------------------------------------------- #
+# Authentication
+#
+# The app is moving to "authenticated by default" (specs/auth_overhaul). Rather
+# than teach 439 tests across 76 files to log in, authentication is done once, at
+# the `page` fixture — the chokepoint nearly every test obtains its browser from.
+# Tests keep working unchanged; when the auth gate lands they will already be
+# signed in.
+#
+# The session is established by driving the real /auth/login form once per test
+# session and reusing the resulting cookies (Playwright storage_state). Forging a
+# session cookie would be faster, but it would also keep passing if login itself
+# broke — which is exactly what happened: login was impossible for months because
+# the users table was missing a column, and nothing noticed.
+#
+# Use `anonymous_page` for tests that must assert unauthenticated behaviour.
+# --------------------------------------------------------------------------- #
+
+E2E_USERNAME = "e2e_tester"
+E2E_PASSWORD = "e2e-test-password"
+
+
+@pytest.fixture(scope="session")
+def e2e_user(flask_app_server):
+    """Ensure the e2e login account exists.
+
+    TestingConfig points SQLAlchemy at in-memory SQLite, so the app starts with no
+    users at all and one has to be seeded.
+    """
+    app, _ = flask_app_server
+
+    from app.models.project_settings import User
+    from app.models.workset_models import db
+    from app.services.auth_service import AuthenticationService
+
+    with app.app_context():
+        user = User.query.filter_by(username=E2E_USERNAME).first()
+        if user is None:
+            user = User(username=E2E_USERNAME, email="e2e_tester@example.test")
+            db.session.add(user)
+
+        user.password_hash = AuthenticationService.hash_password(E2E_PASSWORD)
+        user.is_active = True
+        user.is_admin = True
+        db.session.commit()
+
+        logger.info("E2E login account ready: %s", E2E_USERNAME)
+        return user.id
+
+
+@pytest.fixture(scope="session")
+def authenticated_storage_state(browser: Browser, flask_app_server, e2e_user) -> dict:
+    """Log in through the real form once; reuse the cookies for every test."""
+    _, base_url = flask_app_server
+
     context = browser.new_context()
+    login_page = context.new_page()
+    login_page.set_default_timeout(15000)
+
+    login_page.goto(f"{base_url}/auth/login", wait_until="domcontentloaded")
+    login_page.fill('input[name="username"]', E2E_USERNAME)
+    login_page.fill('input[name="password"]', E2E_PASSWORD)
+    # Scope the click to the login form: base.html renders a navbar search form
+    # first, so a bare button[type="submit"] selector hits *that* and silently
+    # navigates to /search without ever logging in.
+    login_page.click('form:has(input[name="password"]) button[type="submit"]')
+    login_page.wait_for_load_state("networkidle")
+
+    # Assert on the session, not on the URL. "We navigated away from /auth/login"
+    # is satisfied by any navigation at all — including the wrong one.
+    login_page.goto(f"{base_url}/api/auth/check", wait_until="domcontentloaded")
+    status = json.loads(login_page.inner_text("body"))
+    assert status.get("authenticated") is True, (
+        f"E2E login failed: /api/auth/check says {status}. The suite cannot "
+        "authenticate, so every test would run anonymously."
+    )
+
+    state = context.storage_state()
+    context.close()
+    return state
+
+
+@pytest.fixture(autouse=True)
+def authenticated_requests(monkeypatch, flask_app_server, authenticated_storage_state):
+    """Give direct `requests.*` calls the same session the browser has.
+
+    38 e2e files make 147 bare `requests.get/post/...` calls against the app. Under
+    the auth gate every one of them is anonymous, and would need credentials added
+    by hand — 147 edits that must then be remembered forever, which is how the CSRF
+    exemptions rotted.
+
+    So it is done once, at the funnel: every `requests.*` helper and every Session
+    ends up in `Session.request`. Calls to this app's base URL get the logged-in
+    cookie; anything else (BaseX, external services) is untouched.
+
+    A test that wants an *anonymous* HTTP call passes `cookies=` explicitly (even
+    `cookies={}`) and keeps full control.
+    """
+    from requests.sessions import Session
+
+    _, base_url = flask_app_server
+    session_cookies = {
+        cookie["name"]: cookie["value"]
+        for cookie in authenticated_storage_state.get("cookies", [])
+    }
+
+    original_request = Session.request
+
+    def request_with_session(self, method, url, **kwargs):
+        if str(url).startswith(base_url) and "cookies" not in kwargs:
+            kwargs["cookies"] = session_cookies
+        return original_request(self, method, url, **kwargs)
+
+    monkeypatch.setattr(Session, "request", request_with_session)
+
+
+@pytest.fixture(scope="function")
+def anonymous_page(browser: Browser, app_url: str, ensure_project_settings,
+                   configured_flask_app) -> Generator[Page, None, None]:
+    """A browser with no session, for tests asserting unauthenticated behaviour."""
+    context = browser.new_context()
+    page = context.new_page()
+    page.set_default_timeout(10000)
+    page.set_default_navigation_timeout(15000)
+
+    yield page
+
+    context.close()
+
+
+@pytest.fixture(scope="function")
+def page(browser: Browser, app_url: str, ensure_project_settings, configured_flask_app,
+         authenticated_storage_state: dict) -> Generator[Page, None, None]:
+    """Function-scoped page - fresh authenticated browser context with project selected."""
+    context = browser.new_context(storage_state=authenticated_storage_state)
     page = context.new_page()
     page.set_default_timeout(10000)  # 10 seconds
     page.set_default_navigation_timeout(15000)  # 15 seconds

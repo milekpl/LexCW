@@ -7,6 +7,7 @@ from flask import Blueprint, render_template, request, flash, redirect, url_for,
 from flasgger import swag_from
 
 from app.forms.settings_form import SettingsForm
+from app.utils.auth_decorators import login_required
 from app.config_manager import ConfigManager
 from app.services.dictionary_service import DictionaryService
 from app.models.project_settings import ProjectSettings
@@ -447,8 +448,12 @@ def health_check():
 
 
 @settings_bp.route("/api-keys", methods=["GET"])
+@login_required
 def manage_api_keys():
-    """Display the API key management page."""
+    """Display the API key management page.
+
+    Session-only: this page mints credentials, so it is never reachable with one.
+    """
     return render_template("settings/api_keys.html")
 
 

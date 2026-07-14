@@ -70,38 +70,23 @@ class TestApiKeyModel:
 
 
 class TestApiKeyValidation:
-    """Tests for API key validation rules."""
+    """Tests for API key validation rules.
 
-    def test_scopes_allow_full_access_when_empty(self):
-        """Empty scopes list means full access."""
-        scopes = []
-        required = "export"
-        assert required in scopes or not scopes  # empty = allow all
+    Scope enforcement is NOT tested here. It used to be — by re-implementing the
+    decorator's `not (key_scopes and required not in key_scopes)` expression inline
+    and asserting against the copy. That tests nothing: the real decorator was
+    simultaneously unusable (no key could authenticate at all) and these tests were
+    green throughout. Worse, the copied expression encoded "empty scopes = full
+    access", which is now reversed.
+
+    Scope decisions are exercised against the real HTTP path in
+    tests/integration/test_auth_contract.py.
+    """
 
     def test_scopes_restrict_access(self):
-        """Non-empty scopes list restricts access."""
+        """A scope the key was not granted is simply absent from its list."""
         scopes = ["read", "export"]
         assert "pronunciation:write" not in scopes
-
-    def test_scope_check_logic(self):
-        """Verify the scope check used in the decorator."""
-        key_scopes = ["read", "export"]
-        required = "pronunciation:read"
-        # If key has scopes AND required not in scopes → reject
-        is_allowed = not (key_scopes and required not in key_scopes)
-        assert is_allowed is False  # scope not in list
-
-        # Full access case
-        key_scopes = []
-        required = "pronunciation:read"
-        is_allowed = not (key_scopes and required not in key_scopes)
-        assert is_allowed is True  # empty = allow all
-
-        # Scope present case
-        key_scopes = ["read", "pronunciation:read"]
-        required = "pronunciation:read"
-        is_allowed = not (key_scopes and required not in key_scopes)
-        assert is_allowed is True  # scope is in list
 
 
 class TestDeactivatedKey:

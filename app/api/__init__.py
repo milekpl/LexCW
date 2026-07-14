@@ -21,7 +21,10 @@ api_bp.register_blueprint(entries_bp, url_prefix='/entries')
 api_bp.register_blueprint(search_bp, url_prefix='/search')
 api_bp.register_blueprint(export_bp, url_prefix='/export')
 api_bp.register_blueprint(dashboard_bp)
-api_bp.register_blueprint(validation_rules_bp)
 api_bp.register_blueprint(bulk_bp, url_prefix='/bulk')
 api_bp.register_blueprint(discovery_bp)
 api_bp.register_blueprint(pos_bp)
+
+# validation_rules_bp is NOT nested here: it declares url_prefix="/api/projects"
+# itself, so nesting it under api_bp ("/api") produced a second, unused copy of
+# every rule at /api/api/projects/... It is registered once, at app level.

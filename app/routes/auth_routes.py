@@ -18,7 +18,7 @@ from flask import (
 from app.services.auth_service import AuthenticationService
 from app.services.user_service import UserManagementService
 from app.utils.auth_decorators import login_required, get_current_user
-from app.models.project_settings import db
+from app.models.project_settings import db, User
 from app.utils.db_utils import safe_commit
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -66,12 +66,32 @@ def login():
 
             flash(f"Welcome back, {user.first_name or user.username}!", "success")
 
-            # Redirect to next page or home
-            next_page = request.args.get("next")
-            if next_page and next_page.startswith("/"):
+            # Redirect to the page they were trying to reach, or home.
+            # The form carries `next` as a hidden field because it posts to a bare
+            # /auth/login, so the query string is gone by the time we get here.
+            # Only relative paths: an absolute URL here is an open redirect.
+            next_page = request.form.get("next") or request.args.get("next")
+            if next_page and next_page.startswith("/") and not next_page.startswith("//"):
                 return redirect(next_page)
             return redirect(url_for("main.index"))
         else:
+            # Record the failure. A successful login is the least interesting thing
+            # in an audit trail; the failures are what tell you someone is trying
+            # passwords. user_id stays null when the username does not exist.
+            from app.models.user_models import ActivityLog
+
+            failed_user = User.query.filter_by(username=username).first()
+            log = ActivityLog(
+                user_id=failed_user.id if failed_user else None,
+                action="login_failed",
+                entity_type="auth",
+                entity_id=username[:255],
+                description=f"Failed login for {username!r}: {error or 'authentication failed'}",
+                ip_address=request.remote_addr,
+            )
+            db.session.add(log)
+            safe_commit(db, "auth_routes")
+
             flash(error or "Authentication failed", "error")
 
     return render_template("auth/login.html")
@@ -135,8 +155,10 @@ def logout():
         log = ActivityLog(
             user_id=g.current_user.id,
             action="logout",
-            resource_type="auth",
-            details={"ip_address": request.remote_addr},
+            entity_type="auth",
+            entity_id=str(g.current_user.id),
+            description=f"User {g.current_user.username} logged out",
+            ip_address=request.remote_addr,
         )
         db.session.add(log)
         safe_commit(db, "auth_routes")

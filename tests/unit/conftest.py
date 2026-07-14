@@ -25,6 +25,32 @@ from flask.testing import FlaskClient
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture(autouse=True)
+def isolate_cache(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Unit tests must not read or write the real Redis, and must not leak the singleton.
+
+    `REDIS_ENABLED` defaults to "true", so a unit test that reached production code
+    with a cache read (e.g. POSTaggerService.analyze_definition_phrases) silently
+    hit the developer's live Redis. Results then depended on what a *previous* run
+    had written: the POS coherence tests passed only because a stale correct answer
+    was cached, which masked a real tagger bug for as long as that key survived.
+
+    CacheService is also a process-wide singleton, so a test that builds one under
+    `patch('redis.Redis')` leaves the singleton holding a mock client that outlives
+    the patch and is handed to every later caller.
+
+    Unit tests therefore run with the cache off and the singleton reset around each
+    test. Tests that exercise CacheService itself re-enable it explicitly (they
+    patch `redis.Redis` and set REDIS_ENABLED in their own scope).
+    """
+    from app.services.cache_service import CacheService
+
+    monkeypatch.setenv("REDIS_ENABLED", "false")
+    CacheService.reset_singleton()
+    yield
+    CacheService.reset_singleton()
+
+
 @pytest.fixture
 def db_app() -> Generator[Flask, None, None]:
     """Create Flask application for unit tests that need database access."""

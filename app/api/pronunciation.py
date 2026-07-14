@@ -267,79 +267,14 @@ def get_audio_info(filename: str):
 
 
 # ---------------------------------------------------------------------------
-# Auth helper for API-key-protected endpoints
+# Auth for API-key-protected endpoints
 # ---------------------------------------------------------------------------
+# These endpoints authenticate with a session *or* an API key. The decorator is
+# shared (app/utils/auth_decorators.py) — this module used to carry a private copy
+# whose scope check returned 401 instead of 403 and treated an empty scope list as
+# full access.
 
-
-def _check_api_key_auth(required_scope: str) -> bool:
-    """Authenticate request via API key (Bearer) or session fallback.
-
-    Sets ``g.api_key`` or ``g.current_user`` accordingly.
-    Returns ``True`` if authenticated, ``False`` if response was sent.
-    """
-    from datetime import datetime, timezone
-    from werkzeug.security import check_password_hash
-    from app.models.api_key import ApiKey
-    from app.models.workset_models import db as _db
-    from app.utils.auth_decorators import get_current_user
-
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        raw_key = auth_header[7:]
-        if not raw_key.startswith("sw_") or len(raw_key) < 11:
-            return False  # caller will see g.current_user is None
-
-        prefix = raw_key[:11]
-        key_record = ApiKey.query.filter_by(key_prefix=prefix, is_active=True).first()
-        if not key_record or not check_password_hash(key_record.key_hash, raw_key):
-            return False
-
-        key_scopes = key_record.scopes or []
-        if key_scopes and required_scope not in key_scopes:
-            return False
-
-        key_record.last_used_at = datetime.now(timezone.utc)
-        safe_commit(_db, "pronunciation")
-        g.api_key = key_record
-        g.current_user = None
-        return True
-
-    # Session fallback
-    user = get_current_user()
-    if user:
-        g.current_user = user
-        g.api_key = None
-        return True
-
-    return False
-
-
-def _require_auth(required_scope: str):
-    """Decorator factory: authenticate via API key or session.
-
-    Returns 401/403 JSON if authentication fails.
-    """
-    from functools import wraps
-
-    def decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            ok = _check_api_key_auth(required_scope)
-            if not ok:
-                return jsonify({"error": "Authentication required"}), 401
-            # Check scope if API key was used
-            api_key = getattr(g, "api_key", None)
-            if api_key is not None:
-                key_scopes = api_key.scopes or []
-                if key_scopes and required_scope not in key_scopes:
-                    return jsonify(
-                        {"error": f"Scope '{required_scope}' required"}
-                    ), 403
-            return f(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
+from app.utils.auth_decorators import require_auth as _require_auth
 
 
 # ---------------------------------------------------------------------------

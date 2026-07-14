@@ -255,10 +255,42 @@ class TestFlaskApp:
         assert self.app.config['TESTING']
     
     @pytest.mark.integration
-    def test_index_route(self):
-        """Test the index route."""
+    def test_index_route_requires_a_session(self):
+        """The app authenticates by default: an anonymous visit goes to login.
+
+        This asserted a 200 back when every route was open. Under REQUIRE_AUTH the
+        home page is not public, and the deep link is preserved so the user lands
+        back here after signing in (app/auth_gate.py).
+        """
         response = self.client.get('/')
-        
+
+        assert response.status_code == 302
+        assert '/auth/login' in response.headers['Location']
+        assert 'next=' in response.headers['Location']
+
+    @pytest.mark.integration
+    def test_index_route_renders_for_a_signed_in_user(self):
+        """And the page itself still works once you are signed in."""
+        with self.app.app_context():
+            from app.models.project_settings import User
+            from app.models.workset_models import db
+            from app.services.auth_service import AuthenticationService
+
+            user = User(
+                username='index_tester',
+                email='index@example.test',
+                password_hash=AuthenticationService.hash_password('Index1pass'),
+                is_active=True,
+            )
+            db.session.add(user)
+            db.session.commit()
+            user_id = user.id
+
+        with self.client.session_transaction() as session:
+            session['user_id'] = user_id
+
+        response = self.client.get('/')
+
         assert response.status_code == 200
         # Index route returns HTML, not JSON
         assert b'Lexicographic Curation Workbench' in response.data or b'Dashboard' in response.data

@@ -283,27 +283,27 @@ class TestPasswordResetIntegration:
         data = response.get_json()
         assert "error" in data
 
-    def test_forgot_password_page(self, client: FlaskClient):
-        """Test that forgot password page loads."""
-        response = client.get("/auth/forgot-password")
+    def test_forgot_password_page(self, anonymous_client):
+        """Test that forgot password page loads (for a signed-out visitor)."""
+        response = anonymous_client.get("/auth/forgot-password")
         
         assert response.status_code == 200
         html = response.data.decode()
         assert "Forgot Password" in html or "forgot" in html.lower()
         assert "email" in html.lower()
 
-    def test_reset_password_page(self, client: FlaskClient):
-        """Test that reset password page loads with token."""
-        response = client.get("/auth/reset-password/test-token-123")
+    def test_reset_password_page(self, anonymous_client):
+        """Test that reset password page loads with token (for a signed-out visitor)."""
+        response = anonymous_client.get("/auth/reset-password/test-token-123")
         
         assert response.status_code == 200
         html = response.data.decode()
         assert "Reset Password" in html or "reset" in html.lower()
         assert "password" in html.lower()
 
-    def test_forgot_password_link_on_login_page(self, client: FlaskClient):
-        """Test that login page has forgot password link."""
-        response = client.get("/auth/login")
+    def test_forgot_password_link_on_login_page(self, anonymous_client):
+        """Test that login page has forgot password link (for a signed-out visitor)."""
+        response = anonymous_client.get("/auth/login")
         
         assert response.status_code == 200
         html = response.data.decode()
