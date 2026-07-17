@@ -387,6 +387,12 @@ def create_app(config_name=None):
     from app.routes.word_sketch_routes import word_sketch_browser_bp
     app.register_blueprint(word_sketch_browser_bp)
 
+    # Register coverage checker
+    from app.api.coverage import coverage_bp
+    from app.routes.coverage_routes import coverage_routes_bp
+    app.register_blueprint(coverage_bp)
+    app.register_blueprint(coverage_routes_bp)
+
     # Register authentication web routes
     from app.routes.auth_routes import auth_bp
 

@@ -108,3 +108,13 @@ pairs.json
 #Trained models
 byt5_ipa_model/
 uploads/
+English Heteronym Phonological Report.md
+audit_report.md
+ipa_autoencoder_pos.pt
+ipa_density_nopos.pt
+ipa_density_pos.pt
+ipa_quality_report.txt
+ipa_report_ate_expected.txt
+ipa_report_ate_suspect.txt
+ipa_report_foreign_chars.txt
+ipa_report_unk_entries.txt

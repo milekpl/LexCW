@@ -28,7 +28,7 @@ users_xml = f"""<users>
 
 # Write to BaseX users file
 import os
-basex_home = os.path.expanduser("~/basex")
+basex_home = os.path.expanduser("~/basex123")
 users_file = os.path.join(basex_home, "data", "users.xml")
 
 with open(users_file, 'w') as f:

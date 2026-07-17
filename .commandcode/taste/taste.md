@@ -20,9 +20,4 @@
 - For infrequently-changing data (e.g., entry relations that change "once every two years"), use longer TTLs matching the data's stability — 24h or 7d — rather than short default TTLs like 1 hour. Confidence: 0.75
 
 # ml-training
-- Use Kaggle (not Colab) for ML model training notebooks. Confidence: 0.60
-- For byte-level tokenizers (like ByT5), use dynamic padding via DataCollatorForSeq2Seq instead of static padding='max_length' — static padding on short byte sequences creates extremely sparse loss signals and causes model collapse. Confidence: 0.70
-- Don't pass 'tokenizer' to Seq2SeqTrainer constructor — it's not a valid keyword argument; the data collator handles tokenizer needs. Confidence: 0.70
-- For Kaggle notebooks, use IPython.display.FileLink for download links — it displays a clear clickable link; don't replace it with shutil.move + print instructions. Confidence: 0.80
-- For ML model training (especially GPU-heavy like ByT5), use the existing Colab/Kaggle notebooks instead of training locally on the dev machine. Confidence: 0.90
-
+See [ml-training/taste.md](ml-training/taste.md)

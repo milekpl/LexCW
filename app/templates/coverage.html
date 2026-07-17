@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Coverage Checker - Lexicographic Curation Workbench{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-check-double me-2"></i>Coverage Checker</h1>
+        <div class="d-flex gap-2">
+            <select id="language-select" class="form-select" style="width: auto;">
+                <option value="en" selected>English</option>
+                <option value="pl">Polish</option>
+                <option value="de">German</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+            </select>
+            <select id="target-language-select" class="form-select" style="width: auto;">
+                <option value="">No target</option>
+                <option value="pl">Polish</option>
+                <option value="en">English</option>
+                <option value="de">German</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+            </select>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#tab-resource">Resource Coverage</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tab-text">Text Coverage</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tab-systematicity">Systematicity</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tab-alignment">Sense Alignment</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tab-wordnet">WordNet Lookup</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tab-gap">WordNet Gap Analysis</a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Resource Coverage Tab -->
+        <div class="tab-pane fade show active" id="tab-resource">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-upload me-2"></i>Upload Resource</div>
+                        <div class="card-body">
+                            <form id="resource-form">
+                                <div class="mb-3">
+                                    <label class="form-label">Resource File</label>
+                                    <input type="file" class="form-control" id="resource-file" accept=".txt,.csv,.tsv,.json,.yaml,.yml,.xml" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Resource Type</label>
+                                    <select class="form-select" id="resource-type">
+                                        <option value="text">Plain Text</option>
+                                        <option value="subtlex">SUBTLEX Frequency List</option>
+                                        <option value="clsf">CLSF (JSON/YAML)</option>
+                                        <option value="dante">DANTE XML</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search me-2"></i>Check Coverage
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div id="resource-results" class="card d-none">
+                        <div class="card-header d-flex justify-content-between">
+                            <span><i class="fas fa-chart-bar me-2"></i>Results</span>
+                            <span id="resource-summary" class="badge bg-primary"></span>
+                        </div>
+                        <div class="card-body">
+                            <div id="resource-table-wrapper" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-sm table-striped">
+                                    <thead><tr><th>Headword</th><th>POS</th><th>Senses</th><th>Translations</th></tr></thead>
+                                    <tbody id="resource-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Text Coverage Tab -->
+        <div class="tab-pane fade" id="tab-text">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-pen me-2"></i>Submit Text</div>
+                        <div class="card-body">
+                            <form id="text-form">
+                                <div class="mb-3">
+                                    <label class="form-label">Text to analyze</label>
+                                    <textarea class="form-control" id="text-input" rows="10" placeholder="Paste or type text..."></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search me-2"></i>Analyze Text
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div id="text-results" class="card d-none">
+                        <div class="card-header d-flex justify-content-between">
+                            <span><i class="fas fa-chart-bar me-2"></i>Results</span>
+                            <span id="text-summary" class="badge bg-primary"></span>
+                        </div>
+                        <div class="card-body">
+                            <div id="text-table-wrapper" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-sm table-striped">
+                                    <thead><tr><th>Lemma</th><th>POS</th><th>Frequency</th></tr></thead>
+                                    <tbody id="text-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Systematicity Tab -->
+        <div class="tab-pane fade" id="tab-systematicity">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between">
+                            <span><i class="fas fa-list-check me-2"></i>Systematicity Categories</span>
+                            <button class="btn btn-sm btn-primary" id="run-systematicity">
+                                <i class="fas fa-play me-1"></i>Run All Checks
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="systematicity-results">
+                                <p class="text-muted">Select a language and click "Run All Checks" to analyze systematicity coverage.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sense Alignment Tab -->
+        <div class="tab-pane fade" id="tab-alignment">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-link me-2"></i>WordNet Alignment</div>
+                        <div class="card-body">
+                            <p class="text-muted">Compare dictionary sense counts against WordNet synsets. Flags words where the sense ratio diverges significantly.</p>
+                            <div class="mb-3">
+                                <label class="form-label">Low threshold</label>
+                                <input type="number" class="form-control" id="threshold-low" value="0.5" step="0.1" min="0" max="1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">High threshold</label>
+                                <input type="number" class="form-control" id="threshold-high" value="2.0" step="0.1" min="1" max="5">
+                            </div>
+                            <button class="btn btn-primary" id="run-alignment">
+                                <i class="fas fa-play me-2"></i>Run Alignment Check
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div id="alignment-results" class="card d-none">
+                        <div class="card-header d-flex justify-content-between">
+                            <span><i class="fas fa-chart-bar me-2"></i>Alignment Report</span>
+                            <span id="alignment-summary" class="badge bg-primary"></span>
+                        </div>
+                        <div class="card-body">
+                            <div id="alignment-table-wrapper" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-sm table-striped">
+                                    <thead><tr><th>Headword</th><th>Dict Senses</th><th>WN Senses</th><th>Ratio</th><th>Status</th></tr></thead>
+                                    <tbody id="alignment-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WordNet Lookup Tab -->
+        <div class="tab-pane fade" id="tab-wordnet">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-book me-2"></i>WordNet Lookup</div>
+                        <div class="card-body">
+                            <form id="wordnet-form">
+                                <div class="mb-3">
+                                    <label class="form-label">Word</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="wordnet-word" placeholder="e.g. bank, run, cat" required>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div id="wordnet-results" class="card d-none">
+                        <div class="card-header" id="wordnet-results-header">WordNet Data</div>
+                        <div class="card-body" id="wordnet-results-body"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- WordNet Gap Analysis Tab -->
+        <div class="tab-pane fade" id="tab-gap">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-bar me-2"></i>WordNet Gap Analysis
+                            <button id="run-gap-analysis" class="btn btn-sm btn-primary float-end">
+                                <i class="fas fa-play"></i> Run Analysis
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="gap-summary" class="d-none mb-3">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h5 id="gap-headword-coverage">-</h5>
+                                                <small class="text-muted">Headword Coverage</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h5 id="gap-sense-coverage">-</h5>
+                                                <small class="text-muted">Sense Coverage</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h5 id="gap-missing-hw">-</h5>
+                                                <small class="text-muted">Missing Headwords</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h5 id="gap-total-hw">-</h5>
+                                                <small class="text-muted">Total Headwords</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Filters -->
+                            <div id="gap-filters" class="d-none mb-3">
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <input type="text" id="gap-search" class="form-control" placeholder="Search missing headwords...">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <select id="gap-filter-priority" class="form-select">
+                                            <option value="">All priorities</option>
+                                            <option value="high">High</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="low">Low</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <select id="gap-filter-pos" class="form-select">
+                                            <option value="">All POS</option>
+                                            <option value="noun">Noun</option>
+                                            <option value="verb">Verb</option>
+                                            <option value="adjective">Adjective</option>
+                                            <option value="adverb">Adverb</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button id="gap-apply-filters" class="btn btn-secondary w-100">
+                                            <i class="fas fa-filter"></i> Filter
+                                        </button>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button id="gap-clear-filters" class="btn btn-outline-secondary w-100">
+                                            <i class="fas fa-times"></i> Clear
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Missing Headwords -->
+                            <h6 class="mt-4 d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-exclamation-triangle me-2"></i>Missing Headwords</span>
+                                <small id="gap-pagination-info" class="text-muted"></small>
+                            </h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Headword</th>
+                                            <th>POS</th>
+                                            <th>Priority</th>
+                                            <th>Translations</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="gap-missing-hw-body"></tbody>
+                                </table>
+                            </div>
+
+                            <!-- Pagination -->
+                            <nav id="gap-pagination" class="d-none" aria-label="Gap analysis pagination">
+                                <ul class="pagination justify-content-center">
+                                    <li class="page-item" id="gap-page-prev">
+                                        <a class="page-link" href="#" data-page="prev">Previous</a>
+                                    </li>
+                                    <li class="page-item" id="gap-page-next">
+                                        <a class="page-link" href="#" data-page="next">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+
+                            <!-- Missing Senses (collapsible) -->
+                            <div class="mt-4">
+                                <a class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" href="#gap-missing-senses-collapse">
+                                    <i class="fas fa-chevron-down me-1"></i>Show Missing Sense Details
+                                </a>
+                                <div class="collapse mt-2" id="gap-missing-senses-collapse">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Headword</th>
+                                                    <th>Dict Senses</th>
+                                                    <th>Baseline Senses</th>
+                                                    <th>Missing Definitions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="gap-missing-senses-body"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="gap-loading" class="text-center py-5 d-none">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Analyzing WordNet vs dictionary...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/coverage.js') }}"></script>
+{% endblock %}

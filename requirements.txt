@@ -29,6 +29,7 @@ mypy==1.5.1
 injector==0.21.0
 # Natural Language Processing (for word sketches)
 spacy>=3.6.0
+nltk>=3.9.0
 # Performance monitoring
 psutil>=5.9.0
 jsonpath-ng==1.6.1

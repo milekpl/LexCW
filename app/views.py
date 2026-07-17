@@ -959,6 +959,12 @@ def add_entry():
         entry = Entry(id_="")  # Use empty string to prevent UUID generation
         entry.id = ""  # Explicitly set to empty string
 
+        # Pre-fill headword from query parameter if provided
+        initial_headword = request.args.get("headword", "").strip()
+        if initial_headword:
+            lang = request.args.get("lang", get_project_languages()[0][0] if get_project_languages() else "en")
+            entry.lexical_unit = {lang: initial_headword}
+
         # Get LIFT ranges for dropdowns
         project_id = session.get('project_id')
         ranges = dict_service.get_lift_ranges(project_id=project_id)

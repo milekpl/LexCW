@@ -32,6 +32,15 @@ A professional tool for creating and managing comprehensive dictionaries using t
 - **HTML Export**: Generate browsable static HTML dictionaries with alphabetical navigation
 - **Markdown Export**: Export entries in Markdown format
 
+### Coverage & Systematicity Analysis
+- **Coverage Checker**: Analyze dictionary coverage against WordNet synsets, frequency lists (SUBTLEX), and plain text corpora. Upload resource files or paste text for instant lemma-level coverage reports with gap analysis.
+- **WordNet Gap Analysis**: Compare your dictionary against the complete WordNet lexical resource to identify missing headwords (with priority), missing senses (with definitions and translations), and overall headword/sense coverage percentages.
+- **Systematicity Checker**: Verify systematic coverage of lexical categories (chemical elements, countries, months, days, seasons, colors, kinship terms, planets, continents, directions, shapes) against the dictionary's headwords, using the live BaseX data. Results show per-category coverage percentages with missing-item lists.
+- **WordNet Sense Alignment**: Compare your dictionary's sense granularity against English WordNet synset counts per headword, flagging divergences where your dictionary has significantly more or fewer senses than the cross-lingual standard. Now includes **per-sense matching details** showing which specific dictionary senses match WordNet synsets via translation overlap.
+- **WordNet Lookup with Coverage Status**: Look up any word in WordNet and see which synsets are already covered by your dictionary (green ✓ badges for covered, red ✗ for missing) based on Polish translation matching.
+- **CLSF File Import**: Upload JSON or YAML files in Common Lexical Sense Format (CLSF) as baseline resources for comparison and gap analysis.
+- **DANTE XML Import**: Upload DANTE XML files (Dictionary of the Association for National Language Enhancement) and convert them to CLSF for gap analysis.
+
 ### Quality Assurance
 - **Validation Engine**: Multiple validation backends — Schematron (XSLT), Hunspell spelling, LanguageTool grammar, IPA pronunciation, real-time field validation
 - **Validation Rules**: Project-specific validation rules with admin UI
@@ -212,6 +221,13 @@ Export your dictionary in multiple formats through **Import/Export → Export**:
 - **HTML Export**: Generate browsable static HTML pages with CSS-driven entry rendering
 - **Markdown Export**: Export entries in Markdown format for documentation or publishing
 
+### Analyze Coverage & Systematicity
+Access **Tools → Coverage Checker** (`/coverage`) to:
+- Upload frequency lists (SUBTLEX) or paste text to check what your dictionary covers
+- Run systematicity checks to verify systematic lexical categories (elements, countries, months, etc.)
+- Compare sense counts against WordNet to identify under- or over-segmented entries
+- Look up any word's WordNet synsets directly from the UI
+
 ## 📊 LIFT 0.13 Compliance
 
 The application provides comprehensive LIFT 0.13+ support across all major element categories:
@@ -296,6 +312,17 @@ Full interactive API documentation is available at `/apidocs/` (Swagger/OpenAPI 
 - `GET /entry/{id}` — Validate a specific entry
 - `GET /dictionary` — Validate the entire dictionary
 - `POST /check` — Run validation checks
+
+### Coverage Analysis (`/api/coverage/`)
+- `GET /systematicity` — Run systematicity checks against the live dictionary (auto-loads headwords from BaseX)
+- `GET /alignment` — Compare dictionary sense counts against WordNet
+- `GET /alignment?word={word}` — Single-word WordNet lookup
+- `GET /wordnet/{word}` — Full WordNet data for a word with dictionary coverage status
+- `GET /wordnet-gap` — Run gap analysis comparing WordNet against the BaseX dictionary (missing headwords, missing senses, coverage percentages)
+- `POST /resource` — Check coverage of an uploaded resource file (SUBTLEX, text)
+- `POST /text` — Check coverage of raw text input
+- `POST /import-clsf` — Import a CLSF file (JSON or YAML)
+- `POST /import-dante` — Import a DANTE XML file
 
 ### Worksets (`/api/worksets`)
 - `GET /` — List worksets

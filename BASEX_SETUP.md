@@ -20,20 +20,20 @@
 killall java
 
 # 2. Remove stale users.xml (BaseX will recreate with empty password)
-mv ~/basex/data/users.xml ~/basex/data/users.xml.backup
+mv ~/basex123/data/users.xml ~/basex123/data/users.xml.backup
 
 # 3. Start BaseX
-~/basex/bin/basexserver -p1984 &
+~/basex123/bin/basexserver -p1984 &
 
 # 4. Connect with empty password and set new password
-~/basex/bin/basexclient -c "ALTER PASSWORD admin admin"
+~/basex123/bin/basexclient -c "ALTER PASSWORD admin admin"
 ```
 
 ## Configuration
 
 | Setting | Value |
 |---------|-------|
-| Data directory | `~/basex/data` |
+| Data directory | `~/basex123/data` |
 | Server port | `1984` |
 | HTTP port | `8081` |
 | Admin user | `admin` |
@@ -42,9 +42,9 @@ mv ~/basex/data/users.xml ~/basex/data/users.xml.backup
 ## Important Files
 
 - `~/.basex` - BaseX client configuration
-- `~/basex/data/users.xml` - User/password database
-- `~/basex/.pid` - Server PID file
-- `~/basex/log/server.log` - Server logs
+- `~/basex123/data/users.xml` - User/password database
+- `~/basex123/.pid` - Server PID file
+- `~/basex123/log/server.log` - Server logs
 
 ## Common Issues
 
@@ -52,9 +52,9 @@ mv ~/basex/data/users.xml ~/basex/data/users.xml.backup
 - Password hash is stale. Follow manual recovery steps above.
 
 **"Port 1984 already in use"**
-- Stale PID file: `rm ~/basex/.pid`
+- Stale PID file: `rm ~/basex123/.pid`
 - Or another process: `lsof -i :1984`
 
 **BaseX won't start**
-- Check logs: `cat ~/basex/log/server.log`
+- Check logs: `cat ~/basex123/log/server.log`
 - Ensure no zombie java processes: `killall java`

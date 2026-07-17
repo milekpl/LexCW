@@ -1,0 +1,63 @@
+[
+  {
+    "headword": "his",
+    "pos": [
+      "PRON",
+      "DET"
+    ],
+    "ipa": [
+      "hɪz",
+      "ɪz"
+    ],
+    "raw_pos": "Possessive pronoun|Possessive Determiner"
+  },
+  {
+    "headword": "stum",
+    "pos": [
+      "VERB",
+      "NOUN"
+    ],
+    "ipa": [
+      "ʃtʊm",
+      "stʌm"
+    ],
+    "raw_pos": "Verb|Noun"
+  },
+  {
+    "headword": "confab",
+    "pos": [
+      "VERB",
+      "NOUN"
+    ],
+    "ipa": [
+      "kənˈfæb",
+      "ˈkɒnfæb"
+    ],
+    "raw_pos": "Verb|Noun"
+  },
+  {
+    "headword": "lavender blue",
+    "pos": [
+      "ADJ",
+      "NOUN"
+    ],
+    "ipa": [
+      "ˈlævəndə bluː",
+      "ˈlævɪndə bluː"
+    ],
+    "raw_pos": "Adjective|Noun"
+  },
+  {
+    "headword": "hollo",
+    "pos": [
+      "VERB",
+      "NOUN",
+      "INTJ"
+    ],
+    "ipa": [
+      "ˈhɑːˌləʊ",
+      "ˈhɒləʊ"
+    ],
+    "raw_pos": "Verb|Noun|Interjection"
+  }
+]
