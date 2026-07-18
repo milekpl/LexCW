@@ -183,30 +183,15 @@ class TestRevisionsUI:
 
         expect(rev_body).to_contain_text("2 change(s)", timeout=5000)
 
-        # Click "more" to expand detail — use evaluate to directly invoke
-        # toggleDetail since the onclick attribute may not fire reliably via Playwright
-        rev_num = page.evaluate("_revExpanded = null; _revPage = 1; _revTotal = 2;")
-        # Find the revision number for the first revision (the one with change_count > 0)
-        detail_loaded = page.evaluate("""async () => {
-            // Click the first "more" button directly
+        # Click "more" to expand detail — directly invoke toggleDetail
+        page.evaluate("""() => {
             const btn = document.querySelector('#rev-list button');
-            if (!btn) return 'NO_BUTTON';
-            // The onclick handler calls toggleDetail(revNum) where revNum is the revision number
-            // Read the onclick attribute to extract the revision number
+            if (!btn) return;
             const onclick = btn.getAttribute('onclick');
             const match = onclick && onclick.match(/toggleDetail\((\d+)\)/);
-            if (!match) return 'NO_MATCH: ' + onclick;
-            const revNum = parseInt(match[1]);
-            // Call toggleDetail directly
-            toggleDetail(revNum);
-            // Wait for the detail to load
-            await new Promise(r => setTimeout(r, 2000));
-            const detailEl = document.getElementById('rev-detail-' + revNum);
-            if (!detailEl) return 'NO_DETAIL_EL';
-            return detailEl.innerText || 'EMPTY';
+            if (match) toggleDetail(parseInt(match[1]));
         }""")
-        print(f"\nDEBUG: detail content = {detail_loaded[:300] if detail_loaded else 'None'}")
+        page.wait_for_timeout(1500)
 
-        # Verify the detail shows the actual change kinds (MODIFIED, ADDED, or REMOVED)
-        expect(rev_body).to_contain_text("MODIFIED", timeout=5000)
-        expect(rev_body).to_contain_text("MODIFIED", timeout=5000)
+        # Verify the detail shows the actual change kinds (Modified, Added, or Removed)
+        expect(rev_body).to_contain_text("Modified", timeout=5000)
