@@ -270,15 +270,10 @@ def flask_app_server(pristine_ranges_data: str):
         connector.create_database(ranges_db)
         
         # Add ranges data
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            f.write(pristine_ranges_data)
-            temp_file = f.name
-        
-        try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info(f"Created session ranges database: {ranges_db}")
-        finally:
-            os.unlink(temp_file)
+        # NOTE: Use add_resource() instead of execute_command("ADD file.xml")
+        # because BaseX runs in Docker and cannot access the host filesystem.
+        connector.add_resource("pristine_ranges.xml", pristine_ranges_data, db_name=ranges_db)
+        logger.info(f"Created session ranges database: {ranges_db}")
             
     finally:
         connector.disconnect()
@@ -389,26 +384,14 @@ def test_database(request, pristine_lift_data: str, pristine_ranges_data: str):
         logger.info(f"Created test database: {db_name}")
         
         # Add pristine LIFT data
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            f.write(pristine_lift_data)
-            temp_file = f.name
-        
-        try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info(f"Loaded pristine LIFT data into {db_name}")
-        finally:
-            os.unlink(temp_file)
-        
+        # NOTE: Use add_resource() instead of execute_command("ADD file.xml")
+        # because BaseX runs in Docker and cannot access the host filesystem.
+        connector.add_resource("pristine_lift.xml", pristine_lift_data, db_name=db_name)
+        logger.info(f"Loaded pristine LIFT data into {db_name}")
+
         # Add pristine ranges data
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            f.write(pristine_ranges_data)
-            temp_file = f.name
-        
-        try:
-            connector.execute_command(f"ADD {temp_file}")
-            logger.info(f"Loaded pristine ranges data into {db_name}")
-        finally:
-            os.unlink(temp_file)
+        connector.add_resource("pristine_ranges.xml", pristine_ranges_data, db_name=db_name)
+        logger.info(f"Loaded pristine ranges data into {db_name}")
         
         connector.disconnect()
         

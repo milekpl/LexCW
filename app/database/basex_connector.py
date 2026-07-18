@@ -426,6 +426,26 @@ class BaseXConnector:
 
     # ---- Database management ----
 
+    def add_resource(self, path: str, content: str, db_name: str = None) -> None:
+        """Add a resource to the currently open database.
+
+        Unlike ``execute_command('ADD ...')`` which instructs BaseX to read a
+        file from its own filesystem, this method sends the content over the
+        socket so it works regardless of whether BaseX shares a filesystem with
+        the caller (e.g. when BaseX runs in a Docker container).
+
+        Args:
+            path:      Resource path / filename within the database.
+            content:   Raw XML or text content to store.
+            db_name:   If provided, ensure this database is open first.
+        """
+        def _op(conn):
+            if db_name and conn.current_db != db_name:
+                conn.ensure_db(db_name)
+            conn.session.add(path, content)
+
+        self._run_with_retry(_op, "add_resource")
+
     def create_database(self, db_name: str, content: str = "") -> None:
         try:
             command = f"CREATE DB {db_name}"

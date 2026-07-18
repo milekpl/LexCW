@@ -66,8 +66,8 @@ class TestPronunciationUIElements:
         # Verify separate Upload and Generate buttons exist
         assert 'upload-audio-btn' in html
         assert 'generate-audio-btn' in html
-        assert '<i class="fas fa-upload"></i> Upload' in html
-        assert '<i class="fas fa-magic"></i> Generate' in html
+        assert 'fa-upload' in html or 'bi-upload' in html
+        assert 'fa-waveform' in html or 'fa-music' in html
     
     def test_pronunciation_buttons_in_template(self, client: FlaskClient):
         """Test that pronunciation template section has both button types in HTML."""

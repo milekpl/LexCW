@@ -1,0 +1,2 @@
+[permissions]
+allow = ["explore", "Bash(cd /home/milek/flask-app && python -m pytest tests/e2e/test_ai_draft_e2e.py -x -v 2>&1 | head -100)", "Bash(cd /home/milek/flask-app && python3 -m pytest tests/e2e/test_ai_draft_e2e.py -x -v 2>&1 | tail -80)", "Bash(cd /home/milek/flask-app && docker ps 2>&1; echo \"---\"; echo \"BASEX_HOST=$BASEX_HOST\"; echo \"BASEX_PORT=$BASEX_PORT\"; cat docker-compose.yml 2>/dev/null | head -40)", "Bash(cd /home/milek/flask-app && docker-compose ps 2>&1; echo \"===\"; docker ps -a 2>&1 | head -20)"]

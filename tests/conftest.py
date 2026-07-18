@@ -174,10 +174,9 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
             if entry_exists and entry_exists.strip().lower() == 'true':
                 logger.info("test_entry_1 already exists, skipping ADD")
             else:
-                # Add sample LIFT content using BaseX command
-                # For shared DB, we add data every time because other fixtures may have cleared it
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-                    sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
+                # Add sample LIFT content using add_resource (sends data over socket,
+                # bypassing Docker filesystem isolation)
+                sample_lift = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift version="0.13" xmlns="http://fieldworks.sil.org/schemas/lift/0.13">
     <entry id="test_entry_1">
         <lexical-unit>
@@ -228,27 +227,16 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         </sense>
     </entry>
 </lift>'''
-                    f.write(sample_lift)
-                    temp_file = f.name
-
-                # Add sample data - for shared DB always add, for isolated DB add once
                 try:
-                    connector.execute_command(f"ADD {temp_file}")
+                    connector.add_resource("sample_data.xml", sample_lift, db_name=db_name)
                     logger.info(f"Added LIFT data to {'shared' if use_shared_db else 'isolated'} test database")
                 except Exception as e:
-                    logger.warning(f"Failed to add data with ADD command: {e}")
-
-                # Clean up temp file (always)
-                try:
-                    os.unlink(temp_file)
-                except OSError:
-                    pass
+                    logger.warning(f"Failed to add LIFT data: {e}")
         except Exception as e:
             logger.warning(f"Failed to check for existing entries: {e}")
 
-        # Add ranges.xml similarly
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+        # Add ranges.xml using add_resource
+        ranges_xml = '''<?xml version="1.0" encoding="UTF-8"?>
 <lift-ranges>
     <range id="grammatical-info">
         <range-element id="Noun" label="Noun" abbrev="n"/>
@@ -279,21 +267,11 @@ def basex_test_connector(basex_available: bool, test_db_name: str):
         <range-element id="component-lexeme" label="Component Lexeme"/>
     </range>
 </lift-ranges>'''
-            f.write(ranges_xml)
-            temp_file = f.name
-
-        # Add ranges - always add for shared DB (ranges may have been cleared), add once for isolated
         try:
-            connector.execute_command(f"ADD {temp_file}")
+            connector.add_resource("ranges.xml", ranges_xml, db_name=db_name)
             logger.info(f"Added ranges.xml to {'shared' if use_shared_db else 'isolated'} test database")
         except Exception as e:
             logger.warning(f"Failed to add ranges.xml: {e}")
-
-        # Clean up temp file (always)
-        try:
-            os.unlink(temp_file)
-        except OSError:
-            pass
 
         yield connector
         

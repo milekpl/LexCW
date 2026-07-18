@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import os
-import tempfile
 from typing import Optional
 
 from app.database.basex_connector import BaseXConnector
@@ -96,32 +95,17 @@ def create_test_db(db_name: str) -> None:
             pass
         admin.execute_command(f"CREATE DB {db_name}")
 
-        # Add minimal empty lift and ranges
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            f.write(LIFT_EMPTY_DOC)
-            tmp1 = f.name
+        # Add minimal empty lift and ranges using add_resource
+        # (bypasses Docker filesystem isolation — sends content over socket)
         try:
-            admin.execute_command(f'ADD "{tmp1}"')
+            admin.add_resource("minimal_lift.xml", LIFT_EMPTY_DOC, db_name=db_name)
         except Exception as e:
             logger.warning("Failed to add minimal lift doc to %s: %s", db_name, e)
-        finally:
-            try:
-                os.unlink(tmp1)
-            except Exception:
-                pass
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-            f.write(LIFT_RANGES_CONTENT)
-            tmp2 = f.name
         try:
-            admin.execute_command(f'ADD "{tmp2}"')
+            admin.add_resource("ranges.xml", LIFT_RANGES_CONTENT, db_name=db_name)
         except Exception as e:
             logger.warning("Failed to add ranges doc to %s: %s", db_name, e)
-        finally:
-            try:
-                os.unlink(tmp2)
-            except Exception:
-                pass
     except Exception as e:
         logger.warning("Could not create test DB %s: %s", db_name, e)
     finally:
@@ -158,18 +142,10 @@ def delete_all_lift_entries(db_name: str) -> None:
                             pass  # Resource may have already been deleted or command failed
 
             # ensure at least one empty lift exists
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False, encoding='utf-8') as f:
-                f.write(LIFT_EMPTY_DOC)
-                tmp = f.name
             try:
-                admin.execute_command(f'ADD "{tmp}"')
+                admin.add_resource("minimal_lift.xml", LIFT_EMPTY_DOC, db_name=db_name)
             except Exception as e:
                 logger.warning("Failed to add minimal lift after cleanup for %s: %s", db_name, e)
-            finally:
-                try:
-                    os.unlink(tmp)
-                except Exception:
-                    pass
 
         finally:
             try:

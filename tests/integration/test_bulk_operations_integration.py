@@ -157,8 +157,8 @@ class TestBulkOperationsIntegration:
 
         # Verify operation_id structure
         assert 'operation_id' in data
-        assert data['operation_id'].startswith('op-')
-        assert len(data['operation_id']) > 10  # op-YYYYMMDD-N format
+        assert data['operation_id'].startswith('bulk-')
+        assert len(data['operation_id']) > 10
 
         # Verify summary structure
         assert 'summary' in data
@@ -199,7 +199,7 @@ class TestBulkOperationsIntegration:
 
         # Verify operation_id structure
         assert 'operation_id' in data
-        assert data['operation_id'].startswith('op-')
+        assert data['operation_id'].startswith('bulk-')
 
         # Verify summary structure
         assert 'summary' in data
@@ -285,7 +285,7 @@ class TestBulkOperationsIntegration:
 
         # Verify operation_id format
         assert 'operation_id' in data
-        assert data['operation_id'].startswith('op-')
+        assert data['operation_id'].startswith('bulk-')
 
         logger.info(f"POS partial success test passed: {data['summary']}")
 

@@ -385,32 +385,127 @@ class AIServiceUI {
 
     /**
      * Apply a drafted entry to the form (populate basic fields).
+     *
+     * The entry form uses Alpine.js (x-model), so we must:
+     *   1. Find fields by CSS class / data-language (name= attributes no longer exist).
+     *   2. Dispatch native input/change events after setting values so Alpine
+     *      picks them up through its x-model listeners.
      */
     applyDraftedEntry(entryData) {
-        // Lexical unit
+        // Helper: find an Alpine component's reactive data from any child element
+        function alpineData(el) {
+            if (!el) return null;
+            var parent = el.closest('[x-data]');
+            return parent && window.Alpine ? window.Alpine.$data(parent) : null;
+        }
+
+        // --- Lexical unit ---
+        // Alpine lexicalUnit component — x-model="f.text" on .lexical-unit-text inputs
         if (entryData.lexical_unit) {
-            Object.entries(entryData.lexical_unit).forEach(([lang, text]) => {
-                const input = document.querySelector(`[name="lexical_unit.${lang}"]`);
-                if (input) input.value = text;
+            Object.entries(entryData.lexical_unit).forEach(function (_a) {
+                var lang = _a[0], text = _a[1];
+                var input = document.querySelector(
+                    '.lexical-unit-forms .language-form[data-language="' + lang + '"] .lexical-unit-text'
+                );
+                if (input) {
+                    // Set DOM value AND dispatch input so Alpine x-model picks it up
+                    input.value = text;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                } else {
+                    // No DOM element yet — add a new row via Alpine
+                    var luParent = document.querySelector('.lexical-unit-forms');
+                    if (luParent) {
+                        var luData = alpineData(luParent);
+                        if (luData && luData.forms) {
+                            var existing = luData.forms.find(function (f) { return f.lang === lang; });
+                            if (existing) {
+                                existing.text = text;
+                            } else {
+                                luData.forms.push({ id: 'draft-' + Date.now(), lang: lang, text: text });
+                            }
+                        }
+                    }
+                }
             });
         }
 
-        // Grammatical info
+        // --- Grammatical info (entry-level POS) ---
+        // Alpine entryMeta component — <select id="part-of-speech" x-model="grammaticalInfo">
         if (entryData.senses && entryData.senses[0] && entryData.senses[0].grammatical_info) {
-            const posSelect = document.querySelector('[name="grammatical_info"]');
+            var posSelect = document.querySelector('#part-of-speech');
             if (posSelect) {
-                const options = Array.from(posSelect.options);
-                const match = options.find(o => o.value === entryData.senses[0].grammatical_info || o.text === entryData.senses[0].grammatical_info);
-                if (match) posSelect.value = match.value;
+                var metaData = alpineData(posSelect);
+                if (metaData && metaData.grammaticalInfo !== undefined) {
+                    // Update Alpine's reactive state directly — This ensures x-model
+                    // syncs the DOM and any other computed properties.
+                    metaData.grammaticalInfo = entryData.senses[0].grammatical_info;
+                }
             }
         }
 
-        // Definitions (first sense, first language)
+        // --- Definitions (first sense, by language) ---
+        // Alpine senseTree component — senses are in Alpine.$data, each with definitionForms[]
         if (entryData.senses && entryData.senses[0] && entryData.senses[0].definitions) {
-            Object.entries(entryData.senses[0].definitions).forEach(([lang, text]) => {
-                const input = document.querySelector(`[name="senses[0][definitions][${lang}]"]`);
-                if (input) input.value = text;
-            });
+            var senseEl = document.querySelector('.senses-section');
+            if (senseEl) {
+                var senseData = alpineData(senseEl);
+                if (senseData && senseData.senses && senseData.senses.length > 0) {
+                    var firstSense = senseData.senses[0];
+                    Object.entries(entryData.senses[0].definitions).forEach(function (_a) {
+                        var lang = _a[0], text = _a[1];
+                        var existing = firstSense.definitionForms.find(function (f) { return f.lang === lang; });
+                        if (existing) {
+                            existing.text = text;
+                        } else if (firstSense.definitionForms && firstSense.definitionForms.push) {
+                            firstSense.definitionForms.push({
+                                id: 'draft-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9),
+                                lang: lang,
+                                text: text
+                            });
+                        }
+                        // Also try to find and update the corresponding DOM textarea directly
+                        var textarea = document.querySelector(
+                            '.sense-item .definition-forms .language-form[data-language="' + lang + '"] .definition-text'
+                        );
+                        if (textarea && textarea.value !== text) {
+                            textarea.value = text;
+                            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    });
+                }
+            }
+        }
+
+        // --- Glosses (first sense, by language) ---
+        if (entryData.senses && entryData.senses[0] && entryData.senses[0].glosses) {
+            var senseEl = document.querySelector('.senses-section');
+            if (senseEl) {
+                var senseData = alpineData(senseEl);
+                if (senseData && senseData.senses && senseData.senses.length > 0) {
+                    var firstSense = senseData.senses[0];
+                    Object.entries(entryData.senses[0].glosses).forEach(function (_a) {
+                        var lang = _a[0], text = _a[1];
+                        var existing = firstSense.glossForms.find(function (f) { return f.lang === lang; });
+                        if (existing) {
+                            existing.text = text;
+                        } else if (firstSense.glossForms && firstSense.glossForms.push) {
+                            firstSense.glossForms.push({
+                                id: 'draft-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9),
+                                lang: lang,
+                                text: text
+                            });
+                        }
+                        // Also try to update the DOM input directly
+                        var input = document.querySelector(
+                            '.sense-item .gloss-forms .language-form[data-language="' + lang + '"] .gloss-text'
+                        );
+                        if (input && input.value !== text) {
+                            input.value = text;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    });
+                }
+            }
         }
     }
 
