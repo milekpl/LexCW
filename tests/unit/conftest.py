@@ -179,6 +179,7 @@ def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     from app.api.display_profiles import profiles_bp
     from app.api.pronunciation import pronunciation_bp
     from app.api.api_keys import api_keys_bp
+    from app.routes.coverage_routes import coverage_routes_bp
 
     app.register_blueprint(api_bp)
     app.register_blueprint(validation_bp)
@@ -193,6 +194,7 @@ def mock_app(mock_dict_service: Mock) -> Generator[Flask, None, None]:
     app.register_blueprint(profiles_bp)
     app.register_blueprint(pronunciation_bp)
     app.register_blueprint(api_keys_bp)
+    app.register_blueprint(coverage_routes_bp)
     
     # Mock dependency injection
     from unittest.mock import Mock
