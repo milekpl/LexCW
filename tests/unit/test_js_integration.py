@@ -60,43 +60,36 @@ class TestJavaScriptIntegration:
         assert result['success'] or result['return_code'] in [0, 1], f"ESLint failed: {result.get('stderr', 'No error message')}"
     
     def test_javascript_syntax_validation(self):
-        """Validate JavaScript syntax without running tests."""
-        js_files = []
-        
-        # Find all JavaScript files in the app directory
-        for root, dirs, files in os.walk('app/static/js/'):
-            for file in files:
-                # Skip minified files and JS test files (they run under Jest)
-                if (file.endswith('.js') and not file.endswith('.min.js') and not file.endswith('.test.js') and '__tests__' not in root):
-                    js_files.append(os.path.join(root, file))
-        
-        # Validate each JavaScript file by attempting to parse it with Node
-        for js_file in js_files:
+        """Validate JavaScript syntax of all app JS files using node --check.
+
+        Uses ``node --check`` for syntax-only parsing (no execution), which
+        avoids false-positives on browser-only files that reference DOM
+        elements at the top level (e.g. ``coverage.js``).
+        """
+        import pathlib
+
+        js_dir = pathlib.Path('app/static/js/')
+        skip_patterns = {'.min.js', '.test.js', '__tests__'}
+
+        errors = []
+        for js_path in sorted(js_dir.rglob('*.js')):
+            if any(p in str(js_path) for p in skip_patterns):
+                continue
             try:
-                # Create a simple Node script to validate syntax
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as temp:
-                    temp.write(f"// Syntax validation for {js_file}\n")
-                    # Provide safe shims for browser globals so we can require modules in Node
-                    shim_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'js_node_shim.js'))
-                    temp.write(f"require('{shim_path}');\n")
-                    temp.write(f"require('{os.path.abspath(js_file)}');\n")
-                    temp_path = temp.name
-                
-                # Run the validation script
-                result = subprocess.run(['node', temp_path], 
-                                      capture_output=True, 
-                                      text=True, 
-                                      timeout=10)
-                
-                # Clean up temp file
-                os.unlink(temp_path)
-                
-                assert result.returncode == 0, f"JavaScript syntax error in {js_file}: {result.stderr}"
-                
+                result = subprocess.run(
+                    ['node', '--check', str(js_path)],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode != 0:
+                    errors.append(f"{js_path}: {result.stderr.strip()}")
             except subprocess.TimeoutExpired:
-                pytest.skip(f"Timeout validating {js_file}")
-            except Exception as e:
-                pytest.fail(f"Error validating {js_file}: {str(e)}")
+                errors.append(f"{js_path}: timed out")
+
+        if errors:
+            pytest.fail(
+                f"JavaScript syntax errors found in {len(errors)} file(s):\n"
+                + "\n".join(errors)
+            )
 
 
 def test_run_all_javascript_tests():
