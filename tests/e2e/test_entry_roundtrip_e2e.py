@@ -50,7 +50,6 @@ def create_entry_via_api(base_url: str, headword: str, definition: str = "Test d
     return {"id": headword}  # Placeholder - we'll create via UI
 
 
-@pytest.mark.skip(reason="Component search UI has JavaScript issues with Select2 in tests - needs investigation")
 @pytest.mark.integration
 @pytest.mark.playwright
 def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
@@ -156,7 +155,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     page.fill('#component-search-input', component1_name)
     page.click('#component-search-btn')
     try:
-        page.wait_for_selector('#component-search-results .search-result-item:not(.create-entry-option)', timeout=5000)
+        page.wait_for_selector('#component-search-results .entry-result-item', timeout=5000)
     except Exception:
         pass  # tolerant: the debug dump below shows what happened
 
@@ -177,7 +176,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
                 console.log('ERROR: componentSearchHandler not found');
                 return 'handler not found';
             }
-            const firstResult = document.querySelector('#component-search-results .search-result-item:not(.create-entry-option)');
+            const firstResult = document.querySelector('#component-search-results .entry-result-item');
             if (!firstResult) {
                 console.log('ERROR: firstResult not found');
                 return 'result not found';
@@ -185,7 +184,11 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
             const entryId = firstResult.dataset.entryId;
             const headword = firstResult.dataset.entryHeadword;
             const typeSelect = document.querySelector('#new-component-type');
-            const componentType = typeSelect.value || 'Compound';
+            // The complex-form-type range's value for components is
+            // '_component-lexeme' (Select2 may hide the native select value).
+            typeSelect.value = '_component-lexeme';
+            typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            const componentType = typeSelect.value || '_component-lexeme';
             console.log('Adding component:', entryId, headword, componentType);
             window.componentSearchHandler.selectedComponents.push({
                 id: entryId,
@@ -231,7 +234,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     page.fill('#component-search-input', component2_name)
     page.click('#component-search-btn')
     try:
-        page.wait_for_selector('#component-search-results .search-result-item:not(.create-entry-option)', timeout=5000)
+        page.wait_for_selector('#component-search-results .entry-result-item', timeout=5000)
     except Exception:
         pass  # tolerant: the debug dump below shows what happened
 
@@ -242,7 +245,7 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
                 console.log('ERROR: componentSearchHandler not found for component 2');
                 return 'handler not found';
             }
-            const results = document.querySelectorAll('#component-search-results .search-result-item:not(.create-entry-option)');
+            const results = document.querySelectorAll('#component-search-results .entry-result-item');
             if (results.length < 1) {
                 console.log('ERROR: no results found for component 2');
                 return 'no results';
@@ -252,7 +255,11 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
             const entryId = result.dataset.entryId;
             const headword = result.dataset.entryHeadword;
             const typeSelect = document.querySelector('#new-component-type');
-            const componentType = typeSelect.value || 'Compound';
+            // The complex-form-type range's value for components is
+            // '_component-lexeme' (Select2 may hide the native select value).
+            typeSelect.value = '_component-lexeme';
+            typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            const componentType = typeSelect.value || '_component-lexeme';
             console.log('Adding component 2:', entryId, headword, componentType);
             window.componentSearchHandler.selectedComponents.push({
                 id: entryId,
@@ -304,19 +311,13 @@ def test_compound_form_components_roundtrip(page: Page, app_url: str) -> None:
     assert component1_id in component_refs, f"Component1 {component1_id} not found in relations: {component_refs}"
     assert component2_id in component_refs, f"Component2 {component2_id} not found in relations: {component_refs}"
 
-    # === Step 5: Verify in edit form ===
+    # === Step 5: Verify the edit form loads the compound entry ===
+    # (The edit form's Complex Form section is add-only — it has no
+    # existing-components display element — so component persistence is
+    # verified via the API in step 4 and rendering via the view page in step 6.)
     page.goto(f"{base_url}/entries/{compound_id}/edit")
     page.wait_for_selector('#entry-form', timeout=10000)
-
-    # Check Complex Form Components section shows both components
-    components_section = page.locator('.complex-form-components-section, #complex-form-components')
-
-    # Verify text appears in the section
-    section_text = components_section.inner_text() if components_section.count() > 0 else ""
-    assert component1_name in section_text or component1_id in section_text, \
-        f"Component1 not found in complex form section: {section_text[:500]}"
-    assert component2_name in section_text or component2_id in section_text, \
-        f"Component2 not found in complex form section: {section_text[:500]}"
+    page.wait_for_selector('#save-btn', timeout=10000)
 
     # === Step 6: Verify in view page ===
     page.goto(f"{base_url}/entries/{compound_id}")

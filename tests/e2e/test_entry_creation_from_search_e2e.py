@@ -13,6 +13,7 @@ search results when adding relations/variants. The flow is:
 """
 from __future__ import annotations
 
+import time
 import pytest
 from playwright.sync_api import Page
 
@@ -26,7 +27,8 @@ def test_create_entry_from_relation_search(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Fill in basic fields first
-    page.fill('input.lexical-unit-text', 'test_base_entry')
+    headword = f'test_base_entry_{int(time.time() * 1000)}'
+    page.fill('input.lexical-unit-text', headword)
 
     # Add a sense
     if page.locator('textarea.definition-text:visible').count() == 0:
@@ -38,19 +40,16 @@ def test_create_entry_from_relation_search(page: Page, app_url: str) -> None:
     page.locator('textarea.definition-text:visible').first.fill('A test definition')
 
     # Save the entry to get an ID for editing
-    page.click('button[type="submit"]')
-    page.wait_for_timeout(2000)
+    page.click('#save-btn', timeout=10000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Now go back to edit this entry and add a relation
     page.goto(f"{app_url}/entries")
 
-    # Find and click edit link for our entry
-    edit_link = page.locator('a[href*="/edit"]:has-text("test_base_entry")').first
-    if edit_link.count() > 0:
-        edit_link.click()
-        page.wait_for_selector('#entry-form', state='visible', timeout=10000)
-    else:
-        pytest.skip("Could not find test entry to edit")
+    # Find and click edit for our entry (the list is JS-rendered: rows use .edit-btn)
+    page.wait_for_selector(f"tr:has-text('{headword}')", timeout=15000)
+    page.locator(f"tr:has-text('{headword}') .edit-btn").first.click()
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Add a relation (Alpine-owned §16.2.2 — type select + ref text input)
     if page.locator('#add-relation-btn').count() > 0:
@@ -79,7 +78,8 @@ def test_create_entry_from_sense_relation_search(page: Page, app_url: str) -> No
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Fill in basic fields
-    page.fill('input.lexical-unit-text', 'test_sense_relation_entry')
+    headword = f'test_sense_relation_entry_{int(time.time() * 1000)}'
+    page.fill('input.lexical-unit-text', headword)
 
     # Add a sense
     if page.locator('textarea.definition-text:visible').count() == 0:
@@ -91,18 +91,16 @@ def test_create_entry_from_sense_relation_search(page: Page, app_url: str) -> No
     page.locator('textarea.definition-text:visible').first.fill('Test sense definition')
 
     # Save the entry
-    page.click('button[type="submit"]')
-    page.wait_for_timeout(2000)
+    # Save the entry to get an ID for editing
+    page.click('#save-btn', timeout=10000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Go back and edit
     page.goto(f"{app_url}/entries")
 
-    edit_link = page.locator('a[href*="/edit"]:has-text("test_sense_relation_entry")').first
-    if edit_link.count() > 0:
-        edit_link.click()
-        page.wait_for_selector('#entry-form', state='visible', timeout=10000)
-    else:
-        pytest.skip("Could not find test entry to edit")
+    page.wait_for_selector(f"tr:has-text('{headword}')", timeout=15000)
+    page.locator(f"tr:has-text('{headword}') .edit-btn").first.click()
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Look for sense variant relations section (sense-level variants)
     sense_variant_container = page.locator('[class*="sense-variant-relations-container"], .sense-variant-relations-container').first
@@ -135,7 +133,8 @@ def test_create_entry_from_variant_search(page: Page, app_url: str) -> None:
     page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Fill in basic fields
-    page.fill('input.lexical-unit-text', 'test_variant_parent')
+    headword = f'test_variant_parent_{int(time.time() * 1000)}'
+    page.fill('input.lexical-unit-text', headword)
 
     # Add a sense
     if page.locator('textarea.definition-text:visible').count() == 0:
@@ -147,18 +146,16 @@ def test_create_entry_from_variant_search(page: Page, app_url: str) -> None:
     page.locator('textarea.definition-text:visible').first.fill('Parent entry definition')
 
     # Save the entry
-    page.click('button[type="submit"]')
-    page.wait_for_timeout(2000)
+    # Save the entry to get an ID for editing
+    page.click('#save-btn', timeout=10000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Go back and edit
     page.goto(f"{app_url}/entries")
 
-    edit_link = page.locator('a[href*="/edit"]:has-text("test_variant_parent")').first
-    if edit_link.count() > 0:
-        edit_link.click()
-        page.wait_for_selector('#entry-form', state='visible', timeout=10000)
-    else:
-        pytest.skip("Could not find test entry to edit")
+    page.wait_for_selector(f"tr:has-text('{headword}')", timeout=15000)
+    page.locator(f"tr:has-text('{headword}') .edit-btn").first.click()
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Look for variants section
     add_variant_btn = page.locator('#add-variant-btn').first
@@ -265,8 +262,9 @@ def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
             page.wait_for_timeout(100)
     page.locator('textarea.definition-text:visible').first.fill('Exact match definition')
 
-    page.click('button[type="submit"]')
-    page.wait_for_timeout(2000)
+    # Save the entry to get an ID for editing
+    page.click('#save-btn', timeout=10000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Create a partial match entry
     page.goto(f"{app_url}/entries/add", wait_until="networkidle", timeout=30000)
@@ -283,8 +281,9 @@ def test_search_prioritizes_exact_matches(page: Page, app_url: str) -> None:
             page.wait_for_timeout(100)
     page.locator('textarea.definition-text:visible').first.fill('Partial match definition')
 
-    page.click('button[type="submit"]')
-    page.wait_for_timeout(2000)
+    # Save the entry to get an ID for editing
+    page.click('#save-btn', timeout=10000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Now test search prioritizes exact match
     page.goto(f"{app_url}/entries/add", wait_until="networkidle", timeout=30000)
@@ -326,7 +325,7 @@ def test_circular_reference_detection(page: Page, app_url: str) -> None:
     page.goto(f"{app_url}/entries/add", wait_until="networkidle", timeout=30000)
     page.wait_for_selector('#entry-form', state='visible', timeout=20000)
 
-    entry_name = f"circular_test_entry_{__name__}"
+    entry_name = f"circular_test_entry_{int(time.time() * 1000)}"
     page.fill('input.lexical-unit-text', entry_name)
 
     if page.locator('textarea.definition-text:visible').count() == 0:
@@ -337,8 +336,9 @@ def test_circular_reference_detection(page: Page, app_url: str) -> None:
             page.wait_for_timeout(100)
     page.locator('textarea.definition-text:visible').first.fill('Test definition')
 
-    page.click('button[type="submit"]')
-    page.wait_for_timeout(2000)
+    # Save the entry to get an ID for editing
+    page.click('#save-btn', timeout=10000)
+    page.wait_for_url("**/entries/**status=saved*", timeout=15000)
 
     # Get the entry ID from URL
     current_url = page.url
@@ -347,12 +347,9 @@ def test_circular_reference_detection(page: Page, app_url: str) -> None:
     # Go back and edit
     page.goto(f"{app_url}/entries")
 
-    edit_link = page.locator(f'a[href*="/edit"]:has-text("{entry_name}")').first
-    if edit_link.count() > 0:
-        edit_link.click()
-        page.wait_for_selector('#entry-form', state='visible', timeout=10000)
-    else:
-        pytest.skip("Could not find test entry to edit")
+    page.wait_for_selector(f"tr:has-text('{entry_name}')", timeout=15000)
+    page.locator(f"tr:has-text('{entry_name}') .edit-btn").first.click()
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
     # Add a relation and search for the same entry
     if page.locator('#add-relation-btn').count() > 0:

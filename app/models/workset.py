@@ -41,7 +41,15 @@ class WorksetQuery:
     filters: List[QueryFilter] = field(default_factory=list)
     sort_by: Optional[str] = None
     sort_order: str = 'asc'  # asc or desc
-    
+
+    def __post_init__(self) -> None:
+        # API callers pass raw JSON dicts; normalize them to QueryFilter
+        # objects so to_dict()/serialization never hits a bare dict.
+        self.filters = [
+            f if isinstance(f, QueryFilter) else QueryFilter.from_dict(f)
+            for f in self.filters
+        ]
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'filters': [f.to_dict() for f in self.filters],

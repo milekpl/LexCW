@@ -401,9 +401,20 @@ def test_date_modified_sorting_descending(page: Page, flask_test_server):
     # We need to have at least some entries to test
     assert total_count > 0, "Test data should have some entries"
     
-    # If no dates are showing, this might be a UI rendering issue after double-click
+    # Dates render asynchronously after the sort — wait for at least one, then
+    # re-read. If none ever render, the sort UI is genuinely broken.
     if non_empty_count == 0:
-        pytest.skip("No dates rendered in UI - possible timing issue with descending sort")
+        page.wait_for_function(
+            "() => Array.from(document.querySelectorAll('.date-modified .last-modified')).some(c => (c.textContent || '').trim() !== '')",
+            timeout=5000,
+        )
+        date_values = []
+        for i in range(total_count):
+            cell_text = date_cells.nth(i).text_content()
+            date_values.append(cell_text.strip())
+        non_empty_dates = [d for d in date_values if d and d.strip()]
+        non_empty_count = len(non_empty_dates)
+    assert non_empty_count > 0, "No dates rendered in UI after descending sort"
     
     assert non_empty_count > 0, "Test data should have some entries with dates"
     

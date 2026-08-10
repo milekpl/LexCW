@@ -475,14 +475,14 @@ def test_default_template_not_serialized(page, flask_test_server):
         if entry_id_match:
             entry_id = entry_id_match.group(1)
         else:
-            pytest.skip(f"Could not extract entry ID from URL: {current_url}")
+            pytest.fail(f"Could not extract entry ID from URL: {current_url}")
     else:
-        pytest.skip(f"Save may have failed. Current URL: {current_url}")
+        pytest.fail(f"Save may have failed. Current URL: {current_url}")
 
     # Retrieve the entry from the database via API and verify it has exactly 1 sense
     response = page.request.get(f"{base_url}/api/xml/entries/{entry_id}")
     if not response.ok:
-        pytest.skip(f"Failed to retrieve entry {entry_id}")
+        pytest.fail(f"Failed to retrieve entry {entry_id} after save")
 
     xml_content = response.body()
     xml_str = xml_content.decode('utf-8') if isinstance(xml_content, bytes) else xml_content
@@ -528,7 +528,7 @@ def test_multiple_deletions(page, flask_test_server):
     sense_count_before = real_senses.count()
 
     if sense_count_before < 2:
-        pytest.skip(f"Expected at least 2 senses on edit page, got {sense_count_before}")
+        pytest.fail(f"Expected at least 2 senses on edit page, got {sense_count_before}")
 
     page.on("dialog", lambda dialog: dialog.accept())
 
@@ -614,7 +614,7 @@ def test_add_and_remove_sense(page, flask_test_server):
     # Check if test_entry_1 exists
     response = requests.get(f"{base_url}/api/xml/entries/test_entry_1")
     if not response.ok:
-        pytest.skip("test_entry_1 not available - database not properly initialized")
+        pytest.fail("test_entry_1 not available - database not properly initialized")
 
     # Navigate to edit an existing entry - use test_entry_1 from E2E database
     entry_id = "test_entry_1"

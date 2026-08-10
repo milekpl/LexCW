@@ -404,10 +404,13 @@ class WorksetService:
                 progress.progress = (progress.completed_items / progress.total_items) * 100
 
             workset.updated_at = datetime.now()
-            with current_app.pg_pool.getconn() as conn:
+            conn = current_app.pg_pool.getconn()
+            try:
                 with conn.cursor() as cur:
                     cur.execute("UPDATE worksets SET updated_at = %s WHERE id = %s", (workset.updated_at, workset.id))
                     conn.commit()
+            finally:
+                current_app.pg_pool.putconn(conn)
 
             return updated_count
 

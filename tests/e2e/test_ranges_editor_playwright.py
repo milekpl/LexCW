@@ -145,26 +145,25 @@ class TestRangesEditorCRUD:
         page.click('#elements-tab')
         page.wait_for_timeout(1000)
 
-        # Wait for Alpine to render elements
-        page.wait_for_selector('#elements .list-group-item', timeout=10000)
+        # Wait for Alpine to render the elements WITH their edit buttons
+        # (items render before their action buttons).
+        page.wait_for_selector('#elements .list-group-item button[title="Edit"]', timeout=10000)
 
         # Find an element with an edit button (visible nodes in the tree)
         edit_btns = page.locator('#elements .list-group-item button[title="Edit"]')
+        assert edit_btns.count() > 0, "No elements found to test edit in the ranges editor"
 
-        if edit_btns.count() > 0:
-            edit_btns.first.click()
+        edit_btns.first.click()
 
-            # Check element modal opens
-            element_modal = page.locator('#elementModal')
-            expect(element_modal).to_be_visible(timeout=5000)
+        # Check element modal opens
+        element_modal = page.locator('#elementModal')
+        expect(element_modal).to_be_visible(timeout=5000)
 
-            # Verify we can read the element data
-            element_id = page.locator('#elementId')
-            expect(element_id).to_be_visible()
-            element_id_value = element_id.input_value()
-            assert element_id_value, "Element ID should not be empty"
-        else:
-            pytest.skip("No elements found to test edit")
+        # Verify we can read the element data
+        element_id = page.locator('#elementId')
+        expect(element_id).to_be_visible()
+        element_id_value = element_id.input_value()
+        assert element_id_value, "Element ID should not be empty"
 
     def test_create_new_range(self, page: Page, app_url):
         """Test creating a new custom range via the UI and verifying via API."""

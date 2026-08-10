@@ -96,6 +96,33 @@
           return [];
         },
 
+        // Language codes used in the loaded entry data that are NOT configured
+        // for this project (warn the user so they don't silently lose them).
+        get unconfiguredLangs() {
+          var codes = new Set(this.languageOptions.map(function (o) { return o.code; }));
+          var found = [];
+          var seen = {};
+          var scan = function (rows) {
+            if (!Array.isArray(rows)) return;
+            rows.forEach(function (row) {
+              if (row && row.lang && !codes.has(row.lang) && !seen[row.lang]) {
+                seen[row.lang] = true;
+                found.push(row.lang);
+              }
+            });
+          };
+          this.senses.forEach(function (sense) {
+            scan(sense.glossForms);
+            scan(sense.definitionForms);
+            if (Array.isArray(sense.examples)) {
+              sense.examples.forEach(function (ex) {
+                scan(ex && ex.translations);
+              });
+            }
+          });
+          return found;
+        },
+
         // Range-derived option lists
         get grammaticalInfoOptions() {
           return this.rangeData['grammatical-info'] || [];

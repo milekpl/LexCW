@@ -1,5 +1,6 @@
+import time
 import pytest
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 from flask import Flask
 
 
@@ -30,24 +31,35 @@ def test_language_selector_shows_only_configured_languages(page: Page, app_url: 
     assert 'es' in option_values, f"Expected 'es' in language options, got: {option_values}"
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Validation warnings for unconfigured languages not yet implemented")
+@pytest.mark.integration
 def test_language_selector_shows_warning_for_unconfigured_languages(page: Page, app_url: str, configured_flask_app):
-    """Test that a validation warning is shown for unconfigured languages."""
-    app, _ = configured_flask_app
+    """Test that a validation warning is shown for unconfigured languages.
 
-    # Configure project settings to only include 'en'
-    with app.app_context():
-        app.config_manager.set_source_language('en', 'English')
-        app.config_manager.set_target_languages([])
+    The configured project has source 'en' and no target languages, so an entry
+    with an 'fr' gloss should surface the "Unconfigured language" warning in the
+    senses section (the sense tree flags any language code not in the project's
+    configured set).
+    """
+    import requests
 
-    # Navigate to the entry form
-    page.goto(f"{app_url}/entries/add")
+    # Create an entry with an 'fr' gloss (fr is NOT configured: source=en, targets=[])
+    headword = f"langwarn-{int(time.time() * 1000)}"
+    resp = requests.post(
+        f"{app_url}/api/entries/",
+        json={
+            "lexical_unit": {"en": headword},
+            "senses": [{"definition": {"en": "def"}, "glosses": {"fr": "sens"}}],
+        },
+    )
+    assert resp.ok, resp.text
+    entry_id = resp.json().get("id")
+    assert entry_id
 
-    # Wait for page to load
-    page.wait_for_selector("select.language-select")
+    # Open the edit form — the senses section should warn about 'fr'
+    page.goto(f"{app_url}/entries/{entry_id}/edit")
+    page.wait_for_selector('#entry-form', state='visible', timeout=10000)
 
-    # Simulate selecting an unconfigured language (if there was one in the list)
-    # This test assumes we would show validation warnings for languages
-    # that aren't in the configured set - but currently we only show configured languages
-    # So this test needs the feature to be implemented first
-    pass
+    warning = page.locator('.unconfigured-languages-warning')
+    expect(warning.first).to_be_visible(timeout=8000)
+    text = warning.first.inner_text()
+    assert 'fr' in text, f"Expected 'fr' in the unconfigured-languages warning, got: {text}"

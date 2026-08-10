@@ -80,6 +80,13 @@
   </div>
 
   <div class="card-body">
+    <div x-show="unconfiguredLangs.length > 0" x-cloak
+         class="alert alert-warning py-1 px-2 mb-2 unconfigured-languages-warning"
+         role="alert">
+      <i class="fas fa-exclamation-triangle"></i>
+      <strong>Unconfigured language<span x-text="unconfiguredLangs.length > 1 ? 's' : ''"></span>:</strong>
+      <span x-text="unconfiguredLangs.join(', ')"></span>
+    </div>
     <div id="senses-container">
       <template x-for="(sense, si) in senses" :key="sense.id">
         <div class="sense-item card mb-4" :data-sense-index="si">

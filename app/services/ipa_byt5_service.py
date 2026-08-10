@@ -67,6 +67,7 @@ class IPAByT5Service:
             os.path.join("instance", "ipa_models"),
             os.path.join("instance", "ipa_model"),
             os.path.join("scripts", "ipa_training", "ipa_model"),
+            os.path.join("byt5_ipa_model"),  # repo checkout layout
             "ipa_model",
         ]
         for candidate in candidates:

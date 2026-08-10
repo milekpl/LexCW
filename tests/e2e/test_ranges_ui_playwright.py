@@ -104,7 +104,7 @@ class TestRangesUIPlaywright:
         else:
             # If no relation dropdown found, at least verify ranges were loaded
             # by checking via API
-            pytest.skip("Relation dropdown not found in UI, needs UI implementation")
+            pytest.fail("Relation dropdown not found in UI after clicking Add Relation")
 
     def test_variant_type_dropdown_populated(self, page: Page, app_url):
         """Test that variant type dropdown is populated with values from LIFT ranges."""
@@ -114,48 +114,51 @@ class TestRangesUIPlaywright:
         # Wait for page to load
         page.wait_for_load_state('load')
         
-        # Wait for the page to be fully interactive
-        page.wait_for_timeout(500)
-        
         # Scroll to variants section
         page.evaluate("document.querySelector('#variants-container')?.scrollIntoView()")
         
         # Click "Add Variant" button if it exists
         add_variant_btn = page.locator('#add-variant-btn, button:has-text("Add Variant")')
-        if add_variant_btn.count() == 0:
-            pytest.skip("Add Variant button not found in UI")
+        assert add_variant_btn.count() > 0, "Add Variant button not found in UI"
         
         add_variant_btn.first.click()
-        # Wait for a variant select to be present and have options (allow more time)
-        page.wait_for_function("() => { const sel = document.querySelector('select[data-range-id=\"variant-type\"]') || document.querySelector('select[name*=\"variant_type\"]'); return sel && sel.querySelectorAll('option').length > 1; }", timeout=10000)
+        # Alpine's deferred scripts may not have installed their @click delegation
+        # yet — a click that lands too early is silently lost and the variant
+        # form never renders. Retry the click once if the form didn't appear.
+        variant_type_select = page.locator('.variants-section select[x-model="vr.variant_type"]')
+        try:
+            variant_type_select.first.wait_for(state="visible", timeout=3000)
+        except Exception:
+            add_variant_btn.first.click()
+            variant_type_select.first.wait_for(state="visible", timeout=5000)
 
-        # Find variant type dropdown using the data-range-id attribute (more reliable)
-        variant_type_select = page.locator('select[data-range-id="variant-type"]')
+        # The variant-type options are loaded async from the ranges API — wait
+        # until a real variant option is present so the assertions below don't
+        # race the range loader.
+        page.wait_for_function(
+            """() => {
+                const sel = document.querySelector('.variants-section select[x-model="vr.variant_type"]');
+                if (!sel) return false;
+                const opts = Array.from(sel.options).map(o => o.text.toLowerCase());
+                return opts.some(t => ['spelling', 'dialect', 'free', 'irregular'].some(v => t.includes(v)));
+            }""",
+            timeout=5000,
+        )
+
+        # Wait for it to be visible
+        expect(variant_type_select.first).to_be_visible(timeout=5000)
         
-        if variant_type_select.count() == 0:
-            # Fallback to name-based selector
-            variant_type_select = page.locator('select[name*="variant_type"]')
-
-        if variant_type_select.count() == 0:
-            pytest.skip("Variant dropdown not found in UI after clicking Add Variant")
-
-            # Wait for it to be visible
-            expect(variant_type_select.first).to_be_visible(timeout=5000)
-            
-            # Get all options
-            options = variant_type_select.first.locator('option').all_text_contents()
-            
-            # Should have more than just the empty/placeholder option
-            assert len(options) > 1, f"Expected multiple variant type options, got: {options}"
-            
-            # Check for common variant types (our test data has: Spelling Variant, Dialectal Variant, Free Variant, Irregularly Inflected Form)
-            options_text = " ".join(options).lower()
-            common_variants = ['spelling', 'dialect', 'free', 'irregular']
-            has_variant = any(var in options_text for var in common_variants)
-            assert has_variant, f"Expected at least one common variant type in: {options}"
-
-        else:
-            pytest.skip("Variant dropdown not found in UI after clicking Add Variant")
+        # Get all options
+        options = variant_type_select.first.locator('option').all_text_contents()
+        
+        # Should have more than just the empty/placeholder option
+        assert len(options) > 1, f"Expected multiple variant type options, got: {options}"
+        
+        # Check for common variant types (our test data has: Spelling Variant, Dialectal Variant, Free Variant, Irregularly Inflected Form)
+        options_text = " ".join(options).lower()
+        common_variants = ['spelling', 'dialect', 'free', 'irregular']
+        has_variant = any(var in options_text for var in common_variants)
+        assert has_variant, f"Expected at least one common variant type in: {options}"
 
     def test_ranges_loaded_via_api(self, page: Page, app_url):
         """Test that ranges are accessible via API endpoint."""

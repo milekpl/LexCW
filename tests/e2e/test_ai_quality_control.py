@@ -84,7 +84,7 @@ class TestAIQualityControl:
         )
         
         if response.status_code != 201:
-            pytest.skip("Could not create test workset")
+            pytest.fail("Could not create test workset (PostgreSQL available)")
         
         result = response.json()
         workset_id = result['workset_id']
@@ -132,7 +132,7 @@ class TestAIQualityControl:
         )
         
         if response.status_code != 201:
-            pytest.skip("Could not create test workset")
+            pytest.fail("Could not create test workset (PostgreSQL available)")
         
         workset_id = response.json()['workset_id']
         
@@ -178,7 +178,7 @@ class TestAIQualityControl:
         )
         
         if response.status_code != 201:
-            pytest.skip("Could not create test workset")
+            pytest.fail("Could not create test workset (PostgreSQL available)")
         
         result = response.json()
         workset_id = result['workset_id']
@@ -190,12 +190,12 @@ class TestAIQualityControl:
         )
         
         if entries_response.status_code != 200:
-            pytest.skip("Could not get workset entries")
+            pytest.fail("Could not get workset entries after creating workset")
         
         workset_data = entries_response.json()
         
         if 'entries' not in workset_data or not workset_data['entries']:
-            pytest.skip("No entries in workset to test with")
+            pytest.fail("No entries in workset to test with after adding entries")
         
         first_entry = workset_data['entries'][0]
         entry_id = first_entry.get('id', first_entry.get('entry_id'))
@@ -348,7 +348,7 @@ class TestWorksetQueryFilter:
             print(f"✅ Created filtered workset {workset_id} for nouns")
         else:
             # May fail if no noun entries exist - that's OK for this test
-            pytest.skip("Could not create filtered workset (may be no matching entries)")
+            pytest.fail("Could not create filtered workset")
     
     def test_validate_workset_query(self, page, app_url):
         """
@@ -363,14 +363,13 @@ class TestWorksetQueryFilter:
         }
         
         response = requests.post(
-            f"{app_url}/api/worksets/validate-query",
+            f"{app_url}/api/queries/validate",
             json={'query': query}
         )
         
-        # Endpoint may or may not exist
-        if response.status_code == 200:
-            result = response.json()
-            assert 'valid' in result or 'errors' in result
-            print(f"✅ Query validation endpoint working")
-        else:
-            pytest.skip("Query validation endpoint not available")
+        # The endpoint must exist and validate the query (a non-200 here is a
+        # real regression, not a reason to skip).
+        assert response.status_code == 200, f"validate-query endpoint failed: {response.status_code} {response.text[:200]}"
+        result = response.json()
+        assert 'valid' in result or 'errors' in result
+        print(f"✅ Query validation endpoint working")

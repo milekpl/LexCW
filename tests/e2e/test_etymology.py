@@ -252,18 +252,15 @@ class TestEtymologyIpaValidation:
 
         row = page.locator(".etymology-form-lang-row").first
         lang_select = row.locator(".etymology-form-lang-select")
+        # Options render via Alpine reactivity — wait for the IPA option the
+        # etymology component always exposes (a missing option is a real bug).
+        expect(lang_select.locator('option:has-text("IPA")')).to_have_count(1, timeout=5000)
         options = lang_select.locator("option").all_text_contents()
-        ipa_option = None
-        for opt in options:
-            normalized = opt.strip().lower()
-            if "fonipa" in normalized or "ipa" in normalized:
-                ipa_option = opt.strip()
-                break
-
-        if not ipa_option:
-            pytest.skip(
-                "Project languages do not expose an IPA code option in etymology language selector"
-            )
+        ipa_option = next(
+            (opt.strip() for opt in options if "fonipa" in opt.lower() or "ipa" in opt.lower()),
+            None,
+        )
+        assert ipa_option, "IPA option should be exposed in etymology language selector"
 
         lang_select.select_option(label=ipa_option)
 

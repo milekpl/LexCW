@@ -1,6 +1,7 @@
 """
 E2E test: Query builder estimate must match preview for Note searches.
 """
+import time
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -62,26 +63,23 @@ class TestWorksetCurationLoads:
 
     def test_curation_page_loads_without_500(self, page: Page, app_url: str):
         """Navigate to a workset curation page and verify it doesn't 500."""
-        page.goto(f"{app_url}/workbench/worksets")
-        page.wait_for_load_state("load")
+        # The fresh test DB has no worksets — create one via the query-builder
+        # execute endpoint (same path the app uses to build worksets).
+        import requests
+        name = f"curation-{int(time.time() * 1000)}"
+        r = requests.post(
+            f"{app_url}/api/query-builder/execute",
+            json={"workset_name": name,
+                  "query": {"filters": [], "sort_by": None, "sort_order": "asc"}},
+            timeout=10,
+        )
+        assert r.ok, f"Failed to create workset for curation test: {r.text[:200]}"
+        data = r.json()
+        workset_id = data.get("workset_id") or data.get("workset", {}).get("id")
+        assert workset_id, f"No workset id in response: {data}"
 
-        cards = page.locator(".workset-card")
-        if cards.count() == 0:
-            pytest.skip("No worksets available to test curation")
-
-        # Click "Start Curation" on first workset
-        curate_link = cards.first.locator("a:has-text('Start Curation')")
-        if curate_link.count() > 0:
-            curate_link.click()
-        else:
-            cards.first.locator(".dropdown-toggle").click()
-            page.wait_for_timeout(300)
-            curate_btn = page.locator(".curate-btn").first
-            if curate_btn.count() > 0:
-                curate_btn.click()
-            else:
-                pytest.skip("No curation link found")
-
+        # Navigate directly to the workset's curation page
+        page.goto(f"{app_url}/workbench/worksets/{workset_id}/curation")
         page.wait_for_load_state("load")
         page.wait_for_timeout(2000)
 

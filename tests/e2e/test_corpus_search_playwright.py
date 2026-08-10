@@ -27,8 +27,10 @@ def _skip_if_no_corpus():
     """
     url = os.getenv('LUCENE_CORPUS_URL', 'http://localhost:8082')
     try:
-        # quick lightweight check - timeout kept small so tests don't hang
-        requests.get(url, timeout=1)
+        # Any HTTP response (even 404) means the service is up; only a
+        # connection failure means it is genuinely absent. Allow enough time
+        # for a real (possibly cold) service to answer.
+        requests.get(url, timeout=5)
     except Exception:
         pytest.skip("Lucene corpus service not available; skipping corpus integration tests")
 

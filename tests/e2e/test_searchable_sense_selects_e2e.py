@@ -76,10 +76,15 @@ def test_semantic_domain_multiselect_chips(page: Page, app_url: str) -> None:
     box = field.locator('input[type="text"]').first
     box.scroll_into_view_if_needed()
     box.click()
+    # Options load async from the ranges API — wait until at least two are
+    # present (the pristine semantic-domain range has several).
+    page.wait_for_function(
+        "() => document.querySelectorAll('.list-group-item-action').length >= 2",
+        timeout=8000,
+    )
     opts = field.locator('.list-group-item-action')  # multi-select has no "— none —"
     expect(opts.first).to_be_visible(timeout=8000)
-    if opts.count() < 2:
-        pytest.skip("semantic-domain range has <2 options in this DB")
+    assert opts.count() >= 2, "semantic-domain range should expose >= 2 options"
 
     opts.nth(0).click()
     page.wait_for_timeout(120)

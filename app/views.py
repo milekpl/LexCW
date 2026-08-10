@@ -2321,7 +2321,8 @@ def workset_curate(workset_id: int):
     try:
         # Get workset info from database
         from flask import current_app
-        with current_app.pg_pool.getconn() as conn:
+        conn = current_app.pg_pool.getconn()
+        try:
             with conn.cursor() as cur:
                 cur.execute("SELECT name, total_entries FROM worksets WHERE id = %s", (workset_id,))
                 row = cur.fetchone()
@@ -2329,6 +2330,8 @@ def workset_curate(workset_id: int):
                     return render_template("error.html", error_message="Workset not found"), 404
                 workset_name = row[0]
                 total_entries = row[1]
+        finally:
+            current_app.pg_pool.putconn(conn)
 
         return render_template(
             "workbench/workset_curation.html",

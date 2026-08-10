@@ -9,6 +9,28 @@ from __future__ import annotations
 
 from flask import Blueprint, request, jsonify, current_app
 from flasgger import swag_from
+from contextlib import contextmanager
+
+
+@contextmanager
+def _pg_connection():
+    """Checked-out pool connection that is ALWAYS returned to the pool.
+
+    psycopg2's ``with conn:`` commits/rolls back but never calls putconn(),
+    which silently drains SimpleConnectionPool (20 slots) — enough workset API
+    calls exhaust the pool ("connection pool exhausted") and every later
+    workset request fails.
+    """
+    conn = current_app.pg_pool.getconn()
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        current_app.pg_pool.putconn(conn)
+
 import logging
 import json
 from typing import Dict, Any, List, Union, Tuple
@@ -441,7 +463,7 @@ def update_entry_status(workset_id: int, entry_id: str) -> tuple[Dict[str, Any],
 
         notes = data.get('notes', '')
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE workset_entries
@@ -476,7 +498,7 @@ def toggle_favorite(workset_id: int, entry_id: str) -> tuple[Dict[str, Any], int
 
         is_favorite = data['is_favorite']
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE workset_entries
@@ -531,7 +553,7 @@ def get_curation_progress(workset_id: int) -> tuple[Dict[str, Any], int]:
             # Fall back to database-derived counts if the service cannot provide progress
             pass
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Get status counts
                 cur.execute("""
@@ -577,7 +599,7 @@ def get_current_entry(workset_id: int) -> tuple[Dict[str, Any], int]:
     try:
         position = request.args.get('position', 0, type=int)
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Get total count first
                 cur.execute("SELECT COUNT(*) FROM workset_entries WHERE workset_id = %s", (workset_id,))
@@ -682,7 +704,7 @@ def navigate_entries(workset_id: int, direction: str) -> tuple[Dict[str, Any], i
         data = request.get_json(silent=True) or {}
         current_position = data.get('position', 0)
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Get total count
                 cur.execute("SELECT COUNT(*) FROM workset_entries WHERE workset_id = %s", (workset_id,))
@@ -776,7 +798,7 @@ def list_workset_entries(workset_id: int) -> tuple[Dict[str, Any], int]:
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Get workset info
                 cur.execute("SELECT name FROM worksets WHERE id = %s", (workset_id,))
@@ -877,7 +899,7 @@ def bulk_delete_worksets() -> tuple[Dict[str, Any], int]:
         except (ValueError, TypeError):
             return {'error': 'All IDs must be integers'}, 400
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Delete worksets (cascade deletes workset_entries)
                 placeholders = ','.join(['%s'] * len(ids))
@@ -907,7 +929,7 @@ def add_entry_to_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
 
         entry_id = data['entry_id']
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Check if workset exists
                 cur.execute("SELECT id, name FROM worksets WHERE id = %s", (workset_id,))
@@ -965,7 +987,7 @@ def add_entry_to_workset(workset_id: int) -> tuple[Dict[str, Any], int]:
 def list_pipelines() -> tuple[Dict[str, Any], int]:
     """List all pipeline templates."""
     try:
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT id, name, description, pipeline_config, type, created_at, updated_at
@@ -1021,7 +1043,7 @@ def create_pipeline() -> tuple[Dict[str, Any], int]:
             'conditions': conditions
         }
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO worksets (name, type, pipeline_config, total_entries, query)
@@ -1052,7 +1074,7 @@ def create_pipeline() -> tuple[Dict[str, Any], int]:
 def get_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
     """Get pipeline template details."""
     try:
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT id, name, pipeline_config, type, created_at, updated_at
@@ -1089,7 +1111,7 @@ def update_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
         if not data:
             return {'error': 'No data provided'}, 400
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Check pipeline exists
                 cur.execute("SELECT id FROM worksets WHERE id = %s AND type = 'pipeline'", (pipeline_id,))
@@ -1132,7 +1154,7 @@ def update_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
 def delete_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
     """Delete pipeline template."""
     try:
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     DELETE FROM worksets
@@ -1161,7 +1183,7 @@ def execute_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
         filters = data.get('filters')
 
         # Get pipeline config
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT name, pipeline_config FROM worksets
@@ -1186,7 +1208,7 @@ def execute_pipeline(pipeline_id: int) -> tuple[Dict[str, Any], int]:
 
         if scope == 'workset' and workset_id:
             # Get entries from workset
-            with current_app.pg_pool.getconn() as conn:
+            with _pg_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
                         SELECT entry_id FROM workset_entries WHERE workset_id = %s
@@ -1369,7 +1391,7 @@ def get_ai_review_results(workset_id: int):
         limit = request.args.get('limit', 200, type=int)
         offset = request.args.get('offset', 0, type=int)
 
-        with current_app.pg_pool.getconn() as conn:
+        with _pg_connection() as conn:
             with conn.cursor() as cur:
                 # Get workset info
                 cur.execute("SELECT id, name, ui_settings FROM worksets WHERE id = %s", (workset_id,))

@@ -8,7 +8,7 @@ Tests that:
 from __future__ import annotations
 
 import pytest
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 
 
 @pytest.mark.integration
@@ -27,13 +27,19 @@ def test_pos_field_in_add_form(page: Page, app_url: str, ensure_sense) -> None:
     
     # Try to select a POS if field is available
     if pos_field.count() > 0:
-        # Only attempt to select/verify POS if the option exists in the select
-        if pos_field.locator('option:has-text("Noun")').count() > 0:
-            pos_field.select_option(label='Noun')
-            selected_value = pos_field.input_value()
-            assert selected_value == 'Noun', f"POS should be set to Noun, got: {selected_value}"
-        else:
-            pytest.skip('POS range options not available; skipping POS selection test')
+        # POS options load async from the ranges API — wait for a Noun option
+        # (the grammatical-info range may carry duplicate Nouns from real
+        # FieldWorks data, so match at least one).
+        page.wait_for_function(
+            """() => {
+                const sel = document.querySelector('#part-of-speech');
+                return sel && Array.from(sel.options).some(o => (o.text || '').includes('Noun'));
+            }""",
+            timeout=5000,
+        )
+        pos_field.select_option(label='Noun')
+        selected_value = pos_field.input_value()
+        assert selected_value == 'Noun', f"POS should be set to Noun, got: {selected_value}"
     
     # Ensure a sense exists and fill definition
     ensure_sense(page)

@@ -82,6 +82,26 @@
         var idInput = form.querySelector('[name="id"]');
         if (idInput && idInput.value) result.id = idInput.value;
       }
+      // Components are managed by the plain-JS componentSearchHandler (not an
+      // Alpine x-data section), so they never appear in extractAlpineState().
+      // Collect the hidden `components[i].ref/type/order` inputs the handler
+      // writes into the form and surface them in the serializer input.
+      if (form) {
+        var byIndex = {};
+        form.querySelectorAll('[name^="components["]').forEach(function (input) {
+          var m = input.name.match(/^components\[(\d+)\]\.(\w+)$/);
+          if (!m) return;
+          var idx = parseInt(m[1], 10);
+          if (!byIndex[idx]) byIndex[idx] = {};
+          byIndex[idx][m[2]] = input.value;
+        });
+        var compKeys = Object.keys(byIndex)
+          .map(Number)
+          .sort(function (a, b) { return a - b; });
+        if (compKeys.length > 0) {
+          result.components = compKeys.map(function (idx) { return byIndex[idx]; });
+        }
+      }
       return result;
     },
 

@@ -111,7 +111,7 @@ class TestWorksetSelection:
         name = f"Test Workset {uuid.uuid4().hex[:8]}"
         wid = _create_workset_via_api(app_url, name)
         if wid is None:
-            pytest.skip("Failed to create workset")
+            pytest.fail("Failed to create workset via API (PostgreSQL available)")
         yield wid
         _delete_workset_via_api(app_url, wid)
 
@@ -229,7 +229,7 @@ class TestWorksetCreation:
             page.wait_for_selector("#createWorksetModal", state="detached", timeout=10000)
         except Exception:
             if page.locator(".toast.text-bg-danger").is_visible():
-                pytest.skip("Workset creation failed - PostgreSQL issue")
+                pytest.fail("Workset creation failed despite PostgreSQL being available")
 
         # Verify on worksets page
         page.goto(f"{app_url}/workbench/worksets")
@@ -243,7 +243,7 @@ class TestWorksetCreation:
             worksets = data.get("worksets", []) if isinstance(data, dict) else data
             names = [w.get("name") for w in worksets]
             if workset_name not in names:
-                pytest.skip("Workset not created")
+                pytest.fail("Workset not created despite PostgreSQL being available")
 
         expect(page.locator(f"h6:has-text('{workset_name}')")).to_be_visible()
 
@@ -276,7 +276,7 @@ class TestWorksetCreation:
                 expect(page.locator("#createWorksetModal")).not_to_be_visible(timeout=5000)
             except Exception:
                 if page.locator(".toast.text-bg-danger").is_visible():
-                    pytest.skip("Workset creation failed")
+                    pytest.fail("Workset creation failed despite PostgreSQL being available")
 
         # Verify
         page.goto(f"{app_url}/workbench/worksets")
@@ -289,7 +289,7 @@ class TestWorksetCreation:
             worksets = data.get("worksets", []) if isinstance(data, dict) else data
             names = [w.get("name") for w in worksets]
             if workset_name not in names:
-                pytest.skip("Workset not created")
+                pytest.fail("Workset not created despite PostgreSQL being available")
 
         expect(page.locator(f"h6:has-text('{workset_name}')")).to_be_visible()
 
