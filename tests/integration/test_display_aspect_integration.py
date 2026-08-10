@@ -7,7 +7,7 @@ for various LIFT elements including relations, grammatical-info, variants, and t
 from __future__ import annotations
 
 import pytest
-from flask import Flask
+from flask import Flask, current_app
 
 from app.services.css_mapping_service import CSSMappingService
 from app.models.display_profile import DisplayProfile, ProfileElement
@@ -43,6 +43,23 @@ class TestDisplayAspectIntegration:
         exist in the full sample-lift-file.lift-ranges.
         """
         with db_app.app_context():
+            # The shared session database's ranges are order-dependent: a prior
+            # test that imported a LIFT file adds the full recommended ranges,
+            # whose lexical-relation lacks 'Part'/'Specific'. Ensure the two
+            # relation types this test renders (with their abbreviations) exist
+            # in the lexical-relation range before rendering.
+            from app.services.dictionary_service import DictionaryService
+            from app.services.ranges_service import RangesService
+            ds = current_app.injector.get(DictionaryService)
+            for rid, label, abbr in (('Part', 'Part', 'pt'), ('Specific', 'Specific', 'spec')):
+                ds.db_connector.execute_command(
+                    "xquery for $r in collection()//*[local-name()='range'][@id='lexical-relation'] "
+                    f"return if (exists($r/*[local-name()='range-element'][@id='{rid}'])) then () "
+                    f"else insert node <range-element id='{rid}'><label><form lang='en'><text>{label}</text></form>"
+                    f"</label><abbrev><form lang='en'><text>{abbr}</text></form></abbrev></range-element> into $r"
+                )
+            RangesService._ranges_cache.clear()
+
             # Create profile with relation element set to 'label' aspect
             profile = DisplayProfile(name="Label Test")
             db.session.add(profile)

@@ -683,6 +683,13 @@ def create_app(config_name=None):
         if not is_testing:
             backup_scheduler.start()
             app.logger.info("Backup scheduler started")
+            # Stop the scheduler before interpreter exit: every non-testing
+            # create_app() (several integration tests create development /
+            # production apps) starts a BackgroundScheduler thread that is never
+            # shut down, so they accumulate and pollute every pytest-timeout
+            # dump. stop() is idempotent.
+            import atexit
+            atexit.register(backup_scheduler.stop)
 
             # Debug: Check if scheduler has any scheduled backups after our setup
             scheduled_after_setup = backup_scheduler.get_scheduled_backups()

@@ -119,17 +119,31 @@ class BaseXConnector:
 
     def _acquire(self, timeout: float = 30) -> _BaseXConnection:
         """Get a connection from the pool. Creates a new one if under max."""
-        self._semaphore.acquire()
+        # Use the timeout: a drained pool must raise, not block forever (a
+        # leaked slot from a failed _make_connection below used to hang every
+        # subsequent caller — the integration-suite freeze).
+        if not self._semaphore.acquire(timeout=timeout):
+            raise DatabaseError(
+                f"Connection pool exhausted after {timeout}s "
+                f"(max_pool={self._max_pool}, created={self._created})"
+            )
 
         try:
-            conn = self._pool.get_nowait()
-            return conn
-        except queue.Empty:
-            pass
+            try:
+                conn = self._pool.get_nowait()
+                return conn
+            except queue.Empty:
+                pass
 
-        conn = self._make_connection()
-        self._created += 1
-        return conn
+            conn = self._make_connection()
+            self._created += 1
+            return conn
+        except Exception:
+            # Never leak the semaphore slot: if connection creation fails
+            # (e.g. transient BaseX errors), return the slot so the pool can
+            # recover instead of draining one slot per failure forever.
+            self._semaphore.release()
+            raise
 
     def _release(self, conn: _BaseXConnection) -> None:
         self._pool.put(conn)

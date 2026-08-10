@@ -105,7 +105,23 @@ class TestDashboardWithCaching:
 @pytest.mark.integration
 class TestCorpusManagementWithCaching:
     """Test corpus management functionality with our caching implementation."""
-    
+
+    @pytest.fixture(autouse=True)
+    def _no_corpus_http(self, app):
+        """Mock the Lucene corpus client so these tests never make real HTTP calls.
+
+        These tests exercise the app's caching/pages — not the external corpus
+        service. Real calls to it can hang the suite for minutes when the
+        service is unreachable, so the HTTP client is stubbed out.
+        """
+        mock_client = Mock()
+        mock_client.stats.return_value = {
+            "total_documents": 0, "total_records": 0, "source": "mock",
+        }
+        mock_client.health.return_value = {"connected": False, "error": None}
+        with patch.object(app, 'lucene_corpus_client', mock_client):
+            yield
+
     @pytest.mark.integration
     def test_corpus_management_with_cache_miss(self, client: FlaskClient) -> None:
         """Test corpus management when cache is empty (cache miss)."""

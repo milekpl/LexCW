@@ -5371,22 +5371,33 @@ class DictionaryService:
                     # at least one existing non-empty range to consider ranges installed.
                     required_range_ids = []
 
-            existing = self.get_ranges()
-            if existing:
-                # If we found a list of required ranges, ensure all are present and contain values.
-                if required_range_ids:
-                    all_present = True
-                    for rid in required_range_ids:
-                        r = existing.get(rid)
-                        if not r or not r.get('values'):
-                            all_present = False
-                            break
-                    if all_present:
-                        self.logger.info("Recommended ranges already installed; returning existing ranges")
-                        return existing
-                else:
-                    # Fallback behaviour: if parsing failed but there is at least one range
-                    # with non-empty values, assume ranges are installed.
+            # Cheap idempotency check: instead of calling get_ranges() (which
+            # parses the whole ranges document — thousands of range elements,
+            # ~250ms) just to see whether the required ranges are installed,
+            # run a server-side existence query. The autouse
+            # ensure_recommended_ranges fixture runs this on every integration
+            # test, so the full parse was costing tens of minutes per suite run.
+            if required_range_ids:
+                try:
+                    id_list = ",".join(f'"{rid}"' for rid in required_range_ids)
+                    check_query = (
+                        f"every $id in ({id_list}) satisfies "
+                        f"exists(collection()//*[local-name()='range'][@id=$id]/*)"
+                    )
+                    installed = (
+                        str(self.db_connector.execute_query(check_query)).strip().lower()
+                        == "true"
+                    )
+                except Exception:
+                    installed = False
+                if installed:
+                    self.logger.info("Recommended ranges already installed")
+                    return {"installed": True, "ranges": []}
+            else:
+                # Fallback (minimal.lift-ranges could not be parsed): use the old
+                # get_ranges-based check. Rare path.
+                existing = self.get_ranges()
+                if existing:
                     for r in existing.values():
                         if r.get('values'):
                             self.logger.info("Recommended ranges already installed; returning existing ranges (fallback)")

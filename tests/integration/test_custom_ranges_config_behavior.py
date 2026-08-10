@@ -12,6 +12,9 @@ def test_custom_config_range_is_provided_and_marked(client, app):
 
     # Simulate LIFT having no ranges
     service.ranges_parser.parse_string = lambda xml: {}
+    # The ranges cache is class-level (shared process-wide) — a prior test's
+    # cached ranges would otherwise leak `provided_by_config` state here.
+    service._invalidate_cache()
 
     ranges = service.get_all_ranges()
 
@@ -30,6 +33,9 @@ def test_api_returns_provided_flag_for_config_range(client, app):
     # Ensure LIFT missing
     service: RangesService = client.application.injector.get(RangesService)
     service.ranges_parser.parse_string = lambda xml: {}
+    # The ranges cache is class-level (shared process-wide) — a prior test's
+    # cached ranges would otherwise leak `provided_by_config` state here.
+    service._invalidate_cache()
 
     # Test a range that is actually marked as fieldworks type in config
     resp = client.get('/api/ranges-editor/is-primary')

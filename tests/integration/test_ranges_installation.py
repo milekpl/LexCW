@@ -54,15 +54,17 @@ def test_entry_form_shows_ranges_missing_banner(app, client):
 
 def test_install_recommended_when_ranges_exist(app, client):
     # Ensure installer is idempotent: when ranges already exist, the endpoint
-    # should return success and the existing ranges rather than erroring.
+    # should return success (a lightweight confirmation) rather than erroring.
+    # The idempotent path intentionally avoids re-serializing the full ranges
+    # document (thousands of range elements — ~250ms per call), which is what
+    # made the per-test autouse fixture so expensive.
     with patch('app.services.dictionary_service.DictionaryService.get_lift_ranges') as mock_get_ranges:
         mock_get_ranges.return_value = {'grammatical-info': {'id': 'grammatical-info', 'values': []}}
         resp = client.post('/api/ranges/install_recommended')
         assert resp.status_code == 201
         data = resp.get_json()
         assert data['success'] is True
-        assert 'data' in data
-        assert 'grammatical-info' in data['data']
+        assert data.get('data', {}).get('installed') is True
 
 
 @pytest.mark.integration

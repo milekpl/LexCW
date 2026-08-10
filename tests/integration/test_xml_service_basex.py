@@ -7,6 +7,7 @@ Tests the complete CRUD lifecycle and search functionality using Entry objects.
 from __future__ import annotations
 
 import pytest
+import uuid
 
 from app.models.entry import Entry
 from app.models.sense import Sense
@@ -179,8 +180,11 @@ class TestIntegrationUpdateEntry:
     
     def test_update_nonexistent_entry_fails(self, service):
         """Test that updating non-existent entry fails."""
+        # Use a unique id: the shared session database may contain entries
+        # created by earlier tests, so a fixed id like 'nonexistent' could
+        # collide and make this update unexpectedly succeed.
         entry = Entry(
-            id='nonexistent',
+            id=f'nonexistent_{uuid.uuid4().hex[:10]}',
             lexical_unit={'en': 'word'},
             senses=[Sense(glosses={'en': 'gloss'})]
         )

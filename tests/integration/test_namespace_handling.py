@@ -227,7 +227,9 @@ class TestXQueryBuilder:
         query = XQueryBuilder.build_update_entry_query("test", entry_xml, "test_db", has_namespace=True)
         
         assert "replace node" in query
-        assert "lift:entry[@id=\"test\"]" in query
+        # The selector is widened to the same broad match as exists/delete
+        # (id, GUID, suffix, sense id), but must still target the entry by id.
+        assert "lift:entry[@id=\"test\"" in query
         assert entry_xml in query
     
     @pytest.mark.integration
